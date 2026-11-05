@@ -65,7 +65,7 @@ test('Vinotéka: přehled, hledání, drawer filtrů, otevření poslední lahve
 }, testInfo) => {
   test.setTimeout(90_000);
   await page.addInitScript(() => localStorage.clear());
-  await page.goto('/wine');
+  await page.goto('/homebrain-vinoteka');
   await expect(page.getByRole('heading', { name: 'Vinotéka', exact: true }).first()).toBeAttached();
   await expect(page.getByTestId('wine-result-count')).toContainText('50 z 50 vín');
   // Mobile hides metrics like the approved design; the cooler card stays.
@@ -144,7 +144,7 @@ test('Vinotéka: import objednávky (text) s kontrolou součtu a Doplnit ze Znov
 }) => {
   test.setTimeout(90_000);
   await page.addInitScript(() => localStorage.clear());
-  await page.goto('/wine');
+  await page.goto('/homebrain-vinoteka');
   await page.getByTestId('wine-card').first().waitFor();
   // Without a photo, cards use the photo-like SVG inside the same 3:4 studio frame.
   const frame = page.getByTestId('wine-card').first().locator('.wine-bottle-frame');
@@ -217,7 +217,7 @@ for (const vp of [
   test(`Vinotéka: hlavička detailu bez překryvu ${vp.width}×${vp.height}`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.addInitScript(() => localStorage.clear());
-    await page.goto('/wine');
+    await page.goto('/homebrain-vinoteka');
     await page.getByTestId('wine-card').first().click();
     const detail = page.getByTestId('wine-detail');
     await expect(detail).toBeVisible();
@@ -248,7 +248,7 @@ test('Vinotéka: detail v HA cestě a návrat tlačítkem Zpět', async ({ page 
 test('Vinotéka: přidat víno – ruční EAN → návrh → uložení', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.clear());
-  await page.goto('/wine');
+  await page.goto('/homebrain-vinoteka');
   await page.getByTestId('wine-card').first().waitFor();
   await page.getByTestId('wine-add-open').click();
   const sheet = page.getByTestId('wine-add');

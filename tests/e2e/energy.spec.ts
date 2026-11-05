@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
-  await page.goto('/energy');
+  await page.goto('/homebrain-energie');
   await expect(page.getByRole('heading', { name: 'Energie', exact: true, level: 1 })).toBeVisible();
   await expect(page.getByTestId('energy-price')).toBeVisible();
   await expect(page.getByTestId('energy-cheap-today')).toContainText('13–15 h');
@@ -20,18 +20,18 @@ test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
 });
 
 test('nedostupná data Energie', async ({ page }) => {
-  await page.goto('/energy?energy=unavailable');
+  await page.goto('/homebrain-energie?energy=unavailable');
   await expect(page.getByText('Nedostupné').first()).toBeVisible();
   await expect(page.getByTestId('energy-flow-pv')).toContainText('–');
 });
 
 test('vybitá baterie v noci', async ({ page }) => {
-  await page.goto('/energy?energy=night');
+  await page.goto('/homebrain-energie?energy=night');
   await expect(page.getByTestId('energy-signals')).toContainText('Baterie 9 %');
 });
 
 test('karta Spotřebiče a dokončená myčka', async ({ page }) => {
-  await page.goto('/energy?dishwasher=finished');
+  await page.goto('/homebrain-energie?dishwasher=finished');
   const card = page.getByTestId('energy-appliances');
   await expect(card).toBeVisible();
   await expect(card.getByRole('listitem')).toHaveCount(4);
@@ -48,7 +48,7 @@ test('karta Spotřebiče a dokončená myčka', async ({ page }) => {
 test.describe('Doporučení', () => {
   test('poledne: přebytek se zahodí, myčka teď, střídač a předpověď FVE', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-    await page.goto('/energy?dishwasher=idle');
+    await page.goto('/homebrain-energie?dishwasher=idle');
     const card = page.getByTestId('energy-advice');
     await expect(card).toBeVisible();
     await expect(card.locator('.en-adv-item')).toHaveCount(3);
@@ -71,7 +71,7 @@ test.describe('Doporučení', () => {
 
   test('večer bez FVE: okno podle ceny a tichých hodin', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-06-02T19:00:00+02:00'));
-    await page.goto('/energy?pv=unconfigured');
+    await page.goto('/homebrain-energie?pv=unconfigured');
     await expect(page.getByTestId('energy-advice-basis')).toContainText('Předpověď FVE chybí');
     const dishwasher = page.getByTestId('energy-advice-dishwasher');
     await expect(dishwasher).toHaveAttribute('data-status', 'ok');
@@ -79,7 +79,7 @@ test.describe('Doporučení', () => {
   });
 
   test('nedostatek dat', async ({ page }) => {
-    await page.goto('/energy?energy=nodata&pv=unconfigured');
+    await page.goto('/homebrain-energie?energy=nodata&pv=unconfigured');
     const card = page.getByTestId('energy-advice');
     await expect(card.locator('[data-status="insufficient"]')).toHaveCount(3);
     await expect(page.getByTestId('energy-advice-dishwasher')).toContainText('Nedostatek dat');
@@ -207,7 +207,7 @@ test.describe('Hero: piktogramový diagram toků', () => {
       page,
     }) => {
       await page.clock.setFixedTime(new Date(sc.at));
-      await page.goto(`/energy?flow=${sc.flow}`);
+      await page.goto(`/homebrain-energie?flow=${sc.flow}`);
       const hero = page.getByTestId('energy-flow');
       await expect(hero).toBeVisible();
       // One route per source → destination pair; idle pairs are not drawn at all.
@@ -269,7 +269,7 @@ test.describe('Hero: piktogramový diagram toků', () => {
 
   test('klepnutí na uzel otevře detail, Escape zavře', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-    await page.goto('/energy?flow=noon');
+    await page.goto('/homebrain-energie?flow=noon');
     await page.getByTestId('energy-flow-node-pv').click();
     const sheet = page.getByTestId('energy-flow-sheet');
     await expect(sheet).toContainText('String FV1');
@@ -281,7 +281,7 @@ test.describe('Hero: piktogramový diagram toků', () => {
     const ctx = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await ctx.newPage();
     await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-    await page.goto('/energy?flow=noon');
+    await page.goto('/homebrain-energie?flow=noon');
     await expect(page.getByTestId('energy-flow-consumer-dishwasher')).toBeVisible();
     const running = await page.evaluate(
       () =>
@@ -306,7 +306,7 @@ test.describe('Fáze: tři fáze, nesymetrie a saldování', () => {
 
   test('vyrovnané fáze', async ({ page }) => {
     await page.clock.setFixedTime(new Date(at));
-    await page.goto('/energy?flow=balanced');
+    await page.goto('/homebrain-energie?flow=balanced');
     const ph = page.getByTestId('energy-phases');
     await expect(ph).toHaveAttribute('data-state', 'ok');
     await expect(page.getByTestId('energy-phases-state')).toHaveText('vyrovnané');
@@ -318,7 +318,7 @@ test.describe('Fáze: tři fáze, nesymetrie a saldování', () => {
 
   test('tepelné čerpadlo na L1: vysoká nesymetrie, detail s historií', async ({ page }) => {
     await page.clock.setFixedTime(new Date(at));
-    await page.goto('/energy?flow=asym');
+    await page.goto('/homebrain-energie?flow=asym');
     const ph = page.getByTestId('energy-phases');
     await expect(ph).toHaveAttribute('data-state', 'warn');
     await expect(ph).toContainText('18 A rozdíl fází');
@@ -338,7 +338,7 @@ test.describe('Fáze: tři fáze, nesymetrie a saldování', () => {
 
   test('L1 odebírá, L2 + L3 dodávají: saldování elektroměru', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-    await page.goto('/energy?flow=mixed');
+    await page.goto('/homebrain-energie?flow=mixed');
     await expect(page.getByTestId('energy-phases-saldo')).toContainText(
       'L1 odebírá 0,8 kW, L2 + L3 dodávají 2,1 kW → elektroměr počítá dodávku 1,3 kW',
     );
@@ -356,7 +356,7 @@ test.describe('Hero: text u uzlů mimo čáry (telefon a tablet)', () => {
       }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.clock.setFixedTime(new Date('2026-06-02T09:21:00+02:00'));
-        await page.goto(`/energy?flow=${flow}`);
+        await page.goto(`/homebrain-energie?flow=${flow}`);
         const hero = page.getByTestId('energy-flow');
         await expect(hero.locator('.ef-chev').first()).toBeVisible();
         expect(await textOverLanes(page)).toEqual([]);
@@ -377,7 +377,7 @@ test.describe('Hero: text u uzlů mimo čáry (telefon a tablet)', () => {
   }) => {
     await page.setViewportSize({ width: 820, height: 900 });
     await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-    await page.goto('/energy?flow=mixed');
+    await page.goto('/homebrain-energie?flow=mixed');
     const hero = page.getByTestId('energy-flow');
     await expect(hero.locator('.ef-chev').first()).toBeVisible();
     const y = async (sel: string) => {
@@ -401,7 +401,7 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
       await page.clock.setFixedTime(
         new Date(flow === 'cloudy' ? '2026-06-02T14:06:00+02:00' : '2026-06-02T23:40:00+02:00'),
       );
-      await page.goto(`/energy?flow=${flow}`);
+      await page.goto(`/homebrain-energie?flow=${flow}`);
       const hero = page.getByTestId('energy-flow');
       await expect(hero.locator('.ef-chev').first()).toBeVisible();
       const geo = await hero.evaluate((root) => {
@@ -459,7 +459,7 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
     }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.clock.setFixedTime(new Date('2026-06-02T23:40:00+02:00'));
-      await page.goto('/energy?flow=nightcharge');
+      await page.goto('/homebrain-energie?flow=nightcharge');
       const hero = page.getByTestId('energy-flow');
       await expect(hero.locator('.ef-chev').first()).toBeVisible();
       await expect(page.getByTestId('energy-flow-battery')).toContainText('nabíjí');
@@ -487,7 +487,7 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
     }) => {
       await page.setViewportSize({ width: 320, height: 800 });
       await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-      await page.goto(`/energy?flow=${flow}&theme=light`);
+      await page.goto(`/homebrain-energie?flow=${flow}&theme=light`);
       const hero = page.getByTestId('energy-flow');
       await expect(hero.locator('.ef-chev').first()).toBeVisible();
       expect(await textOverLanes(page)).toEqual([]);

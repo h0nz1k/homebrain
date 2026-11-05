@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('český přehled svozů a rozložení', async ({ page }, testInfo) => {
   // Fixtures jsou relativní k hodinám; dopoledne v den svozu (po 14:00 hero přejde dál).
   await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-  await page.goto('/waste');
+  await page.goto('/homebrain-odpady');
   await expect(page.getByText('Každá nádoba má svůj den', { exact: true })).toBeVisible();
   await expect(page.getByText('Aktuální', { exact: true })).toBeVisible();
   await expect(page.getByTestId('waste-today')).toHaveCount(0);
@@ -30,12 +30,12 @@ test('český přehled svozů a rozložení', async ({ page }, testInfo) => {
   });
 });
 test('zastaralá data', async ({ page }) => {
-  await page.goto('/waste?waste=stale');
+  await page.goto('/homebrain-odpady?waste=stale');
   await expect(page.getByText('Zastaralé', { exact: true })).toBeVisible();
   await expect(page.getByText(/Data mohou být zastaralá/)).toBeVisible();
 });
 test('nedostupná data', async ({ page }) => {
-  await page.goto('/waste?waste=unavailable');
+  await page.goto('/homebrain-odpady?waste=unavailable');
   await expect(page.getByText('Nedostupné', { exact: true })).toBeVisible();
   await expect(page.getByText('Data svozu nejsou momentálně dostupná').first()).toBeVisible();
 });
@@ -46,7 +46,7 @@ for (const [scenario, label] of [
 ] as const) {
   test(`alternativní zdroj: ${label} (Refs #41)`, async ({ page }) => {
     await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-    await page.goto(`/waste?waste=${scenario}`);
+    await page.goto(`/homebrain-odpady?waste=${scenario}`);
     await expect(page.getByTestId('waste-today')).toHaveCount(0);
     await expect(page.locator('.wb-hero h2')).toHaveText('Papír');
     await expect(page.getByTestId('waste-tomorrow')).toContainText('Plasty');
@@ -71,7 +71,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize(viewport);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-      await page.goto(`/waste?theme=${theme}`);
+      await page.goto(`/homebrain-odpady?theme=${theme}`);
       await expect(page.getByRole('region', { name: 'Příští svoz', exact: true })).toBeVisible();
       await expect(page.locator('.wb-fleet .wb-bin')).toHaveCount(5);
       // Měsíční kalendář listopadu 2026: 6 týdnů × 7 dní, všechny řádky stejně vysoké.
@@ -205,7 +205,7 @@ test('animace dnes, večer a po svozu', async ({ page }, testInfo) => {
     ['bins-collected', 'empty', '2026-11-02T19:30:00Z'],
   ] as const) {
     await page.clock.setFixedTime(new Date(time));
-    await page.goto(`/waste?waste=${scenario}&theme=dark`);
+    await page.goto(`/homebrain-odpady?waste=${scenario}&theme=dark`);
     const hero = page.getByRole('region', { name: 'Příští svoz', exact: true });
     await expect(hero.locator(`.wb-animate-${state}`)).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
@@ -234,7 +234,7 @@ test('close-up of all eight fractions at 2x and timeline alignment', async ({ br
   });
   const page = await context.newPage();
   await page.clock.install({ time: new Date('2026-11-02T19:30:00Z') });
-  await page.goto('/waste?waste=bins-review&theme=light');
+  await page.goto('/homebrain-odpady?waste=bins-review&theme=light');
   await expect(page.locator('.wb-fleet .wb-bin')).toHaveCount(7);
   const slots = page.locator('.wb-mini-stack');
   for (const slot of await slots.all()) {
@@ -302,7 +302,7 @@ test('reduced motion keeps the pickup-day sprite open and suppresses CSS motion'
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-  await page.goto('/waste?theme=dark');
+  await page.goto('/homebrain-odpady?theme=dark');
   const bin = page.locator('.wb-hero .wb-bin--hero');
   await expect(bin.locator('.wb-sprite--open')).toHaveCSS('opacity', '1');
   await expect(bin.locator('.wb-sprite--closed')).toHaveCSS('opacity', '0');
@@ -315,7 +315,7 @@ test('reduced motion keeps the pickup-day sprite open and suppresses CSS motion'
 test('empty weeks keep calendar rows equal height (month grid)', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.install({ time: new Date('2026-11-02T19:30:00Z') });
-  await page.goto('/waste?waste=bins-empty-weeks');
+  await page.goto('/homebrain-odpady?waste=bins-empty-weeks');
   await expect(page.locator('.wb-calendar .wb-day')).toHaveCount(42);
   const heights = await page
     .locator('.wb-calendar .wb-day')
@@ -327,7 +327,7 @@ test('empty weeks keep calendar rows equal height (month grid)', async ({ page }
 
 test('karty „Další svozy“ mají „Naposledy“ ve stejném formátu jako hero', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-  await page.goto('/waste');
+  await page.goto('/homebrain-odpady');
   const format = /^Naposledy (dnes|včera|před \d+ dny · \d+\.\u00a0\d+\.)$/;
   await expect(page.locator('.wb-hero .wb-last')).toHaveText(format);
   const lines = await page
@@ -338,7 +338,7 @@ test('karty „Další svozy“ mají „Naposledy“ ve stejném formátu jako 
 });
 
 test('desktop grid fits every card at its responsive breakpoints', async ({ page }) => {
-  await page.goto('/waste');
+  await page.goto('/homebrain-odpady');
   for (const width of [1100, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const list = page.locator('.wb-fleet');

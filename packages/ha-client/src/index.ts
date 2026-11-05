@@ -191,3 +191,9 @@ export {
   useBackClosable,
   type HbHistoryState,
 } from './backNavigation.js';
+export {
+  KIOSK_PANEL_PATH,
+  LEGACY_PANEL_PATH,
+  PANEL_PATHS_BY_MODULE,
+  SETTINGS_PANEL_PATH,
+} from './panels.generated.js';

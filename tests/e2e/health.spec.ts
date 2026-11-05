@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('obrazovka Zdraví na mockových datech', async ({ page }, testInfo) => {
-  await page.goto('/health');
+  await page.goto('/homebrain-zdravi');
   await expect(page.getByRole('heading', { name: 'Zdraví', exact: true, level: 1 })).toBeVisible();
   await expect(page.getByTestId('health-hero')).toContainText('Dnes silový trénink');
   await expect(page.getByTestId('health-hero')).toContainText('Nejbližší správný krok');
@@ -38,24 +38,24 @@ test('obrazovka Zdraví na mockových datech', async ({ page }, testInfo) => {
 });
 
 test('chybějící integrace = empty state', async ({ page }) => {
-  await page.goto('/health?health=missing');
+  await page.goto('/homebrain-zdravi?health=missing');
   await expect(page.getByTestId('health-missing')).toContainText('v0.7.0');
 });
 
 test('prázdná instalace nepředstírá historii', async ({ page }) => {
-  await page.goto('/health?health=empty&zalozka=odmeny');
+  await page.goto('/homebrain-zdravi?health=empty&zalozka=odmeny');
   await expect(page.getByTestId('health-xp')).toContainText('Zatím bez historie');
   await expect(page.getByTestId('health-xp')).not.toContainText('0 XP');
 });
 
 test('minimum v ohrožení a streak', async ({ page }) => {
-  await page.goto('/health?health=risk');
+  await page.goto('/homebrain-zdravi?health=risk');
   await expect(page.getByTestId('health-hero')).toContainText('Dnes silový trénink');
   await expect(page.getByTestId('health-signals')).toContainText('Streak 2 týdny v ohrožení');
 });
 
 test('kiosk nezobrazí zdravotní data', async ({ page }) => {
-  await page.goto('/health?kiosk=1&health=risk');
+  await page.goto('/homebrain-zdravi?kiosk=1&health=risk');
   await expect(page.getByTestId('health-private')).toBeVisible();
   await expect(page.getByTestId('health-week')).toHaveCount(0);
 });

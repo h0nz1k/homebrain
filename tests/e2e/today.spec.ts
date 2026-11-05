@@ -32,7 +32,7 @@ test.describe('Dnes – obrazovka Today', () => {
     if (opts.theme) {
       params.set('theme', opts.theme);
     }
-    await page.goto(`/today?${params.toString()}`);
+    await page.goto(`/homebrain-dnes?${params.toString()}`);
     await expect(page.getByTestId('today')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     const interLoaded = await page.evaluate(() =>
@@ -513,7 +513,7 @@ test.describe('Dnes – živá data přes falešné HA spojení (?live=1)', () =
       await page.setViewportSize({ width: size.width, height: size.height });
       // Syntetický snapshot počasí je pro den MOCK_NOW (2026-10-31 10:40 Praha).
       await page.clock.setFixedTime(new Date('2026-10-31T10:40:00+01:00'));
-      await page.goto('/today?live=1');
+      await page.goto('/homebrain-dnes?live=1');
       await expect(page.getByTestId('today')).toBeVisible();
       const temp = page.getByTestId('today-temp');
       await expect(temp).toContainText(/\d/);

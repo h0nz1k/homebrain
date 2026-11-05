@@ -258,7 +258,10 @@ export default function AccessView({ store, bindings, route, connection }: Modul
   const now = useNow(1000);
   const [state, setState] = useState<AccessState | null>(null);
   const [live, setLive] = useState<LiveItem[]>([]);
-  const [tab, setTab] = useState<TabId>(() => parseTab(route?.path));
+  const [tabState, setTab] = useState<TabId>(() => parseTab(route?.path));
+  // Inside a panel the url owns the tab (`/homebrain-pristup/<tab>`), so back/forward and
+  // reload show the tab the address names; local state only serves embeds without a route.
+  const tab = route ? parseTab(route.path) : tabState;
   const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
   const [wizard, setWizard] = useState<WizardSpec | null>(null);
   const listeners = useRef(new Set<Listener>());
@@ -602,6 +605,8 @@ function hueOf(name: string): number {
 function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   const { api, run, ensureService, setConfirm, setWizard, selectTab } = ctx;
   const [menu, setMenu] = useState(false);
+  // Back (gesture/browser) closes the person sheet instead of leaving the panel.
+  useBackClosable(() => setMenu(false), menu);
   const dupHands = new Set(findDuplicates([person]).map((d) => d.hand));
   // An unknown palm takes the first empty hand slot; the other one stays "missing".
   const unknownIn: Hand | null = person.unknown.length

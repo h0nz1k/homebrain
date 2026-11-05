@@ -918,17 +918,17 @@ export function flowHeadline(
   const on = (id: FlowPairId) => alloc.pairs[id].active;
   const imp = model.power.gridFlow.importKw ?? Math.max(0, grid.value);
   const dis = Math.max(0, battery.value ?? 0);
-  // Share of the house load from own sources, from the same allocation as the drawn lines.
-  // With reconciled totals the share is computed from the displayed numbers (0,3 of 1,0 = 30 %).
+  // Own share of ALL consumption (house + battery charging; export is not consumption), from
+  // the same allocation as the drawn lines: 1 − grid import / consumption. Grid → battery counts
+  // as import, so charging from the grid never shows 100 % (sun 4,7 + grid 6,3 into a 9,4 kW
+  // charge with a 1,6 kW house = 43 %). Reconciled totals use the displayed numbers.
   const d = alloc.display;
+  const kw = (id: FlowPairId) => alloc.pairs[id].displayKw;
+  const charge = Math.max(0, -(battery.value ?? 0));
+  const consumed = d ? d.house + kw('pv-battery') + kw('grid-battery') : h + charge;
+  const imported = d ? kw('grid-house') + kw('grid-battery') : imp;
   const own =
-    d && d.house > 0
-      ? Math.round(
-          Math.max(0, Math.min(1, 1 - alloc.pairs['grid-house'].displayKw / d.house)) * 100,
-        )
-      : h > 0.01
-        ? Math.round(Math.max(0, Math.min(1, 1 - imp / h)) * 100)
-        : null;
+    consumed > 0.01 ? Math.round(Math.max(0, Math.min(1, 1 - imported / consumed)) * 100) : null;
   const p = Math.max(0, pv.value);
   let title: string;
   if (model.inverter?.tone === 'err')
@@ -938,11 +938,13 @@ export function flowHeadline(
     title =
       on('pv-battery') && on('pv-grid')
         ? 'Slunce pokrývá dům, nabíjí baterii a přebytek posílá do sítě'
-        : on('pv-battery')
-          ? 'Slunce pokrývá dům a nabíjí baterii'
-          : on('pv-grid')
-            ? 'Slunce pokrývá dům a přebytek posílá do sítě'
-            : 'Slunce pokrývá celou spotřebu domu';
+        : on('grid-battery')
+          ? 'Slunce pokrývá dům, baterie se nabíjí i ze sítě'
+          : on('pv-battery')
+            ? 'Slunce pokrývá dům a nabíjí baterii'
+            : on('pv-grid')
+              ? 'Slunce pokrývá dům a přebytek posílá do sítě'
+              : 'Slunce pokrývá celou spotřebu domu';
   } else if (on('grid-battery'))
     title = on('grid-house') ? 'Síť napájí dům a nabíjí baterii' : 'Síť nabíjí baterii';
   else if (dis >= Math.max(p, imp) && dis > 0.05)

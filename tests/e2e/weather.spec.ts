@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('Počasí: hustá obrazovka z mock adaptéru bez přetečení', async ({ page }, testInfo) => {
   test.setTimeout(90_000); // Full radar interaction flow, including cold lazy-module loading.
-  await page.goto('/weather');
+  await page.goto('/homebrain-pocasi');
   await expect(page.getByRole('heading', { name: 'Počasí', exact: true })).toBeVisible();
   await expect(page.getByTestId('weather-now-temp')).toContainText('7,8');
   // The warning is shown exactly once, inside the hero (no banner + card duplicate).
@@ -46,7 +46,7 @@ test('Počasí: hustá obrazovka z mock adaptéru bez přetečení', async ({ pa
 });
 
 test('Počasí: nedostupná data ukazují pomlčky', async ({ page }) => {
-  await page.goto('/weather?weather=unavailable');
+  await page.goto('/homebrain-pocasi?weather=unavailable');
   await expect(page.getByTestId('weather-now-temp')).toContainText('—');
   await expect(page.getByTestId('weather-10d')).toContainText('není k dispozici');
 });
@@ -54,21 +54,21 @@ test('Počasí: nedostupná data ukazují pomlčky', async ({ page }) => {
 test('Dnes: živý feed počasí vlastní signály modulu weather', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   // without `?weather` the dev host clears signal sources → deterministic Dnes fixture
-  await page.goto('/today?state=b');
+  await page.goto('/homebrain-dnes?state=b');
   await expect(page.getByTestId('today')).toContainText('Déšť za 35 min');
   // `?weather=default` registers the weather feed → its nowcast signal replaces the fixture one
-  await page.goto('/today?state=b&weather=default');
+  await page.goto('/homebrain-dnes?state=b&weather=default');
   await expect(page.getByTestId('today')).toContainText('Déšť za ~35 min');
   await expect(page.getByTestId('today')).not.toContainText('Déšť za 35 min');
   // calm snapshot → weatherSignals() = [] → fixture weather signals are replaced, not duplicated
-  await page.goto('/today?state=b&weather=calm');
+  await page.goto('/homebrain-dnes?state=b&weather=calm');
   await expect(page.getByTestId('today-hero')).toBeVisible();
   await expect(page.getByTestId('today')).not.toContainText('Déšť za ~35 min');
   await expect(page.getByTestId('today')).not.toContainText('Déšť za 35 min');
 });
 
 test('Počasí: radar smyčka se dá posouvat a bouřka ukáže konec deště', async ({ page }) => {
-  await page.goto('/weather?weather=storm');
+  await page.goto('/homebrain-pocasi?weather=storm');
   await expect(page.getByTestId('weather-alert-banner')).toContainText('Červená');
   const slider = page.getByTestId('weather-radar-slider');
   await expect(page.getByTestId('weather-radar-headline')).toContainText('přestane za ~25 min');
@@ -81,7 +81,7 @@ test('Počasí: radar smyčka se dá posouvat a bouřka ukáže konec deště', 
 });
 
 test('Počasí: bez výstrah není banner', async ({ page }) => {
-  await page.goto('/weather?weather=calm');
+  await page.goto('/homebrain-pocasi?weather=calm');
   await expect(page.getByTestId('weather-warnings')).toContainText('Bez výstrah');
   await expect(page.getByTestId('weather-alert-banner')).toHaveCount(0);
 });
@@ -89,7 +89,7 @@ test('Počasí: bez výstrah není banner', async ({ page }) => {
 test('Počasí: radar – popisky měst se nepřekrývají s čipy, graf slabého deště se škáluje', async ({
   page,
 }) => {
-  await page.goto('/weather');
+  await page.goto('/homebrain-pocasi');
   await expect(page.getByTestId('weather-radar-img')).toBeVisible({ timeout: 15_000 });
   // Weak rain: ceiling at the 'mírný' threshold, band labels slabý + mírný (edge) only.
   await expect(page.getByTestId('weather-radar-minutes')).toHaveAttribute('data-top-mmh', '2.5');
@@ -131,7 +131,7 @@ test('Počasí: radar – popisky měst se nepřekrývají s čipy, graf slabéh
 test('Počasí: radar – graf se dá prohlížet kurzorem, zdroje v (i), značka „teď“ na posuvníku', async ({
   page,
 }) => {
-  await page.goto('/weather');
+  await page.goto('/homebrain-pocasi');
   await expect(page.getByTestId('weather-radar-img')).toBeVisible({ timeout: 15_000 });
   // Smooth monotone curve (cubic Béziers), not a polyline.
   await expect(page.getByTestId('weather-radar-curve')).toHaveAttribute('d', /C/);
@@ -170,7 +170,7 @@ test('Počasí: radar – graf se dá prohlížet kurzorem, zdroje v (i), značk
 test('Počasí: graf modelů – hladké křivky, méně řad, přepínací legenda a tooltip', async ({
   page,
 }) => {
-  await page.goto('/weather');
+  await page.goto('/homebrain-pocasi');
   const card = page.getByTestId('weather-models');
   await expect(card).toBeVisible();
   // smooth cubic curves instead of polylines
@@ -216,7 +216,7 @@ for (const scenario of ['', 'calm'])
       page,
     }) => {
       await page.setViewportSize(vp);
-      await page.goto(`/weather${scenario ? `?weather=${scenario}` : ''}`);
+      await page.goto(`/homebrain-pocasi${scenario ? `?weather=${scenario}` : ''}`);
       await expect(page.getByTestId('weather-radar')).toBeVisible();
       const rows = await page.locator('div.wx-grid').evaluate((grid) => {
         const g = grid.getBoundingClientRect();

@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 
 test('odpady: přepnutí připomínky potvrdí sdílené oznámení', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-  await page.goto('/waste');
+  await page.goto('/homebrain-odpady');
   const reminders = page.getByRole('complementary', { name: 'Připomínky' });
   await reminders.getByRole('switch').first().uncheck();
   const toast = page.getByTestId('hb-toast').last();
@@ -21,7 +21,7 @@ test('oznámení: dole uprostřed na mobilu, vpravo dole na desktopu, nad bezpe�
   page,
 }, testInfo) => {
   await page.clock.install({ time: new Date('2026-11-02T08:30:00Z') });
-  await page.goto('/waste');
+  await page.goto('/homebrain-odpady');
   await page
     .getByRole('complementary', { name: 'Připomínky' })
     .getByRole('switch')

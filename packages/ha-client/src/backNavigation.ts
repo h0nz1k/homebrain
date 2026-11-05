@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import { PANEL_PATHS_BY_MODULE, SETTINGS_PANEL_PATH } from './panels.generated.js';
 
 /**
  * Back navigation inside HomeBrain panels (Android/iOS back gesture, browser back).
@@ -224,16 +225,13 @@ export function useBackClosable(onClose: () => void, open = true) {
 }
 
 /** Module links use HA's top-level router, including when rendered in an iframe. */
-export const MODULE_PANEL_PATHS: Record<string, string> = {
-  today: 'homebrain-dnes',
-  weather: 'homebrain-pocasi',
-  energy: 'homebrain-energie',
-  waste: 'homebrain-odpady',
-  wine: 'homebrain-vinoteka',
-  recipes: 'homebrain-recepty',
-  health: 'homebrain-zdravi',
-  settings: 'homebrain-nastaveni',
-  family: 'homebrain-nastaveni/family',
+// Panel paths come from custom_components/homebrain/panels.json (shared with the integration):
+// a module missing here sent its links to an unknown HA url, which HA answers with the default
+// dashboard (Přístup tabs in rc.17).
+export const MODULE_PANEL_PATHS: Readonly<Record<string, string>> = {
+  ...PANEL_PATHS_BY_MODULE,
+  settings: SETTINGS_PANEL_PATH,
+  family: `${SETTINGS_PANEL_PATH}/family`,
 };
 export function panelUrl(path: string): string {
   const [pathname = '', fragment] = path.split('#');

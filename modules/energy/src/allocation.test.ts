@@ -171,6 +171,7 @@ describe('flowAllocation on the dev scenarios', () => {
     evening: ['pv-house', 'battery-house'],
     night: ['grid-house'],
     nightcharge: ['grid-house', 'grid-battery'],
+    suncharge: ['pv-house', 'pv-battery', 'grid-battery'],
     morning: ['pv-house', 'pv-grid', 'grid-house'],
     mixed: ['pv-house', 'pv-battery', 'pv-grid', 'grid-house'],
     balanced: ['grid-house'],
