@@ -161,11 +161,13 @@ export type StepState = 'todo' | 'active' | 'done' | 'skipped' | 'error';
 export interface StepperProps {
   steps: ReadonlyArray<{ key: string; title: string; detail?: ReactNode; state: StepState }>;
   label?: string;
+  /** Small inline variant for progress inside a status surface (LiveStatus `steps`). */
+  compact?: boolean;
 }
 /** Horizontal progress of a multi-step flow (wizard). Collapses to numbers on phones. */
-export function Stepper({ steps, label = 'Postup' }: StepperProps) {
+export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
   return (
-    <ol className="hb-stepper" aria-label={label}>
+    <ol className="hb-stepper" data-compact={compact ? '' : undefined} aria-label={label}>
       {steps.map((s, i) => (
         <li
           key={s.key}
@@ -194,27 +196,74 @@ export interface LiveStatusProps {
   icon?: ReactNode;
   /** Buttons rendered inside the status surface; they wrap onto their own row on phones. */
   actions?: ReactNode;
+  /**
+   * Countdown ring instead of the spinner: `remaining` of `total` seconds (fractional values
+   * animate smoothly; the ring shows whole seconds).
+   */
+  countdown?: { remaining: number; total: number };
+  /** Compact step indicator under the text (e.g. Připraveno → Vidím → Snímám → Hotovo). */
+  steps?: StepperProps['steps'];
   'data-testid'?: string;
 }
+const RING_R = 23;
+const RING_C = 2 * Math.PI * RING_R;
 /**
- * Big live status of an ongoing hardware action (scanning, pairing …): spinner ring while busy,
- * tone + icon when finished. Announced politely to screen readers.
+ * Big live status of an ongoing hardware action (scanning, pairing …): spinner ring while busy
+ * (or a countdown ring), tone + icon when finished. Announced politely to screen readers.
  */
-export function LiveStatus({ state, title, children, icon, actions, ...rest }: LiveStatusProps) {
+export function LiveStatus({
+  state,
+  title,
+  children,
+  icon,
+  actions,
+  countdown,
+  steps,
+  ...rest
+}: LiveStatusProps) {
+  const frac = countdown
+    ? Math.min(1, Math.max(0, countdown.remaining / Math.max(1, countdown.total)))
+    : 0;
+  const secs = countdown ? Math.ceil(Math.max(0, countdown.remaining) - 0.05) : 0;
   return (
     <div
       className="hb-live"
       data-state={state}
+      data-countdown={countdown ? '' : undefined}
       role="status"
       aria-live="polite"
       data-testid={rest['data-testid']}
     >
-      <span className="hb-live-ring" aria-hidden="true">
-        {icon ?? (state === 'ok' ? '✓' : state === 'error' ? '✕' : '')}
+      <span className="hb-live-ring" aria-hidden={countdown ? undefined : 'true'}>
+        {countdown ? (
+          <>
+            <svg className="hb-live-count" viewBox="0 0 52 52" aria-hidden="true">
+              <circle cx="26" cy="26" r={RING_R} className="hb-live-track" />
+              <circle
+                cx="26"
+                cy="26"
+                r={RING_R}
+                className="hb-live-arc"
+                strokeDasharray={RING_C}
+                strokeDashoffset={RING_C * (1 - frac)}
+              />
+            </svg>
+            <span
+              className="hb-live-secs"
+              data-testid="hb-live-secs"
+              aria-label={`zbývá ${secs} s`}
+            >
+              {secs}
+            </span>
+          </>
+        ) : (
+          (icon ?? (state === 'ok' ? '✓' : state === 'error' ? '✕' : ''))
+        )}
       </span>
       <div className="hb-live-copy">
         <strong>{title}</strong>
         {children && <div>{children}</div>}
+        {steps && <Stepper steps={steps} compact label="Průběh" />}
         {actions && <span className="hb-live-actions">{actions}</span>}
       </div>
     </div>

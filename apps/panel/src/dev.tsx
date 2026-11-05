@@ -448,6 +448,11 @@ if (scenario === 'history') {
     set(E.lockBattery, '76');
     set(E.lockBatteryCritical, 'off');
     set(E.lastError, 'no_reply');
+    if (q.get('enroll_progress') === '1') {
+      set(E.enrollProgress, 'idle');
+      set(E.enrollHint, 'Nic neprobíhá');
+      set(E.enrollRemaining, '0');
+    }
     set(E.lockAction, agoIsoDev(14 - 2 / 60), {
       event_type: 'unlock',
       trigger: 0,
@@ -501,6 +506,8 @@ if (scenario === 'history') {
   const accessApi = createMockAccessApi({
     latencyMs: 80,
     enrollMs: Number(q.get('enroll_ms') ?? 1500),
+    // e2e/dev: ?enroll_progress=1 = firmware with live enrolment progress (biolock-firmware#9)
+    progress: q.get('enroll_progress') === '1',
     // e2e/dev: ?access_fail=face_instead_of_palm,timeout fails the next enrolments with these codes
     failNext: q.get('access_fail')?.split(',').filter(Boolean),
     // dev: recent passages incl. the reason a door stayed shut (synthetic names only)
@@ -564,6 +571,15 @@ if (scenario === 'history') {
       refresh();
     },
   });
+  if (q.get('enroll_progress') === '1')
+    // the firmware mirrors every progress event into its three entities
+    void accessApi.subscribe((e) => {
+      if (e.event !== 'enroll_progress') return;
+      set(E.enrollProgress, e.data.state ?? 'idle');
+      set(E.enrollHint, e.data.text ?? '');
+      set(E.enrollRemaining, String(e.data.remaining_s ?? 0));
+      refresh();
+    });
   Object.assign(window, { __hbAccess: accessApi, __hbAccessLog: log });
   setAccessApiFactory(() => accessApi);
 }

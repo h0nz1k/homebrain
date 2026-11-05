@@ -530,14 +530,36 @@ const specs: Spec[] = [
     name: 'LiveStatus',
     summary: 'Velký živý stav probíhající akce zařízení (snímání, párování, test).',
     importName: 'LiveStatus',
-    states: ['idle', 'busy (točí se)', 'ok', 'error'],
-    doText: 'Chyba = česky co se stalo + jedna rada, vedle tlačítko „Zkusit znovu“.',
+    states: [
+      'idle',
+      'busy (točí se)',
+      'busy + countdown (odpočet)',
+      'steps (kompaktní kroky)',
+      'ok',
+      'error',
+    ],
+    doText:
+      'Chyba = česky co se stalo + jedna rada, vedle tlačítko „Zkusit znovu“. Časové okno zařízení = `countdown` (kroužek se zbývajícími sekundami), fáze = `steps`.',
     dontText: 'Technické kódy chyb (timeout, modality_mismatch) bez překladu.',
     notes: 'role="status" + aria-live="polite". Na krátké uložení formuláře je SaveState.',
     render: () => (
       <div className="cat-col">
         <LiveStatus state="busy" title="Snímám pravou dlaň…">
           Držte v klidu, dokud se neozve potvrzení.
+        </LiveStatus>
+        <LiveStatus
+          state="busy"
+          title="Přibliž se"
+          countdown={{ remaining: 17, total: 30 }}
+          steps={[
+            { key: 'cat-ready', title: 'Připraveno', state: 'done' },
+            { key: 'cat-seen', title: 'Vidím', state: 'active' },
+            { key: 'cat-scan', title: 'Snímám', state: 'todo' },
+            { key: 'cat-save', title: 'Ukládám', state: 'todo' },
+            { key: 'cat-done', title: 'Hotovo', state: 'todo' },
+          ]}
+        >
+          Zápis: Jan · obličej – snímač něco vidí, ještě drobná korekce.
         </LiveStatus>
         <LiveStatus state="ok" title="Uloženo · ID 1003" />
         <LiveStatus state="error" title="Snímač uviděl něco jiného">

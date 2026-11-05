@@ -480,7 +480,7 @@ async def test_enroll_progress_forwarded_live_and_kept_out_of_history(
     client = await hass_ws_client(hass)
     state = await _call(client, {"type": "homebrain/access/state"})
     assert state["result"]["progress"] is None
-    assert state["result"]["entities"]["enroll_progress"] == "sensor.biolock_prubeh_zapisu"
+    assert state["result"]["entities"]["enrollProgress"] == "sensor.biolock_prubeh_zapisu"
     await _call(client, {"type": "homebrain/access/subscribe"})
 
     hass.bus.async_fire(

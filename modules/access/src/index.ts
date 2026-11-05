@@ -8,6 +8,7 @@ export const moduleManifest = {
 export const loadView = () => import('./views/AccessView.js');
 export * from './types.js';
 export * from './domain.js';
+export * from './progress.js';
 export { ENTITY_DEFAULTS as ENTITY_DEFAULTS_ACCESS } from './entities.js';
 export {
   createMockAccessApi,

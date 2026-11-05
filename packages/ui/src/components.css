@@ -1562,6 +1562,60 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     transform: rotate(360deg);
   }
 }
+/* countdown ring (LiveStatus `countdown`): remaining fraction, smooth 1 s linear ticks */
+.hb-live[data-countdown] .hb-live-ring::before {
+  content: none;
+}
+.hb-live-ring svg.hb-live-count {
+  position: absolute;
+  inset: -4px;
+  width: 60px;
+  height: 60px;
+  transform: rotate(-90deg);
+}
+.hb-live-track,
+.hb-live-arc {
+  fill: none;
+  stroke-width: 3.5;
+}
+.hb-live-track {
+  stroke: color-mix(in srgb, var(--hb-tone) 18%, transparent);
+}
+.hb-live-arc {
+  stroke: var(--hb-tone);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+.hb-live-secs {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.hb-live-secs::after {
+  content: ' s';
+  font-size: 11px;
+  font-weight: 600;
+}
+.hb-live-copy .hb-stepper[data-compact] {
+  margin-top: var(--hb-sp-2);
+  gap: 6px;
+}
+.hb-stepper[data-compact] .hb-step {
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  font-size: var(--hb-type-caption, 12px);
+  background: color-mix(in srgb, var(--hb-t1) 6%, transparent);
+}
+.hb-stepper[data-compact] .hb-step-n {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-live-arc {
+    transition: none;
+  }
+}
 .hb-live-copy {
   display: flex;
   flex: 1 1 auto;

@@ -58,9 +58,9 @@ ENTITIES = {
     "service_mode": "switch.biolock_servisni_rezim",
     "recognition_action": "select.biolock_akce_pri_rozpoznani",
     # biolock-firmware#9 enrolment progress entities (older firmware: missing → panel ignores)
-    "enroll_progress": "sensor.biolock_prubeh_zapisu",
-    "enroll_hint": "sensor.biolock_napoveda_zapisu",
-    "enroll_remaining": "sensor.biolock_zapis_zbyva",
+    "enrollProgress": "sensor.biolock_prubeh_zapisu",
+    "enrollHint": "sensor.biolock_napoveda_zapisu",
+    "enrollRemaining": "sensor.biolock_zapis_zbyva",
 }
 RECOGNITION_OPTIONS = ("Odemknout", "Otevřít západku")
 NAME = vol.All(str, vol.Strip, vol.Length(min=1, max=20))

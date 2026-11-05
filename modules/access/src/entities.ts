@@ -14,6 +14,10 @@ export const ENTITY_DEFAULTS = {
   lockout: 'binary_sensor.biolock_blokace_po_neuspesich',
   lastError: 'sensor.biolock_posledni_chyba',
   lastUser: 'sensor.biolock_posledni_uzivatel',
+  // biolock-firmware#9 live enrolment progress (missing on older firmware)
+  enrollProgress: 'sensor.biolock_prubeh_zapisu',
+  enrollHint: 'sensor.biolock_napoveda_zapisu',
+  enrollRemaining: 'sensor.biolock_zapis_zbyva',
   // Smart lock: the integration resolves the real lock device (Nuki) – these are only fallbacks.
   lock: 'lock.front_door',
   lockBattery: 'sensor.front_door_battery',
