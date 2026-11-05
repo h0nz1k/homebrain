@@ -95,11 +95,15 @@ export function recipesTimersTodaySignalSource(
         }
       };
       emit();
-      const unsub = backend.subscribe((snap) => {
-        skew = snap.serverNow - now();
-        timers = snap.timers;
-        emit();
-      });
+      // An older integration (unknown WS command) or a lost connection just means no timers on
+      // Dnes; never leave an unhandled rejection behind.
+      const unsub = backend
+        .subscribe((snap) => {
+          skew = snap.serverNow - now();
+          timers = snap.timers;
+          emit();
+        })
+        .catch(() => () => undefined);
       const id = setInterval(() => timers.length && emit(), tickMs);
       return () => {
         clearInterval(id);
