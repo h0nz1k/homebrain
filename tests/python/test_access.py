@@ -315,3 +315,134 @@ async def test_reenroll_notification_once(hass: HomeAssistant, setup, hass_ws_cl
     assert state["result"]["advice"] == {"3": ["age"]}
     off = await _call(client, {"type": "homebrain/access/settings", "notify_reenroll": False})
     assert off["result"]["settings"] == {"notify_reenroll": False}
+
+
+async def test_enrolment_outside_panel_updates_users_and_history(
+    hass: HomeAssistant, setup, hass_ws_client
+):
+    """Enrolled via an HA script (no wizard): the list and Historie update without a re-list."""
+    client = await hass_ws_client(hass)
+    await _call(client, {"type": "homebrain/access/subscribe"})
+    hass.bus.async_fire(
+        "esphome.biolock_users",
+        {"page": "1", "pages": "1", "total": "1", "users": "1|face|Jan|allowed"},
+    )
+    await hass.async_block_till_done()
+    await _next(client, "users")
+
+    hass.bus.async_fire(
+        "esphome.biolock_enroll_retry",
+        {
+            "type": "face",
+            "type_requested": "palm",
+            "name": "Jan",
+            "reason": "face_instead_of_palm",
+            "reason_text": "zachycen obličej místo dlaně",
+            "attempt": "1",
+            "remaining_s": "21",
+            "rolled_back_id": "2",
+        },
+    )
+    await hass.async_block_till_done()
+    retry = await _next(client, "enroll_retry")
+    assert retry["event"]["data"]["remaining_s"] == 21
+    assert retry["event"]["data"]["rolled_back_id"] == 2
+
+    hass.bus.async_fire(
+        "esphome.biolock_enrolled",
+        {
+            "ok": "true",
+            "user_id": "1002",
+            "type": "palm",
+            "type_requested": "palm",
+            "name": "Jan",
+            "reason": "success",
+            "attempts": "2",
+        },
+    )
+    await hass.async_block_till_done()
+    pushed = await _next(client, "users")
+    assert [u["id"] for u in pushed["event"]["users"]] == [1, 1002]
+    assert pushed["event"]["users"][1] == {"id": 1002, "type": "palm", "name": "Jan", "allowed": True}
+
+    hass.bus.async_fire(
+        "esphome.biolock_enrolled",
+        {"ok": "false", "user_id": "0", "type_requested": "palm", "name": "Jan", "reason": "timeout"},
+    )
+    hass.bus.async_fire("esphome.biolock_audit", {"action": "unlock", "user_id": "1"})
+    hass.bus.async_fire("esphome.biolock_audit", {"action": "lockout"})
+    hass.bus.async_fire("esphome.biolock_deleted", {"ok": "true", "user_id": "1"})
+    await hass.async_block_till_done()
+    pushed = await _next(client, "users")
+    assert [u["id"] for u in pushed["event"]["users"]] == [1002]
+
+    state = await _call(client, {"type": "homebrain/access/state"})
+    kinds = [h["kind"] for h in state["result"]["history"]]
+    # newest first; the audit "unlock" is not duplicated, retry progress is not stored
+    assert kinds == ["deleted", "lockout", "enrolled", "enrolled"]
+    assert state["result"]["history"][2]["reason"] == "timeout"
+    assert state["result"]["history"][3]["attempts"] == 2
+
+    page = await _call(client, {"type": "homebrain/access/history", "limit": 2})
+    assert [h["kind"] for h in page["result"]["items"]] == ["deleted", "lockout"]
+    assert page["result"]["more"] is True
+    older = await _call(
+        client,
+        {"type": "homebrain/access/history", "before": page["result"]["items"][-1]["time"]},
+    )
+    assert [h["kind"] for h in older["result"]["items"]] == ["enrolled", "enrolled"]
+    assert older["result"]["more"] is False
+
+
+async def test_enrolment_before_first_listing_keeps_users_unknown(
+    hass: HomeAssistant, setup, hass_ws_client
+):
+    client = await hass_ws_client(hass)
+    hass.bus.async_fire("esphome.biolock_enrolled", {"ok": "true", "user_id": "1001", "name": "Jan"})
+    await hass.async_block_till_done()
+    state = await _call(client, {"type": "homebrain/access/state"})
+    assert state["result"]["users"] is None  # the panel lists on load instead of a partial list
+    assert state["result"]["history"][0]["type"] == "palm"
+
+
+async def test_state_resolves_smart_lock_entities(hass: HomeAssistant, setup, hass_ws_client):
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+
+    mqtt_entry = MockConfigEntry(domain="mqtt")
+    mqtt_entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=mqtt_entry.entry_id,
+        identifiers={("mqtt", "demo_lock")},
+        manufacturer="Nuki",
+        model="Smart Lock",
+    )
+    other = dev_reg.async_get_or_create(
+        config_entry_id=mqtt_entry.entry_id,
+        identifiers={("mqtt", "garage")},
+        manufacturer="Acme",
+        model="Garage",
+    )
+    ent_reg.async_get_or_create("lock", "mqtt", "garage", device_id=other.id, suggested_object_id="garage")
+    ent_reg.async_get_or_create("lock", "mqtt", "fd", device_id=device.id, suggested_object_id="front_door")
+    ent_reg.async_get_or_create(
+        "sensor", "mqtt", "fd_bat", device_id=device.id,
+        suggested_object_id="front_door_battery", original_device_class="battery",
+    )
+    ent_reg.async_get_or_create(
+        "binary_sensor", "mqtt", "fd_crit", device_id=device.id,
+        suggested_object_id="front_door_battery_critical", original_device_class="battery",
+    )
+    ent_reg.async_get_or_create(
+        "event", "mqtt", "fd_action", device_id=device.id, suggested_object_id="front_door_action"
+    )
+    client = await hass_ws_client(hass)
+    state = await _call(client, {"type": "homebrain/access/state"})
+    ents = state["result"]["entities"]
+    assert ents["lock"] == "lock.front_door"
+    assert ents["lockBattery"] == "sensor.front_door_battery"
+    assert ents["lockBatteryCritical"] == "binary_sensor.front_door_battery_critical"
+    assert ents["lockAction"] == "event.front_door_action"
+    assert ents["service_mode"] == "switch.biolock_servisni_rezim"
