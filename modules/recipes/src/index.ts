@@ -13,6 +13,8 @@ export * from './domain/music.js';
 export * from './domain/airfryer.js';
 export * from './domain/fryerLive.js';
 export * from './fryerSignal.js';
+export * from './domain/eggs.js';
+export { recipesTimersTodaySignalSource, timerSignals, TIMERS_PATH } from './timersSignal.js';
 export {
   createMockRecipesApi,
   createWsRecipesApi,

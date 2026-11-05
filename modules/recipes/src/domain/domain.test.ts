@@ -183,6 +183,29 @@ describe('server-side timers (backend)', () => {
     await flush();
     expect(phone.getSnapshot()).toHaveLength(0);
   });
+  it('+1 min counts once on the device that pressed it (backend echo + optimistic update)', async () => {
+    // Regression: the local backend echoes its snapshot synchronously; the store
+    // applied the optimistic +60 s on top of that echo, so 3:00 became 5:00.
+    const backend = createMockTimerBackend();
+    const store = createTimerStore({ backend });
+    await flush();
+    store.add('Minutka 3 min', 180);
+    await flush();
+    const id = store.getSnapshot()[0]!.id;
+    store.addTime(id, 60);
+    expect(store.getSnapshot()[0]!.remainingMs).toBeGreaterThan(235_000);
+    expect(store.getSnapshot()[0]!.remainingMs).toBeLessThanOrEqual(240_000);
+    await flush();
+    expect(store.getSnapshot()[0]!.remainingMs).toBeLessThanOrEqual(240_000);
+    expect(store.getSnapshot()[0]!.durationMs).toBe(240_000);
+    store.pause(id);
+    store.addTime(id, 60);
+    await flush();
+    const paused = store.getSnapshot()[0]!;
+    expect(paused.status).toBe('paused');
+    expect(paused.remainingMs).toBeGreaterThan(295_000);
+    expect(paused.remainingMs).toBeLessThanOrEqual(300_000);
+  });
   it('the same recipe step started on two devices is one timer', async () => {
     const backend = createMockTimerBackend();
     const a = createTimerStore({ backend });

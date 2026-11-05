@@ -714,6 +714,12 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 /* Refs #37: legible values, explicit disabled actions and aligned ribbon content. */
 .hb-signal-value strong {
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+/* Live countdowns (timer, airfryer) that need someone now: the value carries the tone. */
+.hb-hero[data-severity='warning'] .hb-signal-value strong {
+  color: var(--hb-signal-tone);
+  font-weight: 500;
 }
 .hb-signal-action {
   flex-wrap: nowrap;

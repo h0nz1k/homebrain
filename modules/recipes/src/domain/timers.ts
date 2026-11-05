@@ -159,24 +159,26 @@ export function createTimerStore(options: TimerStoreOptions = {}) {
       sync(backend?.start({ label, seconds: durationMs / 1000, recipeId, stepIndex }));
       return id;
     },
+    // Optimistic update FIRST, then the backend call: a backend may echo its
+    // snapshot synchronously (local mock) or before our update runs, and a
+    // non-idempotent op (+1 min) applied on top of the echo counted twice.
     pause(id: string) {
-      sync(backend?.update(id, 'pause'));
       update(id, (t) =>
         t.endsAt === null
           ? t
           : { ...t, pausedRemainingMs: Math.max(0, t.endsAt - now()), endsAt: null },
       );
+      sync(backend?.update(id, 'pause'));
     },
     resume(id: string) {
-      sync(backend?.update(id, 'resume'));
       update(id, (t) =>
         t.endsAt !== null
           ? t
           : { ...t, endsAt: now() + (t.pausedRemainingMs ?? 0), pausedRemainingMs: null },
       );
+      sync(backend?.update(id, 'resume'));
     },
     addTime(id: string, seconds: number) {
-      sync(backend?.update(id, 'add_time', seconds));
       update(id, (t) => {
         alarmed.delete(id);
         const base = t.endsAt !== null ? Math.max(t.endsAt, now()) : null;
@@ -190,19 +192,21 @@ export function createTimerStore(options: TimerStoreOptions = {}) {
           : {
               ...t,
               pausedRemainingMs: (t.pausedRemainingMs ?? 0) + seconds * 1000,
+              durationMs: t.durationMs + seconds * 1000,
               acknowledged: false,
             };
       });
+      sync(backend?.update(id, 'add_time', seconds));
     },
     acknowledge(id: string) {
-      sync(backend?.update(id, 'ack'));
       update(id, (t) => ({ ...t, acknowledged: true }));
+      sync(backend?.update(id, 'ack'));
     },
     remove(id: string) {
-      sync(backend?.cancel(id));
       timers = timers.filter((t) => t.id !== id);
       alarmed.delete(id);
       emit();
+      sync(backend?.cancel(id));
     },
     clear() {
       timers.forEach((t) => sync(backend?.cancel(t.id)));

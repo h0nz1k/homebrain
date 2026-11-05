@@ -12,7 +12,8 @@ const SIGNAL_VISIBILITY: Record<HomeBrainRole, ReadonlySet<ModuleId>> = {
   owner: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'recipes', 'system']),
   adult: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'recipes', 'system']),
   child: new Set(['weather', 'waste', 'calendar', 'recipes']),
-  // Kitchen tablet: the airfryer status („Protřepej“, „Hotovo“) belongs on the wall.
+  // Kitchen tablet: the airfryer status („Protřepej“, „Hotovo“) and running kitchen timers
+  // (Minutky) belong on the wall.
   kiosk: new Set(['weather', 'energy', 'waste', 'calendar', 'recipes']),
   guest: new Set(),
 };

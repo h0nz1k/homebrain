@@ -43,6 +43,7 @@ import {
   ENTITY_DEFAULTS_ACCESS,
 } from '@homebrain/module-access';
 import { defineHomebrainPanel, HomebrainPanel } from './host';
+import { installDevKitchenTimers } from './devTimers';
 const agoIsoDev = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const haAge = new URLSearchParams(location.search).get('ha_age');
 // `?live=1`: keep the production live Dnes adapter (modules.ts) on top of the fake HA connection
@@ -79,6 +80,8 @@ if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySig
 // `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).
 const fryerLive = recipesQuery.get('fryerlive') as FryerDemoScenario | null;
 if (fryerLive) registerTodaySignalSource('recipes', recipesFryerTodaySignalSource);
+// `?timers=1|demo`: kitchen timers on Dnes (demo = three synthetic running timers).
+installDevKitchenTimers(recipesApi, recipesQuery);
 // Dev server only: synthetic weather snapshot (production uses the integration WS).
 setWeatherAdapterFactory(() => createMockWeatherAdapter(scenarioFromUrl(location.search)));
 defineHomebrainPanel();

@@ -19,6 +19,8 @@ today.registerTodaySignalSource('weather', weather.weatherTodaySignalSource);
 today.registerTodaySignalSource('energy.appliances', energy.energyAppliancesTodaySignalSource);
 // Dnes: live airfryer (entity store; hidden while the fryer is off).
 today.registerTodaySignalSource('recipes', recipes.recipesFryerTodaySignalSource);
+// Dnes: running kitchen timers (Minutky), own key so other recipes signals stay untouched.
+today.registerTodaySignalSource('recipes.timers', recipes.recipesTimersTodaySignalSource);
 export const modules = [today, weather, energy, waste, health, wine, recipes, family, access].map(
   (module) => ({
     ...module.moduleManifest,

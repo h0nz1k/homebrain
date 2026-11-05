@@ -106,10 +106,13 @@ export function TimerCard({
   timer,
   store,
   soon,
+  addMinute = false,
 }: {
   timer: TimerView;
   store: TimerStore;
   soon: boolean;
+  /** Show „+1 min“ while running too (Minutky), not only when ringing. */
+  addMinute?: boolean;
 }) {
   const ringing = timer.status === 'ringing';
   return (
@@ -126,7 +129,7 @@ export function TimerCard({
       </div>
       <div className="tx">
         <b className="num">{ringing ? 'Hotovo' : formatClock(timer.remainingMs / 1000)}</b>
-        <span>{timer.label}</span>
+        <span title={timer.label}>{timer.label}</span>
       </div>
       {ringing ? (
         <>
@@ -143,6 +146,11 @@ export function TimerCard({
         </>
       ) : (
         <>
+          {addMinute ? (
+            <Button size="sm" onClick={() => store.addTime(timer.id, 60)}>
+              +1 min
+            </Button>
+          ) : null}
           <Button
             aria-label={timer.status === 'paused' ? 'Pokračovat' : 'Pozastavit'}
             icon={<Icon name={timer.status === 'paused' ? 'play' : 'pause'} />}
