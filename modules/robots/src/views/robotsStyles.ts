@@ -296,75 +296,76 @@ export const robotsStyles = `
 }
 
 /* Phase B: vector floor plan */
-.rb-map[data-map-kind='vector'] { aspect-ratio: auto; display: block; padding: 14px 10px; }
+.rb-map[data-map-kind='vector'] { aspect-ratio: auto; display: block; padding: 18px 14px; background: var(--rb-fill); }
 .rb-map-loading { position: absolute; inset: 18%; border-radius: 18px; background: color-mix(in srgb, var(--hb-t1) 5%, transparent); animation: rv-breathe 1.6s ease-in-out infinite alternate; }
 @keyframes rv-breathe { from { opacity: .45; } to { opacity: 1; } }
+/* Rooms are low-chroma tonal tiles (one hue per room, --rv-hue); selection is the accent. */
 .rv {
-  --rv-wall: color-mix(in srgb, black 30%, var(--hb-s1));
+  --rv-room-l: 27.5%; --rv-room-dl: 2%; --rv-room-c: 0.01;
+  --rv-sel-mix: 52%;
+  --rv-sel-base: var(--rb-fill);
   --rv-outline: color-mix(in srgb, var(--hb-t1) 30%, transparent);
   --rv-room-top: color-mix(in srgb, var(--hb-t1) 15%, var(--hb-s1));
   --rv-room-bottom: color-mix(in srgb, var(--hb-t1) 10%, var(--hb-s1));
   --rv-sel-a: color-mix(in oklch, var(--hb-ac) 80%, var(--hb-s1));
   --rv-sel-b: color-mix(in oklch, var(--hb-ac) 22%, var(--hb-s1));
-  --rv-current: color-mix(in srgb, var(--hb-t1) 15%, var(--hb-s1));
-  --rv-trail: rgb(255 255 255 / 70%);
-  --rv-cover: color-mix(in srgb, var(--hb-ac) 20%, transparent);
+  --rv-trail: var(--hb-ac);
+  --rv-cover: color-mix(in srgb, var(--hb-ac) 22%, transparent);
   --rv-nogo: #ff6b6b;
   --rv-bot-edge: #d3d9e3;
-  --rv-label: color-mix(in srgb, var(--hb-t1) 78%, transparent);
-  --rv-wall-line: color-mix(in srgb, var(--hb-t1) 46%, var(--hb-s1));
+  --rv-label: color-mix(in srgb, var(--hb-t1) 82%, transparent);
+  --rv-label-sel: var(--hb-t1);
+  --rv-wall-line: color-mix(in srgb, var(--hb-t1) 42%, var(--rb-fill));
+  --rv-seam: color-mix(in srgb, var(--hb-t1) 16%, var(--rb-fill));
   --rv-divider: color-mix(in srgb, var(--hb-t1) 14%, transparent);
   position: relative; margin: 0 auto;
 }
 [data-theme='light'] .rv {
-  --rv-wall: #aab4c3;
+  --rv-room-l: 96.4%; --rv-room-dl: 1.2%; --rv-room-c: 0.008;
+  --rv-sel-mix: 30%;
+  --rv-sel-base: #ffffff;
   --rv-outline: #8994a6;
   --rv-room-top: #ffffff;
   --rv-room-bottom: #f6f8fb;
   --rv-sel-a: color-mix(in oklch, var(--hb-ac) 82%, white);
   --rv-sel-b: color-mix(in oklch, var(--hb-ac) 17%, white);
-  --rv-current: #eef2f7;
-  --rv-trail: rgb(30 41 59 / 62%);
-  --rv-cover: color-mix(in srgb, var(--hb-ac) 16%, transparent);
   --rv-nogo: #e5484d;
   --rv-bot-edge: #dfe4ec;
   --rv-label: #3b4452;
-  --rv-wall-line: #7b8597;
+  --rv-label-sel: color-mix(in oklch, var(--hb-ac) 62%, black);
+  --rv-wall-line: #8b95a7;
+  --rv-seam: #c9d0db;
   --rv-divider: rgb(16 24 40 / 12%);
 }
 .rv svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-/* The floor slab is painted in the wall colour: gaps between rooms read as walls. */
 .rv-floor { fill: color-mix(in srgb, var(--rv-room-bottom) 55%, transparent); stroke: none; }
+.rv[data-walls] .rv-floor { display: none; }
 .rv-walls { fill: var(--rv-outline); stroke: var(--rv-outline); stroke-linejoin: round; pointer-events: none; }
 [data-theme='light'] .rv-walls { filter: drop-shadow(0 8px 18px rgb(16 24 40 / 12%)); }
 .rv-room-pad { fill: var(--rv-room-bottom); stroke: var(--rv-room-bottom); stroke-linejoin: round; pointer-events: none; }
-.rv-room {
+.rv-room, .rv-room-under, .rv[data-walls] .rv-label {
+  --rv-tile: oklch(calc(var(--rv-room-l) + var(--rv-step, 0) * var(--rv-room-dl)) var(--rv-room-c) var(--rv-hue, 250));
   fill: url(#rv-room); stroke: none; cursor: pointer;
-  transition: opacity var(--hb-dur-base, 200ms) var(--hb-ease-out, ease-out);
+  transition: fill var(--hb-dur-base, 200ms) var(--hb-ease-out, ease-out), stroke var(--hb-dur-base, 200ms) var(--hb-ease-out, ease-out), opacity var(--hb-dur-base, 200ms);
 }
-.rv-room:hover { opacity: .88; }
-.rv-room[data-current] { fill: var(--rv-current); }
-.rv[data-has-selection] .rv-room:not([data-selected]) { opacity: .78; }
-.rv-room[data-selected] {
-  fill: url(#rv-sel);
-  animation: rv-pick 320ms var(--hb-ease-out, ease-out);
+.rv-room:hover { opacity: .9; }
+.rv-room[data-selected] { fill: url(#rv-sel); }
+/* With real walls each room also strokes itself in its own colour: fills meet under the walls. */
+.rv[data-walls] .rv-room { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; }
+.rv-room-under { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; pointer-events: none; }
+.rv[data-walls] .rv-room[data-selected], .rv-room-under[data-selected] {
+  --rv-tile: color-mix(in oklch, var(--hb-ac) var(--rv-sel-mix), var(--rv-sel-base));
 }
-@keyframes rv-pick { from { fill-opacity: .2; } to { fill-opacity: 1; } }
-/* With real walls each room also strokes itself in its own flat colour: fills meet under the
-   walls and across doorways, so there is no seam/second outline next to a wall. */
-.rv[data-walls] .rv-room { fill: var(--rv-room-top); stroke: var(--rv-room-top); stroke-linejoin: round; }
-.rv[data-walls] .rv-room[data-current] { fill: var(--rv-current); stroke: var(--rv-current); }
-.rv[data-walls] .rv-room[data-selected] { fill: var(--rv-sel-a); stroke: var(--rv-sel-a); }
-/* One selection style: the order lives in the badge, not in alternating tints. */
-.rv[data-walls] .rv-room-pad { fill: var(--rv-room-top); stroke: var(--rv-room-top); }
-/* Walls: the outline is the one stroked shell; room seams are a narrow gap in the panel
-   colour (same shared arcs), so rooms read as soft tiles, not as a CAD trace. */
-.rv .rv-wall-line.rv-seam { stroke: var(--rb-fill); filter: none; }
+.rv[data-walls] .rv-room-pad { fill: var(--rv-seam); stroke: var(--rv-seam); }
+.rv-sel-ring { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+@keyframes rv-fade-in { from { opacity: 0; } }
+/* Walls: one outline shell; seams between rooms are thinner and quieter (same shared arcs). */
 .rv-wall-line { fill: none; stroke: var(--rv-wall-line); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
-[data-theme='light'] .rv-wall-line { filter: drop-shadow(0 1px 1.5px rgb(16 24 40 / 14%)); }
-/* Route history is context, not content: faded unless the user turns it on ("Trasa"). */
+.rv .rv-wall-line.rv-seam { stroke: var(--rv-seam); }
+/* Route history is context, not content: only the recent stretch unless "Trasa" is on. */
 .rv[data-trail='faded'] .rv-cover { opacity: 0; }
-.rv[data-trail='faded'] .rv-trail:not(.rv-trail-recent) { opacity: .22; }
+.rv[data-trail='faded'] .rv-trail:not(.rv-trail-recent) { opacity: 1; }
+.rv-trail.rv-trail-tail { stroke-opacity: 1; stroke-width: 3px; }
 .rv-divider { fill: none; stroke: var(--rv-divider); stroke-width: 1px; vector-effect: non-scaling-stroke; stroke-linecap: round; pointer-events: none; }
 .rv-callout {
   position: absolute; z-index: 2; max-width: min(240px, 70%); padding: 8px 11px; border-radius: 12px;
@@ -385,62 +386,84 @@ export const robotsStyles = `
 .rv-callout[data-align='end'] { --rv-cx: -86%; }
 @keyframes rv-callout-in { from { opacity: 0; } }
 .rv-nogo { pointer-events: none; }
-.rv-nogo path { fill: color-mix(in srgb, var(--rv-nogo) 14%, transparent); stroke: var(--rv-nogo); stroke-opacity: .75; stroke-width: 1.5px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.rv-nogo path { fill: color-mix(in srgb, var(--rv-nogo) 18%, transparent); stroke: var(--rv-nogo); stroke-opacity: .7; stroke-width: 1.5px; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
 .rv-nogo circle, .rv-nogo line { fill: none; stroke: var(--rv-nogo); stroke-width: 1.8px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
 /* App virtual wall (no-go line): dashed, so it never reads as a real wall or a strikethrough. */
 .rv-wall { stroke: var(--rv-nogo); stroke-width: 2.5px; stroke-dasharray: 2 5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.rv-cover { fill: none; stroke: var(--rv-cover); opacity: .38; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
-.rv-trail { fill: none; stroke: var(--rv-trail); stroke-opacity: .34; stroke-width: 1.5px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
-.rv-trail-recent { stroke-opacity: 1; stroke-width: 2px; }
+.rv-cover { fill: none; stroke: var(--rv-cover); opacity: .5; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.rv-trail { fill: none; stroke: var(--rv-trail); stroke-opacity: .5; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.rv-trail-recent { stroke-opacity: .95; stroke-width: 2.5px; }
 .rv-trail-reveal { stroke-dasharray: 1 1; stroke-dashoffset: 1; }
-.rv-dock-glow { display: none; }
 .rv-bot[data-docked] .rv-bot-cone, .rv-bot[data-docked] .rv-bot-pulse { display: none; }
 .rv-bot[data-docked] .rv-bot-halo { fill: color-mix(in srgb, var(--hb-ok, #30a46c) 30%, transparent); }
-.rv-dock[data-docked] rect { stroke: var(--hb-ok, #30a46c); stroke-width: 1.5px; }
+.rv-dock[data-docked] rect { stroke: var(--hb-ok, #30a46c); }
 /* Raster mode: the bitmap is the floor plan, rooms are transparent hit areas on top. */
 .rv-base { pointer-events: none; }
 .rv[data-base] .rv-room { fill: transparent; stroke: none; }
 .rv[data-base] .rv-room:hover { fill: color-mix(in srgb, var(--hb-ac) 12%, transparent); opacity: 1; }
 .rv[data-base] .rv-room[data-current] { fill: color-mix(in srgb, var(--hb-t1) 5%, transparent); }
 .rv[data-base] .rv-room[data-selected] { fill: color-mix(in srgb, var(--hb-ac) 26%, transparent); }
-.rv[data-base][data-has-selection] .rv-room:not([data-selected]) { opacity: 1; }
 .rv[data-base] { --rv-halo: rgb(44 50 61 / 85%); }
 [data-theme='light'] .rv[data-base] { --rv-halo: rgb(255 255 255 / 90%); }
 .rv[data-base] .rv-label { text-shadow: 0 0 2px var(--rv-halo), 0 0 6px var(--rv-halo); }
 .rv[data-base] .rv-cover { opacity: .24; }
-.rv-dock rect { fill: var(--hb-s1); stroke: color-mix(in srgb, var(--hb-t1) 30%, transparent); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.rv-dock rect { fill: var(--hb-s1); stroke: color-mix(in srgb, var(--hb-ok, #30a46c) 55%, transparent); stroke-width: 1.5px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 25%)); }
 .rv-dock path { fill: var(--hb-ok, #30a46c); }
 .rv-bot { pointer-events: none; }
 .rv-bot-body { fill: url(#rv-bot); stroke: rgb(16 24 40 / 30%); stroke-width: 1px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 35%)); }
 .rv-bot-lidar { fill: #e9edf3; stroke: rgb(16 24 40 / 28%); stroke-width: 1px; vector-effect: non-scaling-stroke; }
 .rv-bot-heading { fill: var(--hb-ac); }
-.rv-bot-cone { fill: url(#rv-cone); }
+.rv-bot-cone { fill: url(#rv-cone); opacity: .5; }
 .rv-bot[data-tone='error'] .rv-bot-cone, .rv-bot[data-tone='idle'] .rv-bot-cone { display: none; }
-.rv-bot-halo { fill: color-mix(in srgb, var(--hb-ac) 24%, transparent); }
+.rv-bot-halo { fill: none; stroke: color-mix(in srgb, var(--hb-ac) 70%, transparent); stroke-width: 2px; vector-effect: non-scaling-stroke; }
 .rv-bot-pulse { fill: none; stroke: var(--hb-ac); stroke-width: 2px; vector-effect: non-scaling-stroke; transform-box: fill-box; transform-origin: center; animation: rv-pulse 2.4s var(--hb-ease-out, ease-out) infinite; }
-.rv-bot[data-tone='error'] .rv-bot-halo { fill: color-mix(in srgb, var(--hb-crit) 34%, transparent); }
+.rv-bot[data-tone='error'] .rv-bot-halo { stroke: var(--hb-crit); }
 .rv-bot[data-tone='error'] .rv-bot-heading { fill: var(--hb-crit); }
-.rv-bot[data-tone='returning'] .rv-bot-halo { fill: color-mix(in srgb, var(--rb-returning) 28%, transparent); }
+.rv-bot[data-tone='returning'] .rv-bot-halo { stroke: var(--rb-returning); }
 @keyframes rv-pulse { from { transform: scale(.62); opacity: .6; } to { transform: scale(1.25); opacity: 0; } }
 .rv-labels { position: absolute; inset: 0; pointer-events: none; }
+.rv-bot-spot { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .rv-label {
-  position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 6px;
+  position: absolute; transform: translate(-50%, calc(-50% + var(--rv-nudge, 0px))); display: inline-flex; align-items: center; gap: 6px;
   font-size: 13px; font-weight: 550; letter-spacing: -.005em; color: var(--rv-label); white-space: nowrap;
   transition: opacity 180ms, color 180ms;
 }
-.rv-label[data-selected] { color: #fff; font-weight: 650; }
+.rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; --rv-tile: color-mix(in oklch, var(--hb-ac) var(--rv-sel-mix), var(--rv-sel-base)); }
+/* Knock-out halo in the room's own tone: the route/lanes never run through the letters. */
+.rv[data-walls] .rv-label-text { text-shadow: 0 0 2px var(--rv-tile), 0 0 4px var(--rv-tile), 0 0 8px var(--rv-tile), 0 0 12px var(--rv-tile); }
 .rv-label[data-hidden] { visibility: hidden; }
+.rv-label[data-fit] { flex-direction: column; gap: 3px; font-size: 11.5px; letter-spacing: 0; }
+.rv-label[data-fit='badge'] .rv-label-text { display: none; }
 .rv-badge {
   display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
-  /* Same badge as the pressed room chip (white disc, accent number): one selection language. */
-  background: rgb(255 255 255 / 94%); color: var(--hb-ac); font-size: 12.5px; font-weight: 700;
-  box-shadow: 0 2px 8px -2px rgb(0 0 0 / 35%);
+  background: var(--hb-ac); color: #fff; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hb-s1) 70%, transparent), 0 2px 6px -2px rgb(0 0 0 / 40%);
   animation: rv-badge 340ms cubic-bezier(.34, 1.56, .64, 1);
 }
+.rv-label[data-fit] .rv-badge { min-width: 19px; height: 19px; font-size: 11.5px; padding: 0 5px; }
 @keyframes rv-badge { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (max-width: 640px) {
-  .rb-map[data-map-kind='vector'] { padding: 12px 8px; }
-  .rv-label { font-size: 13px; gap: 4px; }
+  .rb-map[data-map-kind='vector'] { padding: 14px 10px; }
+  .rv-label { gap: 4px; }
+}
+/* Card head: title + floor/room count, the route toggle as an icon chip. */
+.rb-clean-head { align-items: center; }
+.rb-clean-title .rb-micro { margin-top: 3px; }
+.rb-trail-toggle .rb-ico { flex: none; margin-left: -2px; }
+.rb-hint b { color: var(--hb-t1); font-weight: 600; }
+.rb-live { color: var(--hb-ac); font-weight: 600; }
+.rb-live::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 6px 1px 0; border-radius: 50%; background: currentColor; animation: rb-pulse 2.4s ease-in-out infinite; }
+.rb-start { font-weight: 600; }
+/* Room chips: one scrollable row under the map (the map is the primary selector); the
+   portrait side column keeps its list. */
+.rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -22px; padding: 2px 22px;
+  mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+.rb-clean .rb-chips::-webkit-scrollbar { display: none; }
+.rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips > * { flex: none; }
+@media (max-width: 600px) {
+  .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips { margin-inline: -18px; padding-inline: 18px; }
 }
 /* Room list beside portrait plans on wide cards (fills the side strips); chips elsewhere. */
 .rb-clean { container-type: inline-size; }

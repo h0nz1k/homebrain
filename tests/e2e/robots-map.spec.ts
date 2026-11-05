@@ -122,3 +122,45 @@ test('omezený pohyb: mapa bez běžících animací', async ({ browser }) => {
   expect(running).toBe(0);
   await context.close();
 });
+
+test('mapa na cestě panelu: popisky v místnostech, mimo robota, výběr se souhrnem', async ({
+  page,
+}) => {
+  await page.goto('/homebrain-roboti');
+  const map = page.getByTestId('robots-vector-map');
+  await expect(map).toBeVisible();
+  await page.getByTestId('robots-room-6').click();
+  await page.getByTestId('robots-room-2').click();
+  await expect(map.locator('.rv-room[data-selected]')).toHaveCount(2);
+  await expect(page.getByTestId('robots-selection-summary')).toContainText('2 místnosti');
+  await expect(page.getByTestId('robots-start')).toContainText('2 místnosti');
+  // Wait for the glide to finish, then check the real-DOM label layout.
+  await page.waitForTimeout(1500);
+  const report = await page.evaluate(() => {
+    const spot = document.querySelector('[data-rv-bot-spot]')?.getBoundingClientRect();
+    const out: string[] = [];
+    let shown = 0;
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.rv-label'))) {
+      if (el.hasAttribute('data-hidden')) continue;
+      shown += 1;
+      const box = el.getBoundingClientRect();
+      const room = document
+        .querySelector(`[data-testid='robots-map-room-${el.dataset.rvLabel}']`)!
+        .getBoundingClientRect();
+      if (box.left < room.left || box.right > room.right) out.push(`${el.textContent} přetéká`);
+      if (
+        spot &&
+        box.left < spot.right - 1 &&
+        box.right > spot.left + 1 &&
+        box.top < spot.bottom - 1 &&
+        box.bottom > spot.top + 1
+      )
+        out.push(`${el.textContent} pod robotem`);
+    }
+    const tail = document.querySelector('[data-rv-tail]');
+    return { out, shown, tail: !!tail?.getAttribute('x2') };
+  });
+  expect(report.out).toEqual([]);
+  expect(report.shown).toBeGreaterThanOrEqual(6);
+  expect(report.tail).toBe(true);
+});

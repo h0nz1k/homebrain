@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import {
@@ -55,6 +56,9 @@ interface Props {
 
 interface Placed {
   id: number;
+  /** Hue (oklch degrees) and lightness step (0–2) of the room's tonal fill. */
+  hue: number;
+  step: number;
   name: string;
   d: string;
   rings: Ring[];
@@ -62,6 +66,11 @@ interface Placed {
   y: number;
   small: boolean;
 }
+
+/** One cool, low-chroma family (oklch hues): neighbours differ slightly, the accent stays the only loud colour. */
+export const ROOM_HUES = [250, 215, 275, 200, 240, 290, 225, 260] as const;
+/** Small lightness steps so neighbouring tiles separate without colour noise. */
+export const ROOM_STEPS = [0, 2, 1, 2, 0, 1, 2, 0] as const;
 
 const reduceMotion = () =>
   typeof globalThis.matchMedia === 'function' &&
@@ -91,7 +100,7 @@ export function VectorFloorPlan({
   const zones = useMemo(() => map.no_go.map((flat) => flatToView(frame, flat)), [map, frame]);
   const placed = useMemo<Placed[]>(
     () =>
-      map.rooms.map((room) => {
+      map.rooms.map((room, index) => {
         const rings = roomRings(
           frame,
           raster && room.outline ? { ...room, polygons: room.outline } : room,
@@ -102,6 +111,8 @@ export function VectorFloorPlan({
         const box = ringBox(rings[0]!);
         return {
           id: room.id,
+          hue: ROOM_HUES[index % ROOM_HUES.length]!,
+          step: ROOM_STEPS[index % ROOM_STEPS.length]!,
           name: names.get(room.id) ?? '',
           // With a wall layer the fill tucks under square walls: only a hint of rounding.
           d: rings
@@ -179,6 +190,16 @@ export function VectorFloorPlan({
             <stop offset="1" stopColor="var(--rv-bot-edge)" />
           </radialGradient>
         </defs>
+        <linearGradient id={`${clipId}-tail`} gradientUnits="userSpaceOnUse" data-rv-tail="">
+          <stop offset="0" stopColor="var(--rv-trail)" stopOpacity="0" />
+          <stop offset="0.55" stopColor="var(--rv-trail)" stopOpacity="0.55" />
+          <stop offset="1" stopColor="var(--rv-trail)" stopOpacity="1" />
+        </linearGradient>
+        {!raster && floor && (
+          <clipPath id={`${clipId}-floor`}>
+            <path d={floor} />
+          </clipPath>
+        )}
         {raster && (
           <clipPath id={clipId}>
             <rect width={frame.width} height={frame.height} />
@@ -212,6 +233,25 @@ export function VectorFloorPlan({
             />
           </>
         )}
+        {/* Under-layer: every room widened in its own tone (clipped to the floor outline), so
+            fills meet across door gaps and wall bands; selected rooms go first, so a doorway
+            never shows the accent of the neighbour. */}
+        {wallsD && !raster && (
+          <g className="rv-rooms-under" clipPath={floor ? `url(#${clipId}-floor)` : undefined}>
+            {[...placed]
+              .sort((a, b) => Number(selected.includes(b.id)) - Number(selected.includes(a.id)))
+              .map((room) => (
+                <path
+                  key={room.id}
+                  className="rv-room-under"
+                  d={room.d}
+                  strokeWidth={unit * 1.6}
+                  data-selected={selected.includes(room.id) || undefined}
+                  style={{ '--rv-hue': room.hue, '--rv-step': room.step } as CSSProperties}
+                />
+              ))}
+          </g>
+        )}
         <g className="rv-rooms">
           {placed.map((room) => {
             const badge = orderBadge(selected, room.id);
@@ -220,6 +260,7 @@ export function VectorFloorPlan({
                 key={room.id}
                 className="rv-room"
                 d={room.d}
+                style={{ '--rv-hue': room.hue, '--rv-step': room.step } as CSSProperties}
                 strokeWidth={wallsD && !raster ? unit * 0.3 : undefined}
                 fillRule="evenodd"
                 data-testid={`robots-map-room-${room.id}`}
@@ -244,13 +285,13 @@ export function VectorFloorPlan({
         {/* Outline and room seams are the same shared arcs (backend topology), drawn as plain
             strokes in one colour: the shell slightly heavier, seams meet it in clean T joints. */}
         {wallsD && dividersD && !raster && (
-          <path className="rv-wall-line rv-seam" d={dividersD} strokeWidth={unit * 0.38} />
+          <path className="rv-wall-line rv-seam" d={dividersD} strokeWidth={unit * 0.3} />
         )}
         {wallsD && !raster && (
           <path
             className="rv-wall-line"
             d={wallsD}
-            strokeWidth={unit * 0.62}
+            strokeWidth={unit * 0.55}
             data-testid="robots-map-walls"
           />
         )}
@@ -282,19 +323,13 @@ export function VectorFloorPlan({
           walls={walls}
           wallsD={wallsD}
           roomsD={roomsD}
+          tailId={`${clipId}-tail`}
         />
       </svg>
       <div className="rv-labels" aria-hidden="true">
         {placed.map((room) => {
           if (!room.name) return null;
           const badge = orderBadge(selected, room.id);
-          // Keep the label clear of the robot: move it below (or above) the marker.
-          const dy = robotView ? room.y - robotView[1] : Infinity;
-          const shift =
-            robotView && Math.abs(robotView[0] - room.x) < unit * 12 && Math.abs(dy) < unit * 5
-              ? (dy >= 0 ? 1 : -1) * unit * 5 - dy
-              : 0;
-          if (room.small && badge === null) return null;
           return (
             <span
               key={room.id}
@@ -302,16 +337,31 @@ export function VectorFloorPlan({
               data-rv-label={room.id}
               data-selected={badge !== null || undefined}
               style={{
+                ['--rv-hue' as string]: room.hue,
+                ['--rv-step' as string]: room.step,
                 left: pct(room.x, frame.width),
-                top: pct(room.y + shift, frame.height),
+                top: pct(room.y, frame.height),
               }}
             >
               {badge !== null && <b className="rv-badge">{badge}</b>}
-              {room.name}
+              <span className="rv-label-text">{room.name}</span>
             </span>
           );
         })}
       </div>
+      {robotView && (
+        // Where the robot ends up (it may still be gliding): labels move out of this spot.
+        <span
+          className="rv-bot-spot"
+          data-rv-bot-spot=""
+          style={{
+            left: pct(robotView[0], frame.width),
+            top: pct(robotView[1], frame.height),
+            width: pct(unit * 6.2, frame.width),
+            height: pct(unit * 6.2, frame.height),
+          }}
+        />
+      )}
       {callout && robotView && (
         <div
           className="rv-callout"
@@ -332,7 +382,9 @@ export function VectorFloorPlan({
           {callout.detail && <span>{callout.detail}</span>}
         </div>
       )}
-      <LabelCollisions deps={`${map.digest}|${selected.join(',')}|${callout?.title ?? ''}`} />
+      <LabelCollisions
+        deps={`${map.digest}|${selected.join(',')}|${callout?.title ?? ''}|${robotView?.map((n) => n.toFixed(0)).join(',') ?? ''}`}
+      />
     </div>
   );
 }
@@ -360,7 +412,9 @@ function RobotLayer({
   walls,
   wallsD,
   roomsD,
+  tailId,
 }: {
+  tailId: string;
   map: VectorMap;
   frame: Frame;
   unit: number;
@@ -409,6 +463,18 @@ function RobotLayer({
     const travelled = path.slice(0, plan.travelled);
     const trail = plan.track.length > 1 ? [...travelled, plan.track[0]!] : path;
     trailRef.current?.setAttribute('d', trailD(trail.slice(-TRAIL_POINTS)));
+    // Fading tail: the gradient runs from the oldest drawn point to the robot.
+    const tail = trail.slice(-TRAIL_POINTS);
+    const grad = trailRef.current?.ownerSVGElement?.getElementById(tailId);
+    if (grad && tail.length > 1) {
+      const [x1, y1] = tail[0]!;
+      const [x2, y2] = target;
+      const far = Math.hypot(x2 - x1, y2 - y1) < unit ? [x1 + unit, y1] : [x2, y2];
+      grad.setAttribute('x1', x1.toFixed(1));
+      grad.setAttribute('y1', y1.toFixed(1));
+      grad.setAttribute('x2', far[0]!.toFixed(1));
+      grad.setAttribute('y2', far[1]!.toFixed(1));
+    }
     coverRef.current?.setAttribute('d', trailD(trail.slice(-COVER_POINTS)));
     reveal.current?.setAttribute('points', plan.track.length > 1 ? polyline(plan.track) : '');
     reveal.current?.style.setProperty('stroke-dashoffset', plan.track.length > 1 ? '1' : '0');
@@ -442,14 +508,26 @@ function RobotLayer({
   }, [targetKey, map.digest]);
 
   const trail = path;
-  const dock = map.dock ? toView(frame, map.dock.x, map.dock.y) : null;
-  const r = unit * 2.2;
+  const dockAt = map.dock ? toView(frame, map.dock.x, map.dock.y) : null;
+  // The charger stands against a wall: draw its badge a little inside the room, so it never
+  // sits on (or bleeds over) the wall line.
+  const dock = useMemo<Pt | null>(() => {
+    if (!dockAt) return null;
+    const home = rooms.find((rings) => containsPoint(rings, dockAt[0], dockAt[1]));
+    if (!home) return dockAt;
+    const [cx, cy] = polylabel(home, unit / 2);
+    const dist = Math.hypot(cx - dockAt[0], cy - dockAt[1]);
+    const k = dist > 0 ? Math.min(unit * 2.4, dist) / dist : 0;
+    return [dockAt[0] + (cx - dockAt[0]) * k, dockAt[1] + (cy - dockAt[1]) * k];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dockAt is derived from map.dock
+  }, [map.dock, rooms, frame, unit]);
+  const r = unit * 2.5;
   // Parked on the station (not just driving past it while cleaning).
   const docked =
     tone !== 'cleaning' &&
     !!dock &&
     !!target &&
-    Math.hypot(dock[0] - target[0], dock[1] - target[1]) < r * 1.6;
+    Math.hypot(dockAt![0] - target[0], dockAt![1] - target[1]) < r * 1.6;
   // Behind the robot = opposite its heading (it drives off the dock forwards).
   const back = heading === null ? null : ((heading + 180) * Math.PI) / 180;
   const dockShift: Pt =
@@ -467,7 +545,6 @@ function RobotLayer({
       data-testid="robots-map-dock"
       data-docked={docked || undefined}
     >
-      <circle className="rv-dock-glow" r={r * 1.6} />
       <rect x={-r * 0.95} y={-r * 0.95} width={r * 1.9} height={r * 1.9} rx={r * 0.62} />
       <path
         d={`M${-r * 0.15} ${-r * 0.5}L${-r * 0.42} ${r * 0.08}H${r * 0.1}L${-r * 0.1} ${r * 0.55}L${r * 0.42} ${-r * 0.08}H${-r * 0.06}Z`}
@@ -512,7 +589,12 @@ function RobotLayer({
           // Narrower than the wall cut-out in the mask: coverage never shows past a wall.
           strokeWidth={unit * 0.9}
         />
-        <path ref={trailRef} className="rv-trail" d={trailD(trail.slice(-TRAIL_POINTS))} />
+        <path
+          ref={trailRef}
+          className="rv-trail rv-trail-tail"
+          d={trailD(trail.slice(-TRAIL_POINTS))}
+          stroke={`url(#${tailId})`}
+        />
         <polyline
           ref={reveal}
           className="rv-trail rv-trail-recent rv-trail-reveal"
@@ -532,7 +614,7 @@ function RobotLayer({
           {tone === 'cleaning' && <circle className="rv-bot-pulse" r={r * 1.7} />}
           <path
             className="rv-bot-cone"
-            d={`M0 0L${r * 2.5} ${-r * 1.3}A${r * 2.8} ${r * 2.8} 0 0 1 ${r * 2.5} ${r * 1.3}Z`}
+            d={`M0 0L${r * 2.1} ${-r * 0.95}A${r * 2.3} ${r * 2.3} 0 0 1 ${r * 2.1} ${r * 0.95}Z`}
           />
           <circle className="rv-bot-halo" r={r * 1.5} />
           <circle className="rv-bot-body" r={r} />
@@ -548,7 +630,13 @@ function RobotLayer({
   );
 }
 
-/** Hide labels that collide with each other or with the robot marker (real DOM rects). */
+const overlaps = (a: DOMRect, b: DOMRect) =>
+  a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+
+/**
+ * Real-DOM label layout: fit each label into its room (full → compact → badge only), slide it
+ * off the robot's final spot, then hide what still collides (selected labels win).
+ */
 function LabelCollisions({ deps }: { deps: string }) {
   const probe = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
@@ -556,8 +644,43 @@ function LabelCollisions({ deps }: { deps: string }) {
     if (!root) return;
     const run = () => {
       const labels = Array.from(root.querySelectorAll<HTMLElement>('.rv-label'));
-      labels.forEach((el) => el.removeAttribute('data-hidden'));
-      const bot = root.querySelector('.rv-bot-body')?.getBoundingClientRect();
+      labels.forEach((el) => {
+        el.removeAttribute('data-hidden');
+        el.removeAttribute('data-fit');
+        el.style.removeProperty('--rv-nudge');
+      });
+      const bot = root.querySelector('[data-rv-bot-spot]')?.getBoundingClientRect();
+      // Fit each label into its own room: full → compact (smaller, badge above) → badge only.
+      for (const el of labels) {
+        const room = root
+          .querySelector<SVGGraphicsElement>(
+            `[data-testid='robots-map-room-${el.dataset.rvLabel}']`,
+          )
+          ?.getBoundingClientRect();
+        if (!room?.width) continue;
+        // Full labels keep a comfortable margin to the walls; compact ones may get closer.
+        const fits = (pad = 16) => {
+          const box = el.getBoundingClientRect();
+          return box.width <= room.width - pad && box.height <= room.height - pad * 0.75;
+        };
+        // Under the robot: slide the label just below (or above) it, if it still fits the room.
+        const box0 = el.getBoundingClientRect();
+        if (bot && overlaps(box0, bot)) {
+          const below = bot.bottom - box0.top + 2;
+          const above = bot.top - box0.bottom - 2;
+          const fitsY = (dy: number) =>
+            box0.top + dy >= room.top + 2 && box0.bottom + dy <= room.bottom - 2;
+          const dy = fitsY(below) ? below : fitsY(above) ? above : null;
+          if (dy === null) el.setAttribute('data-hidden', '');
+          else el.style.setProperty('--rv-nudge', `${dy.toFixed(1)}px`);
+          if (dy === null) continue;
+        }
+        if (fits()) continue;
+        el.setAttribute('data-fit', 'compact');
+        if (fits(6)) continue;
+        if (el.hasAttribute('data-selected')) el.setAttribute('data-fit', 'badge');
+        else el.setAttribute('data-hidden', '');
+      }
       const obstacles = Array.from(root.querySelectorAll<HTMLElement>('[data-rv-obstacle]')).map(
         (el) => el.getBoundingClientRect(),
       );
@@ -567,18 +690,11 @@ function LabelCollisions({ deps }: { deps: string }) {
       );
       const kept: DOMRect[] = [];
       for (const el of labels) {
+        if (el.hasAttribute('data-hidden')) continue;
         const box = el.getBoundingClientRect();
         if (!box.width) continue;
-        const hit = (o: DOMRect) =>
-          box.left < o.right - 1 &&
-          box.right > o.left + 1 &&
-          box.top < o.bottom - 1 &&
-          box.bottom > o.top + 1;
-        if (
-          kept.some(hit) ||
-          obstacles.some(hit) ||
-          (bot && !el.hasAttribute('data-selected') && hit(bot))
-        )
+        const hit = (o: DOMRect) => overlaps(box, o);
+        if (kept.some(hit) || obstacles.some(hit) || (bot && hit(bot)))
           el.setAttribute('data-hidden', '');
         else kept.push(box);
       }

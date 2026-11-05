@@ -348,6 +348,9 @@
   color: var(--hb-on-ac);
   font-weight: 600;
 }
+.hb-chip[data-toggle][aria-pressed='true']:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--hb-ac) 88%, black);
+}
 .hb-chip[data-toggle][aria-pressed='true']:has(.hb-chip-badge) {
   padding-left: 6px;
 }
@@ -1296,13 +1299,16 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     box-shadow var(--hb-dur-base);
 }
 .hb-seg button[aria-checked='true'] {
-  background: var(--hb-s3);
+  background: color-mix(in srgb, var(--hb-t1) 20%, var(--hb-s2));
   color: var(--hb-t1);
   font-weight: 600;
-  box-shadow: var(--hb-elev-1);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 35%);
 }
 [data-theme='light'] .hb-seg button[aria-checked='true'] {
   background: var(--hb-s1);
+  box-shadow:
+    0 0 0 0.5px rgb(16 24 40 / 10%),
+    0 1px 3px rgb(16 24 40 / 10%);
 }
 .hb-seg button:disabled {
   cursor: default;

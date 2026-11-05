@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
-import { Button, Card, Chip, SegmentedControl, useToast } from '@homebrain/ui';
+import { Button, Card, Chip, SegmentedControl, czCount, useToast } from '@homebrain/ui';
 import {
   attention,
   buildRobot,
@@ -177,6 +177,8 @@ function RobotPanel({
   const canAct = !!connection && robot.available;
   const vmap = vector?.available ? vector.map : null;
   const areas = new Map((vmap?.rooms ?? []).map((room) => [room.id, Math.round(room.area_m2)]));
+  const roomsLabel = czCount(selected.length, 'místnost', 'místnosti', 'místností');
+  const selectedArea = selected.reduce((sum, id) => sum + (areas.get(id) ?? 0), 0);
   const portraitMap =
     !!vmap && vmap.bounds[3] - vmap.bounds[1] > (vmap.bounds[2] - vmap.bounds[0]) * 1.1;
   // <image> cannot send the bearer token: the raster base path is signed by HA (10 min).
@@ -413,24 +415,46 @@ function RobotPanel({
         <Card as="article" className="rb-clean rb-card" data-testid="robots-clean">
           {/* Portrait plans on a wide card: the room list sits beside the map (container query),
               so the card has no empty side strips; one list, so test ids stay unique. */}
-          <div className="rb-card-head">
-            <h3>Uklidit místnosti</h3>
-            <div className="rb-card-head-side">
-              {vector?.available && vector.map.path.length > 0 && (
-                <Chip
-                  className="rb-chip rb-trail-toggle"
-                  pressed={fullTrail}
-                  data-testid="robots-trail-toggle"
-                  onPress={() => {
-                    setFullTrail(!fullTrail);
-                    writeTrailPref(!fullTrail);
-                  }}
-                >
-                  Trasa
-                </Chip>
-              )}
-              <p className="rb-micro">{robot.mapName ?? 'Mapa'}</p>
+          <div className="rb-card-head rb-clean-head">
+            <div className="rb-clean-title">
+              <h3>Uklidit místnosti</h3>
+              <p className="rb-micro" data-testid="robots-map-name">
+                {robot.mapName ?? 'Mapa'}
+                {busy && robot.room ? (
+                  <>
+                    {' · '}
+                    <span className="rb-live">Uklízí {robot.room}</span>
+                  </>
+                ) : robot.rooms.length ? (
+                  <> · {czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}</>
+                ) : null}
+              </p>
             </div>
+            {vector?.available && vector.map.path.length > 0 && (
+              <Chip
+                className="rb-chip rb-trail-toggle"
+                pressed={fullTrail}
+                data-testid="robots-trail-toggle"
+                aria-label="Celá trasa úklidu"
+                onPress={() => {
+                  setFullTrail(!fullTrail);
+                  writeTrailPref(!fullTrail);
+                }}
+              >
+                <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M3.5 13.5a2 2 0 1 1 0-4h7a2 2 0 1 0 0-4H5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="12.5" cy="13.5" r="1.6" />
+                  <circle cx="3.5" cy="5.5" r="1.6" />
+                </svg>
+                Trasa
+              </Chip>
+            )}
           </div>
           <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
             <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
@@ -492,12 +516,17 @@ function RobotPanel({
                 </p>
               )}
 
-              <p className="rb-hint" aria-live="polite">
-                {selected.length
-                  ? `${selected.length} ${selected.length === 1 ? 'místnost' : selected.length < 5 ? 'místnosti' : 'místností'} v pořadí podle čísel`
-                  : busy
-                    ? 'Robot právě uklízí. Chcete-li úklid změnit, vyberte místnosti.'
-                    : 'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'}
+              <p className="rb-hint" aria-live="polite" data-testid="robots-selection-summary">
+                {selected.length ? (
+                  <>
+                    <b>{czCount(selected.length, 'místnost', 'místnosti', 'místností')}</b>
+                    {selectedArea ? <> · {selectedArea} m²</> : null} · v pořadí podle čísel
+                  </>
+                ) : busy ? (
+                  'Robot právě uklízí. Chcete-li úklid změnit, vyberte místnosti.'
+                ) : (
+                  'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'
+                )}
               </p>
               <div className="rb-controls">
                 {modes.length > 1 && (
@@ -519,6 +548,9 @@ function RobotPanel({
               </div>
               <Button
                 variant="primary"
+                size="lg"
+                block
+                className="rb-start"
                 data-testid="robots-start"
                 disabled={!canAct || !selected.length || Boolean(robot.error)}
                 onClick={() =>
@@ -540,9 +572,11 @@ function RobotPanel({
                   ? 'Nejdřív odstraňte závadu'
                   : busy
                     ? selected.length
-                      ? `Přerušit a uklidit vybrané (${selected.length})`
+                      ? `Přerušit a uklidit ${roomsLabel}`
                       : 'Probíhá úklid'
-                    : `Uklidit vybrané${selected.length ? ` (${selected.length})` : ''}`}
+                    : selected.length
+                      ? `Uklidit ${roomsLabel}`
+                      : 'Uklidit vybrané'}
               </Button>
               {!connection && (
                 <p className="rb-micro">Bez spojení s Home Assistantem nelze posílat příkazy.</p>
