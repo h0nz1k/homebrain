@@ -112,9 +112,16 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
     const w = await widths(name);
     expect(Math.max(...w) - Math.min(...w), name).toBeLessThan(1.5);
     // Equal columns must not clip their labels (phones at 360 px).
+    // Text box vs content box: scrollWidth misses a label that eats into the end padding.
     const clipped = await page.getByRole('radiogroup', { name }).evaluate((el) =>
       Array.from(el.querySelectorAll('button'))
-        .filter((b) => b.scrollWidth > b.clientWidth + 1)
+        .filter((b) => {
+          const range = document.createRange();
+          range.selectNodeContents(b);
+          const cs = getComputedStyle(b);
+          const inner = b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          return range.getBoundingClientRect().width > inner + 0.5;
+        })
         .map((b) => b.textContent),
     );
     expect(clipped, name).toEqual([]);

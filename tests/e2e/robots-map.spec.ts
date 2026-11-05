@@ -86,22 +86,19 @@ test('robot se mezi aktualizacemi plynule posouvá po dráze', async ({ page }) 
   expect(Math.max(...moves)).toBeLessThan(total * 0.7);
 });
 
-test('záložní obrázek mapy: robot bez vektorových dat, chyba parseru a vypínač', async ({
-  page,
-}) => {
-  await page.goto('/homebrain-roboti?robot=3');
-  await expect(page.getByTestId('robots-map')).toBeVisible();
-  await expect(page.getByTestId('robots-vector-map')).toHaveCount(0);
-  await expect(page.locator('.rb-map')).toHaveAttribute('data-map-kind', 'image');
-
-  await page.goto('/homebrain-roboti?vektor=chyba');
-  await expect(page.getByTestId('robots-map')).toBeVisible();
-  await expect(page.getByTestId('robots-vector-map')).toHaveCount(0);
-
-  await page.goto('/homebrain-roboti?mapa=obrazek');
-  await expect(page.getByTestId('robots-map')).toBeVisible();
-  await expect(page.getByTestId('robots-vector-map')).toHaveCount(0);
-});
+// One full page load per case (three in one test exceeded 30 s on a loaded host).
+for (const [name, query, kind] of [
+  ['robot bez vektorových dat', 'robot=3', 'image'],
+  ['chyba parseru', 'vektor=chyba', null],
+  ['vypínač ?mapa=obrazek', 'mapa=obrazek', null],
+] as const) {
+  test(`záložní obrázek mapy: ${name}`, async ({ page }) => {
+    await page.goto(`/homebrain-roboti?${query}`);
+    await expect(page.getByTestId('robots-map')).toBeVisible();
+    await expect(page.getByTestId('robots-vector-map')).toHaveCount(0);
+    if (kind) await expect(page.locator('.rb-map')).toHaveAttribute('data-map-kind', kind);
+  });
+}
 
 test('omezený pohyb: mapa bez běžících animací', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' });

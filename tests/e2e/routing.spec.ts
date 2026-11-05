@@ -63,9 +63,7 @@ for (const path of [...KNOWN, `${panels.settings.url_path}/family`]) {
   });
 }
 
-test('Přístup: všechny záložky zůstanou v panelu, zpět vrátí Osoby, reload drží záložku', async ({
-  page,
-}) => {
+test('Přístup: všechny záložky zůstanou v panelu, zpět vrátí Osoby', async ({ page }) => {
   const P = PANEL.access!;
   await page.goto(`/${P}`);
   await expect(page.getByTestId('access-person').first()).toBeVisible({ timeout: 20_000 });
@@ -95,7 +93,12 @@ test('Přístup: všechny záložky zůstanou v panelu, zpět vrátí Osoby, rel
   await page.goForward();
   await expectInPanel(page, P, '/zarizeni');
   await expect(page.getByTestId('access-device')).toBeVisible();
-  // Deep link + reload keep the tab.
+  await expectOnlyKnownPanels(page);
+});
+
+// Separate test: three full page loads in one test exceeded 30 s on a loaded host.
+test('Přístup: deep link a reload drží záložku', async ({ page }) => {
+  const P = PANEL.access!;
   await page.goto(`/${P}/historie`);
   await expect(page.getByRole('radio', { name: 'Historie' })).toHaveAttribute(
     'aria-checked',

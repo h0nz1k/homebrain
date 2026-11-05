@@ -1361,6 +1361,19 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   .hb-seg button {
     padding: 0 8px;
   }
+  /* 4+ equal columns: 13 px labels („Vyvážené“ 600 ≈ 63 px) fit from ~390 px phones up. */
+  .hb-seg:has(> button:nth-of-type(4)) button {
+    padding-inline: 4px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 380px) {
+  /* 360/320 px phones: columns are ≤ 69 px, too tight for four labels (and wider fallback
+     fonts) → 2 × 2, still equal columns. */
+  .hb-seg:has(> button:nth-of-type(4)) {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ── Sheet ──────────────────────────────────────────────────────────── */
