@@ -178,6 +178,10 @@ export function FryerLiveCard({
           </b>
         </span>
       </span>
+    ) : m.phase === 'error' ? (
+      <span className="rc-fl-note rc-fl-code" data-testid="recipes-fryer-code">
+        Kód chyby: {m.errorCode ?? '?'}
+      </span>
     ) : m.phase === 'paused' ? (
       <span className="rc-fl-note">{FRYER_HINT.paused}</span>
     ) : eta ? (
@@ -199,17 +203,13 @@ export function FryerLiveCard({
         <span className="rc-fl-kicker">
           <Icon name="fryer" /> Fritéza
           {program ? <span className="rc-fl-prog">{program}</span> : null}
+          {m.amount ? <span className="rc-fl-amount">Zaplnění {m.amount}/7</span> : null}
         </span>
         <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
           {m.label}
         </h2>
         {FRYER_HINT[m.phase] && m.phase !== 'paused' ? (
           <p className="rc-fl-hint">{FRYER_HINT[m.phase]}</p>
-        ) : null}
-        {m.phase === 'error' ? (
-          <span className="rc-fl-code" data-testid="recipes-fryer-code">
-            Kód chyby {m.errorCode ?? '?'}
-          </span>
         ) : null}
         {m.currentTemp !== null && !finished && m.phase !== 'error' ? (
           <div className="rc-fl-temp" data-testid="recipes-fryer-temp">

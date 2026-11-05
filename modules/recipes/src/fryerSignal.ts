@@ -37,7 +37,7 @@ export function readFryerStates(
 
 /** One short instruction per phase – the same copy in Recepty and on Dnes (vykání). */
 export const FRYER_HINT: Partial<Record<FryerModel['phase'], string>> = {
-  action: 'Vytáhněte koš, protřepejte nebo otočte jídlo a zasuňte ho zpět. Pečení pak naváže samo.',
+  action: 'Vytáhněte koš, protřepejte nebo otočte jídlo a koš zasuňte zpět. Pečení pak samo naváže.',
   drawer: 'Po protřepání koš zasuňte, fritéza sama naváže.',
   paused: 'Pokračovat lze na fritéze.',
   done: 'Jídlo je hotové, můžete ho vyndat.',

@@ -23,6 +23,7 @@ export type FryerRole =
   | 'targetTemp'
   | 'stage'
   | 'program'
+  | 'amount'
   | 'method'
   | 'preheat'
   | 'drawer'
@@ -41,6 +42,7 @@ export const FRYER_SUFFIXES: Record<FryerRole, readonly [domain: string, suffix:
   targetTemp: ['sensor', 'target_temperature'],
   stage: ['sensor', 'current_stage'],
   program: ['sensor', 'autocook_program'],
+  amount: ['sensor', 'autocook_amount'],
   method: ['select', 'cooking_method'],
   preheat: ['sensor', 'preheat_status'],
   drawer: ['binary_sensor', 'drawer'],
@@ -210,6 +212,8 @@ export interface FryerModel {
   targetTemp: number | null;
   stage: number | null;
   program: number | null;
+  /** AutoCook basket fill level; the device shows plain 1–7 (assumed scale, unverified). */
+  amount: number | null;
   method: string | null;
   errorCode: number | null;
 }
@@ -237,6 +241,7 @@ export function fryerModel(states: FryerStates, now: number): FryerModel {
     targetTemp: num(states.targetTemp),
     stage: num(states.stage) || null,
     program: num(states.program) || null,
+    amount: method === 'auto_cook' ? num(states.amount) || null : null,
     method: method ? (METHOD_LABEL[method] ?? null) : null,
     errorCode,
   };
@@ -336,6 +341,7 @@ export function fryerControls(phase: FryerPhase): FryerControl[] {
     case 'done':
       return ['keep_warm', 'stop'];
     case 'warm':
+    case 'error':
       return ['stop'];
     default:
       return [];

@@ -282,3 +282,13 @@ async def test_airfryer_program_name_from_owning_entry(hass, setup, hass_ws_clie
     hass.states.async_set("sensor.demo_fryer_cooking_status", "cooking")
     assert (await _call(ws, **msg))["result"] == {"name": "Demo brambory"}
     assert (await _call(ws, **{**msg, "program": 8}))["result"] == {"name": None}
+    # Owner override (device naming) wins; blank clears.
+    saved = await _call(
+        ws, type="homebrain/recipes/settings_set", airfryer_program_names={"7": "Demo mražené"}
+    )
+    assert saved["result"]["airfryerProgramNames"] == {"7": "Demo mražené"}
+    assert (await _call(ws, **msg))["result"] == {"name": "Demo mražené"}
+    bad = await _call(
+        ws, type="homebrain/recipes/settings_set", airfryer_program_names={"x": "y"}
+    )
+    assert not bad["success"]

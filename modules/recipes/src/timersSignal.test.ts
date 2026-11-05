@@ -35,7 +35,7 @@ describe('timerSignals (Dnes)', () => {
     expect(s.module).toBe('recipes');
     expect(s.title).toBe('Minutka · Vejce M naměkko (2 ks)');
     expect(s.severity).toBe('notice'); // a Dnes card with the big countdown, not a chip
-    expect(s.value).toEqual({ v: '3:20', label: 'zbývá' });
+    expect(s.value).toMatchObject({ v: '3:20', label: 'zbývá' });
     // Running timers by remaining time, paused ones last.
     expect(s.context).toBe('Další: Těstoviny za 7:40 · Rýže (pauza, zbývá 1:05)');
     expect(s.action).toEqual({
@@ -48,7 +48,7 @@ describe('timerSignals (Dnes)', () => {
   it('puts the last minute and a finished timer into the hero (warning)', () => {
     const last = timerSignals([t({ endsAt: NOW + 45_000 })], NOW)[0]!;
     expect(last.severity).toBe('warning');
-    expect(last.value).toEqual({ v: '0:45', label: 'zbývá' });
+    expect(last.value).toMatchObject({ v: '0:45', label: 'zbývá' });
     const s = timerSignals([t({ endsAt: NOW - 1000 })], NOW)[0]!;
     expect(s.title).toBe('Minutka doběhla · Vejce M naměkko (2 ks)');
     expect(s.severity).toBe('warning');

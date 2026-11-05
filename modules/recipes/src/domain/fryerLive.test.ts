@@ -202,6 +202,9 @@ describe('fryer timeline', () => {
     const cooking = fryerModel({ ...states, status: st('cooking') }, now);
     expect(fryerProgramLine(cooking)).toBe('AutoCook 14');
     expect(fryerProgramLine(cooking, 'Demo hranolky')).toBe('Demo hranolky');
+    expect(fryerModel({ ...states, amount: st('3') }, now).amount).toBe(3);
+    expect(fryerModel({ ...states, method: st('manual'), amount: st('3') }, now).amount).toBeNull();
+    expect(fryerControls('error')).toEqual(['stop']);
     const [cook] = fryerSignals(cooking, now, 'Demo hranolky');
     expect(cook!.context).toContain('Demo hranolky');
     expect(cook!.value?.progress).toBeCloseTo(1 - 522 / (19 * 60), 3);

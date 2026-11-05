@@ -263,13 +263,13 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl-nw, .rc-fl-prog { white-space:nowrap; }
 .rc-fl-prog::before { content:'·'; margin:0 6px 0 2px; }
 .rc-fl-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:0 8px; font-size:14px; color:var(--hb-t2); font-weight:550; }
-.rc-fl-kicker svg.rc-i { width:18px; height:18px; color:var(--rc-ac-ink); }
+.rc-fl-kicker svg.rc-i { width:18px; height:18px; color:var(--rc-fl-ink); }
 .rc-fl h2 { margin:0; font-size:26px; font-weight:650; letter-spacing:-.02em; line-height:1.18; }
 .rc-fl[data-urgent] h2 { color:var(--rc-fl-ink); }
 .rc-fl[data-instruction] h2 { font-size:32px; }
 .rc-fl[data-phase='paused'] h2 { color:var(--hb-t2); }
 .rc-fl-hint { margin:0; font-size:15px; color:var(--hb-t2); line-height:1.45; max-width:62ch; }
-.rc-fl[data-instruction] .rc-fl-hint { font-size:16px; color:var(--hb-t1); }
+.rc-fl[data-instruction] .rc-fl-hint { color:var(--hb-t1); }
 .rc-fl-glyph { position:relative; display:grid; place-items:center; width:128px; height:128px; border-radius:36px; color:var(--rc-fl-ink); background:color-mix(in srgb, var(--rc-fl-tone) 16%, transparent); }
 .rc-fl-glyph svg.rc-i { width:68px; height:68px; stroke-width:1.7; transform-origin:50% 75%; }
 .rc-fl-glyph::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:0 0 0 2px var(--rc-fl-tone); opacity:0; }
@@ -281,10 +281,15 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl-temp svg.rc-i { width:18px; height:18px; color:var(--hb-t2); }
 .rc-fl-temp b { font-size:18px; font-weight:650; }
 .rc-fl-temp .t2 { color:var(--hb-t2); }
-.rc-fl-bar { flex:0 1 160px; width:160px; height:6px; border-radius:999px; background:var(--hb-fill-strong); overflow:hidden; }
+.rc-fl-bar { flex:0 1 160px; width:160px; height:4px; border-radius:999px; background:var(--hb-fill-strong); overflow:hidden; }
 .rc-fl-bar i { display:block; height:100%; border-radius:inherit; background:var(--rc-ac); transition:width var(--hb-dur-2, .3s) var(--hb-ease-out, ease-out); }
 .rc-fl-steps { align-self:stretch; max-width:560px; margin-top:4px; }
-.rc-fl-steps .hb-step[data-state='active'] { --hb-tone:var(--rc-fl-tone); }
+.rc-fl-steps, .rc-fl-actions { --hb-ac:var(--rc-fl-tone); --hb-ac-s:color-mix(in srgb, var(--rc-fl-tone) 16%, transparent); }
+.rc-fl[data-phase='done'] .rc-fl-steps, .rc-fl[data-phase='warm'] .rc-fl-steps { display:none; }
+.rc-fl[data-instruction] .rc-fl-bar i { background:var(--hb-t3); }
+.rc-fl-heldnote svg.rc-i path, .rc-fl .hb-btn svg.rc-i path { fill:currentColor; stroke:none; }
+.rc-fl-amount { white-space:nowrap; }
+.rc-fl-amount::before { content:'·'; margin:0 6px 0 2px; }
 .rc-fl-actions { grid-area:act; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; padding-top:12px; border-top:1px solid var(--hb-edge); }
 .rc-fl-note { font-size:14px; font-weight:550; color:var(--hb-t2); font-variant-numeric:tabular-nums; }
 .rc-fl-btns { display:flex; flex-wrap:wrap; gap:10px; margin-left:auto; }
@@ -296,16 +301,16 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl[data-phase='paused'] .rc-fl-bar i { background:var(--hb-t3); }
 .rc-fl[data-phase='paused'] .rc-fl-steps .hb-step { filter:saturate(0); }
 @media (max-width: 640px) {
-  .rc-fl { margin:4px 16px 14px; padding:16px 16px 12px; grid-template-columns:88px minmax(0,1fr); grid-template-areas:none; column-gap:16px; row-gap:10px; }
+  .rc-fl { margin:4px 16px 14px; padding:16px 16px 12px; grid-template-columns:104px minmax(0,1fr); grid-template-areas:none; column-gap:16px; row-gap:10px; }
   .rc-fl-vis { grid-area:auto; grid-column:1; grid-row:1 / span 2; }
   .rc-fl-copy { display:contents; }
   .rc-fl-kicker { grid-column:2; grid-row:1; align-self:end; font-size:13px; }
   .rc-fl h2 { grid-column:2; grid-row:2; align-self:start; font-size:21px; }
   .rc-fl[data-instruction] h2 { font-size:24px; }
   .rc-fl-copy > :not(.rc-fl-kicker):not(h2), .rc-fl-actions { grid-area:auto; grid-column:1 / -1; }
-  .rc-fl .rc-fl-ring { --hb-ring-size:88px !important; }
+  .rc-fl .rc-fl-ring { --hb-ring-size:104px !important; }
   .rc-fl .rc-fl-ring .hb-ring-c small { font-size:11px; }
-  .rc-fl-time { font-size:20px; }
+  .rc-fl-time { font-size:24px; }
   .rc-fl-ring svg.rc-i { width:34px; height:34px; }
   .rc-fl-glyph { width:88px; height:88px; border-radius:26px; }
   .rc-fl-glyph svg.rc-i { width:50px; height:50px; }

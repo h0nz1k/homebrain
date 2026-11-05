@@ -251,6 +251,7 @@ export function fryerDemoStates(
     ['sensor.demo_fryer_target_temperature', running ? (scenario === 'warm' ? '65' : '200') : '0'],
     ['sensor.demo_fryer_current_stage', running ? '2' : '0'],
     ['sensor.demo_fryer_autocook_program', running ? '14' : '0'],
+    ['sensor.demo_fryer_autocook_amount', running ? '3' : '0'],
     ['select.demo_fryer_cooking_method', running ? 'auto_cook' : 'no_selection'],
     ['sensor.demo_fryer_preheat_status', scenario === 'preheat' ? 'True' : 'False'],
     ['binary_sensor.demo_fryer_drawer', scenario === 'drawer' ? 'on' : 'off'],

@@ -407,6 +407,7 @@ async def ws_settings_get(hass, connection, msg):
             "musicNotifyService": await _notify_service(hass),
             "availableNotifyServices": services,
             "timerNotifyTargets": targets,
+            "airfryerProgramNames": await _owner_program_names(hass),
             "availableTimerNotifyTargets": sorted(
                 name
                 for name in hass.services.async_services_for_domain("notify")
@@ -422,6 +423,11 @@ async def ws_settings_get(hass, connection, msg):
         vol.Required("type"): "homebrain/recipes/settings_set",
         vol.Optional("music_notify_service"): vol.Any(None, str),
         vol.Optional("timer_notify_targets"): vol.All([str], vol.Length(max=10)),
+        # Owner names for AutoCook programs as shown on the device ({"14": "…"}); {} clears.
+        vol.Optional("airfryer_program_names"): vol.All(
+            {vol.All(str, vol.Match(r"^[0-9]{1,6}$")): vol.All(str, vol.Length(min=1, max=80))},
+            vol.Length(max=200),
+        ),
     }
 )
 @websocket_api.require_admin
@@ -429,6 +435,12 @@ async def ws_settings_get(hass, connection, msg):
 async def ws_settings_set(hass, connection, msg):
     store = await async_get_store(hass)
     result: dict[str, Any] = {}
+    if "airfryer_program_names" in msg:
+        names = {k: v.strip() for k, v in msg["airfryer_program_names"].items() if v.strip()}
+        await hass.async_add_executor_job(
+            store.set_setting, SETTING_FRYER_NAMES, json.dumps(names) if names else None
+        )
+        result["airfryerProgramNames"] = names
     if "timer_notify_targets" in msg:
         targets = [t.removeprefix("notify.") for t in msg["timer_notify_targets"]]
         if any(not NOTIFY_TARGET_RE.match(t) for t in targets):
@@ -724,6 +736,19 @@ def program_name_from_cache(cache: Any, program: int) -> str | None:
     return None
 
 
+SETTING_FRYER_NAMES = "airfryer_program_names"
+
+
+async def _owner_program_names(hass: HomeAssistant) -> dict[str, str]:
+    store = await async_get_store(hass)
+    raw = await hass.async_add_executor_job(store.setting, SETTING_FRYER_NAMES)
+    try:
+        data = json.loads(raw) if raw else {}
+    except ValueError:
+        return {}
+    return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+
+
 def fryer_program_name(hass: HomeAssistant, status_id: str, program: int) -> str | None:
     """Resolve the name via the config entry that owns the fryer status sensor (never a copy)."""
     try:
@@ -755,9 +780,10 @@ async def ws_airfryer_program(hass, connection, msg):
     if not status_id or not status_id.endswith(FRYER_STATUS_SUFFIX):
         connection.send_error(msg["id"], "NOT_CONFIGURED", "airfryer")
         return
-    connection.send_result(
-        msg["id"], {"name": fryer_program_name(hass, status_id, msg["program"])}
-    )
+    # Owner names (as printed on the device) win over the integration's cloud catalogue.
+    owner = (await _owner_program_names(hass)).get(str(msg["program"]))
+    name = owner or fryer_program_name(hass, status_id, msg["program"])
+    connection.send_result(msg["id"], {"name": name})
 
 
 class RecipePhotoView(HomeAssistantView):
