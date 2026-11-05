@@ -66,89 +66,90 @@ const PLANS: Record<number, DemoPlan> = {
       [
         1,
         [
-          [20, 20],
-          [210, 20],
-          [210, 150],
-          [110, 150],
-          [110, 120],
-          [20, 120],
+          [18, 18],
+          [212, 18],
+          [212, 152],
+          [108, 152],
+          [108, 122],
+          [18, 122],
         ],
       ],
       [
         2,
         [
-          [214, 20],
-          [330, 20],
-          [330, 100],
-          [252, 100],
-          [214, 66],
+          [212, 18],
+          [332, 18],
+          [332, 102],
+          [249, 102],
+          [212, 69],
         ],
       ],
       [
         3,
         [
-          [214, 72],
-          [246, 104],
-          [330, 104],
-          [330, 190],
-          [214, 190],
+          [212, 69],
+          [249, 102],
+          [332, 102],
+          [332, 192],
+          [212, 192],
         ],
       ],
       [
         4,
         [
-          [20, 124],
-          [106, 124],
-          [106, 154],
-          [210, 154],
-          [210, 190],
-          [20, 190],
+          [18, 122],
+          [108, 122],
+          [108, 152],
+          [212, 152],
+          [212, 192],
+          [18, 192],
         ],
       ],
       [
         5,
         [
-          [20, 194],
-          [76, 194],
-          [76, 254],
-          [20, 254],
+          [18, 192],
+          [78, 192],
+          [78, 256],
+          [18, 256],
         ],
       ],
       [
         6,
         [
-          [80, 194],
-          [160, 194],
-          [160, 254],
-          [80, 254],
+          [78, 192],
+          [162, 192],
+          [162, 256],
+          [78, 256],
         ],
       ],
       [
         7,
         [
-          [164, 194],
-          [234, 194],
-          [234, 254],
-          [164, 254],
+          [162, 192],
+          [236, 192],
+          [236, 256],
+          [162, 256],
         ],
       ],
       [
         8,
         [
-          [238, 194],
-          [330, 194],
-          [330, 254],
-          [238, 254],
+          [236, 192],
+          [332, 192],
+          [332, 256],
+          [236, 256],
         ],
       ],
     ],
+    // The floor ends on the outer wall axis (like the backend's floor layer).
     floor: [
-      [14, 14],
-      [336, 14],
-      [336, 260],
-      [14, 260],
+      [18, 18],
+      [332, 18],
+      [332, 256],
+      [18, 256],
     ],
-    dock: [32, 180],
+    dock: [32, 162],
     wallLines: [
       OUTER,
       ...v(212, [18, 150], [175, 192]),
@@ -183,7 +184,7 @@ const PLANS: Record<number, DemoPlan> = {
       ],
     ],
     route: [
-      [32, 180],
+      [32, 162],
       [44, 172],
       [120, 172],
       [200, 170],
@@ -198,72 +199,73 @@ const PLANS: Record<number, DemoPlan> = {
       [
         16,
         [
-          [20, 20],
-          [150, 20],
-          [150, 130],
-          [20, 130],
+          [18, 18],
+          [152, 18],
+          [152, 132],
+          [18, 132],
         ],
       ],
       [
         17,
         [
-          [154, 20],
-          [244, 20],
-          [244, 130],
-          [154, 130],
+          [152, 18],
+          [246, 18],
+          [246, 132],
+          [152, 132],
         ],
       ],
       [
         18,
         [
-          [248, 20],
-          [330, 20],
-          [330, 130],
-          [248, 130],
+          [246, 18],
+          [332, 18],
+          [332, 132],
+          [246, 132],
         ],
       ],
       [
         19,
         [
-          [20, 134],
-          [330, 134],
-          [330, 168],
-          [20, 168],
+          [18, 132],
+          [332, 132],
+          [332, 170],
+          [18, 170],
         ],
       ],
       [
         20,
         [
-          [20, 172],
-          [130, 172],
-          [130, 254],
-          [20, 254],
+          [18, 170],
+          [132, 170],
+          [132, 256],
+          [18, 256],
         ],
       ],
       [
         21,
         [
-          [134, 172],
-          [194, 172],
-          [194, 254],
-          [134, 254],
+          [132, 170],
+          [196, 170],
+          [196, 256],
+          [132, 256],
         ],
       ],
       [
         22,
         [
-          [198, 172],
-          [330, 172],
-          [330, 254],
-          [198, 254],
+          [196, 170],
+          [332, 170],
+          [332, 256],
+          [196, 256],
         ],
       ],
     ],
+    // The floor ends on the outer wall axis (like the backend's floor layer).
     floor: [
-      [14, 14],
-      [336, 14],
-      [336, 260],
-      [14, 260],
+      [18, 18],
+      [332, 18],
+      [332, 256],
+      [18, 256],
     ],
     dock: [300, 160],
     virtualWalls: [
@@ -292,13 +294,28 @@ const PLANS: Record<number, DemoPlan> = {
   },
 };
 
+/**
+ * Fixed demo scenes (dev `?scena=`, screenshots, e2e): the robot stands at a fixed share of
+ * its route instead of following the wall clock.
+ */
+export type DemoScene = 'kuchyne' | 'chodba' | 'dok';
+const SCENE_AT: Record<Exclude<DemoScene, 'dok'>, number> = { kuchyne: 0.5435, chodba: 0.07 };
+
 /** Demo `homebrain/robots/map` answer; robot 1 drives a route, one step per tick. */
-export function demoVectorMap(slot: number, nowMs: number, tickMs = 30_000): VectorMapResult {
+export function demoVectorMap(
+  slot: number,
+  nowMs: number,
+  tickMs = 30_000,
+  scene?: DemoScene | null,
+): VectorMapResult {
   const plan = PLANS[slot];
   if (!plan) return { available: false, reason: 'parse_failed' };
   let robot: P;
   let path: P[];
-  if (plan.parked) {
+  if (scene === 'dok' && !plan.parked) {
+    robot = plan.dock;
+    path = [];
+  } else if (plan.parked) {
     robot = plan.parked;
     path = plan.route;
   } else {
@@ -311,7 +328,7 @@ export function demoVectorMap(slot: number, nowMs: number, tickMs = 30_000): Vec
       total += seg[i - 1]!;
     }
     const tick = Math.floor(nowMs / tickMs);
-    let left = ((tick * 46) % total) + 30;
+    let left = scene && scene !== 'dok' ? SCENE_AT[scene] * total : ((tick * 46) % total) + 30;
     path = [plan.route[0]!];
     robot = plan.route[0]!;
     for (let i = 1; i < plan.route.length; i++) {
@@ -332,6 +349,7 @@ export function demoVectorMap(slot: number, nowMs: number, tickMs = 30_000): Vec
   const [rx, ry] = toMap(robot);
   const [dx, dy] = toMap(plan.dock);
   const last = path.length > 1 ? toMap(path[path.length - 2]!) : [rx, ry - 1];
+  if (!path.length) path = [robot];
   const angle = Math.round((Math.atan2(ry - last[1]!, rx - last[0]!) * 180) / Math.PI);
   return {
     available: true,

@@ -2,7 +2,7 @@ import type { EntityStateLike } from '@homebrain/ha-client';
 import type { RobotMeta } from './model.js';
 
 /** Synthetic robots for the dev server, unit tests and e2e (no real house data). */
-export type RobotsScenario = 'default' | 'calm' | 'error';
+export type RobotsScenario = 'default' | 'calm' | 'error' | 'docked';
 
 type RoomRect = [id: number, name: string, x: number, y: number, w: number, h: number];
 const PALETTE = [
@@ -95,7 +95,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     fan: string;
     battery: number;
     room: string;
-    progress: number;
+    progress: number | null;
     error: string;
     dock: string;
     hours: [number, number, number, number, number, number | null];
@@ -104,12 +104,13 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
   }[] = [
     {
       slot: 1,
-      vacuum: 'cleaning',
-      status: 'segment_cleaning',
+      // `docked`: robot 1 waits in its dock (plan a clean; pair with the map scene `dok`).
+      vacuum: scenario === 'docked' ? 'docked' : 'cleaning',
+      status: scenario === 'docked' ? 'charging_complete' : 'segment_cleaning',
       fan: 'balanced',
-      battery: 64,
+      battery: scenario === 'docked' ? 100 : 64,
       room: 'Kuchyně',
-      progress: 38,
+      progress: scenario === 'docked' ? null : 38,
       error: 'none',
       dock: 'ok',
       hours: [279, 173, 129, 2.9, 11, null],
@@ -168,7 +169,9 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     put(r.slot, 'status', 'sensor', r.status);
     put(r.slot, 'battery', 'sensor', String(r.battery), { unit_of_measurement: '%' });
     put(r.slot, 'current_room', 'sensor', r.room);
-    put(r.slot, 'cleaning_progress', 'sensor', String(r.progress), { unit_of_measurement: '%' });
+    put(r.slot, 'cleaning_progress', 'sensor', String(r.progress ?? 'unknown'), {
+      unit_of_measurement: '%',
+    });
     put(r.slot, 'error', 'sensor', r.error);
     put(r.slot, 'dock_error', 'sensor', r.dock);
     (

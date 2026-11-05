@@ -29,7 +29,12 @@ import {
   SETTINGS_PANEL_PATH,
 } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
-import { createRobotsDemo, demoVectorMap, type RobotsScenario } from '@homebrain/module-robots';
+import {
+  createRobotsDemo,
+  demoVectorMap,
+  type DemoScene,
+  type RobotsScenario,
+} from '@homebrain/module-robots';
 import { createMockWineApi, createSyntheticWines, setWineApiFactory } from '@homebrain/module-wine';
 import {
   createMockRecipesApi,
@@ -320,6 +325,8 @@ demoHass.connection = createMockConnection({
             Number((message as { slot?: number }).slot),
             Date.now(),
             Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
+            // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
+            new URLSearchParams(location.search).get('scena') as DemoScene | null,
           ),
   // Raster base layers of the demo plans (scripts/build_robot_demo_rasters.py); a local shot
   // script may inject its own via `window.__HB_ROBOT_RASTER__ = { light, dark }` (data URLs).

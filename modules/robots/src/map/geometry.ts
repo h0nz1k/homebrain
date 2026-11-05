@@ -139,7 +139,7 @@ export interface Frame {
   width: number;
   height: number;
 }
-export function frameFor(map: VectorMap, pad = 220): Frame {
+export function frameFor(map: VectorMap, pad = 120): Frame {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -403,4 +403,11 @@ export function clipTrail(
   }
   flush();
   return runs;
+}
+
+/** Room under a map point (e.g. the robot pose), or `null` outside every room. */
+export function roomAt(map: VectorMap, x: number, y: number): number | null {
+  const f = frameFor(map);
+  const [vx, vy] = toView(f, x, y);
+  return map.rooms.find((room) => containsPoint(roomRings(f, room), vx, vy))?.id ?? null;
 }

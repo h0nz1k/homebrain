@@ -35,6 +35,7 @@ import {
   smoothPath,
   type Pt,
 } from '../map/motion.js';
+import { planRoute, trimLine } from '../map/route.js';
 import { orderBadge, type Room } from '../rooms.js';
 
 export type MarkerTone = 'cleaning' | 'returning' | 'error' | 'idle';
@@ -150,6 +151,29 @@ export function VectorFloorPlan({
     ? placed.find((room) => containsPoint(room.rings, robotView[0], robotView[1]))?.id
     : undefined;
   const pct = (v: number, of: number) => `${((v / of) * 100).toFixed(3)}%`;
+  const dockView = map.dock ? toView(frame, map.dock.x, map.dock.y) : null;
+  const routeFrom = robotView ?? dockView;
+  const routeKey = `${selected.join(',')}|${routeFrom?.map((n) => n.toFixed(0)).join(',') ?? ''}`;
+  // Planned route: robot → selected rooms in order, through the doors (dashed preview).
+  const routeD = useMemo(() => {
+    if (!selected.length || !routeFrom || raster || !walls.length) return '';
+    const targets = selected
+      .map((id) => placed.find((room) => room.id === id))
+      .filter((room): room is Placed => !!room)
+      .map((room): [number, number] => [room.x, room.y]);
+    const cell = Math.max(unit * 1.4, Math.sqrt((frame.width * frame.height) / 12_000));
+    const legs = planRoute(roomShapes, walls, routeFrom, targets, {
+      cell,
+      clearance: unit * 1.6,
+    });
+    // Legs end in the order badges (drawn on top), the first one starts at the robot's rim.
+    return legs
+      .map((leg, i) => trimLine(leg, i === 0 ? unit * 3 : 0, 0))
+      .filter((leg) => leg.length > 1)
+      .map((leg) => roundedLine(leg, unit * 2.4))
+      .join('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- routeKey covers selection + pose
+  }, [routeKey, placed, walls, roomShapes, unit, frame, raster]);
 
   return (
     <div
@@ -191,8 +215,8 @@ export function VectorFloorPlan({
           </radialGradient>
         </defs>
         <linearGradient id={`${clipId}-tail`} gradientUnits="userSpaceOnUse" data-rv-tail="">
-          <stop offset="0" stopColor="var(--rv-trail)" stopOpacity="0" />
-          <stop offset="0.55" stopColor="var(--rv-trail)" stopOpacity="0.55" />
+          <stop offset="0" stopColor="var(--rv-trail)" stopOpacity="0.35" />
+          <stop offset="0.55" stopColor="var(--rv-trail)" stopOpacity="0.75" />
           <stop offset="1" stopColor="var(--rv-trail)" stopOpacity="1" />
         </linearGradient>
         {!raster && floor && (
@@ -296,6 +320,29 @@ export function VectorFloorPlan({
           />
         )}
         {dividersD && !wallsD && !raster && <path className="rv-divider" d={dividersD} />}
+        {/* Selection = an accent outline on the room's side of its walls (clipped to the room,
+            so it never doubles the wall line) over a light tint. */}
+        {wallsD &&
+          !raster &&
+          placed
+            .filter((room) => selected.includes(room.id))
+            .map((room) => (
+              <g key={`sel${room.id}`} className="rv-sel" data-testid={`robots-map-sel-${room.id}`}>
+                <clipPath id={`${clipId}-sel-${room.id}`}>
+                  <path d={room.d} />
+                </clipPath>
+                {/* The room's own walls (door gaps stay open), only their inner side. */}
+                <path
+                  className="rv-sel-line"
+                  d={wallsD}
+                  clipPath={`url(#${clipId}-sel-${room.id})`}
+                  strokeWidth={unit * 1.0}
+                />
+              </g>
+            ))}
+        {routeD && (
+          <path className="rv-route" d={routeD} data-rv-avoid="4" data-testid="robots-map-route" />
+        )}
         {zones.map((zone, i) => {
           const box = ringBox(zone);
           const k = Math.min(unit * 1.3, box.w / 4, box.h / 4);
@@ -383,7 +430,7 @@ export function VectorFloorPlan({
         </div>
       )}
       <LabelCollisions
-        deps={`${map.digest}|${selected.join(',')}|${callout?.title ?? ''}|${robotView?.map((n) => n.toFixed(0)).join(',') ?? ''}`}
+        deps={`${map.digest}|${routeKey}|${callout?.title ?? ''}|${routeD.length}`}
       />
     </div>
   );
@@ -397,7 +444,7 @@ function flatToView(frame: Frame, flat: number[]): Ring {
 
 const polyline = (pts: Pt[]) => pts.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`).join(' ');
 /** Only the recent part of the route is drawn (older lanes would criss-cross the walls). */
-const TRAIL_POINTS = 48;
+const TRAIL_POINTS = 8;
 const COVER_POINTS = 140;
 /** Hops longer than this (in % of the map's longer side) are jumps, not glides. */
 const GLIDE_MAX_GAP = 12;
@@ -586,13 +633,15 @@ function RobotLayer({
           ref={coverRef}
           className="rv-cover"
           d={trailD(trail.slice(-COVER_POINTS))}
-          // Narrower than the wall cut-out in the mask: coverage never shows past a wall.
-          strokeWidth={unit * 0.9}
+          // Wide enough that neighbouring lanes merge into one swept area (≈ 20 cm lanes).
+          strokeWidth={unit * 1.7}
+          data-rv-avoid="cover"
         />
         <path
           ref={trailRef}
           className="rv-trail rv-trail-tail"
           d={trailD(trail.slice(-TRAIL_POINTS))}
+          data-rv-avoid="4"
           stroke={`url(#${tailId})`}
         />
         <polyline
@@ -634,8 +683,10 @@ const overlaps = (a: DOMRect, b: DOMRect) =>
   a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
 
 /**
- * Real-DOM label layout: fit each label into its room (full → compact → badge only), slide it
- * off the robot's final spot, then hide what still collides (selected labels win).
+ * Real-DOM label layout: fit each label into its room (one line → wrapped → badge only, the
+ * font size never changes), move it off the robot and the drawn routes (route preview, trail,
+ * swept area) to the nearest free spot inside its room, then hide what still collides
+ * (selected labels win).
  */
 function LabelCollisions({ deps }: { deps: string }) {
   const probe = useRef<HTMLSpanElement>(null);
@@ -648,38 +699,139 @@ function LabelCollisions({ deps }: { deps: string }) {
         el.removeAttribute('data-hidden');
         el.removeAttribute('data-fit');
         el.style.removeProperty('--rv-nudge');
+        el.style.removeProperty('--rv-nudge-x');
+        el.style.removeProperty('--rv-maxw');
+        el.removeAttribute('data-flip');
       });
       const bot = root.querySelector('[data-rv-bot-spot]')?.getBoundingClientRect();
-      // Fit each label into its own room: full → compact (smaller, badge above) → badge only.
+      const svg = root.querySelector('svg');
+      const ctm = svg && typeof svg.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
+      const scale = ctm ? Math.hypot(ctm.a, ctm.b) : 1;
+      // Screen-space samples of everything drawn as a route, with the stroke's half width.
+      const samples: { x: number; y: number; r: number }[] = [];
+      if (ctm)
+        for (const el of Array.from(root.querySelectorAll<SVGPathElement>('[data-rv-avoid]'))) {
+          if (typeof el.getTotalLength !== 'function' || !el.getAttribute('d')) continue;
+          const kind = el.getAttribute('data-rv-avoid');
+          const r =
+            kind === 'cover' ? (Number(el.getAttribute('stroke-width')) * scale) / 2 : Number(kind);
+          const total = el.getTotalLength();
+          const step = Math.max(1, 6 / scale);
+          for (let len = 0; len <= total; len += step) {
+            const p = el.getPointAtLength(len).matrixTransform(ctm);
+            samples.push({ x: p.x, y: p.y, r: r + 2 });
+          }
+        }
+      const inv = ctm?.inverse() ?? null;
+      const insideRoom = (
+        room: SVGGeometryElement | null,
+        box: DOMRect,
+        dx: number,
+        dy: number,
+      ) => {
+        if (!room || !inv || typeof room.isPointInFill !== 'function') return true;
+        const corners: [number, number][] = [
+          [box.left + dx, box.top + dy],
+          [box.right + dx, box.top + dy],
+          [box.left + dx, box.bottom + dy],
+          [box.right + dx, box.bottom + dy],
+        ];
+        return corners.every(([x, y]) =>
+          room.isPointInFill(new DOMPoint(x, y).matrixTransform(inv)),
+        );
+      };
+      const blocked = (
+        box: DOMRect,
+        dx: number,
+        dy: number,
+        ignore?: (p: { x: number; y: number }) => boolean,
+      ) =>
+        (bot &&
+          box.left + dx < bot.right &&
+          box.right + dx > bot.left &&
+          box.top + dy < bot.bottom &&
+          box.bottom + dy > bot.top) ||
+        samples.some(
+          (p) =>
+            !ignore?.(p) &&
+            p.x > box.left + dx - p.r &&
+            p.x < box.right + dx + p.r &&
+            p.y > box.top + dy - p.r &&
+            p.y < box.bottom + dy + p.r,
+        );
       for (const el of labels) {
-        const room = root
-          .querySelector<SVGGraphicsElement>(
-            `[data-testid='robots-map-room-${el.dataset.rvLabel}']`,
-          )
-          ?.getBoundingClientRect();
+        const roomEl = root.querySelector<SVGGeometryElement>(
+          `[data-testid='robots-map-room-${el.dataset.rvLabel}']`,
+        );
+        const room = roomEl?.getBoundingClientRect();
         if (!room?.width) continue;
-        // Full labels keep a comfortable margin to the walls; compact ones may get closer.
+        // Full labels keep a comfortable margin to the walls; wrapped ones may get closer.
         const fits = (pad = 16) => {
           const box = el.getBoundingClientRect();
           return box.width <= room.width - pad && box.height <= room.height - pad * 0.75;
         };
-        // Under the robot: slide the label just below (or above) it, if it still fits the room.
-        const box0 = el.getBoundingClientRect();
-        if (bot && overlaps(box0, bot)) {
-          const below = bot.bottom - box0.top + 2;
-          const above = bot.top - box0.bottom - 2;
-          const fitsY = (dy: number) =>
-            box0.top + dy >= room.top + 2 && box0.bottom + dy <= room.bottom - 2;
-          const dy = fitsY(below) ? below : fitsY(above) ? above : null;
-          if (dy === null) el.setAttribute('data-hidden', '');
-          else el.style.setProperty('--rv-nudge', `${dy.toFixed(1)}px`);
-          if (dy === null) continue;
+        if (!fits()) {
+          el.setAttribute('data-fit', 'compact');
+          el.style.setProperty('--rv-maxw', `${Math.max(40, room.width - 10).toFixed(0)}px`);
+          if (!fits(6)) {
+            if (el.hasAttribute('data-selected')) el.setAttribute('data-fit', 'badge');
+            else {
+              el.setAttribute('data-hidden', '');
+              continue;
+            }
+          }
         }
-        if (fits()) continue;
-        el.setAttribute('data-fit', 'compact');
-        if (fits(6)) continue;
-        if (el.hasAttribute('data-selected')) el.setAttribute('data-fit', 'badge');
-        else el.setAttribute('data-hidden', '');
+        const box = el.getBoundingClientRect();
+        if (el.hasAttribute('data-selected')) {
+          // The order badge sits on the room's anchor and is the route's waypoint: the route
+          // may end there, but the name flips to the other side when the route runs under it.
+          const fit = el.getAttribute('data-fit');
+          const ax = fit ? box.left + box.width / 2 : box.left + 11;
+          const ay = fit ? box.top + 11 : box.top + box.height / 2;
+          const own = (p: { x: number; y: number }) => Math.hypot(p.x - ax, p.y - ay) < 18;
+          if (!fit && (blocked(box, 0, 0, own) || box.right > room.right - 6)) {
+            el.setAttribute('data-flip', '');
+            const flipped = el.getBoundingClientRect();
+            if (flipped.left < room.left + 6) {
+              // Neither side fits: badge on the anchor, the name centred under it.
+              el.removeAttribute('data-flip');
+              el.setAttribute('data-fit', 'compact');
+              el.style.setProperty('--rv-maxw', `${Math.max(40, room.width - 10).toFixed(0)}px`);
+            } else if (blocked(flipped, 0, 0, own) && box.right <= room.right - 6)
+              el.removeAttribute('data-flip');
+          }
+          continue;
+        }
+        if (!blocked(box, 0, 0)) continue;
+        // Nearest free spot inside the room: rings of candidate offsets around the centre.
+        const sx = box.width * 0.5 + 4;
+        const sy = box.height * 0.5 + 4;
+        let best: [number, number] | null = null;
+        for (let k = 1; k <= 6 && !best; k++)
+          for (const [ux, uy] of [
+            [0, 1],
+            [0, -1],
+            [1, 0],
+            [-1, 0],
+            [1, 1],
+            [-1, 1],
+            [1, -1],
+            [-1, -1],
+          ] as const) {
+            const dx = ux * sx * k * 0.6;
+            const dy = uy * sy * k * 0.6;
+            if (!blocked(box, dx, dy) && insideRoom(roomEl, box, dx, dy)) {
+              best = [dx, dy];
+              break;
+            }
+          }
+        if (best) {
+          el.style.setProperty('--rv-nudge-x', `${best[0].toFixed(1)}px`);
+          el.style.setProperty('--rv-nudge', `${best[1].toFixed(1)}px`);
+        } else if (bot && blocked(box, 0, 0) && overlaps(box, bot)) {
+          // Under the robot with no free spot: hide (a route under a label is acceptable).
+          el.setAttribute('data-hidden', '');
+        }
       }
       const obstacles = Array.from(root.querySelectorAll<HTMLElement>('[data-rv-obstacle]')).map(
         (el) => el.getBoundingClientRect(),

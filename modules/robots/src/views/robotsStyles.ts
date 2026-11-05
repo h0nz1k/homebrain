@@ -296,13 +296,13 @@ export const robotsStyles = `
 }
 
 /* Phase B: vector floor plan */
-.rb-map[data-map-kind='vector'] { aspect-ratio: auto; display: block; padding: 18px 14px; background: var(--rb-fill); }
+.rb-map[data-map-kind='vector'] { aspect-ratio: auto; display: block; padding: 8px; background: var(--rb-fill); }
 .rb-map-loading { position: absolute; inset: 18%; border-radius: 18px; background: color-mix(in srgb, var(--hb-t1) 5%, transparent); animation: rv-breathe 1.6s ease-in-out infinite alternate; }
 @keyframes rv-breathe { from { opacity: .45; } to { opacity: 1; } }
 /* Rooms are low-chroma tonal tiles (one hue per room, --rv-hue); selection is the accent. */
 .rv {
-  --rv-room-l: 27.5%; --rv-room-dl: 2%; --rv-room-c: 0.01;
-  --rv-sel-mix: 52%;
+  --rv-room-l: 27.5%; --rv-room-dl: 2%; --rv-room-c: 0.005;
+  --rv-sel-mix: 30%;
   --rv-sel-base: var(--rb-fill);
   --rv-outline: color-mix(in srgb, var(--hb-t1) 30%, transparent);
   --rv-room-top: color-mix(in srgb, var(--hb-t1) 15%, var(--hb-s1));
@@ -310,7 +310,7 @@ export const robotsStyles = `
   --rv-sel-a: color-mix(in oklch, var(--hb-ac) 80%, var(--hb-s1));
   --rv-sel-b: color-mix(in oklch, var(--hb-ac) 22%, var(--hb-s1));
   --rv-trail: var(--hb-ac);
-  --rv-cover: color-mix(in srgb, var(--hb-ac) 22%, transparent);
+  --rv-cover: color-mix(in srgb, var(--hb-ac) 34%, transparent);
   --rv-nogo: #ff6b6b;
   --rv-bot-edge: #d3d9e3;
   --rv-label: color-mix(in srgb, var(--hb-t1) 82%, transparent);
@@ -321,8 +321,8 @@ export const robotsStyles = `
   position: relative; margin: 0 auto;
 }
 [data-theme='light'] .rv {
-  --rv-room-l: 96.4%; --rv-room-dl: 1.2%; --rv-room-c: 0.008;
-  --rv-sel-mix: 30%;
+  --rv-room-l: 96.4%; --rv-room-dl: 1.2%; --rv-room-c: 0.004;
+  --rv-sel-mix: 13%;
   --rv-sel-base: #ffffff;
   --rv-outline: #8994a6;
   --rv-room-top: #ffffff;
@@ -357,13 +357,16 @@ export const robotsStyles = `
   --rv-tile: color-mix(in oklch, var(--hb-ac) var(--rv-sel-mix), var(--rv-sel-base));
 }
 .rv[data-walls] .rv-room-pad { fill: var(--rv-seam); stroke: var(--rv-seam); }
+.rv-sel-line { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+/* Planned route to the selected rooms: dashed accent line through the doors. */
+.rv-route { fill: none; stroke: var(--hb-ac); stroke-width: 2.25px; stroke-dasharray: 5 6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; opacity: .95; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 .rv-sel-ring { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 @keyframes rv-fade-in { from { opacity: 0; } }
 /* Walls: one outline shell; seams between rooms are thinner and quieter (same shared arcs). */
 .rv-wall-line { fill: none; stroke: var(--rv-wall-line); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .rv .rv-wall-line.rv-seam { stroke: var(--rv-seam); }
 /* Route history is context, not content: only the recent stretch unless "Trasa" is on. */
-.rv[data-trail='faded'] .rv-cover { opacity: 0; }
+.rv[data-trail='faded'] .rv-cover { opacity: .55; }
 .rv[data-trail='faded'] .rv-trail:not(.rv-trail-recent) { opacity: 1; }
 .rv-trail.rv-trail-tail { stroke-opacity: 1; stroke-width: 3px; }
 .rv-divider { fill: none; stroke: var(--rv-divider); stroke-width: 1px; vector-effect: non-scaling-stroke; stroke-linecap: round; pointer-events: none; }
@@ -424,15 +427,22 @@ export const robotsStyles = `
 .rv-labels { position: absolute; inset: 0; pointer-events: none; }
 .rv-bot-spot { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .rv-label {
-  position: absolute; transform: translate(-50%, calc(-50% + var(--rv-nudge, 0px))); display: inline-flex; align-items: center; gap: 6px;
+  position: absolute; transform: translate(calc(-50% + var(--rv-nudge-x, 0px)), calc(-50% + var(--rv-nudge, 0px))); display: inline-flex; align-items: center; gap: 6px;
   font-size: 13px; font-weight: 550; letter-spacing: -.005em; color: var(--rv-label); white-space: nowrap;
   transition: opacity 180ms, color 180ms;
 }
 .rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; --rv-tile: color-mix(in oklch, var(--hb-ac) var(--rv-sel-mix), var(--rv-sel-base)); }
 /* Knock-out halo in the room's own tone: the route/lanes never run through the letters. */
-.rv[data-walls] .rv-label-text { text-shadow: 0 0 2px var(--rv-tile), 0 0 4px var(--rv-tile), 0 0 8px var(--rv-tile), 0 0 12px var(--rv-tile); }
+.rv[data-walls] .rv-label-text { text-shadow: 0 0 3px var(--rv-tile); }
 .rv-label[data-hidden] { visibility: hidden; }
-.rv-label[data-fit] { flex-direction: column; gap: 3px; font-size: 11.5px; letter-spacing: 0; }
+.rv-label[data-fit] { flex-direction: column; gap: 3px; }
+/* Selected: the order badge sits exactly on the room anchor (route waypoint), the name beside
+   it – or on the other side (data-flip) when the route runs there. */
+.rv-label[data-selected]:not([data-fit]) { transform: translate(-11px, -50%); }
+.rv-label[data-selected][data-flip]:not([data-fit]) { flex-direction: row-reverse; transform: translate(calc(-100% + 11px), -50%); }
+.rv-label[data-selected][data-fit='compact'] { transform: translate(-50%, -11px); }
+/* Narrow rooms: the name wraps (same size everywhere) instead of shrinking. */
+.rv-label[data-fit='compact'] .rv-label-text { white-space: normal; max-width: var(--rv-maxw, 90px); text-align: center; line-height: 1.15; }
 .rv-label[data-fit='badge'] .rv-label-text { display: none; }
 .rv-badge {
   display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
@@ -440,10 +450,9 @@ export const robotsStyles = `
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--hb-s1) 70%, transparent), 0 2px 6px -2px rgb(0 0 0 / 40%);
   animation: rv-badge 340ms cubic-bezier(.34, 1.56, .64, 1);
 }
-.rv-label[data-fit] .rv-badge { min-width: 19px; height: 19px; font-size: 11.5px; padding: 0 5px; }
 @keyframes rv-badge { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (max-width: 640px) {
-  .rb-map[data-map-kind='vector'] { padding: 14px 10px; }
+  .rb-map[data-map-kind='vector'] { padding: 4px; margin-inline: -6px; }
   .rv-label { gap: 4px; }
 }
 /* Card head: title + floor/room count, the route toggle as an icon chip. */
@@ -454,16 +463,21 @@ export const robotsStyles = `
 .rb-live { color: var(--hb-ac); font-weight: 600; }
 .rb-live::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 6px 1px 0; border-radius: 50%; background: currentColor; animation: rb-pulse 2.4s ease-in-out infinite; }
 .rb-start { font-weight: 600; }
+/* Running clean: „Pozastavit“ beside the main CTA. */
+.rb-clean-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.rb-clean-actions .rb-start { flex: 1 1 230px; min-width: 0; order: 1; }
+/* Phones: the main CTA keeps the full width, „Pozastavit“ wraps below it. */
+.rb-clean-actions > :not(.rb-start) { flex: 1 0 auto; order: 2; }
+@container (min-width: 520px) { .rb-clean-actions > :not(.rb-start) { flex: 0 0 auto; order: 0; } }
 /* Room chips: one scrollable row under the map (the map is the primary selector); the
    portrait side column keeps its list. */
 .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips {
-  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -22px; padding: 2px 22px;
-  mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  position: relative; scroll-behavior: smooth; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px 0;
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
 }
 .rb-clean .rb-chips::-webkit-scrollbar { display: none; }
 .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips > * { flex: none; }
 @media (max-width: 600px) {
-  .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips { margin-inline: -18px; padding-inline: 18px; }
 }
 /* Room list beside portrait plans on wide cards (fills the side strips); chips elsewhere. */
 .rb-clean { container-type: inline-size; }
@@ -474,7 +488,7 @@ export const robotsStyles = `
   .rb-map-row[data-rb-portrait] .rb-clean-side { display: flex; flex-direction: column; gap: 14px; }
   .rb-map-row[data-rb-portrait] .rb-clean-side > * { margin: 0; }
   .rb-map-row[data-rb-portrait] .rb-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .rb-map-row[data-rb-portrait] .rb-clean-side > button { width: 100%; margin-top: auto; }
+  .rb-map-row[data-rb-portrait] .rb-clean-side > button, .rb-map-row[data-rb-portrait] .rb-clean-actions { width: 100%; margin-top: auto; }
   .rb-map-row[data-rb-portrait] .rb-chips { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; }
   .rb-map-row[data-rb-portrait] .rb-chip { width: 100%; min-height: 40px; justify-content: flex-start; }
   .rb-map-row[data-rb-portrait] .rb-chip-name { flex: 1; text-align: left; }

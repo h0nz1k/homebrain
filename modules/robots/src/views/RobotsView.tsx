@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
 import { Button, Card, Chip, SegmentedControl, czCount, useToast } from '@homebrain/ui';
 import {
@@ -29,6 +29,7 @@ import {
   type MarkerTone,
 } from './VectorMap.js';
 import { useVectorMap } from './useVectorMap.js';
+import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 
 function initialSlot(slots: number[]): number | null {
@@ -179,6 +180,21 @@ function RobotPanel({
   const areas = new Map((vmap?.rooms ?? []).map((room) => [room.id, Math.round(room.area_m2)]));
   const roomsLabel = czCount(selected.length, 'místnost', 'místnosti', 'místností');
   const selectedArea = selected.reduce((sum, id) => sum + (areas.get(id) ?? 0), 0);
+  // The room shown as „Uklízí X“ comes from the robot pose on the drawn map, so the header,
+  // the hero and the marker never disagree (the HA room sensor lags behind).
+  const poseRoom = vmap?.robot ? roomAt(vmap, vmap.robot.x, vmap.robot.y) : null;
+  const liveRoom = vmap?.robot
+    ? (robot.rooms.find((room) => room.id === poseRoom)?.name ?? null)
+    : robot.room;
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const lastPicked = selected[selected.length - 1];
+  // Keep the last picked room's chip in view (the row scrolls sideways on phones).
+  useEffect(() => {
+    const row = chipsRef.current;
+    if (!row || lastPicked === undefined || row.scrollWidth <= row.clientWidth) return;
+    const chip = row.querySelector<HTMLElement>(`[data-testid='robots-room-${lastPicked}']`);
+    if (chip) row.scrollTo?.({ left: chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2 });
+  }, [lastPicked]);
   const portraitMap =
     !!vmap && vmap.bounds[3] - vmap.bounds[1] > (vmap.bounds[2] - vmap.bounds[0]) * 1.1;
   // <image> cannot send the bearer token: the raster base path is signed by HA (10 min).
@@ -304,10 +320,10 @@ function RobotPanel({
               {robot.status.label}
             </h2>
             <p className="rb-room">
-              {robot.room ? (
+              {liveRoom ? (
                 <>
                   {robot.status.busy ? 'V místnosti ' : 'Naposledy v místnosti '}
-                  <b>{robot.room}</b>
+                  <b>{liveRoom}</b>
                 </>
               ) : (
                 'Místnost neznámá'
@@ -420,14 +436,25 @@ function RobotPanel({
               <h3>Uklidit místnosti</h3>
               <p className="rb-micro" data-testid="robots-map-name">
                 {robot.mapName ?? 'Mapa'}
-                {busy && robot.room ? (
+                {busy && (liveRoom || tone === 'returning') ? (
                   <>
                     {' · '}
-                    <span className="rb-live">Uklízí {robot.room}</span>
+                    <span className="rb-live" data-testid="robots-live-room">
+                      {tone === 'returning' ? 'Vrací se do doku' : `Uklízí ${liveRoom}`}
+                    </span>
                   </>
-                ) : robot.rooms.length ? (
-                  <> · {czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}</>
-                ) : null}
+                ) : (
+                  // Idle: the robot's own state (e.g. „V doku · 100 %“) so the map marker has
+                  // a matching source of truth, then the room count.
+                  <>
+                    {' · '}
+                    {robot.status.label}
+                    {robot.battery !== null ? ` ${Math.round(robot.battery)} %` : ''}
+                    {robot.rooms.length
+                      ? ` · ${czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}`
+                      : ''}
+                  </>
+                )}
               </p>
             </div>
             {vector?.available && vector.map.path.length > 0 && (
@@ -484,7 +511,12 @@ function RobotPanel({
             </div>
             <div className="rb-clean-side">
               {robot.rooms.length ? (
-                <div className="rb-chips" role="group" aria-label="Místnosti v pořadí úklidu">
+                <div
+                  ref={chipsRef}
+                  className="rb-chips"
+                  role="group"
+                  aria-label="Místnosti v pořadí úklidu"
+                >
                   {robot.rooms.map((room) => {
                     const badge = orderBadge(selected, room.id);
                     return (
@@ -546,38 +578,51 @@ function RobotPanel({
                   />
                 )}
               </div>
-              <Button
-                variant="primary"
-                size="lg"
-                block
-                className="rb-start"
-                data-testid="robots-start"
-                disabled={!canAct || !selected.length || Boolean(robot.error)}
-                onClick={() =>
-                  ask(
-                    'Spustit úklid?',
-                    planCleanRooms({
-                      vacuum: robot.vacuum,
-                      rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
-                      mode,
-                      currentMode: robot.mode,
-                      modeSelect: robot.modeSelect,
-                      fan,
-                      currentFan: robot.fan,
-                    }),
-                  )
-                }
-              >
-                {robot.error
-                  ? 'Nejdřív odstraňte závadu'
-                  : busy
-                    ? selected.length
-                      ? `Přerušit a uklidit ${roomsLabel}`
-                      : 'Probíhá úklid'
-                    : selected.length
-                      ? `Uklidit ${roomsLabel}`
-                      : 'Uklidit vybrané'}
-              </Button>
+              <div className="rb-clean-actions">
+                {tone === 'cleaning' && (
+                  <Button
+                    size="lg"
+                    data-testid="robots-clean-pause"
+                    disabled={!canAct}
+                    onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
+                  >
+                    <PauseIcon />
+                    Pozastavit
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  size="lg"
+                  block
+                  className="rb-start"
+                  data-testid="robots-start"
+                  disabled={!canAct || !selected.length || Boolean(robot.error)}
+                  onClick={() =>
+                    ask(
+                      'Spustit úklid?',
+                      planCleanRooms({
+                        vacuum: robot.vacuum,
+                        rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
+                        mode,
+                        currentMode: robot.mode,
+                        modeSelect: robot.modeSelect,
+                        fan,
+                        currentFan: robot.fan,
+                      }),
+                    )
+                  }
+                >
+                  {robot.error
+                    ? 'Nejdřív odstraňte závadu'
+                    : busy
+                      ? selected.length
+                        ? `Uklidit ${roomsLabel}`
+                        : 'Probíhá úklid'
+                      : selected.length
+                        ? `Uklidit ${roomsLabel}`
+                        : 'Uklidit vybrané'}
+                </Button>
+              </div>
               {!connection && (
                 <p className="rb-micro">Bez spojení s Home Assistantem nelze posílat příkazy.</p>
               )}
