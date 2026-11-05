@@ -174,6 +174,7 @@ test('Osoby: zápis spuštěný mimo panel (skript v HA) se ukáže hned a dlaň
   // Jan already has a right palm → only the free (left) hand is offered
   await expect(page.getByTestId('access-enrol-hand-right')).toHaveCount(0);
   await expect(banner).toContainText('nejspíš levá');
+  await expect(page.getByTestId('access-hero')).toHaveCount(0);
   await page.getByTestId('access-enrol-hand-left').click();
   await expect(banner).toHaveCount(0);
   const log = await actions(page);

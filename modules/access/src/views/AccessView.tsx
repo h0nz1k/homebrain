@@ -31,6 +31,7 @@ import {
   enrolledShortCs,
   enrolReducer,
   findDuplicates,
+  fold,
   freeHands,
   groupPeople,
   handSlots,
@@ -145,6 +146,7 @@ const P: Record<string, ReactNode> = {
       <path d="M12 19.2v.1" />
     </>
   ),
+  bt: <path d="m7 7 10 10-5 5V2l5 5L7 17" />,
   chip: (
     <>
       <rect x="6" y="6" width="12" height="12" rx="2.5" />
@@ -838,6 +840,16 @@ function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   );
 }
 
+/** The enrol banner is asking which hand a new palm of this person is (avoid a duplicate card). */
+function enrolAsksHand({ enrol, state, now }: Ctx, person: string): boolean {
+  return (
+    enrol?.phase === 'ok' &&
+    enrol.type === 'palm' &&
+    now - Date.parse(enrol.time) <= 15 * 60_000 &&
+    !state?.labels[String(enrol.id)]?.hand &&
+    fold(enrol.name) === fold(person)
+  );
+}
 const KIND_CS: Record<'face' | 'palm', string> = { face: 'obličej', palm: 'dlaň' };
 /** Enrolment started anywhere (panel, HA script): pending → retry → result, with hand labelling. */
 function EnrolBanner({ ctx }: { ctx: Ctx }) {
@@ -874,11 +886,15 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
                 }, `ID ${enrol.id}: ${HAND_CS[h]} dlaň`)
               }
             >
-              {h === 'right' ? 'Pravá dlaň' : 'Levá dlaň'}
+              {hands.length === 1
+                ? `Ano, ${h === 'right' ? 'pravá' : 'levá'}`
+                : h === 'right'
+                  ? 'Pravá dlaň'
+                  : 'Levá dlaň'}
             </Button>
           ))}
         <Button size="sm" variant="ghost" data-testid="access-enrol-dismiss" onClick={dismissEnrol}>
-          Zavřít
+          {needsHand ? 'Později' : 'Zavřít'}
         </Button>
       </>
     );
@@ -902,7 +918,7 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
         {enrol.phase === 'ok' &&
           (needsHand
             ? hands.length === 1
-              ? `${who} už má zapsanou ${hands[0] === 'left' ? 'pravou' : 'levou'} dlaň – tahle bude nejspíš ${HAND_CS[hands[0]!]}. Potvrďte to.`
+              ? `${who} už má zapsanou ${hands[0] === 'left' ? 'pravou' : 'levou'} dlaň – tato bude nejspíš ${HAND_CS[hands[0]!]}.`
               : 'Která ruka to byla? Bez označení nepoznáme, jestli chybí pravá, nebo levá.'
             : 'Osoba je v seznamu níže.')}
       </LiveStatus>
@@ -944,7 +960,7 @@ function PeopleTab({ ctx }: { ctx: Ctx }) {
   return (
     <>
       <EnrolBanner ctx={ctx} />
-      {issue.tone !== 'ok' && (
+      {issue.tone !== 'ok' && !(issue.person && enrolAsksHand(ctx, issue.person)) && (
         <div className="ac-attn" data-testid="access-hero">
           <SignalCard
             compact
@@ -1012,7 +1028,7 @@ const LOG_FILTERS: Array<[LogFilter, string]> = [
 const LOG_DAYS = 3; // like the original logbook card (72 h); "Načíst starší" adds 3 more days
 const LOG_TONE: Record<LogItem['tone'], Tone> = {
   ok: 'ok',
-  info: 'neutral',
+  info: 'accent',
   warn: 'warn',
   crit: 'crit',
 };
@@ -1413,12 +1429,12 @@ function NukiCard({ ctx }: { ctx: Ctx }) {
   const pct = own ?? viaBio;
   const critical = ent.lockBatteryCritical?.state === 'on';
   const low = critical || (pct !== null && pct < 20);
-  const batteryNote =
-    own === null && viaBio !== null
-      ? 'údaj přes BioLock'
-      : own !== null && viaBio !== null && Math.abs(own - viaBio) >= 5
-        ? `BioLock hlásí ${Math.round(viaBio)} % (diagnostika)`
-        : null;
+  const batteryNote = own === null && viaBio !== null ? 'údaj přes BioLock' : null;
+  // diagnostic only: BioLock's BLE reading of the same battery, when it disagrees
+  const bleBattery =
+    own !== null && viaBio !== null && Math.abs(own - viaBio) >= 5
+      ? `diagnostika: BioLock čte baterii ${Math.round(viaBio)} %`
+      : null;
   const act = ent.lockAction as
     { state?: string; attributes?: Record<string, unknown> } | undefined;
   const a = act?.attributes;
@@ -1480,9 +1496,9 @@ function NukiCard({ ctx }: { ctx: Ctx }) {
       />
       <StatusRow
         tone={ent.nukiPaired?.state === 'on' && ent.nukiConnected?.state === 'on' ? 'ok' : 'warn'}
-        icon={<Icon name="chip" />}
+        icon={<Icon name="bt" />}
         label="BioLock ↔ zámek (Bluetooth)"
-        detail={`${ent.nukiPaired?.state === 'on' ? 'spárováno' : 'nespárováno'} · ${ent.nukiConnected?.state === 'on' ? 'připojeno' : 'nepřipojeno'}`}
+        detail={`${ent.nukiPaired?.state === 'on' ? 'spárováno' : 'nespárováno'} · ${ent.nukiConnected?.state === 'on' ? 'připojeno' : 'nepřipojeno'}${bleBattery ? ` · ${bleBattery}` : ''}`}
         value=""
       />
     </Card>
