@@ -97,6 +97,8 @@ describe('AC board (rozvaděč) wiring', () => {
         }));
         for (let i = 0; i < routes.length; i++)
           for (let j = i + 1; j < routes.length; j++) {
+            // Flows of one source share their first link (one line per source) and fork later.
+            if (routes[i]!.id.split('-')[0] === routes[j]!.id.split('-')[0]) continue;
             let min = Infinity;
             for (const p of routes[i]!.pts)
               for (const q of routes[j]!.pts) min = Math.min(min, Math.hypot(p.x - q.x, p.y - q.y));

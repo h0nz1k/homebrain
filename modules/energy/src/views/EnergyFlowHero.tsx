@@ -34,12 +34,18 @@ import {
   type FlowPairId,
   type FlowLinkId,
   inverterAcKw,
+  laneKey,
+  laneOffsets,
+  laneSource,
   linkLanes,
   PAIR_LINKS,
+  sinkSources,
+  type LaneKey,
+  type Lanes,
   roundParts,
   viaInverter,
 } from '../flow.js';
-import { boxCircleGap, boxesHit, type Box, type Circle } from '../flowLabels.js';
+import type { Box, Circle } from '../flowLabels.js';
 import { Pictogram, type PictogramName } from './pictograms.js';
 import type { ThermalTone } from '../thermal.js';
 import { PhaseSheetBody, PhaseStrip, phaseView } from './PhaseStrip.js';
@@ -79,19 +85,20 @@ interface Layout {
 export const WIDE: Layout = {
   name: 'wide',
   w: 1000,
-  h: 528,
+  h: 640,
   r: 38,
   hubR: 47,
   gap: 14,
   bend: 30,
-  busY: 404,
+  // Bus low enough that the battery's three text rows end well above the grid disc (tablet).
+  busY: 440,
   busDrop: 10,
   nodes: {
     pv: { x: 440, y: 66 },
     hub: { x: 440, y: 212 },
     battery: { x: 150, y: 212 },
-    grid: { x: 150, y: 404 },
-    house: { x: 720, y: 404 },
+    grid: { x: 150, y: 440 },
+    house: { x: 720, y: 440 },
   },
   labelSide: { pv: 'right', hub: 'right', battery: 'below', grid: 'below', house: 'below' },
   align: { pv: 'start', hub: 'start', battery: 'center', grid: 'center', house: 'center' },
@@ -99,13 +106,13 @@ export const WIDE: Layout = {
 export const COMPACT: Layout = {
   name: 'compact',
   w: 360,
-  h: 514,
+  h: 560,
   r: 27,
   hubR: 34,
   gap: 10,
   bend: 20,
   busY: 382,
-  busDrop: 30,
+  busDrop: 12,
   nodes: {
     pv: { x: 178, y: 50 },
     hub: { x: 178, y: 184 },
@@ -151,12 +158,6 @@ const CONSUMER_SHORT: Record<ApplianceSlot, string> = {
   dishwasher: 'Myčka',
   coffee_maker: 'Kávovar',
   dehumidifier: 'Odvlhčovač',
-};
-const PAIR_NAME: Record<FlowNode, string> = {
-  pv: 'Slunce',
-  grid: 'Síť',
-  battery: 'Baterie',
-  house: 'Dům',
 };
 
 const nf = (digits: number) =>
@@ -248,46 +249,20 @@ const BOARD_PAD = 5;
 /** Half size of the board plate (units): covers both conductors of each board link. */
 export const boardHalf = (L: Layout, conductors = 2) => ((conductors - 1) / 2) * L.gap + BOARD_PAD;
 /** Conductors on the busiest board link (at least two). */
-export const boardConductors = (lanes: Record<FlowLinkId, FlowPairId[]>) =>
-  Math.max(2, lanes['hub-ac'].length, lanes['grid-ac'].length, lanes['ac-house'].length);
+export const boardConductors = (lanes: Lanes) =>
+  Math.max(
+    2,
+    ...(['hub-ac', 'grid-ac', 'ac-house'] as const).map((l) => {
+      const o = Object.values(laneOffsets(lanes, l)) as number[];
+      return o.length ? Math.max(...o) - Math.min(...o) + 1 : 0;
+    }),
+  ) +
+  // Grid charging while exporting (rare): the up lane's wide concentric corner needs more plate.
+  (lanes['hub-ac'].includes('grid-battery') && lanes['hub-ac'].length > 1 ? 2 : 0);
 
-/**
- * Conductor of a lone flow on a two-conductor board link (0 = top / left, 1 = bottom / right):
- * grid import below the export and the inverter flows, flows turning to the grid on the left.
- */
-const boardSlot = (link: FlowLinkId, id: FlowPairId): 0 | 1 =>
-  link === 'ac-house'
-    ? id === 'grid-house'
-      ? 1
-      : 0
-    : link === 'grid-ac'
-      ? id.startsWith('grid-')
-        ? 1
-        : 0
-      : PAIR_LINKS[id].includes('grid-ac')
-        ? 0
-        : 1;
-/**
- * Lane offset of a pair on a link. The three AC board links (inverter ↕ board, grid ↔ board,
- * board → house) are always two parallel conductors; other bundles are centred on their link.
- */
-function laneOffset(
-  L: Layout,
-  lanes: Record<FlowLinkId, FlowPairId[]>,
-  link: FlowLinkId,
-  id: FlowPairId,
-) {
-  if (link === 'grid-ac' || link === 'ac-house') {
-    // Two conductors at least; bottom-anchored so grid → house runs straight through the board.
-    const list = lanes[link];
-    const n = Math.max(2, lanes['grid-ac'].length, lanes['ac-house'].length);
-    if (list.length === 1 && boardSlot(link, id) === 0) return (-(n - 1) / 2) * L.gap;
-    const k = list.length - 1 - list.indexOf(id);
-    return ((n - 1) / 2 - k) * L.gap;
-  }
-  if (link === 'hub-ac' && lanes[link].length === 1) return (boardSlot(link, id) - 0.5) * L.gap;
-  const list = lanes[link];
-  return (list.indexOf(id) - (list.length - 1) / 2) * L.gap;
+/** Lane offset (units) of a pair on a link: its lane (merged source lane or its own) × gap. */
+function laneOffset(L: Layout, lanes: Lanes, link: FlowLinkId, id: FlowPairId) {
+  return (laneOffsets(lanes, link)[laneKey(link, id)] ?? 0) * L.gap;
 }
 
 export interface PairRoute {
@@ -300,11 +275,7 @@ export interface PairRoute {
  * Orthogonal lane route of a pair through the physical links (PAIR_LINKS). Corners under the
  * inverter disc are hidden; at the AC board the conductors turn with concentric corners.
  */
-export function pairRoute(
-  L: Layout,
-  id: FlowPairId,
-  lanes: Record<FlowLinkId, FlowPairId[]> = linkLanes([id]),
-): PairRoute {
+export function pairRoute(L: Layout, id: FlowPairId, lanes: Lanes = linkLanes([id])): PairRoute {
   const N = L.nodes;
   const hub = N.hub;
   const links = PAIR_LINKS[id];
@@ -325,7 +296,7 @@ export function pairRoute(
     return { x: p.x + laneEndR(L, node, c - p.y), y: c }; // battery, grid: lanes leave to the right
   };
   // Parallel conductors turn at the board with concentric corners (constant spacing, no crossing).
-  const hubAc = lanes['hub-ac'];
+  const hubAc = lanes['hub-ac'] as FlowPairId[];
   const xs = (ids: FlowPairId[]) => ids.map((q) => laneOffset(L, lanes, 'hub-ac', q));
   // Innermost board corner radius: at most the plate margin, so every concentric fillet stays
   // on the plate (0.6·gap reached past the plate edge = a visible kink at the rozvaděč).
@@ -425,47 +396,23 @@ function visibleSpan(L: Layout, pts: Pt[], seg: number) {
   return { a, ux, uy, t0, t1 };
 }
 
-/** Wire weight grows with power (2.4 → 6 units at ≥ 5 kW on the wide layout). */
-const wireWidth = (kw: number, L: Layout = WIDE) =>
-  (2.4 + Math.min(5, Math.max(0, kw)) * 0.72) * (L.r / 38);
-/** Chevron half size (units) for a wire of width w. */
-const chevSize = (w: number) => 4.2 + w * 0.4;
+/**
+ * One wire weight for every lane: lanes of one source overlap on their shared first link, so a
+ * per-pair width would show the widest pair instead of the lane. Power is in the node values.
+ */
+const wireWidth = (L: Layout = WIDE) => 3.4 * (L.r / 38);
 
-/* ------------------------------------------------------------ label placement */
+/* ------------------------------------------------------------ labels and arrows */
 
 /*
- * Value pills (owner's rule, PR #106): every flow has ONE pill in its own colour on the leg into
- * its target. A leg carrying one flow keeps the pill on the line (desktop look). On a leg with
- * several flows the pills sit beside the bundle: flows coming from the inverter above the AC bus,
- * the grid below it (battery leg: sun above, grid below). Each pill is centred on the free part
- * of its band; when even the smallest font (11 px) does not fit, the pill moves to its fallback
- * leg (battery flows on the compact phone layout). Arrowheads stay on their own lane, never under
- * a pill. No value is ever hidden or moved off its flow.
+ * No value sits on a wire (owner, review 003): every number lives in its node's text block
+ * (sinks list their sources with the source colour). Direction = an arrowhead on every lane of
+ * every link, so a still image (or reduced motion) reads the same as the animation.
  */
-
-/** Pill font sizes (CSS px), tried in order for the whole diagram. */
-export const PILL_FONTS = [13, 12, 11] as const;
-export type PillFont = (typeof PILL_FONTS)[number];
-const PILL_PAD: Record<PillFont, number> = { 13: 8, 12: 6, 11: 5 };
-
-/** Tabular digits at 13 px semibold (comma narrower). */
-const digitsPx = (text: string) => {
-  let w = 0;
-  for (const ch of text) w += ch === ',' ? 3.8 : 8.3;
-  return w;
-};
-/** Rendered pill size (CSS px): digits + " kW" at `font`, side padding, 2 px top/bottom. */
-export function pillSizePx(text: string, font: PillFont = 13): { w: number; h: number } {
-  return {
-    w: Math.ceil(2 * PILL_PAD[font] + ((24 + digitsPx(text)) * font) / 13),
-    h: Math.ceil(font * 1.35 + 4),
-  };
-}
-
 /** Node text blocks (CSS px, conservative: long values, two-line subs). */
 const LABEL_PX: Record<Layout['name'], Record<NodeId, [w: number, h: number]>> = {
-  compact: { pv: [92, 86], hub: [122, 74], battery: [116, 66], grid: [120, 86], house: [96, 70] },
-  wide: { pv: [176, 78], hub: [124, 80], battery: [168, 80], grid: [128, 92], house: [100, 76] },
+  compact: { pv: [92, 86], hub: [122, 102], battery: [100, 90], grid: [122, 98], house: [124, 98] },
+  wide: { pv: [176, 78], hub: [124, 92], battery: [160, 76], grid: [136, 108], house: [164, 108] },
 };
 /** Discs incl. rings (SoC ring r+6 + stroke, inverter status ring r+5). */
 const discR = (L: Layout, id: NodeId) =>
@@ -505,21 +452,6 @@ export function labelObstacles(L: Layout, k: number) {
   };
 }
 
-export type PillSide = 'on' | 'above' | 'below' | 'left' | 'right';
-export interface FlowMark {
-  /** Link the pill sits on – always one of the pair's own links. */
-  link: FlowLinkId;
-  side: PillSide;
-  /** Pill centre and size (units). */
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  font: PillFont;
-  /** Arrowhead on the pair's own lane (half size `s`), in the flow direction. */
-  chev: (Pt & { deg: number; s: number }) | null;
-  collides: boolean;
-}
 type LabelPair = Pick<FlowPair, 'id' | 'kw' | 'displayKw'>;
 
 /** Visible straight part of one pair's lane on one of its links (units). */
@@ -540,11 +472,7 @@ export interface LaneSeg {
 }
 
 /** Lane pieces of all pairs (the drawn routes). */
-export function laneSegments(
-  L: Layout,
-  pairs: LabelPair[],
-  lanes: Record<FlowLinkId, FlowPairId[]>,
-): LaneSeg[] {
+export function laneSegments(L: Layout, pairs: LabelPair[], lanes: Lanes): LaneSeg[] {
   const out: LaneSeg[] = [];
   for (const p of pairs) {
     const { pts, segOf } = pairRoute(L, p.id, lanes);
@@ -563,7 +491,7 @@ export function laneSegments(
         hi: Math.max(s0, s1),
         dir: (horiz ? ux : uy) > 0 ? 1 : -1,
         deg: (Math.atan2(uy, ux) * 180) / Math.PI,
-        hw: wireWidth(p.kw, L) / 2,
+        hw: wireWidth(L) / 2,
       });
     });
   }
@@ -612,317 +540,80 @@ export function routeSamples(L: Layout, pts: Pt[], step = 2): Pt[] {
   return out;
 }
 
-/** Pill legs per pair in order: the leg into the target first, then the fallback. */
-const LABEL_LEGS: Record<FlowPairId, readonly [FlowLinkId, Exclude<PillSide, 'on'>][]> = {
-  'pv-house': [['ac-house', 'above']],
-  'battery-house': [['ac-house', 'above']],
-  'grid-house': [['ac-house', 'below']],
-  // Phones, PV and battery both exporting: no room for two rows above the grid leg.
-  'pv-grid': [
-    ['grid-ac', 'above'],
-    ['pv-hub', 'left'],
-  ],
-  'battery-grid': [['grid-ac', 'above']],
-  'pv-battery': [
-    ['battery-hub', 'above'],
-    ['pv-hub', 'left'],
-  ],
-  'grid-battery': [
-    ['battery-hub', 'below'],
-    ['hub-ac', 'right'],
-  ],
-};
-/** Placement order: per side the pill of the lane nearest the line first (it takes row 0). */
-const PLACE_ORDER: readonly FlowPairId[] = [
-  'grid-house',
-  'battery-house',
-  'pv-house',
-  'battery-grid',
-  'pv-grid',
-  'grid-battery',
-  'pv-battery',
-];
-
-/** Node centres a link runs between (along its axis). */
-function linkExtent(L: Layout, link: FlowLinkId): [number, number] {
-  const N = L.nodes;
-  switch (link) {
-    case 'pv-hub':
-      return [N.pv.y, N.hub.y];
-    case 'hub-ac':
-      return [N.hub.y, L.busY];
-    case 'battery-hub':
-      return [N.battery.x, N.hub.x];
-    case 'grid-ac':
-      return [N.grid.x, N.hub.x];
-    default:
-      return [N.hub.x, N.house.x];
-  }
+/** Arrowhead of one drawn lane on one link (units). */
+export interface LaneChevron {
+  link: FlowLinkId;
+  key: LaneKey;
+  x: number;
+  y: number;
+  deg: number;
+  s: number;
 }
 
 /**
- * Pill + arrowhead of every active pair (see the block comment above). Deterministic: fixed leg
- * and side per pair, the pill centred on the longest free run of its band. `k` = CSS px per unit.
+ * One arrowhead per lane per link, in the middle of the lane's visible straight part (a merged
+ * source lane gets one, not one per pair). Too short pieces (< 4 arrow sizes) get none.
  */
-export function flowLabelLayout(
-  L: Layout,
-  pairs: LabelPair[],
-  lanes: Record<FlowLinkId, FlowPairId[]> = linkLanes(pairs.map((p) => p.id)),
-  k: number = L.name === 'wide' ? 1 : 0.83,
-): Record<FlowPairId, FlowMark> {
-  if (!pairs.length) return {} as Record<FlowPairId, FlowMark>;
-  const obs = labelObstacles(L, k);
-  const segs = laneSegments(L, pairs, lanes);
-  const samples = pairs.map((p) => ({
-    id: p.id,
-    hw: wireWidth(p.kw, L) / 2,
-    pts: routeSamples(L, pairRoute(L, p.id, lanes).pts),
-  }));
-  const byId = new Map(pairs.map((p) => [p.id, p]));
-  const order = PLACE_ORDER.filter((id) => byId.has(id));
-  let last: Record<FlowPairId, FlowMark> | null = null;
-  for (const font of PILL_FONTS) {
-    const out = {} as Record<FlowPairId, FlowMark>;
-    const placed: Placed[] = [];
-    let bad = 0;
-    for (const id of order) {
-      const m = placePill(L, k, font, byId.get(id)!, lanes, segs, samples, obs, placed);
-      out[id] = m;
-      if (m.collides) bad++;
-      placed.push({
-        pill: markBox(m),
-        chev: m.chev ? chevBox(m.chev) : null,
-        link: m.link,
-        side: m.side,
-      });
-    }
-    last = out;
-    if (!bad) break;
+export function laneChevrons(L: Layout, pairs: LabelPair[], lanes: Lanes): LaneChevron[] {
+  const s = L.name === 'wide' ? 8 : 6.5;
+  const seen = new Set<string>();
+  const out: LaneChevron[] = [];
+  for (const seg of laneSegments(L, pairs, lanes)) {
+    const key = laneKey(seg.link, seg.id);
+    const tag = `${seg.link}|${key}`;
+    if (seen.has(tag) || seg.hi - seg.lo < 4 * s) continue;
+    seen.add(tag);
+    const t = f1((seg.lo + seg.hi) / 2);
+    out.push({
+      link: seg.link,
+      key,
+      x: seg.horiz ? t : seg.c,
+      y: seg.horiz ? seg.c : t,
+      deg: seg.deg,
+      s,
+    });
   }
-  return last!;
+  return out;
 }
 
-type Placed = { pill: Box; chev: Box | null; link: FlowLinkId; side: PillSide };
-const markBox = (m: Pick<FlowMark, 'x' | 'y' | 'w' | 'h'>): Box => ({
-  x0: m.x - m.w / 2,
-  y0: m.y - m.h / 2,
-  x1: m.x + m.w / 2,
-  y1: m.y + m.h / 2,
-});
-const chevBox = (c: Pt & { s: number }): Box => ({
-  x0: c.x - c.s,
-  y0: c.y - c.s,
-  x1: c.x + c.s,
-  y1: c.y + c.s,
-});
-
-function placePill(
-  L: Layout,
-  k: number,
-  font: PillFont,
-  pair: LabelPair,
-  lanes: Record<FlowLinkId, FlowPairId[]>,
-  segs: LaneSeg[],
-  samples: { id: FlowPairId; hw: number; pts: Pt[] }[],
-  obs: ReturnType<typeof labelObstacles>,
-  placed: Placed[],
-): FlowMark {
-  const size = pillSizePx(kwText(pair.displayKw), font);
-  const pw = size.w / k;
-  const ph = size.h / k;
-  const g = 3 / k;
-  const sz = chevSize(wireWidth(pair.kw, L));
-  const tries: [FlowLinkId, PillSide][] = [];
-  for (const [link, side] of LABEL_LEGS[pair.id]) {
-    if (lanes[link].length === 1) tries.push([link, 'on']);
-    tries.push([link, side]);
-  }
-  let fallback: FlowMark | null = null;
-  for (const [link, side] of tries) {
-    const seg = segs.find((s) => s.id === pair.id && s.link === link);
-    if (!seg) continue;
-    const bundle = segs.filter((s) => s.link === link);
-    const cMin = Math.min(...bundle.map((s) => s.c));
-    const cMax = Math.max(...bundle.map((s) => s.c));
-    const reach = Math.max(...bundle.map((s) => chevSize(2 * s.hw))) + g;
-    const horiz = seg.horiz;
-    const along = horiz ? pw : ph;
-    const acr = horiz ? ph : pw;
-    const [e0, e1] = linkExtent(L, link).sort((a, b) => a - b) as [number, number];
-    // Extra rows only to stack onto pills already beside this bundle (never free-floating).
-    const rows =
-      side === 'on' ? 1 : 1 + placed.filter((q) => q.link === link && q.side === side).length;
-    for (let row = 0; row < rows; row++) {
-      const across =
-        side === 'on'
-          ? seg.c
-          : side === 'above' || side === 'left'
-            ? cMin - reach - acr / 2 - row * (acr + 5 / k)
-            : cMax + reach + acr / 2 + row * (acr + 5 / k);
-      const at = (t: number) => (horiz ? { x: t, y: across } : { x: across, y: t });
-      const boxAt = (t: number): Box => {
-        const p = at(t);
-        return { x0: p.x - pw / 2, y0: p.y - ph / 2, x1: p.x + pw / 2, y1: p.y + ph / 2 };
-      };
-      const chevFor = (t: number, pill: Box) => {
-        // On the line: right after the pill in the flow direction (or before it); beside the
-        // line: on the lane next to the pill centre, nudged along the lane when taken.
-        const cand =
-          side === 'on'
-            ? [t + seg.dir * (along / 2 + g + sz), t - seg.dir * (along / 2 + g + sz)]
-            : [0, 1, -1, 2, -2, 3, -3].map((i) => t + seg.dir * i * (2 * sz + 2 / k));
-        for (const tc of cand) {
-          if (tc - sz < seg.lo || tc + sz > seg.hi) continue;
-          const p = horiz ? { x: tc, y: seg.c } : { x: seg.c, y: tc };
-          const b = chevBox({ ...p, s: sz });
-          if (boxesHit(b, pill, 1 / k)) continue;
-          if (obs.circles.some((c) => boxCircleGap(b, c) < 1 / k)) continue;
-          if (
-            placed.some((q) => boxesHit(b, q.pill, 2 / k) || (q.chev && boxesHit(b, q.chev, 1 / k)))
-          )
-            continue;
-          return { ...p, deg: seg.deg, s: sz };
-        }
-        return null;
-      };
-      // Only lane samples inside this band can touch the pill.
-      const band = horiz ? [across - ph / 2, across + ph / 2] : [across - pw / 2, across + pw / 2];
-      const near = samples.flatMap((s) =>
-        s.pts
-          .filter((p) => {
-            const v = horiz ? p.y : p.x;
-            if (v < band[0]! - s.hw - g || v > band[1]! + s.hw + g) return false;
-            // On the line the pill covers its own straight lane piece – nothing else.
-            return !(side === 'on' && s.id === pair.id && Math.abs(v - seg.c) < 0.5);
-          })
-          .map((p) => ({ ...p, pad: s.hw + g })),
-      );
-      const ok = (t: number) => {
-        const b = boxAt(t);
-        const B = obs.bounds;
-        if (b.x0 < B.x0 || b.y0 < B.y0 || b.x1 > B.x1 || b.y1 > B.y1) return null;
-        if (obs.circles.some((c) => boxCircleGap(b, c) < 8 / k)) return null;
-        if (boxCircleGap(b, obs.junction) < g) return null;
-        if (obs.boxes.some((o) => boxesHit(b, o, 4 / k))) return null;
-        if (
-          near.some(
-            (p) =>
-              p.x > b.x0 - p.pad && p.x < b.x1 + p.pad && p.y > b.y0 - p.pad && p.y < b.y1 + p.pad,
-          )
-        )
-          return null;
-        if (
-          placed.some((q) => boxesHit(b, q.pill, 4 / k) || (q.chev && boxesHit(b, q.chev, 2 / k)))
-        )
-          return null;
-        return chevFor(t, b);
-      };
-      // Longest free run of centres along the band (1-unit grid), then its middle.
-      // Centre on the visible part of its own lane, pill inside the leg's node-to-node extent.
-      const from = Math.max(e0 + along / 2, seg.lo);
-      const to = Math.min(e1 - along / 2, seg.hi);
-      let best: [number, number] | null = null;
-      let run: number | null = null;
-      const n = Math.floor(to - from);
-      for (let i = 0; i <= n + 1; i++) {
-        const free = i <= n && ok(from + i) !== null;
-        if (free && run === null) run = i;
-        if (!free && run !== null) {
-          if (!best || i - 1 - run > best[1] - best[0]) best = [run, i - 1];
-          run = null;
-        }
-      }
-      if (best) {
-        const t = from + Math.round((best[0] + best[1]) / 2);
-        const chev = ok(t)!;
-        const p = at(t);
-        return { link, side, x: p.x, y: p.y, w: pw, h: ph, font, chev, collides: false };
-      }
-      if (!fallback) {
-        const mid = (e0 + e1) / 2;
-        const p = at(Math.min(e1 - along / 2, Math.max(e0 + along / 2, mid)));
-        fallback = { link, side, x: p.x, y: p.y, w: pw, h: ph, font, chev: null, collides: true };
-      }
-    }
-  }
-  return fallback!;
+/** Faint centre line of every link that carries nothing right now (the cable is still there). */
+export function idleRails(L: Layout, lanes: Lanes): string {
+  const n = L.nodes;
+  const d: Record<FlowLinkId, string> = {
+    'pv-hub': `M${n.pv.x} ${f1(n.pv.y + laneEndR(L, 'pv'))}V${f1(n.hub.y - laneEndR(L, 'hub'))}`,
+    'battery-hub': `M${f1(n.battery.x + laneEndR(L, 'battery'))} ${n.hub.y}H${f1(n.hub.x - laneEndR(L, 'hub'))}`,
+    'hub-ac': `M${n.hub.x} ${f1(n.hub.y + laneEndR(L, 'hub'))}V${L.busY}`,
+    'grid-ac': `M${f1(n.grid.x + laneEndR(L, 'grid'))} ${L.busY}H${n.hub.x}`,
+    'ac-house': `M${n.hub.x} ${L.busY}H${f1(n.house.x - laneEndR(L, 'house'))}`,
+  };
+  return (Object.keys(d) as FlowLinkId[])
+    .filter((l) => !lanes[l].length)
+    .map((l) => d[l])
+    .join('');
 }
 
-/** Pill box and arrowhead box (units) of a pair's mark – for QA and tests. */
-export function flowMarkBoxes(mark: FlowMark): { pill: Box; chev: Box | null } {
-  return { pill: markBox(mark), chev: mark.chev ? chevBox(mark.chev) : null };
-}
-
-function PairLine(props: {
-  pair: FlowPair;
-  L: Layout;
-  lanes: Record<FlowLinkId, FlowPairId[]>;
-  mark: FlowMark | undefined;
-}) {
-  const { pair, L, lanes, mark } = props;
-  const { pts } = pairRoute(L, pair.id, lanes);
-  const d = roundedPath(pts, L.bend);
-  const w = wireWidth(pair.kw, L);
-  const s = chevSize(w);
+function PairLine(props: { pair: FlowPair; L: Layout; lanes: Lanes; periodS: number | null }) {
+  const { pair, L, lanes, periodS } = props;
+  const d = roundedPath(pairRoute(L, pair.id, lanes).pts, L.bend);
+  const w = wireWidth(L);
   return (
     <g
       className="ef-edge"
       data-testid={`energy-flow-edge-${pair.id}`}
-      data-period={pair.periodS ?? ''}
+      data-period={periodS ?? ''}
       data-kw={pair.kw}
       data-via={viaInverter(pair.id) ? 'hub' : 'bus'}
       style={{ color: COLOR[pair.from] }}
     >
       <path className="ef-wire ef-wire--on" d={d} strokeWidth={w} />
+      {/* Same period for every lane of one source: dots stay in step on the shared first link. */}
       <path
         className="ef-dots"
         d={d}
         strokeWidth={w + 1.5}
-        style={
-          {
-            opacity: Math.round((0.55 + 0.45 * Math.min(1, pair.kw / 1.5)) * 100) / 100,
-            animationDuration: `${pair.periodS}s`,
-          } as CSSProperties
-        }
+        style={{ animationDuration: `${periodS}s` } as CSSProperties}
       />
-      {mark?.chev && (
-        // Chevron next to the value pill, in the direction of the flow.
-        <path
-          className="ef-chev"
-          data-testid={`energy-flow-edge-${pair.id}-chev`}
-          d={`M${-s * 0.55} ${-s}L${s * 0.45} 0L${-s * 0.55} ${s}`}
-          transform={`translate(${f1(mark.chev.x)} ${f1(mark.chev.y)}) rotate(${mark.chev.deg})`}
-          data-link={mark.link}
-        />
-      )}
     </g>
-  );
-}
-
-function FlowPill(props: { mark: FlowMark; pair: FlowPair; u: (v: number) => string }) {
-  const { mark, pair: p } = props;
-  return (
-    <span
-      className="ef-pill"
-      data-testid={`energy-flow-edge-${p.id}-value`}
-      data-link={mark.link}
-      data-side={mark.side}
-      data-font={mark.font}
-      data-collides={mark.collides || undefined}
-      aria-label={`${PAIR_NAME[p.from]} → ${PAIR_NAME[p.to]}${viaInverter(p.id) ? ' přes střídač' : ''}: ${kwText(p.displayKw)} kW`}
-      style={
-        {
-          left: props.u(mark.x),
-          top: props.u(mark.y),
-          fontSize: mark.font === 13 ? undefined : `${mark.font}px`,
-          paddingInline: mark.font === 13 ? undefined : `${PILL_PAD[mark.font]}px`,
-          '--ef-c': COLOR[p.from],
-        } as CSSProperties
-      }
-    >
-      {kwText(p.displayKw)}
-      <small> kW</small>
-    </span>
   );
 }
 
@@ -1023,7 +714,18 @@ interface NodeText {
   tone?: InverterChip['tone'];
   /** Second, muted sub line (inverter: error / charging from the grid). */
   sub2?: string;
+  /** Sinks (house, charging battery, grid export): where the power comes from, in its colour. */
+  srcs?: { source: FlowNode; kw: number }[];
+  /** Show the kW on a single source row too (grid in the mixed state: ties it to 'dodávka'). */
+  srcKw?: boolean;
 }
+
+const SRC_WORD: Record<FlowNode, string> = {
+  pv: 'ze slunce',
+  grid: 'ze sítě',
+  battery: 'z baterie',
+  house: 'z domu',
+};
 
 /** Import and export both above the idle threshold right now (two grid lines). */
 function gridBoth(model: EnergyModel): boolean {
@@ -1077,6 +779,8 @@ function nodeTexts(
     : battery.value === null
       ? null
       : Math.abs(battery.value);
+  const srcList = (sink: 'house' | 'battery' | 'grid') =>
+    alloc ? sinkSources(alloc, sink).map((x) => ({ source: x.source, kw: x.displayKw })) : [];
   const fv = stringTexts([pvStrings[0]?.value ?? null, pvStrings[1]?.value ?? null], pvShown);
   const verb = (e: FlowEdge, toHub: string, fromHub: string, idle: string) =>
     e.kw === null
@@ -1103,12 +807,12 @@ function nodeTexts(
     grid: {
       name: 'Síť',
       value: kwText(gridShown),
-      unit: 'kW',
+      // Mixed phases: the node value is the meter's net (with its direction), both directions
+      // are spelled out below.
+      unit: gridBoth(model) ? ((grid.value ?? 0) < 0 ? 'kW do sítě' : 'kW ze sítě') : 'kW',
       sub: gridBoth(model)
-        ? (grid.value ?? 0) < 0
-          ? `dodávka ${kwText(exp)} kW\nodběr ${kwText(imp)} kW`
-          : `odběr ${kwText(imp)} kW\ndodávka ${kwText(exp)} kW`
-        : verb(edges.grid, 'odběr', 'dodávka do sítě', 'bez toku'),
+        ? `odběr ${kwText(imp)} kW · dodávka ${kwText(exp)} kW`
+        : verb(edges.grid, 'odběr', 'dodávka', 'bez toku'),
       dir: gridBoth(model)
         ? (grid.value ?? 0) >= 0
           ? 'in'
@@ -1118,6 +822,8 @@ function nodeTexts(
           : edges.grid.direction === 'fromHub'
             ? 'out'
             : undefined,
+      srcs: srcList('grid'),
+      srcKw: gridBoth(model),
     },
     battery: {
       name: 'Baterie',
@@ -1127,9 +833,8 @@ function nodeTexts(
       sub:
         fault && edges.battery.direction === 'idle'
           ? 'nedostupná – porucha střídače'
-          : alloc?.pairs['grid-battery'].active && !alloc.pairs['pv-battery'].active
-            ? 'nabíjí ze sítě'
-            : verb(edges.battery, 'vybíjí', 'nabíjí', 'v klidu'),
+          : verb(edges.battery, 'vybíjí', 'nabíjí', 'v klidu'),
+      srcs: srcList('battery'),
       temp:
         cell === null
           ? undefined
@@ -1168,6 +873,7 @@ function nodeTexts(
       value: kwText(shown && house.value !== null ? shown.house : house.value),
       unit: 'kW',
       sub: model.power.houseDerived ? 'dopočteno z toků' : 'spotřeba teď',
+      srcs: srcList('house'),
     },
   };
 }
@@ -1789,7 +1495,7 @@ export function EnergyFlowHero({
   phaseHistory?: PhaseHistory;
   thermalHistory?: ThermalHistory;
 }) {
-  const [setEl, L, k] = useLayout();
+  const [setEl, L] = useLayout();
   const tracker = useMemo(() => createConsumerTracker(), []);
   useEffect(() => () => tracker.dispose(), [tracker]);
   const snap = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot, tracker.getSnapshot);
@@ -1811,7 +1517,10 @@ export function EnergyFlowHero({
   const alloc = flowAllocation(model);
   const pairs = alloc ? FLOW_PAIRS.map((id) => alloc.pairs[id]).filter((pr) => pr.active) : [];
   const lanes = linkLanes(pairs.map((pr) => pr.id));
-  const marks = flowLabelLayout(L, pairs, lanes, k);
+  const chevs = laneChevrons(L, pairs, lanes);
+  // Dot speed per SOURCE (its total power): lanes of one source share their first link.
+  const sourceKw = (src: FlowNode) =>
+    pairs.filter((pr) => pr.from === src).reduce((t, pr) => t + pr.kw, 0);
   const ac = inverterAcKw(model.inverterDetail.acPower.value, alloc);
   const hubActive = pairs.some((pr) => viaInverter(pr.id)) || Math.abs(ac.kw ?? 0) >= FLOW_IDLE_KW;
   // Import and export can both be non-zero over a day (and per 15 min): always show both.
@@ -1820,7 +1529,8 @@ export function EnergyFlowHero({
       ['Vyrobeno', model.today.pv, COLOR.pv, false],
       ['Spotřeba', model.today.house, COLOR.house, false],
       ['Odběr', model.today.gridImport, COLOR.grid, true],
-      ['Dodávka', model.today.gridExport, COLOR.grid, true],
+      // Export is drawn in the sun's colour everywhere (lanes, phase bars): same in the legend.
+      ['Dodávka', model.today.gridExport, COLOR.pv, true],
     ] as const
   )
     .filter(([, r, , always]) => always || r.value !== null)
@@ -1917,32 +1627,15 @@ export function EnergyFlowHero({
                 </radialGradient>
               ))}
             </defs>
-            {/* Static wiring (also when idle): PV and battery → inverter; the three AC board links
-                (pylon ↔ board, inverter ↕ board, board → house) as two parallel conductors. */}
-            <path
-              className="ef-wire ef-bus-rail"
-              d={`M${n.pv.x} ${f1(n.pv.y + laneEndR(L, 'pv'))}V${f1(n.hub.y - laneEndR(L, 'hub'))}M${f1(n.battery.x + laneEndR(L, 'battery'))} ${n.hub.y}H${f1(n.hub.x - laneEndR(L, 'hub'))}${[
-                -0.5, 0.5,
-              ]
-                .map((o) => {
-                  const g = o * L.gap;
-                  return `M${f1(n.grid.x + laneEndR(L, 'grid', g))} ${L.busY + g}H${f1(n.house.x - laneEndR(L, 'house', g))}`;
-                })
-                .join('')}`}
-              strokeWidth={1.5}
-              data-testid="energy-flow-rails"
-            />
-            <path
-              className="ef-wire ef-bus-rail"
-              d={[-0.5, 0.5]
-                .map((o) => {
-                  const g = o * L.gap;
-                  return `M${n.hub.x + g} ${f1(n.hub.y + laneEndR(L, 'hub', g))}V${L.busY}`;
-                })
-                .join('')}
-              strokeWidth={1.5}
-              data-testid="energy-flow-ac-wire"
-            />
+            {/* Idle links stay as a faint cable; active links show only their lanes. */}
+            {idleRails(L, lanes) && (
+              <path
+                className="ef-wire ef-bus-rail"
+                d={idleRails(L, lanes)}
+                strokeWidth={1.5}
+                data-testid="energy-flow-rails"
+              />
+            )}
             {/* AC board (rozvaděč): a small plate the conductors pass over. */}
             <rect
               className="ef-tjoint"
@@ -1956,20 +1649,37 @@ export function EnergyFlowHero({
               <title>AC rozvaděč</title>
             </rect>
             {pairs.map((pr) => (
-              <PairLine key={pr.id} pair={pr} L={L} lanes={lanes} mark={marks[pr.id]} />
+              <PairLine
+                key={pr.id}
+                pair={pr}
+                L={L}
+                lanes={lanes}
+                periodS={flowPeriodS(sourceKw(pr.from))}
+              />
+            ))}
+            {chevs.map((c) => (
+              <path
+                key={`${c.link}-${c.key}`}
+                className="ef-chev"
+                data-testid={`energy-flow-chev-${c.link}-${c.key}`}
+                data-link={c.link}
+                style={{ color: COLOR[laneSource(c.key)] }}
+                d={`M${f1(-c.s * 0.55)} ${f1(-c.s)}L${f1(c.s * 0.45)} 0L${f1(-c.s * 0.55)} ${f1(c.s)}`}
+                transform={`translate(${f1(c.x)} ${f1(c.y)}) rotate(${Math.round(c.deg)})`}
+              />
             ))}
             {L.name === 'wide' && rows > 0 && (
               <g className="ef-tree" style={{ color: COLOR.house }}>
                 <path
                   className="ef-wire ef-wire--on"
                   d={`M${n.house.x + L.r + 6} ${n.house.y}H${BUS_X}`}
-                  strokeWidth={wireWidth(houseKw, L)}
+                  strokeWidth={wireWidth(L)}
                 />
                 {houseKw >= 0.05 && (
                   <path
                     className="ef-dots"
                     d={`M${n.house.x + L.r + 6} ${n.house.y}H${BUS_X}`}
-                    strokeWidth={wireWidth(houseKw, L) + 1.5}
+                    strokeWidth={wireWidth(L) + 1.5}
                     style={{ animationDuration: `${flowPeriodS(houseKw)}s` }}
                   />
                 )}
@@ -2043,7 +1753,16 @@ export function EnergyFlowHero({
             const side = L.labelSide[id];
             const align = L.align[id];
             const R = id === 'hub' ? L.hubR + 8 : L.r;
-            const sub = L.name === 'compact' ? t.sub.replace(' · FV2', '\nFV2') : t.sub;
+            const sub =
+              L.name === 'compact'
+                ? t.sub.replace(' · FV2', '\nFV2').replace(' kW · dodávka', ' kW\ndodávka')
+                : t.sub;
+            // One source on a wide stage: '● ze slunce' joins the state row; phones list it below.
+            const inlineSrc =
+              L.name === 'wide' &&
+              t.srcs?.length === 1 &&
+              !sub.includes('\n') &&
+              !sub.includes(' · ');
             const left =
               side === 'right'
                 ? p.x + R + 8
@@ -2105,6 +1824,18 @@ export function EnergyFlowHero({
                 >
                   {t.tone && <i aria-hidden="true" />}
                   {sub}
+                  {inlineSrc && t.srcs && ' '}
+                  {inlineSrc && t.srcs && (
+                    <span
+                      className="ef-src ef-src--inline"
+                      data-source={t.srcs[0]!.source}
+                      data-testid={`energy-flow-${id}-sources`}
+                      style={{ '--ef-c': COLOR[t.srcs[0]!.source] } as CSSProperties}
+                    >
+                      <i aria-hidden="true" />
+                      {SRC_WORD[t.srcs[0]!.source]}
+                    </span>
+                  )}
                   {t.temp && id === 'battery' && L.name === 'compact' && sub.length <= 9 && (
                     <TempChip temp={t.temp} testId={`energy-flow-${id}-temp`} />
                   )}
@@ -2114,6 +1845,23 @@ export function EnergyFlowHero({
                 {t.temp && id === 'battery' && L.name === 'compact' && sub.length > 9 && (
                   <span className="ef-sub">
                     <TempChip temp={t.temp} testId={`energy-flow-${id}-temp`} />
+                  </span>
+                )}
+                {t.srcs && t.srcs.length > 0 && !inlineSrc && (
+                  <span className="ef-srcs" data-testid={`energy-flow-${id}-sources`}>
+                    {t.srcs.map((x) => (
+                      <span
+                        key={x.source}
+                        className="ef-src"
+                        data-source={x.source}
+                        style={{ '--ef-c': COLOR[x.source] } as CSSProperties}
+                      >
+                        <i aria-hidden="true" />
+                        {SRC_WORD[x.source]}
+                        {/* One source: the node value above is already its power. */}
+                        {(t.srcs!.length > 1 || t.srcKw) && <> {kwText(x.kw)}&nbsp;kW</>}
+                      </span>
+                    ))}
                   </span>
                 )}
                 {t.sub2 && (
@@ -2148,9 +1896,6 @@ export function EnergyFlowHero({
               onClick={() => setOpen(id)}
             />
           ))}
-          {pairs.map(
-            (pr) => marks[pr.id] && <FlowPill key={pr.id} mark={marks[pr.id]!} pair={pr} u={u} />,
-          )}
           {L.name === 'wide' && (
             <div
               className="ef-cons-col"

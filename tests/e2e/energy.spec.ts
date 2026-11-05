@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
   await page.goto('/energy');
@@ -87,6 +87,87 @@ test.describe('Doporučení', () => {
   });
 });
 
+/** Physical links each source → destination pair passes (mirror of PAIR_LINKS in flow.ts). */
+const PAIR_LINKS: Record<string, string[]> = {
+  'pv-house': ['pv-hub', 'hub-ac', 'ac-house'],
+  'pv-battery': ['pv-hub', 'battery-hub'],
+  'pv-grid': ['pv-hub', 'hub-ac', 'grid-ac'],
+  'grid-house': ['grid-ac', 'ac-house'],
+  'grid-battery': ['grid-ac', 'hub-ac', 'battery-hub'],
+  'battery-house': ['battery-hub', 'hub-ac', 'ac-house'],
+  'battery-grid': ['battery-hub', 'hub-ac', 'grid-ac'],
+};
+const kw = (t: string | null) => Number((t ?? '').replace(/[^\d,]/g, '').replace(',', '.'));
+
+/**
+ * Review 003 model: no number on a line. Every node text line must keep clear of the drawn lanes,
+ * the arrowheads and the other node texts; text stays inside the diagram stage.
+ */
+async function textOverLanes(page: Page) {
+  return page.getByTestId('energy-flow').evaluate((root) => {
+    const stage = root.querySelector('.ef-stage')!.getBoundingClientRect();
+    const pts: { x: number; y: number; hw: number }[] = [];
+    for (const p of Array.from(root.querySelectorAll<SVGPathElement>('.ef-svg path.ef-wire'))) {
+      const m = p.getScreenCTM();
+      if (!m || !p.getAttribute('d')) continue;
+      const hw = ((parseFloat(getComputedStyle(p).strokeWidth) || 2) * Math.abs(m.a)) / 2;
+      const len = p.getTotalLength();
+      for (let s = 0; s <= len; s += 1.5) {
+        const q = p.getPointAtLength(s);
+        pts.push({ x: m.a * q.x + m.c * q.y + m.e, y: m.b * q.x + m.d * q.y + m.f, hw });
+      }
+    }
+    const chevs = Array.from(root.querySelectorAll('.ef-chev')).map((c) =>
+      c.getBoundingClientRect(),
+    );
+    const lines: { t: string; b: DOMRect; node: string }[] = [];
+    const range = document.createRange();
+    for (const label of Array.from(root.querySelectorAll<HTMLElement>('.ef-label'))) {
+      const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (!n.textContent?.trim()) continue;
+        range.selectNodeContents(n);
+        for (const b of Array.from(range.getClientRects()))
+          lines.push({ t: n.textContent.trim(), b, node: label.dataset.node ?? '' });
+      }
+    }
+    const out: string[] = [];
+    for (const { t, b, node } of lines) {
+      if (
+        pts.some(
+          (q) =>
+            q.x > b.left - q.hw &&
+            q.x < b.right + q.hw &&
+            q.y > b.top - q.hw &&
+            q.y < b.bottom + q.hw,
+        )
+      )
+        out.push(`${node} "${t}" × čára`);
+      if (
+        chevs.some(
+          (c) => c.left < b.right && b.left < c.right && c.top < b.bottom && b.top < c.bottom,
+        )
+      )
+        out.push(`${node} "${t}" × šipka`);
+      if (b.bottom > stage.bottom + 0.5 || b.right > stage.right + 0.5 || b.left < stage.left - 0.5)
+        out.push(`${node} "${t}" mimo diagram`);
+    }
+    for (let i = 0; i < lines.length; i++)
+      for (let j = i + 1; j < lines.length; j++) {
+        const [a, c] = [lines[i]!, lines[j]!];
+        if (a.node === c.node) continue;
+        if (
+          a.b.left < c.b.right - 1 &&
+          c.b.left < a.b.right - 1 &&
+          a.b.top < c.b.bottom - 1 &&
+          c.b.top < a.b.bottom - 1
+        )
+          out.push(`${a.node} "${a.t}" × ${c.node} "${c.t}"`);
+      }
+    return out;
+  });
+}
+
 test.describe('Hero: piktogramový diagram toků', () => {
   const scenarios = [
     {
@@ -114,7 +195,7 @@ test.describe('Hero: piktogramový diagram toků', () => {
       flows: ['grid-house', 'grid-battery'],
     },
     {
-      // L1 imports 0.8 kW while L2 + L3 export 2.1 kW: both grid lines at once.
+      // L1 imports 0.8 kW while L2 + L3 export 2.1 kW: both grid directions at once.
       flow: 'mixed',
       at: '2026-06-02T13:00:00+02:00',
       consumers: ['coffee_maker'],
@@ -122,12 +203,14 @@ test.describe('Hero: piktogramový diagram toků', () => {
     },
   ] as const;
   for (const sc of scenarios)
-    test(`scénář ${sc.flow}: samostatné toky a běžící spotřebiče`, async ({ page }) => {
+    test(`scénář ${sc.flow}: toky podle zdroje, šipky na každém úseku, čísla jen u uzlů`, async ({
+      page,
+    }) => {
       await page.clock.setFixedTime(new Date(sc.at));
       await page.goto(`/energy?flow=${sc.flow}`);
       const hero = page.getByTestId('energy-flow');
       await expect(hero).toBeVisible();
-      // One line per source → destination pair; idle pairs are not drawn at all.
+      // One route per source → destination pair; idle pairs are not drawn at all.
       const flows = await hero
         .locator('g[data-testid^="energy-flow-edge-"]')
         .evaluateAll((els) =>
@@ -135,15 +218,21 @@ test.describe('Hero: piktogramový diagram toků', () => {
             .map((el) => el.getAttribute('data-testid')!.slice(17))
             .filter((id) => /^(pv|grid|battery)-/.test(id)),
         );
-      // Order follows the hub topology (DOM paint order), not semantics.
       expect([...flows].sort()).toEqual([...sc.flows].sort());
-      for (const id of sc.flows) {
-        await expect(page.getByTestId(`energy-flow-edge-${id}-value`)).toContainText('kW');
-        // Direction is readable without motion: chevrons along each line.
-        expect(
-          await page.getByTestId(`energy-flow-edge-${id}`).locator('.ef-chev').count(),
-        ).toBeGreaterThan(0);
-      }
+      // No number sits on a line any more: no value pills, no text inside the SVG.
+      await expect(hero.locator('.ef-pill, [data-testid$="-value"]')).toHaveCount(0);
+      expect(await hero.locator('.ef-svg text').count()).toBe(0);
+      // Direction without motion: an arrowhead on every link each active flow passes.
+      for (const id of sc.flows)
+        for (const link of PAIR_LINKS[id]!)
+          expect(
+            await hero.locator(`.ef-chev[data-link="${link}"]`).count(),
+            `${id} · ${link}`,
+          ).toBeGreaterThan(0);
+      // Colour = source: arrows on the sun → inverter cable are all sun-coloured, and the sun
+      // feeds the inverter by ONE line whatever it supplies.
+      if (sc.flows.some((id) => id.startsWith('pv-')))
+        await expect(hero.locator('.ef-chev[data-link="pv-hub"]')).toHaveCount(1);
       const ids = await hero
         .locator('[data-testid^="energy-flow-consumer-"]')
         .evaluateAll((els) => els.map((el) => el.getAttribute('data-testid')!.slice(21)));
@@ -152,16 +241,27 @@ test.describe('Hero: piktogramový diagram toků', () => {
         await expect(page.getByTestId('energy-flow-consumers')).toContainText(
           'Žádný velký spotřebič neběží',
         );
-      if (sc.flow === 'mixed') {
-        await expect(page.getByTestId('energy-flow-edge-grid-house-value')).toContainText('0,8');
-        await expect(page.getByTestId('energy-flow-edge-pv-grid-value')).toContainText('2,1');
-      }
-      // Faster dots for more power: the noon PV → house flow (3.6 kW) beats PV → grid (0.7 kW).
       if (sc.flow === 'noon') {
+        // Strings are text at the sun node, not extra lines.
+        await expect(page.getByTestId('energy-flow-pv')).toContainText('FV1');
+        await expect(page.getByTestId('energy-flow-house-sources')).toContainText('ze slunce');
+        // Lanes of one source move in step (same dot period on the shared cable).
         const period = async (id: string) =>
           Number(await page.getByTestId(`energy-flow-edge-${id}`).getAttribute('data-period'));
-        expect(await period('pv-house')).toBeLessThan(await period('pv-grid'));
+        expect(await period('pv-house')).toBe(await period('pv-grid'));
       }
+      if (sc.flow === 'mixed') {
+        // Values live at the nodes, with the source colour rows.
+        const house = page.getByTestId('energy-flow-house-sources');
+        await expect(house).toContainText('ze slunce 1,5 kW');
+        await expect(house).toContainText('ze sítě 0,8 kW');
+        const grid = page.getByTestId('energy-flow-grid');
+        await expect(grid).toContainText('1,3 kW do sítě');
+        await expect(grid).toContainText('odběr 0,8 kW');
+        await expect(grid).toContainText('dodávka 2,1 kW');
+        await expect(page.getByTestId('energy-flow-grid-sources')).toContainText('ze slunce 2,1');
+      }
+      expect(await textOverLanes(page)).toEqual([]);
       expect(await page.locator('html').evaluate((root) => root.scrollWidth)).toBeLessThanOrEqual(
         page.viewportSize()!.width,
       );
@@ -195,6 +295,8 @@ test.describe('Hero: piktogramový diagram toků', () => {
           ).length,
     );
     expect(running).toBe(0);
+    // Direction stays readable without motion.
+    expect(await page.locator('.ef-chev').count()).toBeGreaterThan(0);
     await ctx.close();
   });
 });
@@ -246,85 +348,66 @@ test.describe('Fáze: tři fáze, nesymetrie a saldování', () => {
   });
 });
 
-test.describe('Hero: popisky toků se nepřekrývají (mobil 360 px)', () => {
-  for (const flow of ['morning', 'mixed', 'noon'] as const)
-    test(`scénář ${flow}: pilulky, šipky a uzly bez kolize`, async ({ page }) => {
-      await page.setViewportSize({ width: 360, height: 800 });
-      await page.clock.setFixedTime(new Date('2026-06-02T09:21:00+02:00'));
-      await page.goto(`/energy?flow=${flow}`);
-      const hero = page.getByTestId('energy-flow');
-      await expect(hero).toBeVisible();
-      await expect(hero.locator('.ef-pill').first()).toBeVisible();
-      const issues = await hero.evaluate((root) => {
-        const r = (el: Element) => el.getBoundingClientRect();
-        const hit = (a: DOMRect, b: DOMRect) =>
-          a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-        const pills = Array.from(root.querySelectorAll('.ef-pill'));
-        const chevs = Array.from(root.querySelectorAll('.ef-chev'));
-        const discs = Array.from(root.querySelectorAll('.ef-hit'));
-        const out: string[] = [];
-        pills.forEach((p, i) => {
-          const a = r(p);
-          if (p.hasAttribute('data-collides')) out.push(`${p.textContent} collides`);
-          for (const q of pills.slice(i + 1))
-            if (hit(a, r(q))) out.push(`${p.textContent} × ${q.textContent}`);
-          for (const c of chevs) if (hit(a, r(c))) out.push(`${p.textContent} × šipka`);
-          for (const d of discs) {
-            const b = r(d);
-            const [cx, cy, rad] = [(b.left + b.right) / 2, (b.top + b.bottom) / 2, b.width / 2];
-            const px = Math.max(a.left, Math.min(cx, a.right));
-            const py = Math.max(a.top, Math.min(cy, a.bottom));
-            const gap = Math.hypot(px - cx, py - cy) - rad;
-            if (gap < 7.5)
-              out.push(`${p.textContent} ${gap.toFixed(1)} px od ${d.getAttribute('data-testid')}`);
-          }
-        });
-        return out;
+test.describe('Hero: text u uzlů mimo čáry (telefon a tablet)', () => {
+  for (const width of [360, 820])
+    for (const flow of ['morning', 'mixed', 'noon', 'nightcharge'] as const)
+      test(`${width} px, scénář ${flow}: žádný text přes čáry, šipky ani jiný uzel`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.clock.setFixedTime(new Date('2026-06-02T09:21:00+02:00'));
+        await page.goto(`/energy?flow=${flow}`);
+        const hero = page.getByTestId('energy-flow');
+        await expect(hero.locator('.ef-chev').first()).toBeVisible();
+        expect(await textOverLanes(page)).toEqual([]);
+        // Node texts end above the phase strip.
+        const stage = await hero.locator('.ef-stage').boundingBox();
+        const phases = await page.getByTestId('energy-phases').boundingBox();
+        expect(stage!.y + stage!.height).toBeLessThanOrEqual(phases!.y + 1);
+        if (flow === 'morning') {
+          // Prod rc.13: the house lists both sources with their power.
+          const house = page.getByTestId('energy-flow-house-sources');
+          await expect(house).toContainText('ze slunce 0,5 kW');
+          await expect(house).toContainText('ze sítě 2,7 kW');
+        }
       });
-      expect(issues).toEqual([]);
-      // Every active flow keeps its arrowhead on its own line.
-      const pills = await hero.locator('.ef-pill').count();
-      expect(await hero.locator('.ef-chev').count()).toBe(pills);
-      // No "AC rozvaděč" caption any more (only the junction dot with its title).
-      await expect(hero.getByText('AC rozvaděč', { exact: true })).toBeHidden();
-      if (flow === 'morning') {
-        // Prod rc.13: shared bus into the house – inverter flow above the line, grid below it,
-        // each in its own pill; the export 0,1 sits on the grid leg.
-        const pvHouse = page.getByTestId('energy-flow-edge-pv-house-value');
-        const gridHouse = page.getByTestId('energy-flow-edge-grid-house-value');
-        await expect(pvHouse).toContainText('0,5');
-        await expect(pvHouse).toHaveAttribute('data-side', 'above');
-        await expect(gridHouse).toContainText('2,7');
-        await expect(gridHouse).toHaveAttribute('data-side', 'below');
-        await expect(page.getByTestId('energy-flow-edge-pv-grid-value')).toHaveAttribute(
-          'data-link',
-          'grid-ac',
-        );
-        const [a, b] = [await pvHouse.boundingBox(), await gridHouse.boundingBox()];
-        expect(a!.y + a!.height).toBeLessThan(b!.y);
-      }
-    });
+
+  test('820 px: inverter lanes leave the board at one height towards grid and house', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 820, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
+    await page.goto('/energy?flow=mixed');
+    const hero = page.getByTestId('energy-flow');
+    await expect(hero.locator('.ef-chev').first()).toBeVisible();
+    const y = async (sel: string) => {
+      const b = await hero.locator(sel).boundingBox();
+      return b!.y + b!.height / 2;
+    };
+    // Sun → grid (left of the board) and sun → house (right of it) share one row.
+    expect(
+      Math.abs(
+        (await y('.ef-chev[data-link="grid-ac"][data-testid$="-pv-grid"]')) -
+          (await y('.ef-chev[data-link="ac-house"][data-testid$="-pv-house"]')),
+      ),
+    ).toBeLessThan(1);
+  });
 });
 
 test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
-  const kw = (t: string | null) => Number((t ?? '').replace(/[^\d,]/g, '').replace(',', '.'));
   for (const flow of ['cloudy', 'nightcharge'] as const)
-    test(`scénář ${flow}: drát střídač ↕ rozvaděč, toky přes rozvaděč, součty sedí`, async ({
-      page,
-    }) => {
+    test(`scénář ${flow}: toky přes rozvaděč, součty u uzlů sedí`, async ({ page }) => {
       await page.setViewportSize({ width: 360, height: 800 });
       await page.clock.setFixedTime(
         new Date(flow === 'cloudy' ? '2026-06-02T14:06:00+02:00' : '2026-06-02T23:40:00+02:00'),
       );
       await page.goto(`/energy?flow=${flow}`);
       const hero = page.getByTestId('energy-flow');
-      await expect(hero.locator('.ef-pill').first()).toBeVisible();
+      await expect(hero.locator('.ef-chev').first()).toBeVisible();
       const geo = await hero.evaluate((root) => {
         const board = root.querySelector('[data-testid="energy-flow-board"]') as SVGRectElement;
         const half = board.width.baseVal.value / 2;
         const J = { x: board.x.baseVal.value + half, y: board.y.baseVal.value + half };
-        const wire = root.querySelector('[data-testid="energy-flow-ac-wire"]') as SVGPathElement;
-        const end = wire.getPointAtLength(wire.getTotalLength());
         // Closest approach of every drawn flow to the board centre (diagram units).
         const near: Record<string, number> = {};
         for (const g of Array.from(root.querySelectorAll('g.ef-edge'))) {
@@ -337,25 +420,25 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
           }
           near[g.getAttribute('data-testid')!.replace('energy-flow-edge-', '')] = best;
         }
-        return {
-          endGap: Math.max(Math.abs(end.x - J.x), Math.abs(end.y - J.y)) - half,
-          near,
-          half,
-        };
+        return { near, half };
       });
-      // The inverter's AC conductors end inside the board plate; every flow passes over it.
-      expect(geo.endGap).toBeLessThan(0);
+      // Every flow passes over the AC board.
       for (const id of Object.keys(geo.near)) expect(geo.near[id], id).toBeLessThan(geo.half * 1.5);
       const val = async (id: string) =>
         kw(await page.locator(`[data-testid="${id}"] .ef-val`).first().textContent());
-      const pill = async (id: string) =>
-        kw(await page.getByTestId(`energy-flow-edge-${id}-value`).textContent());
+      const src = async (node: string, source: string) =>
+        kw(
+          await page
+            .getByTestId(`energy-flow-${node}-sources`)
+            .locator(`[data-source="${source}"]`)
+            .textContent(),
+        );
       if (flow === 'cloudy') {
-        // Prod 14:06: the grid node and its line into the house show the same number.
-        expect(await val('energy-flow-grid')).toBe(await pill('grid-house'));
-        expect(await val('energy-flow-pv')).toBe(await pill('pv-house'));
+        // Prod 14:06: the grid node and the house's "ze sítě" row show the same number.
+        expect(await val('energy-flow-grid')).toBe(await src('house', 'grid'));
+        expect(await val('energy-flow-pv')).toBe(await src('house', 'pv'));
         expect(await val('energy-flow-house')).toBeCloseTo(
-          (await pill('pv-house')) + (await pill('grid-house')),
+          (await src('house', 'pv')) + (await src('house', 'grid')),
           5,
         );
         await expect(page.getByTestId('energy-flow-pv')).toContainText('FV1 0,2 kW');
@@ -364,21 +447,22 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
         // Night charging: grid → board → inverter → battery, plus grid → house.
         expect(geo.near['grid-battery']).toBeLessThan(geo.half * 1.5);
         expect(await val('energy-flow-grid')).toBeCloseTo(
-          (await pill('grid-house')) + (await pill('grid-battery')),
+          (await val('energy-flow-house')) + (await val('energy-flow-battery')),
           5,
         );
+        await expect(page.getByTestId('energy-flow-battery-sources')).toContainText('ze sítě');
       }
     });
   for (const width of [320, 360])
-    test(`noční nabíjení ${width} px: popisky se vejdou, drát střídač ↕ rozvaděč = dva vodiče`, async ({
+    test(`noční nabíjení ${width} px: popisky se vejdou, baterie vlevo od vedení střídač ↕ rozvaděč`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.clock.setFixedTime(new Date('2026-06-02T23:40:00+02:00'));
       await page.goto('/energy?flow=nightcharge');
       const hero = page.getByTestId('energy-flow');
-      await expect(hero.locator('.ef-pill').first()).toBeVisible();
-      await expect(page.getByTestId('energy-flow-battery')).toContainText('nabíjí ze sítě');
+      await expect(hero.locator('.ef-chev').first()).toBeVisible();
+      await expect(page.getByTestId('energy-flow-battery')).toContainText('nabíjí');
       const m = await hero.evaluate((root) => {
         const r = root.getBoundingClientRect();
         const out: string[] = [];
@@ -387,45 +471,33 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
           if (b.width > 0 && (b.right > r.right + 0.5 || b.left < r.left - 0.5))
             out.push(el.textContent ?? '');
         }
-        // Two vertical conductors of the AC wire: on-screen spacing in CSS px.
-        const wire = root.querySelector('[data-testid="energy-flow-ac-wire"]') as SVGPathElement;
-        const xs = Array.from((wire.getAttribute('d') ?? '').matchAll(/M([\d.]+)/g)).map((x) =>
-          Number(x[1]),
-        );
-        const svg = wire.ownerSVGElement!;
-        const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+        const lane = root.querySelector('.ef-chev[data-link="hub-ac"]')!.getBoundingClientRect();
         const bat = root
           .querySelector('[data-testid="energy-flow-battery"]')!
           .getBoundingClientRect();
-        return {
-          out,
-          spacing: Math.abs(xs[1]! - xs[0]!) * k,
-          n: xs.length,
-          batClear: wire.getBoundingClientRect().left - bat.right,
-        };
+        return { out, batClear: lane.left - bat.right };
       });
       expect(m.out).toEqual([]);
-      // The battery label (incl. its temperature chip) stays left of the AC conductors.
+      // The battery label (incl. its temperature chip) stays left of the inverter ↕ board lane.
       expect(m.batClear).toBeGreaterThan(4);
-      expect(m.n).toBe(2);
-      expect(m.spacing).toBeGreaterThanOrEqual(6);
     });
   for (const flow of ['noon', 'mixed', 'morning', 'nightcharge'])
-    test(`320 px světlé téma (${flow}): popisky, štítky a teploty se nepřekrývají, nečinný vodič je čitelný`, async ({
+    test(`320 px světlé téma (${flow}): popisky a teploty se nepřekrývají, nečinný vodič je čitelný`, async ({
       page,
     }) => {
       await page.setViewportSize({ width: 320, height: 800 });
       await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
       await page.goto(`/energy?flow=${flow}&theme=light`);
       const hero = page.getByTestId('energy-flow');
-      await expect(hero.locator('.ef-pill').first()).toBeVisible();
+      await expect(hero.locator('.ef-chev').first()).toBeVisible();
+      expect(await textOverLanes(page)).toEqual([]);
       const m = await hero.evaluate((root) => {
         const r = root.getBoundingClientRect();
         const issues: string[] = [];
-        const boxes = Array.from(root.querySelectorAll('.ef-label > *, .ef-pill'))
+        const boxes = Array.from(root.querySelectorAll('.ef-label > *'))
           .map((el) => ({ el, b: el.getBoundingClientRect(), t: (el.textContent ?? '').trim() }))
           .filter((x) => x.b.width > 0);
-        for (const x of Array.from(root.querySelectorAll('.ef-label *, .ef-pill'))) {
+        for (const x of Array.from(root.querySelectorAll('.ef-label *'))) {
           const b = x.getBoundingClientRect();
           if (b.width > 0 && (b.right > r.right + 0.5 || b.left < r.left - 0.5))
             issues.push(`out: ${x.textContent}`);
@@ -442,26 +514,24 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
             )
               issues.push(`overlap: ${boxes[i]!.t} | ${boxes[j]!.t}`);
           }
-        // Value pills keep 2 px clear of the AC board plate.
+        // Node texts keep 2 px clear of the AC board plate.
         const board = root
           .querySelector('[data-testid="energy-flow-board"]')!
           .getBoundingClientRect();
-        for (const p of Array.from(root.querySelectorAll('.ef-pill'))) {
-          const b = p.getBoundingClientRect();
+        for (const x of boxes)
           if (
-            b.left < board.right + 2 &&
-            board.left < b.right + 2 &&
-            b.top < board.bottom + 2 &&
-            board.top < b.bottom + 2
+            x.b.left < board.right + 2 &&
+            board.left < x.b.right + 2 &&
+            x.b.top < board.bottom + 2 &&
+            board.top < x.b.bottom + 2
           )
-            issues.push(`board: ${p.textContent}`);
-        }
+            issues.push(`board: ${x.t}`);
         // Temperature chips are the catalog Pill.
         const temps = Array.from(root.querySelectorAll('[data-testid$="-temp"]'));
         const notPill = temps.filter((t) => !t.classList.contains('hb-pill')).length;
-        // Contrast of the idle conductor against the card (opaque colour expected in light).
-        const rail = root.querySelector('[data-testid="energy-flow-rails"]')!;
-        const cs = getComputedStyle(rail);
+        // Contrast of the idle cable against the card (opaque colour expected in light).
+        const rail = root.querySelector('[data-testid="energy-flow-rails"]');
+        const cs = rail ? getComputedStyle(rail) : null;
         let bg = 'rgb(255, 255, 255)';
         for (let e: Element | null = root; e; e = e.parentElement) {
           const c = getComputedStyle(e).backgroundColor;
@@ -470,17 +540,16 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
             break;
           }
         }
-        return {
-          issues,
-          notPill,
-          temps: temps.length,
-          stroke: cs.stroke,
-          op: cs.strokeOpacity,
-          bg,
-        };
+        return { issues, notPill, stroke: cs?.stroke ?? null, op: cs?.strokeOpacity ?? null, bg };
       });
       expect(m.issues).toEqual([]);
       expect(m.notPill).toBe(0);
+      // Noon / mixed: every cable carries something, so no idle rail is drawn.
+      if (flow === 'noon' || flow === 'mixed') {
+        expect(m.stroke).toBeNull();
+        return;
+      }
+      expect(m.stroke).not.toBeNull();
       // color-mix() computes to `color(srgb r g b)` (0–1), plain colours to rgb() (0–255).
       const rgb = (s: string) =>
         (s.match(/[\d.]+/g) ?? [])
@@ -493,7 +562,7 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
         });
         return 0.2126 * R! + 0.7152 * G! + 0.0722 * B!;
       };
-      const [l1, l2] = [lum(rgb(m.stroke)), lum(rgb(m.bg))].sort((a, b) => b - a);
+      const [l1, l2] = [lum(rgb(m.stroke!)), lum(rgb(m.bg))].sort((a, b) => b - a);
       expect(Number(m.op)).toBe(1);
       expect((l1! + 0.05) / (l2! + 0.05)).toBeGreaterThanOrEqual(3);
     });

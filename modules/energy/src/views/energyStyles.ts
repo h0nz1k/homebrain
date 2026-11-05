@@ -168,8 +168,6 @@ export const energyStyles = `
 .ef-dots--thin{stroke-dasharray:8 30;animation-name:ef-flow-thin}
 .ef-chev{fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;opacity:.95}
 .ef-bus{stroke-opacity:.22}
-.ef-pill{position:absolute;z-index:1;transform:translate(-50%,-50%);padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ef-c) 16%,var(--hb-s1));box-shadow:0 1px 8px rgba(0,0,0,.1);font-size:13px;font-weight:600;line-height:1.35;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap;color:color-mix(in srgb,var(--ef-c) 62%,var(--hb-t1));pointer-events:none}
-.ef-pill small{font-size:1em;font-weight:500;color:var(--hb-t2)}
 .ef-head-r{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 @keyframes ef-flow{to{stroke-dashoffset:-70}}
 @keyframes ef-flow-thin{to{stroke-dashoffset:-38}}
@@ -194,6 +192,12 @@ export const energyStyles = `
 .ef-val small{font-size:14px;font-weight:500;letter-spacing:0;color:var(--hb-t2)}
 .ef-sub{font-size:13px;line-height:1.3;color:var(--hb-t2)}
 .ef-sub[data-ml]{white-space:pre}
+.ef-srcs{display:flex;flex-direction:column;gap:1px;margin-top:2px;font-size:13px;line-height:1.3;color:var(--hb-t2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ef-src{display:inline-flex;align-items:center;gap:6px}
+.ef-label--end .ef-src{justify-content:flex-end}
+.ef-label--center .ef-src{justify-content:center}
+.ef-src--inline{margin-left:8px}
+.ef-src i{width:8px;height:8px;flex:none;border-radius:50%;background:var(--ef-c)}
 .ef-hit{position:absolute;z-index:1;aspect-ratio:1;margin:0;padding:0;border:0;border-radius:50%;background:none;cursor:pointer}
 .ef-cons{display:flex;align-items:center;gap:10px;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;animation:ef-in .34s var(--hb-ease-out,var(--hb-ease)) both}
 .ef-cons-col .ef-cons{position:absolute;z-index:1;transition:top .35s var(--hb-ease)}
@@ -277,6 +281,14 @@ export const energyStyles = `
 .ef-ph-axis{position:relative;display:flex;justify-content:space-between;margin:0 126px -4px 38px;font-size:11px;font-weight:500}
 .ef-ph-bars:not([data-export]) .ef-ph-axis-in{position:absolute;left:calc(100% * var(--z) + 6px)}
 .ef-ph-axis-max{margin-left:auto;color:var(--hb-t3)}
+.ef-ph-axis>span{white-space:nowrap}
+/* Tablet / narrow desktop card: the hint moves under the bars (three columns squeezed the kW column
+   under the saldo text at 820 px). */
+.ef-hero{container:ef-card / inline-size}
+@container ef-card (max-width:1000px){
+.ef-hero--wide .ef-ph{grid-template-columns:minmax(150px,200px) minmax(0,1fr);row-gap:14px}
+.ef-hero--wide .ef-ph-hint{grid-column:1 / -1}
+}
 
 .ef-ph-axis-out{color:color-mix(in srgb,var(--ef-sun) 55%,var(--hb-t2))}
 .ef-ph-axis-in{color:color-mix(in srgb,var(--hb-energy-grid) 60%,var(--hb-t2))}
@@ -381,7 +393,6 @@ export const energyStyles = `
 .ef-val small{font-size:13px}
 .ef-label{padding:1px 3px}
 .ef-name{gap:4px}
-.ef-pill{padding:1px 6px}
 .ef-sub .ef-temp{margin-left:4px}
 }
 `;

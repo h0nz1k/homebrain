@@ -342,26 +342,114 @@ export function linkFlows(alloc: FlowAllocation): Record<FlowLinkId, number> {
   return out;
 }
 
-/**
- * Lane order of the active pairs on each link (metro-map style, no crossings outside the hub
- * disc). Vertical links list lanes left → right, horizontal links top → bottom. On the AC bus the
- * inverter flows sit on top and grid → house at the bottom; all bus lanes converge into the board
- * dot (rozvaděč) under the inverter.
+/*
+ * Lane model (owner, review 003): one drawn line = one SOURCE flowing in one DIRECTION on a
+ * physical link, coloured by the source. On the link where a source starts (sun → inverter,
+ * battery → inverter when discharging, grid → board when importing) all of its pairs share ONE
+ * lane (key = the source) and split only inside the inverter / at the board – the sun never shows
+ * three parallel lines again. Elsewhere each pair has its own lane. Lanes of one direction sit
+ * side by side; the two directions of a link are separated by a wider gap (DIR_GAP).
  */
-export const LANE_ORDER: Record<FlowLinkId, readonly FlowPairId[]> = {
-  // pv → battery leftmost: its pill sits left of this leg on phones (next to its own lane).
-  'pv-hub': ['pv-battery', 'pv-grid', 'pv-house'],
-  'battery-hub': ['pv-battery', 'grid-battery', 'battery-grid', 'battery-house'],
+export type LaneKey = FlowPairId | 'pv' | 'battery' | 'grid';
+
+/** Lane of a pair on a link: merged into its source's lane on the source's own first link. */
+export const laneKey = (link: FlowLinkId, id: FlowPairId): LaneKey =>
+  PAIR_LINKS[id][0] === link ? (id.split('-')[0] as 'pv' | 'battery' | 'grid') : id;
+
+/**
+ * Lane order on each link (metro-map style, no crossings outside the inverter disc and the board
+ * plate). Vertical links list lanes left → right, horizontal links top → bottom. Battery link:
+ * charging lanes on top, discharging below; grid link: export on top, import below; on the
+ * inverter ↕ board link the flows turning to the grid sit left, those to the house right.
+ */
+export const LANE_ORDER: Record<FlowLinkId, readonly LaneKey[]> = {
+  'pv-hub': ['pv'],
+  'battery-hub': ['pv-battery', 'grid-battery', 'battery'],
   'hub-ac': ['pv-grid', 'battery-grid', 'grid-battery', 'battery-house', 'pv-house'],
-  'grid-ac': ['pv-grid', 'battery-grid', 'grid-battery', 'grid-house'],
+  'grid-ac': ['pv-grid', 'battery-grid', 'grid'],
   'ac-house': ['pv-house', 'battery-house', 'grid-house'],
 };
+export type Lanes = Record<FlowLinkId, LaneKey[]>;
 
-export function linkLanes(active: Iterable<FlowPairId>): Record<FlowLinkId, FlowPairId[]> {
-  const on = new Set(active);
+export function linkLanes(active: Iterable<FlowPairId>): Lanes {
+  const keys = new Set<string>();
+  for (const id of active)
+    for (const link of PAIR_LINKS[id]) keys.add(`${link}|${laneKey(link, id)}`);
   return Object.fromEntries(
-    FLOW_LINKS.map((l) => [l, LANE_ORDER[l].filter((id) => on.has(id))]),
-  ) as Record<FlowLinkId, FlowPairId[]>;
+    FLOW_LINKS.map((l) => [l, LANE_ORDER[l].filter((k) => keys.has(`${l}|${k}`))]),
+  ) as Lanes;
+}
+
+/** +1 when a lane runs along its link's canonical direction, −1 against it. */
+export function laneDir(link: FlowLinkId, key: LaneKey): 1 | -1 {
+  if (key === 'pv' || key === 'battery' || key === 'grid') return 1;
+  return linkSign(key, link);
+}
+
+/** Source node of a lane (its colour). */
+export const laneSource = (key: LaneKey): FlowNode => key.split('-')[0] as FlowNode;
+
+/** Spacing between the two directions of a link, in lane gaps. */
+export const DIR_GAP = 1.8;
+
+/**
+ * Lane offsets across a link in lane-gap units. Bundles are centred on their link; the AC bus
+ * links (grid ↔ board, board → house) share a bottom-anchored baseline so grid → house runs
+ * straight through the board.
+ */
+export function laneOffsets(lanes: Lanes, link: FlowLinkId): Partial<Record<LaneKey, number>> {
+  const pos = (keys: LaneKey[], l: FlowLinkId) => {
+    const out: number[] = [];
+    keys.forEach((k, i) => {
+      if (i === 0) out.push(0);
+      else out.push(out[i - 1]! + (laneDir(l, k) === laneDir(l, keys[i - 1]!) ? 1 : DIR_GAP));
+    });
+    return out;
+  };
+  const keys = lanes[link];
+  const p = pos(keys, link);
+  const span = p.length ? p[p.length - 1]! : 0;
+  const res: Partial<Record<LaneKey, number>> = {};
+  if (link === 'grid-ac' || link === 'ac-house') {
+    // Shared rows on both sides of the board: the inverter's lanes (top-anchored, so the sun lane
+    // to the grid and the sun lane to the house sit at one height – no step at the board), then
+    // the grid's own lane one direction gap lower, straight through the board.
+    const fromGrid = (k: LaneKey) => k === 'grid' || k === 'grid-house';
+    const inv = (l: FlowLinkId) => lanes[l].filter((k) => !fromGrid(k)).length;
+    const rows = Math.max(inv('grid-ac'), inv('ac-house'));
+    const anyGrid = (['grid-ac', 'ac-house'] as const).some((l) => lanes[l].some(fromGrid));
+    const gridRow = rows ? rows - 1 + DIR_GAP : 0;
+    const total = anyGrid ? gridRow : Math.max(0, rows - 1);
+    let i = 0;
+    for (const k of keys)
+      res[k] = Math.round(((fromGrid(k) ? gridRow : i++) - total / 2) * 1000) / 1000;
+    return res;
+  }
+  keys.forEach((k, i) => (res[k] = Math.round((p[i]! - span / 2) * 1000) / 1000));
+  return res;
+}
+
+/** Power (kW) carried by each lane of a link (sum of its pairs). */
+export function laneKw(alloc: FlowAllocation, link: FlowLinkId, key: LaneKey): number {
+  return r2(
+    FLOW_PAIRS.filter((id) => alloc.pairs[id].active && PAIR_LINKS[id].includes(link))
+      .filter((id) => laneKey(link, id) === key)
+      .reduce((t, id) => t + alloc.pairs[id].kw, 0),
+  );
+}
+
+/** Sources feeding a sink node right now (for the node's breakdown), largest first. */
+export function sinkSources(
+  alloc: FlowAllocation,
+  sink: 'house' | 'battery' | 'grid',
+): { source: FlowNode; displayKw: number; pair: FlowPairId }[] {
+  return FLOW_PAIRS.filter((id) => id.endsWith(`-${sink}`) && alloc.pairs[id].active)
+    .map((id) => ({
+      source: id.split('-')[0] as FlowNode,
+      displayKw: alloc.pairs[id].displayKw,
+      pair: id,
+    }))
+    .sort((a, b) => b.displayKw - a.displayKw);
 }
 
 /**
