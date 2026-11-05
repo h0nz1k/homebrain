@@ -129,7 +129,7 @@ describe('fryer Dnes signal', () => {
       fryerModel({ status: st('user_action'), drawer: st('off') }, now),
       now,
     );
-    expect(action).toMatchObject({ module: 'recipes', severity: 'notice' });
+    expect(action).toMatchObject({ module: 'recipes', severity: 'warning' });
     expect(action!.title).toContain('Protřepej');
     const [cook] = fryerSignals(
       fryerModel({ status: st('cooking'), remaining: st('125', new Date(now).toISOString()) }, now),

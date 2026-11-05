@@ -135,22 +135,25 @@ export function FryerLiveCard({
       <div className="rc-fl-ring" aria-hidden={m.phase === 'done'}>
         <Ring fraction={m.progress ?? 0} size={112} />
         <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
-          {countdown}
+          {m.phase === 'done' ? <Icon name="check" /> : countdown}
           {m.phase !== 'done' && m.remainingS !== null ? <small>zbývá</small> : null}
         </span>
       </div>
-      <div className="rc-fl-body">
+      <div className="rc-fl-head">
         <span className="rc-fl-kicker">
-          <Icon name="fryer" /> Fritéza{program ? ` · ${program}` : ''}
+          <Icon name="fryer" /> Fritéza
+          {program ? <span className="rc-fl-prog">{program}</span> : null}
         </span>
         <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
           {m.label}
         </h2>
+      </div>
+      <div className="rc-fl-body">
         {HINT[m.phase] ? <p className="rc-fl-hint">{HINT[m.phase]}</p> : null}
-        {m.currentTemp !== null ? (
+        {m.currentTemp !== null && m.phase !== 'done' ? (
           <div className="rc-fl-temp" data-testid="recipes-fryer-temp">
-            <span className="num">
-              <b>{Math.round(m.currentTemp)}</b> °C
+            <span className="num rc-fl-nw">
+              <b>{Math.round(m.currentTemp)}</b>&nbsp;°C
             </span>
             {m.targetTemp ? (
               <>
@@ -161,7 +164,7 @@ export function FryerLiveCard({
                     }}
                   />
                 </span>
-                <span className="num t2">cíl {Math.round(m.targetTemp)} °C</span>
+                <span className="num t2 rc-fl-nw">cíl&nbsp;{Math.round(m.targetTemp)}&nbsp;°C</span>
               </>
             ) : null}
           </div>
@@ -173,7 +176,7 @@ export function FryerLiveCard({
             <Button
               key={c}
               size="md"
-              variant={c === 'keep_warm' ? 'primary' : 'secondary'}
+              variant={c === 'stop' ? 'ghost' : 'secondary'}
               loading={busy === c}
               disabled={busy !== null}
               data-testid={`recipes-fryer-${c}`}

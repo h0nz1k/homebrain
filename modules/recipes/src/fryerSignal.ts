@@ -56,7 +56,13 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       module: 'recipes',
       group: 'recipes.airfryer',
       kind: 'state',
-      severity: model.phase === 'error' ? 'warning' : urgent ? 'notice' : 'info',
+      // Shake/turn and drawer-out are time-critical in the kitchen: warning puts them in the hero.
+      severity:
+        model.phase === 'error' || model.phase === 'action' || model.phase === 'drawer'
+          ? 'warning'
+          : urgent
+            ? 'notice'
+            : 'info',
       tone: model.phase === 'error' ? 'risk' : 'neutral',
       relevance: urgent ? 0.8 : 0.45,
       valid_from: new Date(now - 60_000).toISOString(),
