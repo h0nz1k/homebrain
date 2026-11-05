@@ -550,7 +550,8 @@ const specs: Spec[] = [
   {
     id: 'progress-ring',
     name: 'ProgressRing',
-    summary: 'Kroužek průběhu / odpočtu živého zařízení (fritéza, minutky, hodnota signálu na Dnes).',
+    summary:
+      'Kroužek průběhu / odpočtu živého zařízení (fritéza, minutky, hodnota signálu na Dnes).',
     importName: 'ProgressRing',
     states: ['accent', 'held (odpočet stojí)', 'ok (hotovo)', 'crit', 'muted'],
     doText: 'value = hotový podíl 0–1; čas jako obsah uprostřed (HTML, tabulární číslice).',

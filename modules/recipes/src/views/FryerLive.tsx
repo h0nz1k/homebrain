@@ -111,7 +111,9 @@ export function FryerLiveCard({
   const [busy, setBusy] = useState<FryerControl | null>(null);
   // Phases seen during this cook (stored from the previous render, React's derived-state pattern).
   const [seen, setSeen] = useState<FryerPhase[]>([]);
-  if (!seen.includes(phase) || ((phase === 'off' || phase === 'idle') && seen.length)) {
+  // off/idle reset the list and are never stored themselves, so only update when it changes.
+  const reset = phase === 'off' || phase === 'idle';
+  if (reset ? seen.length > 0 : !seen.includes(phase)) {
     setSeen(fryerSeen(seen, phase));
   }
   if (!entities) return null;
