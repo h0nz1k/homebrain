@@ -49,12 +49,26 @@ Vrstvy odspodu:
    - kolize popisků s překážkami (`data-rv-obstacle`) se skryjí, vybrané vyhrávají;
    - halo v tónu místnosti drží trasu mimo písmena.
 
+### Skutečná vs. plánovaná trasa
+
+- **Skutečná trasa (živě)** = blok `path` z map dat integrace Roborock (`vector_map.py` ji parsuje a ztenčí, `_thin_path`). Kreslí se jako ocas (`rv-trail`) a pokrytí (`rv-cover`), robot po ní klouže. Když integrace map data nedá, ocas chybí a zůstane jen plánovaná trasa.
+- **Plánovaná trasa** (náhled po výběru místností) = graf dveří (`route.ts`):
+  - `findDoors` najde dveře jako mezery ve vrstvě stěn: volný konec stěny, paprsek podél stěny narazí na další stěnu po 55–150 cm; místnosti po obou stranách se zjistí sondou kolmo na otvor;
+  - `planDoorRoute` hledá Dijkstrou přes dveře; uvnitř místnosti jen osově rovnoběžné spojnice (L/Z) s odstupem od stěn, každou mezerou prochází kolmo středem;
+  - noha končí uvnitř cílové místnosti před odznakem pořadí; šipky se drží mimo odznaky;
+  - bez dveří (otevřený prostor jen s předělem) zůstane záložní mřížkové A* (`planRoute`), `data-route="grid"`.
+- Výběr: nevybrané místnosti se při výběru ztlumí (méně sytosti), vybraná má vlastní sytější tón a akcentový obrys na **vnitřní** straně stěn (tah oříznutý místností), přerušený maskou přesně ve dveřích.
+
+### Výkon
+
+`LabelCollisions` vzorkuje trasu a ocas z bodů v atributu `data-rv-pts` (lineárně v JS). Dřívější `getPointAtLength` na dlouhé vyhlazené cestě stál O(délka) na každé volání a při každé změně výběru blokoval hlavní vlákno na 1–2 s (pod zátěží e2e hlásilo „element is not stable“ a timeouty kliknutí).
+
 Barvy a tloušťky jsou CSS proměnné v `robotsStyles.ts` (`.rv`, `[data-theme='light'] .rv`), ne literály v TSX.
 
 ## Testy a kontrola
 
 - `pytest tests/python/test_robot_topology*.py tests/python/test_robot_map.py` – kroky pipeline, dlaždicování, výkon.
-- `vitest modules/robots` – geometrie (`geometry.test.ts`), pohyb (`motion.test.ts`), komponenta (`VectorMap.test.tsx`).
+- `vitest modules/robots` – geometrie (`geometry.test.ts`), pohyb (`motion.test.ts`), graf dveří (`route.test.ts`: všechny dveře dema, každá noha osově rovnoběžná, žádný úsek nekříží stěnu, změna místnosti jen středem dveří), komponenta (`VectorMap.test.tsx`).
 - `tests/e2e/robots-map.spec.ts` – na cestě panelu `/homebrain-roboti`:
   - popisky uvnitř místností a mimo robota,
   - výběr synchronní s čipy + souhrn (počet, m²),
