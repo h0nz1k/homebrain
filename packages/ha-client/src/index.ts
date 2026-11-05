@@ -64,6 +64,10 @@ export function createEntityStore() {
     getSnapshot(entityId: string) {
       return states[entityId];
     },
+    /** Every entity id of the last host update (suffix-based autodetection, e.g. airfryer). */
+    entityIds(): string[] {
+      return Object.keys(states);
+    },
   };
 }
 export type EntityStore = ReturnType<typeof createEntityStore>;

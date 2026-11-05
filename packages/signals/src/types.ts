@@ -1,7 +1,8 @@
 export type Severity = 'critical' | 'warning' | 'notice' | 'info' | 'calm';
 export const SEVERITY_RANK = { critical: 4, warning: 3, notice: 2, info: 1, calm: 0 } as const;
 export type SignalKind = 'event' | 'deadline' | 'window' | 'state';
-export type ModuleId = 'weather' | 'energy' | 'waste' | 'calendar' | 'health' | 'wine' | 'system';
+export type ModuleId =
+  'weather' | 'energy' | 'waste' | 'calendar' | 'health' | 'wine' | 'recipes' | 'system';
 export type Tone = 'risk' | 'opportunity' | 'neutral';
 export type Action =
   | { type: 'navigate'; label: string; href: string }
@@ -28,6 +29,11 @@ export interface Signal {
   action?: Action;
   source: SignalSource;
   related?: string[];
+  /**
+   * Someone has to act within minutes (airfryer „Protřepej“, „Hotovo“). As the hero it goes
+   * above the day ribbon so it is in the first viewport on phones too.
+   */
+  immediate?: boolean;
 }
 export interface RankedSignal extends Signal {
   u: number;

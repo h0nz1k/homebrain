@@ -366,6 +366,8 @@ async def ws_config(hass, connection, msg):
     airfryer = {
         k.removeprefix("recipes_airfryer_"): bindings[k] for k in AIRFRYER_KEYS if k in bindings
     }
+    if status_entity := fryer_status_entity(hass, bindings):
+        airfryer["status"] = status_entity
     methods: list[str] = []
     if method_entity := bindings.get("recipes_airfryer_method"):
         state = hass.states.get(method_entity)
@@ -624,6 +626,62 @@ async def ws_airfryer(hass, connection, msg):
     connection.send_result(msg["id"], {"started": True, "minutes": msg["minutes"]})
 
 
+FRYER_STATUS_SUFFIX = "_cooking_status"
+# Live card controls: logical action -> button entity suffix next to the status sensor.
+FRYER_CONTROL_SUFFIX = {"pause": "pause", "stop": "stop", "keep_warm": "keep_warm"}
+# Statuses in which a control press makes sense (never from standby/idle: no remote start).
+FRYER_ACTIVE = frozenset({"cooking", "pause", "user_action", "maintain", "finish"})
+
+
+def fryer_status_entity(hass: HomeAssistant, bindings: dict[str, str]) -> str | None:
+    """Bound status sensor, else the first ``sensor.*_cooking_status`` (suffix autodetect)."""
+    if bound := bindings.get("recipes_airfryer_status"):
+        return bound
+    found = sorted(
+        e for e in hass.states.async_entity_ids("sensor") if e.endswith(FRYER_STATUS_SUFFIX)
+    )
+    return found[0] if found else None
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "homebrain/recipes/airfryer_control",
+        vol.Required("action"): vol.In(tuple(FRYER_CONTROL_SUFFIX)),
+        vol.Optional("confirmed", default=False): bool,
+    }
+)
+@require_role(RECIPES_DEVICE_ROLES)
+@websocket_api.async_response
+async def ws_airfryer_control(hass, connection, msg):
+    """Pause / stop / keep warm a RUNNING fryer. Stop needs ``confirmed: true``.
+
+    The button is derived server-side from the status sensor (client ids are never trusted).
+    """
+    status_id = fryer_status_entity(hass, _recipe_bindings(hass))
+    if not status_id or not status_id.endswith(FRYER_STATUS_SUFFIX):
+        connection.send_error(msg["id"], "NOT_CONFIGURED", "airfryer")
+        return
+    if msg["action"] == "stop" and not msg["confirmed"]:
+        connection.send_error(msg["id"], "CONFIRMATION_REQUIRED", "airfryer")
+        return
+    status = hass.states.get(status_id)
+    if status is None or status.state not in FRYER_ACTIVE:
+        connection.send_error(msg["id"], "AIRFRYER_NOT_RUNNING", "airfryer")
+        return
+    prefix = status_id.removeprefix("sensor.").removesuffix(FRYER_STATUS_SUFFIX)
+    button = f"button.{prefix}_{FRYER_CONTROL_SUFFIX[msg['action']]}"
+    if hass.states.get(button) is None:
+        connection.send_error(msg["id"], "AIRFRYER_UNAVAILABLE", msg["action"])
+        return
+    try:
+        await hass.services.async_call("button", "press", {"entity_id": button}, blocking=True)
+    except HomeAssistantError as err:
+        _LOGGER.warning("Airfryer %s failed: %s", msg["action"], err)
+        connection.send_error(msg["id"], "DEVICE_FAILED", "airfryer")
+        return
+    connection.send_result(msg["id"], {"sent": msg["action"]})
+
+
 class RecipePhotoView(HomeAssistantView):
     """Locally stored recipe photos for mapped users (bearer or signed path)."""
 
@@ -667,6 +725,7 @@ COMMANDS = (
     ws_settings_set,
     ws_music,
     ws_airfryer,
+    ws_airfryer_control,
     ws_timers_subscribe,
     ws_timers_start,
     ws_timers_update,

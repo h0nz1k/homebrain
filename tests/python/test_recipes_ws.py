@@ -218,3 +218,31 @@ async def test_airfryer_not_configured(hass, setup, hass_ws_client):
         ws, type="homebrain/recipes/airfryer", temperature=180, minutes=5, confirmed=True
     )
     assert res["error"]["code"] == "NOT_CONFIGURED"
+
+
+async def test_airfryer_control_autodetects_and_guards(hass, setup, hass_ws_client):
+    """Pause/stop/keep warm press the sibling button of the *_cooking_status sensor."""
+    ws = await hass_ws_client(hass)
+    presses = async_mock_service(hass, "button", "press")
+    pause = {"type": "homebrain/recipes/airfryer_control", "action": "pause"}
+    assert (await _call(ws, **pause))["error"]["code"] == "NOT_CONFIGURED"
+    hass.states.async_set("sensor.demo_fryer_cooking_status", "standby")
+    hass.states.async_set("button.demo_fryer_pause", "unknown")
+    hass.states.async_set("button.demo_fryer_stop", "unknown")
+    cfg = (await _call(ws, type="homebrain/recipes/config"))["result"]["airfryer"]
+    assert cfg["entities"]["status"] == "sensor.demo_fryer_cooking_status"
+    # Idle fryer: nothing is pressed (no remote start from the live card).
+    assert (await _call(ws, **pause))["error"]["code"] == "AIRFRYER_NOT_RUNNING"
+    hass.states.async_set("sensor.demo_fryer_cooking_status", "cooking")
+    assert (await _call(ws, **pause))["result"] == {"sent": "pause"}
+    stop = {"type": "homebrain/recipes/airfryer_control", "action": "stop"}
+    assert (await _call(ws, **stop))["error"]["code"] == "CONFIRMATION_REQUIRED"
+    assert (await _call(ws, **stop, confirmed=True))["result"] == {"sent": "stop"}
+    warm = {"type": "homebrain/recipes/airfryer_control", "action": "keep_warm"}
+    assert (await _call(ws, **warm))["error"]["code"] == "AIRFRYER_UNAVAILABLE"
+    bad = await _call(ws, type="homebrain/recipes/airfryer_control", action="start")
+    assert not bad["success"]
+    assert [c.data["entity_id"] for c in presses] == [
+        "button.demo_fryer_pause",
+        "button.demo_fryer_stop",
+    ]

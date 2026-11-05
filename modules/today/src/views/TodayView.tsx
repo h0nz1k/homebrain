@@ -103,7 +103,11 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
         : undefined;
     return withSignalFeeds(
       factory(ctx),
-      resolveTodaySignalFeeds({ connection: context.connection }),
+      resolveTodaySignalFeeds({
+        connection: context.connection,
+        store: context.store,
+        bindings: context.bindings,
+      }),
     );
   }, [factory, context.store, context.bindings, context.connection]);
   // Role comes only from the server (ADR-0002); until it answers, nothing extra is unlocked.
@@ -249,7 +253,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const chips = summaryCandidates(data, ranked).filter((signal) => signal.id !== summary.signalId);
   const highestSeverity = ranked.all[0]?.severity ?? 'calm';
   // Kiosk critical takeover: the alert goes above the ribbon so it reads first from 3 m.
-  const heroFirst = kiosk && highestSeverity === 'critical';
+  // Act-now signals (airfryer shake/done) lead on every screen: they lose meaning in minutes.
+  const heroFirst = (kiosk && highestSeverity === 'critical') || ranked.hero?.immediate === true;
   const hero = ranked.hero && (
     <HeroSignal {...signalProps(ranked.hero, data.ha.connected, kiosk)} variant={layout} />
   );

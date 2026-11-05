@@ -2,6 +2,7 @@ import type { ConnectionLike } from '@homebrain/ha-client';
 import type { ImportPreview, Recipe, RecipeDraft, RecipeSummary, RecipesConfig } from './types.js';
 import { createSyntheticRecipes, syntheticPreview } from './mock.js';
 import type { Timer, TimerBackend, TimerSnapshot } from './domain/timers.js';
+import type { FryerControl } from './domain/fryerLive.js';
 
 export class RecipesApiError extends Error {
   constructor(readonly code: string) {
@@ -42,6 +43,8 @@ export interface RecipesApi {
   timers: TimerBackend;
   music(command: MusicCommand | 'volume', level?: number): Promise<void>;
   airfryer(request: AirfryerRequest): Promise<{ started: boolean; minutes: number }>;
+  /** Live card: pause / stop (needs `confirmed`) / keep warm a running fryer. Never starts it. */
+  airfryerControl(action: FryerControl, confirmed?: boolean): Promise<void>;
 }
 
 function wsCall<T>(
@@ -119,6 +122,9 @@ export function createWsRecipesApi(connection: ConnectionLike): RecipesApi {
       await wsCall(connection, 'music', { command, ...(level === undefined ? {} : { level }) });
     },
     airfryer: (request) => wsCall(connection, 'airfryer', { ...request }),
+    airfryerControl: async (action, confirmed = false) => {
+      await wsCall(connection, 'airfryer_control', { action, confirmed });
+    },
   };
 }
 
@@ -352,6 +358,10 @@ export function createMockRecipesApi(
       if (!request.confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
       log.push({ kind: 'airfryer', payload: request });
       return { started: true, minutes: request.minutes };
+    },
+    async airfryerControl(action, confirmed = false) {
+      if (action === 'stop' && !confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
+      log.push({ kind: 'airfryer_control', payload: { action } });
     },
   };
 }

@@ -8,7 +8,7 @@ export const recipesStyles = String.raw`
   --rc-page:radial-gradient(90% 60% at 85% -10%, rgb(255 150 80 / 10%), transparent 60%), radial-gradient(80% 50% at 0% 0%, rgb(37 99 235 / 5%), transparent 60%); }
 @media (prefers-color-scheme: light) { [data-theme='system'] .rc { --rc-ac:#c2410c; --rc-ac-ink:#b23c0a; --rc-on-ac:#fff; --rc-ac-s:rgb(194 65 12 / 9%); --rc-glass:rgb(255 255 255 / 80%); --rc-ok:#047857; } }
 .hb-shell main:has(.rc) { padding:0; }
-.rc :where(button) { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
+.rc :where(button:not(.hb-btn)) { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
 .rc :where(input, textarea, select) { font:inherit; color:inherit; }
 .rc svg.rc-i { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none; }
 .rc .num { font-variant-numeric:tabular-nums; }
@@ -244,4 +244,46 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
   .rc-tcard b { font-size:30px; }
 }
 @media (prefers-reduced-motion: reduce) { .rc *, .rc *::before, .rc *::after { transition:none !important; animation:none !important; } }
+/* live airfryer card */
+.rc-fl { flex:none; margin:4px 32px 18px; padding:20px 24px; border-radius:var(--hb-radius-xl); background:var(--hb-s1); box-shadow:var(--hb-elev-1); display:grid; grid-template-columns:112px minmax(0,1fr) auto; grid-template-areas:'ring head actions' 'ring body actions'; column-gap:24px; row-gap:6px; align-items:center; }
+.rc-fl-ring { grid-area:ring; }
+.rc-fl-head { grid-area:head; align-self:end; display:flex; flex-direction:column; gap:4px; min-width:0; }
+.rc-fl-body { grid-area:body; align-self:start; }
+.rc-fl-actions { grid-area:actions; }
+.rc-fl-nw { white-space:nowrap; }
+.rc-fl-prog { white-space:nowrap; }
+.rc-fl-prog::before { content:'·'; margin:0 6px 0 2px; }
+.rc-fl-time svg.rc-i { width:40px; height:40px; stroke-width:2.4; color:var(--rc-ac-ink); }
+.rc-fl[data-urgent] { background:linear-gradient(0deg, var(--rc-ac-s), var(--rc-ac-s)), var(--hb-s1); box-shadow:var(--hb-elev-1), inset 0 0 0 1.5px color-mix(in srgb, var(--rc-ac) 45%, transparent); }
+.rc-fl[data-phase='error'] { --rc-ac:var(--hb-crit, #e5484d); --rc-ac-s:color-mix(in srgb, var(--hb-crit, #e5484d) 12%, transparent); }
+.rc-fl-ring { position:relative; width:112px; height:112px; flex:none; }
+.rc-fl-ring svg { width:112px; height:112px; transform:rotate(-90deg); }
+.rc-fl-ring circle { transition:stroke-dashoffset 1s linear; }
+.rc-fl-time { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:26px; font-weight:650; letter-spacing:-.02em; line-height:1.15; }
+.rc-fl-time small { font-size:13px; font-weight:500; color:var(--hb-t2); letter-spacing:0; }
+.rc-fl[data-phase='done'] .rc-fl-time { font-size:19px; color:var(--rc-ac-ink); }
+.rc-fl-body { min-width:0; display:flex; flex-direction:column; gap:6px; }
+.rc-fl-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:0 8px; font-size:14px; color:var(--hb-t2); font-weight:550; }
+.rc-fl-kicker svg.rc-i { width:18px; height:18px; color:var(--rc-ac-ink); }
+.rc-fl h2 { margin:0; font-size:24px; font-weight:650; letter-spacing:-.02em; line-height:1.2; }
+.rc-fl[data-urgent] h2 { color:var(--rc-ac-ink); }
+.rc-fl-hint { margin:0; font-size:15px; color:var(--hb-t2); line-height:1.4; }
+.rc-fl-temp { display:flex; align-items:center; gap:12px; font-size:15px; margin-top:2px; }
+.rc-fl-temp b { font-size:18px; font-weight:650; }
+.rc-fl-temp .t2 { color:var(--hb-t2); }
+.rc-fl-bar { flex:0 1 160px; height:6px; border-radius:999px; background:var(--hb-fill-strong); overflow:hidden; }
+.rc-fl-bar i { display:block; height:100%; border-radius:inherit; background:var(--rc-ac); transition:width var(--hb-dur-2, .3s) var(--hb-ease-out, ease-out); }
+.rc-fl-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
+@media (max-width: 640px) {
+  .rc-fl { margin:4px 16px 14px; padding:16px; grid-template-columns:72px minmax(0,1fr); grid-template-areas:'ring head' 'body body' 'actions actions'; column-gap:16px; row-gap:10px; }
+  .rc-fl-head { align-self:center; }
+  .rc-fl-ring, .rc-fl-ring svg { width:72px; height:72px; }
+  .rc-fl-time { font-size:17px; }
+  .rc-fl-time small { font-size:11px; }
+  .rc-fl-time svg.rc-i { width:30px; height:30px; }
+  .rc-fl h2 { font-size:20px; }
+  .rc-fl-actions { margin-top:4px; justify-content:stretch; }
+  .rc-fl-actions > * { flex:1 1 0; }
+}
+@media (prefers-reduced-motion: reduce) { .rc-fl-ring circle, .rc-fl-bar i { transition:none !important; } }
 `;
