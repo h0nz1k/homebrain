@@ -520,6 +520,11 @@ export const robotsStyles = `
 .rb-clean .rb-chips[data-fade~='start'] { --rb-fade-s: 24px; }
 .rb-clean .rb-chips[data-fade~='end'] { --rb-fade-e: 24px; }
 .rb-clean .rb-chips::-webkit-scrollbar { display: none; }
+/* Wide cards: the row overflowed by only a few px, so revealing the last chip scrolled it
+   a little and cut + faded the first one. Wrap instead; only phones scroll sideways. */
+@container (min-width: 720px) {
+  .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips { flex-wrap: wrap; overflow-x: visible; mask-image: none; }
+}
 .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips > * { flex: none; }
 @media (max-width: 600px) {
 }
