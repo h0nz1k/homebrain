@@ -1,0 +1,7 @@
+{
+  "name": "HomeBrain",
+  "homeassistant": "2026.10.0",
+  "zip_release": true,
+  "filename": "homebrain.zip",
+  "render_readme": true
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-07-18T08:45:00+02:00",
+  "source_status": "available",
+  "source_updated_at": "2030-07-18T08:40:00+02:00",
+  "events": [
+    {
+      "id": "fixture-cancelled-001",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2030-07-20",
+      "availability": "cancelled",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    },
+    {
+      "id": "fixture-cancelled-002",
+      "waste_type": "paper",
+      "display_name": "Papír",
+      "collection_date": "2030-07-27",
+      "availability": "confirmed",
+      "visual_token": "waste.paper",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    },
+    {
+      "id": "fixture-cancelled-003",
+      "waste_type": "glass",
+      "display_name": "Sklo",
+      "collection_date": "2030-08-03",
+      "availability": "confirmed",
+      "visual_token": "waste.glass",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    }
+  ],
+  "notices": []
+}

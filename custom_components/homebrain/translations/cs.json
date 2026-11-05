@@ -1,0 +1,139 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeBrain",
+        "description": "Přidejte panel HomeBrain do postranního panelu."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "HomeBrain je již nakonfigurován."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vazby entit",
+        "description": "Vyberte modul, jehož vazby chcete upravit.",
+        "menu_options": {
+          "waste": "Odpady",
+          "energy": "Energie",
+          "family": "Rodina",
+          "energy_pv": "Fotovoltaika",
+          "recipes": "Recepty"
+        }
+      },
+      "waste": {
+        "title": "Vazby entit pro odpady",
+        "description": "Vyberte senzory pro modul Odpady. Vymazáním pole vazbu odstraníte.",
+        "data": {
+          "waste_dataset": "Senzor dat o odpadech",
+          "waste_next": "Senzor příštího svozu",
+          "waste_calendar": "Kalendář svozu odpadu",
+          "waste_history": "Senzor minulých svozů (atribut history)"
+        }
+      },
+      "energy": {
+        "title": "Vazby entit pro energii",
+        "description": "Vyberte senzory pro modul Energie. Výkon ve W nebo kW, denní energie v kWh, cena v Kč/kWh. Vymazáním pole vazbu odstraníte. Spotřebiče: výkon, celková energie (kWh, total_increasing) a volitelně spínač – HomeBrain spínače jen čte, nikdy je neovládá.",
+        "data": {
+          "energy_pv_power": "Výkon FVE (W/kW)",
+          "energy_pv1_power": "Výkon FV stringu 1 (W/kW, volitelné)",
+          "energy_pv2_power": "Výkon FV stringu 2 (W/kW, volitelné)",
+          "energy_grid_power": "Výkon sítě se znaménkem: odběr +, dodávka − (W/kW)",
+          "energy_grid_import_power": "Odběr ze sítě, nezáporný (W/kW)",
+          "energy_grid_export_power": "Dodávka do sítě, nezáporná (W/kW)",
+          "energy_battery_soc": "Nabití baterie (%)",
+          "energy_battery_power": "Výkon baterie se znaménkem: vybíjení +, nabíjení − (W/kW)",
+          "energy_house_power": "Spotřeba domu (W/kW)",
+          "energy_phase_l1_power": "Výkon fáze L1",
+          "energy_phase_l2_power": "Výkon fáze L2",
+          "energy_phase_l3_power": "Výkon fáze L3",
+          "energy_grid_l1_power": "Výkon sítě fáze L1 na elektroměru se znaménkem: odběr +, dodávka − (W/kW, volitelné)",
+          "energy_grid_l2_power": "Výkon sítě fáze L2 na elektroměru se znaménkem: odběr +, dodávka − (W/kW, volitelné)",
+          "energy_grid_l3_power": "Výkon sítě fáze L3 na elektroměru se znaménkem: odběr +, dodávka − (W/kW, volitelné)",
+          "energy_grid_l1_current": "Proud sítě fáze L1 na elektroměru (A, volitelné – jinak odhad z výkonu)",
+          "energy_grid_l2_current": "Proud sítě fáze L2 na elektroměru (A, volitelné – jinak odhad z výkonu)",
+          "energy_grid_l3_current": "Proud sítě fáze L3 na elektroměru (A, volitelné – jinak odhad z výkonu)",
+          "energy_main_breaker": "Hlavní jistič na fázi, např. input_number s hodnotou 25 (A, volitelné, výchozí 25 A)",
+          "energy_pv_energy_today": "Výroba FVE dnes (kWh)",
+          "energy_grid_import_energy_today": "Nákup ze sítě dnes (kWh)",
+          "energy_grid_export_energy_today": "Prodej do sítě dnes (kWh)",
+          "energy_house_energy_today": "Spotřeba domu dnes (kWh)",
+          "energy_battery_charge_energy_today": "Nabití baterie dnes (kWh)",
+          "energy_battery_discharge_energy_today": "Vybití baterie dnes (kWh)",
+          "energy_pv_forecast_today": "Předpověď FVE dnes (kWh)",
+          "energy_pv_forecast_tomorrow": "Předpověď FVE zítra (kWh)",
+          "energy_spot_price_electricity": "Aktuální spotová cena elektřiny s průběhem cen v atributech",
+          "energy_spot_prices_electricity_tomorrow": "Spotové ceny na zítřek (volitelné)",
+          "energy_inverter_status": "Stav střídače",
+          "energy_inverter_power": "Výkon AC výstupu střídače (W/kW, + do domu, − nabíjení ze sítě, volitelné)",
+          "energy_inverter_l1_power": "AC výstup střídače L1 (W/kW, volitelné)",
+          "energy_inverter_l2_power": "AC výstup střídače L2 (W/kW, volitelné)",
+          "energy_inverter_l3_power": "AC výstup střídače L3 (W/kW, volitelné)",
+          "energy_inverter_error": "Chyba střídače – text nebo kód (volitelné)",
+          "energy_pv1_voltage": "Napětí FV stringu 1 (V, volitelné)",
+          "energy_pv2_voltage": "Napětí FV stringu 2 (V, volitelné)",
+          "energy_battery_voltage": "Napětí baterie (V, volitelné)",
+          "energy_battery_current": "Proud baterie (A, volitelné)",
+          "energy_inverter_temp_radiator": "Teplota chladiče střídače (°C, volitelné)",
+          "energy_inverter_temp_air": "Teplota vzduchu ve střídači (°C, volitelné)",
+          "energy_battery_temp": "Teplota baterie (°C, volitelné)",
+          "energy_battery_cell_temp_max": "Max. teplota článku baterie (°C, volitelné)",
+          "energy_battery_cell_temp_min": "Min. teplota článku baterie (°C, volitelné)",
+          "energy_battery_cell_voltage_max": "Max. napětí článku baterie (V, volitelné)",
+          "energy_battery_cell_voltage_min": "Min. napětí článku baterie (V, volitelné)",
+          "energy_battery_soh": "Stav zdraví baterie SoH (%, volitelné)",
+          "energy_appliance_heat_pump_power": "Tepelné čerpadlo – výkon (W/kW)",
+          "energy_appliance_heat_pump_energy": "Tepelné čerpadlo – energie celkem (kWh, total_increasing)",
+          "energy_appliance_heat_pump_switch": "Tepelné čerpadlo – spínač (jen pro čtení, volitelné)",
+          "energy_appliance_dishwasher_power": "Myčka – výkon (W/kW)",
+          "energy_appliance_dishwasher_energy": "Myčka – energie celkem (kWh, total_increasing)",
+          "energy_appliance_dishwasher_switch": "Myčka – spínač (jen pro čtení, volitelné)",
+          "energy_appliance_coffee_maker_power": "Kávovar – výkon (W/kW)",
+          "energy_appliance_coffee_maker_energy": "Kávovar – energie celkem (kWh, total_increasing)",
+          "energy_appliance_coffee_maker_switch": "Kávovar – spínač (jen pro čtení, volitelné)",
+          "energy_appliance_dehumidifier_power": "Odvlhčovač – výkon (W/kW)",
+          "energy_appliance_dehumidifier_energy": "Odvlhčovač – energie celkem (kWh, total_increasing)",
+          "energy_appliance_dehumidifier_switch": "Odvlhčovač – spínač (jen pro čtení, volitelné)"
+        }
+      },
+      "family": {
+        "title": "Vazby kalendářů pro rodinu",
+        "description": "Vyberte rodinný a školní kalendář. HomeBrain je jen čte; dnešní události (název a čas) ukáže Dnes na časové ose. Vymazáním pole vazbu odstraníte.",
+        "data": {
+          "family_calendar_family": "Rodinný kalendář",
+          "family_calendar_school": "Školní kalendář"
+        }
+      },
+      "energy_pv": {
+        "title": "Fotovoltaika (předpověď a doporučení)",
+        "description": "Všechna pole jsou volitelná. kWp zapne záložní předpověď z Open-Meteo, která se použije jen tehdy, když předpověď neposkytuje žádná integrace v Energiích HA. Azimut v konvenci Open-Meteo: 0° = jih, −90° = východ, 90° = západ. Bez sklonu HomeBrain počítá s 35° a upozorní na to. Limity a kapacita baterie umožní doporučení poznat plnou baterii a zahazovaný přebytek.",
+        "data": {
+          "pv_kwp": "Instalovaný výkon FVE (kWp)",
+          "pv_tilt": "Sklon panelů (0° = vodorovně)",
+          "pv_azimuth": "Azimut panelů (0° = jih, −90° = východ, 90° = západ)",
+          "inverter_ac_limit_kw": "AC limit střídače (kW)",
+          "battery_capacity_kwh": "Kapacita baterie (kWh)",
+          "export_limit_kw": "Limit přetoku do sítě (kW)"
+        }
+      },
+      "recipes": {
+        "title": "Vazby entit pro Recepty",
+        "description": "Volitelné. Hudební lišta a akce fritézy se zobrazí až po navázání. Fritézu HomeBrain spustí jen po výslovném potvrzení v režimu vaření. Cíl notifikací pro hudbu (notify.mobile_app_<tablet>) se nastavuje v Recepty → Nastavení.",
+        "data": {
+          "recipes_media_session": "Senzor přehrávání na kuchyňském tabletu (HA Companion, volitelné)",
+          "recipes_airfryer_start": "Fritéza: tlačítko spuštění",
+          "recipes_airfryer_temperature": "Fritéza: teplota (number, °C)",
+          "recipes_airfryer_cook_time": "Fritéza: doba (number, min)",
+          "recipes_airfryer_method": "Fritéza: způsob přípravy (select, volitelné)",
+          "recipes_airfryer_drawer": "Fritéza: senzor otevřené zásuvky (binary_sensor)",
+          "recipes_airfryer_remaining": "Fritéza: zbývající čas (volitelné)"
+        }
+      }
+    },
+    "error": {
+      "invalid_entity_id": "Zadejte platné ID entity."
+    }
+  }
+}

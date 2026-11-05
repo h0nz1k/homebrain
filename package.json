@@ -1,0 +1,37 @@
+{
+  "name": "homebrain",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint": "eslint eslint.config.js vitest.config.ts vitest.shared.ts playwright.config.ts playwright.ha.config.ts tests/e2e tests/e2e-ha ha-test/onboard.mjs scripts/check-bundle-size.mjs && pnpm -r --if-present lint",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "build": "pnpm -r --if-present build",
+    "dev": "pnpm build && pnpm --filter @homebrain/panel dev",
+    "format": "prettier --write .",
+    "build:integration": "node scripts/build-integration.mjs",
+    "package:release": "bash scripts/package-release.sh",
+    "test:e2e": "playwright test",
+    "test:e2e:ha": "playwright test -c playwright.ha.config.ts",
+    "ha:onboard": "node ha-test/onboard.mjs",
+    "ha:local:start": "bash ha-test/local/start.sh",
+    "ha:local:stop": "bash ha-test/local/stop.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  }
+}

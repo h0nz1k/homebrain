@@ -1,0 +1,21 @@
+{
+  "context": {
+    "id": "demo"
+  },
+  "response": {
+    "calendar.demo_waste": {
+      "events": [
+        {
+          "start": "2030-07-19",
+          "end": "2030-07-20",
+          "summary": "Plasty"
+        },
+        {
+          "start": "2030-07-23T06:00:00+02:00",
+          "end": "2030-07-23T07:00:00+02:00",
+          "summary": "Objemný odpad"
+        }
+      ]
+    }
+  }
+}

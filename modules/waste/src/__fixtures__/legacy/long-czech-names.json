@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-07-18T10:00:00+02:00",
+  "source_status": "available",
+  "source_updated_at": "2030-07-18T09:50:00+02:00",
+  "events": [
+    {
+      "id": "fixture-long-001",
+      "waste_type": "hazardous",
+      "display_name": "Nebezpečný odpad a obaly se zbytky nebezpečných látek",
+      "collection_date": "2030-07-23",
+      "availability": "confirmed",
+      "visual_token": "waste.hazardous",
+      "source_updated_at": "2030-07-18T09:50:00+02:00"
+    },
+    {
+      "id": "fixture-long-002",
+      "waste_type": "mixed",
+      "display_name": "Směsný komunální odpad z domácností",
+      "collection_date": "2030-07-26",
+      "availability": "confirmed",
+      "visual_token": "waste.mixed",
+      "source_updated_at": "2030-07-18T09:50:00+02:00"
+    },
+    {
+      "id": "fixture-long-003",
+      "waste_type": "paper",
+      "display_name": "Papír, lepenka a nápojové kartony",
+      "collection_date": "2030-07-30",
+      "availability": "confirmed",
+      "visual_token": "waste.paper",
+      "source_updated_at": "2030-07-18T09:50:00+02:00"
+    },
+    {
+      "id": "fixture-long-004",
+      "waste_type": "bulky",
+      "display_name": "Objemný odpad určený k odvozu po předchozí objednávce",
+      "collection_date": "2030-08-08",
+      "availability": "tentative",
+      "visual_token": "waste.bulky",
+      "source_updated_at": "2030-07-18T09:50:00+02:00"
+    }
+  ],
+  "notices": []
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-07-18T08:45:00+02:00",
+  "source_status": "stale",
+  "source_updated_at": "2030-07-10T07:00:00+02:00",
+  "events": [
+    {
+      "id": "fixture-stale-001",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2030-07-25",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-07-10T07:00:00+02:00"
+    },
+    {
+      "id": "fixture-stale-002",
+      "waste_type": "glass",
+      "display_name": "Sklo",
+      "collection_date": "2030-08-01",
+      "availability": "confirmed",
+      "visual_token": "waste.glass",
+      "source_updated_at": "2030-07-10T07:00:00+02:00"
+    }
+  ],
+  "notices": ["Zobrazeny jsou poslední známé termíny"]
+}

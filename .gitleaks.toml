@@ -1,0 +1,44 @@
+title = "HomeBrain"
+
+[extend]
+useDefault = true
+
+# --- Soukromí: nic z konkrétní domácnosti nesmí do repa ---
+[[rules]]
+id = "private-ipv4"
+description = "Privátní IPv4 adresa (LAN domácnosti)"
+regex = '''\b(?:192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b'''
+[[rules.allowlists]]
+description = "Veřejně dokumentovaná adresa HA Supervisoru"
+regexes = ['''172\.30\.32\.2''']
+
+[[rules]]
+id = "tailnet-host"
+description = "Tailscale hostname (*.ts.net)"
+regex = '''[a-z0-9-]+\.[a-z0-9-]+\.ts\.net'''
+
+[[rules]]
+id = "nabu-casa-url"
+description = "Osobní Nabu Casa URL"
+regex = '''[a-z0-9]{20,}\.ui\.nabu\.casa'''
+
+[[rules]]
+id = "email-address"
+description = "E-mailová adresa (mimo example.* a noreply)"
+regex = '''[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}'''
+[[rules.allowlists]]
+regexes = ['''@example\.(?:com|org|net)''', '''@users\.noreply\.github\.com''', '''noreply@''']
+
+[[rules]]
+id = "ha-long-lived-token"
+description = "Home Assistant long-lived token (JWT)"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
+
+[[rules]]
+id = "gps-coordinates"
+description = "GPS souřadnice s vysokou přesností"
+regex = '''(?i)(?:lat(?:itude)?|lon(?:gitude)?|lng)["']?\s*[:=]\s*["']?-?\d{1,3}\.\d{4,}'''
+
+[[allowlists]]
+description = "Synthetic test fixtures"
+paths = ['''^tests/(.*/)?fixtures/''']

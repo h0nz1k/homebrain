@@ -1,0 +1,30 @@
+{
+ "code": "8006220001669",
+ "product": {
+  "brands": "Mionetto, Prosecco doc treviso",
+  "categories_tags": [
+   "en:beverages-and-beverages-preparations",
+   "en:beverages",
+   "en:alcoholic-beverages",
+   "en:wines",
+   "en:wines-from-italy",
+   "en:prosecco"
+  ],
+  "code": "8006220001669",
+  "generic_name": "",
+  "image_front_url": "https://images.openfoodfacts.org/images/products/800/622/000/1669/front_fr.14.400.jpg",
+  "labels_tags": [
+   "en:vegetarian",
+   "en:vegan"
+  ],
+  "origins": "",
+  "origins_tags": [],
+  "product_name": "Prosecco DOC Treviso",
+  "product_quantity": 750,
+  "product_quantity_unit": "ml",
+  "quantity": "750ml",
+  "nutriments": {}
+ },
+ "status": 1,
+ "status_verbose": "product found"
+}

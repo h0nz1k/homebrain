@@ -1,0 +1,56 @@
+# managed-by: homebrain – HomeBrain copies this file to <config>/custom_sentences/cs/ on start.
+# Remove this line in the copy to keep your own edits (HomeBrain will stop updating it).
+language: "cs"
+intents:
+  HomebrainWineConsumeText:
+    data:
+      - sentences:
+          - "(vypil|vypila) jsem [si] {wine}"
+          - "(vypili|otevřeli) jsme {wine}"
+          - "odepiš [mi] {wine}"
+          - "odepsat {wine}"
+          - "vypito {wine}"
+  HomebrainWineVoiceChoose:
+    data:
+      - sentences:
+          - "[(to|ten|tu|tamto)] {wine_choice} [(víno|láhev|lahev)]"
+          - "(myslel|myslela) jsem [(to|ten|tu)] {wine_choice} [(víno|láhev|lahev)]"
+  HomebrainWineVoiceDismiss:
+    data:
+      - sentences:
+          - "(ani jedno|ani jednu|ani jeden)"
+          - "(žádné|žádnou|nic) z (nich|toho|těch)"
+          - "neodepisuj [(nic|to)]"
+lists:
+  wine:
+    wildcard: true
+  wine_choice:
+    values:
+      - in: "první"
+        out: 1
+      - in: "prvni"
+        out: 1
+      - in: "druhé"
+        out: 2
+      - in: "druhý"
+        out: 2
+      - in: "druhou"
+        out: 2
+      - in: "druhe"
+        out: 2
+      - in: "třetí"
+        out: 3
+      - in: "treti"
+        out: 3
+      - in: "čtvrté"
+        out: 4
+      - in: "čtvrtý"
+        out: 4
+      - in: "čtvrtou"
+        out: 4
+      - in: "páté"
+        out: 5
+      - in: "pátý"
+        out: 5
+      - in: "pátou"
+        out: 5

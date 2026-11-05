@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-07-18T08:45:00+02:00",
+  "source_status": "available",
+  "source_updated_at": "2030-07-18T08:40:00+02:00",
+  "events": [
+    {
+      "id": "fixture-unknown-001",
+      "waste_type": "mystery-stream",
+      "display_name": "",
+      "collection_date": "2030-07-23",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    },
+    {
+      "id": "fixture-unknown-002",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2030-07-30",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    }
+  ],
+  "notices": []
+}

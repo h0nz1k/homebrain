@@ -1,0 +1,12 @@
+# Minimální syntetická konfigurace pro lokální HA bez Dockeru (Refs #8).
+frontend:
+config:
+
+template:
+  - sensor:
+      - name: Demo Waste Next
+        unique_id: demo_waste_next
+        device_class: date
+        state: '{{ (now() + timedelta(days=2)).date().isoformat() }}'
+        attributes:
+          waste_type: Papír

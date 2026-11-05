@@ -1,0 +1,45 @@
+{
+  "events": [
+    {
+      "start": "2030-07-17",
+      "end": "2030-07-18",
+      "summary": "Papír",
+      "uid": "demo-0",
+      "all_day": true
+    },
+    {
+      "start": "2030-07-19",
+      "end": "2030-07-20",
+      "summary": "Plasty",
+      "uid": "demo-1",
+      "all_day": true
+    },
+    {
+      "start": "2030-07-21T22:30:00+00:00",
+      "end": "2030-07-21T23:00:00+00:00",
+      "summary": "Bioodpad",
+      "uid": "demo-2",
+      "all_day": false
+    },
+    {
+      "start": "2030-07-24",
+      "end": "2030-07-25",
+      "summary": "Sklo; Papír",
+      "uid": "demo-3",
+      "all_day": true
+    },
+    {
+      "start": "2030-07-26",
+      "end": "2030-07-27",
+      "summary": "",
+      "uid": "demo-4",
+      "all_day": true
+    },
+    {
+      "start": "invalid",
+      "summary": "Sklo",
+      "uid": "demo-5",
+      "all_day": true
+    }
+  ]
+}

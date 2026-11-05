@@ -1,0 +1,218 @@
+{
+ "alternative_phenomenon_categorization_id": "web",
+ "incidents": "",
+ "note": "Synthetic fixture modelled on the public alerts.json structure.",
+ "parameters": {
+  "sequence_number": 1
+ },
+ "sent": "2026-10-31T09:15:19Z",
+ "phenomenon_groups": [
+  {
+   "alternative_phenomenon_category": "wind",
+   "area_groups": [
+    {
+     "areas": [
+      {
+       "id": "cz.chmi.region:CZ020",
+       "name": "Středočeský kraj",
+       "whole_area": true
+      }
+     ],
+     "parameters": {},
+     "single_alerts": [
+      {
+       "audience": {
+        "cz": "",
+        "en": ""
+       },
+       "certainty": "Likely",
+       "description": {
+        "cz": "Nárazy větru 15–20 m/s.",
+        "en": ""
+       },
+       "headline": {
+        "cz": "Silný vítr",
+        "en": ""
+       },
+       "instruction": {
+        "cz": "Zajistěte volné předměty.",
+        "en": ""
+       },
+       "is_cancellation": false,
+       "last_modified": "2026-11-01T02:00:00+00:00",
+       "parameters": {
+        "hydro_outlook": {
+         "cz": "",
+         "en": ""
+        },
+        "phenomenon_name": {
+         "cz": "Silný vítr",
+         "en": ""
+        }
+       },
+       "phenomenon": "wind-strong",
+       "resources": [],
+       "severity": "Minor",
+       "t_from": "2026-11-01T02:00:00+00:00",
+       "t_to": "2026-11-01T14:00:00+00:00"
+      }
+     ]
+    },
+    {
+     "areas": [
+      {
+       "id": "cz.chmi.region:CZ080",
+       "name": "Moravskoslezský kraj",
+       "whole_area": true
+      }
+     ],
+     "parameters": {},
+     "single_alerts": [
+      {
+       "audience": {
+        "cz": "",
+        "en": ""
+       },
+       "certainty": "Likely",
+       "description": {
+        "cz": "",
+        "en": ""
+       },
+       "headline": {
+        "cz": "Velmi silný vítr",
+        "en": ""
+       },
+       "instruction": {
+        "cz": "",
+        "en": ""
+       },
+       "is_cancellation": false,
+       "last_modified": "2026-11-01T02:00:00+00:00",
+       "parameters": {
+        "hydro_outlook": {
+         "cz": "",
+         "en": ""
+        },
+        "phenomenon_name": {
+         "cz": "Velmi silný vítr",
+         "en": ""
+        }
+       },
+       "phenomenon": "wind-very-strong",
+       "resources": [],
+       "severity": "Moderate",
+       "t_from": "2026-11-01T02:00:00+00:00",
+       "t_to": "2026-11-01T14:00:00+00:00"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "alternative_phenomenon_category": "cold",
+   "area_groups": [
+    {
+     "areas": [
+      {
+       "id": "cz.chmi.region:CZ020",
+       "name": "Středočeský kraj",
+       "whole_area": true
+      }
+     ],
+     "parameters": {},
+     "single_alerts": [
+      {
+       "audience": {
+        "cz": "",
+        "en": ""
+       },
+       "certainty": "Likely",
+       "description": {
+        "cz": "",
+        "en": ""
+       },
+       "headline": {
+        "cz": "Mráz",
+        "en": ""
+       },
+       "instruction": {
+        "cz": "",
+        "en": ""
+       },
+       "is_cancellation": false,
+       "last_modified": "2026-10-30T18:00:00+00:00",
+       "parameters": {
+        "hydro_outlook": {
+         "cz": "",
+         "en": ""
+        },
+        "phenomenon_name": {
+         "cz": "Mráz",
+         "en": ""
+        }
+       },
+       "phenomenon": "frost",
+       "resources": [],
+       "severity": "Minor",
+       "t_from": "2026-10-30T18:00:00+00:00",
+       "t_to": "2026-10-31T06:00:00+00:00"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "alternative_phenomenon_category": "heat",
+   "area_groups": [
+    {
+     "areas": [
+      {
+       "id": "cz.chmi.region:CZ020",
+       "name": "Středočeský kraj",
+       "whole_area": true
+      }
+     ],
+     "parameters": {},
+     "single_alerts": [
+      {
+       "audience": {
+        "cz": "",
+        "en": ""
+       },
+       "certainty": "Likely",
+       "description": {
+        "cz": "",
+        "en": ""
+       },
+       "headline": {
+        "cz": "",
+        "en": ""
+       },
+       "instruction": {
+        "cz": "",
+        "en": ""
+       },
+       "is_cancellation": false,
+       "last_modified": "2026-10-31T09:14:08+00:00",
+       "parameters": {
+        "hydro_outlook": {
+         "cz": "",
+         "en": ""
+        },
+        "phenomenon_name": {
+         "cz": "",
+         "en": ""
+        }
+       },
+       "phenomenon": "",
+       "resources": [],
+       "severity": "Minor",
+       "t_from": "2026-10-31T09:14:08+00:00",
+       "t_to": null
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

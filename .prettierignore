@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+docs/
+**/README.md
+**/AGENTS.md
+modules/weather/src/views/basemap.data.ts

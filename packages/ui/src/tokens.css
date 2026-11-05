@@ -1,0 +1,413 @@
+@import './components.css';
+/* Dnes visual language (docs/specs/dnes-signals.md §4); theme-independent. */
+:root {
+  --hb-display-w: 200; /* large thin numerals (clock); 300 for temperature/values */
+  --hb-display-w-value: 300;
+  --hb-r-lg: 18px; /* hero card; regular cards 14 px */
+  --hb-glow: radial-gradient(60% 50% at 0% 0%, rgb(61 139 255 / 7%), transparent 70%);
+  --hb-glow-crit: radial-gradient(60% 50% at 0% 0%, rgb(242 85 90 / 9%), transparent 70%);
+  --hb-space-page: 48px; /* 56 px kiosk, 16 px mobile */
+}
+@media (max-width: 760px) {
+  :root {
+    --hb-space-page: 16px;
+  }
+}
+/* Round 2 palette; accessible micro-labels. */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --hb-bg: #0b0d10;
+  --hb-side: #0d1014;
+  --hb-s1: #111418;
+  --hb-s2: #161a20;
+  --hb-s3: #1c212a;
+  --hb-b1: #1e232b;
+  --hb-b2: #2a313b;
+  --hb-t1: #e8ebf0;
+  --hb-t2: #a3acb9;
+  --hb-t3: #8c96a5;
+  --hb-ac: #3d8bff;
+  --hb-ok: #34d399;
+  --hb-warn: #f5a524;
+  --hb-crit: #f2555a;
+  --hb-energy-pv: #34d399;
+  --hb-energy-home: #5eb1ff;
+  --hb-energy-grid: #a78bfa;
+  --hb-energy-battery: #22d3ee;
+  --hb-weather-temp: #ff9f5a;
+  --hb-weather-rain: #4cb8ff;
+  --hb-weather-sun: #fbbf24;
+  --hb-weather-measured: #ffffff;
+  --hb-model-icon-d2: #a78bfa;
+  --hb-model-ecmwf: #f472b6;
+  --hb-model-aladin: #34d399;
+  --hb-model-met-no: #22d3ee;
+  --hb-model-gfs: #fbbf24;
+  --hb-ac-s: color-mix(in srgb, var(--hb-ac) 14%, transparent);
+  --hb-ok-s: color-mix(in srgb, var(--hb-ok) 14%, transparent);
+  --hb-warn-s: color-mix(in srgb, var(--hb-warn) 14%, transparent);
+  --hb-crit-s: color-mix(in srgb, var(--hb-crit) 14%, transparent);
+  --hb-severe: #fb8c3c;
+  --hb-severe-s: color-mix(in srgb, var(--hb-severe) 14%, transparent);
+  --hb-on-warn: #1a1300;
+  --hb-on-severe: #1f0d00;
+  --hb-on-crit: #ffffff;
+  --hb-on-ok: #022c1c;
+  --hb-on-ac: #ffffff;
+  --hb-glass: linear-gradient(180deg, rgb(20 28 44 / 78%), rgb(10 15 25 / 82%));
+  --hb-glass-edge: rgb(225 235 250 / 12%);
+  --hb-card-shadow: none;
+}
+[data-theme='light'],
+[data-theme='system'] {
+  color-scheme: light;
+  --hb-bg: #f6f7f9;
+  --hb-side: #fbfbfc;
+  --hb-s1: #ffffff;
+  --hb-s2: #f3f4f6;
+  --hb-s3: #ebedf0;
+  --hb-b1: #e5e7eb;
+  --hb-b2: #d5d9df;
+  --hb-t1: #0e1116;
+  --hb-t2: #4a5361;
+  --hb-t3: #5f6875;
+  --hb-ac: #2563eb;
+  --hb-ok: #047857;
+  --hb-warn: #b45309;
+  --hb-crit: #dc2626;
+  --hb-energy-pv: #10a36f;
+  --hb-energy-home: #2b7fe0;
+  --hb-energy-grid: #7c5ce0;
+  --hb-energy-battery: #0891b2;
+  --hb-weather-temp: #e8662b;
+  --hb-weather-rain: #1c8fe0;
+  --hb-weather-sun: #d99a00;
+  --hb-weather-measured: #0e1116;
+  --hb-model-icon-d2: #7c5ce0;
+  --hb-model-ecmwf: #be4288;
+  --hb-model-aladin: #0e9f6e;
+  --hb-model-met-no: #0891b2;
+  --hb-model-gfs: #a16207;
+  --hb-ac-s: color-mix(in srgb, var(--hb-ac) 9%, transparent);
+  --hb-ok-s: color-mix(in srgb, var(--hb-ok) 9%, transparent);
+  --hb-warn-s: color-mix(in srgb, var(--hb-warn) 9%, transparent);
+  --hb-crit-s: color-mix(in srgb, var(--hb-crit) 9%, transparent);
+  --hb-severe: #c2410c;
+  --hb-severe-s: color-mix(in srgb, var(--hb-severe) 9%, transparent);
+  --hb-on-warn: #ffffff;
+  --hb-on-severe: #ffffff;
+  --hb-on-crit: #ffffff;
+  --hb-on-ok: #ffffff;
+  --hb-on-ac: #ffffff;
+  --hb-glass: linear-gradient(180deg, rgb(243 244 246 / 80%), rgb(235 237 240 / 85%));
+  --hb-glass-edge: rgb(14 17 22 / 12%);
+  --hb-card-shadow: 0 1px 2px rgb(16 24 40 / 4%);
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme='system'] {
+    color-scheme: dark;
+    --hb-bg: #0b0d10;
+    --hb-side: #0d1014;
+    --hb-s1: #111418;
+    --hb-s2: #161a20;
+    --hb-s3: #1c212a;
+    --hb-b1: #1e232b;
+    --hb-b2: #2a313b;
+    --hb-t1: #e8ebf0;
+    --hb-t2: #a3acb9;
+    --hb-t3: #8c96a5;
+    --hb-ac: #3d8bff;
+    --hb-ok: #34d399;
+    --hb-warn: #f5a524;
+    --hb-crit: #f2555a;
+    --hb-energy-pv: #34d399;
+    --hb-energy-home: #5eb1ff;
+    --hb-energy-grid: #a78bfa;
+    --hb-energy-battery: #22d3ee;
+    --hb-weather-temp: #ff9f5a;
+    --hb-weather-rain: #4cb8ff;
+    --hb-weather-sun: #fbbf24;
+    --hb-weather-measured: #ffffff;
+    --hb-model-icon-d2: #a78bfa;
+    --hb-model-ecmwf: #f472b6;
+    --hb-model-aladin: #34d399;
+    --hb-model-met-no: #22d3ee;
+    --hb-model-gfs: #fbbf24;
+    --hb-ac-s: color-mix(in srgb, var(--hb-ac) 14%, transparent);
+    --hb-ok-s: color-mix(in srgb, var(--hb-ok) 14%, transparent);
+    --hb-warn-s: color-mix(in srgb, var(--hb-warn) 14%, transparent);
+    --hb-crit-s: color-mix(in srgb, var(--hb-crit) 14%, transparent);
+    --hb-severe: #fb8c3c;
+    --hb-severe-s: color-mix(in srgb, var(--hb-severe) 14%, transparent);
+    --hb-on-warn: #1a1300;
+    --hb-on-severe: #1f0d00;
+    --hb-on-crit: #ffffff;
+    --hb-on-ok: #022c1c;
+    --hb-on-ac: #ffffff;
+    --hb-glass: linear-gradient(180deg, rgb(20 28 44 / 78%), rgb(10 15 25 / 82%));
+    --hb-glass-edge: rgb(225 235 250 / 12%);
+    --hb-card-shadow: none;
+  }
+}
+:root {
+  --hb-waste-plastic: #f2c21b;
+  --hb-waste-paper: #1f6fd6;
+  --hb-waste-glass: #2b9a4c;
+  --hb-waste-mixed: #3a3f47;
+  --hb-waste-bio: #7a4f30;
+  --hb-waste-electro: #ef3b32;
+  --hb-waste-hazardous: #e9762b; /* oranžové víko jako sprite nebezpečného odpadu */
+  --hb-waste-bulky: #827b70;
+  --hb-waste-other: #5d6572;
+  --hb-sp-1: 4px;
+  --hb-space-1: var(--hb-sp-1);
+  --hb-sp-2: 8px;
+  --hb-space-2: var(--hb-sp-2);
+  --hb-sp-3: 12px;
+  --hb-space-3: var(--hb-sp-3);
+  --hb-sp-4: 16px;
+  --hb-space-4: var(--hb-sp-4);
+  --hb-sp-5: 20px;
+  --hb-space-5: var(--hb-sp-5);
+  --hb-sp-6: 24px;
+  --hb-space-6: var(--hb-sp-6);
+  --hb-sp-7: 28px;
+  --hb-space-7: var(--hb-sp-7);
+  --hb-sp-8: 32px;
+  --hb-space-8: var(--hb-sp-8);
+  /* Radius scale (#64): nested surfaces step down so corners stay concentric. */
+  --hb-radius-xs: 6px;
+  --hb-radius-sm: 10px;
+  --hb-radius-md: 14px;
+  --hb-radius-lg: 20px;
+  --hb-radius-xl: 28px;
+  --hb-radius-card: 16px;
+  --hb-radius-nested: 10px;
+  --hb-radius-chip: 8px;
+  --hb-radius-pill: 999px;
+  /* One icon weight (#64): rendered px, same on 16/24/32/64 viewBoxes (non-scaling stroke). */
+  --hb-icon-stroke: 1.75px;
+  --hb-icon-stroke-lg: 2.5px;
+  --hb-radius: var(--hb-radius-card);
+  --hb-sidebar-width: 232px;
+  --hb-topbar-height: 56px;
+  --hb-tabbar-height: 72px;
+  --hb-font-family: Inter, system-ui, sans-serif;
+  --hb-font-features: 'tnum', 'cv11', 'ss03';
+  /* Micro labels in sentence case (#64): tracked all-caps eyebrows read as a 2015 dashboard. */
+  --hb-font-micro: 12px;
+  --hb-font-micro-weight: 500;
+  --hb-font-micro-spacing: 0.005em;
+  --hb-font-micro-transform: none;
+  /* Type ramp (#64). 11 px only for chart axes; every readable text >= 13 px. */
+  --hb-type-axis: 11px;
+  --hb-type-caption: 13px;
+  --hb-type-body: 15px;
+  --hb-type-lead: 17px;
+  --hb-type-title: 20px;
+  --hb-type-headline: 28px;
+  --hb-type-display: 44px;
+  --hb-leading-tight: 1.15;
+  --hb-leading-body: 1.5;
+  --hb-tracking-display: -0.03em;
+  --hb-tracking-title: -0.018em;
+  --hb-font-sm: 13px;
+  --hb-font-body: 14px;
+  --hb-font-md: 16px;
+  --hb-font-lg: 20px;
+  --hb-font-xl: 28px;
+  --hb-font-clock: clamp(80px, 12.23vw, 176px);
+  --hb-font-temp: clamp(56px, 9.45vw, 136px);
+  --hb-font-clock-kiosk: 200px;
+  --hb-font-temp-kiosk: 150px;
+  --hb-font-clock-mobile: 80px;
+  --hb-font-temp-mobile: 56px;
+  --hb-font-display-weight: 200;
+  --hb-text-kiosk: #e6eaf0;
+  --hb-text-night: #cdbfaf;
+  --hb-m-drift-far: 240s;
+  --hb-m-drift-near: 180s;
+  --hb-m-glow: 90s;
+  --hb-m-rain: 60s;
+  --hb-m-xfade: 3s;
+  --hb-m-enter: 900ms;
+  --hb-m-stagger: 120ms;
+  --hb-m-pulse: 2.4s;
+  --hb-m-night: 20s;
+  --hb-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --hb-ease-amb: cubic-bezier(0.45, 0, 0.55, 1);
+  --hb-amb-k: 1;
+  /* UI motion (#64): short, decelerating; collapsed by prefers-reduced-motion below. */
+  --hb-dur-fast: 120ms;
+  --hb-dur-base: 200ms;
+  --hb-dur-slow: 360ms;
+  --hb-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Elevation (#64): tonal surface + hairline edge + soft ambient shadow instead of 1 px boxes. */
+:root,
+[data-theme='dark'] {
+  --hb-edge: rgb(226 234 248 / 7%);
+  --hb-edge-strong: rgb(226 234 248 / 12%);
+  --hb-fill: rgb(226 234 248 / 5%);
+  --hb-fill-strong: rgb(226 234 248 / 9%);
+  --hb-elev-1:
+    inset 0 1px 0 rgb(255 255 255 / 3.5%), 0 1px 2px rgb(0 0 0 / 30%),
+    0 12px 32px -18px rgb(0 0 0 / 60%);
+  --hb-elev-2:
+    inset 0 1px 0 rgb(255 255 255 / 5%), 0 2px 6px rgb(0 0 0 / 30%),
+    0 24px 48px -20px rgb(0 0 0 / 70%);
+  --hb-card-shadow: var(--hb-elev-1);
+  --hb-page-glow: radial-gradient(120% 60% at 50% -10%, rgb(61 139 255 / 7%), transparent 60%);
+}
+[data-theme='light'],
+[data-theme='system'] {
+  --hb-edge: rgb(16 24 40 / 6%);
+  --hb-edge-strong: rgb(16 24 40 / 11%);
+  --hb-fill: rgb(16 24 40 / 4%);
+  --hb-fill-strong: rgb(16 24 40 / 7%);
+  --hb-elev-1: 0 1px 2px rgb(16 24 40 / 5%), 0 10px 28px -16px rgb(16 24 40 / 16%);
+  --hb-elev-2: 0 2px 6px rgb(16 24 40 / 6%), 0 24px 48px -20px rgb(16 24 40 / 22%);
+  --hb-card-shadow: var(--hb-elev-1);
+  --hb-page-glow: radial-gradient(120% 60% at 50% -10%, rgb(37 99 235 / 6%), transparent 60%);
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme='system'] {
+    --hb-edge: rgb(226 234 248 / 7%);
+    --hb-edge-strong: rgb(226 234 248 / 12%);
+    --hb-fill: rgb(226 234 248 / 5%);
+    --hb-fill-strong: rgb(226 234 248 / 9%);
+    --hb-elev-1:
+      inset 0 1px 0 rgb(255 255 255 / 3.5%), 0 1px 2px rgb(0 0 0 / 30%),
+      0 12px 32px -18px rgb(0 0 0 / 60%);
+    --hb-elev-2:
+      inset 0 1px 0 rgb(255 255 255 / 5%), 0 2px 6px rgb(0 0 0 / 30%),
+      0 24px 48px -20px rgb(0 0 0 / 70%);
+    --hb-card-shadow: var(--hb-elev-1);
+    --hb-page-glow: radial-gradient(120% 60% at 50% -10%, rgb(61 139 255 / 7%), transparent 60%);
+  }
+}
+/* Aliases live on theme boundaries so nested themes resolve locally. */
+:root,
+[data-theme] {
+  --hb-color-bg: var(--hb-bg);
+  --hb-color-text: var(--hb-t1);
+  --hb-color-accent: var(--hb-ac);
+  --hb-color-card: var(--hb-s1);
+  --hb-color-divider: var(--hb-b1);
+  --hb-color-success: var(--hb-ok);
+  --hb-color-warning: var(--hb-warn);
+  --hb-color-error: var(--hb-crit);
+  font-family: var(--hb-font-family);
+  font-feature-settings: 'tnum', 'cv11', 'ss03';
+}
+[data-variant='kiosk'] {
+  --hb-t1: var(--hb-text-kiosk);
+  --hb-weather-measured: var(--hb-text-kiosk);
+}
+[data-night='true'] {
+  --hb-t1: var(--hb-text-night);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  [data-theme] {
+    --hb-m-xfade: 0.2s;
+    --hb-m-enter: 0s;
+    --hb-dur-fast: 0s;
+    --hb-dur-base: 0s;
+    --hb-dur-slow: 0s;
+  }
+  /* Safety net for module CSS with literal durations (incl. pseudo-elements).
+     transition: none – a 0.01ms transition still creates a running CSSTransition
+     until the next frame (seen on CI right after font load). */
+  .hb-shell,
+  .hb-shell *,
+  .hb-shell *::before,
+  .hb-shell *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+/* Keep legacy component consumers styled when importing tokens alone. */
+
+/* Styly modulu Odpady jsou součástí tokenů: moduly sestavuje pouze tsc. */
+.hb-waste {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hb-waste-highlight {
+  margin-block: var(--hb-space-6);
+  padding: var(--hb-space-4);
+  background: var(--hb-color-bg);
+  border-inline-start: 4px solid var(--hb-color-accent);
+  border-radius: var(--hb-radius);
+  font-size: 1.125rem;
+}
+.hb-waste-list {
+  list-style: none;
+  padding: 0;
+}
+.hb-waste-list li {
+  padding: var(--hb-space-3) 0;
+  border-bottom: 1px solid var(--hb-color-divider);
+}
+.hb-waste-list .is-today {
+  border-inline-start: 4px solid var(--hb-color-accent);
+  padding-inline-start: var(--hb-space-2);
+}
+.hb-waste-list .is-tomorrow {
+  background: var(--hb-color-bg);
+}
+.hb-waste-relative {
+  display: block;
+  margin-top: var(--hb-space-1);
+}
+.hb-waste-chip {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-inline-end: var(--hb-space-2);
+  border-radius: 50%;
+  border: 1px solid var(--hb-color-text);
+  background: #888;
+}
+.hb-waste-chip--paper {
+  background: #4084db;
+}
+.hb-waste-chip--plastic {
+  background: #f1d044;
+}
+.hb-waste-chip--glass {
+  background: #49a969;
+}
+.hb-waste-chip--mixed {
+  background: #656565;
+}
+.hb-waste-chip--bio {
+  background: #a76b3b;
+}
+.hb-waste-chip--electro {
+  background: #df554d;
+}
+.hb-waste-chip--hazardous {
+  background: #ed933b;
+}
+.hb-waste-chip--bulky {
+  background: #ae73c5;
+}
+.hb-waste-chip--other {
+  background: #999;
+}
+.hb-waste-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 400px) {
+  .hb-waste {
+    padding: var(--hb-space-4);
+  }
+}

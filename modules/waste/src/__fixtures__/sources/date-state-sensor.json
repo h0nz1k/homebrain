@@ -1,0 +1,9 @@
+{
+  "entity_id": "sensor.demo_waste_next",
+  "state": "2030-07-19",
+  "last_updated": "2030-07-18T07:00:00Z",
+  "attributes": {
+    "friendly_name": "Ukázkový svoz",
+    "waste_type": "Plasty"
+  }
+}

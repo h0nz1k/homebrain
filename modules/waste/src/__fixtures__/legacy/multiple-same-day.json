@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-07-18T09:00:00+02:00",
+  "source_status": "available",
+  "source_updated_at": "2030-07-18T08:55:00+02:00",
+  "events": [
+    {
+      "id": "fixture-same-001",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2030-07-22",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-07-18T08:55:00+02:00"
+    },
+    {
+      "id": "fixture-same-002",
+      "waste_type": "paper",
+      "display_name": "Papír",
+      "collection_date": "2030-07-22",
+      "availability": "confirmed",
+      "visual_token": "waste.paper",
+      "source_updated_at": "2030-07-18T08:55:00+02:00"
+    },
+    {
+      "id": "fixture-same-003",
+      "waste_type": "glass",
+      "display_name": "Sklo",
+      "collection_date": "2030-07-22",
+      "availability": "confirmed",
+      "visual_token": "waste.glass",
+      "source_updated_at": "2030-07-18T08:55:00+02:00"
+    },
+    {
+      "id": "fixture-same-004",
+      "waste_type": "mixed",
+      "display_name": "Směsný odpad",
+      "collection_date": "2030-07-29",
+      "availability": "confirmed",
+      "visual_token": "waste.mixed",
+      "source_updated_at": "2030-07-18T08:55:00+02:00"
+    },
+    {
+      "id": "fixture-same-005",
+      "waste_type": "bio",
+      "display_name": "Bioodpad",
+      "collection_date": "2030-08-01",
+      "availability": "confirmed",
+      "visual_token": "waste.bio",
+      "source_updated_at": "2030-07-18T08:55:00+02:00"
+    }
+  ],
+  "notices": []
+}

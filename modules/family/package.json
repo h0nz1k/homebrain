@@ -1,0 +1,30 @@
+{
+  "name": "@homebrain/module-family",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "@homebrain/ui": "workspace:*",
+    "@homebrain/ha-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

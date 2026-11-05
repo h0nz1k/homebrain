@@ -1,0 +1,15 @@
+{
+  "entity_id": "sensor.demo_waste_wcs",
+  "state": "Plasty",
+  "last_updated": "2030-07-18T07:00:00Z",
+  "attributes": {
+    "friendly_name": "Ukázkový svoz",
+    "2030-07-17": "Papír",
+    "2030-07-19": "Plasty",
+    "2030-07-22": "Papír, Sklo",
+    "2030-07-25": "Kovy",
+    "2030-08-01": "Směsný odpad",
+    "not-a-date": "Bioodpad",
+    "2030-08-02": 7
+  }
+}

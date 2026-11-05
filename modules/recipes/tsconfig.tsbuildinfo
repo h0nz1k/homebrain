@@ -1,0 +1,1 @@
+{"root":["./src/api.ts","./src/index.ts","./src/mock.ts","./src/types.ts","./src/domain/airfryer.ts","./src/domain/music.ts","./src/domain/scale.ts","./src/domain/timers.ts","./src/views/AddRecipe.tsx","./src/views/RecipesView.tsx","./src/views/parts.tsx","./src/views/styles.ts","./vitest.config.ts"],"errors":true,"version":"5.9.3"}

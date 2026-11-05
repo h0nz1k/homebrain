@@ -1,0 +1,139 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeBrain",
+        "description": "Add the HomeBrain panel to the sidebar."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "HomeBrain is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Entity bindings",
+        "description": "Choose the module whose bindings you want to edit.",
+        "menu_options": {
+          "waste": "Waste",
+          "energy": "Energy",
+          "family": "Family",
+          "energy_pv": "PV system",
+          "recipes": "Recipes"
+        }
+      },
+      "waste": {
+        "title": "Waste entity bindings",
+        "description": "Select sensors or a calendar for the waste module. Clear a field to remove its binding.",
+        "data": {
+          "waste_dataset": "Waste dataset sensor",
+          "waste_next": "Next waste collection sensor",
+          "waste_calendar": "Waste collection calendar",
+          "waste_history": "Past collections sensor (history attribute)"
+        }
+      },
+      "energy": {
+        "title": "Energy entity bindings",
+        "description": "Select sensors for the energy module. Power in W or kW, daily energy in kWh, price in CZK/kWh. Clear a field to remove its binding. Appliances: power, total energy (kWh, total_increasing) and an optional switch – HomeBrain only reads switches, it never controls them.",
+        "data": {
+          "energy_pv_power": "PV power (W/kW)",
+          "energy_pv1_power": "PV string 1 power (W/kW, optional)",
+          "energy_pv2_power": "PV string 2 power (W/kW, optional)",
+          "energy_grid_power": "Grid power, signed: import +, export − (W/kW)",
+          "energy_grid_import_power": "Grid import power, non-negative (W/kW)",
+          "energy_grid_export_power": "Grid export power, non-negative (W/kW)",
+          "energy_battery_soc": "Battery state of charge (%)",
+          "energy_battery_power": "Battery power, signed: discharge +, charge − (W/kW)",
+          "energy_house_power": "House load power (W/kW)",
+          "energy_phase_l1_power": "Phase L1 power",
+          "energy_phase_l2_power": "Phase L2 power",
+          "energy_phase_l3_power": "Phase L3 power",
+          "energy_grid_l1_power": "Grid power phase L1 at the meter, signed: import +, export − (W/kW, optional)",
+          "energy_grid_l2_power": "Grid power phase L2 at the meter, signed: import +, export − (W/kW, optional)",
+          "energy_grid_l3_power": "Grid power phase L3 at the meter, signed: import +, export − (W/kW, optional)",
+          "energy_grid_l1_current": "Grid current phase L1 at the meter (A, optional – otherwise estimated from power)",
+          "energy_grid_l2_current": "Grid current phase L2 at the meter (A, optional – otherwise estimated from power)",
+          "energy_grid_l3_current": "Grid current phase L3 at the meter (A, optional – otherwise estimated from power)",
+          "energy_main_breaker": "Main breaker rating per phase, e.g. input_number with 25 (A, optional, default 25 A)",
+          "energy_pv_energy_today": "PV energy today (kWh)",
+          "energy_grid_import_energy_today": "Grid import energy today (kWh)",
+          "energy_grid_export_energy_today": "Grid export energy today (kWh)",
+          "energy_house_energy_today": "House energy today (kWh)",
+          "energy_battery_charge_energy_today": "Battery charge energy today (kWh)",
+          "energy_battery_discharge_energy_today": "Battery discharge energy today (kWh)",
+          "energy_pv_forecast_today": "PV forecast today (kWh)",
+          "energy_pv_forecast_tomorrow": "PV forecast tomorrow (kWh)",
+          "energy_spot_price_electricity": "Electricity spot price now, with price series attributes",
+          "energy_spot_prices_electricity_tomorrow": "Tomorrow electricity spot prices (optional)",
+          "energy_inverter_status": "Inverter status",
+          "energy_inverter_power": "Inverter AC output power (W/kW, + to the house, − charging from the grid, optional)",
+          "energy_inverter_l1_power": "Inverter AC output L1 (W/kW, optional)",
+          "energy_inverter_l2_power": "Inverter AC output L2 (W/kW, optional)",
+          "energy_inverter_l3_power": "Inverter AC output L3 (W/kW, optional)",
+          "energy_inverter_error": "Inverter error text or code (optional)",
+          "energy_pv1_voltage": "PV string 1 voltage (V, optional)",
+          "energy_pv2_voltage": "PV string 2 voltage (V, optional)",
+          "energy_battery_voltage": "Battery voltage (V, optional)",
+          "energy_battery_current": "Battery current (A, optional)",
+          "energy_inverter_temp_radiator": "Inverter radiator temperature (°C, optional)",
+          "energy_inverter_temp_air": "Inverter air temperature (°C, optional)",
+          "energy_battery_temp": "Battery temperature (°C, optional)",
+          "energy_battery_cell_temp_max": "Battery max cell temperature (°C, optional)",
+          "energy_battery_cell_temp_min": "Battery min cell temperature (°C, optional)",
+          "energy_battery_cell_voltage_max": "Battery max cell voltage (V, optional)",
+          "energy_battery_cell_voltage_min": "Battery min cell voltage (V, optional)",
+          "energy_battery_soh": "Battery state of health (%, optional)",
+          "energy_appliance_heat_pump_power": "Heat pump – power (W/kW)",
+          "energy_appliance_heat_pump_energy": "Heat pump – total energy (kWh, total_increasing)",
+          "energy_appliance_heat_pump_switch": "Heat pump – switch (read-only, optional)",
+          "energy_appliance_dishwasher_power": "Dishwasher – power (W/kW)",
+          "energy_appliance_dishwasher_energy": "Dishwasher – total energy (kWh, total_increasing)",
+          "energy_appliance_dishwasher_switch": "Dishwasher – switch (read-only, optional)",
+          "energy_appliance_coffee_maker_power": "Coffee maker – power (W/kW)",
+          "energy_appliance_coffee_maker_energy": "Coffee maker – total energy (kWh, total_increasing)",
+          "energy_appliance_coffee_maker_switch": "Coffee maker – switch (read-only, optional)",
+          "energy_appliance_dehumidifier_power": "Dehumidifier – power (W/kW)",
+          "energy_appliance_dehumidifier_energy": "Dehumidifier – total energy (kWh, total_increasing)",
+          "energy_appliance_dehumidifier_switch": "Dehumidifier – switch (read-only, optional)"
+        }
+      },
+      "family": {
+        "title": "Family calendar bindings",
+        "description": "Select the family and school calendars. HomeBrain only reads them; Today shows today's events (title and time) on the timeline. Clear a field to remove the binding.",
+        "data": {
+          "family_calendar_family": "Family calendar",
+          "family_calendar_school": "School calendar"
+        }
+      },
+      "energy_pv": {
+        "title": "PV system (forecast and advice)",
+        "description": "All fields are optional. kWp enables the Open-Meteo forecast fallback, used only when no forecast integration in the HA Energy dashboard provides data. Azimuth uses the Open-Meteo convention: 0° = south, −90° = east, 90° = west. Without tilt HomeBrain assumes 35° and says so. Limits and battery capacity let the advice detect a full battery and curtailed surplus.",
+        "data": {
+          "pv_kwp": "Installed PV peak power (kWp)",
+          "pv_tilt": "Panel tilt (0° = flat)",
+          "pv_azimuth": "Panel azimuth (0° = south, −90° = east, 90° = west)",
+          "inverter_ac_limit_kw": "Inverter AC output limit (kW)",
+          "battery_capacity_kwh": "Battery capacity (kWh)",
+          "export_limit_kw": "Grid export limit (kW)"
+        }
+      },
+      "recipes": {
+        "title": "Recipes entity bindings",
+        "description": "Optional. The music bar and the airfryer action stay hidden until these are bound. HomeBrain starts the airfryer only after an explicit confirmation in cooking mode. The music notify target (notify.mobile_app_<tablet>) is set in Recipes → Settings.",
+        "data": {
+          "recipes_media_session": "Kitchen tablet media session sensor (HA Companion, optional)",
+          "recipes_airfryer_start": "Airfryer: start cooking button",
+          "recipes_airfryer_temperature": "Airfryer: temperature (number, °C)",
+          "recipes_airfryer_cook_time": "Airfryer: cook time (number, min)",
+          "recipes_airfryer_method": "Airfryer: cooking method (select, optional)",
+          "recipes_airfryer_drawer": "Airfryer: drawer open sensor (binary_sensor)",
+          "recipes_airfryer_remaining": "Airfryer: remaining time sensor (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_entity_id": "Enter a valid entity ID."
+    }
+  }
+}

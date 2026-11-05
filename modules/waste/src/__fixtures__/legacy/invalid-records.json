@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-07-18T08:45:00+02:00",
+  "source_status": "available",
+  "source_updated_at": "2030-07-18T08:40:00+02:00",
+  "events": [
+    {
+      "id": "fixture-invalid-valid-001",
+      "waste_type": "bio",
+      "display_name": "Bioodpad",
+      "collection_date": "2030-07-26",
+      "availability": "confirmed",
+      "visual_token": "waste.bio",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    },
+    {
+      "id": "fixture-invalid-bad-date",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2030-02-30",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-07-18T08:40:00+02:00",
+      "fixture_source_ref": "fixture-source-ref",
+      "source_url": "example.invalid",
+      "private_marker": "fixture-private-marker"
+    },
+    {
+      "id": "",
+      "waste_type": "paper",
+      "display_name": "Papír",
+      "collection_date": "2030-07-29",
+      "availability": "confirmed",
+      "visual_token": "waste.paper",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    },
+    "not-an-event-object",
+    {
+      "id": "fixture-invalid-valid-002",
+      "waste_type": "glass",
+      "display_name": "Sklo",
+      "collection_date": "2030-08-05",
+      "availability": "confirmed",
+      "visual_token": "waste.glass",
+      "source_updated_at": "2030-07-18T08:40:00+02:00"
+    }
+  ],
+  "notices": []
+}

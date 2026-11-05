@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "generated_at": "2030-12-28T09:00:00+01:00",
+  "source_status": "available",
+  "source_updated_at": "2030-12-28T08:50:00+01:00",
+  "events": [
+    {
+      "id": "fixture-year-001",
+      "waste_type": "mixed",
+      "display_name": "Směsný odpad",
+      "collection_date": "2030-12-30",
+      "availability": "confirmed",
+      "visual_token": "waste.mixed",
+      "source_updated_at": "2030-12-28T08:50:00+01:00"
+    },
+    {
+      "id": "fixture-year-002",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2031-01-03",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2030-12-28T08:50:00+01:00"
+    },
+    {
+      "id": "fixture-year-003",
+      "waste_type": "paper",
+      "display_name": "Papír",
+      "collection_date": "2031-01-10",
+      "availability": "confirmed",
+      "visual_token": "waste.paper",
+      "source_updated_at": "2030-12-28T08:50:00+01:00"
+    }
+  ],
+  "notices": []
+}

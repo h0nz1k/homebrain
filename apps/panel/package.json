@@ -1,0 +1,39 @@
+{
+  "name": "@homebrain/panel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "dev": "vite",
+    "build:catalog": "vite build --config vite.catalog.config.ts"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@homebrain/ha-client": "workspace:*",
+    "@homebrain/module-energy": "workspace:*",
+    "@homebrain/module-family": "workspace:*",
+    "@homebrain/module-health": "workspace:*",
+    "@homebrain/module-recipes": "workspace:*",
+    "@homebrain/module-today": "workspace:*",
+    "@homebrain/module-waste": "workspace:*",
+    "@homebrain/module-weather": "workspace:*",
+    "@homebrain/module-wine": "workspace:*",
+    "@homebrain/testing": "workspace:*",
+    "@homebrain/ui": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "jsdom": "^30.1.3",
+    "typescript": "catalog:",
+    "vite": "^8.3.5",
+    "vitest": "catalog:"
+  }
+}

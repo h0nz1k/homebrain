@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-18T08:45:00+02:00",
+  "source_status": "available",
+  "source_updated_at": "2026-07-18T08:45:00+02:00",
+  "events": [
+    {
+      "id": "exec-pack-v3-glass-0704",
+      "waste_type": "glass",
+      "display_name": "Sklo",
+      "collection_date": "2026-07-04",
+      "availability": "confirmed",
+      "visual_token": "waste.glass",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-mixed-0707",
+      "waste_type": "mixed",
+      "display_name": "Směsný odpad",
+      "collection_date": "2026-07-07",
+      "availability": "confirmed",
+      "visual_token": "waste.mixed",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-plastic-0721",
+      "waste_type": "plastic",
+      "display_name": "Plasty",
+      "collection_date": "2026-07-21",
+      "availability": "confirmed",
+      "visual_token": "waste.plastic",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-paper-0728",
+      "waste_type": "paper",
+      "display_name": "Papír",
+      "collection_date": "2026-07-28",
+      "availability": "confirmed",
+      "visual_token": "waste.paper",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-glass-0804",
+      "waste_type": "glass",
+      "display_name": "Sklo",
+      "collection_date": "2026-08-04",
+      "availability": "confirmed",
+      "visual_token": "waste.glass",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-mixed-0811",
+      "waste_type": "mixed",
+      "display_name": "Směsný odpad",
+      "collection_date": "2026-08-11",
+      "availability": "confirmed",
+      "visual_token": "waste.mixed",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-electro-0818",
+      "waste_type": "electro",
+      "display_name": "Elektroodpad",
+      "collection_date": "2026-08-18",
+      "availability": "confirmed",
+      "visual_token": "waste.electro",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    },
+    {
+      "id": "exec-pack-v3-hazardous-0825",
+      "waste_type": "hazardous",
+      "display_name": "Nebezpečný odpad",
+      "collection_date": "2026-08-25",
+      "availability": "confirmed",
+      "visual_token": "waste.hazardous",
+      "source_updated_at": "2026-07-18T08:45:00+02:00"
+    }
+  ],
+  "notices": []
+}
