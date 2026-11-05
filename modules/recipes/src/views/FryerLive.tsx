@@ -126,35 +126,35 @@ export function FryerLiveCard({
     m.phase === 'done' ? 'Hotovo' : m.remainingS !== null ? formatCountdown(m.remainingS) : '–';
   return (
     <section
-      className="rc-fry"
+      className="rc-fl"
       data-phase={m.phase}
       data-urgent={urgent || undefined}
       aria-label="Fritéza"
       data-testid="recipes-fryer-live"
     >
-      <div className="rc-fry-ring" aria-hidden={m.phase === 'done'}>
+      <div className="rc-fl-ring" aria-hidden={m.phase === 'done'}>
         <Ring fraction={m.progress ?? 0} size={112} />
-        <span className="rc-fry-time num" data-testid="recipes-fryer-countdown">
+        <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
           {countdown}
           {m.phase !== 'done' && m.remainingS !== null ? <small>zbývá</small> : null}
         </span>
       </div>
-      <div className="rc-fry-body">
-        <span className="rc-fry-kicker">
+      <div className="rc-fl-body">
+        <span className="rc-fl-kicker">
           <Icon name="fryer" /> Fritéza{program ? ` · ${program}` : ''}
         </span>
         <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
           {m.label}
         </h2>
-        {HINT[m.phase] ? <p className="rc-fry-hint">{HINT[m.phase]}</p> : null}
+        {HINT[m.phase] ? <p className="rc-fl-hint">{HINT[m.phase]}</p> : null}
         {m.currentTemp !== null ? (
-          <div className="rc-fry-temp" data-testid="recipes-fryer-temp">
+          <div className="rc-fl-temp" data-testid="recipes-fryer-temp">
             <span className="num">
               <b>{Math.round(m.currentTemp)}</b> °C
             </span>
             {m.targetTemp ? (
               <>
-                <span className="rc-fry-bar" aria-hidden="true">
+                <span className="rc-fl-bar" aria-hidden="true">
                   <i
                     style={{
                       width: `${Math.max(4, Math.min(100, (m.currentTemp / m.targetTemp) * 100))}%`,
@@ -168,7 +168,7 @@ export function FryerLiveCard({
         ) : null}
       </div>
       {controls.length ? (
-        <div className="rc-fry-actions">
+        <div className="rc-fl-actions">
           {controls.map((c) => (
             <Button
               key={c}
