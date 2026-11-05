@@ -471,3 +471,66 @@ async def test_state_resolves_smart_lock_entities(hass: HomeAssistant, setup, ha
     assert ents["lockBatteryCritical"] == "binary_sensor.front_door_battery_critical"
     assert ents["lockAction"] == "event.front_door_action"
     assert ents["service_mode"] == "switch.biolock_servisni_rezim"
+
+
+async def test_enroll_progress_forwarded_live_and_kept_out_of_history(
+    hass: HomeAssistant, setup, hass_ws_client
+):
+    """biolock-firmware#9: real-time enrolment progress reaches the panel, never the log."""
+    client = await hass_ws_client(hass)
+    state = await _call(client, {"type": "homebrain/access/state"})
+    assert state["result"]["progress"] is None
+    assert state["result"]["entities"]["enroll_progress"] == "sensor.biolock_prubeh_zapisu"
+    await _call(client, {"type": "homebrain/access/subscribe"})
+
+    hass.bus.async_fire(
+        "esphome.biolock_enroll_progress",
+        {
+            "request_id": "3fa1-2",
+            "modality": "face",
+            "state": "detected",
+            "hint": "too_far",
+            "remaining_s": "17",
+            "text": "Přibliž se",
+            "name": "Jan",
+            "ts": "2026-11-05T17:10:00+0100",
+            "unexpected": "dropped",
+        },
+    )
+    await hass.async_block_till_done()
+    pushed = await _next(client, "enroll_progress")
+    data = pushed["event"]["data"]
+    assert data == {
+        "request_id": "3fa1-2",
+        "modality": "face",
+        "state": "detected",
+        "hint": "too_far",
+        "remaining_s": 17,
+        "text": "Přibliž se",
+        "name": "Jan",
+        "ts": "2026-11-05T17:10:00+0100",
+    }
+    assert pushed["event"]["time"]
+
+    hass.bus.async_fire(
+        "esphome.biolock_enroll_progress",
+        {
+            "request_id": "3fa1-2",
+            "modality": "face",
+            "state": "failed",
+            "hint": "timeout",
+            "remaining_s": "x",
+            "text": "Vypršel čas",
+            "name": "Jan",
+            "reason": "timeout",
+        },
+    )
+    await hass.async_block_till_done()
+    failed = await _next(client, "enroll_progress")
+    assert failed["event"]["data"]["reason"] == "timeout"
+    assert "remaining_s" not in failed["event"]["data"]
+
+    state = await _call(client, {"type": "homebrain/access/state"})
+    # the last progress seeds a panel opened mid-enrolment; progress never lands in Historie
+    assert state["result"]["progress"]["data"]["state"] == "failed"
+    assert state["result"]["history"] == []
