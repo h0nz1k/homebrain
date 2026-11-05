@@ -70,9 +70,7 @@ export function ProgressRing({
           )}
         </g>
       </svg>
-      {children !== undefined && children !== null && (
-        <span className="hb-ring-c">{children}</span>
-      )}
+      {children !== undefined && children !== null && <span className="hb-ring-c">{children}</span>}
     </span>
   );
 }

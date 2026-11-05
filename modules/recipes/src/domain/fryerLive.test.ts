@@ -117,7 +117,10 @@ describe('fryer countdown', () => {
     expect(m.progress).toBeCloseTo(0.5, 5);
     expect(fryerProgramLine(m)).toBe('AutoCook 14');
     expect(fryerModel({ ...states, status: st('finish') }, t0).progress).toBe(1);
-    expect(fryerModel({ ...states, error: st('3') }, t0)).toMatchObject({ label: 'Fritéza hlásí chybu', errorCode: 3 });
+    expect(fryerModel({ ...states, error: st('3') }, t0)).toMatchObject({
+      label: 'Fritéza hlásí chybu',
+      errorCode: 3,
+    });
   });
 });
 

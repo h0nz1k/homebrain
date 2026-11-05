@@ -270,7 +270,9 @@ async def test_airfryer_program_name_from_owning_entry(hass, setup, hass_ws_clie
     ws = await hass_ws_client(hass)
     msg = {"type": "homebrain/recipes/airfryer_program", "program": 7}
     assert (await _call(ws, **msg))["error"]["code"] == "NOT_CONFIGURED"
-    entry = MockConfigEntry(domain="demo_fryer_vendor", data={"recipe_cache": {"7": "Demo brambory"}})
+    entry = MockConfigEntry(
+        domain="demo_fryer_vendor", data={"recipe_cache": {"7": "Demo brambory"}}
+    )
     entry.add_to_hass(hass)
     er.async_get(hass).async_get_or_create(
         "sensor",
@@ -288,7 +290,5 @@ async def test_airfryer_program_name_from_owning_entry(hass, setup, hass_ws_clie
     )
     assert saved["result"]["airfryerProgramNames"] == {"7": "Demo mražené"}
     assert (await _call(ws, **msg))["result"] == {"name": "Demo mražené"}
-    bad = await _call(
-        ws, type="homebrain/recipes/settings_set", airfryer_program_names={"x": "y"}
-    )
+    bad = await _call(ws, type="homebrain/recipes/settings_set", airfryer_program_names={"x": "y"})
     assert not bad["success"]
