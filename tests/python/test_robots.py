@@ -1,0 +1,197 @@
+"""Roboti: slot settings, read-only room lists (roborock.get_maps), WS and options flow."""
+
+from datetime import timedelta
+
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.homebrain.bindings import get_bindings, is_valid_key
+from custom_components.homebrain.const import DOMAIN
+from custom_components.homebrain.robots.config import (
+    ROBOT_BINDING_KEYS,
+    slot_keys,
+    slot_settings,
+    valid_image,
+)
+from custom_components.homebrain.robots.rooms import (
+    ERROR_TTL,
+    READ_ONLY_SERVICE,
+    RoomCache,
+    normalize_maps,
+)
+
+MAPS = {
+    "vacuum.robot_a": {
+        "maps": [
+            {"flag": 1, "name": "", "rooms": {"18": "Pokoj", "16": "WC"}},
+            {
+                "flag": 0,
+                "name": "Dole",
+                "rooms": {"2": "Kuchyně", "1": " Obývací   pokoj ", "x": "?"},
+            },
+            {"flag": True, "name": "bad flag", "rooms": {}},
+            "garbage",
+        ]
+    }
+}
+
+
+def test_slot_keys_and_bindings_domains():
+    assert slot_keys(1)[0] == "robot1_vacuum"
+    assert "robot3_map_image" in ROBOT_BINDING_KEYS
+    assert is_valid_key("robots", "robot2_status")
+    assert not is_valid_key("robots", "robot4_vacuum")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={
+            "bindings": {
+                "robots": {
+                    "robot1_vacuum": "vacuum.robot_a",
+                    "robot1_map_image": "image.robot_a_map",
+                    "robot1_cleaning_mode": "sensor.wrong_domain",
+                    "robot1_clean_water": "binary_sensor.robot_a_clean_water",
+                }
+            }
+        },
+    )
+    assert get_bindings(entry)["robots"] == {
+        "robot1_vacuum": "vacuum.robot_a",
+        "robot1_map_image": "image.robot_a_map",
+        "robot1_clean_water": "binary_sensor.robot_a_clean_water",
+    }
+
+
+def test_slot_settings_defaults_and_validation():
+    assert slot_settings({}, 1) == {"name": "Robot 1", "floor": "Přízemí", "image": ""}
+    options = {
+        "robots": {
+            "2": {"name": "  Alfa  ", "floor": "3. patro", "image": "/local/roboti/alfa.png"},
+            "3": {"name": "x" * 99, "image": "javascript:alert(1)"},
+        }
+    }
+    assert slot_settings(options, 2) == {
+        "name": "Alfa",
+        "floor": "3. patro",
+        "image": "/local/roboti/alfa.png",
+    }
+    third = slot_settings(options, 3)
+    assert len(third["name"]) == 40 and third["image"] == ""
+    assert valid_image("https://example.com/robot.webp")
+    assert not valid_image("http://example.com/robot.webp")
+    assert not valid_image("/local/../secrets.yaml")
+    assert not valid_image('/local/a.png" onerror="x')
+
+
+def test_normalize_maps_sorts_and_validates():
+    assert normalize_maps(MAPS, "vacuum.robot_a") == [
+        {
+            "flag": 0,
+            "name": "Dole",
+            "rooms": [{"id": 1, "name": "Obývací pokoj"}, {"id": 2, "name": "Kuchyně"}],
+        },
+        {"flag": 1, "name": "", "rooms": [{"id": 16, "name": "WC"}, {"id": 18, "name": "Pokoj"}]},
+    ]
+    assert normalize_maps(None, "vacuum.robot_a") == []
+    assert normalize_maps({"vacuum.robot_a": {"maps": "x"}}, "vacuum.robot_a") == []
+
+
+def _register_get_maps(hass: HomeAssistant, calls: list, fail: bool = False) -> None:
+    async def handler(call: ServiceCall):
+        calls.append(call)
+        if fail:
+            raise RuntimeError("cloud down")
+        ids = call.data.get("entity_id", [])
+        return {eid: MAPS["vacuum.robot_a"] for eid in ([ids] if isinstance(ids, str) else ids)}
+
+    hass.services.async_register(
+        *READ_ONLY_SERVICE, handler, supports_response=SupportsResponse.ONLY
+    )
+
+
+async def test_room_cache_caches_and_keeps_last_good(hass: HomeAssistant, freezer):
+    # Hermetic: frozen clock (TTL decisions are deterministic) and an in-process fake
+    # service – no Roborock integration, no network, no real robot.
+    freezer.move_to("2026-06-02T10:00:00+00:00")
+    calls: list = []
+    cache = RoomCache(hass)
+    missing = await cache.async_get("vacuum.robot_a")
+    assert missing["error"] == "service_missing"
+    _register_get_maps(hass, calls)
+    # The error result is cached for ERROR_TTL only.
+    assert (await cache.async_get("vacuum.robot_a"))["error"] == "service_missing"
+    freezer.tick(ERROR_TTL + timedelta(seconds=1))
+    first = await cache.async_get("vacuum.robot_a")
+    assert first["error"] is None and [m["flag"] for m in first["maps"]] == [0, 1]
+    assert len(calls) == 1
+    freezer.tick(timedelta(minutes=30))
+    assert await cache.async_get("vacuum.robot_a") == first
+    assert len(calls) == 1  # still cached within CACHE_TTL
+    hass.services.async_remove(*READ_ONLY_SERVICE)
+    _register_get_maps(hass, calls, fail=True)
+    stale = await cache.async_get("vacuum.robot_a", refresh=True)
+    assert stale["error"] == "failed" and stale["maps"] == first["maps"]
+    assert len(calls) == 2
+    await hass.async_block_till_done()
+
+
+async def test_ws_robots_get_reads_only_bound_vacuums(hass: HomeAssistant, hass_ws_client):
+    calls: list = []
+    _register_get_maps(hass, calls)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={
+            "bindings": {"robots": {"robot2_vacuum": "vacuum.robot_a"}},
+            "robots": {"2": {"name": "Alfa", "floor": "1. patro", "image": ""}},
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "homebrain/robots/get"})
+    response = await client.receive_json()
+    assert response["success"], response
+    robots = response["result"]["robots"]
+    assert [(r["slot"], r["name"], r["floor"], r["vacuum"]) for r in robots] == [
+        (2, "Alfa", "1. patro", "vacuum.robot_a")
+    ]
+    assert robots[0]["maps"][0]["rooms"][0] == {"id": 1, "name": "Obývací pokoj"}
+    assert robots[0]["maps_error"] is None
+    # Only the read-only map service was called, only for the bound vacuum.
+    assert [c.domain + "." + c.service for c in calls] == ["roborock.get_maps"]
+    assert calls[0].data["entity_id"] in ("vacuum.robot_a", ["vacuum.robot_a"])
+
+
+async def test_options_flow_robot_step(hass: HomeAssistant):
+    entry = MockConfigEntry(domain=DOMAIN, options={})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "robots_1"}
+    )
+    assert result["step_id"] == "robots_1"
+    bad = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"name": "Alfa", "image": "ftp://x/y.png"}
+    )
+    assert bad["errors"] == {"image": "invalid_image"}
+    done = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "name": "Alfa",
+            "floor": "Přízemí",
+            "image": "/local/roboti/alfa.png",
+            "robot1_vacuum": "vacuum.robot_a",
+            "robot1_battery": "sensor.robot_a_battery",
+        },
+    )
+    assert done["type"] == "create_entry"
+    assert entry.options["robots"]["1"] == {
+        "name": "Alfa",
+        "floor": "Přízemí",
+        "image": "/local/roboti/alfa.png",
+    }
+    assert entry.options["bindings"]["robots"] == {
+        "robot1_vacuum": "vacuum.robot_a",
+        "robot1_battery": "sensor.robot_a_battery",
+    }

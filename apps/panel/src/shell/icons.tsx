@@ -50,6 +50,14 @@ export function NavIcon({ moduleId }: { moduleId: string }) {
           <path d="M14 11v6" />
         </Icon>
       );
+    case 'robots':
+      return (
+        <Icon>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="9" r="2.5" />
+          <path d="M7.5 16h9" />
+        </Icon>
+      );
     case 'health':
       return (
         <Icon>

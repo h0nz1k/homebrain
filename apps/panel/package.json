@@ -20,6 +20,7 @@
     "@homebrain/module-access": "workspace:*",
     "@homebrain/module-today": "workspace:*",
     "@homebrain/module-waste": "workspace:*",
+    "@homebrain/module-robots": "workspace:*",
     "@homebrain/module-weather": "workspace:*",
     "@homebrain/module-wine": "workspace:*",
     "@homebrain/testing": "workspace:*",

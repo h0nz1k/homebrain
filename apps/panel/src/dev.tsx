@@ -29,6 +29,7 @@ import {
   SETTINGS_PANEL_PATH,
 } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
+import { createRobotsDemo, type RobotsScenario } from '@homebrain/module-robots';
 import { createMockWineApi, createSyntheticWines, setWineApiFactory } from '@homebrain/module-wine';
 import {
   createMockRecipesApi,
@@ -266,6 +267,14 @@ if (flowScenario && flowScenario in FLOW_SCENARIOS)
     applyFlowScenario(Object.values(energyDemo.states), flowScenario).map((s) => [s.entity_id, s]),
   );
 Object.assign(demoHass.states, energyDemo.states);
+const robotsDemo = createRobotsDemo(
+  now.getTime(),
+  (new URLSearchParams(location.search).get('robots') as RobotsScenario | null) ?? 'default',
+);
+Object.assign(demoHass.states, robotsDemo.states);
+// Dev only: service calls from the Roboti panel are recorded, never sent anywhere.
+const robotCalls: unknown[] = [];
+(window as unknown as { __hbRobotCalls: unknown[] }).__hbRobotCalls = robotCalls;
 const healthDemoIds = new Set(Object.values(healthDemo.bindings));
 const isHealthDemo = (ids: string[] | undefined) => (ids ?? []).some((id) => healthDemoIds.has(id));
 const pvDemo = createPvForecastDemo(
@@ -289,6 +298,11 @@ demoHass.connection = createMockConnection({
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).
   'homebrain/weather/get': () => buildMockSnapshot(scenarioFromUrl(location.search)),
   'energy/solar_forecast': pvDemo.ha,
+  'homebrain/robots/get': () => robotsDemo.ws,
+  call_service: (message: unknown) => {
+    robotCalls.push(message);
+    return { context: { id: 'demo' } };
+  },
   'homebrain/energy/pv_forecast': pvDemo.server,
   'homebrain/bindings/get': {
     waste: {
@@ -297,6 +311,7 @@ demoHass.connection = createMockConnection({
     },
     energy: energyDemo.bindings,
     health: healthDemo.bindings,
+    robots: robotsDemo.bindings,
     wine: {
       wine_cellar_temperature: 'sensor.demo_wine_cellar_temperature',
       wine_cellar_humidity: 'sensor.demo_wine_cellar_humidity',

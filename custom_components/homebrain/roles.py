@@ -27,6 +27,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "health",
             "wine",
             "family",
+            "robots",
             "recipes",
             "access",
             "settings",
@@ -34,7 +35,18 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
         }
     ),
     "adult": frozenset(
-        {"today", "weather", "energy", "waste", "health", "wine", "family", "recipes", "about"}
+        {
+            "today",
+            "weather",
+            "energy",
+            "waste",
+            "health",
+            "wine",
+            "family",
+            "robots",
+            "recipes",
+            "about",
+        }
     ),
     "child": frozenset({"today", "weather", "waste", "family", "recipes"}),
     # Kiosk: energy as a summary only, family without details, never health/wine/settings.

@@ -1,0 +1,85 @@
+// @vitest-environment jsdom
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, expect, it } from 'vitest';
+import { createEntityStore, type ConnectionLike } from '@homebrain/ha-client';
+import { createRobotsDemo } from '../demo.js';
+import RobotsView from './RobotsView.js';
+
+afterEach(cleanup);
+
+function setup() {
+  const demo = createRobotsDemo(Date.now());
+  const store = createEntityStore();
+  store.update(demo.states);
+  const sent: Record<string, unknown>[] = [];
+  const connection: ConnectionLike = {
+    async sendMessagePromise<T>(message: { type: string }) {
+      if (message.type === 'homebrain/robots/get') return demo.ws as T;
+      sent.push(message as Record<string, unknown>);
+      return undefined as T;
+    },
+  };
+  render(<RobotsView store={store} bindings={demo.bindings} connection={connection} />);
+  return { sent };
+}
+
+it('switches floors and shows the Czech fix for a robot error', async () => {
+  setup();
+  expect(await screen.findByTestId('robots-room-2')).toBeTruthy();
+  expect(screen.getByTestId('robots-state').textContent).toBe('Uklízí místnosti');
+  fireEvent.click(screen.getByTestId('robots-floor-2'));
+  expect(screen.getByTestId('robots-problem').textContent).toContain('Zamotaný hlavní kartáč');
+});
+
+it('selects rooms in order and sends only after confirmation', async () => {
+  const { sent } = setup();
+  fireEvent.click(await screen.findByTestId('robots-room-3'));
+  fireEvent.click(screen.getByTestId('robots-room-1'));
+  expect(screen.getByTestId('robots-room-3').textContent).toMatch(/^1/);
+  expect(screen.getByTestId('robots-room-1').textContent).toMatch(/^2/);
+  fireEvent.click(screen.getByTestId('robots-start'));
+  expect(screen.getByTestId('robots-confirm').textContent).toContain(
+    '1. Jídelna → 2. Obývací pokoj',
+  );
+  expect(sent).toHaveLength(0);
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('robots-confirm-send'));
+  });
+  expect(sent).toEqual([
+    {
+      type: 'call_service',
+      domain: 'vacuum',
+      service: 'send_command',
+      service_data: { command: 'app_segment_clean', params: [{ segments: [3, 1], repeat: 1 }] },
+      target: { entity_id: 'vacuum.demo_robot_1' },
+    },
+  ]);
+  expect(screen.getByTestId('robots-toast').textContent).toContain('Čekám na skutečný stav');
+  expect(screen.getByTestId('robots-room-3').getAttribute('aria-pressed')).toBe('false');
+});
+
+it('resumes after a fixed error only through the confirmation sheet', async () => {
+  const { sent } = setup();
+  await screen.findByTestId('robots-room-2');
+  fireEvent.click(screen.getByTestId('robots-floor-2'));
+  fireEvent.click(screen.getByTestId('robots-fixed-resume'));
+  expect(screen.getByTestId('robots-confirm').textContent).toContain('Zamotaný hlavní kartáč');
+  expect(sent).toHaveLength(0);
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('robots-confirm-send'));
+  });
+  expect(sent).toEqual([
+    {
+      type: 'call_service',
+      domain: 'vacuum',
+      service: 'start',
+      service_data: {},
+      target: { entity_id: 'vacuum.demo_robot_2' },
+    },
+  ]);
+});
+
+it('shows an empty state without bound robots', () => {
+  render(<RobotsView store={createEntityStore()} bindings={{}} />);
+  expect(screen.getByTestId('robots-empty').textContent).toContain('Robot 1–3');
+});

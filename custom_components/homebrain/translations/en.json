@@ -20,6 +20,9 @@
           "energy": "Energy",
           "family": "Family",
           "energy_pv": "PV system",
+          "robots_1": "Robot 1",
+          "robots_2": "Robot 2",
+          "robots_3": "Robot 3",
           "recipes": "Recipes"
         }
       },
@@ -128,6 +131,93 @@
           "export_limit_kw": "Grid export limit (kW)"
         }
       },
+      "robots_1": {
+        "title": "Robot 1",
+        "description": "Robot 1 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps).",
+        "data": {
+          "name": "Name shown in HomeBrain",
+          "floor": "Floor (e.g. Ground floor)",
+          "image": "Robot picture (/local/… or https URL; optional)",
+          "robot1_vacuum": "Robot vacuum",
+          "robot1_status": "Status sensor",
+          "robot1_error": "Robot error sensor",
+          "robot1_dock_error": "Dock error sensor",
+          "robot1_battery": "Battery sensor",
+          "robot1_current_room": "Current room sensor",
+          "robot1_cleaning_progress": "Cleaning progress sensor",
+          "robot1_main_brush": "Main brush time left (h)",
+          "robot1_side_brush": "Side brush time left (h)",
+          "robot1_filter": "Filter time left (h)",
+          "robot1_sensors": "Sensor cleaning time left (h)",
+          "robot1_dock_strainer": "Dock strainer time left (h)",
+          "robot1_dock_brush": "Dock brush time left (h)",
+          "robot1_clean_water": "Dock clean water tank (problem = empty)",
+          "robot1_dirty_water": "Dock dirty water tank (problem = full)",
+          "robot1_cleaning_fluid": "Dock cleaning fluid (problem = empty)",
+          "robot1_water_shortage": "Robot water shortage",
+          "robot1_cleaning_mode": "Cleaning mode select",
+          "robot1_selected_map": "Selected map select",
+          "robot1_map_image": "Map image"
+        }
+      },
+      "robots_2": {
+        "title": "Robot 2",
+        "description": "Robot 2 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps).",
+        "data": {
+          "name": "Name shown in HomeBrain",
+          "floor": "Floor (e.g. Ground floor)",
+          "image": "Robot picture (/local/… or https URL; optional)",
+          "robot2_vacuum": "Robot vacuum",
+          "robot2_status": "Status sensor",
+          "robot2_error": "Robot error sensor",
+          "robot2_dock_error": "Dock error sensor",
+          "robot2_battery": "Battery sensor",
+          "robot2_current_room": "Current room sensor",
+          "robot2_cleaning_progress": "Cleaning progress sensor",
+          "robot2_main_brush": "Main brush time left (h)",
+          "robot2_side_brush": "Side brush time left (h)",
+          "robot2_filter": "Filter time left (h)",
+          "robot2_sensors": "Sensor cleaning time left (h)",
+          "robot2_dock_strainer": "Dock strainer time left (h)",
+          "robot2_dock_brush": "Dock brush time left (h)",
+          "robot2_clean_water": "Dock clean water tank (problem = empty)",
+          "robot2_dirty_water": "Dock dirty water tank (problem = full)",
+          "robot2_cleaning_fluid": "Dock cleaning fluid (problem = empty)",
+          "robot2_water_shortage": "Robot water shortage",
+          "robot2_cleaning_mode": "Cleaning mode select",
+          "robot2_selected_map": "Selected map select",
+          "robot2_map_image": "Map image"
+        }
+      },
+      "robots_3": {
+        "title": "Robot 3",
+        "description": "Robot 3 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps).",
+        "data": {
+          "name": "Name shown in HomeBrain",
+          "floor": "Floor (e.g. Ground floor)",
+          "image": "Robot picture (/local/… or https URL; optional)",
+          "robot3_vacuum": "Robot vacuum",
+          "robot3_status": "Status sensor",
+          "robot3_error": "Robot error sensor",
+          "robot3_dock_error": "Dock error sensor",
+          "robot3_battery": "Battery sensor",
+          "robot3_current_room": "Current room sensor",
+          "robot3_cleaning_progress": "Cleaning progress sensor",
+          "robot3_main_brush": "Main brush time left (h)",
+          "robot3_side_brush": "Side brush time left (h)",
+          "robot3_filter": "Filter time left (h)",
+          "robot3_sensors": "Sensor cleaning time left (h)",
+          "robot3_dock_strainer": "Dock strainer time left (h)",
+          "robot3_dock_brush": "Dock brush time left (h)",
+          "robot3_clean_water": "Dock clean water tank (problem = empty)",
+          "robot3_dirty_water": "Dock dirty water tank (problem = full)",
+          "robot3_cleaning_fluid": "Dock cleaning fluid (problem = empty)",
+          "robot3_water_shortage": "Robot water shortage",
+          "robot3_cleaning_mode": "Cleaning mode select",
+          "robot3_selected_map": "Selected map select",
+          "robot3_map_image": "Map image"
+        }
+      },
       "recipes": {
         "title": "Recipes entity bindings",
         "description": "Optional. The music bar and the airfryer action stay hidden until these are bound. HomeBrain starts the airfryer only after an explicit confirmation in cooking mode. The music notify target (notify.mobile_app_<tablet>) is set in Recipes → Settings.",
@@ -143,7 +233,8 @@
       }
     },
     "error": {
-      "invalid_entity_id": "Enter a valid entity ID."
+      "invalid_entity_id": "Enter a valid entity ID.",
+      "invalid_image": "Use a /local/… path or an https URL."
     }
   }
 }

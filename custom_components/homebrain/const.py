@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .robots.config import ROBOT_BINDING_DOMAINS, ROBOT_BINDING_KEYS
+
 DOMAIN = "homebrain"
 HEALTH_BINDING_KEYS = (
     "health_source_status",
@@ -131,6 +133,8 @@ BINDING_MODULES = {
     # Recepty: kitchen tablet media session (HA Companion) + an optional airfryer.
     "recipes": RECIPES_BINDING_KEYS,
     "health": HEALTH_BINDING_KEYS,
+    # Roboti: up to 3 robot vacuums (robot1_vacuum, robot1_status, …); see robots/config.py.
+    "robots": ROBOT_BINDING_KEYS,
     # Shared family / school calendars (calendar.*); Dnes shows today's events on the ribbon.
     "family": ("family_calendar_family", "family_calendar_school"),
     # Station entities (e.g. Ecowitt) + the met.no weather entity; see weather/station.py.
@@ -175,6 +179,7 @@ BINDING_DOMAINS: dict[str, str | tuple[str, ...]] = {
     "energy_appliance_dishwasher_switch": "switch",
     "energy_appliance_coffee_maker_switch": "switch",
     "energy_appliance_dehumidifier_switch": "switch",
+    **ROBOT_BINDING_DOMAINS,
     # Main breaker rating is a constant: a helper (input_number/number) or a sensor.
     "energy_main_breaker": ("input_number", "number", "sensor"),
     # Cost inputs are input_number helpers (docs/requirements/energy.md); HDO = binary_sensor.
