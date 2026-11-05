@@ -6,6 +6,7 @@ import {
   Card,
   Chip,
   LiveStatus,
+  ProgressRing,
   SegmentedControl,
   Sheet,
   Stepper,
@@ -544,6 +545,32 @@ const specs: Spec[] = [
           { key: 'left', title: 'Levá dlaň', detail: 'volitelné', state: 'todo' },
         ]}
       />
+    ),
+  },
+  {
+    id: 'progress-ring',
+    name: 'ProgressRing',
+    summary: 'Kroužek průběhu / odpočtu živého zařízení (fritéza, minutky, hodnota signálu na Dnes).',
+    importName: 'ProgressRing',
+    states: ['accent', 'held (odpočet stojí)', 'ok (hotovo)', 'crit', 'muted'],
+    doText: 'value = hotový podíl 0–1; čas jako obsah uprostřed (HTML, tabulární číslice).',
+    dontText: 'Text uvnitř SVG; vlastní kopie kroužku v modulu.',
+    notes: 'Bez `label` je dekorativní (aria-hidden). Modul tónuje přes --hb-ring-ink.',
+    render: () => (
+      <div className="cat-row">
+        <ProgressRing value={0.55} size={112} thickness={8}>
+          <b>8:42</b>
+          <small>zbývá</small>
+        </ProgressRing>
+        <ProgressRing value={0.55} size={112} thickness={8} held tone="muted">
+          <b>8:42</b>
+          <small>stojí</small>
+        </ProgressRing>
+        <ProgressRing value={1} size={112} thickness={8} tone="ok">
+          ✓
+        </ProgressRing>
+        <ProgressRing value={0.3} size={56} />
+      </div>
     ),
   },
   {
