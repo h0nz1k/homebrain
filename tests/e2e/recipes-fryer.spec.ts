@@ -12,7 +12,7 @@ test('Recepty: fritéza peče – odpočet, teploty, pozastavit, zastavit s potv
   const card = page.getByTestId('recipes-fryer-live');
   await expect(card).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('recipes-fryer-state')).toHaveText('Peče');
-  await expect(card).toContainText('AutoCook 14 · fáze 2');
+  await expect(card).toContainText('Demo hranolky', { timeout: 10_000 });
   await expect(page.getByTestId('recipes-fryer-temp')).toContainText('189');
   await expect(page.getByTestId('recipes-fryer-temp')).toContainText('cíl 200 °C');
   // Local countdown between HA updates (8:42 at load, then ticks down).
@@ -36,11 +36,11 @@ test('Recepty: protřepat, šuplík venku, hotovo, chyba; vypnutá fritéza je s
   page,
 }) => {
   const cases: Array<[string, string]> = [
-    ['action', 'Protřepejte nebo otočte jídlo'],
+    ['action', 'Protřepejte jídlo'],
     ['drawer', 'Šuplík otevřený'],
     ['done', 'Hotovo'],
     ['warm', 'Udržuje teplé'],
-    ['error', 'Chyba 3'],
+    ['error', 'Fritéza hlásí chybu'],
     ['preheat', 'Předehřívá'],
   ];
   for (const [scenario, label] of cases) {

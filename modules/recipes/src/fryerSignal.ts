@@ -1,4 +1,6 @@
-import type { EntityStore } from '@homebrain/ha-client';
+import type { ConnectionLike, EntityStore } from '@homebrain/ha-client';
+import { getRecipesApi } from './api.js';
+import { cachedProgramName, resolveProgramName } from './fryerProgram.js';
 import type { Signal } from '@homebrain/signals';
 import {
   detectFryerEntities,
@@ -48,7 +50,11 @@ export const fryerHeld = (phase: FryerModel['phase']) =>
   phase === 'action' || phase === 'drawer' || phase === 'paused';
 
 /** Dnes signal while the fryer runs or needs someone; [] when off/idle. */
-export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
+export function fryerSignals(
+  model: FryerModel | null,
+  now: number,
+  programName?: string | null,
+): Signal[] {
   if (!model || !fryerVisible(model.phase)) return [];
   const urgent = fryerNeedsAction(model.phase);
   const held = fryerHeld(model.phase);
@@ -66,7 +72,7 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       : model.phase === 'drawer'
         ? 'Pečení stojí a čeká na vás.'
         : model.phase === 'cooking' || model.phase === 'preheat'
-          ? [temp, fryerProgramLine(model)].filter(Boolean).join(' · ')
+          ? [temp, fryerProgramLine(model, programName)].filter(Boolean).join(' · ')
           : (FRYER_HINT[model.phase] ?? '');
   return [
     {
@@ -82,7 +88,11 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       relevance: urgent ? 0.9 : 0.6,
       valid_from: new Date(now - 60_000).toISOString(),
       valid_to: new Date(now + 15 * 60_000).toISOString(),
-      title: `Fritéza · ${SIGNAL_TITLE[model.phase] ?? model.label}`,
+      title: `Fritéza · ${
+        model.phase === 'error'
+          ? `Chyba ${model.errorCode ?? ''}`.trim()
+          : (SIGNAL_TITLE[model.phase] ?? model.label)
+      }`,
       context,
       ...(left
         ? {
@@ -109,7 +119,11 @@ export interface FryerSignalFeed {
  * with the first HA update after the fryer starts and disappears when it is switched off.
  */
 export function recipesFryerTodaySignalSource(
-  context?: { store?: EntityStore; bindings?: Record<string, string> },
+  context?: {
+    store?: EntityStore;
+    bindings?: Record<string, string>;
+    connection?: ConnectionLike;
+  },
   options: { clock?: () => number } = {},
 ): FryerSignalFeed | null {
   const store = context?.store;
@@ -118,10 +132,20 @@ export function recipesFryerTodaySignalSource(
   return {
     subscribe: (cb) => {
       let last = '';
+      const asked = new Set<number>();
+      let closed = false;
       const emit = () => {
+        if (closed) return;
         const entities = detectFryerEntities(store.entityIds(), context?.bindings);
         const model = entities ? fryerModel(readFryerStates(store, entities), clock()) : null;
-        const signals = fryerSignals(model, clock());
+        const program = model?.program ?? null;
+        if (program && !cachedProgramName(program) && !asked.has(program)) {
+          asked.add(program);
+          void resolveProgramName(getRecipesApi(context?.connection), program).then(
+            (name) => name && emit(),
+          );
+        }
+        const signals = fryerSignals(model, clock(), cachedProgramName(program));
         const key = JSON.stringify(signals.map((s) => [s.title, s.context, s.value?.v]));
         if (key !== last) {
           last = key;
@@ -129,7 +153,11 @@ export function recipesFryerTodaySignalSource(
         }
       };
       emit();
-      return store.subscribeAll(emit);
+      const off = store.subscribeAll(emit);
+      return () => {
+        closed = true;
+        off();
+      };
     },
   };
 }

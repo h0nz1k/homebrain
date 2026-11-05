@@ -346,7 +346,7 @@ function Signal({
           {value.progress !== undefined && (
             <ProgressRing
               value={value.progress}
-              size={variant === 'mobile' ? 40 : variant ? 56 : 40}
+              size={value.held ? 28 : variant === 'mobile' ? 40 : variant ? 56 : 40}
               tone={value.held ? 'muted' : 'accent'}
               held={value.held}
               data-testid="signal-ring"

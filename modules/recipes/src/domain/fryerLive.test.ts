@@ -8,6 +8,8 @@ import {
   fryerPhase,
   fryerProgramLine,
   fryerRemaining,
+  fryerSeen,
+  fryerTimeline,
   fryerVisible,
   type FryerStates,
 } from './fryerLive.js';
@@ -113,9 +115,9 @@ describe('fryer countdown', () => {
     const m = fryerModel(states, t0);
     expect(m).toMatchObject({ phase: 'cooking', label: 'Peče', remainingS: 570 });
     expect(m.progress).toBeCloseTo(0.5, 5);
-    expect(fryerProgramLine(m)).toBe('AutoCook 14 · fáze 2');
+    expect(fryerProgramLine(m)).toBe('AutoCook 14');
     expect(fryerModel({ ...states, status: st('finish') }, t0).progress).toBe(1);
-    expect(fryerModel({ ...states, error: st('3') }, t0).label).toBe('Chyba 3');
+    expect(fryerModel({ ...states, error: st('3') }, t0)).toMatchObject({ label: 'Fritéza hlásí chybu', errorCode: 3 });
   });
 });
 
@@ -154,5 +156,54 @@ describe('fryer Dnes signal', () => {
     off();
     expect(seen).toEqual([[], ['Fritéza · Hotovo']]);
     expect(recipesFryerTodaySignalSource({})).toBeNull();
+  });
+});
+
+describe('fryer timeline', () => {
+  it('shows only phases that happened and tracks the shake', () => {
+    const titles = (steps: Array<{ title: string; state: string }>) =>
+      steps.map((s) => `${s.title}:${s.state}`);
+    expect(titles(fryerTimeline('cooking', []))).toEqual(['Pečení:active', 'Hotovo:todo']);
+    let seen = fryerSeen([], 'preheat');
+    expect(titles(fryerTimeline('preheat', seen))).toEqual([
+      'Předehřátí:active',
+      'Pečení:todo',
+      'Hotovo:todo',
+    ]);
+    seen = fryerSeen(fryerSeen(seen, 'cooking'), 'action');
+    expect(titles(fryerTimeline('action', seen))).toEqual([
+      'Předehřátí:done',
+      'Pečení:done',
+      'Protřepat:active',
+      'Hotovo:todo',
+    ]);
+    expect(titles(fryerTimeline('cooking', seen))).toEqual([
+      'Předehřátí:done',
+      'Pečení:done',
+      'Protřepat:done',
+      'Dopékání:active',
+      'Hotovo:todo',
+    ]);
+    expect(fryerTimeline('done', seen).every((s) => s.state === 'done')).toBe(true);
+    expect(fryerSeen(seen, 'off')).toEqual([]);
+  });
+  it('keeps a stopped countdown secondary on Dnes and names the program', () => {
+    const now = Date.parse('2026-06-02T17:07:00Z');
+    const states = {
+      status: st('user_action'),
+      drawer: st('off'),
+      remaining: st('522'),
+      total: st('19'),
+      program: st('14'),
+      method: st('auto_cook'),
+    };
+    const [held] = fryerSignals(fryerModel(states, now), now);
+    expect(held!.value).toMatchObject({ v: '8:42', label: 'stojí', held: true });
+    const cooking = fryerModel({ ...states, status: st('cooking') }, now);
+    expect(fryerProgramLine(cooking)).toBe('AutoCook 14');
+    expect(fryerProgramLine(cooking, 'Demo hranolky')).toBe('Demo hranolky');
+    const [cook] = fryerSignals(cooking, now, 'Demo hranolky');
+    expect(cook!.context).toContain('Demo hranolky');
+    expect(cook!.value?.progress).toBeCloseTo(1 - 522 / (19 * 60), 3);
   });
 });

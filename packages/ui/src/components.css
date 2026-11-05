@@ -1993,7 +1993,31 @@ button.hb-tile[data-empty] .hb-tile-status {
   display: block;
 }
 .hb-signal.hb-signal .hb-signal-value[data-held] strong {
-  font-size: var(--hb-font-xl);
-  font-weight: 400;
+  font-weight: 500;
+  color: var(--hb-t2);
+}
+
+/* Phones: a ringed value gets its own row under the copy, so the title keeps the full width. */
+.hb-hero[data-variant='mobile'] .hb-signal-value[data-ring],
+.hb-signal-compact .hb-signal-value[data-ring] {
+  flex-basis: 100%;
+  text-align: left;
+}
+.hb-hero[data-variant='mobile'] .hb-signal-value[data-ring] strong {
+  font-size: 32px;
+}
+.hb-signal-value[data-ring] .hb-signal-value-t > span {
+  display: block;
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] .hb-signal-value-t {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hb-sp-2);
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] strong {
+  font-size: var(--hb-font-lg);
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] .hb-signal-value-t > span {
+  font-size: var(--hb-font-body);
   color: var(--hb-t2);
 }

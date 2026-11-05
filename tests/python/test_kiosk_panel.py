@@ -85,6 +85,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/recipes/airfryer": {"temperature": 180, "minutes": 5},
     # No fryer in the test HA: NOT_CONFIGURED; stop is never confirmed here.
     "homebrain/recipes/airfryer_control": {"action": "stop"},
+    "homebrain/recipes/airfryer_program": {"program": 1},
 }
 
 

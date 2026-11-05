@@ -45,6 +45,8 @@ export interface RecipesApi {
   airfryer(request: AirfryerRequest): Promise<{ started: boolean; minutes: number }>;
   /** Live card: pause / stop (needs `confirmed`) / keep warm a running fryer. Never starts it. */
   airfryerControl(action: FryerControl, confirmed?: boolean): Promise<void>;
+  /** AutoCook program name from the fryer integration; null when unknown. */
+  airfryerProgram?(program: number): Promise<string | null>;
 }
 
 function wsCall<T>(
@@ -125,6 +127,9 @@ export function createWsRecipesApi(connection: ConnectionLike): RecipesApi {
     airfryerControl: async (action, confirmed = false) => {
       await wsCall(connection, 'airfryer_control', { action, confirmed });
     },
+    airfryerProgram: async (program) =>
+      (await wsCall<{ name: string | null }>(connection, 'airfryer_program', { program })).name ??
+      null,
   };
 }
 
@@ -362,6 +367,10 @@ export function createMockRecipesApi(
     async airfryerControl(action, confirmed = false) {
       if (action === 'stop' && !confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
       log.push({ kind: 'airfryer_control', payload: { action } });
+    },
+    async airfryerProgram(program) {
+      // Synthetic dev names only – the vendor catalogue is never part of the repo.
+      return program === 14 ? 'Demo hranolky' : null;
     },
   };
 }

@@ -270,16 +270,13 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl[data-phase='paused'] h2 { color:var(--hb-t2); }
 .rc-fl-hint { margin:0; font-size:15px; color:var(--hb-t2); line-height:1.45; max-width:62ch; }
 .rc-fl[data-instruction] .rc-fl-hint { font-size:16px; color:var(--hb-t1); }
-.rc-fl-held { display:inline-flex; align-items:center; gap:8px; margin:2px 0 0; padding:6px 12px 6px 10px; border-radius:999px; background:var(--hb-fill-strong); color:var(--hb-t2); font-size:14px; }
-.rc-fl-held b { color:var(--hb-t1); font-weight:650; }
-.rc-fl-held svg.rc-i { width:16px; height:16px; flex:none; }
 .rc-fl-glyph { position:relative; display:grid; place-items:center; width:128px; height:128px; border-radius:36px; color:var(--rc-fl-ink); background:color-mix(in srgb, var(--rc-fl-tone) 16%, transparent); }
 .rc-fl-glyph svg.rc-i { width:68px; height:68px; stroke-width:1.7; transform-origin:50% 75%; }
 .rc-fl-glyph::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:0 0 0 2px var(--rc-fl-tone); opacity:0; }
 .rc-fl[data-phase='action'] .rc-fl-glyph svg.rc-i { animation:rc-fl-shake 2.4s var(--hb-ease-out, ease-out) infinite; }
 .rc-fl[data-phase='action'] .rc-fl-glyph::after, .rc-fl[data-phase='drawer'] .rc-fl-glyph::after { animation:rc-fl-pulse 2.4s ease-out infinite; }
 @keyframes rc-fl-shake { 0%, 46%, 100% { transform:rotate(0); } 8% { transform:rotate(-9deg); } 18% { transform:rotate(8deg); } 28% { transform:rotate(-5deg); } 38% { transform:rotate(3deg); } }
-@keyframes rc-fl-pulse { 0% { opacity:.6; transform:scale(1); } 70%, 100% { opacity:0; transform:scale(1.16); } }
+@keyframes rc-fl-pulse { 0% { opacity:.55; transform:scale(1); } 70%, 100% { opacity:0; transform:scale(1.09); } }
 .rc-fl-temp { display:flex; align-items:center; gap:10px; font-size:15px; margin-top:2px; }
 .rc-fl-temp svg.rc-i { width:18px; height:18px; color:var(--hb-t2); }
 .rc-fl-temp b { font-size:18px; font-weight:650; }
@@ -291,15 +288,21 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl-actions { grid-area:act; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; padding-top:12px; border-top:1px solid var(--hb-edge); }
 .rc-fl-note { font-size:14px; font-weight:550; color:var(--hb-t2); font-variant-numeric:tabular-nums; }
 .rc-fl-btns { display:flex; flex-wrap:wrap; gap:10px; margin-left:auto; }
-.rc-fl .hb-btn.rc-fl-stop { color:var(--hb-crit); }
+.rc-fl .hb-btn.rc-fl-stop { color:var(--hb-t2); }
+.rc-fl-heldnote { display:inline-flex; align-items:center; gap:8px; padding:6px 12px 6px 10px; border-radius:999px; background:var(--hb-fill-strong); }
+.rc-fl-heldnote b { color:var(--hb-t1); font-weight:650; }
+.rc-fl-heldnote svg.rc-i { width:16px; height:16px; flex:none; }
+.rc-fl-code { display:inline-flex; padding:4px 10px; border-radius:999px; font-size:13px; font-weight:600; color:var(--hb-crit); background:color-mix(in srgb, var(--hb-crit) 12%, transparent); font-variant-numeric:tabular-nums; }
+.rc-fl[data-phase='paused'] .rc-fl-bar i { background:var(--hb-t3); }
+.rc-fl[data-phase='paused'] .rc-fl-steps .hb-step { filter:saturate(0); }
 @media (max-width: 640px) {
   .rc-fl { margin:4px 16px 14px; padding:16px 16px 12px; grid-template-columns:88px minmax(0,1fr); grid-template-areas:none; column-gap:16px; row-gap:10px; }
-  .rc-fl-vis { grid-column:1; grid-row:1 / span 2; }
+  .rc-fl-vis { grid-area:auto; grid-column:1; grid-row:1 / span 2; }
   .rc-fl-copy { display:contents; }
   .rc-fl-kicker { grid-column:2; grid-row:1; align-self:end; font-size:13px; }
   .rc-fl h2 { grid-column:2; grid-row:2; align-self:start; font-size:21px; }
   .rc-fl[data-instruction] h2 { font-size:24px; }
-  .rc-fl-copy > :not(.rc-fl-kicker):not(h2), .rc-fl-actions { grid-column:1 / -1; }
+  .rc-fl-copy > :not(.rc-fl-kicker):not(h2), .rc-fl-actions { grid-area:auto; grid-column:1 / -1; }
   .rc-fl .rc-fl-ring { --hb-ring-size:88px !important; }
   .rc-fl .rc-fl-ring .hb-ring-c small { font-size:11px; }
   .rc-fl-time { font-size:20px; }

@@ -107,7 +107,7 @@ export const FRYER_PHASE_LABEL: Record<FryerPhase, string> = {
   paused: 'Pozastaveno',
   done: 'Hotovo',
   warm: 'Udržuje teplé',
-  error: 'Chyba',
+  error: 'Fritéza hlásí chybu',
 };
 
 const UNKNOWN = new Set(['unknown', 'unavailable', '']);
@@ -230,7 +230,7 @@ export function fryerModel(states: FryerStates, now: number): FryerModel {
   const errorCode = fryerErrorCode(states.error);
   return {
     phase,
-    label: errorCode !== null ? `Chyba ${errorCode}` : FRYER_PHASE_LABEL[phase],
+    label: FRYER_PHASE_LABEL[phase],
     remainingS,
     progress: phase === 'done' ? 1 : fryerProgress(remainingS, num(states.total)),
     currentTemp: num(states.currentTemp),
@@ -242,14 +242,16 @@ export function fryerModel(states: FryerStates, now: number): FryerModel {
   };
 }
 
-/** Short program line: „AutoCook 14 · fáze 2“. */
-export function fryerProgramLine(m: FryerModel): string {
-  const parts: string[] = [];
-  if (m.method)
-    parts.push(m.method === 'AutoCook' && m.program ? `AutoCook ${m.program}` : m.method);
-  else if (m.program) parts.push(`Program ${m.program}`);
-  if (m.stage) parts.push(`fáze ${m.stage}`);
-  return parts.join(' · ');
+/**
+ * Short program line: AutoCook name when the integration knows it („Hranolky“), else
+ * „AutoCook 14“. The device stage number is not shown (its meaning differs per program).
+ */
+export function fryerProgramLine(m: FryerModel, programName?: string | null): string {
+  if (m.method === 'AutoCook' || (!m.method && m.program)) {
+    if (programName) return programName;
+    return m.program ? `AutoCook ${m.program}` : (m.method ?? '');
+  }
+  return m.method ?? '';
 }
 
 export type FryerStepKey = 'preheat' | 'cook' | 'shake' | 'finish' | 'done';

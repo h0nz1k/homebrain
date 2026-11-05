@@ -18,6 +18,7 @@ import {
   type FryerPhase,
 } from '../domain/fryerLive.js';
 import { FRYER_HINT, fryerHeld, readFryerStates } from '../fryerSignal.js';
+import { cachedProgramName, resolveProgramName } from '../fryerProgram.js';
 import { Icon } from './parts.js';
 
 const CONTROL_LABEL: Record<FryerControl, string> = {
@@ -95,6 +96,17 @@ export function FryerLiveCard({
   const phase = fryerPhase(states);
   const ticking = phase === 'cooking' || phase === 'preheat';
   const now = useNow(ticking);
+  const programId = Number(states.program?.state) || null;
+  const [programName, setProgramName] = useState(() => cachedProgramName(programId));
+  useEffect(() => {
+    let live = true;
+    void resolveProgramName(api, programId).then((name) => {
+      if (live) setProgramName(name);
+    });
+    return () => {
+      live = false;
+    };
+  }, [api, programId]);
   const [confirmStop, setConfirmStop] = useState(false);
   const [busy, setBusy] = useState<FryerControl | null>(null);
   // Phases seen during this cook (stored from the previous render, React's derived-state pattern).
@@ -121,7 +133,7 @@ export function FryerLiveCard({
       })
       .finally(() => setBusy(null));
   };
-  const program = fryerProgramLine(m);
+  const program = fryerProgramLine(m, programName);
   const countdown = m.remainingS !== null ? formatCountdown(m.remainingS) : null;
   const eta = fryerEta(m, now);
   const finished = m.phase === 'done' || m.phase === 'warm';
@@ -154,21 +166,23 @@ export function FryerLiveCard({
       )}
     </ProgressRing>
   );
-  const note = instruction
-    ? m.phase === 'error'
-      ? `Kód ${m.errorCode ?? '?'}`
-      : countdown
-        ? null
-        : 'Odpočet stojí'
-    : m.phase === 'paused'
-      ? 'Pokračovat lze na fritéze'
-      : finished
-        ? m.phase === 'warm'
-          ? 'Udržuje teplé'
-          : 'Hotovo'
-        : eta
-          ? `Hotovo v ${eta}`
-          : null;
+  // Left side of the action row: the stopped countdown / ETA / how to resume – never a lone button.
+  const note =
+    (m.phase === 'action' || m.phase === 'drawer') && countdown ? (
+      <span className="rc-fl-note rc-fl-heldnote" data-testid="recipes-fryer-held">
+        <Icon name="pause" />
+        <span>
+          Odpočet stojí na{' '}
+          <b className="num" data-testid="recipes-fryer-countdown">
+            {countdown}
+          </b>
+        </span>
+      </span>
+    ) : m.phase === 'paused' ? (
+      <span className="rc-fl-note">{FRYER_HINT.paused}</span>
+    ) : eta ? (
+      <span className="rc-fl-note">Hotovo v {eta}</span>
+    ) : null;
   const primary = controls.filter((c) => c !== 'stop');
   const hasStop = controls.includes('stop');
   return (
@@ -189,18 +203,13 @@ export function FryerLiveCard({
         <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
           {m.label}
         </h2>
-        {FRYER_HINT[m.phase] ? <p className="rc-fl-hint">{FRYER_HINT[m.phase]}</p> : null}
-        {instruction && countdown ? (
-          <p className="rc-fl-held" data-testid="recipes-fryer-held">
-            <Icon name="pause" />
-            <span>
-              Odpočet stojí na{' '}
-              <b className="num" data-testid="recipes-fryer-countdown">
-                {countdown}
-              </b>{' '}
-              a čeká na vás
-            </span>
-          </p>
+        {FRYER_HINT[m.phase] && m.phase !== 'paused' ? (
+          <p className="rc-fl-hint">{FRYER_HINT[m.phase]}</p>
+        ) : null}
+        {m.phase === 'error' ? (
+          <span className="rc-fl-code" data-testid="recipes-fryer-code">
+            Kód chyby {m.errorCode ?? '?'}
+          </span>
         ) : null}
         {m.currentTemp !== null && !finished && m.phase !== 'error' ? (
           <div className="rc-fl-temp" data-testid="recipes-fryer-temp">
@@ -228,9 +237,9 @@ export function FryerLiveCard({
           </div>
         ) : null}
       </div>
-      {controls.length || note ? (
+      {controls.length ? (
         <div className="rc-fl-actions" data-testid="recipes-fryer-actions">
-          {note ? <span className="rc-fl-note">{note}</span> : <span />}
+          {note ?? <span />}
           <span className="rc-fl-btns">
             {hasStop ? (
               <Button

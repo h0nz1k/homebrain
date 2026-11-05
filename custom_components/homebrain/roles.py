@@ -116,7 +116,11 @@ RECIPES_USER_WS_COMMANDS: Final = frozenset(
 )
 # Device control (airfryer) is not for children.
 RECIPES_DEVICE_WS_COMMANDS: Final = frozenset(
-    {"homebrain/recipes/airfryer", "homebrain/recipes/airfryer_control"}
+    {
+        "homebrain/recipes/airfryer",
+        "homebrain/recipes/airfryer_control",
+        "homebrain/recipes/airfryer_program",
+    }
 )
 RECIPES_DEVICE_ROLES: Final = frozenset({"owner", "adult", "kiosk"})
 
