@@ -57,7 +57,7 @@ export function timerSignals(timers: Timer[], now: number): Signal[] {
         : `${first.status === 'paused' ? 'Minutka v pauze' : 'Minutka'} · ${first.label}`,
       context,
       value: ringing
-        ? { v: 'Hotovo', label: 'doběhla' }
+        ? { v: 'Hotovo' }
         : {
             v: clock(first.remainingMs),
             label: first.status === 'paused' ? 'pauza' : 'zbývá',

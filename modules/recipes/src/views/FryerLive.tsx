@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useBackClosable, type EntityStore } from '@homebrain/ha-client';
 import { Button, ProgressRing, Sheet, Stepper, toast } from '@homebrain/ui';
 import { RecipesApiError, type RecipesApi } from '../api.js';
@@ -140,38 +140,62 @@ export function FryerLiveCard({
   const eta = fryerEta(m, now);
   const finished = m.phase === 'done' || m.phase === 'warm';
   const steps = fryerTimeline(m.phase, seen);
-  // Shake / drawer / error: the instruction is the hero, the (stopped) countdown a side note.
-  const instruction = m.phase === 'action' || m.phase === 'drawer' || m.phase === 'error';
-  const visual = instruction ? (
+  const isError = m.phase === 'error';
+  // Shake / drawer: the instruction is the hero, the (stopped) countdown a plain-text side note.
+  const instruction = m.phase === 'action' || m.phase === 'drawer';
+  // One muted line under the title; joined here so no separator is ever left dangling.
+  const meta = ['Fritéza', program, m.amount ? `Zaplnění ${m.amount}/7` : null]
+    .filter(Boolean)
+    .join(' · ');
+  const visual = isError ? null : instruction ? (
     <span className="rc-fl-glyph" aria-hidden="true">
-      <Icon name={m.phase === 'error' ? 'alert' : m.phase === 'drawer' ? 'drawer' : 'shake'} />
+      <Icon name={m.phase === 'drawer' ? 'drawer' : 'shake'} />
     </span>
   ) : (
-    <ProgressRing
-      className="rc-fl-ring"
-      value={m.progress ?? 0}
-      size={136}
-      thickness={9}
-      tone={finished ? 'ok' : held ? 'muted' : 'accent'}
-      held={held}
-      data-testid="recipes-fryer-ring"
-    >
-      {finished ? (
-        <Icon name="check" />
-      ) : (
-        <>
-          <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
-            {countdown ?? '–'}
-          </span>
-          <small>{held ? 'stojí' : 'zbývá'}</small>
-        </>
-      )}
-    </ProgressRing>
+    <span className="rc-fl-ringwrap">
+      <ProgressRing
+        className="rc-fl-ring"
+        value={m.progress ?? 0}
+        size={136}
+        thickness={9}
+        tone={finished ? 'ok' : held ? 'warn' : 'accent'}
+        held={held}
+        data-testid="recipes-fryer-ring"
+      >
+        {finished ? (
+          <Icon name="check" />
+        ) : (
+          <>
+            <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
+              {countdown ?? '–'}
+            </span>
+            <small>{held ? 'stojí' : 'zbývá'}</small>
+          </>
+        )}
+      </ProgressRing>
+      {m.phase === 'paused' ? (
+        <span className="rc-fl-badge" aria-hidden="true" data-testid="recipes-fryer-paused-badge">
+          <Icon name="pause" />
+        </span>
+      ) : null}
+    </span>
   );
-  // Left side of the action row: the stopped countdown / ETA / how to resume – never a lone button.
-  const note =
-    (m.phase === 'action' || m.phase === 'drawer') && countdown ? (
-      <span className="rc-fl-note rc-fl-heldnote" data-testid="recipes-fryer-held">
+  // Plain-text facts: temperature, ETA, stopped countdown (never pill/button-like).
+  const facts: ReactNode[] = [];
+  if (m.currentTemp !== null && !finished && !isError) {
+    facts.push(
+      <span className="rc-fl-fact num" key="t" data-testid="recipes-fryer-temp">
+        <Icon name="thermo" />
+        <span className="rc-fl-nw">
+          <b>{Math.round(m.currentTemp)}</b>
+          {m.targetTemp ? <> / {Math.round(m.targetTemp)}</> : null}&nbsp;°C
+        </span>
+      </span>,
+    );
+  }
+  if (instruction && countdown) {
+    facts.push(
+      <span className="rc-fl-fact" key="h" data-testid="recipes-fryer-held">
         <Icon name="pause" />
         <span>
           Odpočet stojí na{' '}
@@ -179,16 +203,33 @@ export function FryerLiveCard({
             {countdown}
           </b>
         </span>
-      </span>
-    ) : m.phase === 'error' ? (
-      <span className="rc-fl-note rc-fl-code" data-testid="recipes-fryer-code">
-        Kód chyby: {m.errorCode ?? '?'}
-      </span>
-    ) : m.phase === 'paused' ? (
-      <span className="rc-fl-note">{FRYER_HINT.paused}</span>
-    ) : eta ? (
-      <span className="rc-fl-note">Hotovo v {eta}</span>
-    ) : null;
+      </span>,
+    );
+  } else if (eta && !held) {
+    facts.push(
+      <span className="rc-fl-fact" key="e">
+        <Icon name="clock" />
+        <span>
+          Hotovo v <b className="num">{eta}</b>
+        </span>
+      </span>,
+    );
+  }
+  // Paused / shake / drawer / error: resume happens on the device, so guidance text, no fake primary.
+  const guidance =
+    m.phase === 'paused'
+      ? FRYER_HINT.paused
+      : instruction
+        ? 'Po vrácení šuplíku fritéza pokračuje sama.'
+        : null;
+  const hint =
+    m.phase === 'action'
+      ? 'Vytáhněte koš a protřepejte nebo otočte jídlo.'
+      : m.phase === 'drawer'
+        ? 'Po protřepání koš zasuňte zpět.'
+        : m.phase === 'paused'
+          ? null
+          : FRYER_HINT[m.phase];
   const primary = controls.filter((c) => c !== 'stop');
   const hasStop = controls.includes('stop');
   return (
@@ -201,69 +242,53 @@ export function FryerLiveCard({
         aria-label="Fritéza"
         data-testid="recipes-fryer-live"
       >
-        <div className="rc-fl-vis">{visual}</div>
-        <div className="rc-fl-copy">
-          <span className="rc-fl-kicker">
-            <Icon name="fryer" /> Fritéza
-            {program ? <span className="rc-fl-prog">{program}</span> : null}
-            {m.amount ? <span className="rc-fl-amount">Zaplnění {m.amount}/7</span> : null}
-          </span>
-          <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
-            {m.label}
-          </h2>
-          {FRYER_HINT[m.phase] && m.phase !== 'paused' ? (
-            <p className="rc-fl-hint">{FRYER_HINT[m.phase]}</p>
-          ) : null}
-          {m.currentTemp !== null && !finished && m.phase !== 'error' ? (
-            <div className="rc-fl-temp" data-testid="recipes-fryer-temp">
-              <Icon name="thermo" />
-              <span className="num rc-fl-nw">
-                <b>{Math.round(m.currentTemp)}</b>&nbsp;°C
-              </span>
-              {m.targetTemp ? (
-                <>
-                  <span className="rc-fl-bar" aria-hidden="true">
-                    <i
-                      style={{
-                        width: `${Math.max(4, Math.min(100, (m.currentTemp / m.targetTemp) * 100))}%`,
-                      }}
-                    />
-                  </span>
-                  <span className="num t2 rc-fl-nw">
-                    cíl&nbsp;{Math.round(m.targetTemp)}&nbsp;°C
-                  </span>
-                </>
-              ) : null}
+        {isError ? (
+          <div className="rc-fl-band" data-testid="recipes-fryer-band">
+            <Icon name="alert" />
+            <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
+              {m.label}
+            </h2>
+            <span className="rc-fl-code num" data-testid="recipes-fryer-code">
+              Kód {m.errorCode ?? '?'}
+            </span>
+          </div>
+        ) : null}
+        {visual ? <div className="rc-fl-vis">{visual}</div> : null}
+        <div className="rc-fl-main">
+          {isError ? (
+            <p className="rc-fl-meta">{meta}</p>
+          ) : (
+            <div className="rc-fl-head">
+              <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
+                {m.label}
+              </h2>
+              <p className="rc-fl-meta" title={meta} data-testid="recipes-fryer-meta">
+                {meta}
+              </p>
             </div>
-          ) : null}
-          {m.phase !== 'error' && steps.length > 1 ? (
-            <div className="rc-fl-steps">
-              <Stepper steps={steps} compact label="Průběh pečení" />
-            </div>
-          ) : null}
-        </div>
-        {controls.length ? (
-          <div className="rc-fl-actions" data-testid="recipes-fryer-actions">
-            {note ?? <span />}
-            <span className="rc-fl-btns">
-              {hasStop ? (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  className="rc-fl-stop"
-                  loading={busy === 'stop'}
-                  disabled={busy !== null}
-                  data-testid="recipes-fryer-stop"
-                  onClick={() => setConfirmStop(true)}
-                >
-                  {finished ? 'Ukončit' : CONTROL_LABEL.stop}
-                </Button>
+          )}
+          <div className="rc-fl-body">
+            {hint ? <p className="rc-fl-hint">{hint}</p> : null}
+            {facts.length ? <div className="rc-fl-facts">{facts}</div> : null}
+            {!isError && steps.length > 1 && !finished ? (
+              <div className="rc-fl-steps">
+                <Stepper steps={steps} compact label="Průběh pečení" />
+              </div>
+            ) : null}
+          </div>
+          {controls.length || guidance ? (
+            <div className="rc-fl-actions" data-testid="recipes-fryer-actions">
+              {guidance ? (
+                <p className="rc-fl-guide" data-testid="recipes-fryer-guide">
+                  <Icon name="fryer" />
+                  <span>{guidance}</span>
+                </p>
               ) : null}
               {primary.map((c) => (
                 <Button
                   key={c}
                   size="md"
-                  variant={c === 'keep_warm' ? 'primary' : 'secondary'}
+                  variant="primary"
                   icon={c === 'pause' ? <Icon name="pause" /> : undefined}
                   loading={busy === c}
                   disabled={busy !== null}
@@ -273,9 +298,23 @@ export function FryerLiveCard({
                   {CONTROL_LABEL[c]}
                 </Button>
               ))}
-            </span>
-          </div>
-        ) : null}
+              {hasStop ? (
+                <Button
+                  size="sm"
+                  variant={finished ? 'secondary' : 'ghost'}
+                  className="rc-fl-stop"
+                  data-tone={finished ? undefined : 'danger'}
+                  loading={busy === 'stop'}
+                  disabled={busy !== null}
+                  data-testid="recipes-fryer-stop"
+                  onClick={() => setConfirmStop(true)}
+                >
+                  {finished ? 'Ukončit' : CONTROL_LABEL.stop}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </section>
       {/* Outside the card: its isolation would trap the sheet under the recipe grid. */}
       {confirmStop ? (

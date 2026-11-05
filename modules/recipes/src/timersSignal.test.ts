@@ -52,7 +52,7 @@ describe('timerSignals (Dnes)', () => {
     const s = timerSignals([t({ endsAt: NOW - 1000 })], NOW)[0]!;
     expect(s.title).toBe('Minutka doběhla · Vejce M naměkko (2 ks)');
     expect(s.severity).toBe('warning');
-    expect(s.value).toEqual({ v: 'Hotovo', label: 'doběhla' });
+    expect(s.value).toEqual({ v: 'Hotovo' });
   });
 });
 

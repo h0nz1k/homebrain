@@ -202,6 +202,10 @@ describe('fryer timeline', () => {
     };
     const [held] = fryerSignals(fryerModel(states, now), now);
     expect(held!.value).toMatchObject({ v: '8:42', label: 'stojí', held: true });
+    // An error is not a running countdown: no ring/time on the Dnes card.
+    const [err] = fryerSignals(fryerModel({ ...states, error: st('3') }, now), now);
+    expect(err!.title).toBe('Fritéza · Chyba 3');
+    expect(err!.value).toBeUndefined();
     const cooking = fryerModel({ ...states, status: st('cooking') }, now);
     expect(fryerProgramLine(cooking)).toBe('AutoCook 14');
     expect(fryerProgramLine(cooking, 'Demo hranolky')).toBe('Demo hranolky');

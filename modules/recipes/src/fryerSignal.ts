@@ -61,7 +61,10 @@ export function fryerSignals(
   const urgent = fryerNeedsAction(model.phase);
   const held = fryerHeld(model.phase);
   const left =
-    model.remainingS !== null && model.phase !== 'done' && model.phase !== 'warm'
+    model.remainingS !== null &&
+    model.phase !== 'done' &&
+    model.phase !== 'warm' &&
+    model.phase !== 'error'
       ? formatCountdown(model.remainingS)
       : null;
   const temp =
