@@ -158,6 +158,8 @@ export interface MockAccessOptions {
   latencyMs?: number;
   /** Delay before a simulated enrolment result. */
   enrollMs?: number;
+  /** Emit biolock-firmware#9 live progress (`enroll_progress`) during simulated enrolments. */
+  progress?: boolean;
   /** Reasons for the next enrolments to fail with (consumed one by one). */
   failNext?: string[];
   /** Switch/select commands are forwarded here (dev: updates the fake HA states). */
@@ -204,6 +206,7 @@ export function createMockAccessApi(options: MockAccessOptions = {}): MockAccess
   const pushMeta = () =>
     emit({ event: 'meta', labels: structuredClone(labels), ...structuredClone(meta) });
   const listeners = new Set<(e: AccessEvent) => void>();
+  let requestNo = 0;
   const failNext = [...(options.failNext ?? [])];
   const log = options.log ?? [];
   const wait = (ms = options.latencyMs ?? 120) => new Promise((r) => setTimeout(r, ms));
@@ -332,8 +335,51 @@ export function createMockAccessApi(options: MockAccessOptions = {}): MockAccess
         case 'enroll_palm': {
           const type: Modality = action === 'enroll_face' ? 'face' : 'palm';
           const name = String(data.name ?? '');
+          const ms = options.enrollMs ?? 900;
+          const reason = !service
+            ? options.progress
+              ? 'service_mode_off'
+              : 'service_mode_required'
+            : failNext.shift();
+          if (options.progress) {
+            const rid = `a1b2-${++requestNo}`;
+            const window = Number(data.timeout_s ?? 30);
+            const seq: Array<[number, string, string?]> = reason
+              ? [
+                  [0, 'armed'],
+                  [0.6, 'failed', reason],
+                ]
+              : [
+                  [0, 'armed'],
+                  [0.15, 'waiting_presence'],
+                  [0.35, 'detected', type === 'face' ? 'too_far' : 'show_palm'],
+                  [0.6, 'capturing', 'hold_still'],
+                  [0.85, 'saving'],
+                  [1, 'done'],
+                ];
+            for (const [f, state, hint] of seq)
+              setTimeout(
+                () =>
+                  emit({
+                    event: 'enroll_progress',
+                    time: new Date().toISOString(),
+                    data: {
+                      request_id: rid,
+                      modality: type,
+                      state,
+                      name,
+                      remaining_s:
+                        state === 'failed' || state === 'done'
+                          ? 0
+                          : Math.round(window * (1 - f / 4)),
+                      ...(hint ? { hint } : {}),
+                      ...(state === 'failed' ? { reason } : {}),
+                    },
+                  }),
+                Math.round(ms * f),
+              );
+          }
           setTimeout(() => {
-            const reason = !service ? 'service_mode_required' : failNext.shift();
             if (reason) {
               emit({
                 event: 'enrolled',
@@ -356,7 +402,7 @@ export function createMockAccessApi(options: MockAccessOptions = {}): MockAccess
               time: new Date().toISOString(),
               data: { ok: true, user_id: id, type, name, reason: '' },
             });
-          }, options.enrollMs ?? 900);
+          }, ms);
           return;
         }
         case 'cancel_enroll':

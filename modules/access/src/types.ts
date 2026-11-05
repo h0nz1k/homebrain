@@ -1,3 +1,4 @@
+import type { EnrollProgressData } from './progress.js';
 export type Modality = 'face' | 'palm';
 export type Hand = 'right' | 'left';
 
@@ -66,10 +67,13 @@ export interface AccessState extends AccessMeta {
   incomplete: boolean;
   history: HistoryItem[];
   entities?: Record<string, string>;
+  /** Last `esphome.biolock_enroll_progress` seen by the integration (biolock-firmware#9). */
+  progress?: { time: string; data: EnrollProgressData } | null;
 }
 export type AccessEvent =
   | { event: 'users'; users: SensorUser[]; listed_at: string; incomplete: boolean }
   | ({ event: 'meta' } & AccessMeta)
+  | { event: 'enroll_progress'; time: string; data: EnrollProgressData }
   | {
       event: 'recognized' | 'rejected' | 'enrolled' | 'deleted' | 'enroll_retry' | 'lockout';
       time: string;

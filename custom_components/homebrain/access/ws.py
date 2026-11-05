@@ -2,7 +2,8 @@
 
 Talks to the ESPHome device ``biolock`` (BioLock firmware, ``esphome/common.yaml``)
 through its HA actions ``esphome.biolock_*`` and listens to its events
-``esphome.biolock_{users,enrolled,enroll_retry,deleted,recognized,rejected,audit}``. Only a fixed
+``esphome.biolock_{users,enrolled,enroll_retry,enroll_progress,deleted,recognized,rejected,audit}``.
+Only a fixed
 allowlist of actions/entities can be reached from the panel.
 
 The manager keeps the user list in sync with enrolments/deletions made OUTSIDE the panel (HA
@@ -32,7 +33,18 @@ from .store import AccessError, LabelStore, UserListAssembler, fold, modality, p
 
 DEVICE = "biolock"
 EVENT_PREFIX = f"esphome.{DEVICE}_"
-EVENT_KINDS = ("users", "enrolled", "enroll_retry", "deleted", "recognized", "rejected", "audit")
+EVENT_KINDS = (
+    "users",
+    "enrolled",
+    "enroll_retry",
+    "enroll_progress",
+    "deleted",
+    "recognized",
+    "rejected",
+    "audit",
+)
+# biolock-firmware#9: real-time enrolment progress (≤4/s). Forwarded live, never stored in Historie.
+PROGRESS_KEYS = ("request_id", "modality", "state", "hint", "text", "name", "reason", "ts")
 # Access log (Historie): recognitions + enrolment results + deletions + lockouts (audit action).
 HISTORY_KINDS = ("recognized", "rejected", "enrolled", "deleted", "lockout")
 HISTORY_MAX = 50  # shown in the panel
@@ -45,6 +57,10 @@ ENTITIES = {
     "biometric": "switch.biolock_biometricke_odemykani",
     "service_mode": "switch.biolock_servisni_rezim",
     "recognition_action": "select.biolock_akce_pri_rozpoznani",
+    # biolock-firmware#9 enrolment progress entities (older firmware: missing → panel ignores)
+    "enrollProgress": "sensor.biolock_prubeh_zapisu",
+    "enrollHint": "sensor.biolock_napoveda_zapisu",
+    "enrollRemaining": "sensor.biolock_zapis_zbyva",
 }
 RECOGNITION_OPTIONS = ("Odemknout", "Otevřít západku")
 NAME = vol.All(str, vol.Strip, vol.Length(min=1, max=20))
@@ -76,6 +92,16 @@ ACTIONS: dict[str, vol.Schema] = {
 def labels_path(hass: HomeAssistant) -> Path:
     """Labels live in /config/homebrain/, never in the repo or /www."""
     return Path(hass.config.path("homebrain", "access.json"))
+
+
+def _progress_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Allowlisted, normalised ``esphome.biolock_enroll_progress`` data (all values are strings)."""
+    out = {key: str(data[key])[:120] for key in PROGRESS_KEYS if data.get(key) not in (None, "")}
+    try:
+        out["remaining_s"] = max(0, int(float(data["remaining_s"])))
+    except (KeyError, TypeError, ValueError):
+        pass
+    return out
 
 
 def _event_payload(kind: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -140,6 +166,7 @@ class AccessManager:
         self._store: Store = Store(hass, 1, f"{DOMAIN}.access_history")
         self._loaded = False
         self._pending_incomplete = False
+        self.progress: dict[str, Any] | None = None
 
     async def async_start(self) -> None:
         if self._unsubs:
@@ -205,6 +232,10 @@ class AccessManager:
                 {"event": "users", "users": users, "listed_at": time, "incomplete": self.incomplete}
             )
             self.hass.async_create_task(self.async_publish_meta())
+            return
+        if kind == "enroll_progress":
+            self.progress = {"time": time, "data": _progress_payload(data)}
+            self._push({"event": kind, **self.progress})
             return
         payload = _event_payload(kind, data)
         if kind == "audit":
@@ -346,6 +377,7 @@ class AccessManager:
             "incomplete": self.incomplete,
             **self.compute_meta(doc),
             "history": list(reversed(self.history))[:HISTORY_MAX],
+            "progress": self.progress,
             "entities": {**resolve_lock_entities(self.hass), **ENTITIES},
         }
 

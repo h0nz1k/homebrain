@@ -135,6 +135,18 @@ export function reasonCs(reason: string | undefined): { text: string; tip?: stri
         text: 'Zachycen obličej místo dlaně',
         tip: 'Zakryjte dlaní obličej a držte ji 10–15 cm před snímačem.',
       };
+    case 'palm_instead_of_face':
+      return {
+        text: 'Zachycena dlaň místo obličeje',
+        tip: 'Dejte ruce pryč a dívejte se přímo do snímače, ať vidí jen obličej.',
+      };
+    case 'cancelled':
+      return { text: 'Zápis byl zrušen' };
+    case 'service_mode_off':
+      return {
+        text: 'Servisní režim je vypnutý',
+        tip: 'Zápis jde jen v servisním režimu – zapněte ho a zkuste to znovu.',
+      };
     case 'no_reply':
       return {
         text: 'Snímač neodpověděl',

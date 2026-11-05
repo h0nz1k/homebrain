@@ -44,7 +44,21 @@ import {
   topIssue,
   whenCs,
   wifiQuality,
+  SERVICE_MODE_MINUTES,
 } from '../domain.js';
+import {
+  isActive,
+  needsServiceMode,
+  PROGRESS_STATE_CS,
+  progressCopy,
+  progressReducer,
+  progressSteps,
+  remainingAt,
+  sameEnrolment,
+  trackFromEntities,
+  type ProgressExpect,
+  type ProgressTrack,
+} from '../progress.js';
 import {
   buildAccessLog,
   filterLog,
@@ -62,6 +76,7 @@ import type {
   Hand,
   HistoryItem,
   Labels,
+  Modality,
   Person,
   SensorUser,
 } from '../types.js';
@@ -258,6 +273,9 @@ function useEntities(
     lockBatteryCritical: useEntity(store, id('lockBatteryCritical')),
     lockAction: useEntity(store, id('lockAction')),
     lastError: useEntity(store, id('lastError')),
+    enrollProgress: useEntity(store, id('enrollProgress')),
+    enrollHint: useEntity(store, id('enrollHint')),
+    enrollRemaining: useEntity(store, id('enrollRemaining')),
   };
 }
 type Entities = ReturnType<typeof useEntities>;
@@ -298,6 +316,20 @@ export default function AccessView({ store, bindings, route, connection }: Modul
     sensorState: ent.sensorState?.state,
     time: new Date(now).toISOString(),
   });
+  // biolock-firmware#9 live progress; the panel's own enrolments are matched by name + modality.
+  const [track, setTrack] = useState<ProgressTrack | null>(null);
+  const expectRef = useRef<ProgressExpect | null>(null);
+  const entTrack = trackFromEntities(
+    {
+      progress: ent.enrollProgress?.state,
+      hint: ent.enrollHint?.state,
+      remaining: ent.enrollRemaining?.state,
+    },
+    now,
+  );
+  // events win; the entities only cover a panel opened mid-enrolment (stream started later)
+  const progress =
+    isActive(track) || !entTrack || (track && now - track.receivedAt < 3000) ? track : entTrack;
   const [live, setLive] = useState<LiveItem[]>([]);
   const [tabState, setTab] = useState<TabId>(() => parseTab(route?.path));
   // Inside a panel the url owns the tab (`/homebrain-pristup/<tab>`), so back/forward and
@@ -314,6 +346,10 @@ export default function AccessView({ store, bindings, route, connection }: Modul
     let unsub: (() => void) | null = null;
     const onEvent = (event: AccessEvent) => {
       for (const l of listeners.current) l(event);
+      if (event.event === 'enroll_progress') {
+        setTrack((prev) => progressReducer(prev, event, expectRef.current));
+        return;
+      }
       if (event.event === 'enrolled' || event.event === 'enroll_retry')
         setEnrol((prev) => enrolReducer(prev, { event }));
       setState((prev) => {
@@ -369,6 +405,10 @@ export default function AccessView({ store, bindings, route, connection }: Modul
       .then((s) => {
         if (!alive) return;
         setState(s);
+        // seed a running enrolment (or a result < 1 min old) the backend saw before we subscribed
+        const seed = s.progress ? progressReducer(null, s.progress) : null;
+        if (seed && (isActive(seed) || Date.now() - seed.receivedAt < 60_000))
+          setTrack((prev) => prev ?? seed);
         if (s.users === null) void api.command('list_users').catch(() => undefined);
       })
       .catch(
@@ -430,6 +470,16 @@ export default function AccessView({ store, bindings, route, connection }: Modul
     if (!serviceOn) await api.command('service_mode', { on: true });
   };
   const refresh = () => void run(() => api.command('list_users'));
+  /** Start an enrolment from the panel and remember it for progress correlation. */
+  const startEnrol = (modality: Modality, name: string) => {
+    const at = Date.now();
+    expectRef.current = { name, modality, at };
+    const call =
+      modality === 'face'
+        ? api.command('enroll_face', { name, admin: false, timeout_s: ENROLL_TIMEOUT_S })
+        : api.command('enroll_palm', { name, timeout_s: ENROLL_TIMEOUT_S });
+    return { at, call };
+  };
   const remaining = serviceOn
     ? serviceRemaining(
         (ent.service as { last_changed?: string; last_updated?: string } | undefined)
@@ -452,7 +502,12 @@ export default function AccessView({ store, bindings, route, connection }: Modul
     selectTab,
     refresh,
     enrol: wizard ? null : enrol,
-    dismissEnrol: () => setEnrol(null),
+    dismissEnrol: () => {
+      setEnrol(null);
+      setTrack(null);
+    },
+    progress: wizard ? null : progress,
+    startEnrol,
   };
 
   return (
@@ -498,6 +553,9 @@ export default function AccessView({ store, bindings, route, connection }: Modul
           serviceOn={serviceOn}
           remaining={remaining}
           sensorState={ent.sensorState?.state}
+          progress={progress}
+          now={now}
+          startEnrol={startEnrol}
           onBus={onBus}
           onClose={() => {
             setWizard(null);
@@ -526,6 +584,9 @@ interface Ctx {
   refresh: () => void;
   enrol: EnrolStatus;
   dismissEnrol: () => void;
+  /** Live progress (firmware with biolock-firmware#9); null on older firmware. */
+  progress: ProgressTrack | null;
+  startEnrol: (modality: Modality, name: string) => { at: number; call: Promise<void> };
 }
 
 function StatusPills({
@@ -851,10 +912,125 @@ function enrolAsksHand({ enrol, state, now }: Ctx, person: string): boolean {
   );
 }
 const KIND_CS: Record<'face' | 'palm', string> = { face: 'obličej', palm: 'dlaň' };
+/** Retry a failed enrolment; offers service mode (with confirm) when the firmware refused. */
+function retryActions(
+  ctx: Ctx,
+  spec: { modality?: Modality; name?: string; reason?: string },
+): ReactNode {
+  const { api, run, serviceOn, setConfirm, startEnrol, setWizard, dismissEnrol } = ctx;
+  const again = async () => {
+    if (!spec.modality || !spec.name) {
+      dismissEnrol();
+      setWizard({ name: spec.name, startAt: spec.modality === 'palm' ? 'right' : 'face' });
+      return;
+    }
+    dismissEnrol();
+    await startEnrol(spec.modality, spec.name).call;
+  };
+  if (needsServiceMode(spec.reason) && !serviceOn)
+    return (
+      <Button
+        size="sm"
+        variant="primary"
+        data-testid="access-enrol-service"
+        onClick={() =>
+          setConfirm({
+            title: 'Zapnout servisní režim?',
+            body: `Zápis jde jen v servisním režimu. Mezitím snímač neodemyká dveře; režim se sám vypne za ${SERVICE_MODE_MINUTES} minut. Pak zápis zkusíme znovu.`,
+            confirm: 'Zapnout a zkusit znovu',
+            run: () =>
+              run(async () => {
+                await api.command('service_mode', { on: true });
+                await again();
+              }),
+          })
+        }
+      >
+        Zapnout servisní režim
+      </Button>
+    );
+  return (
+    <Button size="sm" variant="primary" data-testid="access-enrol-retry" onClick={() => run(again)}>
+      Zkusit znovu
+    </Button>
+  );
+}
+
+/** Live firmware progress (biolock-firmware#9): state line + hint, countdown, steps. */
+function ProgressBanner({ ctx, track }: { ctx: Ctx; track: ProgressTrack }) {
+  const { now, api, run, dismissEnrol } = ctx;
+  const copy = progressCopy(track);
+  const left = remainingAt(track, now);
+  const active = isActive(track);
+  const who = [track.name, track.modality ? KIND_CS[track.modality] : null]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <div
+      className="ac-enrol"
+      data-testid="access-enrol-status"
+      data-phase={active ? 'pending' : track.state === 'done' ? 'ok' : 'failed'}
+      data-progress={track.state}
+    >
+      <LiveStatus
+        state={copy.tone}
+        title={copy.title}
+        icon={<Icon name={track.modality === 'palm' ? 'palm' : 'face'} />}
+        countdown={left !== null ? { remaining: left, total: track.total ?? left } : undefined}
+        steps={progressSteps(track)}
+        actions={
+          active ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="access-enrol-cancel"
+              onClick={() => run(() => api.command('cancel_enroll'))}
+            >
+              Zrušit zápis
+            </Button>
+          ) : (
+            <>
+              {track.state === 'failed' &&
+                retryActions(ctx, {
+                  modality: track.modality,
+                  name: track.name,
+                  reason: track.reason,
+                })}
+              <Button
+                size="sm"
+                variant="ghost"
+                data-testid="access-enrol-dismiss"
+                onClick={dismissEnrol}
+              >
+                Zavřít
+              </Button>
+            </>
+          )
+        }
+      >
+        {copy.detail && <span data-testid="access-enrol-hint">{copy.detail}</span>}
+        {who && <span className="ac-enrol-who">{who}</span>}
+      </LiveStatus>
+    </div>
+  );
+}
+
 /** Enrolment started anywhere (panel, HA script): pending → retry → result, with hand labelling. */
 function EnrolBanner({ ctx }: { ctx: Ctx }) {
-  const { enrol, now, api, run, state, people, dismissEnrol } = ctx;
+  const { enrol, progress, now, api, run, state, people, dismissEnrol } = ctx;
+  // a result of the same (or a newer) enrolment than the live progress
+  const result =
+    enrol && enrol.phase !== 'pending' && (!progress || sameEnrolment(progress, enrol.time))
+      ? enrol
+      : null;
+  if (
+    progress &&
+    (isActive(progress) || !result) &&
+    (isActive(progress) || now - progress.receivedAt <= 15 * 60_000)
+  )
+    return <ProgressBanner ctx={ctx} track={progress} />;
   if (!enrol) return null;
+  const steps = progress && result ? progressSteps(progress) : undefined;
   const at = enrol.phase === 'pending' ? enrol.since : enrol.time;
   if (enrol.phase !== 'pending' && now - Date.parse(at) > 15 * 60_000) return null;
   const who = 'name' in enrol && enrol.name ? enrol.name : 'bez jména';
@@ -893,6 +1069,8 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
                   : 'Levá dlaň'}
             </Button>
           ))}
+        {enrol.phase === 'failed' &&
+          retryActions(ctx, { modality: enrol.type, name: enrol.name, reason: enrol.reason })}
         <Button size="sm" variant="ghost" data-testid="access-enrol-dismiss" onClick={dismissEnrol}>
           {needsHand ? 'Později' : 'Zavřít'}
         </Button>
@@ -905,6 +1083,7 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
         title={title}
         icon={<Icon name={enrol.type === 'palm' ? 'palm' : 'face'} />}
         actions={actions}
+        steps={steps}
       >
         {enrol.phase === 'pending' &&
           (enrol.note
@@ -1414,6 +1593,37 @@ const ACTION_CS: Record<string, string> = {
   lock_n_go_unlatch: "Lock 'n' Go se západkou",
   full_lock: 'dvojité zamčení',
 };
+/** 'Snímač' diagnostics: the firmware's enrolment progress entity (biolock-firmware#9). */
+function EnrolDiagnostics({ ctx }: { ctx: Ctx }) {
+  const { ent, now } = ctx;
+  const st = ent.enrollProgress?.state ?? '';
+  const hint = ent.enrollHint?.state;
+  const left = Number(ent.enrollRemaining?.state);
+  const running = !['', 'idle', 'done', 'failed', 'unknown', 'unavailable'].includes(st);
+  const since = (ent.enrollProgress as { last_changed?: string } | undefined)?.last_changed;
+  const label = PROGRESS_STATE_CS[st] ?? (st === 'unavailable' ? 'Nedostupné' : '—');
+  return (
+    <Card className="ac-section" data-testid="access-enrol-diag">
+      <StatusRow
+        tone={st === 'failed' ? 'warn' : running ? 'accent' : 'neutral'}
+        icon={<Icon name="face" />}
+        label="Snímač – průběh zápisu"
+        detail={
+          [
+            st !== 'idle' && hint && hint !== 'unknown' && hint !== 'unavailable' ? hint : null,
+            running && left > 0 ? `zbývá ${Math.round(left)} s` : null,
+            !running && since && st !== 'idle' ? whenCs(since, now) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'Firmware hlásí průběh zápisu živě.'
+        }
+        value={label}
+        data-testid="access-enrol-diag-state"
+      />
+    </Card>
+  );
+}
+
 /** Smart lock status – parity with the original Přístup dashboard tiles. */
 function NukiCard({ ctx }: { ctx: Ctx }) {
   const { ent, now } = ctx;
@@ -1557,6 +1767,7 @@ function DeviceTab({ ctx }: { ctx: Ctx }) {
           </Pill>
         </Card>
       </div>
+      {ent.enrollProgress && <EnrolDiagnostics ctx={ctx} />}
       <NukiCard ctx={ctx} />
       <Card className="ac-section">
         <h3 className="ac-h">Zabezpečení</h3>
@@ -1838,6 +2049,9 @@ function Wizard({
   serviceOn,
   remaining,
   sensorState,
+  progress,
+  now,
+  startEnrol,
   onBus,
   onClose,
 }: {
@@ -1847,6 +2061,9 @@ function Wizard({
   serviceOn: boolean;
   remaining: number | null;
   sensorState: string | undefined;
+  progress: ProgressTrack | null;
+  now: number;
+  startEnrol: Ctx['startEnrol'];
   onBus: (l: Listener) => () => void;
   onClose: () => void;
 }) {
@@ -1866,6 +2083,7 @@ function Wizard({
   });
   const current: StepKey | 'done' = STEPS[index]?.key ?? 'done';
   const pendingRef = useRef<StepKey | null>(null);
+  const [ownAt, setOwnAt] = useState<number | null>(null);
   const cancel = () => {
     if (pendingRef.current) void api.command('cancel_enroll').catch(() => undefined);
     onClose();
@@ -1924,10 +2142,8 @@ function Wizard({
     pendingRef.current = step;
     setSteps((s) => ({ ...s, [step]: { status: 'waiting' } }));
     const trimmed = name.trim().slice(0, 20);
-    const call =
-      step === 'face'
-        ? api.command('enroll_face', { name: trimmed, admin: false, timeout_s: ENROLL_TIMEOUT_S })
-        : api.command('enroll_palm', { name: trimmed, timeout_s: ENROLL_TIMEOUT_S });
+    const { at, call } = startEnrol(step === 'face' ? 'face' : 'palm', trimmed);
+    setOwnAt(at);
     call.catch((err: unknown) => {
       pendingRef.current = null;
       setSteps((s) => ({
@@ -2035,6 +2251,10 @@ function Wizard({
   } else if (current !== 'done' && st) {
     const label = STEP_LABEL[current];
     const scanning = st.status === 'waiting' && sensorState === 'enrolling';
+    // firmware progress of THIS step's enrolment (matched by name + modality when it armed)
+    const live = st.status === 'waiting' && progress && progress.own === ownAt ? progress : null;
+    const liveCopy = live ? progressCopy(live) : null;
+    const liveLeft = remainingAt(live, now);
     const nextKey = visible.map((x) => x.key).find((k, i, all) => all[i - 1] === current);
     const nextHint = nextKey
       ? `Po uložení přejdeme na ${STEP_LABEL[nextKey as Exclude<StepKey, 'name'>]}`
@@ -2055,42 +2275,54 @@ function Wizard({
           <LiveStatus
             data-testid="access-step-status"
             state={
-              st.status === 'ok'
-                ? 'ok'
-                : st.status === 'error'
-                  ? 'error'
-                  : st.status === 'waiting'
-                    ? 'busy'
-                    : 'idle'
+              liveCopy
+                ? liveCopy.tone
+                : st.status === 'ok'
+                  ? 'ok'
+                  : st.status === 'error'
+                    ? 'error'
+                    : st.status === 'waiting'
+                      ? 'busy'
+                      : 'idle'
             }
             icon={
               st.status === 'ok' || st.status === 'error' ? undefined : (
                 <Icon name={kind} mirror={current === 'left'} />
               )
             }
+            countdown={
+              liveLeft !== null && live
+                ? { remaining: liveLeft, total: live.total ?? ENROLL_TIMEOUT_S }
+                : undefined
+            }
+            steps={live ? progressSteps(live) : undefined}
             title={
-              st.status === 'ok'
-                ? `Uloženo · ID ${st.id}`
-                : reason
-                  ? reason.text
-                  : st.status === 'waiting'
-                    ? scanning
-                      ? `Snímám ${label}…`
-                      : `Čekám na ${kind === 'face' ? 'obličej' : 'dlaň'}…`
-                    : 'Připraveno'
+              liveCopy
+                ? liveCopy.title
+                : st.status === 'ok'
+                  ? `Uloženo · ID ${st.id}`
+                  : reason
+                    ? reason.text
+                    : st.status === 'waiting'
+                      ? scanning
+                        ? `Snímám ${label}…`
+                        : `Čekám na ${kind === 'face' ? 'obličej' : 'dlaň'}…`
+                      : 'Připraveno'
             }
           >
-            {st.status === 'ok'
-              ? 'Pokračujeme dalším krokem…'
-              : reason
-                ? reason.tip
-                : st.status === 'waiting'
-                  ? scanning
-                    ? 'Držte v klidu, dokud se neozve potvrzení.'
-                    : `Přiložte ${label} – snímač chvíli počká.`
-                  : serviceOn
-                    ? `Postavte se ke snímači a klepněte na „Začít snímat“.${replaceNote}`
-                    : 'Čekám na servisní režim…'}
+            {liveCopy
+              ? liveCopy.detail
+              : st.status === 'ok'
+                ? 'Pokračujeme dalším krokem…'
+                : reason
+                  ? reason.tip
+                  : st.status === 'waiting'
+                    ? scanning
+                      ? 'Držte v klidu, dokud se neozve potvrzení.'
+                      : `Přiložte ${label} – snímač chvíli počká.`
+                    : serviceOn
+                      ? `Postavte se ke snímači a klepněte na „Začít snímat“.${replaceNote}`
+                      : 'Čekám na servisní režim…'}
           </LiveStatus>
         </div>
       </div>

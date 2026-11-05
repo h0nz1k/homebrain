@@ -103,6 +103,27 @@ describe('controls', () => {
     const status = screen.getByRole('status');
     expect(status.querySelector('.hb-live-actions button')?.textContent).toBe('Levá');
   });
+  it('LiveStatus countdown replaces the spinner and shows compact steps', () => {
+    const { container } = render(
+      <LiveStatus
+        state="busy"
+        title="Přibliž se"
+        countdown={{ remaining: 12.4, total: 30 }}
+        steps={[
+          { key: 'a', title: 'Připraveno', state: 'done' },
+          { key: 'b', title: 'Vidím', state: 'active' },
+        ]}
+      />,
+    );
+    const s = screen.getByRole('status');
+    expect(s.hasAttribute('data-countdown')).toBe(true);
+    expect(screen.getByTestId('hb-live-secs').textContent).toBe('13');
+    const arc = container.querySelector('.hb-live-arc')!;
+    const dash = Number(arc.getAttribute('stroke-dasharray'));
+    expect(Number(arc.getAttribute('stroke-dashoffset'))).toBeCloseTo(dash * (1 - 12.4 / 30));
+    expect(s.querySelector('.hb-stepper[data-compact]')).not.toBeNull();
+    expect(screen.getByTestId('hb-step-b').getAttribute('aria-current')).toBe('step');
+  });
   it('LiveStatus is a polite live region', () => {
     render(
       <LiveStatus state="error" title="Snímač nic nezachytil">
