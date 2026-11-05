@@ -1528,6 +1528,9 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 .hb-live[data-state='ok'] {
   --hb-tone: var(--hb-ok);
 }
+.hb-live[data-state='warn'] {
+  --hb-tone: var(--hb-warn);
+}
 .hb-live[data-state='error'] {
   --hb-tone: var(--hb-crit);
 }
@@ -1576,10 +1579,14 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 .hb-live-track,
 .hb-live-arc {
   fill: none;
-  stroke-width: 3.5;
+  stroke-width: 4.5;
+}
+/* with steps the ring lines up with the title instead of floating mid-card */
+.hb-live:has(.hb-steptrack) {
+  align-items: flex-start;
 }
 .hb-live-track {
-  stroke: color-mix(in srgb, var(--hb-tone) 18%, transparent);
+  stroke: color-mix(in srgb, var(--hb-tone) 38%, transparent);
 }
 .hb-live-arc {
   stroke: var(--hb-tone);
@@ -1593,23 +1600,67 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-live-secs::after {
   content: ' s';
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
-.hb-live-copy .hb-stepper[data-compact] {
-  margin-top: var(--hb-sp-2);
+/* compact steps (LiveStatus `steps`): one connected segment track with labels under it */
+.hb-steptrack {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  margin-top: var(--hb-sp-2);
+  max-width: 560px;
+}
+.hb-stepper[data-compact] {
+  gap: 4px;
 }
 .hb-stepper[data-compact] .hb-step {
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
-  padding: 4px 8px 4px 4px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--hb-t2);
   font-size: var(--hb-type-caption, 12px);
-  background: color-mix(in srgb, var(--hb-t1) 6%, transparent);
+  font-weight: 550;
 }
 .hb-stepper[data-compact] .hb-step-n {
-  width: 20px;
-  height: 20px;
-  font-size: 11px;
+  width: auto;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--hb-t1) 24%, transparent);
+  color: transparent;
+  font-size: 0;
+}
+.hb-stepper[data-compact] .hb-step[data-state='done'] .hb-step-n {
+  background: var(--hb-ok);
+}
+.hb-stepper[data-compact] .hb-step[data-state='active'] .hb-step-n {
+  background: var(--hb-ac);
+}
+.hb-stepper[data-compact] .hb-step[data-state='error'] .hb-step-n {
+  background: var(--hb-tone, var(--hb-crit));
+}
+.hb-stepper[data-compact] .hb-step[data-state='active'],
+.hb-stepper[data-compact] .hb-step[data-state='error'] {
+  color: var(--hb-t1);
+  font-weight: 650;
+}
+.hb-steptrack-sum {
+  display: none;
+  color: var(--hb-t2);
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .hb-stepper[data-compact] .hb-step .hb-step-t {
+    display: none;
+  }
+  .hb-steptrack-sum {
+    display: block;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .hb-live-arc {

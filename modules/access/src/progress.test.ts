@@ -123,9 +123,13 @@ describe('progressCopy', () => {
       }),
     ])!;
     const c = progressCopy(f);
-    expect(c.tone).toBe('error');
+    expect(c.tone).toBe('warn'); // coachable → amber, try again
     expect(c.title).toBe('Zachycena dlaň místo obličeje');
-    expect(c.detail).toMatch(/obličej/);
+    expect(c.detail).toMatch(/snímače/);
+    const fault = run([ev(0, { ...base, state: 'failed', reason: 'camera' })])!;
+    expect(progressCopy(fault).tone).toBe('error');
+    const done = run([ev(0, { ...base, state: 'done' })])!;
+    expect(progressCopy(done).detail).toBe('Jan teď může odemykat obličejem.');
     const r = run([ev(0, { ...base, modality: 'palm', state: 'retrying' })])!;
     expect(progressCopy(r)).toMatchObject({
       tone: 'busy',

@@ -195,16 +195,39 @@ function stateText(t: ProgressTrack): string {
 }
 
 const DETAIL_CS: Partial<Record<ProgressState, string>> = {
-  armed: 'Snímač přepíná do zápisu, chvilku strpení.',
-  waiting_presence: 'Snímač zatím nic nevidí.',
-  detected: 'Snímač něco vidí, ještě drobná korekce.',
-  capturing: 'Snímač zachytává – vydrž, dokud nebude hotovo.',
-  saving: 'Zachyceno, ukládám do paměti snímače.',
-  retrying: 'Okno zápisu běží dál, zkus to ještě jednou.',
+  armed: 'Snímač se přepíná do zápisu – vteřinku.',
+  waiting_presence: 'Snímač čeká, až tě uvidí.',
+  detected: 'Snímač tě vidí – ještě kousek a začne snímat.',
+  capturing: 'Snímám, za chvilku je hotovo.',
+  saving: 'Mám to, ukládám do snímače.',
+  retrying: 'Okno zápisu běží dál – zkus to ještě jednou.',
 };
+/** Coachable failures (try again) are amber; device faults red. Informal like the firmware text. */
+const FAIL_TIP: Record<string, string> = {
+  timeout: 'Stoupni si blíž a vydrž v klidu, dokud se neozve „Hotovo“.',
+  face_instead_of_palm: 'Drž dlaň 10–15 cm před snímačem, ať zaplní celý záběr.',
+  palm_instead_of_face: 'Ruce dej pryč a dívej se přímo do snímače.',
+  already_enrolled: 'Tenhle obličej nebo dlaň už snímač zná pod jiným ID.',
+  liveness_failed: 'Žádná fotka ani odlesk – zkus to znovu naživo.',
+  cancelled: 'Zápis se dá kdykoli spustit znovu.',
+  busy: 'Snímač dělal něco jiného – za pár vteřin to zkus znovu.',
+  service_mode_off: 'Zápis jde jen v servisním režimu.',
+  invalid_name: 'Jméno může mít nejvýš 20 znaků.',
+};
+const COACHABLE = new Set([
+  'timeout',
+  'face_instead_of_palm',
+  'palm_instead_of_face',
+  'already_enrolled',
+  'liveness_failed',
+  'cancelled',
+  'busy',
+  'service_mode_off',
+  'invalid_name',
+]);
 
 export interface ProgressCopy {
-  tone: 'busy' | 'ok' | 'error';
+  tone: 'busy' | 'ok' | 'warn' | 'error';
   /** Big state line (firmware text when present). */
   title: string;
   detail?: string;
@@ -212,15 +235,24 @@ export interface ProgressCopy {
 export function progressCopy(t: ProgressTrack): ProgressCopy {
   const generic = t.state === 'detected' && GENERIC_HINTS.has(t.hint);
   if (t.state === 'failed') {
-    const r = reasonCs(t.reason);
-    return { tone: 'error', title: t.text || r.text, detail: r.tip };
+    const reason = t.reason ?? '';
+    const r = reasonCs(reason);
+    return {
+      tone: COACHABLE.has(reason) ? 'warn' : 'error',
+      title: t.text || r.text,
+      detail: FAIL_TIP[reason] ?? r.tip,
+    };
+  }
+  if (t.state === 'done') {
+    const how = t.modality === 'palm' ? 'dlaní' : t.modality === 'face' ? 'obličejem' : null;
+    return {
+      tone: 'ok',
+      title: t.text || stateText(t),
+      detail: t.name && how ? `${t.name} teď může odemykat ${how}.` : undefined,
+    };
   }
   const title = generic ? HINT_CS[t.hint]! : t.text || stateText(t);
-  return {
-    tone: t.state === 'done' ? 'ok' : 'busy',
-    title,
-    detail: DETAIL_CS[t.state],
-  };
+  return { tone: 'busy', title, detail: DETAIL_CS[t.state] };
 }
 
 const STEP_TITLES = ['Připraveno', 'Vidím', 'Snímám', 'Ukládám', 'Hotovo'] as const;

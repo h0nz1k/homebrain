@@ -166,7 +166,7 @@ export interface StepperProps {
 }
 /** Horizontal progress of a multi-step flow (wizard). Collapses to numbers on phones. */
 export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
-  return (
+  const list = (
     <ol className="hb-stepper" data-compact={compact ? '' : undefined} aria-label={label}>
       {steps.map((s, i) => (
         <li
@@ -187,10 +187,26 @@ export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
       ))}
     </ol>
   );
+  if (!compact) return list;
+  // compact = connected segment track; phones show one 'Krok 3 z 5 · Snímám' caption instead of labels
+  const at = steps.findIndex((s) => s.state === 'active' || s.state === 'error');
+  const cur = steps[at];
+  return (
+    <div className="hb-steptrack">
+      {list}
+      {cur && (
+        <small className="hb-steptrack-sum" aria-hidden="true">
+          Krok {at + 1} z {steps.length} · {cur.title}
+          {cur.state === 'error' ? ' – nepovedlo se' : ''}
+        </small>
+      )}
+    </div>
+  );
 }
 
 export interface LiveStatusProps {
-  state: 'idle' | 'busy' | 'ok' | 'error';
+  /** `warn` = finished without success but coachable (try again), `error` = fault. */
+  state: 'idle' | 'busy' | 'ok' | 'warn' | 'error';
   title: ReactNode;
   children?: ReactNode;
   icon?: ReactNode;
@@ -257,7 +273,7 @@ export function LiveStatus({
             </span>
           </>
         ) : (
-          (icon ?? (state === 'ok' ? '✓' : state === 'error' ? '✕' : ''))
+          (icon ?? (state === 'ok' ? '✓' : state === 'error' ? '✕' : state === 'warn' ? '!' : ''))
         )}
       </span>
       <div className="hb-live-copy">

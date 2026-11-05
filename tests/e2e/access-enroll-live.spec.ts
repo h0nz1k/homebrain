@@ -13,6 +13,8 @@ const emit = (page: Page, data: Record<string, unknown>) =>
     });
   }, data);
 const base = { request_id: 'c0de-7', modality: 'face', name: 'Petra' };
+// many live stages per test; phones under CI load need more than the default 30 s
+test.describe.configure({ timeout: 60_000 });
 
 test('Zápis z HA skriptu: živý průběh, nápověda, odpočet a kroky', async ({ page }) => {
   await page.goto('/homebrain-pristup?enroll_progress=1');
@@ -21,7 +23,7 @@ test('Zápis z HA skriptu: živý průběh, nápověda, odpočet a kroky', async
   const banner = page.getByTestId('access-enrol-status');
   await expect(banner).toHaveAttribute('data-progress', 'armed');
   await expect(banner).toContainText('Připravuji snímač…');
-  await expect(banner).toContainText('Zápis: Petra · obličej');
+  await expect(banner).toContainText('Petra · obličej');
   await emit(page, { ...base, state: 'detected', hint: 'too_far', remaining_s: 24 });
   await expect(banner).toContainText('Přibliž se');
   await expect(page.getByTestId('hb-step-enrol-1')).toHaveAttribute('aria-current', 'step');
@@ -36,6 +38,15 @@ test('Zápis z HA skriptu: živý průběh, nápověda, odpočet a kroky', async
     .toBeLessThan(first);
   await emit(page, { ...base, state: 'capturing', hint: 'hold_still', remaining_s: 20 });
   await expect(banner).toContainText('Vidím obličej – nehýbej se');
+  // compact steps: pills never overlap (active label on phones too)
+  const boxes = await banner
+    .locator('.hb-step')
+    .evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect()).map((r) => ({ l: r.left, r: r.right, t: r.top })),
+    );
+  for (let i = 1; i < boxes.length; i++)
+    if (boxes[i]!.t === boxes[i - 1]!.t)
+      expect(boxes[i]!.l).toBeGreaterThanOrEqual(boxes[i - 1]!.r);
   await expect(page.getByTestId('hb-step-enrol-2')).toHaveAttribute('data-state', 'active');
   await emit(page, { ...base, state: 'saving', remaining_s: 19 });
   await emit(page, { ...base, state: 'done', remaining_s: 0, text: 'Hotovo – zapsáno' });
@@ -112,15 +123,16 @@ test('Starší firmware bez průběhu: původní banner čekání a výsledku', 
 test('Průvodce: krok ukazuje živý průběh vlastního zápisu; Zařízení ukáže stav snímače', async ({
   page,
 }) => {
-  await page.goto('/homebrain-pristup?enroll_progress=1&service=1&enroll_ms=2400');
+  await page.goto('/homebrain-pristup?enroll_progress=1&service=1&enroll_ms=6000');
   await page.getByTestId('access-add').click();
   await page.getByTestId('access-name').fill('Jan');
   await page.getByTestId('access-name-next').click();
+  await expect(page.getByTestId('access-start')).toBeEnabled();
   await page.getByTestId('access-start').click();
   const status = page.getByTestId('access-step-status');
-  await expect(status).toContainText('Přibliž se');
   await expect(status.getByTestId('hb-live-secs')).toBeVisible();
-  await expect(status).toContainText('Uloženo', { timeout: 6000 });
+  await expect(status).toContainText('Přibliž se');
+  await expect(status).toContainText('Uloženo', { timeout: 12_000 });
   await page.goto('/homebrain-pristup/zarizeni?enroll_progress=1');
   await expect(page.getByTestId('access-enrol-diag-state')).toContainText('Nic neprobíhá');
 });

@@ -1008,10 +1008,8 @@ function ProgressBanner({ ctx, track }: { ctx: Ctx; track: ProgressTrack }) {
           )
         }
       >
-        <span data-testid="access-enrol-hint">
-          {who ? `Zápis: ${who}` : 'Zápis'}
-          {copy.detail ? ` – ${copy.detail}` : ''}
-        </span>
+        {copy.detail && <span data-testid="access-enrol-hint">{copy.detail}</span>}
+        {who && <span className="ac-enrol-who">{who}</span>}
       </LiveStatus>
     </div>
   );

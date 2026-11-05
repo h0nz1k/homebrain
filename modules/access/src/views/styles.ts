@@ -76,6 +76,9 @@ export const accessLayout = String.raw`
 @keyframes ac-scan{to{top:72%}}
 @media (prefers-reduced-motion:reduce){.ac-scan{animation:none}}
 .ac-enrol{display:flex;flex-direction:column;gap:var(--hb-sp-2)}
+.ac-enrol .hb-live{max-width:760px}
+.ac-enrol-who{display:block;margin-top:2px;font-size:var(--hb-type-caption,12px);font-weight:600;letter-spacing:.01em}
+.ac-enrol [data-testid='access-enrol-hint']{display:block}
 .ac-log{display:flex;flex-direction:column;gap:var(--hb-sp-3)}
 .ac-log-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--hb-sp-2)}
 .ac-log-range{color:var(--hb-t2);font-size:var(--hb-font-sm)}
