@@ -3,6 +3,7 @@ import {
   navigatePanel,
   navigateUp,
   useEntity,
+  type ConnectionLike,
   type EntityStore,
   type ModuleViewProps,
 } from '@homebrain/ha-client';
@@ -12,6 +13,7 @@ import { createTimerStore, type TimerStore } from '../domain/timers.js';
 import { formatDuration, krokyWord, porce, scaleIngredients } from '../domain/scale.js';
 import type { Recipe, RecipeSummary, RecipesConfig } from '../types.js';
 import { AddRecipe } from './AddRecipe.js';
+import { KitchenTimers, KitchenTimersButton } from './KitchenTimers.js';
 import {
   AirfryerStep,
   Icon,
@@ -28,6 +30,7 @@ const BASE = '/recipes';
 type Route =
   | { view: 'list' }
   | { view: 'add' }
+  | { view: 'timers' }
   | { view: 'detail'; id: string }
   | { view: 'cook'; id: string; step: number }
   | { view: 'edit'; id: string };
@@ -36,6 +39,7 @@ export function parseRoute(path = ''): Route {
   const [a, b, c] = path.replace(/^\/+/, '').split('/').filter(Boolean);
   if (!a) return { view: 'list' };
   if (a === 'pridat') return { view: 'add' };
+  if (a === 'minutky') return { view: 'timers' };
   if (b === 'varit') return { view: 'cook', id: a, step: Math.max(0, Number(c ?? 1) - 1) || 0 };
   if (b === 'upravit') return { view: 'edit', id: a };
   return { view: 'detail', id: a };
@@ -107,6 +111,7 @@ export default function RecipesView({ store, route, connection }: ModuleViewProp
       <style>{recipesStyles}</style>
       {parsed.view === 'list' ? <RecipeList api={api} config={config} store={store} /> : null}
       {parsed.view === 'add' ? <AddRecipe api={api} config={config} /> : null}
+      {parsed.view === 'timers' ? <TimersRoute api={api} connection={connection} /> : null}
       {parsed.view === 'edit' ? <AddRecipe api={api} config={config} editId={parsed.id} /> : null}
       {parsed.view === 'detail' || parsed.view === 'cook' ? (
         <RecipeLoader api={api} id={parsed.id}>
@@ -127,6 +132,12 @@ export default function RecipesView({ store, route, connection }: ModuleViewProp
       ) : null}
     </div>
   );
+}
+
+function TimersRoute({ api, connection }: { api: RecipesApi; connection?: ConnectionLike }) {
+  const timers = timerStore(api);
+  const views = useTimers(timers);
+  return <KitchenTimers store={timers} views={views} connection={connection} />;
 }
 
 function RecipeLoader({
@@ -165,6 +176,13 @@ function RecipeLoader({
 }
 
 /* ---------------- list ---------------- */
+/** Header entry to Minutky; shows how many kitchen timers run (shared by all devices). */
+function KitchenTimersLink({ api }: { api: RecipesApi }) {
+  const views = useTimers(timerStore(api));
+  const running = views.filter((v) => v.status !== 'done').length;
+  return <KitchenTimersButton running={running} onOpen={() => navigatePanel(`${BASE}/minutky`)} />;
+}
+
 function RecipeList({
   api,
   config,
@@ -233,6 +251,7 @@ function RecipeList({
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
+        <KitchenTimersLink api={api} />
         {config?.canEdit ? (
           <button
             type="button"

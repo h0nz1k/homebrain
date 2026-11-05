@@ -1,0 +1,30 @@
+# HomeBrain – kitchen timer finished → phone notification (+ kitchen tablet TTS placeholder).
+# Install with the release: Settings → Automations → ⋮ → Edit in YAML, paste, then replace
+# the placeholders (notify.mobile_app_owner_phone, media_player.kitchen_tablet).
+alias: "HomeBrain: minutka doběhla"
+description: >-
+  Event homebrain_timer_finished (HomeBrain Recepty → Minutky) → notification on the phone.
+  The HA persistent notification is created by HomeBrain itself.
+mode: queued
+max: 10
+triggers:
+  - trigger: event
+    event_type: homebrain_timer_finished
+actions:
+  - action: notify.mobile_app_owner_phone
+    data:
+      title: "⏰ Minutka doběhla"
+      message: "{{ trigger.event.data.name }} – hotovo"
+      data:
+        tag: "homebrain-timer-{{ trigger.event.data.timer_id }}"
+        ttl: 0
+        priority: high
+        channel: alarm_stream
+  # Kitchen tablet voice (uncomment once a TTS entity and the tablet media player exist):
+  # - action: tts.speak
+  #   target:
+  #     entity_id: tts.home_assistant_cloud
+  #   data:
+  #     media_player_entity_id: media_player.kitchen_tablet
+  #     message: "Minutka {{ trigger.event.data.name }} doběhla."
+  #     language: cs-CZ

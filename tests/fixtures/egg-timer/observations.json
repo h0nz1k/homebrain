@@ -1,0 +1,62 @@
+{
+  "description": "Reference egg times read off a timer app screen (seconds, timed from putting the eggs into boiling water). Add rows and rerun scripts/fit_egg_timer.py. kind: chicken|quail, size: S|M|L|XL (null for quail), chilled: true = from the fridge, doneness: namekko|nahnilicko|natvrdo|null (unknown).",
+  "observations": [
+    {
+      "kind": "chicken",
+      "size": "M",
+      "chilled": true,
+      "count": 3,
+      "doneness": "namekko",
+      "seconds": 320
+    },
+    {
+      "kind": "chicken",
+      "size": "M",
+      "chilled": false,
+      "count": 3,
+      "doneness": "namekko",
+      "seconds": 250
+    },
+    {
+      "kind": "chicken",
+      "size": "M",
+      "chilled": true,
+      "count": 3,
+      "doneness": "nahnilicko",
+      "seconds": 380
+    },
+    {
+      "kind": "chicken",
+      "size": "M",
+      "chilled": false,
+      "count": 3,
+      "doneness": "nahnilicko",
+      "seconds": 310
+    },
+    {
+      "kind": "chicken",
+      "size": "M",
+      "chilled": true,
+      "count": 1,
+      "doneness": "namekko",
+      "seconds": 280
+    },
+    {
+      "kind": "chicken",
+      "size": "L",
+      "chilled": true,
+      "count": 3,
+      "doneness": "namekko",
+      "seconds": 360
+    },
+    {
+      "kind": "chicken",
+      "size": "M",
+      "chilled": true,
+      "count": 3,
+      "doneness": "natvrdo",
+      "seconds": 620
+    },
+    { "kind": "quail", "size": null, "chilled": true, "count": 3, "doneness": null, "seconds": 180 }
+  ]
+}

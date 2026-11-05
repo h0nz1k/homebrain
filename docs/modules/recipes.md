@@ -3,9 +3,9 @@
 Backend: `custom_components/homebrain/recipes/` · Frontend: `modules/recipes/`.
 
 ## MVP timers and editor
-- Cooking timers persist client-side deadlines in localStorage and reconcile after reload or wake.
-  **TODO: server-side timers/HA notifications**. A closed or sleeping browser cannot guarantee an alarm;
-  do not use this MVP as a safety timer. Timers are not synchronised between tablets.
+- Cooking timers (Minutky) live in the integration (`recipes.db`), shared by every device and
+  kept across HA restarts; see [kitchen-timers.md](kitchen-timers.md) (free timers, egg timer,
+  `homebrain_timer_finished` event, persistent notification, Dnes card).
 - Music bar volume sends Companion `command_volume_level` levels 0–15 only on user interaction;
   the slider is a command value, not a live volume sensor.
 - In the manual editor each step can have an optional airfryer temperature, duration and program.

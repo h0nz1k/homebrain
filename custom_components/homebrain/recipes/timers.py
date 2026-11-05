@@ -4,7 +4,10 @@ Timers live in ``recipes.db`` (table ``timers``), so they survive an HA restart 
 device (kitchen tablet, phone, desktop) sees the same list through the
 ``homebrain/recipes/timers/subscribe`` WebSocket subscription.
 
-On expiry the manager fires the ``homebrain_recipe_timer_done`` event once and, when the
+On expiry the manager fires ``homebrain_recipe_timer_done`` (recipe steps, kept for existing
+automations) and ``homebrain_timer_finished`` (``{name, timer_id, recipe_id}`` – every kitchen
+timer incl. free „Minutky“ such as the egg timer) once, creates an HA persistent notification
+(dismissed again on ack/cancel) and, when the
 owner configured notify targets (Recepty settings, default none), sends
 ``⏰ Minutka: <krok> – hotovo`` through ``notify.<target>``. A timer that expired while HA
 was down fires right after the restart (once – ``fired`` is persisted).
@@ -20,6 +23,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
+from homeassistant.components import persistent_notification
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.util import dt as dt_util
@@ -29,6 +33,7 @@ from .store import RecipeStore
 _LOGGER = logging.getLogger(__name__)
 
 EVENT_TIMER_DONE = "homebrain_recipe_timer_done"
+EVENT_TIMER_FINISHED = "homebrain_timer_finished"
 SETTING_TIMER_NOTIFY = "timer_notify_targets"
 NOTIFY_TARGET_RE = re.compile(r"^[a-z0-9_]{1,80}$")
 MAX_TIMERS = 20
@@ -49,6 +54,10 @@ def now_ms() -> int:
 
 def notify_message(label: str) -> str:
     return f"⏰ Minutka: {label} – hotovo"
+
+
+def notification_id(timer_id: str) -> str:
+    return f"homebrain_timer_{timer_id}"
 
 
 def parse_targets(raw: str | None) -> list[str]:
@@ -170,6 +179,8 @@ class RecipeTimers:
         elif op == "ack":
             timer["acknowledged"] = True
         await self._save(timer)
+        if op in ("ack", "add_time"):
+            self._dismiss(timer_id)
         return public(timer)
 
     async def async_cancel(self, timer_id: str) -> bool:
@@ -178,8 +189,14 @@ class RecipeTimers:
         if (unsub := self._unsub.pop(timer_id, None)) is not None:
             unsub()
         await self.hass.async_add_executor_job(self.store.delete_timer, timer_id)
+        self._dismiss(timer_id)
         self._publish()
         return True
+
+    @callback
+    def _dismiss(self, timer_id: str) -> None:
+        if "persistent_notification" in self.hass.config.components:
+            persistent_notification.async_dismiss(self.hass, notification_id(timer_id))
 
     # ---------- internals ----------
     async def _save(self, timer: dict[str, Any]) -> None:
@@ -229,6 +246,17 @@ class RecipeTimers:
                 "step_index": timer["step_index"],
             },
         )
+        self.hass.bus.async_fire(
+            EVENT_TIMER_FINISHED,
+            {"name": timer["label"], "timer_id": timer_id, "recipe_id": timer["recipe_id"]},
+        )
+        if "persistent_notification" in self.hass.config.components:
+            persistent_notification.async_create(
+                self.hass,
+                f"⏰ {timer['label']} – hotovo",
+                title="Minutka doběhla",
+                notification_id=notification_id(timer_id),
+            )
         raw = await self.hass.async_add_executor_job(self.store.setting, SETTING_TIMER_NOTIFY)
         for target in parse_targets(raw):
             if not self.hass.services.has_service("notify", target):
