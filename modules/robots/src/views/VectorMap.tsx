@@ -1152,20 +1152,23 @@ function useRasterBase(
   resolve: Props['resolveBase'],
 ): BaseState | null {
   const path = raster && resolve ? raster.path.replace('{theme}', theme) : null;
+  const wallsPath = raster && resolve ? raster.path.replace('{theme}', `${theme}-walls`) : null;
   const [signed, setSigned] = useState<{ path: string; url: string; walls: string } | null>(null);
   const [loaded, setLoaded] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // Keyed on the path STRINGS: every map poll brings a new `raster` object, and re-signing
+  // then (HA returns a fresh signature each time) swapped the href, so the base fell back
+  // to 'loading' and re-downloaded the PNG on every poll.
   useEffect(() => {
-    if (!path || !resolve || !raster) return;
+    if (!path || !wallsPath || !resolve) return;
     let cancelled = false;
-    const wallsPath = raster.path.replace('{theme}', `${theme}-walls`);
     Promise.all([resolve(path), resolve(wallsPath)])
       .then(([url, walls]) => !cancelled && setSigned({ path, url, walls }))
       .catch(() => !cancelled && setFailed(path));
     return () => {
       cancelled = true;
     };
-  }, [path, resolve, raster, theme]);
+  }, [path, wallsPath, resolve]);
   if (!path || failed === path) return null;
   // Keep the previous bitmap while the next theme/digest is being signed (no flash).
   if (!signed) return { url: '', wallsUrl: '', ready: false, onLoad: () => {}, onError: () => {} };

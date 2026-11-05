@@ -71,6 +71,40 @@ it('raster mode (?mapa=rastr): themed base + wall layers at the payload bounds',
   window.history.replaceState(null, '', '/');
 });
 
+it('a map poll with the same raster path does not re-sign the base (stays ready)', async () => {
+  window.history.replaceState(null, '', '/?mapa=rastr');
+  const map = demo();
+  const resolve = vi.fn(async (path: string) => `signed:${path}:${resolve.mock.calls.length}`);
+  const view = (m: VectorMap) => (
+    <div data-theme="light">
+      <VectorFloorPlan
+        map={m}
+        rooms={rooms}
+        selected={[]}
+        onToggle={() => {}}
+        tone="idle"
+        label="Mapa"
+        resolveBase={resolve}
+      />
+    </div>
+  );
+  const { rerender } = render(view(map));
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  fireEvent.load(screen.getByTestId('robots-map-base'));
+  expect(screen.getByTestId('robots-vector-map').getAttribute('data-base')).toBe('ready');
+  const before = resolve.mock.calls.length;
+  // New payload object (next poll), same digest path.
+  rerender(view({ ...map, raster: { ...map.raster! } }));
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  expect(resolve).toHaveBeenCalledTimes(before);
+  expect(screen.getByTestId('robots-vector-map').getAttribute('data-base')).toBe('ready');
+  window.history.replaceState(null, '', '/');
+});
+
 it('dark theme requests the dark layers; failed signing falls back to the vector drawing', async () => {
   window.history.replaceState(null, '', '/?mapa=rastr');
   const map = demo();

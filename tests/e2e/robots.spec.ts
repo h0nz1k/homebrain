@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 
 // Roboti (Refs #94): 3 syntetičtí roboti z dev mocku; volání služeb se jen zaznamenají.
 test('patra, stav, chyba s návodem a úklid místností v pořadí', async ({ page }, testInfo) => {
+  // Long scenario (3 floors, sheet twice, full-page screenshot): ~25 s on a loaded host.
+  test.setTimeout(60_000);
   await page.goto('/homebrain-roboti');
   const tabs = page.getByRole('tab');
   await expect(tabs).toHaveCount(3);
@@ -109,6 +111,13 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
   for (const name of ['Režim', 'Sání']) {
     const w = await widths(name);
     expect(Math.max(...w) - Math.min(...w), name).toBeLessThan(1.5);
+    // Equal columns must not clip their labels (phones at 360 px).
+    const clipped = await page.getByRole('radiogroup', { name }).evaluate((el) =>
+      Array.from(el.querySelectorAll('button'))
+        .filter((b) => b.scrollWidth > b.clientWidth + 1)
+        .map((b) => b.textContent),
+    );
+    expect(clipped, name).toEqual([]);
   }
 
   // Calm by default: water, mop route and passes only under „Pokročilé“.

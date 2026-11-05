@@ -232,15 +232,15 @@ export function findDoors(rooms: Ring[][], walls: Ring[], opts: DoorOptions): Do
     });
     return best;
   };
-  walls.forEach((wall, w) => {
+  walls.forEach((wall) => {
     if (wall.length < 2) return;
     const closed = len(sub(wall[0]!, wall[wall.length - 1]!)) < opts.joint;
     if (closed) return;
-    const ends: [Pt, Pt, number][] = [
-      [wall[0]!, wall[1]!, 0],
-      [wall[wall.length - 1]!, wall[wall.length - 2]!, wall.length - 2],
+    const ends: [Pt, Pt][] = [
+      [wall[0]!, wall[1]!],
+      [wall[wall.length - 1]!, wall[wall.length - 2]!],
     ];
-    for (const [end, inner, seg] of ends) {
+    for (const [end, inner] of ends) {
       // A joint: the end lies on another wall piece (its own end segment excluded).
       const touching = segs.some(([a, b]) => a !== end && b !== end && distToSeg2(end, a, b) < j2);
       if (touching) continue;
