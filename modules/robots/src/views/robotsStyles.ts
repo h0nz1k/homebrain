@@ -301,8 +301,15 @@ export const robotsStyles = `
 @keyframes rv-breathe { from { opacity: .45; } to { opacity: 1; } }
 /* Rooms are low-chroma tonal tiles (one hue per room, --rv-hue); selection is the accent. */
 .rv {
-  --rv-room-l: 27.5%; --rv-room-dl: 2%; --rv-room-c: 0.005;
+  --rv-room-l: 30%; --rv-room-dl: 1.6%; --rv-room-c: 0.024;
+  --rv-sel-l: 38%; --rv-sel-c: 0.06;
   --rv-sel-mix: 30%;
+  --rv-grain: rgb(255 255 255 / 2.4%);
+  --rv-light: rgb(255 255 255 / 5%);
+  --rv-shade: rgb(0 0 0 / 55%);
+  --rv-lift: rgb(0 0 0 / 45%);
+  --rv-dock: color-mix(in srgb, var(--hb-t1) 78%, var(--rb-fill));
+  --rv-dock-plate: color-mix(in srgb, var(--hb-t1) 14%, transparent);
   --rv-sel-base: var(--rb-fill);
   --rv-outline: color-mix(in srgb, var(--hb-t1) 30%, transparent);
   --rv-room-top: color-mix(in srgb, var(--hb-t1) 15%, var(--hb-s1));
@@ -315,14 +322,21 @@ export const robotsStyles = `
   --rv-bot-edge: #d3d9e3;
   --rv-label: color-mix(in srgb, var(--hb-t1) 82%, transparent);
   --rv-label-sel: var(--hb-t1);
-  --rv-wall-line: color-mix(in srgb, var(--hb-t1) 42%, var(--rb-fill));
-  --rv-seam: color-mix(in srgb, var(--hb-t1) 16%, var(--rb-fill));
+  --rv-wall-line: color-mix(in srgb, var(--hb-t1) 34%, var(--rb-fill));
+  --rv-seam: color-mix(in srgb, var(--hb-t1) 14%, var(--rb-fill));
   --rv-divider: color-mix(in srgb, var(--hb-t1) 14%, transparent);
   position: relative; margin: 0 auto;
 }
 [data-theme='light'] .rv {
-  --rv-room-l: 96.4%; --rv-room-dl: 1.2%; --rv-room-c: 0.004;
+  --rv-room-l: 95.4%; --rv-room-dl: -1.2%; --rv-room-c: 0.017;
+  --rv-sel-l: 90%; --rv-sel-c: 0.05;
   --rv-sel-mix: 13%;
+  --rv-grain: rgb(16 24 40 / 3%);
+  --rv-light: rgb(255 255 255 / 55%);
+  --rv-shade: rgb(16 24 40 / 16%);
+  --rv-lift: rgb(16 24 40 / 16%);
+  --rv-dock: #4a5568;
+  --rv-dock-plate: rgb(16 24 40 / 9%);
   --rv-sel-base: #ffffff;
   --rv-outline: #8994a6;
   --rv-room-top: #ffffff;
@@ -333,8 +347,8 @@ export const robotsStyles = `
   --rv-bot-edge: #dfe4ec;
   --rv-label: #3b4452;
   --rv-label-sel: color-mix(in oklch, var(--hb-ac) 62%, black);
-  --rv-wall-line: #8b95a7;
-  --rv-seam: #c9d0db;
+  --rv-wall-line: #98a2b3;
+  --rv-seam: #cfd5de;
   --rv-divider: rgb(16 24 40 / 12%);
 }
 .rv svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -354,12 +368,23 @@ export const robotsStyles = `
 .rv[data-walls] .rv-room { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; }
 .rv-room-under { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; pointer-events: none; }
 .rv[data-walls] .rv-room[data-selected], .rv-room-under[data-selected] {
-  --rv-tile: color-mix(in oklch, var(--hb-ac) var(--rv-sel-mix), var(--rv-sel-base));
+  /* Selected = the room's own colour, lifted and more saturated (not a foreign accent fill). */
+  --rv-tile: oklch(var(--rv-sel-l) var(--rv-sel-c) var(--rv-hue, 250));
 }
+.rv-lift { fill: var(--rv-lift); stroke: none; pointer-events: none; }
+.rv-depth { pointer-events: none; }
+.rv-texture, .rv-light { stroke: none; pointer-events: none; }
+.rv-grain { fill: none; stroke: var(--rv-grain); }
+.rv-wall-shadow { fill: none; stroke: var(--rv-shade); stroke-linecap: round; stroke-linejoin: round; }
 .rv[data-walls] .rv-room-pad { fill: var(--rv-seam); stroke: var(--rv-seam); }
-.rv-sel-line { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+.rv-sel { pointer-events: none; }
+.rv-sel-line { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 /* Planned route to the selected rooms: dashed accent line through the doors. */
-.rv-route { fill: none; stroke: var(--hb-ac); stroke-width: 2.25px; stroke-dasharray: 5 6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; opacity: .95; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+.rv-route-layer { pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+.rv-route-casing { fill: none; stroke: color-mix(in srgb, var(--rb-fill) 70%, transparent); stroke-width: 6px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.rv-route { fill: none; stroke: var(--hb-ac); stroke-width: 2.5px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.rv-route-arrow { fill: none; stroke-width: 2px; stroke: var(--hb-ac); stroke-width: 2.25px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; paint-order: stroke; }
+.rv-route-stop { fill: var(--rb-fill); stroke: var(--hb-ac); stroke-width: 2px; vector-effect: non-scaling-stroke; }
 .rv-sel-ring { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 @keyframes rv-fade-in { from { opacity: 0; } }
 /* Walls: one outline shell; seams between rooms are thinner and quieter (same shared arcs). */
@@ -398,8 +423,7 @@ export const robotsStyles = `
 .rv-trail-recent { stroke-opacity: .95; stroke-width: 2.5px; }
 .rv-trail-reveal { stroke-dasharray: 1 1; stroke-dashoffset: 1; }
 .rv-bot[data-docked] .rv-bot-cone, .rv-bot[data-docked] .rv-bot-pulse { display: none; }
-.rv-bot[data-docked] .rv-bot-halo { fill: color-mix(in srgb, var(--hb-ok, #30a46c) 30%, transparent); }
-.rv-dock[data-docked] rect { stroke: var(--hb-ok, #30a46c); }
+.rv-bot[data-docked] .rv-bot-halo { display: none; }
 /* Raster mode: the bitmap is the floor plan, rooms are transparent hit areas on top. */
 .rv-base { pointer-events: none; }
 .rv[data-base] .rv-room { fill: transparent; stroke: none; }
@@ -410,10 +434,13 @@ export const robotsStyles = `
 [data-theme='light'] .rv[data-base] { --rv-halo: rgb(255 255 255 / 90%); }
 .rv[data-base] .rv-label { text-shadow: 0 0 2px var(--rv-halo), 0 0 6px var(--rv-halo); }
 .rv[data-base] .rv-cover { opacity: .24; }
-.rv-dock rect { fill: var(--hb-s1); stroke: color-mix(in srgb, var(--hb-ok, #30a46c) 55%, transparent); stroke-width: 1.5px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 25%)); }
-.rv-dock path { fill: var(--hb-ok, #30a46c); }
+.rv-dock { pointer-events: none; }
+.rv-dock-plate { fill: var(--rv-dock-plate); stroke: none; }
+.rv-dock-body { fill: var(--rv-dock); stroke: rgb(16 24 40 / 25%); stroke-width: 1px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 30%)); }
+.rv-dock-bolt { fill: var(--hb-ok, #30a46c); }
 .rv-bot { pointer-events: none; }
 .rv-bot-body { fill: url(#rv-bot); stroke: rgb(16 24 40 / 30%); stroke-width: 1px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 35%)); }
+.rv-bot-bumper { fill: none; stroke: rgb(16 24 40 / 22%); stroke-linecap: round; }
 .rv-bot-lidar { fill: #e9edf3; stroke: rgb(16 24 40 / 28%); stroke-width: 1px; vector-effect: non-scaling-stroke; }
 .rv-bot-heading { fill: var(--hb-ac); }
 .rv-bot-cone { fill: url(#rv-cone); opacity: .5; }
@@ -431,7 +458,7 @@ export const robotsStyles = `
   font-size: 13px; font-weight: 550; letter-spacing: -.005em; color: var(--rv-label); white-space: nowrap;
   transition: opacity 180ms, color 180ms;
 }
-.rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; --rv-tile: color-mix(in oklch, var(--hb-ac) var(--rv-sel-mix), var(--rv-sel-base)); }
+.rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; --rv-tile: oklch(var(--rv-sel-l) var(--rv-sel-c) var(--rv-hue, 250)); }
 /* Knock-out halo in the room's own tone: the route/lanes never run through the letters. */
 .rv[data-walls] .rv-label-text { text-shadow: 0 0 3px var(--rv-tile); }
 .rv-label[data-hidden] { visibility: hidden; }
@@ -463,6 +490,7 @@ export const robotsStyles = `
 .rb-live { color: var(--hb-ac); font-weight: 600; }
 .rb-live::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 6px 1px 0; border-radius: 50%; background: currentColor; animation: rb-pulse 2.4s ease-in-out infinite; }
 .rb-start { font-weight: 600; }
+.rb-start .rb-est { font-weight: 500; opacity: .82; white-space: nowrap; }
 /* Running clean: „Pozastavit“ beside the main CTA. */
 .rb-clean-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .rb-clean-actions .rb-start { flex: 1 1 230px; min-width: 0; order: 1; }

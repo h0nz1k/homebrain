@@ -66,12 +66,22 @@ interface Placed {
   x: number;
   y: number;
   small: boolean;
+  finish: 'tile' | 'wood';
 }
 
-/** One cool, low-chroma family (oklch hues): neighbours differ slightly, the accent stays the only loud colour. */
-export const ROOM_HUES = [250, 215, 275, 200, 240, 290, 225, 260] as const;
-/** Small lightness steps so neighbouring tiles separate without colour noise. */
-export const ROOM_STEPS = [0, 2, 1, 2, 0, 1, 2, 0] as const;
+/**
+ * One muted palette (oklch hues, low chroma in both themes): every room gets its own soft
+ * colour like in the Roborock/Dreame apps; consecutive ids differ by ≥ 45° so neighbours separate.
+ */
+export const ROOM_HUES = [250, 195, 285, 165, 228, 310, 180, 265] as const;
+/** Small lightness steps on top of the hue, so two similar hues still separate. */
+export const ROOM_STEPS = [0, 1, 1, 2, 0, 1, 2, 0] as const;
+/** Floor finish hint: tiles for wet rooms, planks elsewhere (texture only, very low contrast). */
+export function roomFinish(name: string): 'tile' | 'wood' {
+  return /koupel|wc|záchod|toalet|kuchy|prádel|technick|spíž|sprch|bath|kitchen|laundry/i.test(name)
+    ? 'tile'
+    : 'wood';
+}
 
 const reduceMotion = () =>
   typeof globalThis.matchMedia === 'function' &&
@@ -125,6 +135,7 @@ export function VectorFloorPlan({
           x,
           y,
           small: Math.min(box.w, box.h) < unit * 9,
+          finish: roomFinish(names.get(room.id) ?? ''),
         };
       }),
     [map, frame, unit, names, zones, raster],
@@ -146,34 +157,63 @@ export function VectorFloorPlan({
     [map, frame, unit],
   );
   const roomShapes = useMemo(() => placed.map((room) => room.rings), [placed]);
-  const robotView = map.robot ? toView(frame, map.robot.x, map.robot.y) : null;
+  const rawRobot = map.robot ? toView(frame, map.robot.x, map.robot.y) : null;
+  const dockView = map.dock ? toView(frame, map.dock.x, map.dock.y) : null;
+  const botR = unit * 2.8;
+  // The charger stands against its wall; a parked robot sits on its plate, inside the room.
+  const dockGeo = useMemo(
+    () => (dockView ? dockPose(dockView, walls, roomShapes, botR, unit * 0.42) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dockView is derived from map.dock
+    [map.dock, walls, roomShapes, botR, unit, frame],
+  );
+  // Parked on the station (not just driving past it while cleaning).
+  const docked =
+    tone !== 'cleaning' &&
+    !!dockGeo &&
+    !!rawRobot &&
+    Math.hypot(dockView![0] - rawRobot[0], dockView![1] - rawRobot[1]) < botR * 1.6;
+  const robotView = docked ? dockGeo!.robot : rawRobot;
   const robotRoom = robotView
     ? placed.find((room) => containsPoint(room.rings, robotView[0], robotView[1]))?.id
     : undefined;
   const pct = (v: number, of: number) => `${((v / of) * 100).toFixed(3)}%`;
-  const dockView = map.dock ? toView(frame, map.dock.x, map.dock.y) : null;
-  const routeFrom = robotView ?? dockView;
+  const routeFrom = robotView ?? dockGeo?.robot ?? dockView;
   const routeKey = `${selected.join(',')}|${routeFrom?.map((n) => n.toFixed(0)).join(',') ?? ''}`;
-  // Planned route: robot → selected rooms in order, through the doors (dashed preview).
-  const routeD = useMemo(() => {
-    if (!selected.length || !routeFrom || raster || !walls.length) return '';
-    const targets = selected
+  // Planned route: robot → selected rooms in order, through the doors. One continuous line:
+  // each leg stops just inside its room (no U-turn to the room centre), direction arrows on top.
+  const route = useMemo(() => {
+    const none = { d: '', arrows: [] as [number, number, number][], stops: [] as Pt[] };
+    if (!selected.length || !routeFrom || raster || !walls.length) return none;
+    const rooms = selected
       .map((id) => placed.find((room) => room.id === id))
-      .filter((room): room is Placed => !!room)
-      .map((room): [number, number] => [room.x, room.y]);
+      .filter((room): room is Placed => !!room);
+    const targets = rooms.map((room): [number, number] => [room.x, room.y]);
     const cell = Math.max(unit * 1.4, Math.sqrt((frame.width * frame.height) / 12_000));
     const legs = planRoute(roomShapes, walls, routeFrom, targets, {
       cell,
       clearance: unit * 1.6,
     });
-    // Legs end in the order badges (drawn on top), the first one starts at the robot's rim.
-    return legs
-      .map((leg, i) => trimLine(leg, i === 0 ? unit * 3 : 0, 0))
-      .filter((leg) => leg.length > 1)
-      .map((leg) => roundedLine(leg, unit * 2.4))
-      .join('');
+    if (!legs.length) return none;
+    const { runs, stops } = joinLegs(
+      legs,
+      rooms.map((room) => room.rings),
+      unit * 4,
+    );
+    const first = runs[0] ? trimLine(runs[0], unit * 3.4, 0) : [];
+    const all = [first, ...runs.slice(1)].filter((run) => run.length > 1);
+    if (!all.length) return none;
+    return {
+      d: all.map((run) => roundedLine(run, unit * 2.4)).join(''),
+      // Chevrons along each run, plus one arrowhead where each run ends inside its room.
+      arrows: all.flatMap((run) => [
+        ...arrowsAlong(run, unit * 12, unit * 5, stops, unit * 4),
+        endArrow(run),
+      ]),
+      stops,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- routeKey covers selection + pose
   }, [routeKey, placed, walls, roomShapes, unit, frame, raster]);
+  const routeD = route.d;
 
   return (
     <div
@@ -213,6 +253,41 @@ export function VectorFloorPlan({
             <stop offset="0" stopColor="#ffffff" />
             <stop offset="1" stopColor="var(--rv-bot-edge)" />
           </radialGradient>
+          {/* Floor finish hints: planks and tiles, one hairline colour at very low contrast. */}
+          <pattern
+            id={`${clipId}-wood`}
+            patternUnits="userSpaceOnUse"
+            width={unit * 30}
+            height={unit * 3.2}
+          >
+            <path
+              className="rv-grain"
+              d={`M0 0H${unit * 30}M0 ${unit * 1.6}H${unit * 30}M${unit * 7} 0V${unit * 1.6}M${unit * 22} ${unit * 1.6}V${unit * 3.2}`}
+              strokeWidth={unit * 0.1}
+            />
+          </pattern>
+          <pattern
+            id={`${clipId}-tile`}
+            patternUnits="userSpaceOnUse"
+            width={unit * 5}
+            height={unit * 5}
+          >
+            <path
+              className="rv-grain"
+              d={`M0 0H${unit * 5}M0 0V${unit * 5}`}
+              strokeWidth={unit * 0.1}
+            />
+          </pattern>
+          <linearGradient id={`${clipId}-light`} x1="0" y1="0" x2="0.35" y2="1">
+            <stop offset="0" stopColor="var(--rv-light)" stopOpacity="1" />
+            <stop offset="1" stopColor="var(--rv-light)" stopOpacity="0" />
+          </linearGradient>
+          <filter id={`${clipId}-soft`} x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation={unit * 0.9} />
+          </filter>
+          <filter id={`${clipId}-lift`} x="-10%" y="-10%" width="120%" height="125%">
+            <feGaussianBlur stdDeviation={unit * 1.6} />
+          </filter>
         </defs>
         <linearGradient id={`${clipId}-tail`} gradientUnits="userSpaceOnUse" data-rv-tail="">
           <stop offset="0" stopColor="var(--rv-trail)" stopOpacity="0.35" />
@@ -244,6 +319,15 @@ export function VectorFloorPlan({
           )
         ) : (
           <>
+            {/* Soft lift: the whole plan casts one blurred shadow onto the panel. */}
+            {wallsD && (
+              <path
+                className="rv-lift"
+                d={floor || roomsD}
+                transform={`translate(0 ${unit * 0.9})`}
+                filter={`url(#${clipId}-lift)`}
+              />
+            )}
             {floor && <path className="rv-floor" d={floor} />}
             {/* Older payloads without a wall layer: the widened union of all rooms is the outline. */}
             {!wallsD && <path className="rv-walls" d={roomsD} strokeWidth={unit * 1.5} />}
@@ -306,42 +390,71 @@ export function VectorFloorPlan({
             onError={base.onError}
           />
         )}
+        {wallsD && !raster && (
+          <g className="rv-depth" clipPath={floor ? `url(#${clipId}-floor)` : undefined}>
+            {placed.map((room) => (
+              <path
+                key={room.id}
+                className="rv-texture"
+                d={room.d}
+                fill={`url(#${clipId}-${room.finish})`}
+                data-finish={room.finish}
+              />
+            ))}
+            <path className="rv-light" d={roomsD} fill={`url(#${clipId}-light)`} />
+            {/* Inner depth: a blurred band along every wall, so rooms read as soft recessed tiles. */}
+            <path
+              className="rv-wall-shadow"
+              d={wallsD}
+              strokeWidth={unit * 1.5}
+              filter={`url(#${clipId}-soft)`}
+            />
+          </g>
+        )}
         {/* Outline and room seams are the same shared arcs (backend topology), drawn as plain
             strokes in one colour: the shell slightly heavier, seams meet it in clean T joints. */}
         {wallsD && dividersD && !raster && (
-          <path className="rv-wall-line rv-seam" d={dividersD} strokeWidth={unit * 0.3} />
+          <path className="rv-wall-line rv-seam" d={dividersD} strokeWidth={unit * 0.24} />
         )}
         {wallsD && !raster && (
           <path
             className="rv-wall-line"
             d={wallsD}
-            strokeWidth={unit * 0.55}
+            strokeWidth={unit * 0.42}
             data-testid="robots-map-walls"
           />
         )}
         {dividersD && !wallsD && !raster && <path className="rv-divider" d={dividersD} />}
-        {/* Selection = an accent outline on the room's side of its walls (clipped to the room,
-            so it never doubles the wall line) over a light tint. */}
+        {/* Selection = the room's own colour, stronger, plus one continuous accent outline on the
+            wall centreline (drawn over the walls, also across door openings). */}
         {wallsD &&
           !raster &&
           placed
             .filter((room) => selected.includes(room.id))
             .map((room) => (
               <g key={`sel${room.id}`} className="rv-sel" data-testid={`robots-map-sel-${room.id}`}>
-                <clipPath id={`${clipId}-sel-${room.id}`}>
-                  <path d={room.d} />
-                </clipPath>
-                {/* The room's own walls (door gaps stay open), only their inner side. */}
-                <path
-                  className="rv-sel-line"
-                  d={wallsD}
-                  clipPath={`url(#${clipId}-sel-${room.id})`}
-                  strokeWidth={unit * 1.0}
-                />
+                <path className="rv-sel-line" d={room.d} strokeWidth={unit * 0.5} />
               </g>
             ))}
         {routeD && (
-          <path className="rv-route" d={routeD} data-rv-avoid="4" data-testid="robots-map-route" />
+          <g className="rv-route-layer">
+            <path className="rv-route-casing" d={routeD} />
+            <path
+              className="rv-route"
+              d={routeD}
+              data-rv-avoid="4"
+              data-testid="robots-map-route"
+            />
+            {route.arrows.map(([x, y, deg], i) => (
+              <path
+                key={`ar${i}`}
+                className="rv-route-arrow"
+                data-testid="robots-map-route-arrow"
+                transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${deg.toFixed(1)})`}
+                d={`M${-unit * 0.7} ${-unit * 0.95}L${unit * 0.55} 0L${-unit * 0.7} ${unit * 0.95}`}
+              />
+            ))}
+          </g>
         )}
         {zones.map((zone, i) => {
           const box = ringBox(zone);
@@ -371,6 +484,9 @@ export function VectorFloorPlan({
           wallsD={wallsD}
           roomsD={roomsD}
           tailId={`${clipId}-tail`}
+          dockGeo={dockGeo}
+          docked={docked}
+          r={botR}
         />
       </svg>
       <div className="rv-labels" aria-hidden="true">
@@ -460,8 +576,14 @@ function RobotLayer({
   wallsD,
   roomsD,
   tailId,
+  dockGeo,
+  docked,
+  r,
 }: {
   tailId: string;
+  dockGeo: DockGeo | null;
+  docked: boolean;
+  r: number;
   map: VectorMap;
   frame: Frame;
   unit: number;
@@ -489,8 +611,10 @@ function RobotLayer({
     () => pathPoints(map.path).map(([x, y]) => toView(frame, x, y)),
     [map.path, frame],
   );
-  const target: Pt | null = map.robot ? toView(frame, map.robot.x, map.robot.y) : null;
-  const heading = map.robot?.a != null ? -map.robot.a : null;
+  // Parked: the marker sits on the dock plate facing into the room (pose from the dock geometry).
+  const target: Pt | null =
+    docked && dockGeo ? dockGeo.robot : map.robot ? toView(frame, map.robot.x, map.robot.y) : null;
+  const heading = docked && dockGeo ? dockGeo.angle : map.robot?.a != null ? -map.robot.a : null;
   const targetKey = target ? `${target[0].toFixed(1)},${target[1].toFixed(1)}` : '';
 
   useLayoutEffect(() => {
@@ -555,47 +679,36 @@ function RobotLayer({
   }, [targetKey, map.digest]);
 
   const trail = path;
-  const dockAt = map.dock ? toView(frame, map.dock.x, map.dock.y) : null;
-  // The charger stands against a wall: draw its badge a little inside the room, so it never
-  // sits on (or bleeds over) the wall line.
-  const dock = useMemo<Pt | null>(() => {
-    if (!dockAt) return null;
-    const home = rooms.find((rings) => containsPoint(rings, dockAt[0], dockAt[1]));
-    if (!home) return dockAt;
-    const [cx, cy] = polylabel(home, unit / 2);
-    const dist = Math.hypot(cx - dockAt[0], cy - dockAt[1]);
-    const k = dist > 0 ? Math.min(unit * 2.4, dist) / dist : 0;
-    return [dockAt[0] + (cx - dockAt[0]) * k, dockAt[1] + (cy - dockAt[1]) * k];
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dockAt is derived from map.dock
-  }, [map.dock, rooms, frame, unit]);
-  const r = unit * 2.5;
-  // Parked on the station (not just driving past it while cleaning).
-  const docked =
-    tone !== 'cleaning' &&
-    !!dock &&
-    !!target &&
-    Math.hypot(dockAt![0] - target[0], dockAt![1] - target[1]) < r * 1.6;
-  // Behind the robot = opposite its heading (it drives off the dock forwards).
-  const back = heading === null ? null : ((heading + 180) * Math.PI) / 180;
-  const dockShift: Pt =
-    back === null ? [r * 1.2, -r * 1.2] : [Math.cos(back) * r * 1.7, Math.sin(back) * r * 1.7];
-  const dockEl = dock ? (
+  // Dedicated charger glyph: tower against the wall + a plate the robot parks on.
+  const dockEl = dockGeo ? (
     <g
       className="rv-dock"
-      // Docked: the robot covers the charger, so the dock becomes a small badge next to
-      // the robot (always up-right in screen space) plus a charging ring around it.
-      transform={
-        docked
-          ? `translate(${(dock[0] + dockShift[0]).toFixed(1)} ${(dock[1] + dockShift[1]).toFixed(1)}) scale(0.7)`
-          : `translate(${dock[0]} ${dock[1]})`
-      }
+      transform={`translate(${dockGeo.station[0].toFixed(1)} ${dockGeo.station[1].toFixed(1)}) rotate(${dockGeo.angle.toFixed(1)})`}
       data-testid="robots-map-dock"
       data-docked={docked || undefined}
     >
-      <rect x={-r * 0.95} y={-r * 0.95} width={r * 1.9} height={r * 1.9} rx={r * 0.62} />
-      <path
-        d={`M${-r * 0.15} ${-r * 0.5}L${-r * 0.42} ${r * 0.08}H${r * 0.1}L${-r * 0.1} ${r * 0.55}L${r * 0.42} ${-r * 0.08}H${-r * 0.06}Z`}
+      <rect
+        className="rv-dock-plate"
+        x={-r * 0.45}
+        y={-r * 1.2}
+        width={r * 2.6}
+        height={r * 2.4}
+        rx={r * 0.7}
       />
+      <rect
+        className="rv-dock-body"
+        x={-r * 0.5}
+        y={-r * 1.15}
+        width={r * 0.95}
+        height={r * 2.3}
+        rx={r * 0.34}
+      />
+      <g transform={`rotate(${(-dockGeo.angle).toFixed(1)})`}>
+        <path
+          className="rv-dock-bolt"
+          d={`M${r * 0.08} ${-r * 0.5}L${-r * 0.24} ${r * 0.06}H${r * 0.02}L${-r * 0.08} ${r * 0.5}L${r * 0.24} ${-r * 0.06}H${-r * 0.02}Z`}
+        />
+      </g>
     </g>
   ) : null;
   return (
@@ -651,7 +764,7 @@ function RobotLayer({
           pathLength={1}
         />
       </g>
-      {!docked && dockEl}
+      {dockEl}
       {target && (
         <g
           ref={marker}
@@ -667,14 +780,18 @@ function RobotLayer({
           />
           <circle className="rv-bot-halo" r={r * 1.5} />
           <circle className="rv-bot-body" r={r} />
-          <circle className="rv-bot-lidar" r={r * 0.3} cx={-r * 0.12} />
+          <path
+            className="rv-bot-bumper"
+            d={`M${r * 0.42} ${-r * 0.82}A${r * 0.93} ${r * 0.93} 0 0 1 ${r * 0.42} ${r * 0.82}`}
+            strokeWidth={r * 0.16}
+          />
+          <circle className="rv-bot-lidar" r={r * 0.36} cx={-r * 0.18} />
           <path
             className="rv-bot-heading"
             d={`M${r * 0.98} 0L${r * 0.5} ${-r * 0.32}Q${r * 0.62} 0 ${r * 0.5} ${r * 0.32}Z`}
           />
         </g>
       )}
-      {docked && dockEl}
     </g>
   );
 }
@@ -994,4 +1111,202 @@ export function useNow(ms: number, active: boolean) {
     return () => clearInterval(id);
   }, [ms, active]);
   return now;
+}
+
+export interface DockGeo {
+  /** Wall point the charger stands against. */
+  foot: Pt;
+  /** Centre of the charger tower. */
+  station: Pt;
+  /** Where a parked robot sits (on the dock plate, inside the room). */
+  robot: Pt;
+  /** Direction into the room (degrees, SVG). */
+  angle: number;
+}
+
+/** Charger pose from the reported dock point: snap to the nearest wall, face into the room. */
+export function dockPose(
+  at: Pt,
+  walls: Ring[],
+  rooms: Ring[][],
+  r: number,
+  wallWidth: number,
+): DockGeo | null {
+  let best = Infinity;
+  let foot: Pt = at;
+  for (const wall of walls)
+    for (let i = 1; i < wall.length; i++) {
+      const [ax, ay] = wall[i - 1]!;
+      const [bx, by] = wall[i]!;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = dx * dx + dy * dy;
+      const t = len ? Math.max(0, Math.min(1, ((at[0] - ax) * dx + (at[1] - ay) * dy) / len)) : 0;
+      const p: Pt = [ax + dx * t, ay + dy * t];
+      const d = Math.hypot(at[0] - p[0], at[1] - p[1]);
+      if (d < best) {
+        best = d;
+        foot = p;
+      }
+    }
+  let nx = at[0] - foot[0];
+  let ny = at[1] - foot[1];
+  if (best > r * 4 || Math.hypot(nx, ny) < 1e-6) {
+    // Free-standing dock (no wall close by): face the room's visual centre.
+    const home = rooms.find((rings) => containsPoint(rings, at[0], at[1]));
+    if (!home) return null;
+    const [cx, cy] = polylabel(home, r / 4);
+    foot = at;
+    nx = cx - at[0];
+    ny = cy - at[1];
+  }
+  const n = Math.hypot(nx, ny) || 1;
+  nx /= n;
+  ny /= n;
+  const base = wallWidth / 2 + r * 0.22;
+  return {
+    foot,
+    station: [foot[0] + nx * (base + r * 0.5), foot[1] + ny * (base + r * 0.5)],
+    robot: [foot[0] + nx * (base + r * 1.3 + r), foot[1] + ny * (base + r * 1.3 + r)],
+    angle: (Math.atan2(ny, nx) * 180) / Math.PI,
+  };
+}
+
+const densify = (pts: Pt[], step: number): Pt[] => {
+  const out: Pt[] = pts.length ? [pts[0]!] : [];
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1]!;
+    const [bx, by] = pts[i]!;
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let k = 1; k <= n; k++) out.push([ax + ((bx - ax) * k) / n, ay + ((by - ay) * k) / n]);
+  }
+  return out;
+};
+
+/**
+ * Joins route legs into one line. Each leg stops `depth` inside its target room instead of the
+ * room centre, and the next leg leaves from there (straight when no wall is in the way), so the
+ * line never doubles back on itself inside a room.
+ */
+export function joinLegs(
+  legs: Pt[][],
+  targets: Ring[][],
+  depth: number,
+): { runs: Pt[][]; stops: Pt[] } {
+  const step = depth / 6;
+  const near = depth * 0.3;
+  const drawn: Pt[][] = [];
+  const stops: Pt[] = [];
+  const nearDrawn = (p: Pt) => drawn.some((run) => distToLine(p, run) < near);
+  legs.forEach((leg, i) => {
+    let line = densify(leg, step);
+    if (i > 0) {
+      // The robot drives back along the part it already took: draw only the new branch,
+      // starting where it leaves the drawn route (or where it leaves the previous room).
+      const prev = targets[i - 1];
+      let k = prev ? line.findIndex((p) => !containsPoint(prev, p[0], p[1])) : 0;
+      if (k < 0) k = 0;
+      const onRoute = line.findIndex((p, j) => j >= k && nearDrawn(p));
+      if (onRoute >= 0) {
+        let off = line.findIndex((p, j) => j > onRoute && !nearDrawn(p));
+        if (off < 0) off = line.length - 1;
+        k = Math.max(0, off - 2);
+      }
+      line = line.slice(k);
+    }
+    const room = targets[i];
+    let end = line.length - 1;
+    if (room) {
+      const enter = line.findIndex((p) => containsPoint(room, p[0], p[1]));
+      if (enter >= 0) end = Math.min(line.length - 1, enter + 6);
+    }
+    const run = simplifyLine(line.slice(0, end + 1), step * 0.35);
+    if (run.length > 1) {
+      drawn.push(run);
+      stops.push(run[run.length - 1]!);
+    }
+  });
+  return { runs: drawn, stops };
+}
+
+function distToLine(p: Pt, line: Pt[]): number {
+  let best = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const [ax, ay] = line[i - 1]!;
+    const [bx, by] = line[i]!;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / len)) : 0;
+    best = Math.min(best, Math.hypot(p[0] - ax - dx * t, p[1] - ay - dy * t));
+  }
+  return best;
+}
+
+/** Drops nearly collinear points (keeps rounding radii sensible after densify). */
+function simplifyLine(pts: Pt[], tol: number): Pt[] {
+  if (pts.length < 3) return pts;
+  const keep = [true, ...pts.slice(1, -1).map(() => false), true];
+  const rdp = (a: number, b: number) => {
+    let max = 0;
+    let idx = -1;
+    const [ax, ay] = pts[a]!;
+    const [bx, by] = pts[b]!;
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    for (let i = a + 1; i < b; i++) {
+      const [px, py] = pts[i]!;
+      const d = Math.abs((bx - ax) * (ay - py) - (ax - px) * (by - ay)) / len;
+      if (d > max) {
+        max = d;
+        idx = i;
+      }
+    }
+    if (max > tol && idx > 0) {
+      keep[idx] = true;
+      rdp(a, idx);
+      rdp(idx, b);
+    }
+  };
+  rdp(0, pts.length - 1);
+  return pts.filter((_, i) => keep[i]);
+}
+
+/** Direction chevrons every `gap` along the line, away from its ends and from the stops. */
+export function arrowsAlong(
+  pts: Pt[],
+  gap: number,
+  start: number,
+  stops: Pt[],
+  keepOut: number,
+): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++)
+    total += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]);
+  let next = start;
+  let walked = 0;
+  for (let i = 1; i < pts.length && next < total - keepOut; i++) {
+    const [ax, ay] = pts[i - 1]!;
+    const [bx, by] = pts[i]!;
+    const len = Math.hypot(bx - ax, by - ay);
+    while (next <= walked + len && next < total - keepOut) {
+      const t = (next - walked) / (len || 1);
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t;
+      // Not on a corner fillet (the line bends there) and not on a stop marker.
+      const nearCorner =
+        Math.min(next - walked, walked + len - next) < keepOut * 0.9 && len > keepOut * 2;
+      if (!nearCorner && stops.every(([sx, sy]) => Math.hypot(sx - x, sy - y) > keepOut))
+        out.push([x, y, (Math.atan2(by - ay, bx - ax) * 180) / Math.PI]);
+      next += nearCorner ? keepOut * 0.5 : gap;
+    }
+    walked += len;
+  }
+  return out;
+}
+
+function endArrow(run: Pt[]): [number, number, number] {
+  const [x, y] = run[run.length - 1]!;
+  const [px, py] = run[run.length - 2]!;
+  return [x, y, (Math.atan2(y - py, x - px) * 180) / Math.PI];
 }

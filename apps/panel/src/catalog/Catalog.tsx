@@ -15,7 +15,6 @@ import {
   HeroSignal,
   Pill,
   SaveState,
-  SegmentedControl,
   SignalCard,
   Sparkline,
   Stat,
@@ -29,22 +28,6 @@ import {
 } from '@homebrain/ui';
 
 type DataQuality = Parameters<typeof StatusBadge>[0]['quality'];
-
-function SegmentedDemo() {
-  const [value, setValue] = useState<string | null>('both');
-  return (
-    <SegmentedControl
-      label="Režim"
-      value={value}
-      options={[
-        ['vacuum', 'Vysávat'],
-        ['both', 'Vysávat i mopovat'],
-        ['mop', 'Mopovat'],
-      ]}
-      onChange={setValue}
-    />
-  );
-}
 
 /**
  * Živý katalog sdílených prvků `@homebrain/ui`. Jen pro vývoj: vlastní vstup `catalog.html`,
@@ -266,18 +249,6 @@ const specs: Spec[] = [
         <Button disabled>Nedostupné</Button>
       </div>
     ),
-  },
-  {
-    id: 'segmented',
-    name: 'SegmentedControl',
-    summary: 'Jedna volba ze 2–5 krátkých možností (radiogroup).',
-    importName: 'SegmentedControl',
-    states: ['vybraná možnost', 'nic nevybráno', 'mobil (zalomení)'],
-    doText: 'Režim úklidu, sání – krátké popisky, jedna platí.',
-    dontText: 'Víc než 5 možností nebo dlouhé texty – použijte seznam.',
-    notes:
-      'Nová komponenta (API shodné s PR #115 Přístup). Víno/Počasí mají vlastní radiogroup → sjednotit.',
-    render: () => <SegmentedDemo />,
   },
   {
     id: 'status-row',
@@ -514,11 +485,11 @@ const specs: Spec[] = [
     name: 'SegmentedControl',
     summary: 'Výběr jedné ze 2–4 krátkých možností.',
     importName: 'SegmentedControl',
-    states: ['vybraná', 'nevybraná', 'disabled', 'size = sm'],
+    states: ['vybraná', 'nevybraná', 'disabled', 'size = sm', 'tone = accent'],
     doText: 'Krátké popisky (1–2 slova).',
     dontText: 'Víc než 4 možnosti – použijte seznam.',
     notes:
-      'radiogroup + role=radio (aria-checked); viditelný štítek vlevo, hideLabel pro záložky. Stejné API jako Roboti (PR #97). Nahradí wine-seg / wx-seg.',
+      'radiogroup + role=radio (aria-checked); viditelný štítek vlevo, hideLabel pro záložky. Stejné API jako Roboti (PR #97). tone="accent" vedle stisknutých Chipů (Roboti: Režim/Sání), aby výběr vypadal všude stejně. Nahradí wine-seg / wx-seg.',
     render: () => <SegDemo />,
   },
   {
@@ -614,15 +585,27 @@ function SwitchDemo() {
 function SegDemo() {
   const [v, setV] = useState<'unlock' | 'open'>('unlock');
   return (
-    <SegmentedControl
-      label="Akce"
-      value={v}
-      onChange={setV}
-      options={[
-        ['unlock', 'Odemknout'],
-        ['open', 'Otevřít západku'],
-      ]}
-    />
+    <div className="cat-row">
+      <SegmentedControl
+        label="Akce"
+        value={v}
+        onChange={setV}
+        options={[
+          ['unlock', 'Odemknout'],
+          ['open', 'Otevřít západku'],
+        ]}
+      />
+      <SegmentedControl
+        label="Akce (accent)"
+        tone="accent"
+        value={v}
+        onChange={setV}
+        options={[
+          ['unlock', 'Odemknout'],
+          ['open', 'Otevřít západku'],
+        ]}
+      />
+    </div>
   );
 }
 

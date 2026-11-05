@@ -50,6 +50,8 @@ export interface SegmentedControlProps<T extends string = string> {
   hideLabel?: boolean;
   disabled?: boolean;
   size?: 'sm' | 'md';
+  /** `accent`: the chosen option is tinted with the accent, like pressed Chips next to it. */
+  tone?: 'neutral' | 'accent';
 }
 /** Single choice from 2–5 short options (radiogroup with a sliding thumb look). */
 export function SegmentedControl<T extends string = string>({
@@ -61,9 +63,14 @@ export function SegmentedControl<T extends string = string>({
   hideLabel,
   disabled,
   size = 'md',
+  tone = 'neutral',
 }: SegmentedControlProps<T>) {
   return (
-    <div className={`hb-seg-wrap ${className}`} data-size={size}>
+    <div
+      className={`hb-seg-wrap ${className}`}
+      data-size={size}
+      data-tone={tone === 'accent' ? tone : undefined}
+    >
       <span className={hideLabel ? 'hb-visually-hidden' : 'hb-seg-label'}>{label}</span>
       <div className="hb-seg" role="radiogroup" aria-label={label}>
         {options.map(([key, text]) => (

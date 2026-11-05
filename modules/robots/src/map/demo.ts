@@ -60,6 +60,19 @@ const OUTER: P[] = [
   [18, 18],
 ];
 
+/** Demo plan unit = 4 cm: shoelace area in m² (synthetic flats of ~120 m²). */
+const planArea = (pts: P[]) =>
+  Math.round(
+    (Math.abs(
+      pts.reduce((sum, [x, y], i) => {
+        const [nx, ny] = pts[(i + 1) % pts.length]!;
+        return sum + x * ny - nx * y;
+      }, 0),
+    ) /
+      2) *
+      0.0016,
+  );
+
 const PLANS: Record<number, DemoPlan> = {
   1: {
     rooms: [
@@ -152,7 +165,7 @@ const PLANS: Record<number, DemoPlan> = {
     dock: [32, 162],
     wallLines: [
       OUTER,
-      ...v(212, [18, 150], [175, 192]),
+      ...v(212, [18, 152], [172, 192]),
       [
         [18, 122],
         [60, 122],
@@ -169,7 +182,7 @@ const PLANS: Record<number, DemoPlan> = {
         [249, 102],
         [280, 102],
       ],
-      ...h(102, [302, 332]),
+      ...h(102, [300, 332]),
       ...h(192, [18, 40], [60, 110], [130, 190], [210, 270], [290, 332]),
       ...v(78, [192, 256]),
       ...v(162, [192, 256]),
@@ -276,7 +289,7 @@ const PLANS: Record<number, DemoPlan> = {
     ],
     wallLines: [
       OUTER,
-      ...h(132, [18, 100], [120, 186], [208, 270], [290, 332]),
+      ...h(132, [18, 100], [120, 188], [208, 270], [290, 332]),
       ...v(152, [18, 132]),
       ...v(246, [18, 132]),
       ...h(170, [18, 60], [80, 150], [170, 260], [280, 332]),
@@ -356,7 +369,7 @@ export function demoVectorMap(
     map: {
       digest: `demo-${slot}`,
       bounds: [OX, OY, OX + 350 * S, OY + 274 * S],
-      rooms: plan.rooms.map(([id, pts]) => ({ id, polygons: [flat(pts)], area_m2: 0 })),
+      rooms: plan.rooms.map(([id, pts]) => ({ id, polygons: [flat(pts)], area_m2: planArea(pts) })),
       floor: [flat(plan.floor)],
       walls: plan.wallLines.map(flat),
       dividers: [],

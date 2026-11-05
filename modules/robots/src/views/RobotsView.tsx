@@ -125,7 +125,7 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
             <span className="rb-floor-meta">
               <i className="rb-dot" data-rb-att={attention(robot)} aria-hidden="true" />
               <span className="rb-floor-robot">{robot.name} · </span>
-              {robot.battery !== null ? `${Math.round(robot.battery)} %` : robot.status.label}
+              {robot.battery !== null ? `${Math.round(robot.battery)}\u00a0%` : robot.status.label}
               {attention(robot) === 'crit' ? (
                 <span className="rb-floor-help">{' · potřebuje pomoc'}</span>
               ) : (
@@ -180,6 +180,10 @@ function RobotPanel({
   const areas = new Map((vmap?.rooms ?? []).map((room) => [room.id, Math.round(room.area_m2)]));
   const roomsLabel = czCount(selected.length, 'místnost', 'místnosti', 'místností');
   const selectedArea = selected.reduce((sum, id) => sum + (areas.get(id) ?? 0), 0);
+  // Rough duration for the CTA (≈ 1 m²/min vacuuming, slower with the mop); hidden without areas.
+  const estimate = selectedArea
+    ? Math.max(5, Math.round((selectedArea * MINUTES_PER_M2[mode ?? 'vacuum']) / 5) * 5)
+    : null;
   // The room shown as „Uklízí X“ comes from the robot pose on the drawn map, so the header,
   // the hero and the marker never disagree (the HA room sensor lags behind).
   const poseRoom = vmap?.robot ? roomAt(vmap, vmap.robot.x, vmap.robot.y) : null;
@@ -193,7 +197,14 @@ function RobotPanel({
     const row = chipsRef.current;
     if (!row || lastPicked === undefined || row.scrollWidth <= row.clientWidth) return;
     const chip = row.querySelector<HTMLElement>(`[data-testid='robots-room-${lastPicked}']`);
-    if (chip) row.scrollTo?.({ left: chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2 });
+    if (!chip) return;
+    let left = chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2;
+    // Never stop with a chip cut in half at the left edge: snap to that chip's start.
+    const cut = Array.from(row.querySelectorAll<HTMLElement>('[data-testid^="robots-room-"]')).find(
+      (el) => el.offsetLeft < left && el.offsetLeft + el.offsetWidth > left,
+    );
+    if (cut) left = cut.offsetLeft - 16;
+    row.scrollTo?.({ left: Math.max(0, left) });
   }, [lastPicked]);
   const portraitMap =
     !!vmap && vmap.bounds[3] - vmap.bounds[1] > (vmap.bounds[2] - vmap.bounds[0]) * 1.1;
@@ -449,7 +460,7 @@ function RobotPanel({
                   <>
                     {' · '}
                     {robot.status.label}
-                    {robot.battery !== null ? ` ${Math.round(robot.battery)} %` : ''}
+                    {robot.battery !== null ? ` ${Math.round(robot.battery)}\u00a0%` : ''}
                     {robot.rooms.length
                       ? ` · ${czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}`
                       : ''}
@@ -564,6 +575,7 @@ function RobotPanel({
                 {modes.length > 1 && (
                   <SegmentedControl
                     label="Režim"
+                    tone="accent"
                     value={mode}
                     options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
                     onChange={(value) => setMode(value as CleanMode)}
@@ -572,6 +584,7 @@ function RobotPanel({
                 {robot.fanChoices.length > 1 && (
                   <SegmentedControl
                     label="Sání"
+                    tone="accent"
                     value={fan}
                     options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
                     onChange={setFan}
@@ -621,6 +634,12 @@ function RobotPanel({
                       : selected.length
                         ? `Uklidit ${roomsLabel}`
                         : 'Uklidit vybrané'}
+                  {!robot.error && selected.length > 0 && estimate !== null && (
+                    <span className="rb-est" data-testid="robots-start-estimate">
+                      {' '}
+                      · cca&nbsp;{estimate}&nbsp;min
+                    </span>
+                  )}
                 </Button>
               </div>
               {!connection && (
@@ -698,7 +717,7 @@ function Battery({ value, charging }: { value: number | null; charging: boolean 
         />
       </svg>
       <span>
-        <b>{value === null ? '–' : `${pct} %`}</b>
+        <b>{value === null ? '–' : `${pct}\u00a0%`}</b>
         <em>{charging ? 'nabíjí se' : 'baterie'}</em>
       </span>
     </div>
@@ -758,6 +777,8 @@ function Tank({ ok, kind }: { ok: boolean; kind: string }) {
 }
 
 const TRAIL_KEY = 'hb.robots.trail';
+/** Rough cleaning pace for the CTA estimate (minutes per m², incl. turns and transit). */
+const MINUTES_PER_M2: Record<CleanMode, number> = { vacuum: 0.8, mop: 1, both: 1.2 };
 
 function readTrailPref(): boolean {
   try {

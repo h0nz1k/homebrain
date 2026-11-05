@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest';
 import { demoVectorMap } from '../map/demo.js';
 import { rasterRect, frameFor, type VectorMap } from '../map/geometry.js';
-import { VectorFloorPlan } from './VectorMap.js';
+import { VectorFloorPlan, dockPose } from './VectorMap.js';
 
 afterEach(cleanup);
 
@@ -115,14 +115,42 @@ it('payload without raster or ?mapa=vektor keeps the vector map', async () => {
   window.history.replaceState(null, '', '/');
 });
 
-it('docked robot: the dock badge is moved out from under the robot', async () => {
+it('docked robot: parks on the dock plate in front of the charger, facing into the room', async () => {
   const map = demo();
   await mount({ ...map, robot: { ...map.dock!, a: 90 }, path: [] }, 'dark', { tone: 'idle' });
   const dock = screen.getByTestId('robots-map-dock');
   expect(dock.getAttribute('data-docked')).toBe('true');
-  expect(screen.getByTestId('robots-map-robot').getAttribute('data-docked')).toBe('true');
-  // Painted after (above) the robot and shifted away from the dock point.
   const robot = screen.getByTestId('robots-map-robot');
-  expect(robot.compareDocumentPosition(dock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(dock.getAttribute('transform')).toMatch(/scale\(0\.7\)/);
+  expect(robot.getAttribute('data-docked')).toBe('true');
+  // Charger drawn first (robot on top), no shrunken badge any more.
+  expect(dock.compareDocumentPosition(robot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(dock.getAttribute('transform')).not.toMatch(/scale/);
+  const at = (el: Element) =>
+    (el.getAttribute('transform') ?? '')
+      .match(/translate\(([-\d.]+) ([-\d.]+)\)/)!
+      .slice(1)
+      .map(Number);
+  const [dx, dy] = at(dock);
+  const [rx, ry] = at(robot);
+  expect(Math.hypot(rx! - dx!, ry! - dy!)).toBeGreaterThan(0);
+});
+
+it('dockPose snaps the charger to the nearest wall and faces into the room', () => {
+  const room = [
+    [
+      [0, 0],
+      [100, 0],
+      [100, 60],
+      [0, 60],
+    ],
+  ] as [number, number][][];
+  const wall = [
+    [0, 0],
+    [0, 60],
+  ] as [number, number][];
+  const pose = dockPose([6, 30], [wall], [room], 5, 1)!;
+  expect(pose.foot).toEqual([0, 30]);
+  expect(pose.angle).toBeCloseTo(0);
+  expect(pose.robot[0]).toBeGreaterThan(pose.station[0]);
+  expect(pose.robot[1]).toBeCloseTo(30);
 });

@@ -1310,6 +1310,18 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     0 0 0 0.5px rgb(16 24 40 / 10%),
     0 1px 3px rgb(16 24 40 / 10%);
 }
+.hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] {
+  background: color-mix(in oklch, var(--hb-ac) 24%, var(--hb-s2));
+  color: color-mix(in oklch, var(--hb-ac) 45%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 65%, transparent);
+}
+[data-theme='light'] .hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] {
+  background: var(--hb-s1);
+  color: color-mix(in oklch, var(--hb-ac) 75%, black);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 55%, transparent),
+    0 1px 3px rgb(16 24 40 / 10%);
+}
 .hb-seg button:disabled {
   cursor: default;
   opacity: 0.55;
