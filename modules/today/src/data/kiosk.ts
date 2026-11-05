@@ -9,10 +9,11 @@ export type HomeBrainRole = 'owner' | 'adult' | 'child' | 'guest' | 'kiosk';
  * shown on a shared screen; wine and system diagnostics are not for the wall tablet either.
  */
 const SIGNAL_VISIBILITY: Record<HomeBrainRole, ReadonlySet<ModuleId>> = {
-  owner: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'system']),
-  adult: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'system']),
-  child: new Set(['weather', 'waste', 'calendar']),
-  kiosk: new Set(['weather', 'energy', 'waste', 'calendar']),
+  owner: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'recipes', 'system']),
+  adult: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'recipes', 'system']),
+  child: new Set(['weather', 'waste', 'calendar', 'recipes']),
+  // Kitchen tablet: the airfryer status („Protřepej“, „Hotovo“) belongs on the wall.
+  kiosk: new Set(['weather', 'energy', 'waste', 'calendar', 'recipes']),
   guest: new Set(),
 };
 
@@ -69,6 +70,7 @@ const MODULE_PREFIXES: Record<ModuleId, true> = {
   calendar: true,
   health: true,
   wine: true,
+  recipes: true,
   system: true,
 };
 

@@ -103,7 +103,11 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
         : undefined;
     return withSignalFeeds(
       factory(ctx),
-      resolveTodaySignalFeeds({ connection: context.connection }),
+      resolveTodaySignalFeeds({
+        connection: context.connection,
+        store: context.store,
+        bindings: context.bindings,
+      }),
     );
   }, [factory, context.store, context.bindings, context.connection]);
   // Role comes only from the server (ADR-0002); until it answers, nothing extra is unlocked.
