@@ -14,6 +14,7 @@ import {
   flowAllocation,
   inverterAcKw,
   LANE_ORDER,
+  laneKey,
   linkFlows,
   linkLanes,
   PAIR_LINKS,
@@ -57,16 +58,22 @@ describe('inverter hub topology', () => {
   it('lane order lists exactly the pairs that use each link', () => {
     for (const link of FLOW_LINKS)
       expect([...LANE_ORDER[link]].sort()).toEqual(
-        FLOW_PAIRS.filter((id) => PAIR_LINKS[id].includes(link)).sort(),
+        [
+          ...new Set(
+            FLOW_PAIRS.filter((id) => PAIR_LINKS[id].includes(link)).map((id) => laneKey(link, id)),
+          ),
+        ].sort(),
       );
-    // grid → house is the bottom lane on both bus halves → no jog under the T joint.
-    expect(LANE_ORDER['grid-ac'].at(-1)).toBe('grid-house');
+    // One line per source on its own first link (the sun never shows three lines).
+    expect(LANE_ORDER['pv-hub']).toEqual(['pv']);
+    // grid import is the bottom lane on both bus halves → no jog under the board.
+    expect(LANE_ORDER['grid-ac'].at(-1)).toBe('grid');
     expect(LANE_ORDER['ac-house'].at(-1)).toBe('grid-house');
   });
 
   it('lanes keep only active pairs in order', () => {
     const lanes = linkLanes(['grid-house', 'pv-grid', 'pv-house'] as FlowPairId[]);
-    expect(lanes['grid-ac']).toEqual(['pv-grid', 'grid-house']);
+    expect(lanes['grid-ac']).toEqual(['pv-grid', 'grid']);
     expect(lanes['ac-house']).toEqual(['pv-house', 'grid-house']);
     expect(lanes['hub-ac']).toEqual(['pv-grid', 'pv-house']);
     expect(lanes['battery-hub']).toEqual([]);

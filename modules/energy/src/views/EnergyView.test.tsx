@@ -150,9 +150,17 @@ describe('EnergyView', () => {
       expect(screen.getByTestId('energy-flow-hub-status').textContent).toContain('Normální');
       expect(screen.getByTestId('energy-flow-hub-temp').textContent).toMatch(/°C/);
       expect(screen.getByTestId('energy-flow-battery-temp').textContent).toContain('21');
-      expect(screen.getByTestId('energy-flow-edge-pv-house-value').textContent).toBe('3,6 kW');
-      expect(screen.getByTestId('energy-flow-edge-pv-battery-value').textContent).toBe('1,4 kW');
-      expect(screen.getByTestId('energy-flow-edge-pv-grid-value').textContent).toBe('0,7 kW');
+      // No value on a wire: each sink names its source in the source colour (review 003).
+      expect(document.querySelector('.ef-pill')).toBeNull();
+      for (const id of ['house', 'battery', 'grid'])
+        expect(screen.getByTestId(`energy-flow-${id}-sources`).textContent).toContain('ze slunce');
+      expect(screen.getByTestId('energy-flow-house').textContent).toContain('3,6');
+      expect(screen.getByTestId('energy-flow-battery').textContent).toContain('1,4');
+      expect(screen.getByTestId('energy-flow-grid').textContent).toContain('0,7');
+      // One line from the sun (merged lane), split inside the inverter; arrows on every lane.
+      expect(document.querySelectorAll('[data-testid^="energy-flow-chev-pv-hub-"]')).toHaveLength(
+        1,
+      );
     });
     it('night: nothing running, grid feeds the house', async () => {
       flowSetup('night', '2026-06-02T02:00:00+02:00');
@@ -171,8 +179,9 @@ describe('EnergyView', () => {
       expect(screen.getByTestId('energy-flow-headline').textContent).toBe(
         'Síť napájí dům a nabíjí baterii',
       );
-      expect(screen.getByTestId('energy-flow-edge-grid-battery-value').textContent).toBe('2,5 kW');
-      expect(screen.getByTestId('energy-flow-edge-grid-house-value').textContent).toBe('0,5 kW');
+      expect(screen.getByTestId('energy-flow-battery').textContent).toContain('2,5');
+      expect(screen.getByTestId('energy-flow-house').textContent).toContain('0,5');
+      expect(screen.getByTestId('energy-flow-house-sources').textContent).toContain('ze sítě');
       expect(screen.queryByTestId('energy-flow-edge-pv-grid')).toBeNull();
       // Short labels (no clipping on 320 px): the battery says where the charge comes from.
       expect(screen.getByTestId('energy-flow-battery').textContent).toContain('nabíjí ze sítě');
