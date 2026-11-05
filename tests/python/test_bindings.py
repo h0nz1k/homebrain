@@ -345,3 +345,36 @@ def test_energy_main_breaker_binding_domains():
     with pytest.raises(vol.Invalid):
         validate_binding("energy_main_breaker", "switch.demo_breaker")
     assert binding_domains("energy_grid_l1_power") == ("sensor",)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "energy_tariff_price_vt",
+        "energy_tariff_price_nt",
+        "energy_tariff_fixed_monthly",
+        "energy_meter_correction",
+        "energy_spot_distribution_vt",
+        "energy_spot_distribution_nt",
+        "energy_spot_markup",
+        "energy_spot_fixed_monthly",
+    ],
+)
+def test_energy_cost_inputs_accept_helpers(key):
+    """Cost inputs are documented as input_number helpers; number/sensor work too."""
+    from custom_components.homebrain.bindings import validate_binding
+
+    for eid in ("input_number.demo_price", "number.demo_price", "sensor.demo_price"):
+        assert validate_binding(key, eid) == eid
+    with pytest.raises(vol.Invalid):
+        validate_binding(key, "switch.demo_price")
+
+
+def test_energy_tariff_hdo_accepts_binary_sensor():
+    """HDO state is a binary_sensor (on = NT); the next change stays a sensor."""
+    from custom_components.homebrain.bindings import binding_domains, validate_binding
+
+    assert (
+        validate_binding("energy_tariff_hdo", "binary_sensor.demo_hdo") == "binary_sensor.demo_hdo"
+    )
+    assert binding_domains("energy_tariff_next_change") == ("sensor",)

@@ -174,6 +174,21 @@ BINDING_DOMAINS: dict[str, str | tuple[str, ...]] = {
     "energy_appliance_dehumidifier_switch": "switch",
     # Main breaker rating is a constant: a helper (input_number/number) or a sensor.
     "energy_main_breaker": ("input_number", "number", "sensor"),
+    # Cost inputs are input_number helpers (docs/requirements/energy.md); HDO = binary_sensor.
+    **{
+        key: ("input_number", "number", "sensor")
+        for key in (
+            "energy_tariff_price_vt",
+            "energy_tariff_price_nt",
+            "energy_tariff_fixed_monthly",
+            "energy_meter_correction",
+            "energy_spot_distribution_vt",
+            "energy_spot_distribution_nt",
+            "energy_spot_markup",
+            "energy_spot_fixed_monthly",
+        )
+    },
+    "energy_tariff_hdo": ("binary_sensor", "sensor"),
     "recipes_airfryer_start": "button",
     "recipes_airfryer_temperature": "number",
     "recipes_airfryer_cook_time": "number",
