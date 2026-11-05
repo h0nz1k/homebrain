@@ -303,3 +303,9 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.cat-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--hb-sp-2);
+}

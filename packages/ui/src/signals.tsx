@@ -102,6 +102,68 @@ export function Chip({
     </button>
   );
 }
+export interface TileProps extends HTMLAttributes<HTMLElement> {
+  tone?: Tone;
+  icon?: ReactNode;
+  label: ReactNode;
+  /** Secondary line (e.g. „před 8 měsíci“). */
+  detail?: ReactNode;
+  /** Status / call to action line in the tile tone (e.g. „✓ zapsáno“, „Přidat“). */
+  status?: ReactNode;
+  /** Empty slot: outlined, no fill (missing value the user can add). */
+  empty?: boolean;
+  /** Whole tile is one tap target (renders a `<button>`). */
+  onPress?: () => void;
+  disabled?: boolean;
+}
+/** Status tile for a grid of equal slots (credentials, rooms, bottles): icon, label, one status line.
+ * With `onPress` the whole tile is the tap target (≥ 64 px), so rows of small buttons are not needed. */
+export function Tile({
+  tone = 'neutral',
+  icon,
+  label,
+  detail,
+  status,
+  empty,
+  onPress,
+  disabled,
+  className = '',
+  ...props
+}: TileProps) {
+  const body = (
+    <>
+      {icon && (
+        <span className="hb-tile-icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      <span className="hb-tile-label">{label}</span>
+      {status !== undefined && status !== null && <span className="hb-tile-status">{status}</span>}
+      {detail !== undefined && detail !== null && (
+        <small className="hb-tile-detail">{detail}</small>
+      )}
+    </>
+  );
+  const common = {
+    ...props,
+    className: `hb-tile ${className}`,
+    'data-tone': tone,
+    'data-empty': empty ? '' : undefined,
+  };
+  return onPress ? (
+    <button
+      {...(common as HTMLAttributes<HTMLButtonElement>)}
+      type="button"
+      disabled={disabled}
+      onClick={onPress}
+    >
+      {body}
+    </button>
+  ) : (
+    <div {...(common as HTMLAttributes<HTMLDivElement>)}>{body}</div>
+  );
+}
+
 export interface SparklineProps {
   values: number[];
   width?: number;
@@ -155,13 +217,51 @@ export interface StatusRowProps {
   value: ReactNode;
   tone?: Tone;
   time?: string;
+  /** Leading glyph (tinted by tone) – live feeds, device health. */
+  icon?: ReactNode;
+  /** Secondary line under the label. */
+  detail?: ReactNode;
+  /** Trailing actions (buttons) – replaces `time` visually when both are set. */
+  action?: ReactNode;
+  'data-testid'?: string;
 }
-export function StatusRow({ label, value, tone = 'neutral', time }: StatusRowProps) {
+export function StatusRow({
+  label,
+  value,
+  tone = 'neutral',
+  time,
+  icon,
+  detail,
+  action,
+  ...rest
+}: StatusRowProps) {
+  const rich = Boolean(icon || detail || action);
   return (
-    <div className="hb-status-row" data-tone={tone}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {time && <time>{time}</time>}
+    <div
+      className="hb-status-row"
+      data-tone={tone}
+      data-rich={rich || undefined}
+      data-testid={rest['data-testid']}
+    >
+      {icon && (
+        <span className="hb-status-row-icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      {rich ? (
+        <span className="hb-status-row-copy">
+          <span className="hb-status-row-label">{label}</span>
+          {detail && <small>{detail}</small>}
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
+      {value !== undefined && value !== null && value !== '' && <strong>{value}</strong>}
+      {action ? (
+        <span className="hb-status-row-action">{action}</span>
+      ) : (
+        time && <time>{time}</time>
+      )}
     </div>
   );
 }

@@ -25,6 +25,11 @@ import { MODULE_PANEL_PATHS } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
 import { createMockWineApi, createSyntheticWines, setWineApiFactory } from '@homebrain/module-wine';
 import { createMockRecipesApi, setRecipesApiFactory } from '@homebrain/module-recipes';
+import {
+  createMockAccessApi,
+  setAccessApiFactory,
+  ENTITY_DEFAULTS_ACCESS,
+} from '@homebrain/module-access';
 import { defineHomebrainPanel, HomebrainPanel } from './host';
 const haAge = new URLSearchParams(location.search).get('ha_age');
 // `?live=1`: keep the production live Dnes adapter (modules.ts) on top of the fake HA connection
@@ -384,6 +389,88 @@ if (scenario === 'history') {
     last_updated: now.toISOString(),
     attributes: { friendly_name: 'Svoz odpadu' },
   };
+}
+// Přístup (BioLock): synthetic people Jan/Petra/Tomáš, fake device entities; nothing is sent
+// anywhere. `?biolock=off` = device offline, `?service=1` = service mode on. e2e drives events
+// through `window.__hbAccess.emit(...)`.
+{
+  const q = new URLSearchParams(location.search);
+  const set = (entity_id: string, state: string, attributes: Record<string, unknown> = {}) => {
+    demoHass.states[entity_id] = {
+      entity_id,
+      state,
+      last_changed: new Date().toISOString(),
+      last_updated: new Date().toISOString(),
+      attributes,
+    } as (typeof demoHass.states)[string];
+  };
+  const E = ENTITY_DEFAULTS_ACCESS;
+  if (q.get('biolock') !== 'off') {
+    set(E.biometric, 'on');
+    set(E.service, q.get('service') === '1' ? 'on' : 'off');
+    set(E.action, 'Odemknout', { options: ['Odemknout', 'Otevřít západku'] });
+    set(E.sensorState, 'idle');
+    set(E.sensorOnline, 'on');
+    set(E.wifi, '-61');
+    set(E.connected, 'on');
+    set(E.nukiConnected, 'on');
+    set(E.nukiPaired, 'on');
+    set(E.nukiBattery, '82');
+    set(E.lock, 'locked');
+    set(E.lockout, 'off');
+  }
+  const refresh = () => {
+    panel.hass = { ...demoHass, states: { ...demoHass.states } };
+  };
+  const log: Array<{ action: string; data: unknown }> = [];
+  const agoIso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const accessApi = createMockAccessApi({
+    latencyMs: 80,
+    enrollMs: Number(q.get('enroll_ms') ?? 1500),
+    // e2e/dev: ?access_fail=face_instead_of_palm,timeout fails the next enrolments with these codes
+    failNext: q.get('access_fail')?.split(',').filter(Boolean),
+    // dev: recent passages incl. the reason a door stayed shut (synthetic names only)
+    history: [
+      {
+        kind: 'recognized',
+        time: agoIso(14),
+        name: 'Jan',
+        type: 'face',
+        user_id: 1,
+        decision: 'granted',
+      },
+      {
+        kind: 'recognized',
+        time: agoIso(95),
+        name: 'Tomáš',
+        type: 'face',
+        user_id: 3,
+        decision: 'denied',
+        reason: 'not_allowed',
+      },
+      { kind: 'rejected', time: agoIso(26 * 60), type: 'face', reason: 'not_recognized' },
+      {
+        kind: 'recognized',
+        time: agoIso(27 * 60),
+        name: 'Petra',
+        type: 'palm',
+        user_id: 1003,
+        decision: 'granted',
+      },
+    ],
+    log,
+    serviceMode: () => demoHass.states[E.service]?.state === 'on',
+    onEntity: (action, data) => {
+      if (action === 'service_mode' || action === 'biometric')
+        set(action === 'service_mode' ? E.service : E.biometric, data.on ? 'on' : 'off');
+      if (action === 'recognition_action')
+        set(E.action, String(data.option), { options: ['Odemknout', 'Otevřít západku'] });
+      if (action === 'reset_lockout') set(E.lockout, 'off');
+      refresh();
+    },
+  });
+  Object.assign(window, { __hbAccess: accessApi, __hbAccessLog: log });
+  setAccessApiFactory(() => accessApi);
 }
 const theme = new URLSearchParams(location.search).get('theme');
 demoHass.themes = { darkMode: theme !== 'light' };

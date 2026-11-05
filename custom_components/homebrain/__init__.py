@@ -13,6 +13,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
 from . import weather
+from .access import ws as access_ws
 from .bindings import get_bindings
 from .const import (
     DOMAIN,
@@ -60,6 +61,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_set_roles)
     wine_ws.async_register(hass)
     recipes_ws.async_register(hass)
+    access_ws.async_register(hass)
     await wine_services.async_setup_services(hass)
     await wine_intents.async_register_intents(hass)
     await wine_sentences.async_install_sentences(hass)
@@ -134,6 +136,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     await _async_setup_waste_history(hass, entry)
+    # Přístup: listen to esphome.biolock_* events from the start (history, live wizard state).
+    await access_ws.async_get_manager(hass)
 
     async def _restore_timers(_hass: HomeAssistant) -> None:
         # Recepty minutky: re-arm persisted timers (expired-while-down ones fire now).
@@ -179,6 +183,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await wine_services.async_unload_services(hass)
     await wine_ws.async_close_store(hass)
     await recipes_ws.async_close_store(hass)
+    await access_ws.async_stop(hass)
     if (manager := hass.data.get(DOMAIN, {}).pop("weather", None)) is not None:
         await manager.async_stop()
     hass.data.get(DOMAIN, {}).pop("pv_forecast", None)

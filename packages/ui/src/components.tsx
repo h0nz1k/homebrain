@@ -53,11 +53,12 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
   );
 }
 
-export type ButtonVariant = 'secondary' | 'primary' | 'strong' | 'ghost';
+export type ButtonVariant = 'secondary' | 'primary' | 'strong' | 'ghost' | 'danger';
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /**
    * `primary` = the one main action of a card, `secondary` = tonal default,
-   * `strong` = high-contrast secondary (CTA in alerts), `ghost` = quiet (cancel).
+   * `strong` = high-contrast secondary (CTA in alerts), `ghost` = quiet (cancel),
+   * `danger` = destructive action (Smazat).
    */
   variant?: ButtonVariant;
   /** `sm` = dense rows (36 px), `md` = 44 px touch target, `lg` = 52 px hero CTA. */

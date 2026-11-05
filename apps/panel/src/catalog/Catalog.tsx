@@ -4,6 +4,11 @@ import {
   Button,
   Card,
   Chip,
+  LiveStatus,
+  SegmentedControl,
+  Sheet,
+  Stepper,
+  Switch,
   DayRibbon,
   EmptyState,
   HeroSignal,
@@ -14,6 +19,7 @@ import {
   Stat,
   StatusBadge,
   StatusRow,
+  Tile,
   ToastCard,
   Toaster,
   toast,
@@ -163,9 +169,20 @@ const specs: Spec[] = [
     id: 'button',
     name: 'Button',
     summary:
-      'Akční tlačítko: primary (jedna hlavní akce), secondary (výchozí, vedlejší), strong (kontrastní v upozornění), ghost (tichá).',
+      'Akční tlačítko: primary (jedna hlavní akce), secondary (výchozí, vedlejší), strong (kontrastní v upozornění), ghost (tichá), danger (nevratný krok, vždy s potvrzením).',
     importName: 'Button',
-    states: ['primary', 'secondary', 'strong', 'ghost', 'sm', 'lg', 'block', 'loading', 'disabled'],
+    states: [
+      'primary',
+      'secondary',
+      'strong',
+      'ghost',
+      'danger',
+      'sm',
+      'lg',
+      'block',
+      'loading',
+      'disabled',
+    ],
     doText: 'Sloveso na tlačítku: „Uložit“, „Ztišit“, „+1 min“. Dotykový cíl 44 px (sm 36 px).',
     dontText: 'Vlastní .x-btn v modulu – Recepty a Víno mají zatím rc-btn/wine-btn → sjednotit.',
     notes:
@@ -176,6 +193,7 @@ const specs: Spec[] = [
         <Button>Pozastavit</Button>
         <Button variant="ghost">Zrušit</Button>
         <Button variant="strong">Otevřít</Button>
+        <Button variant="danger">Smazat</Button>
         <Button size="sm">+1 min</Button>
         <Button loading>Ukládám</Button>
         <Button disabled>Nedostupné</Button>
@@ -187,7 +205,7 @@ const specs: Spec[] = [
     name: 'StatusRow',
     summary: 'Řádek „popisek – hodnota – čas“ pro seznamy stavů.',
     importName: 'StatusRow',
-    states: ['tone', 's časem', 'bez času'],
+    states: ['tone', 's časem', 'bez času', 'rich: icon + detail + action (živý feed)'],
     doText: 'Seznam do 6 řádků; delší seznamy seskupte.',
     dontText: 'Tabulka s rámečky kolem buněk.',
     notes: 'Čas ve formátu „před 5 min“ nebo „14:05“.',
@@ -196,6 +214,50 @@ const specs: Spec[] = [
         <StatusRow label="Myčka" value="Dokončeno" tone="ok" time="14:05" />
         <StatusRow label="Pračka" value="Běží · 38 min" tone="accent" />
         <StatusRow label="Odvlhčovač" value="Plná nádrž" tone="warn" time="před 5 min" />
+        <StatusRow
+          label="Poznal: Jan – dlaň ID 1002"
+          value=""
+          tone="accent"
+          icon="✋"
+          detail="Kterou ruku jste přiložili?"
+          action={
+            <>
+              <Button size="sm">Pravá</Button>
+              <Button size="sm">Levá</Button>
+            </>
+          }
+        />
+      </div>
+    ),
+  },
+  {
+    id: 'tile',
+    name: 'Tile',
+    summary:
+      'Stejné dlaždice v mřížce (obličej · pravá · levá dlaň): ikona, popisek, jeden stavový řádek.',
+    importName: 'Tile',
+    states: [
+      'tone ok/warn/crit/neutral',
+      'empty (chybí – obrys)',
+      'onPress = celá dlaždice je tlačítko',
+      'disabled',
+    ],
+    doText:
+      'Pevné pořadí slotů, aby šlo skenovat sloupcem napříč kartami; akci dejte na celou dlaždici.',
+    dontText: 'Malé tlačítko uvnitř dlaždice nebo dlaždice různé výšky v jedné řadě.',
+    notes:
+      'Stav řeší tón + ikona + text (ne jen barva). Detail (věk, ID) patří do title/detailu, ne do popisku.',
+    render: () => (
+      <div className="cat-tiles">
+        <Tile tone="ok" icon="🙂" label="Obličej" status="✓ zapsáno" detail="před 8 měs." />
+        <Tile
+          tone="warn"
+          icon="✋"
+          label="Pravá dlaň"
+          status="Přezapsat"
+          onPress={() => undefined}
+        />
+        <Tile empty icon="✋" label="Levá dlaň" status="+ Přidat" onPress={() => undefined} />
       </div>
     ),
   },
@@ -357,7 +419,139 @@ const specs: Spec[] = [
       </div>
     ),
   },
+  {
+    id: 'switch',
+    name: 'Switch',
+    summary: 'Přepínač zapnuto/vypnuto, okamžitý účinek (bez Uložit).',
+    importName: 'Switch',
+    states: ['vypnuto', 'zapnuto', 'tone = accent | warn | ok', 'disabled'],
+    doText: 'Popisek vedle přepínače říká, co zapnutí udělá.',
+    dontText: 'Přepínač pro akci, která potřebuje potvrzení – na to Button + Sheet.',
+    notes: 'role="switch", aria-checked; label je povinný (aria-label).',
+    render: () => <SwitchDemo />,
+  },
+  {
+    id: 'segmented',
+    name: 'SegmentedControl',
+    summary: 'Výběr jedné ze 2–4 krátkých možností.',
+    importName: 'SegmentedControl',
+    states: ['vybraná', 'nevybraná', 'disabled', 'size = sm'],
+    doText: 'Krátké popisky (1–2 slova).',
+    dontText: 'Víc než 4 možnosti – použijte seznam.',
+    notes:
+      'radiogroup + role=radio (aria-checked); viditelný štítek vlevo, hideLabel pro záložky. Stejné API jako Roboti (PR #97). Nahradí wine-seg / wx-seg.',
+    render: () => <SegDemo />,
+  },
+  {
+    id: 'sheet',
+    name: 'Sheet',
+    summary:
+      'Modální panel: na telefonu spodní sheet, na tabletu panel uprostřed. Varianta alert pro potvrzení.',
+    importName: 'Sheet',
+    states: ['dialog (md | lg)', 'alert', 'aside v hlavičce', 'footer s akcemi'],
+    doText: 'Potvrzení nevratné akce: alert s „Zpět“ a danger tlačítkem.',
+    dontText: 'Sheet v sheetu; dialog zavíraný klikem vedle uprostřed rozdělané práce.',
+    notes:
+      'Esc zavírá, fokus jde dovnitř a po zavření zpět. Zpět v HA řeší modul přes useBackClosable.',
+    render: () => <SheetDemo />,
+  },
+  {
+    id: 'stepper',
+    name: 'Stepper',
+    summary: 'Průběh vícekrokového průvodce (zápis osoby, párování).',
+    importName: 'Stepper',
+    states: ['todo', 'active', 'done', 'skipped', 'error'],
+    doText: 'Krátké názvy kroků, stav kroku v detailu („uloženo · ID 1003“).',
+    dontText: 'Víc než 5 kroků.',
+    notes: 'Na telefonu ukazuje jen čísla a název aktivního kroku.',
+    render: () => (
+      <Stepper
+        steps={[
+          { key: 'name', title: 'Jméno', detail: 'Petra', state: 'done' },
+          { key: 'face', title: 'Obličej', detail: 'uloženo · ID 2', state: 'done' },
+          { key: 'right', title: 'Pravá dlaň', detail: 'snímám…', state: 'active' },
+          { key: 'left', title: 'Levá dlaň', detail: 'volitelné', state: 'todo' },
+        ]}
+      />
+    ),
+  },
+  {
+    id: 'live-status',
+    name: 'LiveStatus',
+    summary: 'Velký živý stav probíhající akce zařízení (snímání, párování, test).',
+    importName: 'LiveStatus',
+    states: ['idle', 'busy (točí se)', 'ok', 'error'],
+    doText: 'Chyba = česky co se stalo + jedna rada, vedle tlačítko „Zkusit znovu“.',
+    dontText: 'Technické kódy chyb (timeout, modality_mismatch) bez překladu.',
+    notes: 'role="status" + aria-live="polite". Na krátké uložení formuláře je SaveState.',
+    render: () => (
+      <div className="cat-col">
+        <LiveStatus state="busy" title="Snímám pravou dlaň…">
+          Držte v klidu, dokud se neozve potvrzení.
+        </LiveStatus>
+        <LiveStatus state="ok" title="Uloženo · ID 1003" />
+        <LiveStatus state="error" title="Snímač uviděl něco jiného">
+          Při zápisu dlaně zakryjte obličej dlaní.
+        </LiveStatus>
+      </div>
+    ),
+  },
 ];
+
+function SwitchDemo() {
+  const [on, setOn] = useState(true);
+  const [warn, setWarn] = useState(false);
+  return (
+    <div className="cat-row">
+      <Switch checked={on} onChange={setOn} label="Biometrické odemykání" />
+      <Switch checked={warn} onChange={setWarn} tone="warn" label="Servisní režim" />
+      <Switch checked={false} onChange={() => undefined} disabled label="Nedostupné" />
+    </div>
+  );
+}
+
+function SegDemo() {
+  const [v, setV] = useState<'unlock' | 'open'>('unlock');
+  return (
+    <SegmentedControl
+      label="Akce"
+      value={v}
+      onChange={setV}
+      options={[
+        ['unlock', 'Odemknout'],
+        ['open', 'Otevřít západku'],
+      ]}
+    />
+  );
+}
+
+function SheetDemo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="cat-row">
+      <Button onClick={() => setOpen(true)}>Otevřít potvrzení</Button>
+      {open && (
+        <Sheet
+          variant="alert"
+          title="Smazat Tomáš?"
+          onClose={() => setOpen(false)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Zpět
+              </Button>
+              <Button variant="danger" onClick={() => setOpen(false)}>
+                Smazat
+              </Button>
+            </>
+          }
+        >
+          Ze snímače se smaže obličej i dlaně (ID 3). Vrátit to nejde.
+        </Sheet>
+      )}
+    </div>
+  );
+}
 
 function SaveDemo() {
   const { status, run } = useSaveState();

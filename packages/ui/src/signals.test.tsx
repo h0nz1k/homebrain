@@ -362,3 +362,10 @@ it('Button superset API: default secondary, lg/block, loading; Chip onPress + ba
   expect(onPress).toHaveBeenCalledTimes(1);
   expect((screen.getByRole('button', { name: 'Sklep' }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+it('Button danger variant (extends the canonical Button) keeps type=button', () => {
+  render(<Button variant="danger">Smazat</Button>);
+  const b = screen.getByRole('button', { name: 'Smazat' });
+  expect(b.getAttribute('type')).toBe('button');
+  expect(b.dataset.variant).toBe('danger');
+});
