@@ -192,13 +192,15 @@ export interface LiveStatusProps {
   title: ReactNode;
   children?: ReactNode;
   icon?: ReactNode;
+  /** Buttons rendered inside the status surface; they wrap onto their own row on phones. */
+  actions?: ReactNode;
   'data-testid'?: string;
 }
 /**
  * Big live status of an ongoing hardware action (scanning, pairing …): spinner ring while busy,
  * tone + icon when finished. Announced politely to screen readers.
  */
-export function LiveStatus({ state, title, children, icon, ...rest }: LiveStatusProps) {
+export function LiveStatus({ state, title, children, icon, actions, ...rest }: LiveStatusProps) {
   return (
     <div
       className="hb-live"
@@ -213,6 +215,7 @@ export function LiveStatus({ state, title, children, icon, ...rest }: LiveStatus
       <div className="hb-live-copy">
         <strong>{title}</strong>
         {children && <div>{children}</div>}
+        {actions && <span className="hb-live-actions">{actions}</span>}
       </div>
     </div>
   );

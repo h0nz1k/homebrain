@@ -4,6 +4,7 @@ import {
   enrolledAgoCs,
   enrolledShortCs,
   findDuplicates,
+  freeHands,
   groupPeople,
   monthsSince,
   reasonCs,
@@ -97,5 +98,21 @@ describe('enrolledShortCs', () => {
     expect(enrolledShortCs('2026-11-01', NOW)).toBe('tento měsíc');
     expect(enrolledShortCs('2026-03-01', NOW)).toBe('před 8 měs.');
     expect(enrolledShortCs('2023-10-01', NOW)).toBe('před 3 lety');
+  });
+});
+
+describe('freeHands', () => {
+  it('offers only the hand that has no palm yet', () => {
+    const people = groupPeople(createSyntheticUsers(), { '1001': { hand: 'right' } });
+    expect(freeHands(people, 1002)).toEqual(['left']);
+    expect(freeHands(people, 9999, 'jan')).toEqual(['left']);
+  });
+  it('offers both hands when both are taken or the person is unknown', () => {
+    const both = groupPeople(createSyntheticUsers(), {
+      '1001': { hand: 'right' },
+      '1002': { hand: 'left' },
+    });
+    expect(freeHands(both, 1002)).toEqual(['right', 'left']);
+    expect(freeHands(both, 9999, 'Nikdo')).toEqual(['right', 'left']);
   });
 });

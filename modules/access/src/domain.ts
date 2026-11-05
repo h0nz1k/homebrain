@@ -294,6 +294,18 @@ export function handSlots(person: Person): Record<Hand, { users: SensorUser[]; u
   return out;
 }
 
+/**
+ * Hands that can still take a newly enrolled palm: hands with no labelled palm yet.
+ * Both hands taken (re-enrol / duplicate) or unknown person → offer both.
+ */
+export function freeHands(people: Person[], id: number, name?: string): Hand[] {
+  const person =
+    people.find((p) => p.ids.includes(id)) ??
+    (name ? people.find((p) => p.key === fold(name)) : undefined);
+  const free = person ? (['right', 'left'] as const).filter((h) => !person[h].length) : [];
+  return free.length ? free : ['right', 'left'];
+}
+
 /** Live enrolment state for enrolments started anywhere (panel, HA script, automation). */
 export type EnrolStatus =
   | {

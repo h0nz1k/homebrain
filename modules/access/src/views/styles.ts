@@ -53,6 +53,7 @@ export const accessLayout = String.raw`
 .ac-split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:var(--hb-sp-4);align-items:start}
 .ac-hands{display:grid;grid-template-columns:1fr 1fr;gap:var(--hb-sp-3)}
 .ac-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--hb-sp-4)}
+.ac-tiles-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ac-tiles>*{display:flex;flex-direction:column;align-items:flex-start;gap:var(--hb-sp-3)}
 .ac-center{display:flex;justify-content:center}
 .ac-mt{margin-top:var(--hb-sp-3)}
@@ -75,8 +76,6 @@ export const accessLayout = String.raw`
 @keyframes ac-scan{to{top:72%}}
 @media (prefers-reduced-motion:reduce){.ac-scan{animation:none}}
 .ac-enrol{display:flex;flex-direction:column;gap:var(--hb-sp-2)}
-.ac-enrol-actions{display:flex;flex-wrap:wrap;gap:var(--hb-sp-2);justify-content:flex-end}
-.ac-enrol-actions:empty{display:none}
 .ac-log{display:flex;flex-direction:column;gap:var(--hb-sp-3)}
 .ac-log-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--hb-sp-2)}
 .ac-log-range{color:var(--hb-t2);font-size:var(--hb-font-sm)}

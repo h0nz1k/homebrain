@@ -31,6 +31,7 @@ import {
   enrolledShortCs,
   enrolReducer,
   findDuplicates,
+  freeHands,
   groupPeople,
   handSlots,
   type EnrolStatus,
@@ -840,7 +841,7 @@ function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
 const KIND_CS: Record<'face' | 'palm', string> = { face: 'obličej', palm: 'dlaň' };
 /** Enrolment started anywhere (panel, HA script): pending → retry → result, with hand labelling. */
 function EnrolBanner({ ctx }: { ctx: Ctx }) {
-  const { enrol, now, api, run, state, dismissEnrol } = ctx;
+  const { enrol, now, api, run, state, people, dismissEnrol } = ctx;
   if (!enrol) return null;
   const at = enrol.phase === 'pending' ? enrol.since : enrol.time;
   if (enrol.phase !== 'pending' && now - Date.parse(at) > 15 * 60_000) return null;
@@ -848,18 +849,46 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
   const kind = enrol.type ? KIND_CS[enrol.type] : 'obličej nebo dlaň';
   const needsHand =
     enrol.phase === 'ok' && enrol.type === 'palm' && !state?.labels[String(enrol.id)]?.hand;
+  const hands = enrol.phase === 'ok' ? freeHands(people, enrol.id, enrol.name) : [];
   const title =
     enrol.phase === 'pending'
       ? `Probíhá zápis: ${kind}${'name' in enrol && enrol.name ? ` – ${enrol.name}` : ''}`
       : enrol.phase === 'ok'
         ? `Zapsáno: ${who} – ${kind} (ID ${enrol.id})`
         : `Zápis se nepovedl: ${who} – ${kind}`;
+  const actions =
+    enrol.phase === 'pending' ? undefined : (
+      <>
+        {needsHand &&
+          enrol.phase === 'ok' &&
+          hands.map((h) => (
+            <Button
+              key={h}
+              size="sm"
+              variant={hands.length === 1 ? 'primary' : 'secondary'}
+              data-testid={`access-enrol-hand-${h}`}
+              onClick={() =>
+                run(async () => {
+                  await api.label(enrol.id, { hand: h });
+                  dismissEnrol();
+                }, `ID ${enrol.id}: ${HAND_CS[h]} dlaň`)
+              }
+            >
+              {h === 'right' ? 'Pravá dlaň' : 'Levá dlaň'}
+            </Button>
+          ))}
+        <Button size="sm" variant="ghost" data-testid="access-enrol-dismiss" onClick={dismissEnrol}>
+          Zavřít
+        </Button>
+      </>
+    );
   return (
     <div className="ac-enrol" data-testid="access-enrol-status" data-phase={enrol.phase}>
       <LiveStatus
         state={enrol.phase === 'pending' ? 'busy' : enrol.phase === 'ok' ? 'ok' : 'error'}
         title={title}
         icon={<Icon name={enrol.type === 'palm' ? 'palm' : 'face'} />}
+        actions={actions}
       >
         {enrol.phase === 'pending' &&
           (enrol.note
@@ -872,38 +901,11 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
         )}
         {enrol.phase === 'ok' &&
           (needsHand
-            ? 'Která ruka to byla? Bez označení nepoznáme, jestli chybí pravá, nebo levá.'
+            ? hands.length === 1
+              ? `${who} už má zapsanou ${hands[0] === 'left' ? 'pravou' : 'levou'} dlaň – tahle bude nejspíš ${HAND_CS[hands[0]!]}. Potvrďte to.`
+              : 'Která ruka to byla? Bez označení nepoznáme, jestli chybí pravá, nebo levá.'
             : 'Osoba je v seznamu níže.')}
       </LiveStatus>
-      <div className="ac-enrol-actions">
-        {needsHand &&
-          (['right', 'left'] as const).map((h) => (
-            <Button
-              key={h}
-              size="sm"
-              variant={h === 'right' ? 'primary' : 'secondary'}
-              data-testid={`access-enrol-hand-${h}`}
-              onClick={() =>
-                run(async () => {
-                  await api.label(enrol.id, { hand: h });
-                  dismissEnrol();
-                }, `ID ${enrol.id}: ${HAND_CS[h]} dlaň`)
-              }
-            >
-              {h === 'right' ? 'Pravá' : 'Levá'}
-            </Button>
-          ))}
-        {enrol.phase !== 'pending' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            data-testid="access-enrol-dismiss"
-            onClick={dismissEnrol}
-          >
-            Zavřít
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -1402,8 +1404,21 @@ function NukiCard({ ctx }: { ctx: Ctx }) {
   const lock = ent.lock as { state?: string; last_changed?: string } | undefined;
   const st = lock?.state;
   const available = Boolean(lock) && st !== 'unavailable' && st !== 'unknown';
-  const pct = Number(ent.lockBattery?.state ?? ent.nukiBattery?.state);
+  // One source of truth: the lock's own battery sensor. The BioLock-reported value (BLE) is only a
+  // fallback and a diagnostic when the two disagree.
+  const numOf = (v: string | undefined) =>
+    v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v);
+  const own = numOf(ent.lockBattery?.state);
+  const viaBio = numOf(ent.nukiBattery?.state);
+  const pct = own ?? viaBio;
   const critical = ent.lockBatteryCritical?.state === 'on';
+  const low = critical || (pct !== null && pct < 20);
+  const batteryNote =
+    own === null && viaBio !== null
+      ? 'údaj přes BioLock'
+      : own !== null && viaBio !== null && Math.abs(own - viaBio) >= 5
+        ? `BioLock hlásí ${Math.round(viaBio)} % (diagnostika)`
+        : null;
   const act = ent.lockAction as
     { state?: string; attributes?: Record<string, unknown> } | undefined;
   const a = act?.attributes;
@@ -1427,11 +1442,23 @@ function NukiCard({ ctx }: { ctx: Ctx }) {
         data-testid="access-nuki-state"
       />
       <StatusRow
-        tone={critical ? 'crit' : Number.isNaN(pct) ? 'neutral' : pct < 20 ? 'warn' : 'ok'}
+        tone={critical ? 'crit' : pct === null ? 'neutral' : low ? 'warn' : 'ok'}
         icon={<Icon name="bat" />}
         label="Baterie"
-        detail={critical ? 'Kritická – vyměňte nebo nabijte baterii' : 'V pořádku'}
-        value={Number.isNaN(pct) ? '—' : `${Math.round(pct)} %`}
+        detail={[
+          critical
+            ? 'Kritická – vyměňte nebo nabijte baterii'
+            : pct === null
+              ? 'Zámek stav baterie nehlásí'
+              : low
+                ? 'Brzy vyměnit'
+                : 'V pořádku',
+          batteryNote,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+        value={pct === null ? '—' : `${Math.round(pct)} %`}
+        data-testid="access-nuki-battery"
       />
       <StatusRow
         tone={available ? 'ok' : 'warn'}
@@ -1446,7 +1473,7 @@ function NukiCard({ ctx }: { ctx: Ctx }) {
       />
       <StatusRow
         tone={st === 'jammed' ? 'crit' : 'ok'}
-        icon={<Icon name="alert" />}
+        icon={<Icon name={st === 'jammed' ? 'alert' : 'check'} />}
         label="Zaseknutí"
         detail={st === 'jammed' ? 'Motor se zablokoval – zkontrolujte dveře' : 'Bez zaseknutí'}
         value=""
@@ -1468,9 +1495,7 @@ function DeviceTab({ ctx }: { ctx: Ctx }) {
     s === undefined || s === '' || Number.isNaN(Number(s)) ? null : Number(s);
   const dbm = num(ent.wifi?.state);
   const wifi = wifiQuality(dbm);
-  const battery = num(ent.nukiBattery?.state);
   const sensorOnline = ent.sensorOnline?.state === 'on';
-  const nukiOk = ent.nukiPaired?.state === 'on' && ent.nukiConnected?.state === 'on';
   const lockout = ent.lockout?.state === 'on';
   const option = ent.action?.state;
   const setOption = (next: string) => {
@@ -1491,7 +1516,7 @@ function DeviceTab({ ctx }: { ctx: Ctx }) {
   };
   return (
     <>
-      <div className="ac-tiles" data-testid="access-device">
+      <div className="ac-tiles ac-tiles-2" data-testid="access-device">
         <Card>
           <Stat
             label="Snímač"
@@ -1513,19 +1538,6 @@ function DeviceTab({ ctx }: { ctx: Ctx }) {
           />
           <Pill dot tone={wifi.tone}>
             {wifi.label}
-          </Pill>
-        </Card>
-        <Card>
-          <Stat label="Nuki" value={LOCK_CS[ent.lock?.state ?? ''] ?? '—'} />
-          <Pill dot tone={nukiOk ? 'ok' : 'warn'}>
-            {ent.nukiPaired?.state === 'on' ? 'spárováno' : 'nespárováno'} ·{' '}
-            {ent.nukiConnected?.state === 'on' ? 'připojeno' : 'nepřipojeno'}
-          </Pill>
-        </Card>
-        <Card>
-          <Stat label="Baterie zámku" value={battery ?? '—'} unit="%" />
-          <Pill dot tone={battery === null ? 'warn' : battery < 20 ? 'crit' : 'ok'}>
-            {battery === null ? 'neznámá' : battery < 20 ? 'brzy vyměnit' : 'v pořádku'}
           </Pill>
         </Card>
       </div>

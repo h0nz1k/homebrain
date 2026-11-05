@@ -1564,9 +1564,19 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-live-copy {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+.hb-live-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hb-sp-2);
+  margin-top: var(--hb-sp-2);
+}
+.hb-live-actions > * {
+  max-width: 100%;
 }
 .hb-live-copy strong {
   font-size: var(--hb-font-md);

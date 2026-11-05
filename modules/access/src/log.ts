@@ -191,9 +191,18 @@ function legacyItem(e: LogbookEntry): HistoryItem | null {
   return null;
 }
 
+/**
+ * Who/what moved the lock, from the Nuki MQTT API `lockActionEvent` fields
+ * (LockAction, Trigger, Auth-ID, Code-ID, Auto-Unlock; MQTT API spec v1.3+,
+ * https://developer.nuki.io/t/mqtt-api-specification-v1-3/17626). Trigger values follow the
+ * Nuki Smart Lock API: 0 system/Bluetooth (app, bridge, BioLock, keypad), 1 manual, 2 button,
+ * 3 automatic (time control), 6 auto lock, 171 HomeKit/Matter, 172 MQTT. Keypad = non-zero Code-ID.
+ */
 export function lockSource(a: LockAction): string {
   if (a.code_id > 0) return 'klávesnicí';
   switch (a.trigger) {
+    case 1:
+      return 'ručně';
     case 172:
       return 'Home Assistant';
     case 171:
