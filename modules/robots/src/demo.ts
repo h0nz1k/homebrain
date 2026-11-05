@@ -190,6 +190,15 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     put(r.slot, 'cleaning_mode', 'select', r.mode, {
       options: ['vacuum', 'vac_and_mop', 'mop', 'custom'],
     });
+    if (r.slot !== 3) {
+      // Roborock v1 selects: mop water (water_box_mode) and mop route.
+      put(r.slot, 'mop_intensity', 'select', 'moderate', {
+        options: ['off', 'mild', 'moderate', 'intense', 'custom'],
+      });
+      put(r.slot, 'mop_mode', 'select', 'standard', {
+        options: ['standard', 'deep', 'deep_plus', 'custom'],
+      });
+    }
     put(
       r.slot,
       'selected_map',

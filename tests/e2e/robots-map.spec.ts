@@ -134,6 +134,8 @@ test('mapa na cestě panelu: popisky v místnostech, mimo robota, výběr se sou
   await expect(map.locator('.rv-room[data-selected]')).toHaveCount(2);
   await expect(page.getByTestId('robots-selection-summary')).toContainText('2 místnosti');
   await expect(page.getByTestId('robots-start')).toContainText('2 místnosti');
+  // Planned route runs over the door graph (orthogonal, through door centres).
+  await expect(page.getByTestId('robots-map-route')).toHaveAttribute('data-route', 'doors');
   // Wait for the glide to finish, then check the real-DOM label layout.
   await page.waitForTimeout(1500);
   const report = await page.evaluate(() => {

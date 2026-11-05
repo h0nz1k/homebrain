@@ -156,6 +156,8 @@
           "robot1_cleaning_fluid": "Dock cleaning fluid (problem = empty)",
           "robot1_water_shortage": "Robot water shortage",
           "robot1_cleaning_mode": "Cleaning mode select",
+          "robot1_mop_intensity": "Mop water level select",
+          "robot1_mop_mode": "Mop route select",
           "robot1_selected_map": "Selected map select",
           "robot1_map_image": "Map image"
         }
@@ -185,6 +187,8 @@
           "robot2_cleaning_fluid": "Dock cleaning fluid (problem = empty)",
           "robot2_water_shortage": "Robot water shortage",
           "robot2_cleaning_mode": "Cleaning mode select",
+          "robot2_mop_intensity": "Mop water level select",
+          "robot2_mop_mode": "Mop route select",
           "robot2_selected_map": "Selected map select",
           "robot2_map_image": "Map image"
         }
@@ -214,6 +218,8 @@
           "robot3_cleaning_fluid": "Dock cleaning fluid (problem = empty)",
           "robot3_water_shortage": "Robot water shortage",
           "robot3_cleaning_mode": "Cleaning mode select",
+          "robot3_mop_intensity": "Mop water level select",
+          "robot3_mop_mode": "Mop route select",
           "robot3_selected_map": "Selected map select",
           "robot3_map_image": "Map image"
         }

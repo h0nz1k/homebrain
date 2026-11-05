@@ -156,6 +156,8 @@
           "robot1_cleaning_fluid": "Čisticí kapalina (problém = došla)",
           "robot1_water_shortage": "Nedostatek vody v robotu",
           "robot1_cleaning_mode": "Výběr režimu úklidu",
+          "robot1_mop_intensity": "Výběr množství vody mopu",
+          "robot1_mop_mode": "Výběr trasy mopování",
           "robot1_selected_map": "Výběr mapy",
           "robot1_map_image": "Obrázek mapy"
         }
@@ -185,6 +187,8 @@
           "robot2_cleaning_fluid": "Čisticí kapalina (problém = došla)",
           "robot2_water_shortage": "Nedostatek vody v robotu",
           "robot2_cleaning_mode": "Výběr režimu úklidu",
+          "robot2_mop_intensity": "Výběr množství vody mopu",
+          "robot2_mop_mode": "Výběr trasy mopování",
           "robot2_selected_map": "Výběr mapy",
           "robot2_map_image": "Obrázek mapy"
         }
@@ -214,6 +218,8 @@
           "robot3_cleaning_fluid": "Čisticí kapalina (problém = došla)",
           "robot3_water_shortage": "Nedostatek vody v robotu",
           "robot3_cleaning_mode": "Výběr režimu úklidu",
+          "robot3_mop_intensity": "Výběr množství vody mopu",
+          "robot3_mop_mode": "Výběr trasy mopování",
           "robot3_selected_map": "Výběr mapy",
           "robot3_map_image": "Obrázek mapy"
         }

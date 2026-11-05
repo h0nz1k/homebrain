@@ -1273,7 +1273,10 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-seg {
   box-sizing: border-box;
-  display: flex;
+  /* Equal-width segments (grid 1fr columns), so two controls under each other line up. */
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   flex: 1;
   gap: 3px;
   padding: 3px;
@@ -1351,8 +1354,7 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     display: none;
   }
   .hb-seg button {
-    flex: 1 0 auto;
-    padding: 0 12px;
+    padding: 0 8px;
   }
 }
 

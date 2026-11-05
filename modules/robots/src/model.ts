@@ -8,7 +8,13 @@ import {
 import { describeError, type ErrorAdvice } from './errors.js';
 import { describeStatus, type RobotStatus } from './status.js';
 import { activeMap, type RobotMap, type Room } from './rooms.js';
-import { fanChoices, modeFromOption, type CleanMode } from './commands.js';
+import {
+  fanChoices,
+  modeFromOption,
+  mopRouteChoices,
+  waterChoices,
+  type CleanMode,
+} from './commands.js';
 
 export const ROBOT_SLOTS = [1, 2, 3] as const;
 
@@ -51,6 +57,10 @@ export interface RobotModel {
   mode: CleanMode | null;
   modeSelect: string | null;
   modeOptions: string[];
+  /** Mop water level select (`select.*_mop_intensity`) – null when not bound. */
+  water: SelectModel | null;
+  /** Mop route select (`select.*_mop_mode`: fast/standard/deep/deep_plus). */
+  mopRoute: SelectModel | null;
   rooms: Room[];
   mapName: string | null;
   mapsError: string | null;
@@ -105,6 +115,22 @@ export function configuredSlots(
 ): number[] {
   if (metas?.length) return metas.map((meta) => meta.slot);
   return ROBOT_SLOTS.filter((slot) => bindings[key(slot, 'vacuum')]);
+}
+
+/** A bound select with ≥ 2 offered choices (else null → the control is hidden). */
+function selectModel(
+  entity: string | undefined,
+  get: Get,
+  choices: (options: string[], current: string | null) => string[],
+): SelectModel | null {
+  const state = entity ? get(entity) : undefined;
+  if (!entity || !state || state.state === 'unavailable') return null;
+  const options = Array.isArray(state.attributes.options)
+    ? state.attributes.options.filter((v): v is string => typeof v === 'string')
+    : [];
+  const value = text(state);
+  const list = choices(options, value);
+  return list.length > 1 ? { entity, value, choices: list } : null;
 }
 
 export function buildRobot(
@@ -174,6 +200,8 @@ export function buildRobot(
     modeOptions: Array.isArray(options)
       ? options.filter((v): v is string => typeof v === 'string')
       : [],
+    water: selectModel(b('mop_intensity'), get, waterChoices),
+    mopRoute: selectModel(b('mop_mode'), get, mopRouteChoices),
     rooms: map?.rooms ?? [],
     mapName: map ? map.name || null : null,
     mapsError: meta ? meta.maps_error : null,
@@ -182,6 +210,11 @@ export function buildRobot(
   };
 }
 
+export interface SelectModel {
+  entity: string;
+  value: string | null;
+  choices: string[];
+}
 /** Overall attention for the floor switcher dot. */
 export function attention(robot: RobotModel): 'crit' | 'warn' | 'ok' {
   if (robot.error?.severity === 'error' || robot.dockError || robot.status.tone === 'error')

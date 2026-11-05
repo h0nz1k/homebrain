@@ -187,6 +187,10 @@ export const robotsStyles = `
 .rb-map img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 12px; }
 .rb-map-empty { color: var(--hb-t2); font-size: 14px; padding: 24px; text-align: center; max-width: 340px; }
 .rb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* „Základní / Pokročilé“: a small switch above the controls; advanced rows fade in. */
+.rb-controls .rb-level { justify-content: flex-end; }
+.rb-controls .rb-level .hb-seg { flex: 0 1 220px; }
+.rb-controls .rb-adv { animation: rb-in var(--hb-dur-base, 200ms) var(--hb-ease-out, ease-out); }
 
 
 
@@ -302,7 +306,7 @@ export const robotsStyles = `
 /* Rooms are low-chroma tonal tiles (one hue per room, --rv-hue); selection is the accent. */
 .rv {
   --rv-room-l: 30%; --rv-room-dl: 1.6%; --rv-room-c: 0.024;
-  --rv-sel-l: 38%; --rv-sel-c: 0.06;
+  --rv-sel-l: 40%; --rv-sel-c: 0.095;
   --rv-sel-mix: 30%;
   --rv-grain: rgb(255 255 255 / 2.4%);
   --rv-light: rgb(255 255 255 / 5%);
@@ -329,7 +333,7 @@ export const robotsStyles = `
 }
 [data-theme='light'] .rv {
   --rv-room-l: 95.4%; --rv-room-dl: -1.2%; --rv-room-c: 0.017;
-  --rv-sel-l: 90%; --rv-sel-c: 0.05;
+  --rv-sel-l: 88%; --rv-sel-c: 0.075;
   --rv-sel-mix: 13%;
   --rv-grain: rgb(16 24 40 / 3%);
   --rv-light: rgb(255 255 255 / 55%);
@@ -371,6 +375,13 @@ export const robotsStyles = `
   /* Selected = the room's own colour, lifted and more saturated (not a foreign accent fill). */
   --rv-tile: oklch(var(--rv-sel-l) var(--rv-sel-c) var(--rv-hue, 250));
 }
+.rv[data-has-selection] .rv-room:not([data-selected]), .rv[data-has-selection] .rv-room-under:not([data-selected]) {
+  /* With a selection the other rooms step back: almost no chroma and a little dimmer. */
+  --rv-tile: oklch(calc(var(--rv-room-l) + var(--rv-step, 0) * var(--rv-room-dl) + var(--rv-dim-dl)) calc(var(--rv-room-c) * 0.3) var(--rv-hue, 250));
+}
+.rv { --rv-dim-dl: -3%; }
+[data-theme='light'] .rv { --rv-dim-dl: 1.5%; }
+.rv[data-has-selection] .rv-label:not([data-selected]) { opacity: .62; }
 .rv-lift { fill: var(--rv-lift); stroke: none; pointer-events: none; }
 .rv-depth { pointer-events: none; }
 .rv-texture, .rv-light { stroke: none; pointer-events: none; }
@@ -378,7 +389,7 @@ export const robotsStyles = `
 .rv-wall-shadow { fill: none; stroke: var(--rv-shade); stroke-linecap: round; stroke-linejoin: round; }
 .rv[data-walls] .rv-room-pad { fill: var(--rv-seam); stroke: var(--rv-seam); }
 .rv-sel { pointer-events: none; }
-.rv-sel-line { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+.rv-sel-line { fill: none; stroke: color-mix(in oklch, var(--hb-ac) 88%, var(--hb-t1)); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 /* Planned route to the selected rooms: dashed accent line through the doors. */
 .rv-route-layer { pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 .rv-route-casing { fill: none; stroke: color-mix(in srgb, var(--rb-fill) 70%, transparent); stroke-width: 6px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -501,8 +512,13 @@ export const robotsStyles = `
    portrait side column keeps its list. */
 .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips {
   position: relative; scroll-behavior: smooth; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px 0;
-  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  /* Fade only the edge that hides more chips (data-fade set from scroll position): at the
+     start the first chip sits flush, never half-masked. */
+  --rb-fade-s: 0px; --rb-fade-e: 0px;
+  mask-image: linear-gradient(90deg, transparent, #000 var(--rb-fade-s), #000 calc(100% - var(--rb-fade-e)), transparent);
 }
+.rb-clean .rb-chips[data-fade~='start'] { --rb-fade-s: 24px; }
+.rb-clean .rb-chips[data-fade~='end'] { --rb-fade-e: 24px; }
 .rb-clean .rb-chips::-webkit-scrollbar { display: none; }
 .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips > * { flex: none; }
 @media (max-width: 600px) {

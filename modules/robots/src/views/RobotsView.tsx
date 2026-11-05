@@ -12,6 +12,9 @@ import {
 import {
   CLEAN_MODE_LABELS,
   FAN_LABELS,
+  MOP_ROUTE_LABELS,
+  WATER_LABELS,
+  modeMops,
   modeOptionAvailable,
   planCleanRooms,
   planResumeAfterFix,
@@ -162,6 +165,10 @@ function RobotPanel({
   const [order, setOrder] = useState<number[]>([]);
   const [mode, setMode] = useState<CleanMode | null>(robot.mode);
   const [fan, setFan] = useState<string | null>(robot.fan);
+  const [water, setWater] = useState<string | null>(robot.water?.value ?? null);
+  const [mopRoute, setMopRoute] = useState<string | null>(robot.mopRoute?.value ?? null);
+  const [passes, setPasses] = useState(1);
+  const [advanced, setAdvanced] = useState(false);
   const [confirm, setConfirm] = useState<{ title: string; plan: ServiceCallPlan[] } | null>(null);
   const [sending, setSending] = useState(false);
   const notify = useToast();
@@ -199,13 +206,37 @@ function RobotPanel({
     const chip = row.querySelector<HTMLElement>(`[data-testid='robots-room-${lastPicked}']`);
     if (!chip) return;
     let left = chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2;
-    // Never stop with a chip cut in half at the left edge: snap to that chip's start.
+    // Never stop with a chip cut at the left edge (it read as an empty chip): start flush
+    // with the chip that would be cut.
     const cut = Array.from(row.querySelectorAll<HTMLElement>('[data-testid^="robots-room-"]')).find(
       (el) => el.offsetLeft < left && el.offsetLeft + el.offsetWidth > left,
     );
-    if (cut) left = cut.offsetLeft - 16;
+    if (cut) left = cut.offsetLeft;
     row.scrollTo?.({ left: Math.max(0, left) });
   }, [lastPicked]);
+  // Edge fades only where more chips hide (none at the start position).
+  useEffect(() => {
+    const row = chipsRef.current;
+    if (!row) return;
+    const update = () => {
+      const fade = [
+        row.scrollLeft > 2 ? 'start' : '',
+        row.scrollLeft + row.clientWidth < row.scrollWidth - 2 ? 'end' : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      if (fade) row.setAttribute('data-fade', fade);
+      else row.removeAttribute('data-fade');
+    };
+    update();
+    row.addEventListener('scroll', update, { passive: true });
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null;
+    observer?.observe(row);
+    return () => {
+      row.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, [robot.slot, robot.rooms.length]);
   const portraitMap =
     !!vmap && vmap.bounds[3] - vmap.bounds[1] > (vmap.bounds[2] - vmap.bounds[0]) * 1.1;
   // <image> cannot send the bearer token: the raster base path is signed by HA (10 min).
@@ -233,6 +264,8 @@ function RobotPanel({
   const modes = (['vacuum', 'mop', 'both'] as CleanMode[]).filter((m) =>
     modeOptionAvailable(m, robot.modeOptions),
   );
+  // Mop water / route only matter when the run mops; „Pokročilé“ keeps them out of the way.
+  const mops = modeMops(mode ?? robot.mode);
   const ask = (title: string, plan: ServiceCallPlan[]) =>
     plan.length && setConfirm({ title, plan });
   const send = async () => {
@@ -319,7 +352,9 @@ function RobotPanel({
     <div className="rb-grid" data-rb-tone={tone}>
       <div className="rb-col">
         <Card as="article" className="rb-hero rb-card" data-testid="robots-hero">
-          <div className="rb-hero-art">
+          {/* Visual slot: today the vector/photo RobotArt; a future 3D or per-state photo view
+              plugs in here (data-rb-visual) without touching the hero layout. */}
+          <div className="rb-hero-art" data-rb-visual="art" data-testid="robots-hero-visual">
             <RobotArt tone={tone} image={robot.image} name={robot.name} />
           </div>
           <div className="rb-hero-body">
@@ -459,8 +494,7 @@ function RobotPanel({
                   // a matching source of truth, then the room count.
                   <>
                     {' · '}
-                    {robot.status.label}
-                    {robot.battery !== null ? ` ${Math.round(robot.battery)}\u00a0%` : ''}
+                    {statusWithBattery(robot.status.label, robot.battery)}
                     {robot.rooms.length
                       ? ` · ${czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}`
                       : ''}
@@ -571,7 +605,19 @@ function RobotPanel({
                   'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'
                 )}
               </p>
-              <div className="rb-controls">
+              <div className="rb-controls" data-testid="robots-controls">
+                <SegmentedControl
+                  label="Nastavení"
+                  hideLabel
+                  size="sm"
+                  className="rb-level"
+                  value={advanced ? 'advanced' : 'basic'}
+                  options={[
+                    ['basic', 'Základní'],
+                    ['advanced', 'Pokročilé'],
+                  ]}
+                  onChange={(value) => setAdvanced(value === 'advanced')}
+                />
                 {modes.length > 1 && (
                   <SegmentedControl
                     label="Režim"
@@ -588,6 +634,39 @@ function RobotPanel({
                     value={fan}
                     options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
                     onChange={setFan}
+                  />
+                )}
+                {advanced && mops && robot.water && (
+                  <SegmentedControl
+                    label="Voda"
+                    tone="accent"
+                    className="rb-adv"
+                    value={water}
+                    options={robot.water.choices.map((w) => [w, WATER_LABELS[w] ?? w])}
+                    onChange={setWater}
+                  />
+                )}
+                {advanced && mops && robot.mopRoute && (
+                  <SegmentedControl
+                    label="Mopování"
+                    tone="accent"
+                    className="rb-adv"
+                    value={mopRoute}
+                    options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}
+                    onChange={setMopRoute}
+                  />
+                )}
+                {advanced && (
+                  <SegmentedControl
+                    label="Průchody"
+                    tone="accent"
+                    className="rb-adv"
+                    value={String(passes)}
+                    options={[
+                      ['1', '1×'],
+                      ['2', '2×'],
+                    ]}
+                    onChange={(value) => setPasses(Number(value))}
                   />
                 )}
               </div>
@@ -621,6 +700,17 @@ function RobotPanel({
                         modeSelect: robot.modeSelect,
                         fan,
                         currentFan: robot.fan,
+                        repeat: passes,
+                        water: robot.water
+                          ? { entity: robot.water.entity, value: water, current: robot.water.value }
+                          : undefined,
+                        mopRoute: robot.mopRoute
+                          ? {
+                              entity: robot.mopRoute.entity,
+                              value: mopRoute,
+                              current: robot.mopRoute.value,
+                            }
+                          : undefined,
                       }),
                     )
                   }
@@ -794,4 +884,16 @@ function writeTrailPref(full: boolean): void {
   } catch {
     /* private mode: the toggle still works for this session */
   }
+}
+
+/**
+ * Idle header state with the battery next to the word it belongs to: „Nabito 100 % · čeká
+ * v doku“ (never „Nabito, čeká v doku 100 %“), otherwise „V doku · 64 %“.
+ */
+export function statusWithBattery(label: string, battery: number | null): string {
+  if (battery === null) return label;
+  const pct = `${Math.round(battery)}\u00a0%`;
+  const [head, ...rest] = label.split(', ');
+  if (/^(Nabito|Nabíjí)/.test(head!)) return [`${head} ${pct}`, ...rest].join(' · ');
+  return `${label} · ${pct}`;
 }

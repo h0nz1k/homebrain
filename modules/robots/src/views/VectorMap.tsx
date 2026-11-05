@@ -35,7 +35,7 @@ import {
   smoothPath,
   type Pt,
 } from '../map/motion.js';
-import { planRoute, trimLine } from '../map/route.js';
+import { findDoors, planDoorRoute, planRoute, trimLine } from '../map/route.js';
 import { orderBadge, type Room } from '../rooms.js';
 
 export type MarkerTone = 'cleaning' | 'returning' | 'error' | 'idle';
@@ -179,40 +179,74 @@ export function VectorFloorPlan({
   const pct = (v: number, of: number) => `${((v / of) * 100).toFixed(3)}%`;
   const routeFrom = robotView ?? dockGeo?.robot ?? dockView;
   const routeKey = `${selected.join(',')}|${routeFrom?.map((n) => n.toFixed(0)).join(',') ?? ''}`;
-  // Planned route: robot → selected rooms in order, through the doors. One continuous line:
-  // each leg stops just inside its room (no U-turn to the room centre), direction arrows on top.
+  // Doors = gaps in the wall layer (door graph); the planned route only changes rooms there.
+  const doors = useMemo(
+    () => findDoors(roomShapes, walls, { minWidth: 550, maxWidth: 1500, joint: 60 }),
+    [roomShapes, walls],
+  );
+  // Planned route: robot → selected rooms in order. Orthogonal legs over the door graph
+  // (perpendicular through every door centre, never across a wall); the coarse grid A* is
+  // only a fallback for open-plan seams without doors. Each leg stops inside its room short
+  // of the order badge; direction chevrons keep clear of the badges too.
   const route = useMemo(() => {
-    const none = { d: '', arrows: [] as [number, number, number][], stops: [] as Pt[] };
+    const none = {
+      d: '',
+      arrows: [] as [number, number, number][],
+      stops: [] as Pt[],
+      runs: [] as Pt[][],
+      kind: null as 'doors' | 'grid' | null,
+    };
     if (!selected.length || !routeFrom || raster || !walls.length) return none;
     const rooms = selected
       .map((id) => placed.find((room) => room.id === id))
       .filter((room): room is Placed => !!room);
-    const targets = rooms.map((room): [number, number] => [room.x, room.y]);
-    const cell = Math.max(unit * 1.4, Math.sqrt((frame.width * frame.height) / 12_000));
-    const legs = planRoute(roomShapes, walls, routeFrom, targets, {
-      cell,
-      clearance: unit * 1.6,
-    });
-    if (!legs.length) return none;
-    const { runs, stops } = joinLegs(
-      legs,
-      rooms.map((room) => room.rings),
-      unit * 4,
+    const badges = rooms.map((room): Pt => [room.x, room.y]);
+    const viaDoors = planDoorRoute(
+      roomShapes,
+      walls,
+      doors,
+      routeFrom,
+      rooms.map((room) => placed.indexOf(room)),
+      {
+        clearance: unit * 0.9,
+        approach: unit * 1.8,
+        depth: unit * 6,
+        avoid: badges,
+        avoidRadius: unit * 4.2,
+      },
     );
+    let legs: Pt[][];
+    let joined: { runs: Pt[][]; stops: Pt[] };
+    if (viaDoors) {
+      legs = viaDoors;
+      joined = joinLegs(legs, [], unit * 4);
+    } else {
+      const cell = Math.max(unit * 1.4, Math.sqrt((frame.width * frame.height) / 12_000));
+      legs = planRoute(roomShapes, walls, routeFrom, badges, { cell, clearance: unit * 1.6 });
+      if (!legs.length) return none;
+      joined = joinLegs(
+        legs,
+        rooms.map((room) => room.rings),
+        unit * 4,
+      );
+    }
+    const { runs, stops } = joined;
     const first = runs[0] ? trimLine(runs[0], unit * 3.4, 0) : [];
     const all = [first, ...runs.slice(1)].filter((run) => run.length > 1);
     if (!all.length) return none;
     return {
-      d: all.map((run) => roundedLine(run, unit * 2.4)).join(''),
-      // Chevrons along each run, plus one arrowhead where each run ends inside its room.
+      d: all.map((run) => roundedLine(run, unit * 1.6)).join(''),
+      // Chevrons along each run (not on stops or badges), one arrowhead at each run end.
       arrows: all.flatMap((run) => [
-        ...arrowsAlong(run, unit * 12, unit * 5, stops, unit * 4),
+        ...arrowsAlong(run, unit * 12, unit * 5, [...stops, ...badges], unit * 4),
         endArrow(run),
       ]),
       stops,
+      runs: all,
+      kind: viaDoors ? ('doors' as const) : ('grid' as const),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- routeKey covers selection + pose
-  }, [routeKey, placed, walls, roomShapes, unit, frame, raster]);
+  }, [routeKey, placed, walls, doors, roomShapes, unit, frame, raster]);
   const routeD = route.d;
 
   return (
@@ -425,15 +459,51 @@ export function VectorFloorPlan({
           />
         )}
         {dividersD && !wallsD && !raster && <path className="rv-divider" d={dividersD} />}
-        {/* Selection = the room's own colour, stronger, plus one continuous accent outline on the
-            wall centreline (drawn over the walls, also across door openings). */}
+        {/* Selection = the room's own colour, stronger, plus an accent outline on the INNER side
+            of its walls (stroke clipped to the room), so the wall line keeps its look; the
+            outline opens exactly at the door gaps (mask), like the walls do. */}
+        {wallsD && !raster && selected.length > 0 && (
+          <defs>
+            <mask id={`${clipId}-doors`} maskUnits="userSpaceOnUse">
+              <rect width={frame.width} height={frame.height} fill="#fff" />
+              {doors.map((door, i) => (
+                <line
+                  key={i}
+                  x1={door.a[0]}
+                  y1={door.a[1]}
+                  x2={door.b[0]}
+                  y2={door.b[1]}
+                  stroke="#000"
+                  strokeWidth={unit * 2.4}
+                />
+              ))}
+            </mask>
+            {placed
+              .filter((room) => selected.includes(room.id))
+              .map((room) => (
+                <clipPath key={room.id} id={`${clipId}-sel-${room.id}`}>
+                  <path d={room.d} />
+                </clipPath>
+              ))}
+          </defs>
+        )}
         {wallsD &&
           !raster &&
           placed
             .filter((room) => selected.includes(room.id))
             .map((room) => (
-              <g key={`sel${room.id}`} className="rv-sel" data-testid={`robots-map-sel-${room.id}`}>
-                <path className="rv-sel-line" d={room.d} strokeWidth={unit * 0.5} />
+              <g
+                key={`sel${room.id}`}
+                className="rv-sel"
+                data-testid={`robots-map-sel-${room.id}`}
+                mask={`url(#${clipId}-doors)`}
+              >
+                <path
+                  className="rv-sel-line"
+                  d={room.d}
+                  strokeWidth={unit * 1.3}
+                  clipPath={`url(#${clipId}-sel-${room.id})`}
+                />
               </g>
             ))}
         {routeD && (
@@ -443,6 +513,8 @@ export function VectorFloorPlan({
               className="rv-route"
               d={routeD}
               data-rv-avoid="4"
+              data-rv-pts={ptsAttr(route.runs)}
+              data-route={route.kind ?? undefined}
               data-testid="robots-map-route"
             />
             {route.arrows.map(([x, y, deg], i) => (
@@ -550,6 +622,13 @@ export function VectorFloorPlan({
       />
     </div>
   );
+}
+
+/** Polyline vertices for the label-collision pass (`x,y x,y|x,y …`, view units). */
+function ptsAttr(runs: [number, number][][]): string {
+  return runs
+    .map((run) => run.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`).join(' '))
+    .join('|');
 }
 
 function flatToView(frame: Frame, flat: number[]): Ring {
@@ -749,12 +828,14 @@ function RobotLayer({
           // Wide enough that neighbouring lanes merge into one swept area (≈ 20 cm lanes).
           strokeWidth={unit * 1.7}
           data-rv-avoid="cover"
+          data-rv-pts={ptsAttr([trail.slice(-COVER_POINTS)])}
         />
         <path
           ref={trailRef}
           className="rv-trail rv-trail-tail"
           d={trailD(trail.slice(-TRAIL_POINTS))}
           data-rv-avoid="4"
+          data-rv-pts={ptsAttr([trail.slice(-TRAIL_POINTS)])}
           stroke={`url(#${tailId})`}
         />
         <polyline
@@ -828,15 +909,29 @@ function LabelCollisions({ deps }: { deps: string }) {
       const samples: { x: number; y: number; r: number }[] = [];
       if (ctm)
         for (const el of Array.from(root.querySelectorAll<SVGPathElement>('[data-rv-avoid]'))) {
-          if (typeof el.getTotalLength !== 'function' || !el.getAttribute('d')) continue;
+          if (!el.getAttribute('data-rv-pts')) continue;
           const kind = el.getAttribute('data-rv-avoid');
           const r =
             kind === 'cover' ? (Number(el.getAttribute('stroke-width')) * scale) / 2 : Number(kind);
-          const total = el.getTotalLength();
+          // Sample the polyline vertices in JS (the element carries them): getPointAtLength
+          // on long smoothed trails is O(length) per call and froze the main thread for
+          // seconds on every selection change (desktop e2e 'not stable' timeouts).
           const step = Math.max(1, 6 / scale);
-          for (let len = 0; len <= total; len += step) {
-            const p = el.getPointAtLength(len).matrixTransform(ctm);
-            samples.push({ x: p.x, y: p.y, r: r + 2 });
+          for (const run of (el.getAttribute('data-rv-pts') ?? '').split('|')) {
+            const pts = run
+              .split(' ')
+              .filter(Boolean)
+              .map((xy) => xy.split(',').map(Number) as [number, number]);
+            for (let i = 0; i < pts.length; i++) {
+              const [bx, by] = pts[i]!;
+              const [ax, ay] = pts[i - 1] ?? pts[i]!;
+              const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+              for (let k = i ? 1 : 0; k <= n; k++) {
+                const t = k / n;
+                const p = new DOMPoint(ax + (bx - ax) * t, ay + (by - ay) * t).matrixTransform(ctm);
+                samples.push({ x: p.x, y: p.y, r: r + 2 });
+              }
+            }
           }
         }
       const inv = ctm?.inverse() ?? null;
