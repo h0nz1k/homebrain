@@ -25,7 +25,11 @@ export interface Signal {
   valid_to: string;
   title: string;
   context: string;
-  value?: { v: string; unit?: string; label?: string };
+  /**
+   * Headline value. `progress` (0…1 done) draws a countdown ring next to it; `held` marks a
+   * stopped countdown (drawer out, paused) so it stays secondary to the instruction.
+   */
+  value?: { v: string; unit?: string; label?: string; progress?: number; held?: boolean };
   action?: Action;
   source: SignalSource;
   related?: string[];

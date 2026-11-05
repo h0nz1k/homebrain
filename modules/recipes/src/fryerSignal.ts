@@ -5,6 +5,7 @@ import {
   formatCountdown,
   fryerModel,
   fryerNeedsAction,
+  fryerProgramLine,
   fryerVisible,
   type FryerEntities,
   type FryerModel,
@@ -32,10 +33,25 @@ export function readFryerStates(
   return out;
 }
 
+/** One short instruction per phase – the same copy in Recepty and on Dnes (vykání). */
+export const FRYER_HINT: Partial<Record<FryerModel['phase'], string>> = {
+  action: 'Vytáhněte koš, protřepejte nebo otočte jídlo a zasuňte ho zpět. Pečení pak naváže samo.',
+  drawer: 'Po protřepání koš zasuňte, fritéza sama naváže.',
+  paused: 'Pokračovat lze na fritéze.',
+  done: 'Jídlo je hotové, můžete ho vyndat.',
+  warm: 'Jídlo se udržuje teplé.',
+  error: 'Vypněte fritézu, zkontrolujte koš a zapněte ji znovu. Když chyba trvá, odpojte ji na minutu ze zásuvky.',
+};
+
+/** Countdown stopped by the device (drawer out, paused): shown but secondary. */
+export const fryerHeld = (phase: FryerModel['phase']) =>
+  phase === 'action' || phase === 'drawer' || phase === 'paused';
+
 /** Dnes signal while the fryer runs or needs someone; [] when off/idle. */
 export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
   if (!model || !fryerVisible(model.phase)) return [];
   const urgent = fryerNeedsAction(model.phase);
+  const held = fryerHeld(model.phase);
   const left =
     model.remainingS !== null && model.phase !== 'done' && model.phase !== 'warm'
       ? formatCountdown(model.remainingS)
@@ -46,16 +62,12 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       : null;
   const context =
     model.phase === 'action'
-      ? 'Šuplík ven, protřepat nebo otočit a zpět – pečení pak samo pokračuje.'
+      ? 'Vytáhněte koš, protřepejte a zasuňte zpět – pečení naváže samo.'
       : model.phase === 'drawer'
-        ? 'Pečení stojí, dokud šuplík nezasunete.'
-        : model.phase === 'done'
-          ? 'Pečení doběhlo, jídlo můžete vyndat.'
-          : model.phase === 'warm'
-            ? 'Jídlo se udržuje teplé.'
-            : model.phase === 'error'
-              ? 'Fritéza hlásí chybu, zkontrolujte ji.'
-              : [temp, left ? `do konce ${left}` : null].filter(Boolean).join(' · ');
+        ? 'Pečení stojí a čeká na vás.'
+        : model.phase === 'cooking' || model.phase === 'preheat'
+          ? [temp, fryerProgramLine(model)].filter(Boolean).join(' · ')
+          : (FRYER_HINT[model.phase] ?? '');
   return [
     {
       id: 'recipes.airfryer',
@@ -72,8 +84,17 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       valid_to: new Date(now + 15 * 60_000).toISOString(),
       title: `Fritéza · ${SIGNAL_TITLE[model.phase] ?? model.label}`,
       context,
-      ...(left ? { value: { v: left, label: 'do konce' } } : {}),
-      action: { type: 'navigate', label: 'Otevřít fritézu', href: RECIPES_PATH },
+      ...(left
+        ? {
+            value: {
+              v: left,
+              label: held ? (model.phase === 'paused' ? 'pozastaveno' : 'stojí') : 'do konce',
+              ...(model.progress !== null ? { progress: model.progress } : {}),
+              ...(held ? { held: true } : {}),
+            },
+          }
+        : {}),
+      action: { type: 'navigate', label: 'Detail fritézy', href: RECIPES_PATH },
       source: { name: 'Fritéza', updated_at: new Date(now).toISOString(), stale_after_s: 300 },
     },
   ];

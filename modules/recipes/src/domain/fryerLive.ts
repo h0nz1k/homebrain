@@ -102,7 +102,7 @@ export const FRYER_PHASE_LABEL: Record<FryerPhase, string> = {
   idle: 'Připraveno',
   preheat: 'Předehřívá',
   cooking: 'Peče',
-  action: 'Protřepejte nebo otočte jídlo',
+  action: 'Protřepejte jídlo',
   drawer: 'Šuplík otevřený',
   paused: 'Pozastaveno',
   done: 'Hotovo',
@@ -250,6 +250,73 @@ export function fryerProgramLine(m: FryerModel): string {
   else if (m.program) parts.push(`Program ${m.program}`);
   if (m.stage) parts.push(`fáze ${m.stage}`);
   return parts.join(' · ');
+}
+
+export type FryerStepKey = 'preheat' | 'cook' | 'shake' | 'finish' | 'done';
+export type FryerStepState = 'todo' | 'active' | 'done' | 'error';
+export interface FryerStep {
+  key: FryerStepKey;
+  title: string;
+  state: FryerStepState;
+}
+
+/** Phases of this cook seen so far (preheat / shake only appear once they really happened). */
+export function fryerSeen(prev: readonly FryerPhase[], phase: FryerPhase): FryerPhase[] {
+  if (phase === 'off' || phase === 'idle') return [];
+  return prev.includes(phase) ? [...prev] : [...prev, phase];
+}
+
+/**
+ * Phase timeline: Předehřátí → Pečení → Protřepat → Dopékání → Hotovo, only the phases that
+ * exist for this cook (the device does not announce a shake in advance).
+ */
+export function fryerTimeline(phase: FryerPhase, seen: readonly FryerPhase[]): FryerStep[] {
+  const had = (p: FryerPhase) => phase === p || seen.includes(p);
+  const shake = had('action') || had('drawer');
+  const finished = phase === 'done' || phase === 'warm';
+  const current: FryerStepKey =
+    phase === 'preheat'
+      ? 'preheat'
+      : phase === 'action' || phase === 'drawer'
+        ? 'shake'
+        : finished
+          ? 'done'
+          : shake
+            ? 'finish'
+            : 'cook';
+  const keys: FryerStepKey[] = [];
+  if (had('preheat')) keys.push('preheat');
+  keys.push('cook');
+  if (shake) keys.push('shake');
+  if (shake && (current === 'finish' || finished)) keys.push('finish');
+  keys.push('done');
+  const title: Record<FryerStepKey, string> = {
+    preheat: 'Předehřátí',
+    cook: 'Pečení',
+    shake: 'Protřepat',
+    finish: 'Dopékání',
+    done: 'Hotovo',
+  };
+  const at = keys.indexOf(current);
+  return keys.map((key, i) => ({
+    key,
+    title: title[key],
+    state:
+      i < at || (finished && key === 'done')
+        ? 'done'
+        : i === at
+          ? phase === 'error'
+            ? 'error'
+            : 'active'
+          : 'todo',
+  }));
+}
+
+/** Wall-clock time the cook ends („v 18:42“), null when the countdown is not running. */
+export function fryerEta(m: FryerModel, now: number): string | null {
+  if (m.remainingS === null || (m.phase !== 'cooking' && m.phase !== 'preheat')) return null;
+  const d = new Date(now + m.remainingS * 1000);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export type FryerControl = 'pause' | 'stop' | 'keep_warm';

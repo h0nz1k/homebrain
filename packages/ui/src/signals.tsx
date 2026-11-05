@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import type { Severity } from './components.js';
+import { ProgressRing } from './progress-ring.js';
 
 /** Semantic tones (#64): one palette for chips, statuses and severity across modules. */
 export type Tone = 'ok' | 'warn' | 'severe' | 'crit' | 'accent' | 'neutral';
@@ -277,7 +278,7 @@ export interface SignalCardProps {
   severity: Severity;
   title: string;
   context?: string;
-  value?: { v: ReactNode; unit?: string; label?: string };
+  value?: { v: ReactNode; unit?: string; label?: string; progress?: number; held?: boolean };
   icon?: ReactNode;
   actionLabel?: string;
   actionDisabledReason?: string;
@@ -337,12 +338,27 @@ function Signal({
         {!!alsoCount && <span className="hb-signal-also">Další související: {alsoCount}</span>}
       </div>
       {value && (
-        <div className="hb-signal-value">
-          {value.label && <span>{value.label}</span>}
-          <strong>
-            {value.v}
-            <small>{value.unit}</small>
-          </strong>
+        <div
+          className="hb-signal-value"
+          data-ring={value.progress !== undefined ? '' : undefined}
+          data-held={value.held || undefined}
+        >
+          {value.progress !== undefined && (
+            <ProgressRing
+              value={value.progress}
+              size={variant === 'mobile' ? 40 : variant ? 56 : 40}
+              tone={value.held ? 'muted' : 'accent'}
+              held={value.held}
+              data-testid="signal-ring"
+            />
+          )}
+          <span className="hb-signal-value-t">
+            {value.label && <span>{value.label}</span>}
+            <strong>
+              {value.v}
+              <small>{value.unit}</small>
+            </strong>
+          </span>
         </div>
       )}
       {actionLabel && (

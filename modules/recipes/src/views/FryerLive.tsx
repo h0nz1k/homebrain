@@ -1,35 +1,29 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useBackClosable, type EntityStore } from '@homebrain/ha-client';
-import { Button, Sheet, toast } from '@homebrain/ui';
+import { Button, ProgressRing, Sheet, Stepper, toast } from '@homebrain/ui';
 import { RecipesApiError, type RecipesApi } from '../api.js';
 import {
   detectFryerEntities,
   formatCountdown,
   fryerControls,
+  fryerEta,
   fryerModel,
   fryerNeedsAction,
   fryerPhase,
   fryerProgramLine,
+  fryerSeen,
+  fryerTimeline,
   fryerVisible,
   type FryerControl,
-  type FryerModel,
+  type FryerPhase,
 } from '../domain/fryerLive.js';
-import { readFryerStates } from '../fryerSignal.js';
-import { Icon, Ring } from './parts.js';
+import { FRYER_HINT, fryerHeld, readFryerStates } from '../fryerSignal.js';
+import { Icon } from './parts.js';
 
 const CONTROL_LABEL: Record<FryerControl, string> = {
   pause: 'Pozastavit',
   stop: 'Zastavit',
   keep_warm: 'Udržovat teplé',
-};
-
-const HINT: Partial<Record<FryerModel['phase'], string>> = {
-  action: 'Šuplík ven, protřepat nebo otočit a zpět – pečení pak samo pokračuje.',
-  drawer: 'Pečení stojí. Po protřepání šuplík zasuňte, fritéza naváže.',
-  paused: 'Pečení je pozastavené, pokračovat lze na fritéze.',
-  done: 'Jídlo je hotové, můžete ho vyndat.',
-  warm: 'Jídlo se udržuje teplé.',
-  error: 'Fritéza hlásí chybu. Zkontrolujte ji a případně ji vypněte.',
 };
 
 /** Re-render on every HA update (entity ids may appear later than the first render). */
@@ -103,10 +97,16 @@ export function FryerLiveCard({
   const now = useNow(ticking);
   const [confirmStop, setConfirmStop] = useState(false);
   const [busy, setBusy] = useState<FryerControl | null>(null);
+  // Phases seen during this cook (stored from the previous render, React's derived-state pattern).
+  const [seen, setSeen] = useState<FryerPhase[]>([]);
+  if (!seen.includes(phase) || ((phase === 'off' || phase === 'idle') && seen.length)) {
+    setSeen(fryerSeen(seen, phase));
+  }
   if (!entities) return null;
   const m = fryerModel(states, now);
   if (!fryerVisible(m.phase)) return null;
   const urgent = fryerNeedsAction(m.phase);
+  const held = fryerHeld(m.phase);
   const controls = allowed ? fryerControls(m.phase).filter((c) => entities[CTRL_ROLE[c]]) : [];
   const send = (action: FryerControl, confirmed = false) => {
     setBusy(action);
@@ -122,24 +122,66 @@ export function FryerLiveCard({
       .finally(() => setBusy(null));
   };
   const program = fryerProgramLine(m);
-  const countdown =
-    m.phase === 'done' ? 'Hotovo' : m.remainingS !== null ? formatCountdown(m.remainingS) : '–';
+  const countdown = m.remainingS !== null ? formatCountdown(m.remainingS) : null;
+  const eta = fryerEta(m, now);
+  const finished = m.phase === 'done' || m.phase === 'warm';
+  const steps = fryerTimeline(m.phase, seen);
+  // Shake / drawer / error: the instruction is the hero, the (stopped) countdown a side note.
+  const instruction = m.phase === 'action' || m.phase === 'drawer' || m.phase === 'error';
+  const visual = instruction ? (
+    <span className="rc-fl-glyph" aria-hidden="true">
+      <Icon name={m.phase === 'error' ? 'alert' : m.phase === 'drawer' ? 'drawer' : 'shake'} />
+    </span>
+  ) : (
+    <ProgressRing
+      className="rc-fl-ring"
+      value={m.progress ?? 0}
+      size={136}
+      thickness={9}
+      tone={finished ? 'ok' : held ? 'muted' : 'accent'}
+      held={held}
+      data-testid="recipes-fryer-ring"
+    >
+      {finished ? (
+        <Icon name="check" />
+      ) : (
+        <>
+          <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
+            {countdown ?? '–'}
+          </span>
+          <small>{held ? 'stojí' : 'zbývá'}</small>
+        </>
+      )}
+    </ProgressRing>
+  );
+  const note = instruction
+    ? m.phase === 'error'
+      ? `Kód ${m.errorCode ?? '?'}`
+      : countdown
+        ? null
+        : 'Odpočet stojí'
+    : m.phase === 'paused'
+      ? 'Pokračovat lze na fritéze'
+      : finished
+        ? m.phase === 'warm'
+          ? 'Udržuje teplé'
+          : 'Hotovo'
+        : eta
+          ? `Hotovo v ${eta}`
+          : null;
+  const primary = controls.filter((c) => c !== 'stop');
+  const hasStop = controls.includes('stop');
   return (
     <section
       className="rc-fl"
       data-phase={m.phase}
       data-urgent={urgent || undefined}
+      data-instruction={instruction || undefined}
       aria-label="Fritéza"
       data-testid="recipes-fryer-live"
     >
-      <div className="rc-fl-ring" aria-hidden={m.phase === 'done'}>
-        <Ring fraction={m.progress ?? 0} size={112} />
-        <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
-          {m.phase === 'done' ? <Icon name="check" /> : countdown}
-          {m.phase !== 'done' && m.remainingS !== null ? <small>do konce</small> : null}
-        </span>
-      </div>
-      <div className="rc-fl-head">
+      <div className="rc-fl-vis">{visual}</div>
+      <div className="rc-fl-copy">
         <span className="rc-fl-kicker">
           <Icon name="fryer" /> Fritéza
           {program ? <span className="rc-fl-prog">{program}</span> : null}
@@ -147,11 +189,22 @@ export function FryerLiveCard({
         <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
           {m.label}
         </h2>
-      </div>
-      <div className="rc-fl-body">
-        {HINT[m.phase] ? <p className="rc-fl-hint">{HINT[m.phase]}</p> : null}
-        {m.currentTemp !== null && m.phase !== 'done' ? (
+        {FRYER_HINT[m.phase] ? <p className="rc-fl-hint">{FRYER_HINT[m.phase]}</p> : null}
+        {instruction && countdown ? (
+          <p className="rc-fl-held" data-testid="recipes-fryer-held">
+            <Icon name="pause" />
+            <span>
+              Odpočet stojí na{' '}
+              <b className="num" data-testid="recipes-fryer-countdown">
+                {countdown}
+              </b>{' '}
+              a čeká na vás
+            </span>
+          </p>
+        ) : null}
+        {m.currentTemp !== null && !finished && m.phase !== 'error' ? (
           <div className="rc-fl-temp" data-testid="recipes-fryer-temp">
+            <Icon name="thermo" />
             <span className="num rc-fl-nw">
               <b>{Math.round(m.currentTemp)}</b>&nbsp;°C
             </span>
@@ -169,22 +222,44 @@ export function FryerLiveCard({
             ) : null}
           </div>
         ) : null}
+        {m.phase !== 'error' && steps.length > 1 ? (
+          <div className="rc-fl-steps">
+            <Stepper steps={steps} compact label="Průběh pečení" />
+          </div>
+        ) : null}
       </div>
-      {controls.length ? (
-        <div className="rc-fl-actions">
-          {controls.map((c) => (
-            <Button
-              key={c}
-              size="md"
-              variant={c === 'stop' ? 'ghost' : 'secondary'}
-              loading={busy === c}
-              disabled={busy !== null}
-              data-testid={`recipes-fryer-${c}`}
-              onClick={() => (c === 'stop' ? setConfirmStop(true) : send(c))}
-            >
-              {CONTROL_LABEL[c]}
-            </Button>
-          ))}
+      {controls.length || note ? (
+        <div className="rc-fl-actions" data-testid="recipes-fryer-actions">
+          {note ? <span className="rc-fl-note">{note}</span> : <span />}
+          <span className="rc-fl-btns">
+            {hasStop ? (
+              <Button
+                size="md"
+                variant="ghost"
+                className="rc-fl-stop"
+                loading={busy === 'stop'}
+                disabled={busy !== null}
+                data-testid="recipes-fryer-stop"
+                onClick={() => setConfirmStop(true)}
+              >
+                {finished ? 'Ukončit' : CONTROL_LABEL.stop}
+              </Button>
+            ) : null}
+            {primary.map((c) => (
+              <Button
+                key={c}
+                size="md"
+                variant={c === 'keep_warm' ? 'primary' : 'secondary'}
+                icon={c === 'pause' ? <Icon name="pause" /> : undefined}
+                loading={busy === c}
+                disabled={busy !== null}
+                data-testid={`recipes-fryer-${c}`}
+                onClick={() => send(c)}
+              >
+                {CONTROL_LABEL[c]}
+              </Button>
+            ))}
+          </span>
         </div>
       ) : null}
       {confirmStop ? (

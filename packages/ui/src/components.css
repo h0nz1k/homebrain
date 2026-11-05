@@ -1923,3 +1923,77 @@ button.hb-tile[data-empty] .hb-tile-status {
   border-radius: 50%;
   vertical-align: 1px;
 }
+
+/* ProgressRing: countdown / progress ring for live devices (airfryer, timers) and signal values. */
+.hb-ring {
+  --hb-ring-tone: var(--hb-ring-ink, var(--hb-ac));
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--hb-ring-size);
+  height: var(--hb-ring-size);
+}
+.hb-ring[data-tone='ok'] {
+  --hb-ring-tone: var(--hb-ok);
+}
+.hb-ring[data-tone='warn'] {
+  --hb-ring-tone: var(--hb-warn);
+}
+.hb-ring[data-tone='crit'] {
+  --hb-ring-tone: var(--hb-crit);
+}
+.hb-ring[data-tone='muted'] {
+  --hb-ring-tone: var(--hb-t3);
+}
+.hb-ring > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.hb-ring-track,
+.hb-ring-arc {
+  fill: none;
+}
+.hb-ring-track {
+  stroke: var(--hb-fill-strong, color-mix(in srgb, var(--hb-t1) 12%, transparent));
+}
+.hb-ring[data-held] .hb-ring-track {
+  stroke-dasharray: 2 4;
+}
+.hb-ring-arc {
+  stroke: var(--hb-ring-tone);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+.hb-ring-c {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-ring-arc {
+    transition: none !important;
+  }
+}
+/* Signal value with a countdown ring; a held (stopped) countdown stays secondary to the title. */
+.hb-signal-value[data-ring] {
+  display: flex;
+  align-items: center;
+  gap: var(--hb-sp-3);
+}
+.hb-signal-value-t {
+  display: block;
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] strong {
+  font-size: var(--hb-font-xl);
+  font-weight: 400;
+  color: var(--hb-t2);
+}

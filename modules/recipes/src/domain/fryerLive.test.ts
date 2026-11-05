@@ -136,6 +136,7 @@ describe('fryer Dnes signal', () => {
       now,
     );
     expect(cook).toMatchObject({ severity: 'notice', value: { v: '2:05', label: 'do konce' } });
+    expect(cook!.action).toMatchObject({ label: 'Detail fritézy' });
     expect(cook!.immediate).toBeUndefined();
   });
   it('feeds Dnes from the entity store and follows updates', () => {
