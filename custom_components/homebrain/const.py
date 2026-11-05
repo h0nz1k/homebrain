@@ -1,5 +1,9 @@
 """Constants for HomeBrain."""
 
+import json
+from pathlib import Path
+from typing import Any
+
 DOMAIN = "homebrain"
 HEALTH_BINDING_KEYS = (
     "health_source_status",
@@ -166,34 +170,23 @@ BINDING_DOMAINS: dict[str, str | tuple[str, ...]] = {
     "recipes_airfryer_drawer": "binary_sensor",
 }
 DEFAULT_BINDING_DOMAIN = "sensor"
-PANEL_URL_PATH = "homebrain"
-PANEL_TITLE = "HomeBrain"
-SETTINGS_PANEL_URL_PATH = "homebrain-nastaveni"
+# Panel url paths have ONE source shared with the frontend (scripts/gen-panels.mjs generates the
+# TypeScript table from it). A module missing there links to an unknown HA url and HA falls back
+# to the default dashboard. Read at import time, which HA runs in the executor.
+_PANELS = json.loads((Path(__file__).parent / "panels.json").read_text(encoding="utf-8"))
+PANEL_URL_PATH = _PANELS["legacy"]["url_path"]
+PANEL_TITLE = _PANELS["legacy"]["title"]
+SETTINGS_PANEL_URL_PATH = _PANELS["settings"]["url_path"]
 # Wall-tablet panel (ADR-0002): always Dnes in kiosk layout, open to mapped non-admin users.
-KIOSK_PANEL_URL_PATH = "homebrain-kiosk"
-KIOSK_PANEL_TITLE = "Dnes"
-KIOSK_PANEL_ICON = "mdi:tablet-dashboard"
+KIOSK_PANEL_URL_PATH = _PANELS["kiosk"]["url_path"]
+KIOSK_PANEL_TITLE = _PANELS["kiosk"]["title"]
+KIOSK_PANEL_ICON = _PANELS["kiosk"]["icon"]
 WEB_COMPONENT = "homebrain-panel"
 STATIC_URL_BASE = "/homebrain_static"
 
-MODULE_PANELS = {
-    "homebrain-dnes": {"title": "Dnes", "icon": "mdi:calendar-today", "module": "today"},
-    "homebrain-pocasi": {
-        "title": "Počasí",
-        "icon": "mdi:weather-partly-cloudy",
-        "module": "weather",
-    },
-    "homebrain-energie": {"title": "Energie", "icon": "mdi:lightning-bolt", "module": "energy"},
-    "homebrain-odpady": {"title": "Odpady", "icon": "mdi:delete-empty", "module": "waste"},
-    "homebrain-vinoteka": {"title": "Vinotéka", "icon": "mdi:glass-wine", "module": "wine"},
-    "homebrain-zdravi": {"title": "Zdraví", "icon": "mdi:heart-pulse", "module": "health"},
-    # Přístup (BioLock): admin only – people, enrolment, device switches.
-    "homebrain-pristup": {"title": "Přístup", "icon": "mdi:fingerprint", "module": "access"},
-    # Kitchen tablet (non-admin, mapped role) opens Recepty too; the WS layer enforces roles.
-    "homebrain-recepty": {
-        "title": "Recepty",
-        "icon": "mdi:chef-hat",
-        "module": "recipes",
-        "require_admin": False,
-    },
+# Admin-only unless `require_admin: false` (Recepty: the kitchen tablet opens it too; the WS
+# layer enforces roles). Přístup (BioLock) stays admin only.
+MODULE_PANELS: dict[str, dict[str, Any]] = {
+    panel["url_path"]: {key: value for key, value in panel.items() if key != "url_path"}
+    for panel in _PANELS["modules"]
 }

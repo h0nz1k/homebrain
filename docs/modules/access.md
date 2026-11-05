@@ -37,7 +37,7 @@ BioLock entities), `…/label`, `…/person`, `…/settings`.
 back to a generic „Nepodařilo se“ + tip (never shown raw).
 
 ## Re-enrol health rule
-`health.py` recommends re-enrolment by age (adults 24 months, children 12 months, from
+`health.py` recommends re-enrolment by age (adults 24 months, children 9 months, from
 `enrolled_at`) and by recognition health over 14 days (retries, success rate). A one-shot HA
 persistent notification is raised per ID when the advice first appears (setting
 `notify_reenroll`, default on).

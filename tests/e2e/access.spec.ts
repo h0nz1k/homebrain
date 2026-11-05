@@ -12,7 +12,7 @@ const actions = (page: Page) =>
   );
 
 test('Osoby: lidé ze snímače a doporučení přezapsat', async ({ page }) => {
-  await page.goto('/access');
+  await page.goto('/homebrain-pristup');
   await expect(page.getByTestId('access-person')).toHaveCount(3);
   for (const name of ['Jan', 'Petra', 'Tomáš'])
     await expect(page.getByTestId('access-person').filter({ hasText: name })).toHaveCount(1);
@@ -28,7 +28,7 @@ test('Osoby: lidé ze snímače a doporučení přezapsat', async ({ page }) => 
 });
 
 test('Průvodce: přezapsání smaže staré ID až po úspěšném zápisu', async ({ page }) => {
-  await page.goto('/access?enroll_ms=150');
+  await page.goto('/homebrain-pristup?enroll_ms=150');
   await page.getByTestId('access-reenroll').click();
   const wizard = page.getByTestId('access-wizard');
   await expect(wizard).toBeVisible();
@@ -47,7 +47,7 @@ test('Průvodce: přezapsání smaže staré ID až po úspěšném zápisu', as
 });
 
 test('Průvodce: nová osoba, celý postup', async ({ page }) => {
-  await page.goto('/access?enroll_ms=150');
+  await page.goto('/homebrain-pristup?enroll_ms=150');
   await page.getByTestId('access-add').click();
   await page.getByTestId('access-name').fill('Jan');
   await page.getByTestId('access-name-next').click();
@@ -69,7 +69,7 @@ test('Průvodce: nová osoba, celý postup', async ({ page }) => {
 });
 
 test('Průvodce: chyba zápisu má český důvod a radu, opakování projde', async ({ page }) => {
-  await page.goto('/access?enroll_ms=150&access_fail=face_instead_of_palm');
+  await page.goto('/homebrain-pristup?enroll_ms=150&access_fail=face_instead_of_palm');
   await page.getByTestId('access-add').click();
   await page.getByTestId('access-name').fill('Petra');
   await page.getByTestId('access-name-next').click();
@@ -85,7 +85,7 @@ test('Průvodce: chyba zápisu má český důvod a radu, opakování projde', a
 });
 
 test('Zařízení: přepínače servisního režimu a odemykání', async ({ page }) => {
-  await page.goto('/access');
+  await page.goto('/homebrain-pristup');
   await page.getByRole('radio', { name: 'Zařízení' }).click();
   await expect(page.getByTestId('access-device')).toBeVisible();
   const service = page.getByTestId('access-service');
@@ -114,7 +114,7 @@ test('Zařízení: přepínače servisního režimu a odemykání', async ({ pag
 });
 
 test('Osoby: matice obličej · pravá · levá a důvod v posledních průchodech', async ({ page }) => {
-  await page.goto('/access?enroll_ms=300');
+  await page.goto('/homebrain-pristup?enroll_ms=300');
   const cards = page.getByTestId('access-person');
   await expect(cards).toHaveCount(3);
   for (const name of ['Jan', 'Petra', 'Tomáš']) {

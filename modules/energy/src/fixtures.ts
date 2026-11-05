@@ -542,6 +542,7 @@ export type FlowScenario =
   | 'evening'
   | 'night'
   | 'nightcharge'
+  | 'suncharge'
   | 'mixed'
   | 'morning'
   | 'cloudy'
@@ -603,6 +604,16 @@ export const FLOW_SCENARIOS: Record<FlowScenario, FlowScenarioValues> = {
     batteryKw: -2.5,
     houseKw: 0.48,
     soc: 38,
+    appliancesW: { heat_pump: 6, dishwasher: 0.4, coffee_maker: 0, dehumidifier: 0 },
+  },
+  // Sunny day + forced grid charging: the sun covers the house, the battery charges 9.4 kW from the
+  // sun (3.1) AND the grid (6.3) – own sources must not claim 100 %.
+  suncharge: {
+    pv1Kw: 2.6,
+    pv2Kw: 2.1,
+    batteryKw: -9.4,
+    houseKw: 1.6,
+    soc: 42,
     appliancesW: { heat_pump: 6, dishwasher: 0.4, coffee_maker: 0, dehumidifier: 0 },
   },
   // 3-phase house with a hybrid inverter: the kettle on L1 imports 0.8 kW while L2 + L3 export

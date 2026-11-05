@@ -19,7 +19,7 @@ test.describe('Dnes – nástěnný kiosk', () => {
   });
 
   async function open(page: Page, query: string) {
-    await page.goto(`/today?kiosk=1&${query}`);
+    await page.goto(`/homebrain-dnes?kiosk=1&${query}`);
     await expect(page.getByTestId('today')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
   }

@@ -1,0 +1,21 @@
+# Descriptions of the services HomeBrain registers (HA loads this file for the UI and logs an
+# error when it is missing). Keep in sync with hass.services.async_register calls.
+wine_consume_text:
+  name: Odepsat víno podle věty
+  description: >-
+    Odepíše láhev z vinotéky podle volné věty (hlasový asistent). Vrací stav, nejisté
+    shody nechá na potvrzení.
+  fields:
+    text:
+      name: Věta
+      description: Co se vypilo, např. „vypili jsme ryzlink 2021“.
+      required: true
+      example: vypili jsme ryzlink 2021
+      selector:
+        text:
+    source_operation_id:
+      name: ID operace
+      description: Volitelné ID pro idempotenci (opakované volání nic neodepíše dvakrát).
+      required: false
+      selector:
+        text:
