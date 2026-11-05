@@ -24,7 +24,7 @@ import { Icon } from './parts.js';
 const CONTROL_LABEL: Record<FryerControl, string> = {
   pause: 'Pozastavit',
   stop: 'Zastavit',
-  keep_warm: 'Udržovat teplé',
+  keep_warm: 'Udržovat v teple',
 };
 
 /** Re-render on every HA update (entity ids may appear later than the first render). */

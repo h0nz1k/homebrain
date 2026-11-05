@@ -1997,8 +1997,9 @@ button.hb-tile[data-empty] .hb-tile-status {
   color: var(--hb-t2);
 }
 
-/* Phones: a ringed value gets its own row under the copy, so the title keeps the full width. */
-.hb-hero[data-variant='mobile'] .hb-signal-value[data-ring],
+/* Phones: the hero value (ringed or a word like „Hotovo“) gets its own row under the copy, so the
+   title keeps the full width instead of wrapping letter by letter beside it. */
+.hb-hero[data-variant='mobile'] .hb-signal-value,
 .hb-signal-compact .hb-signal-value[data-ring] {
   flex-basis: 100%;
   text-align: left;
