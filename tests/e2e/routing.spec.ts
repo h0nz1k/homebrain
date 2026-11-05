@@ -75,11 +75,7 @@ test('Přístup: všechny záložky zůstanou v panelu, zpět vrátí Osoby, rel
     [
       'Historie',
       '/historie',
-      () =>
-        page
-          .getByTestId('access-history-item')
-          .first()
-          .or(page.getByText('Zatím žádné rozpoznání')),
+      () => page.getByTestId('access-log-item').first().or(page.getByText('Žádné záznamy')),
     ],
     ['Osoby', '', () => page.getByTestId('access-person').first()],
   ];
