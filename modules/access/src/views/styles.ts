@@ -23,7 +23,6 @@ export const accessLayout = String.raw`
 .ac-off{color:var(--hb-t1);font-weight:600}
 .ac-person-title h3{margin:0 var(--hb-sp-1) 0 0;font-size:var(--hb-type-title);font-weight:650;letter-spacing:var(--hb-tracking-display);overflow-wrap:anywhere}
 .ac-person-menu{margin-left:var(--hb-sp-2);margin-right:calc(-1 * var(--hb-sp-2));color:var(--hb-t2)}
-.ac-creds .hb-tile-status{white-space:nowrap}
 .ac-creds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--hb-sp-2)}
 .ac-creds[data-cols='2']{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ac-person[data-allowed='false'] .ac-creds .hb-tile-icon{filter:grayscale(1);opacity:.7}
@@ -39,7 +38,6 @@ export const accessLayout = String.raw`
 .ac-rows .hb-status-row{flex-wrap:wrap;align-items:center;row-gap:var(--hb-sp-2)}
 .ac-rows .hb-status-row-copy{flex:1 1 0;min-width:0}
 .ac-rows .hb-status-row-label{font-weight:600}
-.ac-rows .hb-status-row-copy small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ac-rows .hb-status-row strong{display:flex;flex:none}
 .ac-state{display:grid;place-items:center}
 .ac-state svg{width:22px;height:22px}
@@ -77,5 +75,5 @@ export const accessLayout = String.raw`
 @keyframes ac-scan{to{top:72%}}
 @media (prefers-reduced-motion:reduce){.ac-scan{animation:none}}
 @media (max-width:1000px){.ac-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ac-split{grid-template-columns:1fr}}
-@media (max-width:600px){.ac{padding:var(--hb-sp-3)}.ac-bar>.hb-btn{flex:1 1 100%}.ac-grid{grid-template-columns:1fr}.ac-wiz{grid-template-columns:1fr}.ac-illu{max-height:180px}.ac-bar .hb-seg{width:100%;overflow-x:auto;flex-wrap:nowrap}.ac-bar .hb-seg button{flex:1 0 auto}}
+@media (max-width:600px){.ac{padding:var(--hb-sp-3)}.ac-bar>.hb-btn{flex:1 1 100%}.ac-grid{grid-template-columns:1fr}.ac-wiz{grid-template-columns:1fr}.ac-illu{max-height:180px}}
 `;

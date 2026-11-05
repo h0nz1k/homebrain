@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
-import { Button, toast } from '@homebrain/ui';
+import { Button, Sheet, toast } from '@homebrain/ui';
 import type { RecipesApi } from '../api.js';
 import { RecipesApiError } from '../api.js';
 import { BLOCK_TEXT, airfryerBlock, describeAction, remainingMinutes } from '../domain/airfryer.js';
@@ -333,35 +333,32 @@ export function AirfryerConfirm({
 }) {
   useBackClosable(onClose);
   return (
-    <div className="rc-scrim" onClick={onClose}>
-      <div
-        className="rc-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rc-fry-title"
-        data-testid="recipes-airfryer-dialog"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="rc-fry-title">Spustit fritézu?</h2>
-        <p>
-          Nastaví se <b>{describeAction(action)}</b> a fritéza se hned rozběhne. Zkontrolujte, že je
-          jídlo v koši a zásuvka zavřená.
-        </p>
-        <div className="acts">
-          <button type="button" className="rc-btn rc-sec" onClick={onClose}>
+    <Sheet
+      title="Spustit fritézu?"
+      onClose={onClose}
+      dismissOnScrim
+      data-testid="recipes-airfryer-dialog"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
             Zrušit
-          </button>
-          <button
-            type="button"
-            className="rc-btn rc-pri"
+          </Button>
+          <Button
+            variant="primary"
+            icon={<Icon name="fryer" />}
             data-testid="recipes-airfryer-confirm"
             onClick={onConfirm}
           >
-            <Icon name="fryer" /> Spustit
-          </button>
-        </div>
-      </div>
-    </div>
+            Spustit
+          </Button>
+        </>
+      }
+    >
+      <p>
+        Nastaví se <b>{describeAction(action)}</b> a fritéza se hned rozběhne. Zkontrolujte, že je
+        jídlo v koši a zásuvka zavřená.
+      </p>
+    </Sheet>
   );
 }
 

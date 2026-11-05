@@ -40,14 +40,16 @@ homebrain-panel {
   gap: var(--hb-sp-3);
   height: var(--hb-topbar-height);
   padding: 0 var(--hb-sp-4);
-  /* Glass top bar (#64): stays readable over scrolled content, no hard rule line. */
+  /* Opaque sticky top bar: scrolled card titles must never show through (a 78 % glass bar
+     let them bleed in when the WebView skipped/weakened backdrop-filter). It repeats the
+     shell's page glow, so at scroll 0 there is no seam against the page. */
   position: sticky;
   top: 0;
   z-index: 20;
   border-bottom: 1px solid var(--hb-edge, var(--hb-b1));
-  background: color-mix(in srgb, var(--hb-color-bg) 78%, transparent);
-  -webkit-backdrop-filter: saturate(1.6) blur(18px);
-  backdrop-filter: saturate(1.6) blur(18px);
+  background:
+    var(--hb-page-glow, none) top / 100% 720px no-repeat,
+    var(--hb-color-bg);
 }
 /* Soft page glow (#64): a hint of depth behind the cards; kiosk keeps its own sky. */
 .hb-shell:not([data-kiosk='true']) {

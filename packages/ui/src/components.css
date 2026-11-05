@@ -120,6 +120,9 @@
 .hb-pill {
   --hb-tone: var(--hb-t2);
   --hb-on-tone: var(--hb-on-ac);
+  /* Pills/chips never wrap inside; their row wraps whole chips (flex-wrap on the parent). */
+  white-space: nowrap;
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1171,6 +1174,10 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 .hb-status-row-copy small {
   color: var(--hb-t2);
   font-size: var(--hb-font-sm);
+  overflow-wrap: break-word;
+}
+.hb-status-row > * {
+  min-width: 0;
 }
 .hb-status-row[data-rich] > .hb-status-row-icon {
   flex: none;
@@ -1256,6 +1263,7 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   white-space: nowrap;
 }
 .hb-seg {
+  box-sizing: border-box;
   display: flex;
   flex: 1;
   gap: 3px;
@@ -1298,19 +1306,29 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   min-height: 32px;
 }
 @media (max-width: 600px) {
+  /* Phones: the control spans the content width; labels that don't fit scroll sideways. */
   .hb-seg-wrap {
+    flex: 1 1 100%;
     gap: 8px;
+    width: 100%;
+    min-width: 0;
   }
   .hb-seg-label {
     width: 100%;
   }
   .hb-seg {
     width: 100%;
-    flex-wrap: wrap;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .hb-seg::-webkit-scrollbar {
+    display: none;
   }
   .hb-seg button {
-    flex: 1 0 22%;
-    padding: 0 6px;
+    flex: 1 0 auto;
+    padding: 0 12px;
   }
 }
 
@@ -1320,6 +1338,8 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   inset: 0;
   z-index: 50;
   display: grid;
+  /* One track that may shrink below the content's min-content width (no grid blowout). */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: var(--hb-sp-4);
   background: rgb(0 0 0 / 55%);
@@ -1327,10 +1347,14 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   animation: hb-fade var(--hb-dur-base) var(--hb-ease-out);
 }
 .hb-sheet {
+  /* width:100% includes padding + border; without this the phone sheet was 34 px wider than the screen. */
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: var(--hb-sp-4);
   width: min(560px, 100%);
+  min-width: 0;
+  max-width: 100%;
   max-height: calc(100dvh - 2 * var(--hb-sp-4));
   overflow: auto;
   padding: var(--hb-sp-5);
@@ -1355,14 +1379,28 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-sheet-head h2 {
   flex: 1;
+  min-width: 0;
   margin: 0;
+  overflow-wrap: break-word;
   font-size: var(--hb-type-title);
   font-weight: 650;
   letter-spacing: var(--hb-tracking-title);
 }
+.hb-scrim *,
+.hb-scrim *::before,
+.hb-scrim *::after {
+  box-sizing: border-box;
+}
 .hb-sheet-body {
+  min-width: 0;
   color: var(--hb-t2);
   line-height: var(--hb-leading-body);
+}
+.hb-sheet-body > :first-child {
+  margin-top: 0;
+}
+.hb-sheet-body > :last-child {
+  margin-bottom: 0;
 }
 .hb-sheet-foot {
   display: flex;
@@ -1614,9 +1652,19 @@ button.hb-tile:disabled {
   overflow-wrap: anywhere;
 }
 .hb-tile-status {
+  /* Narrow tiles (3 per row on phones): wrap to max 2 lines, never hard-clip mid-word. */
+  display: -webkit-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
   color: var(--hb-tone);
   font-size: var(--hb-font-sm);
   font-weight: 600;
+  overflow-wrap: break-word;
 }
 .hb-tile[data-tone='neutral'] .hb-tile-status {
   color: var(--hb-t2);
@@ -1625,6 +1673,8 @@ button.hb-tile[data-empty] .hb-tile-status {
   color: var(--hb-ac);
 }
 .hb-tile-detail {
+  max-width: 100%;
   color: var(--hb-t2);
   font-size: var(--hb-font-sm);
+  overflow-wrap: break-word;
 }
