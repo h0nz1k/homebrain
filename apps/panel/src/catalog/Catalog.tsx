@@ -198,8 +198,9 @@ const specs: Spec[] = [
     name: 'Chip',
     summary: 'Pill pro filtry a metadata (stejné API, jemnější vzhled).',
     importName: 'Chip',
-    states: ['neutral', 'accent', 'ok', 'warn', 'crit', 'pressed', 'badge', 'disabled'],
-    doText: 'Filtry v řádku, ať se zalomí bez ořezu.',
+    states: ['neutral', 'accent', 'ok', 'warn', 'crit', 'pressed', 'badge', 'soft', 'disabled'],
+    doText:
+      'Filtry v řádku, ať se zalomí bez ořezu. look="soft" = sdílený jazyk výběru (tón + linka + text v akcentu) tam, kde výběr ukazuje i mapa nebo SegmentedControl tone="accent".',
     dontText: 'Vlastní .x-chip v modulu – použijte Chip a className.',
     notes: 'Energie, Víno a Dnes mají zatím vlastní čipy → sjednotit (viz revize).',
     render: () => (
@@ -211,6 +212,9 @@ const specs: Spec[] = [
         <ToggleChipDemo />
         <Chip pressed badge={1} badgeLabel="pořadí 1" onPress={() => undefined}>
           Kuchyně
+        </Chip>
+        <Chip pressed look="soft" badge={2} badgeLabel="pořadí 2" onPress={() => undefined}>
+          Jídelna
         </Chip>
       </div>
     ),

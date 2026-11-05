@@ -568,6 +568,7 @@ function RobotPanel({
                       <Chip
                         key={room.id}
                         className="rb-chip"
+                        look="soft"
                         pressed={badge !== null}
                         badge={badge}
                         badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
@@ -608,8 +609,7 @@ function RobotPanel({
               <div className="rb-controls" data-testid="robots-controls">
                 <SegmentedControl
                   label="Nastavení"
-                  hideLabel
-                  size="sm"
+                  tone="accent"
                   className="rb-level"
                   value={advanced ? 'advanced' : 'basic'}
                   options={[

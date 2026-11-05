@@ -354,6 +354,25 @@
 .hb-chip[data-toggle][aria-pressed='true']:has(.hb-chip-badge) {
   padding-left: 6px;
 }
+.hb-chip[data-toggle][data-look='soft'][aria-pressed='true'] {
+  /* Same selection language as SegmentedControl tone="accent": tint, accent ring, accent ink. */
+  background: var(--hb-sel);
+  color: var(--hb-sel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--hb-ac);
+}
+.hb-chip[data-toggle][data-look='soft'][aria-pressed='true']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-ac) calc(var(--hb-sel-a) + 6%), transparent);
+}
+.hb-chip[data-toggle][data-look='soft'][aria-pressed='true']:has(.hb-chip-badge) {
+  padding-left: 9px;
+}
+.hb-chip[data-look='soft'] .hb-chip-badge {
+  width: 22px;
+  height: 22px;
+  background: var(--hb-ac);
+  color: var(--hb-on-ac);
+  font-size: 12.5px;
+}
 .hb-chip-badge {
   display: grid;
   place-items: center;
@@ -1319,16 +1338,10 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     0 1px 3px rgb(16 24 40 / 10%);
 }
 .hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] {
-  background: color-mix(in oklch, var(--hb-ac) 24%, var(--hb-s2));
-  color: color-mix(in oklch, var(--hb-ac) 45%, white);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 65%, transparent);
-}
-[data-theme='light'] .hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] {
-  background: var(--hb-s1);
-  color: color-mix(in oklch, var(--hb-ac) 75%, black);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 55%, transparent),
-    0 1px 3px rgb(16 24 40 / 10%);
+  /* Shared selection language (= Chip look="soft", Roboti map rooms): tint + ring + ink. */
+  background: var(--hb-sel);
+  color: var(--hb-sel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--hb-ac);
 }
 .hb-seg button:disabled {
   cursor: default;

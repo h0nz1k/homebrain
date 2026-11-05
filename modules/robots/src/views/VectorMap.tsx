@@ -194,6 +194,7 @@ export function VectorFloorPlan({
       arrows: [] as [number, number, number][],
       stops: [] as Pt[],
       runs: [] as Pt[][],
+      steps: [] as [number, number, number][],
       kind: null as 'doors' | 'grid' | null,
     };
     if (!selected.length || !routeFrom || raster || !walls.length) return none;
@@ -210,13 +211,13 @@ export function VectorFloorPlan({
       {
         clearance: unit * 0.9,
         approach: unit * 1.8,
-        depth: unit * 6,
+        depth: unit * 7.5,
         avoid: badges,
         avoidRadius: unit * 4.2,
       },
     );
     let legs: Pt[][];
-    let joined: { runs: Pt[][]; stops: Pt[] };
+    let joined: { runs: Pt[][]; stops: Pt[]; legOf: number[] };
     if (viaDoors) {
       legs = viaDoors;
       joined = joinLegs(legs, [], unit * 4);
@@ -230,19 +231,39 @@ export function VectorFloorPlan({
         unit * 4,
       );
     }
-    const { runs, stops } = joined;
+    const { runs, stops, legOf } = joined;
     const first = runs[0] ? trimLine(runs[0], unit * 3.4, 0) : [];
-    const all = [first, ...runs.slice(1)].filter((run) => run.length > 1);
+    const trimmed = [first, ...runs.slice(1)];
+    const kept = trimmed
+      .map((run, i) => [run, legOf[i] ?? i] as const)
+      .filter(([run]) => run.length > 1);
+    const all = kept.map(([run]) => run);
     if (!all.length) return none;
+    // Order markers (2+ rooms): the leg's number on the middle of its longest straight
+    // segment, so a branching (T) route still reads 1 → 2.
+    const steps: [number, number, number][] =
+      rooms.length > 1 ? kept.map(([run, leg]) => [...stepSpot(run), leg + 1]) : [];
+    const markers = steps.map(([x, y]): Pt => [x, y]);
     return {
       d: all.map((run) => roundedLine(run, unit * 1.6)).join(''),
-      // Chevrons along each run (not on stops or badges), one arrowhead at each run end.
-      arrows: all.flatMap((run) => [
-        ...arrowsAlong(run, unit * 12, unit * 5, [...stops, ...badges], unit * 4),
-        endArrow(run),
-      ]),
+      // Chevrons along each run (not on stops, badges or order markers), one arrowhead at each run end.
+      arrows: spreadArrows(
+        all.flatMap((run) => [
+          ...arrowsAlong(
+            run,
+            unit * 12,
+            unit * 5,
+            // Not on stops, badges, order markers or in doorways (the wall ends clutter them).
+            [...stops, ...badges, ...markers, ...doors.map((door) => door.c)],
+            unit * 4,
+          ),
+          endArrow(run),
+        ]),
+        unit * 5,
+      ),
       stops,
       runs: all,
+      steps,
       kind: viaDoors ? ('doors' as const) : ('grid' as const),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- routeKey covers selection + pose
@@ -318,6 +339,9 @@ export function VectorFloorPlan({
           </linearGradient>
           <filter id={`${clipId}-soft`} x="-10%" y="-10%" width="120%" height="120%">
             <feGaussianBlur stdDeviation={unit * 0.9} />
+          </filter>
+          <filter id={`${clipId}-cast`} x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur stdDeviation={unit * 0.35} />
           </filter>
           <filter id={`${clipId}-lift`} x="-10%" y="-10%" width="120%" height="125%">
             <feGaussianBlur stdDeviation={unit * 1.6} />
@@ -448,62 +472,43 @@ export function VectorFloorPlan({
         {/* Outline and room seams are the same shared arcs (backend topology), drawn as plain
             strokes in one colour: the shell slightly heavier, seams meet it in clean T joints. */}
         {wallsD && dividersD && !raster && (
-          <path className="rv-wall-line rv-seam" d={dividersD} strokeWidth={unit * 0.24} />
+          <path
+            className="rv-wall-line rv-seam"
+            d={dividersD}
+            strokeWidth={unit * (theme === 'light' ? 0.34 : 0.24)}
+          />
+        )}
+        {/* Light theme: walls need body – a soft cast below a thicker wall line. */}
+        {wallsD && !raster && theme === 'light' && (
+          <path
+            className="rv-wall-cast"
+            d={wallsD}
+            strokeWidth={unit * 0.9}
+            transform={`translate(0 ${unit * 0.45})`}
+            filter={`url(#${clipId}-cast)`}
+          />
         )}
         {wallsD && !raster && (
           <path
             className="rv-wall-line"
             d={wallsD}
-            strokeWidth={unit * 0.42}
+            strokeWidth={unit * (theme === 'light' ? 0.66 : 0.42)}
             data-testid="robots-map-walls"
           />
         )}
         {dividersD && !wallsD && !raster && <path className="rv-divider" d={dividersD} />}
-        {/* Selection = the room's own colour, stronger, plus an accent outline on the INNER side
-            of its walls (stroke clipped to the room), so the wall line keeps its look; the
-            outline opens exactly at the door gaps (mask), like the walls do. */}
-        {wallsD && !raster && selected.length > 0 && (
-          <defs>
-            <mask id={`${clipId}-doors`} maskUnits="userSpaceOnUse">
-              <rect width={frame.width} height={frame.height} fill="#fff" />
-              {doors.map((door, i) => (
-                <line
-                  key={i}
-                  x1={door.a[0]}
-                  y1={door.a[1]}
-                  x2={door.b[0]}
-                  y2={door.b[1]}
-                  stroke="#000"
-                  strokeWidth={unit * 2.4}
-                />
-              ))}
-            </mask>
-            {placed
-              .filter((room) => selected.includes(room.id))
-              .map((room) => (
-                <clipPath key={room.id} id={`${clipId}-sel-${room.id}`}>
-                  <path d={room.d} />
-                </clipPath>
-              ))}
-          </defs>
-        )}
+        {/* Selection = one closed accent outline per room, drawn ABOVE the walls: it stays
+            continuous across door openings (gaps exist only in the wall layer), same width. Fill tint, ring
+            and ink are the shared selection tokens (same as the room chips and segments). */}
         {wallsD &&
           !raster &&
           placed
             .filter((room) => selected.includes(room.id))
             .map((room) => (
-              <g
-                key={`sel${room.id}`}
-                className="rv-sel"
-                data-testid={`robots-map-sel-${room.id}`}
-                mask={`url(#${clipId}-doors)`}
-              >
-                <path
-                  className="rv-sel-line"
-                  d={room.d}
-                  strokeWidth={unit * 1.3}
-                  clipPath={`url(#${clipId}-sel-${room.id})`}
-                />
+              <g key={`sel${room.id}`} className="rv-sel" data-testid={`robots-map-sel-${room.id}`}>
+                {/* One closed band centred on the room edge: it merges with the wall where
+                    there is one and bridges door openings with the same width. */}
+                <path className="rv-sel-line" d={room.d} strokeWidth={unit * 0.9} />
               </g>
             ))}
         {routeD && (
@@ -584,6 +589,18 @@ export function VectorFloorPlan({
           );
         })}
       </div>
+      {route.steps.map(([x, y, n]) => (
+        <b
+          key={`st${n}`}
+          className="rv-step"
+          aria-hidden="true"
+          data-rv-obstacle=""
+          data-testid="robots-map-route-step"
+          style={{ left: pct(x, frame.width), top: pct(y, frame.height) }}
+        >
+          {n}
+        </b>
+      ))}
       {robotView && (
         // Where the robot ends up (it may still be gliding): labels move out of this spot.
         <span
@@ -1290,11 +1307,12 @@ export function joinLegs(
   legs: Pt[][],
   targets: Ring[][],
   depth: number,
-): { runs: Pt[][]; stops: Pt[] } {
+): { runs: Pt[][]; stops: Pt[]; legOf: number[] } {
   const step = depth / 6;
   const near = depth * 0.3;
   const drawn: Pt[][] = [];
   const stops: Pt[] = [];
+  const legOf: number[] = [];
   const nearDrawn = (p: Pt) => drawn.some((run) => distToLine(p, run) < near);
   legs.forEach((leg, i) => {
     let line = densify(leg, step);
@@ -1322,9 +1340,10 @@ export function joinLegs(
     if (run.length > 1) {
       drawn.push(run);
       stops.push(run[run.length - 1]!);
+      legOf.push(i);
     }
   });
-  return { runs: drawn, stops };
+  return { runs: drawn, stops, legOf };
 }
 
 function distToLine(p: Pt, line: Pt[]): number {
@@ -1401,6 +1420,31 @@ export function arrowsAlong(
     walked += len;
   }
   return out;
+}
+
+/** Drops chevrons closer than `min` to an earlier one (no stacked chevrons). */
+function spreadArrows(arrows: [number, number, number][], min: number) {
+  const out: [number, number, number][] = [];
+  // End arrowheads (last of each run) win: keep them, then fill in the chevrons.
+  for (const a of arrows)
+    if (out.every((b) => Math.hypot(a[0] - b[0], a[1] - b[1]) >= min)) out.push(a);
+  return out;
+}
+
+/** Middle of the longest segment of a run (a straight stretch, away from the fillets). */
+export function stepSpot(run: Pt[]): Pt {
+  let best = 0;
+  let spot: Pt = run[0]!;
+  for (let i = 1; i < run.length; i++) {
+    const [ax, ay] = run[i - 1]!;
+    const [bx, by] = run[i]!;
+    const len = Math.hypot(bx - ax, by - ay);
+    if (len > best) {
+      best = len;
+      spot = [(ax + bx) / 2, (ay + by) / 2];
+    }
+  }
+  return spot;
 }
 
 function endArrow(run: Pt[]): [number, number, number] {

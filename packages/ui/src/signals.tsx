@@ -52,6 +52,9 @@ export interface ChipProps extends BadgeProps {
   /** Round badge before the label of a pressed chip (e.g. order number). */
   badge?: ReactNode;
   badgeLabel?: string;
+  /** Pressed look: `solid` accent fill (default) or `soft` – the shared selection language
+   * (accent tint + ring + ink) used with SegmentedControl tone="accent" and map selections. */
+  look?: 'solid' | 'soft';
 }
 export function Chip({
   className = '',
@@ -61,6 +64,7 @@ export function Chip({
   disabled,
   badge = null,
   badgeLabel,
+  look = 'solid',
   children,
   ...props
 }: ChipProps) {
@@ -81,6 +85,7 @@ export function Chip({
       type="button"
       className={`hb-chip ${className}`}
       data-toggle=""
+      data-look={look === 'soft' ? 'soft' : undefined}
       aria-pressed={pressed}
       disabled={disabled}
       onClick={() => {

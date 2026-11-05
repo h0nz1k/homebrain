@@ -85,10 +85,16 @@ export const robotsStyles = `
 .rb-grid {
   display: grid; gap: 18px;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  align-items: start;
+  /* Both columns end on the same line: the last card of the shorter column absorbs the rest. */
+  align-items: stretch;
   animation: rb-in var(--hb-dur-slow) var(--hb-ease-out) both;
 }
 .rb-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.rb-col > .rb-care, .rb-col > .rb-clean { flex: 1 1 auto; }
+.rb-care, .rb-clean { display: flex; flex-direction: column; }
+.rb-clean > .rb-map-row { flex: 1 1 auto; display: flex; flex-direction: column; }
+.rb-clean .rb-clean-side { flex: 1 1 auto; display: flex; flex-direction: column; }
+.rb-clean .rb-clean-actions { margin-top: auto; }
 .rb-card { min-width: 0; }
 @keyframes rb-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
@@ -188,15 +194,16 @@ export const robotsStyles = `
 .rb-map-empty { color: var(--hb-t2); font-size: 14px; padding: 24px; text-align: center; max-width: 340px; }
 .rb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 /* „Základní / Pokročilé“: a small switch above the controls; advanced rows fade in. */
-.rb-controls .rb-level { justify-content: flex-end; }
-.rb-controls .rb-level .hb-seg { flex: 0 1 220px; }
+.rb-controls .rb-level { justify-content: space-between; flex-wrap: nowrap; }
+.rb-controls .rb-level .hb-seg-label { width: auto; flex: 1 1 auto; color: var(--hb-t1); font-size: 15px; font-weight: 600; }
+.rb-controls .rb-level .hb-seg { flex: 0 1 220px; width: auto; }
 .rb-controls .rb-adv { animation: rb-in var(--hb-dur-base, 200ms) var(--hb-ease-out, ease-out); }
 
 
 
 
 @keyframes rb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
-.rb-hint { color: var(--hb-t2); font-size: 14px; margin: 16px 0 20px; }
+.rb-hint { color: var(--hb-t2); font-size: 14px; margin: 16px 0 14px; }
 .rb-controls { display: grid; gap: 14px; margin-bottom: 22px; }
 
 
@@ -204,12 +211,10 @@ export const robotsStyles = `
 
 
 
-[data-theme='light'] 
-.rb-clean 
-
 /* Maintenance */
-.rb-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
-.rb-parts li { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 12px; }
+.rb-parts { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(68px, 1fr); }
+.rb-parts li { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 14px; padding: 7px 0; }
+.rb-parts li + li { border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
 .rb-ring-wrap { position: relative; width: 54px; height: 54px; }
 .rb-ring-wrap em::after { content: '%'; font-size: 10px; font-weight: 500; margin-left: 1px; opacity: 0.7; }
 .rb-ring-wrap em { line-height: 1; }
@@ -279,7 +284,6 @@ export const robotsStyles = `
 @media (max-width: 600px) {
     .rb-floors { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: auto; }
   .rb-floor { min-width: 0; padding: 9px 10px; }
-  .rb-problem-cta 
   .rb-floor-meta { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .rb-floor-help, .rb-floor-robot { display: none; }
   .rb-card { padding: 18px; }
@@ -287,7 +291,6 @@ export const robotsStyles = `
   .rb-state { font-size: 26px; }
   .rb-hero-foot { margin-top: 14px; }
   .rb-hero-actions { width: 100%; }
-  .rb-hero-actions 
   .rb-parts { grid-template-columns: minmax(0, 1fr); }
   
   
@@ -325,20 +328,21 @@ export const robotsStyles = `
   --rv-nogo: #ff6b6b;
   --rv-bot-edge: #d3d9e3;
   --rv-label: color-mix(in srgb, var(--hb-t1) 82%, transparent);
-  --rv-label-sel: var(--hb-t1);
+  --rv-label-sel: var(--hb-sel-ink);
   --rv-wall-line: color-mix(in srgb, var(--hb-t1) 34%, var(--rb-fill));
   --rv-seam: color-mix(in srgb, var(--hb-t1) 14%, var(--rb-fill));
   --rv-divider: color-mix(in srgb, var(--hb-t1) 14%, transparent);
   position: relative; margin: 0 auto;
 }
 [data-theme='light'] .rv {
-  --rv-room-l: 95.4%; --rv-room-dl: -1.2%; --rv-room-c: 0.017;
+  --rv-room-l: 94%; --rv-room-dl: -1.6%; --rv-room-c: 0.045;
   --rv-sel-l: 88%; --rv-sel-c: 0.075;
   --rv-sel-mix: 13%;
-  --rv-grain: rgb(16 24 40 / 3%);
-  --rv-light: rgb(255 255 255 / 55%);
-  --rv-shade: rgb(16 24 40 / 16%);
-  --rv-lift: rgb(16 24 40 / 16%);
+  --rv-grain: rgb(16 24 40 / 8%);
+  --rv-light: rgb(255 255 255 / 70%);
+  --rv-shade: rgb(16 24 40 / 34%);
+  --rv-lift: rgb(16 24 40 / 26%);
+  --rv-cast: rgb(16 24 40 / 42%);
   --rv-dock: #4a5568;
   --rv-dock-plate: rgb(16 24 40 / 9%);
   --rv-sel-base: #ffffff;
@@ -349,10 +353,10 @@ export const robotsStyles = `
   --rv-sel-b: color-mix(in oklch, var(--hb-ac) 17%, white);
   --rv-nogo: #e5484d;
   --rv-bot-edge: #dfe4ec;
-  --rv-label: #3b4452;
-  --rv-label-sel: color-mix(in oklch, var(--hb-ac) 62%, black);
-  --rv-wall-line: #98a2b3;
-  --rv-seam: #cfd5de;
+  --rv-label: #2b3340;
+  --rv-label-sel: var(--hb-sel-ink);
+  --rv-wall-line: #6f7a8c;
+  --rv-seam: #aab3c0;
   --rv-divider: rgb(16 24 40 / 12%);
 }
 .rv svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -371,16 +375,17 @@ export const robotsStyles = `
 /* With real walls each room also strokes itself in its own colour: fills meet under the walls. */
 .rv[data-walls] .rv-room { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; }
 .rv-room-under { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; pointer-events: none; }
-.rv[data-walls] .rv-room[data-selected], .rv-room-under[data-selected] {
-  /* Selected = the room's own colour, lifted and more saturated (not a foreign accent fill). */
-  --rv-tile: oklch(var(--rv-sel-l) var(--rv-sel-c) var(--rv-hue, 250));
+.rv[data-walls] .rv-room[data-selected], .rv-room-under[data-selected], .rv-label[data-selected] {
+  /* Selected = the shared selection tint (same alpha as chips/segments) over a neutral tile:
+     every selected room looks the same, no per-room hue. */
+  --rv-tile: color-mix(in srgb, var(--hb-ac) var(--hb-sel-a, 16%), oklch(var(--rv-room-l) 0.006 250));
 }
 .rv[data-has-selection] .rv-room:not([data-selected]), .rv[data-has-selection] .rv-room-under:not([data-selected]) {
   /* With a selection the other rooms step back: almost no chroma and a little dimmer. */
-  --rv-tile: oklch(calc(var(--rv-room-l) + var(--rv-step, 0) * var(--rv-room-dl) + var(--rv-dim-dl)) calc(var(--rv-room-c) * 0.3) var(--rv-hue, 250));
+  --rv-tile: oklch(calc(var(--rv-room-l) + var(--rv-step, 0) * var(--rv-room-dl) + var(--rv-dim-dl)) calc(var(--rv-room-c) * var(--rv-dim-c, 0.3)) var(--rv-hue, 250));
 }
 .rv { --rv-dim-dl: -3%; }
-[data-theme='light'] .rv { --rv-dim-dl: 1.5%; }
+[data-theme='light'] .rv { --rv-dim-dl: 1.2%; --rv-dim-c: 0.55; }
 .rv[data-has-selection] .rv-label:not([data-selected]) { opacity: .62; }
 .rv-lift { fill: var(--rv-lift); stroke: none; pointer-events: none; }
 .rv-depth { pointer-events: none; }
@@ -389,7 +394,15 @@ export const robotsStyles = `
 .rv-wall-shadow { fill: none; stroke: var(--rv-shade); stroke-linecap: round; stroke-linejoin: round; }
 .rv[data-walls] .rv-room-pad { fill: var(--rv-seam); stroke: var(--rv-seam); }
 .rv-sel { pointer-events: none; }
-.rv-sel-line { fill: none; stroke: color-mix(in oklch, var(--hb-ac) 88%, var(--hb-t1)); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+.rv-sel-line { fill: none; stroke: var(--hb-ac); stroke-linejoin: round; stroke-linecap: round; pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
+.rv-wall-cast { fill: none; stroke: var(--rv-cast, transparent); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+/* Route order markers: the shared selection badge, small, on the leg's straight stretch. */
+.rv-step {
+  position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%;
+  background: var(--hb-ac); color: var(--hb-on-ac, #fff); box-shadow: 0 0 0 2px var(--rb-fill), 0 1px 3px rgb(16 24 40 / 25%);
+  font-size: 10.5px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1; pointer-events: none;
+  animation: rv-fade-in 260ms var(--hb-ease-out, ease-out);
+}
 /* Planned route to the selected rooms: dashed accent line through the doors. */
 .rv-route-layer { pointer-events: none; animation: rv-fade-in 260ms var(--hb-ease-out, ease-out); }
 .rv-route-casing { fill: none; stroke: color-mix(in srgb, var(--rb-fill) 70%, transparent); stroke-width: 6px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -469,7 +482,7 @@ export const robotsStyles = `
   font-size: 13px; font-weight: 550; letter-spacing: -.005em; color: var(--rv-label); white-space: nowrap;
   transition: opacity 180ms, color 180ms;
 }
-.rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; --rv-tile: oklch(var(--rv-sel-l) var(--rv-sel-c) var(--rv-hue, 250)); }
+.rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; }
 /* Knock-out halo in the room's own tone: the route/lanes never run through the letters. */
 .rv[data-walls] .rv-label-text { text-shadow: 0 0 3px var(--rv-tile); }
 .rv-label[data-hidden] { visibility: hidden; }
