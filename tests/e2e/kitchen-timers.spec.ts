@@ -21,14 +21,16 @@ test('vajíčka: čas podle vstupů, kalibrační příznak, spuštění pojmeno
   await wizard.getByRole('radio', { name: 'NAHNILIČKO' }).click();
   await expect(time).toHaveText('6:00');
   await page.getByTestId('eggs-chilled').click();
-  await expect(time).toHaveText('4:49');
+  await expect(time).toHaveText('4:50');
   await wizard.getByRole('radio', { name: 'NATVRDO' }).click();
   await expect(page.getByTestId('eggs-uncalibrated')).toHaveCount(0);
   await wizard.getByRole('radio', { name: 'XL' }).click();
-  await expect(page.getByTestId('eggs-uncalibrated')).toBeVisible();
+  await expect(page.getByTestId('eggs-uncalibrated')).toHaveCount(0);
   await wizard.getByRole('radio', { name: 'M', exact: true }).click();
   await wizard.getByRole('radio', { name: 'Křepelčí' }).click();
   await expect(wizard.getByRole('radio', { name: 'XL' })).toBeDisabled();
+  // Quail: fixed table, NATVRDO not measured yet.
+  await expect(page.getByTestId('eggs-uncalibrated')).toBeVisible();
   await wizard.getByRole('radio', { name: 'Slepičí' }).click();
   await wizard.getByRole('radio', { name: 'NAMĚKKO' }).click();
   await page.getByTestId('eggs-chilled').click();

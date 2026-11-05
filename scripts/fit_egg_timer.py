@@ -28,7 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-MASS_G = {"S": 46.0, "M": 58.0, "L": 70.9, "XL": 83.0}
+MASS_G = {"S": 48.1, "M": 58.0, "L": 70.9, "XL": 76.9}
 FRIDGE_C = 5.0
 ROOM_C = 20.0
 MAX_WATER_C = 99.0
@@ -99,10 +99,11 @@ def fit(observations: list[dict[str, Any]]) -> dict[str, Any]:
     for o in chicken:
         p = predict(o, yolks[o["doneness"]], per_egg)
         rows.append({**o, "predicted": round(p), "error_s": round(p - o["seconds"], 1)})
+    # Quail: fixed table per doneness (size and count ignored), chilled reference only.
     quail = {
-        ("chilled" if o["chilled"] else "room"): o["seconds"]
+        o["doneness"]: o["seconds"]
         for o in observations
-        if o["kind"] == "quail"
+        if o["kind"] == "quail" and o["chilled"] and o.get("doneness")
     }
     return {
         "yolkC": yolks,

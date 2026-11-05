@@ -229,7 +229,6 @@ export function EggWizard({ store, elevationM }: { store: TimerStore; elevationM
           label="Stupeň"
           value={input.doneness}
           options={DONENESS_OPTIONS}
-          disabled={quail}
           onChange={(doneness) => set({ doneness })}
         />
         <div className="kt-row">
@@ -277,7 +276,7 @@ export function EggWizard({ store, elevationM }: { store: TimerStore; elevationM
           {result.explanation.map((line) => (
             <li key={line}>{line}</li>
           ))}
-          {!quail && input.count > 1 ? null : (
+          {quail || input.count > 1 ? null : (
             <li>Každé další vejce přidá {EGG_MODEL.perExtraEggS} s.</li>
           )}
           <li>Čas běží od vložení vajec do vroucí vody.</li>

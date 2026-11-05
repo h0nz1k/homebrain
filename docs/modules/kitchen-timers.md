@@ -14,9 +14,12 @@
   - creates a persistent notification *Minutka doběhla* (`notification_id`
     `homebrain_timer_<id>`), dismissed again when the timer is silenced, extended or cancelled,
   - optionally calls the notify targets chosen in Recepty settings.
-- Dnes: one compact card *Minutka · <name>* with the countdown of the soonest timer and the
-  others in the context line; a finished timer becomes *Hotovo · <name>* (notice). Signal module
-  `recipes`, feed key `recipes.timers`; visible for owner/adult/child and on the kiosk tablet.
+- Dnes: one card *Minutka · <name>* (notice) with the big countdown of the soonest timer as the
+  shared signal value (`zbývá 3:17`) and the others in the context line (`Těstoviny za 7:37`).
+  Same escalation as the live airfryer signal: the last minute and a finished timer
+  (*Minutka doběhla · <name>*, value *Hotovo*) are `warning`, i.e. the Dnes hero with the value
+  in the warning tone. Signal module `recipes`, feed key `recipes.timers` (the airfryer feed uses
+  `recipes`); visible for owner/adult/child and on the kiosk tablet.
 - Example automation (phone notification + kitchen tablet TTS placeholder):
   [`docs/examples/kitchen-timer-finished.yaml`](../examples/kitchen-timer-finished.yaml).
 
@@ -37,31 +40,32 @@ plus an empirical **+20 s for every egg beyond the first** (more eggs cool the w
 | Constant (`EGG_MODEL` in `modules/recipes/src/domain/eggs.ts`) | Default | Status |
 |---|---|---|
 | Mass M / L | 58 / 70.9 g | fitted |
-| Mass S / XL (same ~12.5 g step) | 46 / 83 g | extrapolated → *nekalibrováno* |
+| Mass S / XL | 48.1 / 76.9 g | fitted (S, XL chilled NAHNILIČKO 3 ks) |
 | T_egg chilled / room | 5 / 20 °C | |
 | T_water = min(99 °C, boiling point at the HA elevation) | 99 °C | fitted |
 | T_yolk NAMĚKKO / NAHNILIČKO / NATVRDO | 63.2 / 68.1 / 81.9 °C | fitted |
 | `perExtraEggS` | 20 s | fitted (1 vs 3 eggs) |
-| Quail chilled (3 eggs) / room | 3:00 / 2:30 | chilled from reference, rest *nekalibrováno* |
+| Quail NAMĚKKO / NAHNILIČKO / NATVRDO (size + count ignored) | 2:20 / 3:00 / 4:00 | chilled fitted; NATVRDO and room temp *nekalibrováno* |
+| Rounding of the final time | 10 s | as the reference app |
 
 - Boiling point: ISA barometric pressure + Clausius–Clapeyron (≈ 100 − h/300 °C). HA elevation
   comes from `get_config`; elevation 0 or unset keeps 99 °C.
-- The 7 chicken reference times are reproduced within ±1 s (tests assert ±5 s).
-- Quail eggs (~10 g) would take ~1.7 min by the formula; the reference shows a fixed time, so
-  quail uses a table.
+- The 9 chicken reference times are reproduced within ±1 s (tests assert ±5 s).
+- Quail eggs (~10 g) would take ~1.7 min by the formula; the reference shows fixed times per
+  doneness (size and count disabled), so quail uses a table, not Williams.
 
-Default times, **1 egg**, 99 °C (each extra egg +0:20; S/XL = *nekalibrováno*):
+Default times, **1 egg**, 99 °C (each extra egg +0:20, rounded to 10 s):
 
 | Velikost | Chlazený | NAMĚKKO | NAHNILIČKO | NATVRDO |
 |---|---|---|---|---|
-| S (46 g) | ano | 4:00 | 4:51 | 8:17 |
-| S (46 g) | ne | 3:00 | 3:51 | 7:16 |
+| S (48.1 g) | ano | 4:10 | 5:00 | 8:30 |
+| S (48.1 g) | ne | 3:10 | 4:00 | 7:30 |
 | M (58 g) | ano | 4:40 | 5:40 | 9:40 |
-| M (58 g) | ne | 3:30 | 4:29 | 8:29 |
-| L (70.9 g) | ano | 5:20 | 6:28 | 11:03 |
-| L (70.9 g) | ne | 4:00 | 5:08 | 9:42 |
-| XL (83 g) | ano | 5:56 | 7:12 | 12:16 |
-| XL (83 g) | ne | 4:26 | 5:42 | 10:47 |
+| M (58 g) | ne | 3:30 | 4:30 | 8:30 |
+| L (70.9 g) | ano | 5:20 | 6:30 | 11:00 |
+| L (70.9 g) | ne | 4:00 | 5:10 | 9:40 |
+| XL (76.9 g) | ano | 5:40 | 6:50 | 11:40 |
+| XL (76.9 g) | ne | 4:10 | 5:30 | 10:10 |
 
 ### Calibration
 1. Add reference times (seconds) to `tests/fixtures/egg-timer/observations.json`

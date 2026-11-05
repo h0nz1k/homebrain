@@ -8,7 +8,7 @@
  *   t[min] = 0.451 · M^(2/3) · ln(0.76 · (T_egg − T_water) / (T_yolk − T_water))
  *
  * M = egg mass in grams, T_yolk = temperature of the yolk/white boundary that defines doneness.
- * plus an empirical +20 s for every egg beyond the first (the water cools more).
+ * plus an empirical +20 s for every egg beyond the first (the water cools more), rounded to 10 s.
  * All tunable numbers live in {@link EGG_MODEL} (one table) so they can be refitted with
  * `scripts/fit_egg_timer.py` from reference times (`tests/fixtures/egg-timer/observations.json`).
  */
@@ -38,7 +38,7 @@ export interface DonenessConstants {
 }
 
 export interface EggModel {
-  /** Effective egg mass per size (g). M and L fitted to reference times, S/XL extrapolated. */
+  /** Effective egg mass per size (g), each fitted to reference times. */
   massG: Record<EggSize, number>;
   sizeCalibrated: Record<EggSize, boolean>;
   fridgeC: number;
@@ -54,15 +54,18 @@ export interface EggModel {
    * longer to recover (empirical, fitted to reference times with 1 and 3 eggs).
    */
   perExtraEggS: number;
-  /** Quail eggs (~10 g): Williams gives ~1.7 min, the reference shows a fixed time → table. */
-  quailSeconds: { chilled: number; room: number };
-  /** Count the quail reference was taken with (other counts/temps = nekalibrováno). */
-  quailReferenceCount: number;
+  /**
+   * Quail eggs (~10 g): Williams does not fit, the reference app uses a fixed table per doneness
+   * (size and count ignored). Room-temperature quail uses the same table (nekalibrováno).
+   */
+  quail: Record<EggDoneness, { seconds: number; calibrated: boolean }>;
+  /** Final times are rounded to this step (the reference app shows whole 10 s). */
+  roundToS: number;
 }
 
 export const EGG_MODEL: EggModel = {
-  massG: { S: 46, M: 58, L: 70.9, XL: 83 },
-  sizeCalibrated: { S: false, M: true, L: true, XL: false },
+  massG: { S: 48.1, M: 58, L: 70.9, XL: 76.9 },
+  sizeCalibrated: { S: true, M: true, L: true, XL: true },
   fridgeC: 5,
   roomC: 20,
   maxWaterC: 99,
@@ -72,8 +75,13 @@ export const EGG_MODEL: EggModel = {
     natvrdo: { label: 'Natvrdo', yolkC: 81.9, calibrated: true },
   },
   perExtraEggS: 20,
-  quailSeconds: { chilled: 180, room: 150 },
-  quailReferenceCount: 3,
+  quail: {
+    namekko: { seconds: 140, calibrated: true },
+    nahnilicko: { seconds: 180, calibrated: true },
+    // Not measured yet: extrapolated (+60 s), UI shows „nekalibrováno“.
+    natvrdo: { seconds: 240, calibrated: false },
+  },
+  roundToS: 10,
 };
 
 export const EGG_SIZES: readonly EggSize[] = ['S', 'M', 'L', 'XL'];
@@ -129,18 +137,18 @@ export function computeEggTime(input: EggInput, m: EggModel = EGG_MODEL): EggRes
       ? `voda ${fmtC(waterC)} (var v ${Math.round(input.elevationM)} m n. m.)`
       : `voda ${fmtC(waterC)}`;
   if (input.kind === 'quail') {
-    const seconds = input.chilled ? m.quailSeconds.chilled : m.quailSeconds.room;
+    const row = m.quail[input.doneness];
     return {
-      seconds,
+      seconds: row.seconds,
       massG: null,
       eggC,
       waterC,
       yolkC: null,
       countExtraS: 0,
-      calibrated: input.chilled && count === m.quailReferenceCount,
+      calibrated: input.chilled && row.calibrated,
       explanation: [
-        `Křepelčí vejce (~10 g) se prohřeje skoro hned, čas je pevný: ${input.chilled ? 'z lednice' : 'pokojová teplota'}.`,
-        'Stupeň uvaření ani počet vajec čas zatím nemění.',
+        `Křepelčí vejce (~10 g) se prohřeje skoro hned: pevný čas podle stupně (${m.doneness[input.doneness].label.toLowerCase()}).`,
+        'Velikost ani počet vajec čas nemění.',
       ],
     };
   }
@@ -148,7 +156,8 @@ export function computeEggTime(input: EggInput, m: EggModel = EGG_MODEL): EggRes
   const done = m.doneness[input.doneness];
   const countExtraS = m.perExtraEggS * (count - 1);
   const base = williamsMinutes(massG, eggC, waterC, done.yolkC) * 60;
-  const seconds = Math.max(60, Math.round(base + countExtraS));
+  const step = Math.max(1, m.roundToS);
+  const seconds = Math.max(60, Math.round((base + countExtraS) / step) * step);
   const explanation = [
     `Vejce ${input.size} ≈ ${fmtG(massG)}, ${input.chilled ? `z lednice ${fmtC(eggC)}` : `pokojová ${fmtC(eggC)}`}, ${where}.`,
     `${done.label}: hranice žloutku má dosáhnout ${fmtC(done.yolkC)}.`,

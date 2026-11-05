@@ -1,5 +1,5 @@
 {
-  "description": "Reference egg times read off a timer app screen (seconds, timed from putting the eggs into boiling water). Add rows and rerun scripts/fit_egg_timer.py. kind: chicken|quail, size: S|M|L|XL (null for quail), chilled: true = from the fridge, doneness: namekko|nahnilicko|natvrdo|null (unknown).",
+  "description": "Reference egg times read off a timer app screen (seconds, timed from putting the eggs into boiling water). Times are multiples of 10 s (the app rounds). Quail ignores count and size (fixed table per doneness). Add rows and rerun scripts/fit_egg_timer.py. kind: chicken|quail, size: S|M|L|XL (null for quail), chilled: true = from the fridge, doneness: namekko|nahnilicko|natvrdo|null (unknown).",
   "observations": [
     {
       "kind": "chicken",
@@ -57,6 +57,37 @@
       "doneness": "natvrdo",
       "seconds": 620
     },
-    { "kind": "quail", "size": null, "chilled": true, "count": 3, "doneness": null, "seconds": 180 }
+    {
+      "kind": "chicken",
+      "size": "S",
+      "chilled": true,
+      "count": 3,
+      "doneness": "nahnilicko",
+      "seconds": 340
+    },
+    {
+      "kind": "chicken",
+      "size": "XL",
+      "chilled": true,
+      "count": 3,
+      "doneness": "nahnilicko",
+      "seconds": 450
+    },
+    {
+      "kind": "quail",
+      "size": null,
+      "chilled": true,
+      "count": 3,
+      "doneness": "namekko",
+      "seconds": 140
+    },
+    {
+      "kind": "quail",
+      "size": null,
+      "chilled": true,
+      "count": 3,
+      "doneness": "nahnilicko",
+      "seconds": 180
+    }
   ]
 }

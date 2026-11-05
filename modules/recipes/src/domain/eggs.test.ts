@@ -69,13 +69,25 @@ describe('computeEggTime vs reference app times', () => {
     expect(r.calibrated).toBe(true);
   });
 
-  it('quail from the fridge uses the fixed reference time (3 eggs)', () => {
-    const q = fixture.observations.find((o) => o.kind === 'quail')!;
-    const quail = { ...base, kind: 'quail' as const, count: q.count };
-    expect(computeEggTime({ ...quail, chilled: true }).seconds).toBe(q.seconds);
-    expect(computeEggTime({ ...quail, chilled: true }).calibrated).toBe(true);
-    expect(computeEggTime({ ...quail, chilled: false }).calibrated).toBe(false);
-    expect(computeEggTime({ ...quail, chilled: true, count: 6 }).calibrated).toBe(false);
+  it('quail: fixed table per doneness, size and count ignored', () => {
+    const quails = fixture.observations.filter((o) => o.kind === 'quail');
+    expect(quails.length).toBe(2);
+    for (const q of quails) {
+      const quail = { ...base, kind: 'quail' as const, chilled: true, doneness: q.doneness! };
+      expect(computeEggTime({ ...quail, count: q.count }).seconds).toBe(q.seconds);
+      expect(computeEggTime({ ...quail, count: 12, size: 'XL' }).seconds).toBe(q.seconds);
+      expect(computeEggTime({ ...quail, count: q.count }).calibrated).toBe(true);
+      expect(computeEggTime({ ...quail, chilled: false }).calibrated).toBe(false);
+    }
+    const hard = { ...base, kind: 'quail' as const, chilled: true, doneness: 'natvrdo' as const };
+    expect(computeEggTime(hard).calibrated).toBe(false);
+  });
+
+  it('rounds every chicken time to whole 10 s like the reference app', () => {
+    for (const size of ['S', 'M', 'L', 'XL'] as const)
+      for (const doneness of ['namekko', 'nahnilicko', 'natvrdo'] as const)
+        for (const count of [1, 2, 5])
+          expect(computeEggTime({ ...base, size, doneness, count }).seconds % 10).toBe(0);
   });
 
   it('predicts the uncalibrated cells from the same model', () => {
@@ -85,8 +97,8 @@ describe('computeEggTime vs reference app times', () => {
     );
     expect(Math.abs(computeEggTime({ ...hard, size: 'L' }).seconds - 703)).toBeLessThanOrEqual(5);
     expect(computeEggTime({ ...hard, size: 'L' }).calibrated).toBe(true);
-    expect(computeEggTime({ ...base, size: 'S' }).calibrated).toBe(false);
-    expect(computeEggTime({ ...base, size: 'XL' }).calibrated).toBe(false);
+    expect(computeEggTime({ ...base, size: 'S' }).calibrated).toBe(true);
+    expect(computeEggTime({ ...base, size: 'XL' }).calibrated).toBe(true);
   });
 
   it('adds 20 s per extra egg (configurable)', () => {

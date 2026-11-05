@@ -32,9 +32,9 @@ def test_fit_reproduces_reference_times_within_5_s():
         assert abs(result["yolkC"][doneness] - yolk) < 0.3, result["yolkC"]
     assert abs(result["perExtraEggS"] - 20) < 2
     assert result["countFitted"] is True
-    assert len(result["rows"]) == 7
+    assert len(result["rows"]) == 9
     assert all(abs(r["error_s"]) <= 5 for r in result["rows"])
-    assert result["quailSeconds"] == {"chilled": 180}
+    assert result["quailSeconds"] == {"namekko": 140, "nahnilicko": 180}
 
 
 def test_shipped_constants_match_fixture():
@@ -43,7 +43,7 @@ def test_shipped_constants_match_fixture():
     assert "namekko: { label: 'Naměkko', yolkC: 63.2, calibrated: true }" in source
     assert "nahnilicko: { label: 'Nahniličko', yolkC: 68.1, calibrated: true }" in source
     assert "natvrdo: { label: 'Natvrdo', yolkC: 81.9, calibrated: true }" in source
-    assert "massG: { S: 46, M: 58, L: 70.9, XL: 83 }" in source
+    assert "massG: { S: 48.1, M: 58, L: 70.9, XL: 76.9 }" in source
     assert "perExtraEggS: 20," in source
     for obs in _observations():
         if obs["kind"] == "chicken":
