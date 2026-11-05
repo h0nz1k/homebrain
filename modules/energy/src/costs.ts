@@ -120,11 +120,36 @@ function ntOverlap(from: number, to: number, schedule: HdoSchedule): number {
   return sum;
 }
 
+/**
+ * Local wall-clock minute of the day for long scans: on regular 24 h days it is the distance from
+ * local midnight (cached per day); DST transition days fall back to the Intl-based `localParts`.
+ */
+export function wallMinuteOfDay(timeZone: string): (ms: number) => number {
+  let from = Infinity;
+  let to = -Infinity;
+  return (ms: number) => {
+    if (ms < from || ms >= to) {
+      from = startOfLocalDay(ms, timeZone);
+      to = startOfLocalDay(from + 36 * HOUR, timeZone);
+    }
+    if (to - from === 24 * HOUR) return Math.floor((ms - from) / 60_000);
+    const p = localParts(ms, timeZone);
+    return p.hour * 60 + p.minute;
+  };
+}
+
 /** Share (0–1) of the hour starting at `start` that falls into NT, by local wall time. */
-export function ntShareOfHour(start: number, timeZone: string, schedule: HdoSchedule | null) {
+export function ntShareOfHour(
+  start: number,
+  timeZone: string,
+  schedule: HdoSchedule | null,
+  wallMinute: (ms: number) => number = (ms) => {
+    const p = localParts(ms, timeZone);
+    return p.hour * 60 + p.minute;
+  },
+) {
   if (!schedule) return 0;
-  const p = localParts(start, timeZone);
-  const m0 = p.hour * 60 + p.minute;
+  const m0 = wallMinute(start);
   const inDay = ntOverlap(m0, Math.min(m0 + 60, 1440), schedule);
   const wrapped = m0 + 60 > 1440 ? ntOverlap(0, m0 + 60 - 1440, schedule) : 0;
   return (inDay + wrapped) / 60;
@@ -269,6 +294,9 @@ export function computeCosts(input: CostInput): Costs | null {
       });
   }
   const firstData = hours.find((h) => h.importKwh !== null)?.start ?? now;
+  // NT share per hour once for all three periods (a year of hours; Intl is slow).
+  const wall = wallMinuteOfDay(timeZone);
+  const ntOf = new Map(hours.map((h) => [h, ntShareOfHour(h.start, timeZone, schedule, wall)]));
   const period = (start: number): PeriodCost => {
     const from = Math.max(start, Math.min(firstData, now));
     let importKwh = 0;
@@ -283,7 +311,7 @@ export function computeCosts(input: CostInput): Costs | null {
     let tariffOnSpotHours = 0;
     for (const h of hours) {
       if (h.start < start) continue;
-      const nt = ntShareOfHour(h.start, timeZone, schedule);
+      const nt = ntOf.get(h) ?? 0;
       const price = nt * priceNt + (1 - nt) * priceVt;
       if (h.importKwh !== null) {
         const kwh = Math.max(0, h.importKwh) * s.correction;

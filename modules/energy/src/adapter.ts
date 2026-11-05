@@ -133,10 +133,13 @@ export function parsePriceSeries(state: EntityStateLike | undefined): PricePoint
   });
 }
 
-/** Local calendar day key (YYYY-MM-DD) and hour in the given time zone. */
-export function localParts(ms: number, timeZone: string) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
+// Constructing Intl.DateTimeFormat is expensive (~0.1 ms+); year-long hourly cost data calls
+// localParts tens of thousands of times, so reuse one formatter per time zone.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  let f = formatters.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', {
       timeZone,
       year: 'numeric',
       month: '2-digit',
@@ -145,7 +148,16 @@ export function localParts(ms: number, timeZone: string) {
       minute: '2-digit',
       second: '2-digit',
       hourCycle: 'h23',
-    })
+    });
+    formatters.set(timeZone, f);
+  }
+  return f;
+}
+
+/** Local calendar day key (YYYY-MM-DD) and hour in the given time zone. */
+export function localParts(ms: number, timeZone: string) {
+  const parts = Object.fromEntries(
+    formatterFor(timeZone)
       .formatToParts(new Date(ms))
       .map((part) => [part.type, part.value]),
   );
@@ -174,6 +186,22 @@ export function startOfLocalDay(ms: number, timeZone: string): number {
   let guess = wallMidnight - zoneOffset(ms, timeZone);
   guess = wallMidnight - zoneOffset(guess, timeZone);
   return guess;
+}
+
+/**
+ * Fast `startOfLocalDay` for long, mostly ordered scans (year of hourly rows): remembers the last
+ * local day [start, next) and only calls the Intl-based resolver when `ms` leaves it.
+ */
+export function localDayStarter(timeZone: string): (ms: number) => number {
+  let from = Infinity;
+  let to = -Infinity;
+  return (ms: number) => {
+    if (ms < from || ms >= to) {
+      from = startOfLocalDay(ms, timeZone);
+      to = startOfLocalDay(from + 36 * 3_600_000, timeZone);
+    }
+    return from;
+  };
 }
 
 function mean(values: number[]): number | null {

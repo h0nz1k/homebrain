@@ -232,6 +232,8 @@ export const MODULE_PANEL_PATHS: Readonly<Record<string, string>> = {
   ...PANEL_PATHS_BY_MODULE,
   settings: SETTINGS_PANEL_PATH,
   family: `${SETTINGS_PANEL_PATH}/family`,
+  // System signals ('Diagnostika', HA connection) open HomeBrain settings – there is no system panel.
+  system: SETTINGS_PANEL_PATH,
 };
 export function panelUrl(path: string): string {
   const [pathname = '', fragment] = path.split('#');

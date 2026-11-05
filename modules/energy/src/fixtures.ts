@@ -1,5 +1,5 @@
 import type { EntityStateLike } from '@homebrain/ha-client';
-import { localParts, startOfLocalDay } from './adapter.js';
+import { localDayStarter, localParts, startOfLocalDay } from './adapter.js';
 import type { EnergyBindingKey } from './contract.js';
 
 /*
@@ -441,6 +441,7 @@ export function createEnergyDemo(
     /** Mock reply for WS `recorder/statistics_during_period`. */
     statistics(message: { period?: string; start_time?: string; statistic_ids?: string[] }) {
       const start = Date.parse(message.start_time ?? '') || now - 24 * HOUR;
+      const dayOf = localDayStarter(timeZone);
       const daily = message.period === 'day';
       const step = daily ? 24 * HOUR : HOUR;
       const series: Record<
@@ -456,7 +457,7 @@ export function createEnergyDemo(
           if (phase < 0 || scenario === 'unavailable') continue;
           const rows = [];
           for (let t = Math.ceil(start / FIVE) * FIVE; t < now; t += FIVE) {
-            const h = (t - startOfLocalDay(t, timeZone)) / HOUR;
+            const h = (t - dayOf(t)) / HOUR;
             rows.push({
               start: t,
               end: t + FIVE,
@@ -481,12 +482,12 @@ export function createEnergyDemo(
         if (!curve) continue;
         const rows = [];
         for (let t = start; t < now; t += step) {
-          const d = Math.round((dayStart - startOfLocalDay(t, timeZone)) / (24 * HOUR));
+          const d = Math.round((dayStart - dayOf(t)) / (24 * HOUR));
           let change = 0;
           if (daily) {
             const hours = d === 0 ? hour : 24;
             for (let h = 0; h < hours; h += 0.5) change += curve(h, d) * 0.5;
-          } else change = curve((t - startOfLocalDay(t, timeZone)) / HOUR + 0.5, d);
+          } else change = curve((t - dayOf(t)) / HOUR + 0.5, d);
           rows.push({ start: t, end: t + step, change: Number(change.toFixed(3)) });
         }
         series[id] = rows;
@@ -498,7 +499,7 @@ export function createEnergyDemo(
       ) {
         const rows = [];
         for (let t = start; t < now; t += HOUR) {
-          const h = Math.round((t - startOfLocalDay(t, timeZone)) / HOUR);
+          const h = Math.round((t - dayOf(t)) / HOUR);
           rows.push({
             start: t,
             end: t + HOUR,
@@ -521,7 +522,7 @@ export function createEnergyDemo(
           if (!f || scenario === 'unavailable') continue;
           const rows = [];
           for (let t = Math.ceil(start / HOUR) * HOUR; t < now; t += HOUR) {
-            const h = (t - startOfLocalDay(t, timeZone)) / HOUR + 0.5;
+            const h = (t - dayOf(t)) / HOUR + 0.5;
             rows.push({ start: t, end: t + HOUR, mean: Number(f(h).toFixed(2)) });
           }
           series[id] = rows;

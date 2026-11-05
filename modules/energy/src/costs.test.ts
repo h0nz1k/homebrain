@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { localParts } from './adapter.js';
 import {
+  wallMinuteOfDay,
   computeCosts,
   fixedShare,
   hdoStatus,
@@ -276,5 +278,19 @@ describe('readTariffSettings', () => {
       spotFixedMonthly: 906.13,
       vat: 1.21,
     });
+  });
+});
+
+describe('wallMinuteOfDay', () => {
+  it('matches Intl wall time for every hour and half hour of a year incl. DST days', () => {
+    const tz = 'Europe/Prague';
+    const wall = wallMinuteOfDay(tz);
+    const from = Date.UTC(2025, 11, 31, 23);
+    const mismatches: number[] = [];
+    for (let t = from; t < from + 366 * 86_400_000; t += 1_800_000) {
+      const p = localParts(t, tz);
+      if (wall(t) !== p.hour * 60 + p.minute) mismatches.push(t);
+    }
+    expect(mismatches).toEqual([]);
   });
 });
