@@ -122,7 +122,10 @@ export const energyStyles = `
 .en-cost-spot-line b{color:var(--hb-t1);font-weight:600}
 .en-cost-spot{padding-top:12px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 10%,transparent)}
 .en-cost-more{font-size:13px;color:var(--hb-t2);line-height:1.5}
-.en-cost-more summary{cursor:pointer;color:var(--hb-t2);font-size:13px;width:max-content}
+.en-cost-more summary{cursor:pointer;color:var(--hb-t2);font-size:13px;width:max-content;list-style:none}
+.en-cost-more summary::-webkit-details-marker{display:none}
+.en-cost-more summary::after{content:'›';display:inline-block;margin-left:6px;transition:transform var(--hb-dur-1,.15s) ease}
+.en-cost-more[open] summary::after{transform:rotate(90deg)}
 .en-cost-more p{margin:6px 0 0;max-width:72ch}
 @media (max-width:900px){
   .en-cost-grid{grid-template-columns:minmax(0,1fr);gap:18px}

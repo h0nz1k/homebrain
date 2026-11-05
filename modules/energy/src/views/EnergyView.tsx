@@ -648,14 +648,13 @@ function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }
   const { costs, settings: s, hdo } = cost;
   const p = costs?.[period];
   const fromLabel =
-    p && period !== 'day'
-      ? `od ${dateOf(p.from, tz)}`
-      : p
-        ? `dnes do ${clockOf(model.now, tz)}`
-        : '';
+    p && period !== 'day' ? `od ${dateOf(p.from, tz)}` : p ? `do ${clockOf(model.now, tz)}` : '';
   const spot = p?.spot ?? null;
   const dig = period === 'day' ? 1 : 0;
-  const diff = spot ? spot.total - spot.tariffTotal : null;
+  const round = (v: number) =>
+    Math.round(v * 10 ** (period === 'day' ? 1 : 0)) / 10 ** (period === 'day' ? 1 : 0);
+  // Difference of the DISPLAYED (rounded) totals, so the user's own subtraction matches.
+  const diff = spot ? round(spot.total) - round(spot.tariffTotal) : null;
   return (
     <section
       className="en-card en-cost"
@@ -713,7 +712,7 @@ function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }
                 {
                   key: 'vt',
                   label: 'Vysoký tarif',
-                  detail: `${kwh(p.vtKwh)} × ${fmt(s.priceVt, 2)} Kč`,
+                  detail: `${kwh(p.vtKwh)} × ${fmt(s.priceVt, 2)} Kč/kWh`,
                   value: kc(p.vtKwh * (s.priceVt ?? 0), dig),
                   amount: p.vtKwh * (s.priceVt ?? 0),
                   color: 'var(--hb-warn)',
@@ -721,7 +720,7 @@ function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }
                 {
                   key: 'nt',
                   label: 'Nízký tarif',
-                  detail: `${kwh(p.ntKwh)} × ${fmt(s.priceNt, 2)} Kč`,
+                  detail: `${kwh(p.ntKwh)} × ${fmt(s.priceNt, 2)} Kč/kWh`,
                   value: kc(p.ntKwh * (s.priceNt ?? 0), dig),
                   amount: p.ntKwh * (s.priceNt ?? 0),
                   color: 'var(--hb-energy-grid)',
