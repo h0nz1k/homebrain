@@ -363,11 +363,22 @@ async def test_enrolment_outside_panel_updates_users_and_history(
     await hass.async_block_till_done()
     pushed = await _next(client, "users")
     assert [u["id"] for u in pushed["event"]["users"]] == [1, 1002]
-    assert pushed["event"]["users"][1] == {"id": 1002, "type": "palm", "name": "Jan", "allowed": True}
+    assert pushed["event"]["users"][1] == {
+        "id": 1002,
+        "type": "palm",
+        "name": "Jan",
+        "allowed": True,
+    }
 
     hass.bus.async_fire(
         "esphome.biolock_enrolled",
-        {"ok": "false", "user_id": "0", "type_requested": "palm", "name": "Jan", "reason": "timeout"},
+        {
+            "ok": "false",
+            "user_id": "0",
+            "type_requested": "palm",
+            "name": "Jan",
+            "reason": "timeout",
+        },
     )
     hass.bus.async_fire("esphome.biolock_audit", {"action": "unlock", "user_id": "1"})
     hass.bus.async_fire("esphome.biolock_audit", {"action": "lockout"})
@@ -398,7 +409,9 @@ async def test_enrolment_before_first_listing_keeps_users_unknown(
     hass: HomeAssistant, setup, hass_ws_client
 ):
     client = await hass_ws_client(hass)
-    hass.bus.async_fire("esphome.biolock_enrolled", {"ok": "true", "user_id": "1001", "name": "Jan"})
+    hass.bus.async_fire(
+        "esphome.biolock_enrolled", {"ok": "true", "user_id": "1001", "name": "Jan"}
+    )
     await hass.async_block_till_done()
     state = await _call(client, {"type": "homebrain/access/state"})
     assert state["result"]["users"] is None  # the panel lists on load instead of a partial list
@@ -425,15 +438,27 @@ async def test_state_resolves_smart_lock_entities(hass: HomeAssistant, setup, ha
         manufacturer="Acme",
         model="Garage",
     )
-    ent_reg.async_get_or_create("lock", "mqtt", "garage", device_id=other.id, suggested_object_id="garage")
-    ent_reg.async_get_or_create("lock", "mqtt", "fd", device_id=device.id, suggested_object_id="front_door")
     ent_reg.async_get_or_create(
-        "sensor", "mqtt", "fd_bat", device_id=device.id,
-        suggested_object_id="front_door_battery", original_device_class="battery",
+        "lock", "mqtt", "garage", device_id=other.id, suggested_object_id="garage"
     )
     ent_reg.async_get_or_create(
-        "binary_sensor", "mqtt", "fd_crit", device_id=device.id,
-        suggested_object_id="front_door_battery_critical", original_device_class="battery",
+        "lock", "mqtt", "fd", device_id=device.id, suggested_object_id="front_door"
+    )
+    ent_reg.async_get_or_create(
+        "sensor",
+        "mqtt",
+        "fd_bat",
+        device_id=device.id,
+        suggested_object_id="front_door_battery",
+        original_device_class="battery",
+    )
+    ent_reg.async_get_or_create(
+        "binary_sensor",
+        "mqtt",
+        "fd_crit",
+        device_id=device.id,
+        suggested_object_id="front_door_battery_critical",
+        original_device_class="battery",
     )
     ent_reg.async_get_or_create(
         "event", "mqtt", "fd_action", device_id=device.id, suggested_object_id="front_door_action"

@@ -238,15 +238,27 @@ class AccessManager:
             kind = modality(uid)
         except AccessError:
             return
-        user = {"id": uid, "type": kind, "name": str(payload.get("name") or "")[:20], "allowed": True}
-        self.users = sorted([u for u in self.users if u["id"] != uid] + [user], key=lambda u: u["id"])
+        user = {
+            "id": uid,
+            "type": kind,
+            "name": str(payload.get("name") or "")[:20],
+            "allowed": True,
+        }
+        self.users = sorted(
+            [u for u in self.users if u["id"] != uid] + [user], key=lambda u: u["id"]
+        )
         self._push_users(time)
 
     @callback
     def _push_users(self, time: str) -> None:
         self.listed_at = time
         self._push(
-            {"event": "users", "users": self.users, "listed_at": time, "incomplete": self.incomplete}
+            {
+                "event": "users",
+                "users": self.users,
+                "listed_at": time,
+                "incomplete": self.incomplete,
+            }
         )
 
     def history_page(self, before: str | None, limit: int) -> list[dict[str, Any]]:
@@ -535,7 +547,9 @@ async def ws_settings(
     {
         vol.Required("type"): "homebrain/access/history",
         vol.Optional("before"): vol.Any(None, str),
-        vol.Optional("limit", default=100): vol.All(vol.Coerce(int), vol.Range(min=1, max=HISTORY_PAGE)),
+        vol.Optional("limit", default=100): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=HISTORY_PAGE)
+        ),
     }
 )
 @websocket_api.require_admin
