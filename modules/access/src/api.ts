@@ -1,6 +1,7 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
 import { modalityOf } from './domain.js';
 import type { Modality } from './types.js';
+import type { LockAction, LogbookEntry } from './log.js';
 import type {
   AccessAction,
   AccessMeta,
@@ -27,6 +28,47 @@ export interface AccessApi {
   label(userId: number, label: { hand?: Hand | null; person?: string | null }): Promise<Labels>;
   person(person: string, child: boolean): Promise<void>;
   settings(settings: { notify_reenroll: boolean }): Promise<void>;
+  /** Structured BioLock history kept by HomeBrain (newest first, paged by `before`). */
+  history(opts?: {
+    before?: string;
+    limit?: number;
+  }): Promise<{ items: HistoryItem[]; more: boolean }>;
+  /** HA logbook entries of the given entities (read-only core API). */
+  logbook(start: string, end: string, entityIds: string[]): Promise<LogbookEntry[]>;
+  /** Live logbook entries from `start` on (HA `logbook/event_stream`). */
+  subscribeLogbook(
+    start: string,
+    entityIds: string[],
+    callback: (entries: LogbookEntry[]) => void,
+  ): Promise<() => void>;
+  /** Nuki lock actions (HA event entity history: event_type + trigger/auth_id/code_id). */
+  lockActions(start: string, end: string, entityId: string): Promise<LockAction[]>;
+}
+
+interface CompressedState {
+  s: string;
+  a?: Record<string, unknown>;
+  lu?: number;
+  lc?: number;
+}
+/** HA `history/history_during_period` rows of an event entity → lock actions. */
+export function lockActionsFromHistory(rows: CompressedState[] | undefined): LockAction[] {
+  const out: LockAction[] = [];
+  for (const row of rows ?? []) {
+    const a = row.a ?? {};
+    if (typeof a.event_type !== 'string') continue;
+    const t = Number.isNaN(Date.parse(row.s))
+      ? new Date((row.lu ?? 0) * 1000).toISOString()
+      : new Date(row.s).toISOString();
+    out.push({
+      time: t,
+      action: a.event_type,
+      trigger: Number(a.trigger ?? -1),
+      auth_id: Number(a.auth_id ?? 0),
+      code_id: Number(a.code_id ?? 0),
+    });
+  }
+  return out;
 }
 
 export function createWsAccessApi(connection: ConnectionLike): AccessApi {
@@ -57,6 +99,41 @@ export function createWsAccessApi(connection: ConnectionLike): AccessApi {
     async settings(settings) {
       await call('settings', settings);
     },
+    history: (opts = {}) => call<{ items: HistoryItem[]; more: boolean }>('history', opts),
+    async logbook(start, end, entityIds) {
+      if (!entityIds.length) return [];
+      return connection.sendMessagePromise<LogbookEntry[]>({
+        type: 'logbook/get_events',
+        start_time: start,
+        end_time: end,
+        entity_ids: entityIds,
+      } as { type: string });
+    },
+    async subscribeLogbook(start, entityIds, callback) {
+      if (!connection.subscribeMessage || !entityIds.length) return () => undefined;
+      const unsub = await connection.subscribeMessage<{ events?: LogbookEntry[] }>(
+        (msg: { events?: LogbookEntry[] }) => {
+          if (msg.events?.length) callback(msg.events);
+        },
+        { type: 'logbook/event_stream', start_time: start, entity_ids: entityIds } as {
+          type: string;
+        },
+      );
+      return () => void unsub();
+    },
+    async lockActions(start, end, entityId) {
+      const res = await connection.sendMessagePromise<Record<string, CompressedState[]>>({
+        type: 'history/history_during_period',
+        start_time: start,
+        end_time: end,
+        entity_ids: [entityId],
+        include_start_time_state: false,
+        significant_changes_only: false,
+        minimal_response: false,
+        no_attributes: false,
+      } as { type: string });
+      return lockActionsFromHistory(res?.[entityId]);
+    },
   };
 }
 
@@ -85,6 +162,9 @@ export interface MockAccessOptions {
   failNext?: string[];
   /** Switch/select commands are forwarded here (dev: updates the fake HA states). */
   onEntity?: (action: AccessAction, data: Record<string, unknown>) => void;
+  /** Synthetic HA logbook entries (lock / BioLock entities) and Nuki lock actions. */
+  logbook?: LogbookEntry[];
+  lockActions?: LockAction[];
   /** Read the current service mode (enrolment needs it, like the firmware). */
   serviceMode?: () => boolean;
   log?: Array<{ action: string; data: unknown }>;
@@ -92,6 +172,10 @@ export interface MockAccessOptions {
 export interface MockAccessApi extends AccessApi {
   /** Tests/e2e: push an event as if the device fired it. */
   emit(event: AccessEvent): void;
+  /** Tests/e2e: an enrolment started outside the panel (HA script) – retry, then the result. */
+  externalEnrol(spec: { type: Modality; name: string; ok: boolean; reason?: string }): void;
+  /** Tests/e2e: a live HA logbook entry. */
+  pushLogbook(entry: LogbookEntry): void;
 }
 
 /** Dev server / tests: in-memory device. Nothing is sent anywhere. */
@@ -125,10 +209,19 @@ export function createMockAccessApi(options: MockAccessOptions = {}): MockAccess
   const wait = (ms = options.latencyMs ?? 120) => new Promise((r) => setTimeout(r, ms));
   let listedAt = new Date().toISOString();
   const emit = (event: AccessEvent) => {
-    if (event.event === 'recognized' || event.event === 'rejected')
+    if (
+      event.event === 'recognized' ||
+      event.event === 'rejected' ||
+      event.event === 'enrolled' ||
+      event.event === 'deleted' ||
+      event.event === 'lockout'
+    )
       history.unshift({ kind: event.event, time: event.time, ...event.data });
     for (const l of listeners) l(event);
   };
+  const logbook = [...(options.logbook ?? [])];
+  const logListeners = new Set<(entries: LogbookEntry[]) => void>();
+  const whenMs = (w: number | string) => (typeof w === 'number' ? w * 1000 : Date.parse(w));
   const pushUsers = () => {
     listedAt = new Date().toISOString();
     emit({ event: 'users', users: structuredClone(users), listed_at: listedAt, incomplete: false });
@@ -141,6 +234,72 @@ export function createMockAccessApi(options: MockAccessOptions = {}): MockAccess
   };
   return {
     emit,
+    externalEnrol({ type, name, ok, reason }) {
+      const now = () => new Date().toISOString();
+      emit({
+        event: 'enroll_retry',
+        time: now(),
+        data: {
+          type_requested: type,
+          name,
+          reason: 'face_instead_of_palm',
+          attempt: 1,
+          remaining_s: 20,
+        },
+      });
+      setTimeout(() => {
+        if (!ok) {
+          emit({
+            event: 'enrolled',
+            time: now(),
+            data: {
+              ok: false,
+              user_id: 0,
+              type_requested: type,
+              name,
+              reason: reason ?? 'timeout',
+            },
+          });
+          return;
+        }
+        const id = nextId(type);
+        users = [...users, { id, type, name, allowed: true }].sort((a, b) => a.id - b.id);
+        emit({
+          event: 'enrolled',
+          time: now(),
+          data: { ok: true, user_id: id, type, type_requested: type, name, attempts: 2 },
+        });
+        pushUsers();
+      }, options.enrollMs ?? 600);
+    },
+    pushLogbook(entry) {
+      logbook.push(entry);
+      for (const l of logListeners) l([entry]);
+    },
+    async history({ before, limit = 100 } = {}) {
+      await wait();
+      const items = history.filter((h) => !before || h.time < before).slice(0, limit);
+      return { items: structuredClone(items), more: items.length === limit };
+    },
+    async logbook(start, end, entityIds) {
+      await wait();
+      return structuredClone(
+        logbook.filter(
+          (e) =>
+            (!e.entity_id || entityIds.includes(e.entity_id)) &&
+            whenMs(e.when) >= Date.parse(start) &&
+            whenMs(e.when) < Date.parse(end),
+        ),
+      );
+    },
+    async subscribeLogbook(_start, _ids, callback) {
+      logListeners.add(callback);
+      return () => void logListeners.delete(callback);
+    },
+    async lockActions(start, end) {
+      await wait();
+      return (options.lockActions ?? []).filter((a) => a.time >= start && a.time < end);
+    },
     async state() {
       await wait();
       return {

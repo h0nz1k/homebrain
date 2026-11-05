@@ -1,5 +1,6 @@
 import { czPlural } from '@homebrain/ui';
 import type {
+  AccessEvent,
   AccessMeta,
   Hand,
   Labels,
@@ -275,3 +276,95 @@ export const REENROLL_CS: Record<ReenrollReason, string> = {
   retries: 'často pozná až na další pokus',
   success_rate: 'nízká úspěšnost',
 };
+
+/** Hand slots of a person: unlabelled palms fill the empty slots (right, then left) – none hidden. */
+export function handSlots(person: Person): Record<Hand, { users: SensorUser[]; unknown: boolean }> {
+  const out: Record<Hand, { users: SensorUser[]; unknown: boolean }> = {
+    right: { users: person.right, unknown: false },
+    left: { users: person.left, unknown: false },
+  };
+  const rest = [...person.unknown];
+  for (const hand of ['right', 'left'] as const)
+    if (!out[hand].users.length && rest.length)
+      out[hand] = { users: [rest.shift()!], unknown: true };
+  if (rest.length) {
+    const hand: Hand = out.left.unknown ? 'left' : 'right';
+    out[hand] = { users: [...out[hand].users, ...rest], unknown: true };
+  }
+  return out;
+}
+
+/**
+ * Hands that can still take a newly enrolled palm: hands with no labelled palm yet.
+ * Both hands taken (re-enrol / duplicate) or unknown person → offer both.
+ */
+export function freeHands(people: Person[], id: number, name?: string): Hand[] {
+  const person =
+    people.find((p) => p.ids.includes(id)) ??
+    (name ? people.find((p) => p.key === fold(name)) : undefined);
+  const free = person ? (['right', 'left'] as const).filter((h) => !person[h].length) : [];
+  return free.length ? free : ['right', 'left'];
+}
+
+/** Live enrolment state for enrolments started anywhere (panel, HA script, automation). */
+export type EnrolStatus =
+  | {
+      phase: 'pending';
+      since: string;
+      type?: Modality;
+      name?: string;
+      attempt?: number;
+      remaining_s?: number;
+      note?: string;
+    }
+  | { phase: 'ok'; time: string; id: number; type: Modality; name: string }
+  | { phase: 'failed'; time: string; type?: Modality; name?: string; reason: string; text: string }
+  | null;
+const asModality = (t: string | undefined): Modality | undefined =>
+  t === 'face' || t === 'palm' ? t : undefined;
+
+export function enrolReducer(
+  prev: EnrolStatus,
+  input: { sensorState: string | undefined; time: string } | { event: AccessEvent },
+): EnrolStatus {
+  if ('sensorState' in input) {
+    // a result that just arrived wins over a sensor state that has not caught up yet
+    const fresh =
+      prev && prev.phase !== 'pending' && Date.parse(input.time) - Date.parse(prev.time) < 5000;
+    if (input.sensorState === 'enrolling' && prev?.phase !== 'pending' && !fresh)
+      return { phase: 'pending', since: input.time };
+    return prev;
+  }
+  const e = input.event;
+  if (e.event === 'enroll_retry') {
+    const d = e.data;
+    return {
+      phase: 'pending',
+      since: prev?.phase === 'pending' ? prev.since : e.time,
+      type: asModality(d.type_requested),
+      name: d.name,
+      attempt: d.attempt,
+      remaining_s: d.remaining_s,
+      note: d.reason_text || reasonCs(d.reason).text,
+    };
+  }
+  if (e.event !== 'enrolled') return prev;
+  const d = e.data;
+  if (d.ok && d.user_id)
+    return {
+      phase: 'ok',
+      time: e.time,
+      id: d.user_id,
+      type: asModality(d.type) ?? modalityOf(d.user_id) ?? 'face',
+      name: d.name ?? '',
+    };
+  const reason = d.reason || 'unknown';
+  return {
+    phase: 'failed',
+    time: e.time,
+    type: asModality(d.type_requested) ?? asModality(d.type),
+    name: d.name,
+    reason,
+    text: d.reason_text || reasonCs(reason).text,
+  };
+}

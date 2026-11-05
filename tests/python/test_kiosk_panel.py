@@ -74,6 +74,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/access/label": {"user_id": 1001, "hand": "right"},
     "homebrain/access/person": {"person": "Jan", "child": False},
     "homebrain/access/settings": {"notify_reenroll": True},
+    "homebrain/access/history": {"limit": 5},
     "homebrain/recipes/timers/subscribe": {},
     "homebrain/recipes/timers/start": {"label": "Krok 1", "seconds": 60},
     "homebrain/recipes/timers/update": {"timer_id": "missing", "op": "pause"},

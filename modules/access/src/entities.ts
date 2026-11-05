@@ -7,9 +7,16 @@ export const ENTITY_DEFAULTS = {
   sensorOnline: 'binary_sensor.biolock_snimac_online',
   wifi: 'sensor.biolock_wi_fi_signal',
   connected: 'binary_sensor.biolock_stav_pripojeni',
-  nukiConnected: 'binary_sensor.biolock_lock_connected',
-  nukiPaired: 'binary_sensor.biolock_lock_paired',
-  nukiBattery: 'sensor.biolock_lock_battery',
-  lock: 'lock.front_door',
+  // BioLock firmware entity names (ESPHome device `biolock`, Czech names from common.yaml)
+  nukiConnected: 'binary_sensor.biolock_nuki_pripojeno',
+  nukiPaired: 'binary_sensor.biolock_nuki_sparovano',
+  nukiBattery: 'sensor.biolock_nuki_baterie',
   lockout: 'binary_sensor.biolock_blokace_po_neuspesich',
+  lastError: 'sensor.biolock_posledni_chyba',
+  lastUser: 'sensor.biolock_posledni_uzivatel',
+  // Smart lock: the integration resolves the real lock device (Nuki) – these are only fallbacks.
+  lock: 'lock.front_door',
+  lockBattery: 'sensor.front_door_battery',
+  lockBatteryCritical: 'binary_sensor.front_door_battery_critical',
+  lockAction: 'event.front_door_action',
 } as const;

@@ -46,9 +46,18 @@ export interface AccessEventData {
   ok?: boolean;
   admin?: boolean;
   score?: number;
+  /** biolock-firmware#8: Czech reason, attempts in the window, rolled-back wrong capture. */
+  reason_text?: string;
+  attempts?: number;
+  attempt?: number;
+  remaining_s?: number;
+  rolled_back_id?: number;
+  rollback?: boolean;
+  action?: string;
 }
+export type HistoryKind = 'recognized' | 'rejected' | 'enrolled' | 'deleted' | 'lockout';
 export interface HistoryItem extends AccessEventData {
-  kind: 'recognized' | 'rejected';
+  kind: HistoryKind;
   time: string;
 }
 export interface AccessState extends AccessMeta {
@@ -62,7 +71,7 @@ export type AccessEvent =
   | { event: 'users'; users: SensorUser[]; listed_at: string; incomplete: boolean }
   | ({ event: 'meta' } & AccessMeta)
   | {
-      event: 'recognized' | 'rejected' | 'enrolled' | 'deleted';
+      event: 'recognized' | 'rejected' | 'enrolled' | 'deleted' | 'enroll_retry' | 'lockout';
       time: string;
       data: AccessEventData;
     };

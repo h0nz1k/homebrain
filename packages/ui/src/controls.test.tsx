@@ -94,6 +94,15 @@ describe('controls', () => {
     expect(items[1]!.getAttribute('aria-current')).toBe('step');
     expect(items[0]!.textContent).toContain('✓');
   });
+  it('LiveStatus renders actions inside the status surface', () => {
+    render(
+      <LiveStatus state="ok" title="Zapsáno" actions={<button>Levá</button>}>
+        Která ruka?
+      </LiveStatus>,
+    );
+    const status = screen.getByRole('status');
+    expect(status.querySelector('.hb-live-actions button')?.textContent).toBe('Levá');
+  });
   it('LiveStatus is a polite live region', () => {
     render(
       <LiveStatus state="error" title="Snímač nic nezachytil">

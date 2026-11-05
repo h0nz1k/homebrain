@@ -53,6 +53,7 @@ export const accessLayout = String.raw`
 .ac-split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:var(--hb-sp-4);align-items:start}
 .ac-hands{display:grid;grid-template-columns:1fr 1fr;gap:var(--hb-sp-3)}
 .ac-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--hb-sp-4)}
+.ac-tiles-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ac-tiles>*{display:flex;flex-direction:column;align-items:flex-start;gap:var(--hb-sp-3)}
 .ac-center{display:flex;justify-content:center}
 .ac-mt{margin-top:var(--hb-sp-3)}
@@ -74,6 +75,12 @@ export const accessLayout = String.raw`
 .ac-scan{position:absolute;left:52%;top:14%;width:34%;height:2px;background:var(--hb-ac);box-shadow:0 0 12px var(--hb-ac);animation:ac-scan 2.2s ease-in-out infinite alternate}
 @keyframes ac-scan{to{top:72%}}
 @media (prefers-reduced-motion:reduce){.ac-scan{animation:none}}
+.ac-enrol{display:flex;flex-direction:column;gap:var(--hb-sp-2)}
+.ac-log{display:flex;flex-direction:column;gap:var(--hb-sp-3)}
+.ac-log-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--hb-sp-2)}
+.ac-log-range{color:var(--hb-t2);font-size:var(--hb-font-sm)}
+.ac-log-day .ac-h{position:sticky;top:0}
+.ac-log-src{font-weight:600;color:var(--hb-t2)}
 @media (max-width:1000px){.ac-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ac-split{grid-template-columns:1fr}}
 @media (max-width:600px){.ac{padding:var(--hb-sp-3)}.ac-bar>.hb-btn{flex:1 1 100%}.ac-grid{grid-template-columns:1fr}.ac-wiz{grid-template-columns:1fr}.ac-illu{max-height:180px}}
 `;
