@@ -109,6 +109,9 @@ RECIPES_BINDING_KEYS = (
     "recipes_airfryer_method",
     "recipes_airfryer_drawer",
     "recipes_airfryer_remaining",
+    # Live card: the status sensor; siblings (time, temperatures, pause/stop/keep warm buttons)
+    # are found by entity suffix next to it. Without a binding any `*_cooking_status` is used.
+    "recipes_airfryer_status",
 )
 BINDING_MODULES = {
     "waste": ("waste_dataset", "waste_next", "waste_calendar", "waste_history"),

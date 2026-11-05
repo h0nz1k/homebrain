@@ -17,6 +17,8 @@ today.registerTodaySignalSource('weather', weather.weatherTodaySignalSource);
 // Dnes: appliance notices („Myčka dokončila“). Registered under its own key so the feed does
 // not take over other energy signals (withSignalFeeds drops base signals of the feed's key).
 today.registerTodaySignalSource('energy.appliances', energy.energyAppliancesTodaySignalSource);
+// Dnes: live airfryer (entity store; hidden while the fryer is off).
+today.registerTodaySignalSource('recipes', recipes.recipesFryerTodaySignalSource);
 export const modules = [today, weather, energy, waste, health, wine, recipes, family, access].map(
   (module) => ({
     ...module.moduleManifest,

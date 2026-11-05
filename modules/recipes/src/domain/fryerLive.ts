@@ -120,7 +120,8 @@ export interface FryerSnapshot {
   power?: FryerStateLike;
 }
 
-const isOn = (s?: FryerStateLike) => s?.state === 'on' || s?.state === 'True' || s?.state === 'true';
+const isOn = (s?: FryerStateLike) =>
+  s?.state === 'on' || s?.state === 'True' || s?.state === 'true';
 
 /** Non-zero numeric `error_code` = device error. `product_error` is NOT used (undocumented flag). */
 export function fryerErrorCode(error?: FryerStateLike): number | null {
@@ -244,7 +245,8 @@ export function fryerModel(states: FryerStates, now: number): FryerModel {
 /** Short program line: „AutoCook 14 · fáze 2“. */
 export function fryerProgramLine(m: FryerModel): string {
   const parts: string[] = [];
-  if (m.method) parts.push(m.method === 'AutoCook' && m.program ? `AutoCook ${m.program}` : m.method);
+  if (m.method)
+    parts.push(m.method === 'AutoCook' && m.program ? `AutoCook ${m.program}` : m.method);
   else if (m.program) parts.push(`Program ${m.program}`);
   if (m.stage) parts.push(`fáze ${m.stage}`);
   return parts.join(' · ');

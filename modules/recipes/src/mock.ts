@@ -207,3 +207,64 @@ export function syntheticPreview(url: string): RecipeDraft {
     ],
   };
 }
+
+/** Dev/e2e scenarios for the live fryer card (synthetic `demo_fryer` entities only). */
+export type FryerDemoScenario =
+  'preheat' | 'cooking' | 'action' | 'drawer' | 'paused' | 'done' | 'warm' | 'error' | 'off';
+
+export function fryerDemoStates(
+  scenario: FryerDemoScenario,
+  now: Date,
+): Record<
+  string,
+  {
+    entity_id: string;
+    state: string;
+    attributes: Record<string, unknown>;
+    last_changed: string;
+    last_updated: string;
+  }
+> {
+  const status: Record<FryerDemoScenario, string> = {
+    preheat: 'cooking',
+    cooking: 'cooking',
+    action: 'user_action',
+    drawer: 'user_action',
+    paused: 'pause',
+    done: 'finish',
+    warm: 'maintain',
+    error: 'cooking',
+    off: 'standby',
+  };
+  const running = scenario !== 'off';
+  const values: Array<[string, string]> = [
+    ['sensor.demo_fryer_cooking_status', status[scenario]],
+    [
+      'sensor.demo_fryer_time_remaining',
+      scenario === 'done' || scenario === 'warm' ? '0' : scenario === 'preheat' ? '1080' : '522',
+    ],
+    ['sensor.demo_fryer_total_cook_time', running ? '19' : '0'],
+    [
+      'sensor.demo_fryer_current_temperature',
+      scenario === 'preheat' ? '142' : scenario === 'warm' ? '68' : running ? '189' : '24',
+    ],
+    ['sensor.demo_fryer_target_temperature', running ? (scenario === 'warm' ? '65' : '200') : '0'],
+    ['sensor.demo_fryer_current_stage', running ? '2' : '0'],
+    ['sensor.demo_fryer_autocook_program', running ? '14' : '0'],
+    ['select.demo_fryer_cooking_method', running ? 'auto_cook' : 'no_selection'],
+    ['sensor.demo_fryer_preheat_status', scenario === 'preheat' ? 'True' : 'False'],
+    ['binary_sensor.demo_fryer_drawer', scenario === 'drawer' ? 'on' : 'off'],
+    ['sensor.demo_fryer_error_code', scenario === 'error' ? '3' : '0'],
+    ['switch.demo_fryer_power', running ? 'on' : 'off'],
+    ['button.demo_fryer_pause', 'unknown'],
+    ['button.demo_fryer_stop', 'unknown'],
+    ['button.demo_fryer_keep_warm', 'unknown'],
+  ];
+  const stamp = now.toISOString();
+  return Object.fromEntries(
+    values.map(([entity_id, state]) => [
+      entity_id,
+      { entity_id, state, attributes: {}, last_changed: stamp, last_updated: stamp },
+    ]),
+  );
+}

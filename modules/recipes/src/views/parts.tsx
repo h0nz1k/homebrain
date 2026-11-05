@@ -73,7 +73,7 @@ export function Icon({ name }: { name: keyof typeof PATHS | string }) {
 }
 
 /* ---------- timers ---------- */
-function Ring({ fraction, size = 64 }: { fraction: number; size?: number }) {
+export function Ring({ fraction, size = 64 }: { fraction: number; size?: number }) {
   const r = size / 2 - 5;
   const c = 2 * Math.PI * r;
   return (

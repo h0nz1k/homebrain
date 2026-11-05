@@ -58,7 +58,10 @@ export interface RecipesConfig {
     configured: boolean;
     allowed: boolean;
     entities: Partial<
-      Record<'start' | 'temperature' | 'cook_time' | 'method' | 'drawer' | 'remaining', string>
+      Record<
+        'start' | 'temperature' | 'cook_time' | 'method' | 'drawer' | 'remaining' | 'status',
+        string
+      >
     >;
     methods: string[];
   };

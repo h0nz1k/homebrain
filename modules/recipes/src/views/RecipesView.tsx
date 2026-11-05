@@ -21,6 +21,7 @@ import {
   playChime,
   useWakeLock,
 } from './parts.js';
+import { FryerLiveCard } from './FryerLive.js';
 import { recipesStyles } from './styles.js';
 
 const BASE = '/recipes';
@@ -104,7 +105,7 @@ export default function RecipesView({ store, route, connection }: ModuleViewProp
   return (
     <div className="rc" data-testid="recipes-view">
       <style>{recipesStyles}</style>
-      {parsed.view === 'list' ? <RecipeList api={api} config={config} /> : null}
+      {parsed.view === 'list' ? <RecipeList api={api} config={config} store={store} /> : null}
       {parsed.view === 'add' ? <AddRecipe api={api} config={config} /> : null}
       {parsed.view === 'edit' ? <AddRecipe api={api} config={config} editId={parsed.id} /> : null}
       {parsed.view === 'detail' || parsed.view === 'cook' ? (
@@ -164,7 +165,15 @@ function RecipeLoader({
 }
 
 /* ---------------- list ---------------- */
-function RecipeList({ api, config }: { api: RecipesApi; config: RecipesConfig | null }) {
+function RecipeList({
+  api,
+  config,
+  store,
+}: {
+  api: RecipesApi;
+  config: RecipesConfig | null;
+  store: EntityStore;
+}) {
   const [search, setSearch] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   const [favOnly, setFavOnly] = useState(false);
@@ -235,6 +244,12 @@ function RecipeList({ api, config }: { api: RecipesApi; config: RecipesConfig | 
           </button>
         ) : null}
       </header>
+      <FryerLiveCard
+        api={api}
+        store={store}
+        statusEntity={config?.airfryer.entities.status}
+        allowed={config ? config.airfryer.allowed : false}
+      />
       <div className="rc-chips" role="toolbar" aria-label="Filtry">
         <button
           type="button"

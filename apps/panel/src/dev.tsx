@@ -1,6 +1,7 @@
 import { createHealthDemo, type HealthScenario } from '@homebrain/module-health';
 import {
   clearTodaySignalSources,
+  registerTodaySignalSource,
   createMockAdapter,
   setTodayAdapterFactory,
   stateFromUrl,
@@ -29,7 +30,13 @@ import {
 } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
 import { createMockWineApi, createSyntheticWines, setWineApiFactory } from '@homebrain/module-wine';
-import { createMockRecipesApi, setRecipesApiFactory } from '@homebrain/module-recipes';
+import {
+  createMockRecipesApi,
+  fryerDemoStates,
+  recipesFryerTodaySignalSource,
+  setRecipesApiFactory,
+  type FryerDemoScenario,
+} from '@homebrain/module-recipes';
 import {
   createMockAccessApi,
   setAccessApiFactory,
@@ -69,6 +76,9 @@ const recipesApi = createMockRecipesApi(undefined, {
 setRecipesApiFactory(() => recipesApi);
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
 if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
+// `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).
+const fryerLive = recipesQuery.get('fryerlive') as FryerDemoScenario | null;
+if (fryerLive) registerTodaySignalSource('recipes', recipesFryerTodaySignalSource);
 // Dev server only: synthetic weather snapshot (production uses the integration WS).
 setWeatherAdapterFactory(() => createMockWeatherAdapter(scenarioFromUrl(location.search)));
 defineHomebrainPanel();
@@ -213,6 +223,7 @@ demoHass.states['binary_sensor.demo_fryer_drawer'] = {
   state: recipesQuery.get('drawer') ?? 'off',
   attributes: { device_class: 'door' },
 };
+if (fryerLive) Object.assign(demoHass.states, fryerDemoStates(fryerLive, new Date()));
 demoHass.states['sensor.demo_wine_cellar_temperature'] = {
   entity_id: 'sensor.demo_wine_cellar_temperature',
   state: cellarTemp,
