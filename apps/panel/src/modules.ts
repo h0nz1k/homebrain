@@ -17,8 +17,6 @@ today.registerTodaySignalSource('weather', weather.weatherTodaySignalSource);
 // Dnes: appliance notices („Myčka dokončila“). Registered under its own key so the feed does
 // not take over other energy signals (withSignalFeeds drops base signals of the feed's key).
 today.registerTodaySignalSource('energy.appliances', energy.energyAppliancesTodaySignalSource);
-// Dnes: „kdy pustit myčku / odvlhčovač“ (doporučení, nic se nespíná).
-today.registerTodaySignalSource('energy.advice', energy.energyAdviceTodaySignalSource);
 export const modules = [today, weather, energy, waste, health, wine, recipes, family, access].map(
   (module) => ({
     ...module.moduleManifest,

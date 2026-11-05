@@ -1678,3 +1678,65 @@ button.hb-tile[data-empty] .hb-tile-status {
   font-size: var(--hb-font-sm);
   overflow-wrap: break-word;
 }
+
+/* Breakdown – itemised amounts with hairline separators (no inner boxes). */
+.hb-breakdown {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+.hb-breakdown-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--hb-t1) 10%, transparent);
+}
+.hb-breakdown-row:first-child {
+  border-top: 0;
+}
+.hb-breakdown dt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--hb-t1);
+  font-size: 14px;
+}
+.hb-breakdown dt small {
+  color: var(--hb-t2);
+  font-size: 13px;
+}
+.hb-breakdown dd {
+  margin: 0;
+  color: var(--hb-t1);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hb-breakdown-total dt,
+.hb-breakdown-total dd {
+  font-weight: 700;
+}
+.hb-breakdown-bar {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.hb-breakdown-bar span {
+  flex-basis: 0;
+  min-width: 4px;
+}
+.hb-breakdown-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}

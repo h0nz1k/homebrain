@@ -29,6 +29,16 @@ Read-only přehled hybridní FVE (GoodWe), třífázové spotřeby (Shelly 3EM),
 | `energy_battery_cell_voltage_max` | sensor | V | ne | rozptyl napětí článků (vyvážení, mV) |
 | `energy_battery_cell_voltage_min` | sensor | V | ne |  |
 | `energy_battery_soh` | sensor | % | ne |  |
+| `energy_tariff_price_vt` | input_number | Kč/kWh | ne | Cena odběru VT s DPH (vše za kWh) |
+| `energy_tariff_price_nt` | input_number | Kč/kWh | ne | Cena odběru NT s DPH |
+| `energy_tariff_fixed_monthly` | input_number | Kč/měs. | ne | Stálé měsíční platby s DPH (jistič, stálá platba, OTE) – rozpočítají se poměrně |
+| `energy_tariff_hdo` | binary_sensor | on = NT | ne | Stav HDO; atributy s rozvrhem NT a next_change |
+| `energy_tariff_next_change` | sensor | timestamp | ne | Čas další změny tarifu, když ho HDO senzor nemá v atributech |
+| `energy_meter_correction` | input_number | × | ne | Korekce měření střídače na fakturační elektroměr (výchozí 1) |
+| `energy_spot_distribution_vt` | input_number | Kč/kWh | ne | Srovnání se spotem: distribuce VT + systémové služby + daň s DPH |
+| `energy_spot_distribution_nt` | input_number | Kč/kWh | ne | Totéž pro NT |
+| `energy_spot_markup` | input_number | Kč/kWh | ne | Přirážka obchodníka ke spotu bez DPH (výchozí 0) |
+| `energy_spot_fixed_monthly` | input_number | Kč/měs. | ne | Stálé platby spotového produktu s DPH (výchozí = stálé platby tarifu) |
 | `energy_phase_l1_power` | sensor | kW | ano | Shelly L1 |
 | `energy_phase_l2_power` | sensor | kW | ano | L2 |
 | `energy_phase_l3_power` | sensor | kW | ano | L3 |
@@ -222,3 +232,10 @@ výchozí 25 A), tečkovaná značka na 80 %. Zdroj: `energy_grid_l1…l3_power`
   nad 6 A a 16 A), odhad fáze velkých spotřebičů z rozložení spotřeby domu (`guessAppliancePhase`).
 - Čisté funkce: `modules/energy/src/phases.ts` (`analyzePhases`, `phaseSaldo`, `imbalanceStats`,
   `guessAppliancePhase`), testy `phases.test.ts`; e2e scénáře `?flow=balanced|asym|mixed`.
+
+## Náklady (od rc.19)
+
+- Karta **Náklady na elektřinu** (Dnes / Měsíc / Rok): odběr ze sítě po hodinách (statistiky recorderu) × cena VT/NT podle rozvrhu HDO + stálé měsíční platby rozpočítané poměrně podle uplynulého času v každém měsíci (DST: den má 23/25 h). Jde o odhad podle měření střídače; volitelná korekce `energy_meter_correction` (výchozí 1).
+- **Úspora FVE + baterie** = Σ (spotřeba domu − odběr) × cena VT/NT dané hodiny. Bez příjmu za přetoky.
+- **Srovnání se spotem** je jen informativní: Σ odběr × ((spot + přirážka) × DPH + distribuce VT/NT) + stálé platby spotového produktu. Nikdy se nezobrazuje jako doporučení.
+- Doporučení „kdy pustit spotřebiče“ a signál „Levný proud“ jsou odstraněné.

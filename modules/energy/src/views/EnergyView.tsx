@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { EntityStateLike, EntityStore, ModuleViewProps } from '@homebrain/ha-client';
-import { EmptyState, StatusBadge } from '@homebrain/ui';
+import { Breakdown, EmptyState, SegmentedControl, StatusBadge } from '@homebrain/ui';
 import {
   adaptEnergyEntities,
   fetchEnergyHistory,
@@ -27,18 +27,19 @@ import {
   type ApplianceReading,
   type ApplianceState,
 } from '../appliances.js';
+import { fetchPvForecast, PV_FORECAST_NONE, pvUsable, type PvForecast } from '../pvForecast.js';
 import {
-  adviceBaseline,
-  computeAdvice,
-  dayLabel,
-  fetchPvForecast,
-  hhmm,
-  PV_FORECAST_NONE,
-  pvUsable,
-  type Advice,
-  type AdviceResult,
-  type PvForecast,
-} from '../advice.js';
+  computeCosts,
+  fetchCostHours,
+  hdoStatus,
+  parseHdoSchedule,
+  readTariffSettings,
+  type CostHour,
+  type CostPeriod,
+  type Costs,
+  type HdoState,
+  type TariffSettings,
+} from '../costs.js';
 import { energyStyles } from './energyStyles.js';
 import { EnergyFlowHero } from './EnergyFlowHero.js';
 
@@ -80,10 +81,6 @@ export function fmt(value: number | null | undefined, digits = 1): string {
   }).format(value);
 }
 const hourOf = (ms: number, tz: string) => localParts(ms, tz).hour;
-function hourSpan(start: number, end: number, tz: string) {
-  const e = localParts(end, tz);
-  return `${hourOf(start, tz)}–${e.hour === 0 && e.minute === 0 ? 24 : e.hour} h`;
-}
 const weekday = (ms: number, tz: string) =>
   new Intl.DateTimeFormat('cs-CZ', { weekday: 'short', timeZone: tz }).format(new Date(ms));
 
@@ -135,8 +132,7 @@ const LEVEL_COLOR = {
 } as const;
 
 function PriceCard({ model }: { model: EnergyModel }) {
-  const { series, cheapestToday, cheapestTomorrow, peakToday, averageToday, averageTomorrow } =
-    model.price;
+  const { series, peakToday, averageToday, averageTomorrow } = model.price;
   const tz = model.timeZone;
   const dayStart = startOfLocalDay(model.now, tz);
   const visible = series.filter((p) => p.start >= dayStart && p.start < dayStart + 48 * HOUR);
@@ -155,7 +151,6 @@ function PriceCard({ model }: { model: EnergyModel }) {
   const todayLevel = priceLevels(visible.filter((p) => p.start < split));
   const tomorrowLevel = priceLevels(visible.filter((p) => p.start >= split));
   const level = (p: PricePoint) => (p.start < split ? todayLevel : tomorrowLevel)(p.price);
-  const windows = [cheapestToday, cheapestTomorrow].filter((w): w is NonNullable<typeof w> => !!w);
   const step = max > 12 ? 4 : max > 6 ? 2 : 1;
   const ticks = [1, 2, 3, 4, 5, 6].map((i) => i * step).filter((t) => t < max * 0.95);
   return (
@@ -164,19 +159,7 @@ function PriceCard({ model }: { model: EnergyModel }) {
         Spotová cena <small>dnes + zítra · Kč/kWh</small>
       </h2>
       <div className="en-chips">
-        {cheapestToday && (
-          <span className="en-chip en-chip--ok" data-testid="energy-cheap-today">
-            Dnes <b>{hourSpan(cheapestToday.start, cheapestToday.end, tz)}</b> ·{' '}
-            {fmt(cheapestToday.mean, 2)} Kč
-          </span>
-        )}
-        {cheapestTomorrow && (
-          <span className="en-chip en-chip--ok">
-            Zítra <b>{hourSpan(cheapestTomorrow.start, cheapestTomorrow.end, tz)}</b> ·{' '}
-            {fmt(cheapestTomorrow.mean, 2)} Kč
-          </span>
-        )}
-        {!cheapestTomorrow && (
+        {averageTomorrow === null && (
           <span className="en-chip en-chip--off" data-testid="energy-tomorrow-pending">
             {localParts(model.now, tz).hour >= 13
               ? 'Zítřejší ceny zatím nevyhlášeny'
@@ -202,17 +185,6 @@ function PriceCard({ model }: { model: EnergyModel }) {
         <div className="en-hscroll-in">
           <div className="en-chart en-chart--price">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {windows.map((w) => (
-                <rect
-                  key={w.start}
-                  x={x(w.start)}
-                  width={x(w.end) - x(w.start)}
-                  y="0"
-                  height="100"
-                  fill="var(--hb-ok)"
-                  opacity="0.1"
-                />
-              ))}
               {ticks.map((t) => (
                 <line
                   key={t}
@@ -620,152 +592,193 @@ function AppliancesCard({ items, model }: { items: ApplianceReading[]; model: En
   );
 }
 
-function adviceChip(a: Advice, now: number, running: boolean): { label: string; tone: string } {
-  if (running && !a.infoOnly) return { label: 'Už běží', tone: 'idle' };
-  if (a.status !== 'ok' || !a.best) return { label: 'Nedostatek dat', tone: 'off' };
-  if (a.urgent) return { label: 'Teď · přebytek', tone: 'ok' };
-  const inH = (a.best.start - now) / HOUR;
-  const label = inH <= 0.25 ? 'Teď' : inH < 1 ? 'Do hodiny' : `Za ${Math.round(inH)} h`;
-  return {
-    label: a.infoOnly ? `${label} · informativně` : label,
-    tone: a.infoOnly ? 'idle' : 'ok',
-  };
+/* ------------------------------------------------------------------ costs */
+
+export interface CostView {
+  costs: Costs | null;
+  settings: TariffSettings;
+  hdo: HdoState | null;
+  status: 'loading' | 'ready' | 'error' | 'unsupported';
 }
 
-function pvSourceText(pv: PvForecast): string {
-  if (pv.status === 'empty')
-    return 'Předpověď FVE v Energiích HA vrací nuly – zkontrolujte její nastavení (kWp, sklon, azimut).';
-  if (pv.status === 'unconfigured' || pv.status === 'unsupported')
-    return 'Předpověď FVE chybí – zadejte výkon panelů (kWp) v integraci HomeBrain → Fotovoltaika.';
-  if (pv.status === 'error') return 'Předpověď FVE se nepodařilo načíst.';
-  if (pv.source === 'ha_energy') return 'Předpověď FVE z Energií HA.';
-  const a = pv.array;
-  return `Předpověď FVE: Open-Meteo${a ? ` (${fmt(a.kwp, 1)} kWp)` : ''}${
-    pv.status === 'stale' ? ', starší data' : ''
-  }.`;
-}
+const kc = (v: number | null | undefined, digits = 0) =>
+  v === null || v === undefined || !Number.isFinite(v) ? '–' : `${fmt(v, digits)}\u00a0Kč`;
+const clockOf = (ms: number, tz: string) =>
+  new Intl.DateTimeFormat('cs-CZ', { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(
+    new Date(ms),
+  );
+const dateOf = (ms: number, tz: string) =>
+  new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric', timeZone: tz }).format(
+    new Date(ms),
+  );
+const kwh = (v: number) => `${fmt(v, v < 10 ? 2 : 1)}\u00a0kWh`;
+const PERIOD_LABEL: Record<CostPeriod, string> = {
+  day: 'Dnes zatím za elektřinu',
+  month: 'Tento měsíc zatím',
+  year: 'Letos zatím',
+};
+const PERIODS: ReadonlyArray<readonly [CostPeriod, string]> = [
+  ['day', 'Dnes'],
+  ['month', 'Měsíc'],
+  ['year', 'Rok'],
+];
 
-function AdviceCard({
-  result,
-  pv,
-  model,
-  baseline,
-  appliances,
-}: {
-  result: AdviceResult;
-  pv: PvForecast;
-  model: EnergyModel;
-  baseline: ReturnType<typeof adviceBaseline>;
-  appliances: ApplianceReading[];
-}) {
+function HdoPill({ hdo, model }: { hdo: HdoState; model: EnergyModel }) {
   const tz = model.timeZone;
-  const { outlook } = result;
-  const running = new Set(appliances.filter((a) => a.state === 'running').map((a) => a.slot));
-  // Reasons shared by every recommendation are shown once at card level.
-  const ok = result.items.filter((a) => a.status === 'ok' && !a.infoOnly);
-  const shared =
-    ok.length > 1 ? ok[0]!.reasons.filter((r) => ok.every((a) => a.reasons.includes(r))) : [];
-  const todayKey = localParts(model.now, tz).day;
-  const tomorrowKey = localParts(startOfLocalDay(model.now, tz) + 26 * HOUR, tz).day;
-  const pvToday = pvUsable(pv) ? pv.days[todayKey] : undefined;
-  const pvTomorrow = pvUsable(pv) ? pv.days[tomorrowKey] : undefined;
-  const notes = [
-    pvSourceText(pv),
-    baseline.kw !== null
-      ? `Běžná spotřeba domu ${fmt(baseline.kw, 1)} kW (${
-          baseline.source === 'history' ? 'průměr 7 dní' : 'aktuální odběr'
-        }).`
-      : null,
-    outlook.assumptions.length ? `Předpoklady: ${outlook.assumptions.join(', ')}.` : null,
-    'Každý spotřebič je počítán samostatně – přebytek nemusí stačit na všechny najednou.',
-    'Jen doporučení – HomeBrain nic nezapíná.',
-  ].filter((n): n is string => !!n);
+  const other = hdo.tariff === 'NT' ? 'VT' : 'NT';
+  const sameDay =
+    hdo.nextChange !== null && localParts(hdo.nextChange, tz).day === localParts(model.now, tz).day;
   return (
-    <section className="en-card en-advice" aria-label="Doporučení" data-testid="energy-advice">
-      <h2 className="en-ct">
-        Doporučení <small>kdy pustit spotřebiče · příštích 24 h</small>
-      </h2>
-      <div className="en-chips">
-        {pvToday !== undefined && (
-          <span className="en-chip en-chip--ac" data-testid="energy-pv-forecast">
-            FVE dnes <b>{fmt(pvToday, 1)} kWh</b>
-            {pvTomorrow !== undefined && (
-              <>
-                {' '}
-                · zítra <b>{fmt(pvTomorrow, 1)} kWh</b>
-              </>
-            )}
-          </span>
-        )}
-        {outlook.batteryFullAt !== null && (
-          <span className="en-chip en-chip--ok" data-testid="energy-battery-full">
-            {outlook.batteryFullAt <= model.now + 15 * 60_000 ? (
-              <>Baterie plná</>
-            ) : (
-              <>
-                Baterie plná kolem <b>{hhmm(outlook.batteryFullAt, tz)}</b>
-              </>
-            )}
-          </span>
-        )}
-        {outlook.lostKwh !== null && outlook.lostKwh >= 0.1 && outlook.firstLossAt !== null && (
-          <span className="en-chip en-chip--warn" data-testid="energy-curtailment">
-            Bez akce se zahodí ~<b>{fmt(outlook.lostKwh, 1)} kWh</b> přebytku od{' '}
-            {hhmm(outlook.firstLossAt, tz)}
-          </span>
-        )}
-      </div>
-      {shared.length > 0 && (
-        <p className="en-adv-shared" data-testid="energy-advice-shared">
-          {shared.join(' · ').replace(/^./, (c) => c.toUpperCase())}
-        </p>
+    <span className="en-pill en-hdo" data-tariff={hdo.tariff} data-testid="energy-hdo">
+      <i className="en-dot" aria-hidden="true" />
+      Teď <b>{hdo.tariff === 'NT' ? 'nízký tarif' : 'vysoký tarif'}</b>
+      {hdo.nextChange !== null && (
+        <span className="en-hdo-next">
+          · {other} {sameDay ? 'od' : 'zítra od'} {clockOf(hdo.nextChange, tz)}
+        </span>
       )}
-      <ul className="en-adv-list">
-        {result.items.map((a) => {
-          const chip = adviceChip(a, model.now, running.has(a.id));
-          return (
-            <li
-              key={a.id}
-              className="en-adv-item"
-              data-testid={`energy-advice-${a.id}`}
-              data-status={a.status}
-              data-urgent={a.urgent && !running.has(a.id) ? 'true' : 'false'}
-              data-running={running.has(a.id) ? 'true' : 'false'}
-            >
-              <div className="en-appl-top">
-                <span className="en-appl-name">{a.label}</span>
-                <span className={`en-chip en-chip--${chip.tone}`}>{chip.label}</span>
-              </div>
-              {a.best ? (
-                <div className="en-adv-win">
-                  {dayLabel(a.best.start, model.now, tz)}
-                  {hhmm(a.best.start, tz)}–{hhmm(a.best.end, tz)}
-                  <small> · {fmt(a.durationH, 1)} h</small>
-                </div>
-              ) : (
-                <div className="en-adv-win en-adv-win--na">Nedostatek dat</div>
-              )}
-              {a.id === 'heat_pump' && a.best && (
-                <p className="en-adv-miss">Ohřev navíc řídí regulace TČ – jen pro informaci.</p>
-              )}
-              {a.best ? (
-                <ul className="en-adv-why">
-                  {a.reasons
-                    .filter((r) => !shared.includes(r))
-                    .map((r) => (
-                      <li key={r}>{r}</li>
-                    ))}
-                </ul>
-              ) : (
-                <p className="en-adv-miss">Chybí: {a.missing.join(', ')}</p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      <p className="en-adv-foot" data-testid="energy-advice-basis">
-        {notes.join(' ')}
-      </p>
+    </span>
+  );
+}
+
+function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }) {
+  const [period, setPeriod] = useState<CostPeriod>('day');
+  if (!cost) return null;
+  const tz = model.timeZone;
+  const { costs, settings: s, hdo } = cost;
+  const p = costs?.[period];
+  const fromLabel =
+    p && period !== 'day'
+      ? `od ${dateOf(p.from, tz)}`
+      : p
+        ? `dnes do ${clockOf(model.now, tz)}`
+        : '';
+  const spot = p?.spot ?? null;
+  const dig = period === 'day' ? 1 : 0;
+  const diff = spot ? spot.total - spot.tariffTotal : null;
+  return (
+    <section
+      className="en-card en-cost"
+      aria-label="Náklady na elektřinu"
+      data-testid="energy-costs"
+    >
+      <header className="en-cost-head">
+        <h2 className="en-ct">
+          Náklady na elektřinu <small>odhad podle měření střídače</small>
+        </h2>
+        <div className="en-cost-tools">
+          {hdo && <HdoPill hdo={hdo} model={model} />}
+          <SegmentedControl
+            label="Období"
+            hideLabel
+            size="sm"
+            value={period}
+            options={PERIODS}
+            onChange={setPeriod}
+          />
+        </div>
+      </header>
+      {!costs || !p ? (
+        <EmptyState
+          title={
+            cost.status === 'loading'
+              ? 'Načítám statistiky…'
+              : s.priceVt === null || s.priceNt === null || s.fixedMonthly === null
+                ? 'Chybí ceny tarifu'
+                : 'Statistiky odběru nejsou k dispozici'
+          }
+        >
+          {cost.status !== 'loading' &&
+            'Ceny VT/NT a stálé platby nastavíte ve vazbách modulu Energie (např. pomocné entity input_number).'}
+        </EmptyState>
+      ) : (
+        <div className="en-cost-grid">
+          <div className="en-cost-col" data-testid="energy-cost-total">
+            <span className="en-lbl">{PERIOD_LABEL[period]}</span>
+            <strong className="en-cost-v">{kc(p.total, dig)}</strong>
+            <span className="en-sub">
+              {fromLabel} · {kwh(p.importKwh)} ze sítě
+            </span>
+            {p.savings !== null && (
+              <span className="en-cost-save" data-testid="energy-cost-savings">
+                <b>FVE a baterie ušetřily {kc(p.savings, dig)}</b>
+                <span>dům nemusel odebrat ze sítě {kwh(p.coveredKwh)}</span>
+              </span>
+            )}
+          </div>
+          <div className="en-cost-col">
+            <Breakdown
+              label="Rozpis nákladů"
+              items={[
+                {
+                  key: 'vt',
+                  label: 'Vysoký tarif',
+                  detail: `${kwh(p.vtKwh)} × ${fmt(s.priceVt, 2)} Kč`,
+                  value: kc(p.vtKwh * (s.priceVt ?? 0), dig),
+                  amount: p.vtKwh * (s.priceVt ?? 0),
+                  color: 'var(--hb-warn)',
+                },
+                {
+                  key: 'nt',
+                  label: 'Nízký tarif',
+                  detail: `${kwh(p.ntKwh)} × ${fmt(s.priceNt, 2)} Kč`,
+                  value: kc(p.ntKwh * (s.priceNt ?? 0), dig),
+                  amount: p.ntKwh * (s.priceNt ?? 0),
+                  color: 'var(--hb-energy-grid)',
+                },
+                {
+                  key: 'fixed',
+                  label: 'Stálé platby',
+                  detail: `poměrná část z ${kc(s.fixedMonthly)}/měs.`,
+                  value: kc(p.fixedCost, dig),
+                  amount: p.fixedCost,
+                  color: 'var(--hb-t3)',
+                },
+              ]}
+            />
+          </div>
+        </div>
+      )}
+      {p && (
+        <div className="en-cost-spot" data-testid="energy-cost-spot">
+          {spot ? (
+            <p className="en-cost-spot-line" data-testid="energy-cost-spot-diff">
+              Pro srovnání: se spotovým tarifem by to vyšlo <b>{kc(spot.total, dig)}</b>
+              {diff !== null &&
+                (Math.abs(diff) < 0.5
+                  ? ' – stejně jako teď'
+                  : ` – o ${kc(Math.abs(diff), dig)} ${diff > 0 ? 'dráž' : 'levněji'}`)}
+              {spot.coverage < 0.95 &&
+                ` (spotové ceny jen pro ${fmt(spot.coverage * 100, 0)} % odběru)`}
+            </p>
+          ) : (
+            <p className="en-cost-spot-line" data-testid="energy-cost-spot-missing">
+              Srovnání se spotem: doplňte ve vazbách distribuci VT/NT (s poplatky a DPH).
+            </p>
+          )}
+        </div>
+      )}
+      <details className="en-cost-more" data-testid="energy-cost-basis">
+        <summary>Jak to počítáme</summary>
+        <p>
+          Odběr ze sítě po hodinách × cena VT/NT podle HDO, plus stálé platby poměrně podle
+          uplynulého času. Měří střídač, fakturační elektroměr může ukázat víc
+          {s.correction !== 1 ? ` (použitá korekce ×${fmt(s.correction, 2)})` : ''}. Ceny podle
+          aktuálního tarifu.
+        </p>
+        <p>
+          Úspora = energie, kterou pokryla FVE a baterie, oceněná cenou VT/NT dané hodiny; bez
+          příjmu za přetoky.
+        </p>
+        {spot && (
+          <p>
+            Spot = hodinová cena + přirážka {fmt(s.spotMarkup, 2)} Kč/kWh, obojí s DPH, + distribuce
+            VT/NT ({kc(spot.energyCost, dig)}) a stálé platby spotového produktu{' '}
+            {kc(s.spotFixedMonthly)}/měs. ({kc(spot.fixedCost, dig)}). Spot je jen srovnání, ne
+            doporučení.
+          </p>
+        )}
+      </details>
     </section>
   );
 }
@@ -777,27 +790,16 @@ export function EnergyScreen({
   pv = PV_FORECAST_NONE,
   phaseHistory = PHASE_HISTORY_NONE,
   thermalHistory = THERMAL_HISTORY_NONE,
+  cost = null,
 }: {
   model: EnergyModel;
+  cost?: CostView | null;
   history: EnergyHistory;
   appliances?: ApplianceReading[];
   pv?: PvForecast;
   phaseHistory?: PhaseHistory;
   thermalHistory?: ThermalHistory;
 }) {
-  const baseline = useMemo(() => adviceBaseline(model, history), [model, history]);
-  const advice = useMemo(
-    () =>
-      computeAdvice({
-        now: model.now,
-        timeZone: model.timeZone,
-        prices: model.price.series,
-        pv,
-        baselineKw: baseline.kw,
-        socPercent: model.batterySoc.quality === 'ok' ? model.batterySoc.value : null,
-      }),
-    [model, pv, baseline],
-  );
   const pvTodayKwh = pvUsable(pv) ? pv.days[localParts(model.now, model.timeZone).day] : undefined;
   const signals = useMemo(
     () => [
@@ -934,13 +936,7 @@ export function EnergyScreen({
               : 'další hodina bez dat'
           }
         />
-        <AdviceCard
-          result={advice}
-          pv={pv}
-          model={model}
-          baseline={baseline}
-          appliances={appliances}
-        />
+        <CostCard cost={cost} model={model} />
         <PriceCard model={model} />
         <DayChart model={model} history={history} />
         <WeekChart model={model} history={history} />
@@ -1029,6 +1025,42 @@ export default function EnergyView({ store, bindings, connection }: ModuleViewPr
       cancelled = true;
     };
   }, [connection, bindingsKey, applianceSlot]);
+  const [costHours, setCostHours] = useState<{
+    hours: CostHour[] | null;
+    status: CostView['status'];
+  }>({ hours: null, status: 'loading' });
+  useEffect(() => {
+    let cancelled = false;
+    if (!connection) return;
+    fetchCostHours(connection, JSON.parse(bindingsKey) as Record<string, string>, Date.now())
+      .then(
+        (hours) => !cancelled && setCostHours({ hours, status: hours ? 'ready' : 'unsupported' }),
+      )
+      .catch(() => !cancelled && setCostHours({ hours: null, status: 'error' }));
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, bindingsKey, historySlot]);
+  const cost = useMemo<CostView>(() => {
+    const getState = (id: string) => entities.find((entity) => entity?.entity_id === id);
+    const settings = readTariffSettings(bindings, getState);
+    const hdoId = bindings.energy_tariff_hdo?.trim();
+    const nextId = bindings.energy_tariff_next_change?.trim();
+    const hdoState = hdoId ? getState(hdoId) : undefined;
+    const hdo = hdoStatus(hdoState, now, model.timeZone, nextId ? getState(nextId) : null);
+    const costs = costHours.hours
+      ? computeCosts({
+          hours: costHours.hours,
+          settings,
+          schedule: parseHdoSchedule(hdoState?.attributes),
+          now,
+          timeZone: model.timeZone,
+          liveTodayImportKwh: model.today.gridImport.value,
+          liveSpot: model.price.now.value,
+        })
+      : null;
+    return { costs, settings, hdo, status: connection ? costHours.status : 'unsupported' };
+  }, [bindings, entities, now, model, costHours, connection]);
   const [pv, setPv] = useState<PvForecast>(PV_FORECAST_NONE);
   const pvSlot = Math.floor(now / PV_REFRESH_MS);
   useEffect(() => {
@@ -1060,6 +1092,7 @@ export default function EnergyView({ store, bindings, connection }: ModuleViewPr
           pv={pv}
           phaseHistory={phaseHistory}
           thermalHistory={thermalHistory}
+          cost={cost}
         />
       ) : (
         <div className="en-root">

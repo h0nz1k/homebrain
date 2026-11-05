@@ -40,7 +40,8 @@ describe('EnergyView', () => {
     await act(async () => {});
     expect(screen.getByRole('heading', { name: 'Energie', level: 1 })).toBeTruthy();
     expect(screen.getByTestId('energy-kpi-price').textContent).toContain('2,40');
-    expect(screen.getByTestId('energy-cheap-today').textContent).toContain('13–15 h');
+    expect(screen.queryByTestId('energy-cheap-today')).toBeNull();
+    expect(screen.queryByTestId('energy-advice')).toBeNull();
     expect(screen.getByTestId('energy-flow-battery').textContent).toContain('58');
     expect(screen.getByTestId('energy-flow-battery').textContent).toContain('nabíjí');
     expect(within(screen.getByTestId('energy-price')).getByText('teď')).toBeTruthy();
@@ -50,9 +51,15 @@ describe('EnergyView', () => {
     expect(screen.queryAllByRole('button').filter((b) => !flow.contains(b))).toHaveLength(0);
     expect(
       sendMessagePromise.mock.calls.filter(([m]) => m.type === 'recorder/statistics_during_period'),
-    ).toHaveLength(4); // hourly + daily energy, 5-minute phase means, hourly temperatures
+    ).toHaveLength(6); // hourly + daily energy, 5-minute phase means, hourly temperatures, costs (energy + spot)
     expect(screen.getByTestId('energy-7d').querySelectorAll('.en-bar-day')).toHaveLength(7);
-    expect(screen.getByTestId('energy-signals').textContent).toContain('Levný proud 13–15 h');
+    expect(screen.queryByText(/Levný proud/)).toBeNull();
+    // Costs: own tariff, PV+battery savings and the spot comparison (informative only).
+    expect(screen.getByTestId('energy-cost-total').textContent).toContain('Kč');
+    expect(screen.getByTestId('energy-cost-savings').textContent).toContain(
+      'FVE a baterie ušetřily',
+    );
+    expect(screen.getByTestId('energy-cost-spot').textContent).toContain('se spotovým tarifem');
   });
 
   it('shows the statistics empty state without a connection', async () => {

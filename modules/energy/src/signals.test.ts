@@ -27,38 +27,6 @@ function model(now = NOW, scenario: EnergyScenario = 'day') {
 }
 
 describe('energySignals', () => {
-  it('announces the upcoming cheap window with saving and Czech hour range', () => {
-    const { m, history } = model();
-    const cheap = energySignals(m, history).find((s) => s.kind === 'window')!;
-    expect(cheap).toMatchObject({
-      module: 'energy',
-      group: 'energy.opportunity',
-      tone: 'opportunity',
-      severity: 'info',
-      title: 'Levný proud 13–15 h',
-      value: { v: '0,90', unit: 'Kč/kWh' },
-    });
-    expect(cheap.context).toMatch(/^O \d+ % levnější/);
-    expect(cheap.action).toEqual({ type: 'navigate', label: 'Energie', href: '/energy' });
-  });
-
-  it('says "teď" inside the window', () => {
-    const now = Date.parse('2026-10-31T13:20:00+01:00');
-    const { m } = model(now);
-    const cheap = energySignals(m).find((s) => s.kind === 'window')!;
-    // Rest of today wins over a slightly cheaper window tomorrow; the active window is "teď".
-    expect(cheap).toMatchObject({ title: 'Levný proud teď', severity: 'notice' });
-    expect(cheap.valid_from).toBe('2026-10-31T12:00:00.000Z');
-    expect(m.price.cheapestNext!.end).toBe(Date.parse('2026-10-31T15:00:00+01:00'));
-  });
-
-  it('falls back to tomorrow late in the evening and says "zítra"', () => {
-    const now = Date.parse('2026-10-31T23:10:00+01:00');
-    const { m } = model(now);
-    const cheap = energySignals(m).find((s) => s.kind === 'window')!;
-    expect(cheap.title).toBe('Levný proud zítra 13–15 h');
-  });
-
   it('reports a low battery at night without service actions', () => {
     const now = Date.parse('2026-10-31T22:10:00+01:00');
     const { m } = model(now, 'night');
@@ -88,9 +56,14 @@ describe('energySignals', () => {
 
   it('stays silent on unavailable data and ranks with packages/signals', () => {
     const { m: dead } = model(NOW, 'unavailable');
-    expect(energySignals(dead).filter((s) => s.kind !== 'window')).toEqual([]);
-    const { m, history } = model();
+    expect(energySignals(dead)).toEqual([]);
+    const { m, history } = model(NOW, 'anomaly');
     const ranked = rank(energySignals(m, history), new Date(NOW));
     expect(ranked.all.length).toBeGreaterThan(0);
   });
+});
+
+it('never suggests when to run appliances (no cheap-power windows)', () => {
+  const { m, history } = model();
+  expect(energySignals(m, history).filter((s) => s.kind === 'window')).toEqual([]);
 });

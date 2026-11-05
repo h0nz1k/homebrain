@@ -1,5 +1,5 @@
 import type { EntityStateLike } from '@homebrain/ha-client';
-import { startOfLocalDay } from './adapter.js';
+import { localParts, startOfLocalDay } from './adapter.js';
 import type { EnergyBindingKey } from './contract.js';
 
 /*
@@ -58,6 +58,16 @@ export const DEMO_ENERGY_BINDINGS: Record<EnergyBindingKey, string> = {
   energy_battery_cell_voltage_max: 'sensor.demo_energy_battery_cell_voltage_max',
   energy_battery_cell_voltage_min: 'sensor.demo_energy_battery_cell_voltage_min',
   energy_battery_soh: 'sensor.demo_energy_battery_soh',
+  energy_tariff_price_vt: 'input_number.demo_price_vt',
+  energy_tariff_price_nt: 'input_number.demo_price_nt',
+  energy_tariff_fixed_monthly: 'input_number.demo_fixed_monthly',
+  energy_tariff_hdo: 'binary_sensor.demo_hdo_low_tariff',
+  energy_tariff_next_change: '',
+  energy_meter_correction: 'input_number.demo_meter_correction',
+  energy_spot_distribution_vt: 'input_number.demo_spot_distribution_vt',
+  energy_spot_distribution_nt: 'input_number.demo_spot_distribution_nt',
+  energy_spot_markup: 'input_number.demo_spot_markup',
+  energy_spot_fixed_monthly: 'input_number.demo_spot_fixed_monthly',
   energy_appliance_heat_pump_power: 'sensor.demo_heat_pump_power',
   energy_appliance_heat_pump_energy: 'sensor.demo_heat_pump_energy',
   energy_appliance_heat_pump_switch: '',
@@ -180,6 +190,36 @@ function entity(
     attributes,
     last_updated: new Date(updated).toISOString(),
   };
+}
+
+/** Synthetic HDO schedule (NT everywhere except VT 8–9, 12–13, 17–18, 20–21 h). */
+export const DEMO_HDO_ATTRS = {
+  hdo_cas_od: ['00:00:00', '09:00:00', '13:00:00', '18:00:00', '21:00:00'],
+  hdo_cas_do: ['08:00:00', '12:00:00', '17:00:00', '20:00:00', '23:59:00'],
+};
+const DEMO_VT_HOURS = [8, 12, 17, 20];
+/** Synthetic tariff, fees and spot comparison inputs (not any real price list). */
+function tariffStates(now: number, timeZone: string): EntityStateLike[] {
+  const b = DEMO_ENERGY_BINDINGS;
+  const kc = { unit_of_measurement: 'Kč/kWh' };
+  const vt = DEMO_VT_HOURS.includes(localParts(now, timeZone).hour);
+  return [
+    entity(b.energy_tariff_price_vt, 5.12, kc, now - HOUR),
+    entity(b.energy_tariff_price_nt, 4.31, kc, now - HOUR),
+    entity(b.energy_tariff_fixed_monthly, 840, { unit_of_measurement: 'Kč' }, now - HOUR),
+    entity(b.energy_meter_correction, 1.05, {}, now - HOUR),
+    entity(b.energy_tariff_hdo, vt ? 'off' : 'on', DEMO_HDO_ATTRS, now - HOUR),
+    entity(b.energy_spot_distribution_vt, 1.36, kc, now - HOUR),
+    entity(b.energy_spot_distribution_nt, 0.62, kc, now - HOUR),
+    entity(b.energy_spot_markup, 0.35, kc, now - HOUR),
+    entity(b.energy_spot_fixed_monthly, 760, { unit_of_measurement: 'Kč' }, now - HOUR),
+  ];
+}
+/** Synthetic hourly raw spot price (Kč/kWh excl. VAT): morning and evening peaks, cheap noon. */
+export function demoSpotPrice(hour: number, dayIndex: number): number {
+  const peak = hour >= 6 && hour < 9 ? 1.3 : hour >= 17 && hour < 21 ? 1.7 : 0;
+  const noon = hour >= 11 && hour < 15 ? -0.7 : 0;
+  return Math.max(0.2, 2.3 + peak + noon + 0.4 * Math.sin(dayIndex / 9));
 }
 
 export function createEnergyDemo(
@@ -351,6 +391,7 @@ export function createEnergyDemo(
       now - HOUR,
     ),
     ...inverterStates(pvKw, batteryKw, night ? 'Wait Mode' : 'Normal (On-Grid)', '', fresh),
+    ...tariffStates(now, timeZone),
     ...applianceStates(),
   ].map((state) =>
     (scenario === 'unavailable' && state.entity_id !== b.energy_spot_price_electricity) ||
@@ -449,6 +490,22 @@ export function createEnergyDemo(
           rows.push({ start: t, end: t + step, change: Number(change.toFixed(3)) });
         }
         series[id] = rows;
+      }
+      // Hourly mean spot price (Kč/kWh) for the cost comparison.
+      if (
+        message.period === 'hour' &&
+        (message.statistic_ids ?? []).includes(b.energy_spot_price_electricity)
+      ) {
+        const rows = [];
+        for (let t = start; t < now; t += HOUR) {
+          const h = Math.round((t - startOfLocalDay(t, timeZone)) / HOUR);
+          rows.push({
+            start: t,
+            end: t + HOUR,
+            mean: Number(demoSpotPrice(h, Math.floor(t / (24 * HOUR))).toFixed(4)),
+          });
+        }
+        series[b.energy_spot_price_electricity] = rows;
       }
       // Hourly mean temperatures (°C): radiator follows the PV curve, battery is steady.
       if (message.period === 'hour')
