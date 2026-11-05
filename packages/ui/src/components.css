@@ -252,6 +252,13 @@
   background: var(--hb-fill-strong);
   color: var(--hb-t1);
 }
+.hb-btn[data-variant='danger'] {
+  background: var(--hb-crit-s);
+  color: var(--hb-crit);
+}
+.hb-btn[data-variant='danger']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-crit) 18%, transparent);
+}
 .hb-btn[data-size='sm'] {
   min-height: 36px;
   padding: 0 var(--hb-sp-3);
@@ -1134,4 +1141,490 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     animation: none !important;
     transform: scaleX(0.5);
   }
+}
+
+/* ── StatusRow: rich variant (icon / detail / action) ─────────────────── */
+.hb-status-row[data-rich] {
+  align-items: center;
+}
+.hb-status-row-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--hb-radius-md);
+  color: var(--hb-tone);
+  background: color-mix(in srgb, var(--hb-tone) 14%, transparent);
+}
+.hb-status-row-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.hb-status-row-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hb-status-row-copy small {
+  color: var(--hb-t2);
+  font-size: var(--hb-font-sm);
+}
+.hb-status-row[data-rich] > .hb-status-row-icon {
+  flex: none;
+}
+.hb-status-row-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hb-sp-2);
+}
+.hb-status-row-action {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--hb-sp-2);
+}
+
+/* Focus ring for the shared controls (Button styles live in the #114 block above). */
+.hb-switch:focus-visible,
+.hb-seg button:focus-visible {
+  outline: 2px solid var(--hb-ac);
+  outline-offset: 2px;
+}
+
+/* ── Switch ─────────────────────────────────────────────────────────── */
+.hb-switch {
+  --hb-tone: var(--hb-ac);
+  position: relative;
+  width: 52px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--hb-radius-pill);
+  /* Off track readable in both themes (light fill-strong was near-invisible on white cards). */
+  background: color-mix(in srgb, var(--hb-t1) 20%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hb-edge);
+  cursor: pointer;
+  transition: background-color var(--hb-dur-base) var(--hb-ease-out);
+}
+.hb-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transition: transform var(--hb-dur-base) var(--hb-ease-out);
+}
+.hb-switch[aria-checked='true'] {
+  background: var(--hb-tone);
+}
+.hb-switch[aria-checked='true']::after {
+  transform: translateX(20px);
+}
+.hb-switch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ── SegmentedControl (API + base styles shared with Roboti PR #97) ───── */
+.hb-seg-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hb-seg-label {
+  width: 64px;
+  color: var(--hb-t2);
+  font-size: 14px;
+}
+.hb-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.hb-seg {
+  display: flex;
+  flex: 1;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--hb-fill);
+}
+.hb-seg button {
+  flex: 1;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--hb-t2);
+  transition:
+    background var(--hb-dur-base) var(--hb-ease-out),
+    color var(--hb-dur-base),
+    box-shadow var(--hb-dur-base);
+}
+.hb-seg button[aria-checked='true'] {
+  background: var(--hb-s3);
+  color: var(--hb-t1);
+  font-weight: 600;
+  box-shadow: var(--hb-elev-1);
+}
+[data-theme='light'] .hb-seg button[aria-checked='true'] {
+  background: var(--hb-s1);
+}
+.hb-seg button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.hb-seg-wrap[data-size='sm'] .hb-seg button {
+  min-height: 32px;
+}
+@media (max-width: 600px) {
+  .hb-seg-wrap {
+    gap: 8px;
+  }
+  .hb-seg-label {
+    width: 100%;
+  }
+  .hb-seg {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .hb-seg button {
+    flex: 1 0 22%;
+    padding: 0 6px;
+  }
+}
+
+/* ── Sheet ──────────────────────────────────────────────────────────── */
+.hb-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--hb-sp-4);
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(6px);
+  animation: hb-fade var(--hb-dur-base) var(--hb-ease-out);
+}
+.hb-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hb-sp-4);
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 2 * var(--hb-sp-4));
+  overflow: auto;
+  padding: var(--hb-sp-5);
+  border: 1px solid var(--hb-b1);
+  border-radius: var(--hb-radius-xl);
+  background: var(--hb-s1);
+  box-shadow: var(--hb-elev-2);
+  color: var(--hb-t1);
+  outline: none;
+  animation: hb-rise var(--hb-dur-slow) var(--hb-ease-out);
+}
+.hb-sheet[data-width='lg'] {
+  width: min(980px, 100%);
+}
+.hb-sheet[data-variant='alert'] {
+  width: min(440px, 100%);
+}
+.hb-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: var(--hb-sp-3);
+}
+.hb-sheet-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: var(--hb-type-title);
+  font-weight: 650;
+  letter-spacing: var(--hb-tracking-title);
+}
+.hb-sheet-body {
+  color: var(--hb-t2);
+  line-height: var(--hb-leading-body);
+}
+.hb-sheet-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--hb-sp-2);
+}
+@media (max-width: 600px) {
+  .hb-scrim {
+    place-items: end stretch;
+    padding: 0;
+  }
+  .hb-sheet,
+  .hb-sheet[data-width='lg'] {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--hb-radius-xl) var(--hb-radius-xl) 0 0;
+    padding: var(--hb-sp-4);
+  }
+}
+@keyframes hb-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes hb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* ── Stepper ────────────────────────────────────────────────────────── */
+.hb-stepper {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--hb-sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hb-step {
+  --hb-tone: var(--hb-t3);
+  display: flex;
+  align-items: center;
+  gap: var(--hb-sp-2);
+  min-width: 0;
+  padding: var(--hb-sp-2) var(--hb-sp-3);
+  border-radius: var(--hb-radius-chip);
+  background: var(--hb-fill);
+  color: var(--hb-t2);
+  font-size: var(--hb-font-sm);
+  font-weight: 600;
+}
+.hb-step[data-state='active'] {
+  --hb-tone: var(--hb-ac);
+  background: var(--hb-ac-s);
+  color: var(--hb-t1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 50%, transparent);
+}
+.hb-step[data-state='done'] {
+  --hb-tone: var(--hb-ok);
+}
+.hb-step[data-state='error'] {
+  --hb-tone: var(--hb-crit);
+}
+.hb-step[data-state='skipped'] {
+  opacity: 0.65;
+}
+.hb-step-n {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hb-tone) 18%, transparent);
+  color: var(--hb-tone);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.hb-step[data-state='active'] .hb-step-n,
+.hb-step[data-state='done'] .hb-step-n {
+  background: var(--hb-tone);
+  color: var(--hb-on-ac);
+}
+.hb-step-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.hb-step-t small {
+  overflow: hidden;
+  color: var(--hb-t2);
+  font-size: var(--hb-type-caption);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .hb-step-t small {
+    display: none;
+  }
+  .hb-step:not([data-state='active']) .hb-step-t {
+    display: none;
+  }
+}
+
+/* ── LiveStatus ─────────────────────────────────────────────────────── */
+.hb-live {
+  --hb-tone: var(--hb-ac);
+  display: flex;
+  align-items: center;
+  gap: var(--hb-sp-4);
+  padding: var(--hb-sp-4);
+  border-radius: var(--hb-radius-card);
+  background: color-mix(in srgb, var(--hb-tone) 9%, var(--hb-s2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-tone) 30%, transparent);
+}
+.hb-live[data-state='idle'] {
+  --hb-tone: var(--hb-t2);
+}
+.hb-live[data-state='ok'] {
+  --hb-tone: var(--hb-ok);
+}
+.hb-live[data-state='error'] {
+  --hb-tone: var(--hb-crit);
+}
+.hb-live-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hb-tone) 16%, transparent);
+  color: var(--hb-tone);
+  font-size: 22px;
+  font-weight: 700;
+}
+.hb-live-ring svg {
+  width: 26px;
+  height: 26px;
+}
+.hb-live[data-state='busy'] .hb-live-ring::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 3px solid transparent;
+  border-top-color: var(--hb-tone);
+  border-radius: 50%;
+  animation: hb-spin 1s linear infinite;
+}
+@keyframes hb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.hb-live-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.hb-live-copy strong {
+  font-size: var(--hb-font-md);
+  font-weight: 650;
+}
+.hb-live-copy div {
+  color: var(--hb-t2);
+  font-size: var(--hb-font-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-scrim,
+  .hb-sheet,
+  .hb-live[data-state='busy'] .hb-live-ring::before {
+    animation: none;
+  }
+}
+
+/* ── Tile: equal status slots in a grid (credentials, rooms…) ─────────── */
+.hb-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 64px;
+  padding: var(--hb-sp-3);
+  border: 0;
+  border-radius: var(--hb-radius-md);
+  color: var(--hb-t1);
+  background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent);
+  font: inherit;
+  text-align: left;
+}
+.hb-tile[data-tone='warn'],
+.hb-tile[data-tone='crit'],
+.hb-tile[data-tone='severe'] {
+  background: color-mix(in srgb, var(--hb-tone) 10%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-tone) 38%, transparent);
+}
+.hb-tile[data-empty] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 16%, transparent);
+}
+button.hb-tile {
+  cursor: pointer;
+  transition:
+    background var(--hb-dur-fast, 120ms) var(--hb-ease-out, ease-out),
+    box-shadow var(--hb-dur-fast, 120ms) var(--hb-ease-out, ease-out);
+}
+button.hb-tile:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-tone) 55%, transparent);
+}
+button.hb-tile:focus-visible {
+  outline: 2px solid var(--hb-ac);
+  outline-offset: 2px;
+}
+button.hb-tile:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.hb-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: var(--hb-sp-1);
+  border-radius: var(--hb-radius-sm, 8px);
+  color: var(--hb-tone);
+  background: color-mix(in srgb, var(--hb-tone) 14%, transparent);
+}
+.hb-tile[data-empty] .hb-tile-icon {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 16%, transparent);
+}
+.hb-tile-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.hb-tile-label {
+  max-width: 100%;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.hb-tile-status {
+  color: var(--hb-tone);
+  font-size: var(--hb-font-sm);
+  font-weight: 600;
+}
+.hb-tile[data-tone='neutral'] .hb-tile-status {
+  color: var(--hb-t2);
+}
+button.hb-tile[data-empty] .hb-tile-status {
+  color: var(--hb-ac);
+}
+.hb-tile-detail {
+  color: var(--hb-t2);
+  font-size: var(--hb-font-sm);
 }

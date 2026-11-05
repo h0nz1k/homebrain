@@ -187,6 +187,8 @@ MODULE_PANELS = {
     "homebrain-odpady": {"title": "Odpady", "icon": "mdi:delete-empty", "module": "waste"},
     "homebrain-vinoteka": {"title": "Vinotéka", "icon": "mdi:glass-wine", "module": "wine"},
     "homebrain-zdravi": {"title": "Zdraví", "icon": "mdi:heart-pulse", "module": "health"},
+    # Přístup (BioLock): admin only – people, enrolment, device switches.
+    "homebrain-pristup": {"title": "Přístup", "icon": "mdi:fingerprint", "module": "access"},
     # Kitchen tablet (non-admin, mapped role) opens Recepty too; the WS layer enforces roles.
     "homebrain-recepty": {
         "title": "Recepty",

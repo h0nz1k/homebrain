@@ -17,6 +17,7 @@
     "@homebrain/module-family": "workspace:*",
     "@homebrain/module-health": "workspace:*",
     "@homebrain/module-recipes": "workspace:*",
+    "@homebrain/module-access": "workspace:*",
     "@homebrain/module-today": "workspace:*",
     "@homebrain/module-waste": "workspace:*",
     "@homebrain/module-weather": "workspace:*",
