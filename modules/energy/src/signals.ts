@@ -1,10 +1,7 @@
 import type { Signal, SignalSource } from '@homebrain/signals';
-import { localParts } from './adapter.js';
 import type { EnergyHistory, EnergyModel } from './contract.js';
 
 export interface EnergySignalOptions {
-  /** A window counts as cheap when its mean is at most this share of the daily average. */
-  cheapRatio?: number;
   batteryLowPercent?: number;
   batteryCriticalPercent?: number;
   exportPeakKw?: number;
@@ -19,12 +16,6 @@ const num = (value: number, digits = 1) =>
     maximumFractionDigits: digits,
   }).format(value);
 const iso = (ms: number) => new Date(ms).toISOString();
-
-function hourRange(start: number, end: number, timeZone: string) {
-  const endParts = localParts(end, timeZone);
-  const endHour = endParts.hour === 0 && endParts.minute === 0 ? 24 : endParts.hour;
-  return `${localParts(start, timeZone).hour}–${endHour} h`;
-}
 
 function latest(model: EnergyModel): string {
   const times = [model.power.pv, model.power.grid, model.batterySoc, model.price.now]
@@ -51,14 +42,13 @@ export function energySignals(
   options: EnergySignalOptions = {},
 ): Signal[] {
   const {
-    cheapRatio = 0.8,
     batteryLowPercent = 20,
     batteryCriticalPercent = 10,
     exportPeakKw = 3,
     anomalyMinKw = 2.5,
     anomalyFactor = 3,
   } = options;
-  const { now, timeZone } = model;
+  const { now } = model;
   const signals: Signal[] = [];
   const source = (name: string, staleAfter: number): SignalSource => ({
     name,
@@ -66,34 +56,6 @@ export function energySignals(
     stale_after_s: staleAfter,
   });
   const navigate = { type: 'navigate' as const, label: 'Energie', href: '/energy' };
-
-  const window = model.price.cheapestNext;
-  const average = model.price.averageToday;
-  if (window && average && average > 0 && window.mean <= average * cheapRatio) {
-    const active = window.start <= now && now < window.end;
-    const startsSoon = window.start - now <= 2 * 3_600_000;
-    const saving = Math.round((1 - window.mean / average) * 100);
-    signals.push({
-      id: `energy.cheap.${localParts(window.start, timeZone).day}.${localParts(window.start, timeZone).hour}`,
-      module: 'energy',
-      group: 'energy.opportunity',
-      kind: 'window',
-      severity: active || startsSoon ? 'notice' : 'info',
-      tone: 'opportunity',
-      relevance: 0.6,
-      valid_from: iso(window.start),
-      valid_to: iso(window.end),
-      title: active
-        ? 'Levný proud teď'
-        : `Levný proud ${
-            localParts(window.start, timeZone).day === localParts(now, timeZone).day ? '' : 'zítra '
-          }${hourRange(window.start, window.end, timeZone)}`,
-      context: `O ${saving} % levnější než dnešní průměr. Vhodné pro pračku nebo myčku.`,
-      value: { v: num(window.mean, 2), unit: 'Kč/kWh' },
-      action: navigate,
-      source: source('Spotová cena', 2 * 3600),
-    });
-  }
 
   const soc = model.batterySoc;
   const batteryKw = model.power.battery.quality === 'ok' ? model.power.battery.value : null;

@@ -105,3 +105,74 @@ export function Button({
     </button>
   );
 }
+
+export interface BreakdownItem {
+  key: string;
+  label: ReactNode;
+  /** Secondary line, e.g. "12,4 kWh × 4,59 Kč". */
+  detail?: ReactNode;
+  value: ReactNode;
+  /** Numeric share for the optional proportion bar (same unit for all items). */
+  amount?: number;
+  /** Bar segment colour (CSS colour or var); the bar renders when any item has one. */
+  color?: string;
+}
+/**
+ * Itemised amounts (label + detail on the left, value right-aligned) with an optional total row.
+ * Hairline separators, no inner boxes – use inside a Card.
+ */
+export function Breakdown({
+  items,
+  total,
+  label,
+  className = '',
+}: {
+  items: BreakdownItem[];
+  total?: { label: ReactNode; value: ReactNode };
+  label: string;
+  className?: string;
+}) {
+  return (
+    <dl className={`hb-breakdown ${className}`.trim()} aria-label={label}>
+      {items.some((item) => item.color) && (
+        <div className="hb-breakdown-bar" aria-hidden="true">
+          {items
+            .filter((item) => item.color && (item.amount ?? 0) > 0)
+            .map((item) => (
+              <span
+                key={item.key}
+                style={{ flexGrow: item.amount, background: item.color }}
+                data-key={item.key}
+              />
+            ))}
+        </div>
+      )}
+      {items.map((item) => (
+        <div className="hb-breakdown-row" key={item.key} data-key={item.key}>
+          <dt>
+            <span>
+              {item.color && (
+                <i
+                  className="hb-breakdown-dot"
+                  style={{ background: item.color }}
+                  aria-hidden="true"
+                />
+              )}
+              {item.label}
+            </span>
+            {item.detail !== undefined && <small>{item.detail}</small>}
+          </dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+      {total && (
+        <div className="hb-breakdown-row hb-breakdown-total">
+          <dt>
+            <span>{total.label}</span>
+          </dt>
+          <dd>{total.value}</dd>
+        </div>
+      )}
+    </dl>
+  );
+}

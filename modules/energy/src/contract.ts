@@ -60,6 +60,18 @@ export const ENERGY_BINDING_KEYS = [
   'energy_battery_cell_voltage_max',
   'energy_battery_cell_voltage_min',
   'energy_battery_soh',
+  // Costs (Náklady): own VT/NT tariff, fixed monthly fees, HDO and an optional meter correction;
+  // spot comparison inputs (informative only). Numbers usually come from input_number helpers.
+  'energy_tariff_price_vt',
+  'energy_tariff_price_nt',
+  'energy_tariff_fixed_monthly',
+  'energy_tariff_hdo',
+  'energy_tariff_next_change',
+  'energy_meter_correction',
+  'energy_spot_distribution_vt',
+  'energy_spot_distribution_nt',
+  'energy_spot_markup',
+  'energy_spot_fixed_monthly',
   // Spotřebiče: power (W/kW), total energy (kWh, total_increasing), optional read-only switch.
   'energy_appliance_heat_pump_power',
   'energy_appliance_heat_pump_energy',

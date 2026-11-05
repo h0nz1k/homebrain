@@ -4,7 +4,6 @@ test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
   await page.goto('/homebrain-energie');
   await expect(page.getByRole('heading', { name: 'Energie', exact: true, level: 1 })).toBeVisible();
   await expect(page.getByTestId('energy-price')).toBeVisible();
-  await expect(page.getByTestId('energy-cheap-today')).toContainText('13–15 h');
   await expect(page.getByTestId('energy-flow')).toContainText('Baterie');
   await expect(page.getByTestId('energy-7d').locator('.en-bar-day')).toHaveCount(7);
   await expect(page.getByTestId('energy-24h').locator('polyline')).toHaveCount(2);
@@ -45,45 +44,46 @@ test('karta Spotřebiče a dokončená myčka', async ({ page }) => {
   await expect(card.getByRole('switch')).toHaveCount(0);
 });
 
-test.describe('Doporučení', () => {
-  test('poledne: přebytek se zahodí, myčka teď, střídač a předpověď FVE', async ({ page }) => {
-    await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
-    await page.goto('/homebrain-energie?dishwasher=idle');
-    const card = page.getByTestId('energy-advice');
-    await expect(card).toBeVisible();
-    await expect(card.locator('.en-adv-item')).toHaveCount(3);
-    await expect(page.getByTestId('energy-inverter')).toContainText('Normální');
-    await expect(page.getByTestId('energy-pv-forecast')).toContainText('FVE dnes');
-    await expect(page.getByTestId('energy-curtailment')).toContainText('Bez akce se zahodí');
-    const dishwasher = page.getByTestId('energy-advice-dishwasher');
-    await expect(dishwasher).toHaveAttribute('data-urgent', 'true');
-    // shared reason shown once at card level
-    await expect(page.getByTestId('energy-advice-shared')).toContainText(
-      'Jinak se přebytek zahodí',
-    );
-    await expect(page.getByTestId('energy-advice-heat_pump')).toContainText('informativně');
-    await expect(page.getByTestId('energy-advice-basis')).toContainText('sklon panelů 35° (odhad)');
-    await expect(page.getByTestId('energy-advice-basis')).toContainText('nic nezapíná');
+test.describe('Náklady na elektřinu', () => {
+  test('dnes / měsíc / rok, HDO, úspora a spot jen pro srovnání', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-05T14:30:00+01:00'));
+    await page.goto('/homebrain-energie');
+    const card = page.getByTestId('energy-costs');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const hdo = page.getByTestId('energy-hdo');
+    await expect(hdo).toContainText('nízký tarif');
+    await expect(hdo).toContainText('VT od 17:00');
+    const total = page.getByTestId('energy-cost-total');
+    await expect(total).toContainText('ze sítě', { timeout: 20_000 });
+    await expect(card.locator('.hb-breakdown-row')).toHaveCount(3);
+    await expect(page.getByTestId('energy-cost-savings')).toContainText('FVE a baterie ušetřily');
+    await expect(page.getByTestId('energy-cost-spot')).toContainText('se spotovým tarifem');
+    await expect(page.getByTestId('energy-cost-spot-diff')).toContainText(/dráž|levněji|stejně/);
+    await expect(page.getByTestId('energy-cost-basis')).toContainText('korekce ×1,05');
+    await expect(page.getByTestId('energy-cost-basis')).toContainText('ne doporučení');
+    const amount = async () =>
+      Number(
+        ((await total.locator('.en-cost-v').textContent()) ?? '')
+          .replace(/[^\d,]/g, '')
+          .replace(',', '.'),
+      );
+    const day = await amount();
+    await card.getByRole('radio', { name: 'Rok' }).click();
+    await expect(total).toContainText('od 1. 1.');
+    expect(await amount()).toBeGreaterThan(day);
+    // Appliance timing advice and "cheap power" hints are gone.
+    await expect(page.getByTestId('energy-advice')).toHaveCount(0);
+    await expect(page.getByText(/Levný proud|kdy pustit/)).toHaveCount(0);
     expect(await page.locator('html').evaluate((root) => root.scrollWidth)).toBeLessThanOrEqual(
       page.viewportSize()!.width,
     );
   });
 
-  test('večer bez FVE: okno podle ceny a tichých hodin', async ({ page }) => {
-    await page.clock.setFixedTime(new Date('2026-06-02T19:00:00+02:00'));
-    await page.goto('/homebrain-energie?pv=unconfigured');
-    await expect(page.getByTestId('energy-advice-basis')).toContainText('Předpověď FVE chybí');
-    const dishwasher = page.getByTestId('energy-advice-dishwasher');
-    await expect(dishwasher).toHaveAttribute('data-status', 'ok');
-    await expect(dishwasher).toContainText('Kč/kWh');
-  });
-
-  test('nedostatek dat', async ({ page }) => {
-    await page.goto('/homebrain-energie?energy=nodata&pv=unconfigured');
-    const card = page.getByTestId('energy-advice');
-    await expect(card.locator('[data-status="insufficient"]')).toHaveCount(3);
-    await expect(page.getByTestId('energy-advice-dishwasher')).toContainText('Nedostatek dat');
-    await expect(page.getByTestId('energy-advice-dishwasher')).toContainText('Chybí: spotové ceny');
+  test('bez dat: karta vysvětlí, co chybí', async ({ page }) => {
+    await page.goto('/homebrain-energie?energy=nodata');
+    await expect(page.getByTestId('energy-costs')).toContainText('Chybí ceny tarifu', {
+      timeout: 20_000,
+    });
   });
 });
 

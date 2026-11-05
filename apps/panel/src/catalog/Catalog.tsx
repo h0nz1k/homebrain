@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  Breakdown,
   Button,
   Card,
   Chip,
@@ -93,6 +94,55 @@ const specs: Spec[] = [
       <div className="cat-row">
         <Stat label="Baterie" value="64" unit="%" />
         <Stat label="Lahví ve sklepě" value="128" />
+      </div>
+    ),
+  },
+  {
+    id: 'breakdown',
+    name: 'Breakdown',
+    summary: 'Rozpis částek: popisek s detailem vlevo, hodnota vpravo, volitelný součet.',
+    importName: 'Breakdown',
+    states: [
+      's detailem',
+      'bez detailu',
+      's řádkem Celkem',
+      's proporčním pruhem (amount + color)',
+    ],
+    doText: 'Krátké popisky, detail výpočtu do druhého řádku (např. „12,4 kWh × 4,59 Kč“).',
+    dontText: 'Rámečky kolem řádků nebo tabulka s hlavičkou – rozpis je text, ne mřížka.',
+    notes: 'Čísla mají tabular-nums; řádky dělí jen hairline. Použito v kartě Náklady (Energie).',
+    render: () => (
+      <div className="cat-row" style={{ minWidth: 280 }}>
+        <Breakdown
+          label="Rozpis nákladů"
+          items={[
+            {
+              key: 'vt',
+              label: 'Vysoký tarif',
+              detail: '2,1 kWh × 5,12 Kč',
+              value: '11 Kč',
+              amount: 11,
+              color: 'var(--hb-warn)',
+            },
+            {
+              key: 'nt',
+              label: 'Nízký tarif',
+              detail: '9,8 kWh × 4,31 Kč',
+              value: '42 Kč',
+              amount: 42,
+              color: 'var(--hb-energy-grid)',
+            },
+            {
+              key: 'fixed',
+              label: 'Stálé platby',
+              detail: 'poměrná část z 840 Kč/měs.',
+              value: '28 Kč',
+              amount: 28,
+              color: 'var(--hb-t3)',
+            },
+          ]}
+          total={{ label: 'Celkem', value: '81 Kč' }}
+        />
       </div>
     ),
   },
