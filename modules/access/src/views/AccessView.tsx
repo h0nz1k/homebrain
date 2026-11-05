@@ -29,8 +29,11 @@ import {
 import { AccessApiError, getAccessApi, type AccessApi } from '../api.js';
 import {
   enrolledShortCs,
+  enrolReducer,
   findDuplicates,
   groupPeople,
+  handSlots,
+  type EnrolStatus,
   REENROLL_CS,
   HAND_CS,
   mmss,
@@ -40,6 +43,17 @@ import {
   whenCs,
   wifiQuality,
 } from '../domain.js';
+import {
+  buildAccessLog,
+  filterLog,
+  groupByDay,
+  lockSource,
+  type LockAction,
+  type LogbookEntry,
+  type LogEntityIds,
+  type LogFilter,
+  type LogItem,
+} from '../log.js';
 import type {
   AccessEvent,
   AccessState,
@@ -136,6 +150,12 @@ const P: Record<string, ReactNode> = {
       <path d="M9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5" />
     </>
   ),
+  unlock: (
+    <>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 7.5-1.9" />
+    </>
+  ),
   lock: (
     <>
       <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
@@ -208,9 +228,17 @@ function useNow(ms: number) {
   return now;
 }
 
-function useEntities(store: EntityStore, bindings: Record<string, string>) {
-  const id = (key: EntityKey) => bindings[key] ?? ENTITY_DEFAULTS[key];
+function useEntities(
+  store: EntityStore,
+  bindings: Record<string, string>,
+  resolved: Record<string, string> | undefined,
+) {
+  // explicit binding > device resolved by the integration > neutral default
+  const id = (key: EntityKey) => bindings[key] ?? resolved?.[key] ?? ENTITY_DEFAULTS[key];
   return {
+    ids: Object.fromEntries(
+      (Object.keys(ENTITY_DEFAULTS) as EntityKey[]).map((k) => [k, id(k)]),
+    ) as Record<EntityKey, string>,
     biometric: useEntity(store, id('biometric')),
     service: useEntity(store, id('service')),
     action: useEntity(store, id('action')),
@@ -223,6 +251,10 @@ function useEntities(store: EntityStore, bindings: Record<string, string>) {
     nukiBattery: useEntity(store, id('nukiBattery')),
     lock: useEntity(store, id('lock')),
     lockout: useEntity(store, id('lockout')),
+    lockBattery: useEntity(store, id('lockBattery')),
+    lockBatteryCritical: useEntity(store, id('lockBatteryCritical')),
+    lockAction: useEntity(store, id('lockAction')),
+    lastError: useEntity(store, id('lastError')),
   };
 }
 type Entities = ReturnType<typeof useEntities>;
@@ -254,9 +286,15 @@ const errorText = (err: unknown) => {
 
 export default function AccessView({ store, bindings, route, connection }: ModuleViewProps) {
   const api = useMemo(() => getAccessApi(connection), [connection]);
-  const ent = useEntities(store, bindings ?? {});
-  const now = useNow(1000);
   const [state, setState] = useState<AccessState | null>(null);
+  const ent = useEntities(store, bindings ?? {}, state?.entities);
+  const now = useNow(1000);
+  const [enrolEvents, setEnrol] = useState<EnrolStatus>(null);
+  // Sensor state 'enrolling' (an HA script started it) shows as pending before any event arrives.
+  const enrol = enrolReducer(enrolEvents, {
+    sensorState: ent.sensorState?.state,
+    time: new Date(now).toISOString(),
+  });
   const [live, setLive] = useState<LiveItem[]>([]);
   const [tabState, setTab] = useState<TabId>(() => parseTab(route?.path));
   // Inside a panel the url owns the tab (`/homebrain-pristup/<tab>`), so back/forward and
@@ -273,6 +311,8 @@ export default function AccessView({ store, bindings, route, connection }: Modul
     let unsub: (() => void) | null = null;
     const onEvent = (event: AccessEvent) => {
       for (const l of listeners.current) l(event);
+      if (event.event === 'enrolled' || event.event === 'enroll_retry')
+        setEnrol((prev) => enrolReducer(prev, { event }));
       setState((prev) => {
         if (!prev) return prev;
         if (event.event === 'users')
@@ -287,16 +327,24 @@ export default function AccessView({ store, bindings, route, connection }: Modul
           void _kind;
           return { ...prev, ...meta };
         }
-        if (event.event === 'recognized' || event.event === 'rejected')
+        if (
+          event.event === 'recognized' ||
+          event.event === 'rejected' ||
+          event.event === 'enrolled' ||
+          event.event === 'deleted' ||
+          event.event === 'lockout'
+        )
           return {
             ...prev,
+            users:
+              event.event === 'deleted' && event.data.ok && prev.users
+                ? prev.users.filter((u) => u.id !== event.data.user_id)
+                : prev.users,
             history: [
               { kind: event.event, time: event.time, ...event.data },
               ...prev.history,
             ].slice(0, 50),
           };
-        if (event.event === 'deleted' && event.data.ok && prev.users)
-          return { ...prev, users: prev.users.filter((u) => u.id !== event.data.user_id) };
         return prev;
       });
       if (event.event === 'recognized' || event.event === 'rejected') {
@@ -400,6 +448,8 @@ export default function AccessView({ store, bindings, route, connection }: Modul
     setWizard,
     selectTab,
     refresh,
+    enrol: wizard ? null : enrol,
+    dismissEnrol: () => setEnrol(null),
   };
 
   return (
@@ -436,7 +486,7 @@ export default function AccessView({ store, bindings, route, connection }: Modul
       {tab === 'osoby' && <PeopleTab ctx={ctx} />}
       {tab === 'test' && <TestTab ctx={ctx} live={live} />}
       {tab === 'zarizeni' && <DeviceTab ctx={ctx} />}
-      {tab === 'historie' && <HistoryTab items={state?.history ?? []} now={now} />}
+      {tab === 'historie' && <AccessLog ctx={ctx} />}
       {wizard && (
         <Wizard
           api={api}
@@ -471,6 +521,8 @@ interface Ctx {
   setWizard: (w: WizardSpec | null) => void;
   selectTab: (t: TabId) => void;
   refresh: () => void;
+  enrol: EnrolStatus;
+  dismissEnrol: () => void;
 }
 
 function StatusPills({
@@ -608,17 +660,11 @@ function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   // Back (gesture/browser) closes the person sheet instead of leaving the panel.
   useBackClosable(() => setMenu(false), menu);
   const dupHands = new Set(findDuplicates([person]).map((d) => d.hand));
-  // An unknown palm takes the first empty hand slot; the other one stays "missing".
-  const unknownIn: Hand | null = person.unknown.length
-    ? !person.right.length
-      ? 'right'
-      : !person.left.length
-        ? 'left'
-        : null
-    : null;
+  // Unlabelled palms fill the empty hand slots (two palms from an HA script = both "Dlaň?").
+  const slots = handSlots(person);
   const hand = (h: Hand) => {
-    const isUnknown = unknownIn === h;
-    const users = isUnknown ? person.unknown : person[h];
+    const isUnknown = slots[h].unknown;
+    const users = slots[h].users;
     const state: SlotState = dupHands.has(h)
       ? 'dup'
       : isUnknown
@@ -791,6 +837,77 @@ function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   );
 }
 
+const KIND_CS: Record<'face' | 'palm', string> = { face: 'obličej', palm: 'dlaň' };
+/** Enrolment started anywhere (panel, HA script): pending → retry → result, with hand labelling. */
+function EnrolBanner({ ctx }: { ctx: Ctx }) {
+  const { enrol, now, api, run, state, dismissEnrol } = ctx;
+  if (!enrol) return null;
+  const at = enrol.phase === 'pending' ? enrol.since : enrol.time;
+  if (enrol.phase !== 'pending' && now - Date.parse(at) > 15 * 60_000) return null;
+  const who = 'name' in enrol && enrol.name ? enrol.name : 'bez jména';
+  const kind = enrol.type ? KIND_CS[enrol.type] : 'obličej nebo dlaň';
+  const needsHand =
+    enrol.phase === 'ok' && enrol.type === 'palm' && !state?.labels[String(enrol.id)]?.hand;
+  const title =
+    enrol.phase === 'pending'
+      ? `Probíhá zápis: ${kind}${'name' in enrol && enrol.name ? ` – ${enrol.name}` : ''}`
+      : enrol.phase === 'ok'
+        ? `Zapsáno: ${who} – ${kind} (ID ${enrol.id})`
+        : `Zápis se nepovedl: ${who} – ${kind}`;
+  return (
+    <div className="ac-enrol" data-testid="access-enrol-status" data-phase={enrol.phase}>
+      <LiveStatus
+        state={enrol.phase === 'pending' ? 'busy' : enrol.phase === 'ok' ? 'ok' : 'error'}
+        title={title}
+        icon={<Icon name={enrol.type === 'palm' ? 'palm' : 'face'} />}
+      >
+        {enrol.phase === 'pending' &&
+          (enrol.note
+            ? `${enrol.attempt ?? 1}. pokus: ${enrol.note}. Zkouším znovu${enrol.remaining_s ? `, zbývá ${enrol.remaining_s} s` : ''}.`
+            : 'Snímač čeká na obličej nebo dlaň – výsledek se tu ukáže hned.')}
+        {enrol.phase === 'failed' && (
+          <>
+            {enrol.text}. {reasonCs(enrol.reason).tip ?? ''}
+          </>
+        )}
+        {enrol.phase === 'ok' &&
+          (needsHand
+            ? 'Která ruka to byla? Bez označení nepoznáme, jestli chybí pravá, nebo levá.'
+            : 'Osoba je v seznamu níže.')}
+      </LiveStatus>
+      <div className="ac-enrol-actions">
+        {needsHand &&
+          (['right', 'left'] as const).map((h) => (
+            <Button
+              key={h}
+              size="sm"
+              variant={h === 'right' ? 'primary' : 'secondary'}
+              data-testid={`access-enrol-hand-${h}`}
+              onClick={() =>
+                run(async () => {
+                  await api.label(enrol.id, { hand: h });
+                  dismissEnrol();
+                }, `ID ${enrol.id}: ${HAND_CS[h]} dlaň`)
+              }
+            >
+              {h === 'right' ? 'Pravá' : 'Levá'}
+            </Button>
+          ))}
+        {enrol.phase !== 'pending' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid="access-enrol-dismiss"
+            onClick={dismissEnrol}
+          >
+            Zavřít
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PeopleTab({ ctx }: { ctx: Ctx }) {
   const { state, people, selectTab, setWizard, refresh, now } = ctx;
   if (!state) return <EmptyState title="Načítám…" />;
@@ -819,9 +936,12 @@ function PeopleTab({ ctx }: { ctx: Ctx }) {
       </>
     );
   const issue = topIssue(people);
-  const recent = state.history.slice(0, 3);
+  const recent = state.history
+    .filter((h) => h.kind === 'recognized' || h.kind === 'rejected')
+    .slice(0, 3);
   return (
     <>
+      <EnrolBanner ctx={ctx} />
       {issue.tone !== 'ok' && (
         <div className="ac-attn" data-testid="access-hero">
           <SignalCard
@@ -881,20 +1001,192 @@ function HistoryRow({ item, now }: { item: HistoryItem; now: number }) {
     />
   );
 }
-function HistoryTab({ items, now }: { items: HistoryItem[]; now: number }) {
-  if (!items.length)
-    return (
-      <EmptyState title="Zatím žádné rozpoznání">
-        Historie se plní od spuštění HomeBrain.
-      </EmptyState>
-    );
+const LOG_FILTERS: Array<[LogFilter, string]> = [
+  ['all', 'Vše'],
+  ['biolock', 'BioLock'],
+  ['nuki', 'Nuki'],
+  ['problems', 'Problémy'],
+];
+const LOG_DAYS = 3; // like the original logbook card (72 h); "Načíst starší" adds 3 more days
+const LOG_TONE: Record<LogItem['tone'], Tone> = {
+  ok: 'ok',
+  info: 'neutral',
+  warn: 'warn',
+  crit: 'crit',
+};
+
+/** Historie: one access log – BioLock (HomeBrain history) + lock/BioLock HA logbook + Nuki actions. */
+function AccessLog({ ctx }: { ctx: Ctx }) {
+  const { api, ent, state, now } = ctx;
+  const [filter, setFilter] = useState<LogFilter>('all');
+  const [days, setDays] = useState(LOG_DAYS);
+  const [book, setBook] = useState<LogbookEntry[]>([]);
+  const [loaded, setActions] = useState<LockAction[]>([]);
+  const [older, setOlder] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const idsKey = Object.values(ent.ids).join('|');
+  const ids: LogEntityIds = useMemo(
+    () => ({
+      lock: ent.ids.lock,
+      lockAction: ent.ids.lockAction,
+      lockBatteryCritical: ent.ids.lockBatteryCritical,
+      connected: ent.ids.connected,
+      sensorOnline: ent.ids.sensorOnline,
+      lockout: ent.ids.lockout,
+      service: ent.ids.service,
+      biometric: ent.ids.biometric,
+      lastError: ent.ids.lastError,
+      lastUser: ent.ids.lastUser,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ids are strings, keyed by idsKey
+    [idsKey],
+  );
+  const entityIds = useMemo(
+    () => [...new Set(Object.values(ids).filter((x): x is string => Boolean(x)))],
+    [ids],
+  );
+  useEffect(() => {
+    let alive = true;
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 86_400_000).toISOString();
+    let unsub: (() => void) | null = null;
+    Promise.all([
+      api.logbook(start, end.toISOString(), entityIds).catch(() => []),
+      api.lockActions(start, end.toISOString(), ids.lockAction ?? '').catch(() => []),
+      api.history({ limit: 200 }).catch(() => ({ items: [], more: false })),
+    ]).then(([b, a, h]) => {
+      if (!alive) return;
+      setBook(b);
+      setActions(a);
+      setOlder(h.items);
+      setLoading(false);
+    });
+    void api
+      .subscribeLogbook(end.toISOString(), entityIds, (entries) => {
+        if (alive) setBook((prev) => [...prev, ...entries]);
+      })
+      .then((u) => {
+        if (alive) unsub = u;
+        else u();
+      });
+    return () => {
+      alive = false;
+      unsub?.();
+    };
+  }, [api, days, entityIds, ids.lockAction]);
+  // live Nuki action: the event entity changes state on every action
+  const lastAction = ent.lockAction as
+    { state?: string; attributes?: Record<string, unknown> } | undefined;
+  const actions = useMemo(() => {
+    const a = lastAction?.attributes;
+    const t = lastAction?.state ?? '';
+    if (typeof a?.event_type !== 'string' || Number.isNaN(Date.parse(t))) return loaded;
+    const time = new Date(t).toISOString();
+    if (loaded.some((x) => x.time === time)) return loaded;
+    return [
+      ...loaded,
+      {
+        time,
+        action: a.event_type,
+        trigger: Number(a.trigger ?? -1),
+        auth_id: Number(a.auth_id ?? 0),
+        code_id: Number(a.code_id ?? 0),
+      },
+    ];
+  }, [loaded, lastAction?.state, lastAction?.attributes]);
+  const history = useMemo(() => {
+    const seen = new Set<string>();
+    return [...(state?.history ?? []), ...older].filter((h) => {
+      const k = `${h.kind}|${h.time}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [state?.history, older]);
+  const since = now - days * 86_400_000;
+  const items = useMemo(
+    () =>
+      buildAccessLog({ history, logbook: book, actions, ids, labels: state?.labels ?? {} }).filter(
+        (i) => Date.parse(i.time) >= since,
+      ),
+    [history, book, actions, ids, state?.labels, since],
+  );
+  const shown = filterLog(items, filter);
+  const groups = groupByDay(shown, now);
+  const problems = items.filter((i) => i.problem).length;
   return (
-    <Card className="ac-section">
-      <h3 className="ac-h">Posledních {items.length} pokusů</h3>
-      {items.slice(0, 50).map((h, i) => (
-        <HistoryRow key={`${h.time}-${i}`} item={h} now={now} />
-      ))}
-    </Card>
+    <div className="ac-log" data-testid="access-log">
+      <div className="ac-log-bar">
+        <div data-testid="access-log-filter">
+          <SegmentedControl
+            label="Filtr historie"
+            hideLabel
+            size="sm"
+            value={filter}
+            onChange={setFilter}
+            options={LOG_FILTERS.map(([k, l]) => [
+              k,
+              k === 'problems' && problems ? `${l} (${problems})` : l,
+            ])}
+          />
+        </div>
+        <small className="ac-log-range">
+          {days === LOG_DAYS ? 'Posledních 72 hodin' : `Posledních ${days} dní`} ·{' '}
+          {czCount(shown.length, 'záznam', 'záznamy', 'záznamů')}
+        </small>
+      </div>
+      {loading ? (
+        <EmptyState title="Načítám historii…" />
+      ) : !groups.length ? (
+        <EmptyState title={filter === 'problems' ? 'Žádné problémy' : 'Žádné záznamy'}>
+          {filter === 'problems'
+            ? 'Za zvolené období nic nehlásí zámek ani BioLock.'
+            : 'Za zvolené období tu nic není.'}
+        </EmptyState>
+      ) : (
+        groups.map((g) => (
+          <Card key={g.key} className="ac-section ac-log-day" data-testid="access-log-day">
+            <h3 className="ac-h">{g.label}</h3>
+            {g.items.map((i) => (
+              <div
+                key={i.key}
+                data-testid="access-log-item"
+                data-source={i.source}
+                data-problem={i.problem}
+              >
+                <StatusRow
+                  tone={LOG_TONE[i.tone]}
+                  icon={<Icon name={i.icon} />}
+                  label={i.title}
+                  detail={
+                    <>
+                      <span className="ac-log-src">{i.source === 'nuki' ? 'Nuki' : 'BioLock'}</span>
+                      {i.detail ? ` · ${i.detail}` : ''}
+                    </>
+                  }
+                  value=""
+                  time={new Date(i.time).toLocaleTimeString('cs-CZ', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                />
+              </div>
+            ))}
+          </Card>
+        ))
+      )}
+      {!loading && (
+        <div className="ac-center">
+          <Button
+            size="sm"
+            data-testid="access-log-more"
+            onClick={() => setDays((d) => d + LOG_DAYS)}
+          >
+            Načíst starší
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1096,6 +1388,80 @@ const LOCK_CS: Record<string, string> = {
   unlocking: 'Odemyká',
   jammed: 'Zaseknuto',
 };
+const ACTION_CS: Record<string, string> = {
+  unlock: 'odemčení',
+  lock: 'zamčení',
+  unlatch: 'otevření západky',
+  lock_n_go: "Lock 'n' Go",
+  lock_n_go_unlatch: "Lock 'n' Go se západkou",
+  full_lock: 'dvojité zamčení',
+};
+/** Smart lock status – parity with the original Přístup dashboard tiles. */
+function NukiCard({ ctx }: { ctx: Ctx }) {
+  const { ent, now } = ctx;
+  const lock = ent.lock as { state?: string; last_changed?: string } | undefined;
+  const st = lock?.state;
+  const available = Boolean(lock) && st !== 'unavailable' && st !== 'unknown';
+  const pct = Number(ent.lockBattery?.state ?? ent.nukiBattery?.state);
+  const critical = ent.lockBatteryCritical?.state === 'on';
+  const act = ent.lockAction as
+    { state?: string; attributes?: Record<string, unknown> } | undefined;
+  const a = act?.attributes;
+  const last =
+    typeof a?.event_type === 'string' && act?.state && !Number.isNaN(Date.parse(act.state))
+      ? `${ACTION_CS[a.event_type] ?? 'akce'} ${lockSource({ time: act.state, action: a.event_type, trigger: Number(a.trigger ?? -1), auth_id: Number(a.auth_id ?? 0), code_id: Number(a.code_id ?? 0) })} · ${whenCs(act.state, now)}`
+      : null;
+  return (
+    <Card className="ac-section" data-testid="access-nuki">
+      <h3 className="ac-h">Zámek Nuki</h3>
+      <StatusRow
+        tone={!available ? 'warn' : st === 'jammed' ? 'crit' : st === 'locked' ? 'ok' : 'accent'}
+        icon={<Icon name={st === 'locked' ? 'lock' : st === 'jammed' ? 'alert' : 'unlock'} />}
+        label={available ? (LOCK_CS[st ?? ''] ?? '—') : 'Zámek není dostupný'}
+        detail={
+          lock?.last_changed
+            ? `od ${whenCs(lock.last_changed, now)}${last ? ` · poslední ${last}` : ''}`
+            : (last ?? undefined)
+        }
+        value=""
+        data-testid="access-nuki-state"
+      />
+      <StatusRow
+        tone={critical ? 'crit' : Number.isNaN(pct) ? 'neutral' : pct < 20 ? 'warn' : 'ok'}
+        icon={<Icon name="bat" />}
+        label="Baterie"
+        detail={critical ? 'Kritická – vyměňte nebo nabijte baterii' : 'V pořádku'}
+        value={Number.isNaN(pct) ? '—' : `${Math.round(pct)} %`}
+      />
+      <StatusRow
+        tone={available ? 'ok' : 'warn'}
+        icon={<Icon name="wifi" />}
+        label="Připojení"
+        detail={
+          available
+            ? 'Zámek hlásí stav do Home Assistantu'
+            : 'Zámek se neozývá – Wi-Fi nebo baterie?'
+        }
+        value={available ? 'online' : 'offline'}
+      />
+      <StatusRow
+        tone={st === 'jammed' ? 'crit' : 'ok'}
+        icon={<Icon name="alert" />}
+        label="Zaseknutí"
+        detail={st === 'jammed' ? 'Motor se zablokoval – zkontrolujte dveře' : 'Bez zaseknutí'}
+        value=""
+      />
+      <StatusRow
+        tone={ent.nukiPaired?.state === 'on' && ent.nukiConnected?.state === 'on' ? 'ok' : 'warn'}
+        icon={<Icon name="chip" />}
+        label="BioLock ↔ zámek (Bluetooth)"
+        detail={`${ent.nukiPaired?.state === 'on' ? 'spárováno' : 'nespárováno'} · ${ent.nukiConnected?.state === 'on' ? 'připojeno' : 'nepřipojeno'}`}
+        value=""
+      />
+    </Card>
+  );
+}
+
 function DeviceTab({ ctx }: { ctx: Ctx }) {
   const { api, ent, serviceOn, remaining, run, setConfirm, refresh, state, now } = ctx;
   const num = (s: string | undefined) =>
@@ -1163,6 +1529,7 @@ function DeviceTab({ ctx }: { ctx: Ctx }) {
           </Pill>
         </Card>
       </div>
+      <NukiCard ctx={ctx} />
       <Card className="ac-section">
         <h3 className="ac-h">Zabezpečení</h3>
         <StatusRow

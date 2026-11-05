@@ -36,6 +36,7 @@ import {
   ENTITY_DEFAULTS_ACCESS,
 } from '@homebrain/module-access';
 import { defineHomebrainPanel, HomebrainPanel } from './host';
+const agoIsoDev = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const haAge = new URLSearchParams(location.search).get('ha_age');
 // `?live=1`: keep the production live Dnes adapter (modules.ts) on top of the fake HA connection
 // below, instead of the Dnes fixtures.
@@ -444,12 +445,59 @@ if (scenario === 'history') {
     set(E.nukiBattery, '82');
     set(E.lock, 'locked');
     set(E.lockout, 'off');
+    set(E.lockBattery, '76');
+    set(E.lockBatteryCritical, 'off');
+    set(E.lastError, 'no_reply');
+    set(E.lockAction, agoIsoDev(14 - 2 / 60), {
+      event_type: 'unlock',
+      trigger: 0,
+      auth_id: 7,
+      code_id: 0,
+    });
   }
   const refresh = () => {
     panel.hass = { ...demoHass, states: { ...demoHass.states } };
   };
   const log: Array<{ action: string; data: unknown }> = [];
-  const agoIso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const agoIso = agoIsoDev;
+  const sec = (min: number) => (Date.now() - min * 60_000) / 1000;
+  // Synthetic HA logbook of the lock + BioLock entities (last 3 days) and Nuki lock actions.
+  const logbook = [
+    { when: sec(14 - 0.05), entity_id: E.lock, state: 'unlocked' },
+    { when: sec(12), entity_id: E.lock, state: 'locked' },
+    {
+      when: sec(180),
+      entity_id: E.lock,
+      state: 'unlocked',
+      context_event_type: 'call_service',
+      context_domain: 'lock',
+    },
+    { when: sec(178), entity_id: E.lock, state: 'locked' },
+    { when: sec(26 * 60 + 2), entity_id: E.lockout, state: 'on' },
+    { when: sec(26 * 60 - 3), entity_id: E.lockout, state: 'off' },
+    { when: sec(27 * 60 - 0.05), entity_id: E.lock, state: 'open' },
+    { when: sec(27 * 60 - 2), entity_id: E.lock, state: 'locked' },
+    { when: sec(30 * 60), entity_id: E.lock, state: 'jammed' },
+    { when: sec(31 * 60), entity_id: E.lockBatteryCritical, state: 'on' },
+    { when: sec(32 * 60), entity_id: E.connected, state: 'off' },
+    { when: sec(32 * 60 - 4), entity_id: E.connected, state: 'on' },
+    { when: sec(50 * 60), entity_id: E.lastError, state: 'verify: unknown_result' },
+    { when: sec(51 * 60), entity_id: E.service, state: 'on' },
+    { when: sec(51 * 60 - 9), entity_id: E.service, state: 'off' },
+    {
+      when: sec(52 * 60),
+      entity_id: E.lastUser,
+      name: 'BioLock',
+      message: 'Odemkl(a) Petra (dlaň)',
+    },
+    { when: sec(52 * 60 - 0.1), entity_id: E.lock, state: 'unlocked' },
+  ];
+  const lockActions = [
+    { time: agoIso(12 + 1 / 60), action: 'lock', trigger: 6, auth_id: 0, code_id: 0 },
+    { time: agoIso(178 + 1 / 60), action: 'lock', trigger: 2, auth_id: 0, code_id: 0 },
+    { time: agoIso(180 + 1 / 60), action: 'unlock', trigger: 172, auth_id: 0, code_id: 0 },
+    { time: agoIso(27 * 60 - 2 + 1 / 60), action: 'lock', trigger: 0, auth_id: 0, code_id: 3 },
+  ];
   const accessApi = createMockAccessApi({
     latencyMs: 80,
     enrollMs: Number(q.get('enroll_ms') ?? 1500),
@@ -475,6 +523,25 @@ if (scenario === 'history') {
         reason: 'not_allowed',
       },
       { kind: 'rejected', time: agoIso(26 * 60), type: 'face', reason: 'not_recognized' },
+      { kind: 'lockout', time: agoIso(26 * 60 + 2), action: 'lockout' },
+      {
+        kind: 'enrolled',
+        time: agoIso(40 * 60),
+        ok: true,
+        user_id: 1003,
+        type: 'palm',
+        type_requested: 'palm',
+        name: 'Petra',
+        attempts: 2,
+      },
+      {
+        kind: 'enrolled',
+        time: agoIso(40 * 60 + 1),
+        ok: false,
+        type_requested: 'palm',
+        name: 'Petra',
+        reason: 'face_instead_of_palm',
+      },
       {
         kind: 'recognized',
         time: agoIso(27 * 60),
@@ -485,6 +552,8 @@ if (scenario === 'history') {
       },
     ],
     log,
+    logbook: q.get('access_log') === 'empty' ? [] : logbook,
+    lockActions,
     serviceMode: () => demoHass.states[E.service]?.state === 'on',
     onEntity: (action, data) => {
       if (action === 'service_mode' || action === 'biometric')

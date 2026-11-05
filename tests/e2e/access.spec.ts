@@ -150,3 +150,110 @@ test('Osoby: matice obličej · pravá · levá a důvod v posledních průchode
     'odemykání vypnuto',
   );
 });
+
+test('Osoby: zápis spuštěný mimo panel (skript v HA) se ukáže hned a dlaň jde označit', async ({
+  page,
+}) => {
+  await page.goto('/homebrain-pristup');
+  const jan = page.getByTestId('access-person').filter({ hasText: 'Jan' });
+  await expect(jan).toHaveCount(1);
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        __hbAccess: { externalEnrol(s: { type: string; name: string; ok: boolean }): void };
+      }
+    ).__hbAccess.externalEnrol({ type: 'palm', name: 'Jan', ok: true }),
+  );
+  const banner = page.getByTestId('access-enrol-status');
+  await expect(banner).toHaveAttribute('data-phase', 'pending');
+  await expect(banner).toContainText('obličej místo dlaně');
+  await expect(banner).toHaveAttribute('data-phase', 'ok');
+  await expect(banner).toContainText('Zapsáno: Jan – dlaň');
+  // the new palm (ID 1004) is on Jan's card right away – no manual re-list
+  await expect(jan.locator('[title*="1004"]')).toHaveCount(1);
+  await page.getByTestId('access-enrol-hand-left').click();
+  await expect(banner).toHaveCount(0);
+  const log = await actions(page);
+  expect(log).toContainEqual({ action: 'label', data: { user_id: 1004, hand: 'left' } });
+  expect(log.some((e) => e.action === 'list_users')).toBe(false);
+});
+
+test('Osoby: nepovedený zápis mimo panel ukáže český důvod', async ({ page }) => {
+  await page.goto('/homebrain-pristup?enroll_ms=200');
+  await expect(page.getByTestId('access-person')).toHaveCount(3);
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        __hbAccess: {
+          externalEnrol(s: { type: string; name: string; ok: boolean; reason: string }): void;
+        };
+      }
+    ).__hbAccess.externalEnrol({ type: 'palm', name: 'Petra', ok: false, reason: 'timeout' }),
+  );
+  const banner = page.getByTestId('access-enrol-status');
+  await expect(banner).toHaveAttribute('data-phase', 'failed');
+  await expect(banner).toContainText('Zápis se nepovedl: Petra – dlaň');
+  await expect(banner).toContainText('nic nezachytil');
+});
+
+test('Historie: BioLock i Nuki v jednom záznamu, filtry a dny', async ({ page }) => {
+  // fixtures are relative to now: pin the clock so "Dnes"/"Včera" never straddle midnight
+  await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
+  await page.goto('/homebrain-pristup/historie');
+  const log = page.getByTestId('access-log');
+  await expect(log.getByTestId('access-log-day').first()).toContainText('Dnes');
+  await expect(log.getByTestId('access-log-day').nth(1)).toContainText('Včera');
+  const items = log.getByTestId('access-log-item');
+  await expect(items.filter({ hasText: 'BioLock – Jan, obličej' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Home Assistant' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'automatické zamčení' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'klávesnicí' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Zapsáno: Petra – pravá dlaň' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Zápis se nepovedl: Petra' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'zablokoval' })).toHaveCount(1);
+
+  const filter = page.getByTestId('access-log-filter');
+  await filter.getByRole('radio', { name: 'Nuki' }).click();
+  await expect(items.first()).toBeVisible();
+  await expect
+    .poll(() =>
+      items.evaluateAll((els) => els.every((e) => e.getAttribute('data-source') === 'nuki')),
+    )
+    .toBe(true);
+  await filter.getByRole('radio', { name: /Problémy/ }).click();
+  await expect(items.filter({ hasText: 'Zámek se zasekl' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Kritická baterie' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Chyba snímače' })).toHaveCount(1);
+  await expect
+    .poll(() =>
+      items.evaluateAll((els) => els.every((e) => e.getAttribute('data-problem') === 'true')),
+    )
+    .toBe(true);
+
+  // live: a new logbook entry appears without reload
+  await filter.getByRole('radio', { name: 'Vše' }).click();
+  await page.evaluate(() =>
+    (
+      window as unknown as { __hbAccess: { pushLogbook(e: Record<string, unknown>): void } }
+    ).__hbAccess.pushLogbook({
+      when: Date.now() / 1000,
+      entity_id: 'lock.front_door',
+      state: 'jammed',
+    }),
+  );
+  await expect(items.filter({ hasText: 'Zámek se zasekl' })).toHaveCount(2);
+  await expect(page.getByTestId('access-log-more')).toBeVisible();
+  expect(await page.locator('html').evaluate((root) => root.scrollWidth)).toBeLessThanOrEqual(
+    page.viewportSize()!.width,
+  );
+});
+
+test('Zařízení: karta zámku Nuki (stav, baterie, připojení, poslední akce)', async ({ page }) => {
+  await page.goto('/homebrain-pristup/zarizeni');
+  const card = page.getByTestId('access-nuki');
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId('access-nuki-state')).toContainText('Zamčeno');
+  await expect(card).toContainText('76 %');
+  await expect(card).toContainText('online');
+  await expect(card).toContainText('poslední odemčení aplikací / Bluetooth');
+});
