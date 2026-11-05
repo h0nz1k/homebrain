@@ -129,13 +129,14 @@ describe('fryer Dnes signal', () => {
       fryerModel({ status: st('user_action'), drawer: st('off') }, now),
       now,
     );
-    expect(action).toMatchObject({ module: 'recipes', severity: 'warning' });
-    expect(action!.title).toContain('Protřepej');
+    expect(action).toMatchObject({ module: 'recipes', severity: 'warning', immediate: true });
+    expect(action!.title).toBe('Fritéza · Protřepejte jídlo');
     const [cook] = fryerSignals(
       fryerModel({ status: st('cooking'), remaining: st('125', new Date(now).toISOString()) }, now),
       now,
     );
-    expect(cook).toMatchObject({ severity: 'info', value: { v: '2:05', label: 'zbývá' } });
+    expect(cook).toMatchObject({ severity: 'notice', value: { v: '2:05', label: 'do konce' } });
+    expect(cook!.immediate).toBeUndefined();
   });
   it('feeds Dnes from the entity store and follows updates', () => {
     const store = createEntityStore();

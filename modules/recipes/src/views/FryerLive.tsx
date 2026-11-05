@@ -24,7 +24,7 @@ const CONTROL_LABEL: Record<FryerControl, string> = {
 };
 
 const HINT: Partial<Record<FryerModel['phase'], string>> = {
-  action: 'Vytáhněte šuplík, protřepejte nebo otočte jídlo a zasuňte ho zpět.',
+  action: 'Šuplík ven, protřepat nebo otočit a zpět – pečení pak samo pokračuje.',
   drawer: 'Pečení stojí. Po protřepání šuplík zasuňte, fritéza naváže.',
   paused: 'Pečení je pozastavené, pokračovat lze na fritéze.',
   done: 'Jídlo je hotové, můžete ho vyndat.',
@@ -136,7 +136,7 @@ export function FryerLiveCard({
         <Ring fraction={m.progress ?? 0} size={112} />
         <span className="rc-fl-time num" data-testid="recipes-fryer-countdown">
           {m.phase === 'done' ? <Icon name="check" /> : countdown}
-          {m.phase !== 'done' && m.remainingS !== null ? <small>zbývá</small> : null}
+          {m.phase !== 'done' && m.remainingS !== null ? <small>do konce</small> : null}
         </span>
       </div>
       <div className="rc-fl-head">

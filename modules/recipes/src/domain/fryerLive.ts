@@ -102,7 +102,7 @@ export const FRYER_PHASE_LABEL: Record<FryerPhase, string> = {
   idle: 'Připraveno',
   preheat: 'Předehřívá',
   cooking: 'Peče',
-  action: 'Protřepej nebo otoč – šuplík ven',
+  action: 'Protřepejte nebo otočte jídlo',
   drawer: 'Šuplík otevřený',
   paused: 'Pozastaveno',
   done: 'Hotovo',

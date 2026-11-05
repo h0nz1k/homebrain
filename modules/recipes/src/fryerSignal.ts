@@ -14,6 +14,12 @@ import {
 
 const RECIPES_PATH = '/homebrain-recepty';
 
+/** Short act-now titles: the Dnes hero must stay two lines on a 390 px phone. */
+const SIGNAL_TITLE: Partial<Record<FryerModel['phase'], string>> = {
+  action: 'Protřepejte jídlo',
+  drawer: 'Zasuňte šuplík',
+};
+
 /** Read every resolved fryer entity from the store. */
 export function readFryerStates(
   store: Pick<EntityStore, 'getSnapshot'>,
@@ -40,37 +46,34 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       : null;
   const context =
     model.phase === 'action'
-      ? 'Vytáhněte šuplík, protřepejte nebo otočte jídlo a vraťte ho zpět.'
+      ? 'Šuplík ven, protřepat nebo otočit a zpět – pečení pak samo pokračuje.'
       : model.phase === 'drawer'
-        ? 'Fritéza čeká – po protřepání šuplík zasuňte, pečení pokračuje.'
+        ? 'Pečení stojí, dokud šuplík nezasunete.'
         : model.phase === 'done'
           ? 'Pečení doběhlo, jídlo můžete vyndat.'
           : model.phase === 'warm'
             ? 'Jídlo se udržuje teplé.'
             : model.phase === 'error'
               ? 'Fritéza hlásí chybu, zkontrolujte ji.'
-              : [temp, left ? `zbývá ${left}` : null].filter(Boolean).join(' · ');
+              : [temp, left ? `do konce ${left}` : null].filter(Boolean).join(' · ');
   return [
     {
       id: 'recipes.airfryer',
       module: 'recipes',
       group: 'recipes.airfryer',
       kind: 'state',
-      // Shake/turn and drawer-out are time-critical in the kitchen: warning puts them in the hero.
-      severity:
-        model.phase === 'error' || model.phase === 'action' || model.phase === 'drawer'
-          ? 'warning'
-          : urgent
-            ? 'notice'
-            : 'info',
+      // Shake/turn, drawer out, done and error need a hand now: warning hero above the ribbon.
+      // A running fryer (preheat, cooking, keep warm) stays a visible card with the countdown.
+      severity: urgent ? 'warning' : 'notice',
+      ...(urgent ? { immediate: true } : {}),
       tone: model.phase === 'error' ? 'risk' : 'neutral',
-      relevance: urgent ? 0.8 : 0.45,
+      relevance: urgent ? 0.9 : 0.6,
       valid_from: new Date(now - 60_000).toISOString(),
       valid_to: new Date(now + 15 * 60_000).toISOString(),
-      title: `Fritéza · ${model.label}`,
+      title: `Fritéza · ${SIGNAL_TITLE[model.phase] ?? model.label}`,
       context,
-      ...(left ? { value: { v: left, label: 'zbývá' } } : {}),
-      action: { type: 'navigate', label: 'Recepty', href: RECIPES_PATH },
+      ...(left ? { value: { v: left, label: 'do konce' } } : {}),
+      action: { type: 'navigate', label: 'Otevřít fritézu', href: RECIPES_PATH },
       source: { name: 'Fritéza', updated_at: new Date(now).toISOString(), stale_after_s: 300 },
     },
   ];

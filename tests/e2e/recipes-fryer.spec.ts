@@ -28,14 +28,15 @@ test('Recepty: fritéza peče – odpočet, teploty, pozastavit, zastavit s potv
   await expect(dialog).toHaveCount(0);
   await page.getByTestId('recipes-fryer-stop').click();
   await page.getByTestId('recipes-fryer-stop-confirm').click();
-  await expect(page.getByText('Fritéza · zastavit')).toBeVisible();
+  // Toast text is also mirrored into a screen-reader live region, so target the toast itself.
+  await expect(page.getByTestId('hb-toast')).toContainText('Fritéza · zastavit');
 });
 
 test('Recepty: protřepat, šuplík venku, hotovo, chyba; vypnutá fritéza je skrytá', async ({
   page,
 }) => {
   const cases: Array<[string, string]> = [
-    ['action', 'Protřepej nebo otoč – šuplík ven'],
+    ['action', 'Protřepejte nebo otočte jídlo'],
     ['drawer', 'Šuplík otevřený'],
     ['done', 'Hotovo'],
     ['warm', 'Udržuje teplé'],
@@ -71,9 +72,21 @@ test('Recepty na telefonu 390 px: karta fritézy nepřetéká', async ({ page })
 
 test('Dnes: běžící fritéza má signál, protřepání je naléhavé', async ({ page }) => {
   await page.goto('/homebrain-dnes?fryerlive=action');
-  await expect(page.getByText('Fritéza · Protřepej nebo otoč – šuplík ven')).toBeVisible({
+  await expect(page.getByText('Fritéza · Protřepejte jídlo')).toBeVisible({
     timeout: 20_000,
   });
+  // Act-now fryer leads Dnes: hero above the day ribbon, whole card in the first phone viewport.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/homebrain-dnes?fryerlive=action');
+  const hero = page.getByTestId('hero-signal');
+  await expect(hero).toContainText('Fritéza · Protřepejte jídlo', { timeout: 20_000 });
+  const heroBox = (await hero.boundingBox())!;
+  const ribbonBox = (await page.getByTestId('ribbon-card').boundingBox())!;
+  expect(heroBox.y).toBeLessThan(ribbonBox.y);
+  expect(heroBox.y + heroBox.height).toBeLessThanOrEqual(844);
+  // A running fryer is a regular card (countdown), not an act-now hero above the ribbon.
+  await page.goto('/homebrain-dnes?fryerlive=cooking');
+  await expect(page.getByText(/Fritéza · Peče/).first()).toBeVisible({ timeout: 20_000 });
   await page.goto('/homebrain-dnes?fryerlive=off');
   await expect(page.getByTestId('today')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/Fritéza ·/)).toHaveCount(0);

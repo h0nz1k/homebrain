@@ -29,6 +29,11 @@ export interface Signal {
   action?: Action;
   source: SignalSource;
   related?: string[];
+  /**
+   * Someone has to act within minutes (airfryer „Protřepej“, „Hotovo“). As the hero it goes
+   * above the day ribbon so it is in the first viewport on phones too.
+   */
+  immediate?: boolean;
 }
 export interface RankedSignal extends Signal {
   u: number;
