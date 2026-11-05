@@ -5,3 +5,4 @@ export * from './toast.js';
 export * from './save-state.js';
 export * from './controls.js';
 export * from './plural.js';
+export * from './controls.js';

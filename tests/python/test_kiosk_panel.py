@@ -22,6 +22,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/energy/pv_forecast": {},
     "homebrain/waste/history": {},
     "homebrain/robots/get": {},
+    "homebrain/robots/map": {"slot": 1},
     "homebrain/wine/list": {},
     "homebrain/wine/search": {"query": "x"},
     "homebrain/wine/get": {"wine_id": "x"},

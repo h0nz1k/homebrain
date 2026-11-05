@@ -29,7 +29,7 @@ from .const import (
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_pv_forecast
 from .recipes import websocket as recipes_ws
-from .robots.ws import websocket_robots_get
+from .robots.ws import RobotMapImageView, websocket_robots_get, websocket_robots_map
 from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
@@ -70,9 +70,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_weather_alerts)
     if hass.http is not None:
         hass.http.register_view(RadarImageView())
+        hass.http.register_view(RobotMapImageView())
     websocket_api.async_register_command(hass, websocket_pv_forecast)
     websocket_api.async_register_command(hass, websocket_waste_history)
     websocket_api.async_register_command(hass, websocket_robots_get)
+    websocket_api.async_register_command(hass, websocket_robots_map)
     return True
 
 

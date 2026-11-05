@@ -55,6 +55,8 @@ export interface RobotModel {
   mapName: string | null;
   mapsError: string | null;
   mapImage: string | null;
+  /** State of the map image entity (changes whenever HA refreshes the map). */
+  mapStamp: string | null;
 }
 
 type Get = (entityId: string | undefined) => EntityStateLike | undefined;
@@ -176,6 +178,7 @@ export function buildRobot(
     mapName: map ? map.name || null : null,
     mapsError: meta ? meta.maps_error : null,
     mapImage: imageUrl(get(b('map_image'))),
+    mapStamp: text(get(b('map_image'))),
   };
 }
 

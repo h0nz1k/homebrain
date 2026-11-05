@@ -9,7 +9,7 @@ test('patra, stav, chyba s návodem a úklid místností v pořadí', async ({ p
   await expect(tabs.nth(2)).toContainText('3. patro');
   await expect(page.getByTestId('robots-state')).toHaveText('Uklízí místnosti');
   await expect(page.getByTestId('robots-battery')).toContainText('64 %');
-  await expect(page.getByTestId('robots-map')).toBeVisible();
+  await expect(page.getByTestId('robots-vector-map')).toBeVisible();
 
   await page.getByTestId('robots-floor-2').click();
   await expect(page.getByTestId('robots-problem')).toContainText('Zamotaný hlavní kartáč');
@@ -39,7 +39,7 @@ test('patra, stav, chyba s návodem a úklid místností v pořadí', async ({ p
     ),
   ).toBe(0);
   await page.getByTestId('robots-confirm-send').click();
-  await expect(page.getByTestId('robots-toast')).toContainText('Čekám na skutečný stav');
+  await expect(page.getByText(/Čekám na skutečný stav/).first()).toBeVisible();
   const calls = await page.evaluate(
     () => (window as unknown as { __hbRobotCalls: Record<string, unknown>[] }).__hbRobotCalls,
   );

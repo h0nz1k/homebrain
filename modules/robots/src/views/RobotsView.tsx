@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
+import { Button, Card, Chip, SegmentedControl, useToast } from '@homebrain/ui';
 import {
   attention,
   buildRobot,
@@ -21,9 +22,14 @@ import {
 } from '../commands.js';
 import { orderBadge, pruneOrder, toggleRoom } from '../rooms.js';
 import { RobotArt } from './RobotArt.js';
+import {
+  VectorFloorPlan,
+  VectorMapBoundary,
+  vectorMapEnabled,
+  type MarkerTone,
+} from './VectorMap.js';
+import { useVectorMap } from './useVectorMap.js';
 import { robotsStyles } from './robotsStyles.js';
-
-type Toast = { kind: 'ok' | 'error'; text: string } | null;
 
 function initialSlot(slots: number[]): number | null {
   const wanted = Number(new URLSearchParams(globalThis.location?.search ?? '').get('robot'));
@@ -157,14 +163,44 @@ function RobotPanel({
   const [fan, setFan] = useState<string | null>(robot.fan);
   const [confirm, setConfirm] = useState<{ title: string; plan: ServiceCallPlan[] } | null>(null);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<Toast>(null);
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 6000);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const notify = useToast();
   const selected = pruneOrder(order, robot.rooms);
+  const [vectorOn] = useState(vectorMapEnabled);
+  const [fullTrail, setFullTrail] = useState(readTrailPref);
+  const vector = useVectorMap(
+    connection,
+    robot.slot,
+    robot.mapStamp,
+    robot.status.tone === 'cleaning' || robot.status.tone === 'returning',
+    vectorOn,
+  );
   const canAct = !!connection && robot.available;
+  const vmap = vector?.available ? vector.map : null;
+  const areas = new Map((vmap?.rooms ?? []).map((room) => [room.id, Math.round(room.area_m2)]));
+  const portraitMap =
+    !!vmap && vmap.bounds[3] - vmap.bounds[1] > (vmap.bounds[2] - vmap.bounds[0]) * 1.1;
+  // <image> cannot send the bearer token: the raster base path is signed by HA (10 min).
+  const resolveBase = useMemo(
+    () =>
+      connection
+        ? async (path: string) => {
+            const message = { type: 'auth/sign_path', path, expires: 600 };
+            return (await connection.sendMessagePromise<{ path: string }>(message)).path;
+          }
+        : null,
+    [connection],
+  );
+  const imageMap = robot.mapImage ? (
+    <img
+      src={robot.mapImage}
+      alt={`Mapa – ${robot.floor || robot.name}`}
+      data-testid="robots-map"
+    />
+  ) : (
+    <p className="rb-map-empty">
+      Mapa se ukáže po přiřazení obrázku mapy (entita image) v nastavení robota.
+    </p>
+  );
   const modes = (['vacuum', 'mop', 'both'] as CleanMode[]).filter((m) =>
     modeOptionAvailable(m, robot.modeOptions),
   );
@@ -175,13 +211,12 @@ function RobotPanel({
     setSending(true);
     try {
       await runPlan(connection, confirm.plan);
-      setToast({ kind: 'ok', text: 'Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.' });
+      notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
       if (confirm.plan.some((step) => step.service === 'vacuum.send_command')) setOrder([]);
     } catch (error) {
-      setToast({
-        kind: 'error',
-        text: `Příkaz se nepodařilo odeslat${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
-      });
+      notify.error(
+        `Příkaz se nepodařilo odeslat${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
+      );
     } finally {
       setSending(false);
       setConfirm(null);
@@ -189,7 +224,7 @@ function RobotPanel({
   };
   const care = (
     <>
-      <article className="rb-care rb-card" data-testid="robots-care">
+      <Card as="article" className="rb-care rb-card" data-testid="robots-care">
         <div className="rb-card-head">
           <h3>Údržba</h3>
           <p className="rb-micro">Odhad při ~1 h úklidu denně</p>
@@ -212,9 +247,10 @@ function RobotPanel({
         ) : (
           <p className="rb-note">Spotřební díly nejsou přiřazené.</p>
         )}
-      </article>
+      </Card>
 
-      <article
+      <Card
+        as="article"
         className="rb-dock rb-card"
         data-testid="robots-dock"
         data-rb-dock-warn={!!robot.dockError || robot.tanks.some((tank) => !tank.ok)}
@@ -244,15 +280,16 @@ function RobotPanel({
         ) : (
           <p className="rb-note">Nádrže doku nejsou přiřazené.</p>
         )}
-      </article>
+      </Card>
     </>
   );
   const tone = robot.status.tone;
+  const busy = tone === 'cleaning' || tone === 'returning';
   const problem = robot.error ?? robot.dockError;
   return (
     <div className="rb-grid" data-rb-tone={tone}>
       <div className="rb-col">
-        <article className="rb-hero rb-card" data-testid="robots-hero">
+        <Card as="article" className="rb-hero rb-card" data-testid="robots-hero">
           <div className="rb-hero-art">
             <RobotArt tone={tone} image={robot.image} name={robot.name} />
           </div>
@@ -291,44 +328,44 @@ function RobotPanel({
               <Battery value={robot.battery} charging={tone === 'charging'} />
               <div className="rb-hero-actions">
                 {tone === 'paused' ? (
-                  <button
-                    type="button"
-                    className="rb-btn"
+                  <Button
                     disabled={!canAct}
                     onClick={() => ask('Pokračovat v úklidu?', planSimple('resume', robot.vacuum))}
                   >
                     Pokračovat
-                  </button>
+                  </Button>
                 ) : tone === 'cleaning' ? (
                   // Pause only while cleaning – a disabled „Pauza“ in other states read as broken.
-                  <button
-                    type="button"
-                    className="rb-btn rb-btn-strong"
+                  <Button
+                    variant="strong"
                     data-testid="robots-pause"
                     disabled={!canAct}
                     onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
                   >
                     <PauseIcon />
                     Pauza
-                  </button>
+                  </Button>
                 ) : null}
-                <button
-                  type="button"
-                  className="rb-btn"
+                <Button
                   data-testid="robots-home"
                   disabled={!canAct || tone === 'charging' || tone === 'docked'}
                   onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
                 >
                   <HomeIcon />
                   Zpět do doku
-                </button>
+                </Button>
               </div>
             </div>
           </div>
-        </article>
+        </Card>
 
         {problem && (
-          <article className="rb-problem rb-card" data-testid="robots-problem" role="alert">
+          <Card
+            as="article"
+            className="rb-problem rb-card"
+            data-testid="robots-problem"
+            role="alert"
+          >
             <p className="rb-eyebrow">
               {problem.source === 'robot' ? 'Jak to opravit' : 'Dok – jak to opravit'}
             </p>
@@ -347,9 +384,8 @@ function RobotPanel({
             )}
             {robot.error && (
               <div className="rb-problem-cta">
-                <button
-                  type="button"
-                  className="rb-btn rb-btn-strong"
+                <Button
+                  variant="strong"
                   data-testid="robots-fixed-resume"
                   disabled={!canAct}
                   onClick={() =>
@@ -360,7 +396,7 @@ function RobotPanel({
                   }
                 >
                   Hotovo – pokračovat
-                </button>
+                </Button>
                 <span>Robot pokračuje až po potvrzení.</span>
               </div>
             )}
@@ -368,112 +404,152 @@ function RobotPanel({
               <summary>Podrobnosti</summary>
               Kód pro servis: {problem.code}
             </details>
-          </article>
+          </Card>
         )}
 
         {care}
       </div>
       <div className="rb-col">
-        <article className="rb-clean rb-card" data-testid="robots-clean">
+        <Card as="article" className="rb-clean rb-card" data-testid="robots-clean">
+          {/* Portrait plans on a wide card: the room list sits beside the map (container query),
+              so the card has no empty side strips; one list, so test ids stay unique. */}
           <div className="rb-card-head">
             <h3>Uklidit místnosti</h3>
-            <p className="rb-micro">{robot.mapName ?? 'Mapa'}</p>
-          </div>
-          <div className="rb-map">
-            {robot.mapImage ? (
-              <img
-                src={robot.mapImage}
-                alt={`Mapa – ${robot.floor || robot.name}`}
-                data-testid="robots-map"
-              />
-            ) : (
-              <p className="rb-map-empty">
-                Mapa se ukáže po přiřazení obrázku mapy (entita image) v nastavení robota.
-              </p>
-            )}
-          </div>
-          {robot.rooms.length ? (
-            <div className="rb-chips" role="group" aria-label="Místnosti v pořadí úklidu">
-              {robot.rooms.map((room) => {
-                const badge = orderBadge(selected, room.id);
-                return (
-                  <button
-                    key={room.id}
-                    type="button"
-                    className="rb-chip"
-                    aria-pressed={badge !== null}
-                    data-testid={`robots-room-${room.id}`}
-                    onClick={() => setOrder(toggleRoom(selected, room.id))}
-                  >
-                    {badge !== null && (
-                      <span className="rb-badge" aria-label={`pořadí ${badge}`}>
-                        {badge}
-                      </span>
-                    )}
-                    {room.name}
-                  </button>
-                );
-              })}
+            <div className="rb-card-head-side">
+              {vector?.available && vector.map.path.length > 0 && (
+                <Chip
+                  className="rb-chip rb-trail-toggle"
+                  pressed={fullTrail}
+                  data-testid="robots-trail-toggle"
+                  onPress={() => {
+                    setFullTrail(!fullTrail);
+                    writeTrailPref(!fullTrail);
+                  }}
+                >
+                  Trasa
+                </Chip>
+              )}
+              <p className="rb-micro">{robot.mapName ?? 'Mapa'}</p>
             </div>
-          ) : (
-            <p className="rb-note">
-              {robot.mapsError
-                ? 'Místnosti se nepodařilo načíst. '
-                : 'Robot zatím nemá místnosti. '}
-              <button type="button" className="rb-link" onClick={onReloadRooms}>
-                Načíst znovu
-              </button>
-            </p>
-          )}
-          <p className="rb-hint" aria-live="polite">
-            {selected.length
-              ? `${selected.length} ${selected.length === 1 ? 'místnost' : selected.length < 5 ? 'místnosti' : 'místností'} v pořadí podle čísel`
-              : 'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'}
-          </p>
-          <div className="rb-controls">
-            {modes.length > 1 && (
-              <Segmented
-                label="Režim"
-                value={mode}
-                options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
-                onChange={(value) => setMode(value as CleanMode)}
-              />
-            )}
-            {robot.fanChoices.length > 1 && (
-              <Segmented
-                label="Sání"
-                value={fan}
-                options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
-                onChange={setFan}
-              />
-            )}
           </div>
-          <button
-            type="button"
-            className="rb-primary"
-            data-testid="robots-start"
-            disabled={!canAct || !selected.length}
-            onClick={() =>
-              ask(
-                'Spustit úklid?',
-                planCleanRooms({
-                  vacuum: robot.vacuum,
-                  rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
-                  mode,
-                  currentMode: robot.mode,
-                  modeSelect: robot.modeSelect,
-                  fan,
-                  currentFan: robot.fan,
-                }),
-              )
-            }
-          >
-            Uklidit vybrané{selected.length ? ` (${selected.length})` : ''}
-          </button>
-          {!connection && (
-            <p className="rb-micro">Bez spojení s Home Assistantem nelze posílat příkazy.</p>
-          )}
-        </article>
+          <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
+            <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
+              {vector?.available ? (
+                <VectorMapBoundary resetKey={vector.map.digest} fallback={imageMap}>
+                  <VectorFloorPlan
+                    map={vector.map}
+                    rooms={robot.rooms}
+                    selected={selected}
+                    onToggle={(id) => setOrder(toggleRoom(selected, id))}
+                    tone={markerTone(robot.status.tone)}
+                    label={`Mapa – ${robot.floor || robot.name}`}
+                    callout={
+                      robot.error
+                        ? { title: robot.error.title, detail: robot.error.steps[0] }
+                        : null
+                    }
+                    resolveBase={resolveBase}
+                    trail={fullTrail ? 'full' : 'faded'}
+                  />
+                </VectorMapBoundary>
+              ) : vector === null && robot.mapImage ? (
+                <span className="rb-map-loading" aria-hidden="true" />
+              ) : (
+                imageMap
+              )}
+            </div>
+            <div className="rb-clean-side">
+              {robot.rooms.length ? (
+                <div className="rb-chips" role="group" aria-label="Místnosti v pořadí úklidu">
+                  {robot.rooms.map((room) => {
+                    const badge = orderBadge(selected, room.id);
+                    return (
+                      <Chip
+                        key={room.id}
+                        className="rb-chip"
+                        pressed={badge !== null}
+                        badge={badge}
+                        badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
+                        data-testid={`robots-room-${room.id}`}
+                        onPress={() => setOrder(toggleRoom(selected, room.id))}
+                      >
+                        <span className="rb-chip-name">{room.name}</span>
+                        {areas.get(room.id) ? (
+                          <span className="rb-chip-area">{areas.get(room.id)} m²</span>
+                        ) : null}
+                      </Chip>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rb-note">
+                  {robot.mapsError
+                    ? 'Místnosti se nepodařilo načíst. '
+                    : 'Robot zatím nemá místnosti. '}
+                  <button type="button" className="rb-link" onClick={onReloadRooms}>
+                    Načíst znovu
+                  </button>
+                </p>
+              )}
+
+              <p className="rb-hint" aria-live="polite">
+                {selected.length
+                  ? `${selected.length} ${selected.length === 1 ? 'místnost' : selected.length < 5 ? 'místnosti' : 'místností'} v pořadí podle čísel`
+                  : busy
+                    ? 'Robot právě uklízí. Chcete-li úklid změnit, vyberte místnosti.'
+                    : 'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'}
+              </p>
+              <div className="rb-controls">
+                {modes.length > 1 && (
+                  <SegmentedControl
+                    label="Režim"
+                    value={mode}
+                    options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
+                    onChange={(value) => setMode(value as CleanMode)}
+                  />
+                )}
+                {robot.fanChoices.length > 1 && (
+                  <SegmentedControl
+                    label="Sání"
+                    value={fan}
+                    options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
+                    onChange={setFan}
+                  />
+                )}
+              </div>
+              <Button
+                variant="primary"
+                data-testid="robots-start"
+                disabled={!canAct || !selected.length || Boolean(robot.error)}
+                onClick={() =>
+                  ask(
+                    'Spustit úklid?',
+                    planCleanRooms({
+                      vacuum: robot.vacuum,
+                      rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
+                      mode,
+                      currentMode: robot.mode,
+                      modeSelect: robot.modeSelect,
+                      fan,
+                      currentFan: robot.fan,
+                    }),
+                  )
+                }
+              >
+                {robot.error
+                  ? 'Nejdřív odstraňte závadu'
+                  : busy
+                    ? selected.length
+                      ? `Přerušit a uklidit vybrané (${selected.length})`
+                      : 'Probíhá úklid'
+                    : `Uklidit vybrané${selected.length ? ` (${selected.length})` : ''}`}
+              </Button>
+              {!connection && (
+                <p className="rb-micro">Bez spojení s Home Assistantem nelze posílat příkazy.</p>
+              )}
+            </div>
+          </div>
+        </Card>
       </div>
 
       {confirm && (
@@ -501,65 +577,28 @@ function RobotPanel({
                 <p className="rb-micro">Robot právě uklízí – nový úklid nahradí ten současný.</p>
               )}
             <div className="rb-sheet-actions">
-              <button
-                type="button"
-                className="rb-btn"
-                onClick={() => setConfirm(null)}
-                disabled={sending}
-              >
+              <Button onClick={() => setConfirm(null)} disabled={sending}>
                 Zrušit
-              </button>
-              <button
-                type="button"
-                className="rb-primary"
+              </Button>
+              <Button
+                variant="primary"
                 data-testid="robots-confirm-send"
                 onClick={() => void send()}
                 disabled={sending}
               >
                 {sending ? 'Odesílám…' : 'Odeslat'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
-      )}
-      {toast && (
-        <p className="rb-toast" data-kind={toast.kind} role="status" data-testid="robots-toast">
-          {toast.text}
-        </p>
       )}
     </div>
   );
 }
 
-function Segmented({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string | null;
-  options: [string, string][];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="rb-seg-wrap">
-      <span className="rb-seg-label">{label}</span>
-      <div className="rb-seg" role="radiogroup" aria-label={label}>
-        {options.map(([key, text]) => (
-          <button
-            key={key}
-            type="button"
-            role="radio"
-            aria-checked={value === key}
-            onClick={() => onChange(key)}
-          >
-            {text}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+function markerTone(tone: RobotModel['status']['tone']): MarkerTone {
+  if (tone === 'cleaning' || tone === 'returning' || tone === 'error') return tone;
+  return 'idle';
 }
 
 function Battery({ value, charging }: { value: number | null; charging: boolean }) {
@@ -637,4 +676,22 @@ function Tank({ ok, kind }: { ok: boolean; kind: string }) {
       />
     </svg>
   );
+}
+
+const TRAIL_KEY = 'hb.robots.trail';
+
+function readTrailPref(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(TRAIL_KEY) === 'full';
+  } catch {
+    return false;
+  }
+}
+
+function writeTrailPref(full: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(TRAIL_KEY, full ? 'full' : 'faded');
+  } catch {
+    /* private mode: the toggle still works for this session */
+  }
 }

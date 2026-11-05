@@ -3,11 +3,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest';
 import { createEntityStore, type ConnectionLike } from '@homebrain/ha-client';
 import { createRobotsDemo } from '../demo.js';
+import { demoVectorMap } from '../map/demo.js';
+import { Toaster } from '@homebrain/ui';
 import RobotsView from './RobotsView.js';
 
 afterEach(cleanup);
 
-function setup() {
+function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
   const demo = createRobotsDemo(Date.now());
   const store = createEntityStore();
   store.update(demo.states);
@@ -15,11 +17,30 @@ function setup() {
   const connection: ConnectionLike = {
     async sendMessagePromise<T>(message: { type: string }) {
       if (message.type === 'homebrain/robots/get') return demo.ws as T;
+      if (message.type === 'homebrain/robots/map') {
+        const slot = (message as { slot?: number }).slot ?? 0;
+        if (vector === 'off') return { available: false, reason: 'unsupported_ha' } as T;
+        const result = demoVectorMap(slot, 0);
+        if (vector === 'broken' && result.available) {
+          // Passes validation but makes rendering throw → error boundary → PNG fallback.
+          Object.defineProperty(result.map, 'floor', {
+            get() {
+              throw new Error('boom');
+            },
+          });
+        }
+        return result as T;
+      }
       sent.push(message as Record<string, unknown>);
       return undefined as T;
     },
   };
-  render(<RobotsView store={store} bindings={demo.bindings} connection={connection} />);
+  render(
+    <>
+      <RobotsView store={store} bindings={demo.bindings} connection={connection} />
+      <Toaster />
+    </>,
+  );
   return { sent };
 }
 
@@ -54,7 +75,7 @@ it('selects rooms in order and sends only after confirmation', async () => {
       target: { entity_id: 'vacuum.demo_robot_1' },
     },
   ]);
-  expect(screen.getByTestId('robots-toast').textContent).toContain('Čekám na skutečný stav');
+  expect((await screen.findAllByText(/Čekám na skutečný stav/)).length).toBeGreaterThan(0);
   expect(screen.getByTestId('robots-room-3').getAttribute('aria-pressed')).toBe('false');
 });
 
@@ -82,4 +103,39 @@ it('resumes after a fixed error only through the confirmation sheet', async () =
 it('shows an empty state without bound robots', () => {
   render(<RobotsView store={createEntityStore()} bindings={{}} />);
   expect(screen.getByTestId('robots-empty').textContent).toContain('Robot 1–3');
+});
+
+it('vector map: tapping a room selects it in order, synced with the chips', async () => {
+  setup('demo');
+  const kitchen = await screen.findByTestId('robots-map-room-2');
+  fireEvent.click(screen.getByTestId('robots-map-room-3'));
+  fireEvent.click(kitchen);
+  expect(screen.getByTestId('robots-room-3').textContent).toMatch(/^1/);
+  expect(screen.getByTestId('robots-room-2').textContent).toMatch(/^2/);
+  expect(kitchen.getAttribute('data-selected')).toBe('true');
+  const label = document.querySelector('[data-rv-label="2"]');
+  expect(label?.textContent).toBe('2Kuchyně');
+  // Chip click removes it from the map again.
+  fireEvent.click(screen.getByTestId('robots-room-2'));
+  expect(kitchen.getAttribute('data-selected')).toBeNull();
+  expect(screen.getByTestId('robots-map-robot')).toBeTruthy();
+  expect(screen.queryByTestId('robots-map')).toBeNull();
+});
+
+it('falls back to the map image when vector data is unavailable', async () => {
+  setup('off');
+  expect(await screen.findByTestId('robots-map')).toBeTruthy();
+  expect(screen.queryByTestId('robots-vector-map')).toBeNull();
+});
+
+it('falls back to the map image when the vector map fails to render', async () => {
+  const error = console.error;
+  console.error = () => {};
+  try {
+    setup('broken');
+    expect(await screen.findByTestId('robots-map')).toBeTruthy();
+    expect(screen.queryByTestId('robots-vector-map')).toBeNull();
+  } finally {
+    console.error = error;
+  }
 });

@@ -15,6 +15,7 @@ import {
   HeroSignal,
   Pill,
   SaveState,
+  SegmentedControl,
   SignalCard,
   Sparkline,
   Stat,
@@ -28,6 +29,22 @@ import {
 } from '@homebrain/ui';
 
 type DataQuality = Parameters<typeof StatusBadge>[0]['quality'];
+
+function SegmentedDemo() {
+  const [value, setValue] = useState<string | null>('both');
+  return (
+    <SegmentedControl
+      label="Režim"
+      value={value}
+      options={[
+        ['vacuum', 'Vysávat'],
+        ['both', 'Vysávat i mopovat'],
+        ['mop', 'Mopovat'],
+      ]}
+      onChange={setValue}
+    />
+  );
+}
 
 /**
  * Živý katalog sdílených prvků `@homebrain/ui`. Jen pro vývoj: vlastní vstup `catalog.html`,
@@ -249,6 +266,18 @@ const specs: Spec[] = [
         <Button disabled>Nedostupné</Button>
       </div>
     ),
+  },
+  {
+    id: 'segmented',
+    name: 'SegmentedControl',
+    summary: 'Jedna volba ze 2–5 krátkých možností (radiogroup).',
+    importName: 'SegmentedControl',
+    states: ['vybraná možnost', 'nic nevybráno', 'mobil (zalomení)'],
+    doText: 'Režim úklidu, sání – krátké popisky, jedna platí.',
+    dontText: 'Víc než 5 možností nebo dlouhé texty – použijte seznam.',
+    notes:
+      'Nová komponenta (API shodné s PR #115 Přístup). Víno/Počasí mají vlastní radiogroup → sjednotit.',
+    render: () => <SegmentedDemo />,
   },
   {
     id: 'status-row',
@@ -668,6 +697,20 @@ const tokenGroups: Array<{ id: string; title: string; kind: string; tokens: stri
       '--hb-crit',
       '--hb-edge',
       '--hb-fill',
+    ],
+  },
+  {
+    id: 'map-colors',
+    title: 'Barvy mapy robotů',
+    kind: 'color',
+    tokens: [
+      '--hb-map-floor',
+      '--hb-map-tone2',
+      '--hb-map-tone3',
+      '--hb-map-seam',
+      '--hb-map-rim',
+      '--hb-map-shade',
+      '--hb-map-wall',
     ],
   },
   {

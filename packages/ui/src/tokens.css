@@ -58,6 +58,15 @@
   --hb-glass: linear-gradient(180deg, rgb(20 28 44 / 78%), rgb(10 15 25 / 82%));
   --hb-glass-edge: rgb(225 235 250 / 12%);
   --hb-card-shadow: none;
+  /* Robot map base layer (Roboti; robots/raster_map.py PALETTES must match – pytest) */
+  --hb-map-floor: #2c323d;
+  --hb-map-tone2: #353c49;
+  --hb-map-tone3: #252b36;
+  --hb-map-drop: #000000;
+  --hb-map-shade: #14181f;
+  --hb-map-rim: #565f6e;
+  --hb-map-seam: #626b7a;
+  --hb-map-wall: #929daf;
 }
 [data-theme='light'],
 [data-theme='system'] {
@@ -84,6 +93,15 @@
   --hb-weather-rain: #1c8fe0;
   --hb-weather-sun: #d99a00;
   --hb-weather-measured: #0e1116;
+  /* Robot map base layer, light */
+  --hb-map-floor: #ffffff;
+  --hb-map-tone2: #edf1f8;
+  --hb-map-tone3: #e3e9f2;
+  --hb-map-drop: #28344a;
+  --hb-map-shade: #c4ccd8;
+  --hb-map-rim: #b2bbc9;
+  --hb-map-seam: #c8cfdb;
+  --hb-map-wall: #626c7d;
   --hb-model-icon-d2: #7c5ce0;
   --hb-model-ecmwf: #be4288;
   --hb-model-aladin: #0e9f6e;
