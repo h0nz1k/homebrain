@@ -264,7 +264,7 @@ export function enrolledAgoCs(isoDate: string | undefined, now: number): string 
 /** Short age for a credential tile (fits one line at ~120 px): „před 8 měs.“, „před 3 lety“. */
 export function enrolledShortCs(isoDate: string | undefined, now: number): string {
   const months = isoDate ? monthsSince(isoDate, now) : null;
-  if (months === null) return 'datum neznámé';
+  if (months === null) return 'bez data';
   if (months === 0) return 'tento měsíc';
   if (months < 24) return `před ${months} měs.`;
   return `před ${Math.floor(months / 12)} lety`;

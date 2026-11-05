@@ -93,7 +93,7 @@ describe('formatting', () => {
 
 describe('enrolledShortCs', () => {
   it('keeps tile ages to one short line', () => {
-    expect(enrolledShortCs(undefined, NOW)).toBe('datum neznámé');
+    expect(enrolledShortCs(undefined, NOW)).toBe('bez data');
     expect(enrolledShortCs('2026-11-01', NOW)).toBe('tento měsíc');
     expect(enrolledShortCs('2026-03-01', NOW)).toBe('před 8 měs.');
     expect(enrolledShortCs('2023-10-01', NOW)).toBe('před 3 lety');

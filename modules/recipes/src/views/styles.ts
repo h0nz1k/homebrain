@@ -166,12 +166,6 @@ export const recipesStyles = String.raw`
 .rc-fryact .t b { display:block; font-size:18px; }
 .rc-fryact .t span { font-size:15px; color:var(--hb-t2); }
 /* dialog / sheet */
-.rc-scrim { position:fixed; inset:0; z-index:60; background:rgb(0 0 0 / 45%); backdrop-filter:blur(6px); display:grid; place-items:center; padding:20px; }
-.rc-dialog { width:min(520px, 100%); background:var(--hb-s1); border-radius:var(--hb-radius-xl); box-shadow:var(--hb-elev-2); padding:26px; }
-.rc-dialog h2 { margin:0 0 8px; font-size:24px; }
-.rc-dialog p { margin:0 0 18px; font-size:16px; color:var(--hb-t2); line-height:1.5; }
-.rc-dialog .acts { display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; }
-.rc-dialog label { display:block; font-size:14px; font-weight:560; color:var(--hb-t2); margin:12px 0 8px; }
 /* add */
 .rc-add { display:grid; grid-template-columns:1fr 1fr; gap:28px; padding:6px 32px 32px; }
 .rc-seg { display:inline-flex; padding:4px; border-radius:999px; background:var(--hb-fill-strong); }
