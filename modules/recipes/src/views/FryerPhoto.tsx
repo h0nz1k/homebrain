@@ -12,7 +12,8 @@ const box = ([x0, y0, x1, y1]: PhotoRect): CSSProperties => ({
 /**
  * Owner's product photo of the airfryer (decorative, like FryerArt). The phase only adds light:
  * warm glow at the drawer seam while heating, the display lit in the card tone, dimmed when
- * paused, red tint on error, desaturated when off. Loops are opacity-only and stop under
+ * paused, red outline glow on error, desaturated when off. `data-finish` (manifest) adapts the
+ * display glass and backdrop to a white or black appliance. Loops are opacity-only and stop under
  * reduced motion (styles.ts).
  */
 export function FryerPhoto({
@@ -38,6 +39,7 @@ export function FryerPhoto({
     <div
       className={`rc-fp${className ? ` ${className}` : ''}`}
       data-phase={phase}
+      data-finish={manifest.finish ?? 'dark'}
       data-out={view.drawerOut || undefined}
       data-nudge={view.nudge || undefined}
       aria-hidden="true"

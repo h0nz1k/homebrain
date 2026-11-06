@@ -16,6 +16,12 @@ describe('fryer photo manifest', () => {
     expect(m?.hotspots.panel).toBeUndefined();
   });
 
+  it('reads the body finish and ignores unknown values', () => {
+    expect(parseFryerPhotoManifest({ ...valid, finish: 'light' })?.finish).toBe('light');
+    expect(parseFryerPhotoManifest({ ...valid, finish: 'chrome' })?.finish).toBeUndefined();
+    expect(parseFryerPhotoManifest(valid)?.finish).toBeUndefined();
+  });
+
   it('rejects path tricks, missing front image and other schemas', () => {
     expect(parseFryerPhotoManifest({ ...valid, images: { front: '../x.webp' } })).toBeNull();
     expect(parseFryerPhotoManifest({ ...valid, images: { front: 'a/b/c.webp' } })).toBeNull();

@@ -7,7 +7,9 @@ import type { FryerPhase } from './domain/fryerLive.js';
  * (served as `/local/homebrain/airfryer/`). Nothing is bundled – without a manifest the card keeps
  * the generic SVG illustration. Image names may sit one folder deeper (`<model>/front.webp`).
  *
- * Hotspots are percent rectangles [left, top, right, bottom] of the FRONT image.
+ * Hotspots are percent rectangles [left, top, right, bottom] of the FRONT image. `finish` tells
+ * the card whether the appliance body is light (white) or dark, so it can pick the display glass
+ * colour and the contrast backdrop.
  */
 export const FRYER_PHOTO_ROOT = '/local/homebrain/airfryer/';
 
@@ -15,6 +17,7 @@ export type PhotoRect = [number, number, number, number];
 export interface FryerPhotoManifest {
   schema: 1;
   model?: string;
+  finish?: 'light' | 'dark';
   images: { front: string; drawerOpen?: string; display?: string };
   hotspots: { display?: PhotoRect; drawer?: PhotoRect; panel?: PhotoRect };
 }
@@ -36,9 +39,11 @@ export function parseFryerPhotoManifest(data: unknown): FryerPhotoManifest | nul
   const optional = (name: unknown) => (isAssetFile(name, true) ? name : undefined);
   const spots = (raw.hotspots ?? {}) as Record<string, unknown>;
   const model = typeof raw.model === 'string' ? raw.model.slice(0, 80) : undefined;
+  const finish = raw.finish === 'light' || raw.finish === 'dark' ? raw.finish : undefined;
   return {
     schema: 1,
     ...(model ? { model } : {}),
+    ...(finish ? { finish } : {}),
     images: {
       front: images.front,
       drawerOpen: optional(images.drawerOpen),

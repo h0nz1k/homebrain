@@ -349,18 +349,32 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fp-heat { filter:blur(3px); background:radial-gradient(56% 16% at 50% 1%, rgb(255 140 60 / .8), transparent 72%); mix-blend-mode:screen; }
 .rc-fp-tint { inset:0; mask-size:100% 100%; mask-repeat:no-repeat; -webkit-mask-size:100% 100%; -webkit-mask-repeat:no-repeat; background:var(--rc-fl-tone); mix-blend-mode:screen; }
 /* the photo's display shows a fixed demo value – cover the glass and light only the ring in the card tone */
-.rc-fp-display { border-radius:50%; background:radial-gradient(circle at 36% 30%, rgb(255 255 255 / .1), transparent 26%), radial-gradient(closest-side, #0b0d10 0 60%, color-mix(in srgb, var(--rc-fl-tone) 75%, transparent) 70%, transparent 86%); opacity:.92; }
+.rc-fp { --rc-fp-glass:#0b0d10; }
+/* white appliance: light glass display, darker hairline + counter shadow so it never melts into a white card */
+.rc-fp[data-finish='light'] { --rc-fp-glass:#dcdddf; }
+.rc-fp[data-finish='light']::before { background:radial-gradient(closest-side, color-mix(in srgb, var(--hb-t1) 10%, transparent) 0 52%, color-mix(in srgb, var(--hb-t1) 5%, transparent) 74%, transparent); }
+.rc-fp[data-finish='light'] .rc-fp-img { filter:drop-shadow(0 0 1px color-mix(in srgb, var(--hb-t1) 30%, transparent)) drop-shadow(0 10px 16px rgb(0 0 0 / .26)); }
+.rc-fp[data-finish='light'] .rc-fp-heat { mix-blend-mode:multiply; background:radial-gradient(56% 14% at 50% 1%, rgb(255 132 48 / .6), transparent 72%); }
+.rc-fp-display { border-radius:50%; background:radial-gradient(circle at 36% 30%, rgb(255 255 255 / .1), transparent 26%), radial-gradient(closest-side, var(--rc-fp-glass) 0 60%, color-mix(in srgb, var(--rc-fl-tone) 75%, transparent) 70%, transparent 86%); opacity:.92; }
 .rc-fp[data-phase='cooking'] .rc-fp-heat, .rc-fp[data-phase='preheat'] .rc-fp-heat { opacity:.9; animation:rc-fp-breathe 6s ease-in-out infinite; }
 @keyframes rc-fp-breathe { 0%, 100% { opacity:.55; } 50% { opacity:.95; } }
 .rc-fp[data-phase='warm'] .rc-fp-heat { opacity:.35; }
-.rc-fp[data-phase='paused'] .rc-fp-img { filter:brightness(.66) saturate(.7) drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)); }
+.rc-fp[data-phase='paused'] .rc-fp-img { filter:brightness(.7) saturate(.7) drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)); }
 .rc-fp[data-out] .rc-fp-tint { opacity:.1; }
-.rc-fp[data-phase='error'] .rc-fp-img { filter:drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)) drop-shadow(0 0 10px color-mix(in srgb, var(--hb-crit) 45%, transparent)); }
+/* error: a clean red outline + red glow around the silhouette – the photo itself is never tinted (reads brown) */
+.rc-fp[data-phase='error'] .rc-fp-img, .rc-fp[data-finish][data-phase='error'] .rc-fp-img { filter:drop-shadow(0 0 1.2px var(--hb-crit)) drop-shadow(0 0 1.2px var(--hb-crit)) drop-shadow(0 0 10px color-mix(in srgb, var(--hb-crit) 55%, transparent)); }
+.rc-fp[data-phase='error'] .rc-fp-tint, .rc-fp[data-phase='error'] .rc-fp-heat { opacity:0; }
 .rc-fp[data-phase='off'] .rc-fp-img, .rc-fp[data-phase='idle'] .rc-fp-img { filter:grayscale(1); opacity:.6; }
-.rc-fp[data-phase='off'] .rc-fp-display, .rc-fp[data-phase='idle'] .rc-fp-display { background:radial-gradient(closest-side, #0b0d10 0 66%, transparent 80%); }
+.rc-fp[data-phase='off'] .rc-fp-display, .rc-fp[data-phase='idle'] .rc-fp-display { background:radial-gradient(closest-side, var(--rc-fp-glass) 0 66%, transparent 80%); }
 .rc-fp[data-nudge] .rc-fp-frame { animation:rc-fp-nudge 2.4s ease-in-out infinite; }
 @keyframes rc-fp-nudge { 0%, 60%, 100% { transform:translateY(0); } 30% { transform:translateY(4px); } }
-@media (min-width: 1101px) { .rc-fl:has(> .rc-fp.rc-fl-side-art):not([data-phase='error']) { grid-template-columns:184px minmax(0,1fr) 250px; } }
+/* desktop: content column hugs its content and the photo sits right next to it (no dead band between buttons and photo) */
+@media (min-width: 1101px) {
+  .rc-fl:has(> .rc-fp.rc-fl-side-art):not([data-phase='error']) { grid-template-columns:184px minmax(0,max-content) 250px; justify-content:center; column-gap:48px; }
+  .rc-fl[data-phase='error']:has(> .rc-fp.rc-fl-side-art) { grid-template-columns:minmax(0,max-content) minmax(250px,1fr); }
+  .rc-fl[data-phase='error'] > .rc-fp.rc-fl-side-art { justify-self:center; }
+  .rc-fl:has(> .rc-fp.rc-fl-side-art)::before { background:none; }
+}
 .rc-fp.rc-fl-side-art { --rc-fp-h:232px; }
 .rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr) 250px; grid-template-areas:'band band' 'main art'; }
 @media (max-width: 1100px) and (min-width: 641px) { .rc-fl { grid-template-columns:184px minmax(0,1fr); grid-template-areas:'band band' 'vis main'; } .rc-fl-side-art { display:none; } .rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr); grid-template-areas:'band' 'main'; } }
