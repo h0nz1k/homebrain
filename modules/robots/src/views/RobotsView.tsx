@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
-import { Button, Card, Chip, SegmentedControl, czCount, useToast } from '@homebrain/ui';
+import { Button, Card, Chip, SegmentedControl, Stepper, czCount, useToast } from '@homebrain/ui';
 import {
   attention,
   buildRobot,
@@ -17,6 +17,7 @@ import {
   modeMops,
   modeOptionAvailable,
   planCleanRooms,
+  planResetCounter,
   planResumeAfterFix,
   planSimple,
   runPlan,
@@ -25,6 +26,8 @@ import {
 } from '../commands.js';
 import { orderBadge, pruneOrder, toggleRoom } from '../rooms.js';
 import { RobotArt } from './RobotArt.js';
+import { GuideSheet, useGuides } from './GuideSheet.js';
+import { TANK_GUIDE, extraGuideParts, guideFor, type GuidePart } from '../guides.js';
 import { RobotPhoto, usePhotoManifest } from './RobotPhoto.js';
 import { anyPartLow, photoBase, photoView } from '../photo.js';
 import {
@@ -149,6 +152,10 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
         key={active.slot}
         robot={active}
         connection={connection}
+        hasEntity={(id) => {
+          const state = store.getSnapshot(id);
+          return !!state && state.state !== 'unavailable';
+        }}
         onReloadRooms={() => load(true)}
       />
     </section>
@@ -158,10 +165,12 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
 function RobotPanel({
   robot,
   connection,
+  hasEntity,
   onReloadRooms,
 }: {
   robot: RobotModel;
   connection: ModuleViewProps['connection'];
+  hasEntity: (entityId: string) => boolean;
   onReloadRooms: () => void;
 }) {
   const [order, setOrder] = useState<number[]>([]);
@@ -174,6 +183,13 @@ function RobotPanel({
   const [confirm, setConfirm] = useState<{ title: string; plan: ServiceCallPlan[] } | null>(null);
   const [sending, setSending] = useState(false);
   const notify = useToast();
+  const [guidePart, setGuidePart] = useState<GuidePart | null>(null);
+  const photoDir = photoBase(robot);
+  const guides = useGuides(photoDir);
+  const extraParts = extraGuideParts(guides, [
+    ...robot.consumables.map((item) => item.kind),
+    ...robot.tanks.flatMap((tank) => TANK_GUIDE[tank.key] ?? []),
+  ]);
   const selected = pruneOrder(order, robot.rooms);
   const [vectorOn] = useState(vectorMapEnabled);
   const [fullTrail, setFullTrail] = useState(readTrailPref);
@@ -300,19 +316,45 @@ function RobotPanel({
           <ul className="rb-parts">
             {robot.consumables.map((item) => (
               <li key={item.kind} data-rb-tone={item.tone} data-testid={`robots-part-${item.kind}`}>
-                <span className="rb-ring-wrap">
-                  <Ring percent={item.percent} />
-                  <em>{item.percent}</em>
-                </span>
-                <span className="rb-part-text">
-                  <b>{item.label}</b>
-                  <span>{item.action}</span>
-                </span>
+                <button
+                  type="button"
+                  className="rb-part-btn"
+                  aria-label={`${item.label}: ${item.action}. Otevřít návod`}
+                  data-testid={`robots-guide-open-${item.kind}`}
+                  onClick={() => setGuidePart(item.kind)}
+                >
+                  <span className="rb-ring-wrap">
+                    <Ring percent={item.percent} />
+                    <em>{item.percent}</em>
+                  </span>
+                  <span className="rb-part-text">
+                    <b>{item.label}</b>
+                    <span>{item.action}</span>
+                  </span>
+                  <Chevron />
+                </button>
               </li>
             ))}
           </ul>
         ) : (
           <p className="rb-note">Spotřební díly nejsou přiřazené.</p>
+        )}
+        {extraParts.length > 0 && (
+          <div className="rb-guides-more" data-testid="robots-guides-more">
+            <p className="rb-micro">Další údržba</p>
+            <div className="rb-chips">
+              {extraParts.map((part) => (
+                <Button
+                  key={part}
+                  size="sm"
+                  data-testid={`robots-guide-open-${part}`}
+                  onClick={() => setGuidePart(part)}
+                >
+                  {guideFor(guides, part).title}
+                </Button>
+              ))}
+            </div>
+          </div>
         )}
       </Card>
 
@@ -336,11 +378,23 @@ function RobotPanel({
           <ul className="rb-tanks">
             {robot.tanks.map((tank) => (
               <li key={tank.key} data-rb-ok={tank.ok} data-rb-tank={tank.key}>
-                <Tank ok={tank.ok} kind={tank.key} />
-                <span>
-                  <b>{tank.label}</b>
-                  <span>{tank.text}</span>
-                </span>
+                <button
+                  type="button"
+                  className="rb-tank-btn"
+                  data-testid={`robots-guide-open-${tank.key}`}
+                  aria-label={`${tank.label}: ${tank.text}. Otevřít návod`}
+                  disabled={!TANK_GUIDE[tank.key]}
+                  onClick={() => {
+                    const part = TANK_GUIDE[tank.key];
+                    if (part) setGuidePart(part);
+                  }}
+                >
+                  <Tank ok={tank.ok} kind={tank.key} />
+                  <span>
+                    <b>{tank.label}</b>
+                    <span>{tank.text}</span>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -353,429 +407,460 @@ function RobotPanel({
   const tone = robot.status.tone;
   const busy = tone === 'cleaning' || tone === 'returning';
   const problem = robot.error ?? robot.dockError;
-  const photoDir = photoBase(robot);
   const manifest = usePhotoManifest(photoDir);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
   const photo = !!photoDir && !!manifest && !photoFailed;
   return (
-    <div className="rb-grid" data-rb-tone={tone}>
-      <div className="rb-col">
-        <Card
-          as="article"
-          className="rb-hero rb-card"
-          data-testid="robots-hero"
-          data-rb-photo={photo || undefined}
-        >
-          {/* Visual slot: the owner's photo set (manifest under /local/homebrain/robots/<robot>/,
-              never bundled) or the neutral RobotArt fallback. */}
-          <div
-            className="rb-hero-art"
-            data-rb-visual={photo ? 'photo' : 'art'}
-            data-testid="robots-hero-visual"
-          >
-            {photo ? (
-              <RobotPhoto
-                base={photoDir}
-                manifest={manifest}
-                name={robot.name}
-                view={photoView(tone, robot.error ?? robot.dockError, maintenance)}
-                error={robot.error ?? robot.dockError}
-                parts={robot.consumables}
-                partsLow={anyPartLow(robot.consumables)}
-                maintenance={maintenance}
-                onMaintenance={setMaintenance}
-                onFail={() => setPhotoFailed(true)}
-              />
-            ) : (
-              <RobotArt tone={tone} image={robot.image} name={robot.name} />
-            )}
-          </div>
-          <div className="rb-hero-body">
-            <p className="rb-eyebrow">
-              {robot.name}
-              {robot.floor ? ` · ${robot.floor}` : ''}
-            </p>
-            <h2 className="rb-state" data-testid="robots-state">
-              {robot.status.label}
-            </h2>
-            <p className="rb-room">
-              {liveRoom ? (
-                <>
-                  {robot.status.busy ? 'V místnosti ' : 'Naposledy v místnosti '}
-                  <b>{liveRoom}</b>
-                </>
-              ) : (
-                'Místnost neznámá'
-              )}
-            </p>
-            {robot.progress !== null && (
-              <div
-                className="rb-progress"
-                role="progressbar"
-                aria-label="Průběh úklidu"
-                aria-valuenow={robot.progress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <span style={{ width: `${Math.max(2, Math.min(100, robot.progress))}%` }} />
-                <em>Hotovo {Math.round(robot.progress)} %</em>
-              </div>
-            )}
-            <div className="rb-hero-foot">
-              <Battery value={robot.battery} charging={tone === 'charging'} />
-              <div className="rb-hero-actions">
-                {tone === 'paused' ? (
-                  <Button
-                    disabled={!canAct}
-                    onClick={() => ask('Pokračovat v úklidu?', planSimple('resume', robot.vacuum))}
-                  >
-                    Pokračovat
-                  </Button>
-                ) : tone === 'cleaning' ? (
-                  // Pause only while cleaning – a disabled „Pauza“ in other states read as broken.
-                  <Button
-                    variant="strong"
-                    data-testid="robots-pause"
-                    disabled={!canAct}
-                    onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
-                  >
-                    <PauseIcon />
-                    Pauza
-                  </Button>
-                ) : null}
-                <Button
-                  data-testid="robots-home"
-                  disabled={!canAct || tone === 'charging' || tone === 'docked'}
-                  onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
-                >
-                  <HomeIcon />
-                  Zpět do doku
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {problem && (
+    <>
+      <div className="rb-grid" data-rb-tone={tone}>
+        <div className="rb-col">
           <Card
             as="article"
-            className="rb-problem rb-card"
-            data-testid="robots-problem"
-            role="alert"
+            className="rb-hero rb-card"
+            data-testid="robots-hero"
+            data-rb-photo={photo || undefined}
           >
-            <p className="rb-eyebrow">
-              {problem.source === 'robot' ? 'Jak to opravit' : 'Dok – jak to opravit'}
-            </p>
-            <h3>{problem.title}</h3>
-            <ol>
-              {problem.steps.map((step) => (
-                <li key={step}>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-            {robot.error && robot.dockError && (
-              <p className="rb-problem-more">
-                Dok navíc hlásí: <b>{robot.dockError.title}</b> – {robot.dockError.steps[0]}
-              </p>
-            )}
-            {robot.error && (
-              <div className="rb-problem-cta">
-                <Button
-                  variant="strong"
-                  data-testid="robots-fixed-resume"
-                  disabled={!canAct}
-                  onClick={() =>
-                    ask(
-                      'Závada odstraněná? Pokračovat v úklidu',
-                      planResumeAfterFix(robot.vacuum, robot.error!.title),
-                    )
-                  }
-                >
-                  Hotovo – pokračovat
-                </Button>
-                <span>Robot pokračuje až po potvrzení.</span>
-              </div>
-            )}
-            <details>
-              <summary>Podrobnosti</summary>
-              Kód pro servis: {problem.code}
-            </details>
-          </Card>
-        )}
-
-        {care}
-      </div>
-      <div className="rb-col">
-        <Card as="article" className="rb-clean rb-card" data-testid="robots-clean">
-          {/* Portrait plans on a wide card: the room list sits beside the map (container query),
-              so the card has no empty side strips; one list, so test ids stay unique. */}
-          <div className="rb-card-head rb-clean-head">
-            <div className="rb-clean-title">
-              <h3>Uklidit místnosti</h3>
-              <p className="rb-micro" data-testid="robots-map-name">
-                {robot.mapName ?? 'Mapa'}
-                {busy && (liveRoom || tone === 'returning') ? (
-                  <>
-                    {' · '}
-                    <span className="rb-live" data-testid="robots-live-room">
-                      {tone === 'returning' ? 'Vrací se do doku' : `Uklízí ${liveRoom}`}
-                    </span>
-                  </>
-                ) : (
-                  // Idle: the robot's own state (e.g. „V doku · 100 %“) so the map marker has
-                  // a matching source of truth, then the room count.
-                  <>
-                    {' · '}
-                    {statusWithBattery(robot.status.label, robot.battery)}
-                    {robot.rooms.length
-                      ? ` · ${czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}`
-                      : ''}
-                  </>
-                )}
-              </p>
-            </div>
-            {/* At least two path points: a single point has nothing to show or hide. */}
-            {vector?.available && vector.map.path.length >= 4 && (
-              <Chip
-                className="rb-chip rb-trail-toggle"
-                pressed={fullTrail}
-                data-testid="robots-trail-toggle"
-                aria-label="Celá trasa úklidu"
-                onPress={() => {
-                  setFullTrail(!fullTrail);
-                  writeTrailPref(!fullTrail);
-                }}
-              >
-                <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-                  <path
-                    d="M3.5 13.5a2 2 0 1 1 0-4h7a2 2 0 1 0 0-4H5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="12.5" cy="13.5" r="1.6" />
-                  <circle cx="3.5" cy="5.5" r="1.6" />
-                </svg>
-                Trasa
-              </Chip>
-            )}
-          </div>
-          <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
-            <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
-              {vector?.available ? (
-                <VectorMapBoundary resetKey={vector.map.digest} fallback={imageMap}>
-                  <VectorFloorPlan
-                    map={vector.map}
-                    rooms={robot.rooms}
-                    selected={selected}
-                    onToggle={(id) => setOrder(toggleRoom(selected, id))}
-                    tone={markerTone(robot.status.tone)}
-                    label={`Mapa – ${robot.floor || robot.name}`}
-                    callout={
-                      robot.error
-                        ? { title: robot.error.title, detail: robot.error.steps[0] }
-                        : null
-                    }
-                    resolveBase={resolveBase}
-                    trail={fullTrail ? 'full' : 'faded'}
-                    rotation={robot.rotation}
-                  />
-                </VectorMapBoundary>
-              ) : vector === null && robot.mapImage ? (
-                <span className="rb-map-loading" aria-hidden="true" />
+            {/* Visual slot: the owner's photo set (manifest under /local/homebrain/robots/<robot>/,
+              never bundled) or the neutral RobotArt fallback. */}
+            <div
+              className="rb-hero-art"
+              data-rb-visual={photo ? 'photo' : 'art'}
+              data-testid="robots-hero-visual"
+            >
+              {photo ? (
+                <RobotPhoto
+                  base={photoDir}
+                  manifest={manifest}
+                  name={robot.name}
+                  view={photoView(tone, robot.error ?? robot.dockError, maintenance)}
+                  error={robot.error ?? robot.dockError}
+                  parts={robot.consumables}
+                  partsLow={anyPartLow(robot.consumables)}
+                  maintenance={maintenance}
+                  onMaintenance={setMaintenance}
+                  onFail={() => setPhotoFailed(true)}
+                />
               ) : (
-                imageMap
+                <RobotArt tone={tone} image={robot.image} name={robot.name} />
               )}
             </div>
-            <div className="rb-clean-side">
-              {robot.rooms.length ? (
+            <div className="rb-hero-body">
+              <p className="rb-eyebrow">
+                {robot.name}
+                {robot.floor ? ` · ${robot.floor}` : ''}
+              </p>
+              <h2 className="rb-state" data-testid="robots-state">
+                {robot.status.label}
+              </h2>
+              <p className="rb-room">
+                {liveRoom ? (
+                  <>
+                    {robot.status.busy ? 'V místnosti ' : 'Naposledy v místnosti '}
+                    <b>{liveRoom}</b>
+                  </>
+                ) : (
+                  'Místnost neznámá'
+                )}
+              </p>
+              {robot.progress !== null && (
                 <div
-                  ref={chipsRef}
-                  className="rb-chips"
-                  role="group"
-                  aria-label="Místnosti v pořadí úklidu"
+                  className="rb-progress"
+                  role="progressbar"
+                  aria-label="Průběh úklidu"
+                  aria-valuenow={robot.progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
                 >
-                  {robot.rooms.map((room) => {
-                    const badge = orderBadge(selected, room.id);
-                    return (
-                      <Chip
-                        key={room.id}
-                        className="rb-chip"
-                        look="soft"
-                        pressed={badge !== null}
-                        badge={badge}
-                        badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
-                        data-testid={`robots-room-${room.id}`}
-                        onPress={() => setOrder(toggleRoom(selected, room.id))}
-                      >
-                        <span className="rb-chip-name">{room.name}</span>
-                        {areas.get(room.id) ? (
-                          <span className="rb-chip-area">{areas.get(room.id)} m²</span>
-                        ) : null}
-                      </Chip>
-                    );
-                  })}
+                  <span style={{ width: `${Math.max(2, Math.min(100, robot.progress))}%` }} />
+                  <em>Hotovo {Math.round(robot.progress)} %</em>
                 </div>
-              ) : (
-                <p className="rb-note">
-                  {robot.mapsError
-                    ? 'Místnosti se nepodařilo načíst. '
-                    : 'Robot zatím nemá místnosti. '}
-                  <button type="button" className="rb-link" onClick={onReloadRooms}>
-                    Načíst znovu
-                  </button>
+              )}
+              <div className="rb-hero-foot">
+                <Battery value={robot.battery} charging={tone === 'charging'} />
+                <div className="rb-hero-actions">
+                  {tone === 'paused' ? (
+                    <Button
+                      disabled={!canAct}
+                      onClick={() =>
+                        ask('Pokračovat v úklidu?', planSimple('resume', robot.vacuum))
+                      }
+                    >
+                      Pokračovat
+                    </Button>
+                  ) : tone === 'cleaning' ? (
+                    // Pause only while cleaning – a disabled „Pauza“ in other states read as broken.
+                    <Button
+                      variant="strong"
+                      data-testid="robots-pause"
+                      disabled={!canAct}
+                      onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
+                    >
+                      <PauseIcon />
+                      Pauza
+                    </Button>
+                  ) : null}
+                  <Button
+                    data-testid="robots-home"
+                    disabled={!canAct || tone === 'charging' || tone === 'docked'}
+                    onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
+                  >
+                    <HomeIcon />
+                    Zpět do doku
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {problem && (
+            <Card
+              as="article"
+              className="rb-problem rb-card"
+              data-testid="robots-problem"
+              role="alert"
+            >
+              <p className="rb-eyebrow">
+                {problem.source === 'robot' ? 'Jak to opravit' : 'Dok – jak to opravit'}
+              </p>
+              <h3>{problem.title}</h3>
+              <Stepper
+                variant="instructions"
+                label="Jak to opravit"
+                steps={problem.steps.map((step, i) => ({
+                  key: `${i}-${step}`,
+                  title: step,
+                  state: 'todo' as const,
+                }))}
+              />
+              {robot.error && robot.dockError && (
+                <p className="rb-problem-more">
+                  Dok navíc hlásí: <b>{robot.dockError.title}</b> – {robot.dockError.steps[0]}
                 </p>
               )}
-
-              <p className="rb-hint" aria-live="polite" data-testid="robots-selection-summary">
-                {selected.length ? (
-                  <>
-                    <b>{czCount(selected.length, 'místnost', 'místnosti', 'místností')}</b>
-                    {selectedArea ? <> · {selectedArea} m²</> : null} · v pořadí podle čísel
-                  </>
-                ) : busy ? (
-                  'Robot právě uklízí. Chcete-li úklid změnit, vyberte místnosti.'
-                ) : (
-                  'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'
-                )}
-              </p>
-              <div className="rb-controls" data-testid="robots-controls">
-                <SegmentedControl
-                  label="Nastavení"
-                  tone="accent"
-                  className="rb-level"
-                  value={advanced ? 'advanced' : 'basic'}
-                  options={[
-                    ['basic', 'Základní'],
-                    ['advanced', 'Pokročilé'],
-                  ]}
-                  onChange={(value) => setAdvanced(value === 'advanced')}
-                />
-                {modes.length > 1 && (
-                  <SegmentedControl
-                    label="Režim"
-                    tone="accent"
-                    value={mode}
-                    options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
-                    onChange={(value) => setMode(value as CleanMode)}
-                  />
-                )}
-                {robot.fanChoices.length > 1 && (
-                  <SegmentedControl
-                    label="Sání"
-                    tone="accent"
-                    value={fan}
-                    options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
-                    onChange={setFan}
-                  />
-                )}
-                {advanced && mops && robot.water && (
-                  <SegmentedControl
-                    label="Voda"
-                    tone="accent"
-                    className="rb-adv"
-                    value={water}
-                    options={robot.water.choices.map((w) => [w, WATER_LABELS[w] ?? w])}
-                    onChange={setWater}
-                  />
-                )}
-                {advanced && mops && robot.mopRoute && (
-                  <SegmentedControl
-                    label="Mopování"
-                    tone="accent"
-                    className="rb-adv"
-                    value={mopRoute}
-                    options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}
-                    onChange={setMopRoute}
-                  />
-                )}
-                {advanced && (
-                  <SegmentedControl
-                    label="Průchody"
-                    tone="accent"
-                    className="rb-adv"
-                    value={String(passes)}
-                    options={[
-                      ['1', '1×'],
-                      ['2', '2×'],
-                    ]}
-                    onChange={(value) => setPasses(Number(value))}
-                  />
-                )}
-              </div>
-              <div className="rb-clean-actions">
-                {tone === 'cleaning' && (
+              {robot.error && (
+                <div className="rb-problem-cta">
                   <Button
-                    size="lg"
-                    data-testid="robots-clean-pause"
+                    variant="strong"
+                    data-testid="robots-fixed-resume"
                     disabled={!canAct}
-                    onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
+                    onClick={() =>
+                      ask(
+                        'Závada odstraněná? Pokračovat v úklidu',
+                        planResumeAfterFix(robot.vacuum, robot.error!.title),
+                      )
+                    }
                   >
-                    <PauseIcon />
-                    Pozastavit
+                    Hotovo – pokračovat
                   </Button>
-                )}
-                <Button
-                  variant="primary"
-                  size="lg"
-                  block
-                  className="rb-start"
-                  data-testid="robots-start"
-                  disabled={!canAct || !selected.length || Boolean(robot.error)}
-                  onClick={() =>
-                    ask(
-                      'Spustit úklid?',
-                      planCleanRooms({
-                        vacuum: robot.vacuum,
-                        rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
-                        mode,
-                        currentMode: robot.mode,
-                        modeSelect: robot.modeSelect,
-                        fan,
-                        currentFan: robot.fan,
-                        repeat: passes,
-                        water: robot.water
-                          ? { entity: robot.water.entity, value: water, current: robot.water.value }
-                          : undefined,
-                        mopRoute: robot.mopRoute
-                          ? {
-                              entity: robot.mopRoute.entity,
-                              value: mopRoute,
-                              current: robot.mopRoute.value,
-                            }
-                          : undefined,
-                      }),
-                    )
-                  }
-                >
-                  {robot.error
-                    ? 'Nejdřív odstraňte závadu'
-                    : busy
-                      ? selected.length
-                        ? `Uklidit ${roomsLabel}`
-                        : 'Probíhá úklid'
-                      : selected.length
-                        ? `Uklidit ${roomsLabel}`
-                        : 'Uklidit vybrané'}
-                  {!robot.error && selected.length > 0 && estimate !== null && (
-                    <span className="rb-est" data-testid="robots-start-estimate">
-                      {' '}
-                      · cca&nbsp;{estimate}&nbsp;min
-                    </span>
+                  <span>Robot pokračuje až po potvrzení.</span>
+                </div>
+              )}
+              <details>
+                <summary>Podrobnosti</summary>
+                Kód pro servis: {problem.code}
+              </details>
+            </Card>
+          )}
+
+          {care}
+        </div>
+        <div className="rb-col">
+          <Card as="article" className="rb-clean rb-card" data-testid="robots-clean">
+            {/* Portrait plans on a wide card: the room list sits beside the map (container query),
+              so the card has no empty side strips; one list, so test ids stay unique. */}
+            <div className="rb-card-head rb-clean-head">
+              <div className="rb-clean-title">
+                <h3>Uklidit místnosti</h3>
+                <p className="rb-micro" data-testid="robots-map-name">
+                  {robot.mapName ?? 'Mapa'}
+                  {busy && (liveRoom || tone === 'returning') ? (
+                    <>
+                      {' · '}
+                      <span className="rb-live" data-testid="robots-live-room">
+                        {tone === 'returning' ? 'Vrací se do doku' : `Uklízí ${liveRoom}`}
+                      </span>
+                    </>
+                  ) : (
+                    // Idle: the robot's own state (e.g. „V doku · 100 %“) so the map marker has
+                    // a matching source of truth, then the room count.
+                    <>
+                      {' · '}
+                      {statusWithBattery(robot.status.label, robot.battery)}
+                      {robot.rooms.length
+                        ? ` · ${czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}`
+                        : ''}
+                    </>
                   )}
-                </Button>
+                </p>
               </div>
-              {!connection && (
-                <p className="rb-micro">Bez spojení s Home Assistantem nelze posílat příkazy.</p>
+              {/* At least two path points: a single point has nothing to show or hide. */}
+              {vector?.available && vector.map.path.length >= 4 && (
+                <Chip
+                  className="rb-chip rb-trail-toggle"
+                  pressed={fullTrail}
+                  data-testid="robots-trail-toggle"
+                  aria-label="Celá trasa úklidu"
+                  onPress={() => {
+                    setFullTrail(!fullTrail);
+                    writeTrailPref(!fullTrail);
+                  }}
+                >
+                  <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M3.5 13.5a2 2 0 1 1 0-4h7a2 2 0 1 0 0-4H5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="12.5" cy="13.5" r="1.6" />
+                    <circle cx="3.5" cy="5.5" r="1.6" />
+                  </svg>
+                  Trasa
+                </Chip>
               )}
             </div>
-          </div>
-        </Card>
-      </div>
+            <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
+              <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
+                {vector?.available ? (
+                  <VectorMapBoundary resetKey={vector.map.digest} fallback={imageMap}>
+                    <VectorFloorPlan
+                      map={vector.map}
+                      rooms={robot.rooms}
+                      selected={selected}
+                      onToggle={(id) => setOrder(toggleRoom(selected, id))}
+                      tone={markerTone(robot.status.tone)}
+                      label={`Mapa – ${robot.floor || robot.name}`}
+                      callout={
+                        robot.error
+                          ? { title: robot.error.title, detail: robot.error.steps[0] }
+                          : null
+                      }
+                      resolveBase={resolveBase}
+                      trail={fullTrail ? 'full' : 'faded'}
+                      rotation={robot.rotation}
+                    />
+                  </VectorMapBoundary>
+                ) : vector === null && robot.mapImage ? (
+                  <span className="rb-map-loading" aria-hidden="true" />
+                ) : (
+                  imageMap
+                )}
+              </div>
+              <div className="rb-clean-side">
+                {robot.rooms.length ? (
+                  <div
+                    ref={chipsRef}
+                    className="rb-chips"
+                    role="group"
+                    aria-label="Místnosti v pořadí úklidu"
+                  >
+                    {robot.rooms.map((room) => {
+                      const badge = orderBadge(selected, room.id);
+                      return (
+                        <Chip
+                          key={room.id}
+                          className="rb-chip"
+                          look="soft"
+                          pressed={badge !== null}
+                          badge={badge}
+                          badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
+                          data-testid={`robots-room-${room.id}`}
+                          onPress={() => setOrder(toggleRoom(selected, room.id))}
+                        >
+                          <span className="rb-chip-name">{room.name}</span>
+                          {areas.get(room.id) ? (
+                            <span className="rb-chip-area">{areas.get(room.id)} m²</span>
+                          ) : null}
+                        </Chip>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="rb-note">
+                    {robot.mapsError
+                      ? 'Místnosti se nepodařilo načíst. '
+                      : 'Robot zatím nemá místnosti. '}
+                    <button type="button" className="rb-link" onClick={onReloadRooms}>
+                      Načíst znovu
+                    </button>
+                  </p>
+                )}
 
+                <p className="rb-hint" aria-live="polite" data-testid="robots-selection-summary">
+                  {selected.length ? (
+                    <>
+                      <b>{czCount(selected.length, 'místnost', 'místnosti', 'místností')}</b>
+                      {selectedArea ? <> · {selectedArea} m²</> : null} · v pořadí podle čísel
+                    </>
+                  ) : busy ? (
+                    'Robot právě uklízí. Chcete-li úklid změnit, vyberte místnosti.'
+                  ) : (
+                    'Klepněte na místnosti v pořadí, v jakém se mají uklidit.'
+                  )}
+                </p>
+                <div className="rb-controls" data-testid="robots-controls">
+                  <SegmentedControl
+                    label="Nastavení"
+                    tone="accent"
+                    className="rb-level"
+                    value={advanced ? 'advanced' : 'basic'}
+                    options={[
+                      ['basic', 'Základní'],
+                      ['advanced', 'Pokročilé'],
+                    ]}
+                    onChange={(value) => setAdvanced(value === 'advanced')}
+                  />
+                  {modes.length > 1 && (
+                    <SegmentedControl
+                      label="Režim"
+                      tone="accent"
+                      value={mode}
+                      options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
+                      onChange={(value) => setMode(value as CleanMode)}
+                    />
+                  )}
+                  {robot.fanChoices.length > 1 && (
+                    <SegmentedControl
+                      label="Sání"
+                      tone="accent"
+                      value={fan}
+                      options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
+                      onChange={setFan}
+                    />
+                  )}
+                  {advanced && mops && robot.water && (
+                    <SegmentedControl
+                      label="Voda"
+                      tone="accent"
+                      className="rb-adv"
+                      value={water}
+                      options={robot.water.choices.map((w) => [w, WATER_LABELS[w] ?? w])}
+                      onChange={setWater}
+                    />
+                  )}
+                  {advanced && mops && robot.mopRoute && (
+                    <SegmentedControl
+                      label="Mopování"
+                      tone="accent"
+                      className="rb-adv"
+                      value={mopRoute}
+                      options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}
+                      onChange={setMopRoute}
+                    />
+                  )}
+                  {advanced && (
+                    <SegmentedControl
+                      label="Průchody"
+                      tone="accent"
+                      className="rb-adv"
+                      value={String(passes)}
+                      options={[
+                        ['1', '1×'],
+                        ['2', '2×'],
+                      ]}
+                      onChange={(value) => setPasses(Number(value))}
+                    />
+                  )}
+                </div>
+                <div className="rb-clean-actions">
+                  {tone === 'cleaning' && (
+                    <Button
+                      size="lg"
+                      data-testid="robots-clean-pause"
+                      disabled={!canAct}
+                      onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
+                    >
+                      <PauseIcon />
+                      Pozastavit
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    block
+                    className="rb-start"
+                    data-testid="robots-start"
+                    disabled={!canAct || !selected.length || Boolean(robot.error)}
+                    onClick={() =>
+                      ask(
+                        'Spustit úklid?',
+                        planCleanRooms({
+                          vacuum: robot.vacuum,
+                          rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
+                          mode,
+                          currentMode: robot.mode,
+                          modeSelect: robot.modeSelect,
+                          fan,
+                          currentFan: robot.fan,
+                          repeat: passes,
+                          water: robot.water
+                            ? {
+                                entity: robot.water.entity,
+                                value: water,
+                                current: robot.water.value,
+                              }
+                            : undefined,
+                          mopRoute: robot.mopRoute
+                            ? {
+                                entity: robot.mopRoute.entity,
+                                value: mopRoute,
+                                current: robot.mopRoute.value,
+                              }
+                            : undefined,
+                        }),
+                      )
+                    }
+                  >
+                    {robot.error
+                      ? 'Nejdřív odstraňte závadu'
+                      : busy
+                        ? selected.length
+                          ? `Uklidit ${roomsLabel}`
+                          : 'Probíhá úklid'
+                        : selected.length
+                          ? `Uklidit ${roomsLabel}`
+                          : 'Uklidit vybrané'}
+                    {!robot.error && selected.length > 0 && estimate !== null && (
+                      <span className="rb-est" data-testid="robots-start-estimate">
+                        {' '}
+                        · cca&nbsp;{estimate}&nbsp;min
+                      </span>
+                    )}
+                  </Button>
+                </div>
+                {!connection && (
+                  <p className="rb-micro">Bez spojení s Home Assistantem nelze posílat příkazy.</p>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+      {/* Sheets live outside .rb-grid: its entry animation leaves a transform that would
+          make the fixed scrim relative to the grid. */}
+      {guidePart && (
+        <GuideSheet
+          part={guidePart}
+          guide={guideFor(guides, guidePart)}
+          robotName={robot.name}
+          base={photoDir}
+          manifest={manifest}
+          resetReady={(() => {
+            const reset = guideFor(guides, guidePart).reset;
+            return !!reset && hasEntity(reset);
+          })()}
+          canAct={canAct}
+          onClose={() => setGuidePart(null)}
+          onReset={() => {
+            const guide = guideFor(guides, guidePart);
+            setGuidePart(null);
+            if (guide.reset)
+              ask('Vynulovat počítadlo?', planResetCounter(guide.reset, guide.title));
+          }}
+        />
+      )}
       {confirm && (
         <div className="rb-scrim" onClick={() => !sending && setConfirm(null)}>
           <div
@@ -816,7 +901,7 @@ function RobotPanel({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -847,6 +932,21 @@ function Battery({ value, charging }: { value: number | null; charging: boolean 
         <em>{charging ? 'nabíjí se' : 'baterie'}</em>
       </span>
     </div>
+  );
+}
+
+function Chevron() {
+  return (
+    <svg className="rb-chevron" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M6 3.5 10.5 8 6 12.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

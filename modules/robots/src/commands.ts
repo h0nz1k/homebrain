@@ -9,6 +9,8 @@ export const ROBOT_SERVICE_ALLOWLIST = [
   'vacuum.return_to_base',
   'vacuum.set_fan_speed',
   'select.select_option',
+  // Roborock „reset consumable“ buttons (Údržba → návod → Hotovo, vynulovat počítadlo).
+  'button.press',
 ] as const;
 export type RobotService = (typeof ROBOT_SERVICE_ALLOWLIST)[number];
 
@@ -214,6 +216,11 @@ export function planResumeAfterFix(vacuum: string, problem: string): ServiceCall
       summary: `Závada „${problem}“ je odstraněná – pokračovat v úklidu`,
     },
   ];
+}
+
+/** „Hotovo, vynulovat počítadlo“: presses the bound Roborock reset button after confirmation. */
+export function planResetCounter(button: string, part: string): ServiceCallPlan[] {
+  return [{ service: 'button.press', entityId: button, summary: `Vynulovat počítadlo: ${part}` }];
 }
 
 /** Sends the plan in order through HA `call_service`; rejects anything off the allowlist. */

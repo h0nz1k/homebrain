@@ -1482,7 +1482,21 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   justify-content: flex-end;
   gap: var(--hb-sp-2);
 }
+.hb-sheet[data-sticky-foot] .hb-sheet-foot {
+  position: sticky;
+  bottom: calc(-1 * var(--hb-sp-5));
+  z-index: 2;
+  margin: 0 calc(-1 * var(--hb-sp-5)) calc(-1 * var(--hb-sp-5));
+  padding: var(--hb-sp-3) var(--hb-sp-5) var(--hb-sp-5);
+  border-top: 1px solid var(--hb-b1);
+  background: var(--hb-s1);
+}
 @media (max-width: 600px) {
+  .hb-sheet[data-sticky-foot] .hb-sheet-foot {
+    bottom: calc(-1 * var(--hb-sp-4));
+    margin: 0 calc(-1 * var(--hb-sp-4)) calc(-1 * var(--hb-sp-4));
+    padding: var(--hb-sp-3) var(--hb-sp-4) calc(var(--hb-sp-4) + env(safe-area-inset-bottom));
+  }
   .hb-scrim {
     place-items: end stretch;
     padding: 0;
@@ -1582,6 +1596,48 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   .hb-step:not([data-state='active']) .hb-step-t {
     display: none;
   }
+}
+
+/* Stepper `instructions`: vertical numbered how-to (repair/maintenance guides). */
+.hb-stepper[data-variant='instructions'] {
+  grid-auto-columns: auto;
+  grid-auto-flow: row;
+  gap: var(--hb-sp-3);
+}
+.hb-stepper[data-variant='instructions'] .hb-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--hb-sp-2) var(--hb-sp-3);
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--hb-t1);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.hb-stepper[data-variant='instructions'] .hb-step .hb-step-t {
+  display: flex;
+  padding-top: 2px;
+}
+.hb-stepper[data-variant='instructions'] .hb-step-t small {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+}
+.hb-step-media {
+  grid-column: 2;
+  min-width: 0;
+}
+.hb-step-media img {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--hb-radius-md);
+  object-fit: cover;
+  background: var(--hb-fill);
 }
 
 /* ── LiveStatus ─────────────────────────────────────────────────────── */

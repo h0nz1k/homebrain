@@ -31,3 +31,15 @@ kartáče) s animovanými díly při úklidu, „!“ na vadném dílu a tečkam
   `photo-manifest.example.json`. Souřadnice jsou v % spodní fotky (čtverec, předek robota nahoře).
 - Bez manifestu nebo když se fotka nenačte, zůstane neutrální ilustrace.
 - Dev server: `HB_ROBOT_PHOTOS_DIR=<lokální složka> vite` + `?photos=<robot1>,<robot2>,…`.
+
+## Návody k údržbě (volitelné, soukromé)
+
+Klik na díl v kartě Údržba (a na nádrž v kartě Dok) otevře návod: fotka robota se zvýrazněným
+dílem, číslované kroky, interval, volitelně video výrobce a odkaz na zdroj. Obsah pro konkrétní
+model patří jen do Home Assistantu: `/config/www/homebrain/robots/<robot>/guides/guides.json`
+(+ obrázky a videa ve stejné složce, servírované jako `/local/…`). V repozitáři je jen syntetický
+příklad `guides.example.json`; bez manifestu se ukáže obecný postup bez obrázků a videa.
+
+„Hotovo, vynulovat počítadlo“ stiskne tlačítko `button.*` z pole `reset` (Roborock „reset
+consumable“). Integrace Roborock je má ve výchozím stavu vypnuté – bez povolené entity je akce
+neaktivní a návod ukáže, kterou entitu povolit. Odeslání vždy potvrzuje dialog.
