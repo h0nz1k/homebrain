@@ -37,8 +37,8 @@ type TabId = 'prehled' | 'zarizeni' | 'switche' | 'hoste';
 const TABS: ReadonlyArray<readonly [TabId, string]> = [
   ['prehled', 'Přehled'],
   ['zarizeni', 'Zařízení'],
-  ['switche', 'Switche a PoE'],
-  ['hoste', 'Wi-Fi pro hosty'],
+  ['switche', 'Switche'],
+  ['hoste', 'Hosté'],
 ];
 const POLL_MS = 30_000;
 const SEV_LABEL: Record<string, string> = {
@@ -79,7 +79,7 @@ function useNetwork(api: NetworkApi | null, admin: boolean) {
 
 /* ---------- Přehled ---------- */
 
-function Hero({ snap, onTab }: { snap: NetSnapshot; onTab: (t: TabId) => void }) {
+function Hero({ snap }: { snap: NetSnapshot }) {
   const hero = heroModel(snap);
   const tiles = statTiles(snap);
   return (
@@ -98,14 +98,6 @@ function Hero({ snap, onTab }: { snap: NetSnapshot; onTab: (t: TabId) => void })
         </Pill>
         <h2 data-testid="network-headline">{hero.headline}</h2>
         <p>{hero.context}</p>
-        <div className="net-hero-actions">
-          <Button variant="ghost" size="sm" onClick={() => onTab('zarizeni')}>
-            Zařízení
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => onTab('hoste')}>
-            Wi-Fi pro hosty
-          </Button>
-        </div>
       </div>
       <div className="net-stats">
         {tiles.map((t) => (
@@ -219,7 +211,7 @@ function ProblemCard({ p, now }: { p: NetProblem; now: number }) {
   );
 }
 
-function Overview({ snap, onTab }: { snap: NetSnapshot; onTab: (t: TabId) => void }) {
+function Overview({ snap }: { snap: NetSnapshot }) {
   const { serious, tips } = splitProblems(snap.problems);
   const now = nowS();
   const okAreas = [
@@ -231,7 +223,7 @@ function Overview({ snap, onTab }: { snap: NetSnapshot; onTab: (t: TabId) => voi
   ].filter(Boolean);
   return (
     <>
-      <Hero snap={snap} onTab={onTab} />
+      <Hero snap={snap} />
       <div className="net-grid">
         <div className="net-col">
           <House snap={snap} />
@@ -578,7 +570,7 @@ function SummaryView({ api }: { api: NetworkApi }) {
   }, [api]);
   const problem = summary?.status === 'problem';
   return (
-    <>
+    <div className="net-summary-grid">
       {summary && (
         <Card
           className="hb-hero net-hero net-summary"
@@ -604,7 +596,7 @@ function SummaryView({ api }: { api: NetworkApi }) {
         </Card>
       )}
       <GuestWifi api={api} admin={false} compact />
-    </>
+    </div>
   );
 }
 
@@ -648,7 +640,7 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
   else
     body =
       tab === 'prehled' ? (
-        <Overview snap={snap} onTab={selectTab} />
+        <Overview snap={snap} />
       ) : tab === 'zarizeni' ? (
         <Devices snap={snap} api={api} onSaved={reload} />
       ) : tab === 'switche' ? (

@@ -42,7 +42,10 @@ export function heroModel(snap: NetSnapshot): HeroModel {
         ? `Internet běží, ${czCount(snap.aps.filter(isOnline).length, 'Wi-Fi bod', 'Wi-Fi body', 'Wi-Fi bodů')} online.`
         : 'Stav internetu neznáme.',
     };
-  const rest = serious.length > 1 ? ` A ještě ${serious.length - 1}× další.` : '';
+  const rest =
+    serious.length > 1
+      ? ` Dále ${czCount(serious.length - 1, 'další problém', 'další problémy', 'dalších problémů')} níže.`
+      : '';
   return {
     severity: top.severity === 'critical' ? 'critical' : 'warning',
     badge,
@@ -89,7 +92,11 @@ export function statTiles(snap: NetSnapshot): StatTile[] {
       id: 'aps',
       label: 'Wi-Fi body',
       value: `${apsOn} / ${snap.aps.length}`,
-      detail: badAp ? badAp.title : apsOn === snap.aps.length ? 'vše online' : 'některé offline',
+      detail: badAp
+        ? `${new Set(snap.problems.filter((p) => p.target.kind === 'ap' && SERIOUS.has(p.severity)).map((p) => p.target.id)).size} nestabilní`
+        : apsOn === snap.aps.length
+          ? 'vše online'
+          : 'některé offline',
       tone: badAp || apsOn < snap.aps.length ? 'warn' : 'ok',
     },
     {
@@ -102,8 +109,8 @@ export function statTiles(snap: NetSnapshot): StatTile[] {
     {
       id: 'clients',
       label: 'Zařízení',
-      value: String(Math.max(clientTotal, wifi + wired)),
-      detail: snap.clients.length ? `${wifi} Wi-Fi, ${wired} kabel` : 'připojených teď',
+      value: String(clientTotal || wifi + wired),
+      detail: clientTotal ? 'na Wi-Fi bodech teď' : `${wifi} Wi-Fi, ${wired} kabel`,
       tone: 'ok',
     },
   ];

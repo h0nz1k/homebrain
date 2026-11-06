@@ -26,7 +26,7 @@ test.describe('Síť – správce', () => {
   test('záložky: switche s pomalým portem a zařízení s hlídáním', async ({ page }) => {
     await page.goto('/homebrain-sit');
     await expect(page.getByTestId('network-hero')).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('radio', { name: 'Switche a PoE' }).click();
+    await page.getByRole('radio', { name: 'Switche' }).click();
     await expect(page.getByTestId('network-switch')).toHaveCount(3);
     await expect(page.locator('[data-testid="network-port"][data-slow]')).toHaveCount(1);
     await page.getByRole('radio', { name: 'Zařízení' }).click();
@@ -52,7 +52,7 @@ test.describe('Síť – správce', () => {
   test('Wi-Fi pro hosty: QR a úprava jen pro správce', async ({ page }) => {
     await page.goto('/homebrain-sit');
     await expect(page.getByTestId('network-hero')).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('radio', { name: 'Wi-Fi pro hosty' }).click();
+    await page.getByRole('radio', { name: 'Hosté' }).click();
     await expect(page.getByRole('img', { name: 'QR kód Wi-Fi Host demo' })).toBeVisible();
     await page.getByTestId('network-guest-edit').click();
     await page.getByLabel('Název sítě (SSID)').fill('Host nový');

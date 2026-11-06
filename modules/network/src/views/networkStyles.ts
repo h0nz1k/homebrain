@@ -29,7 +29,9 @@ export const networkStyles = `
 .net-hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
 .net-hero h2 { font-size: var(--hb-type-display, 30px); line-height: 1.15; letter-spacing: var(--hb-tracking-display, -0.02em); }
 .net-hero p { color: var(--hb-t2); line-height: var(--hb-leading-body, 1.45); }
-.net-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.net-summary-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.net-summary-grid .net-hero { grid-template-columns: minmax(0, 1fr); align-content: center; }
+.net-summary-grid .net-guest { max-width: none; }
 .net-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .net-stat {
   display: flex;
@@ -62,7 +64,7 @@ export const networkStyles = `
   border-radius: var(--hb-radius-md, 14px);
   background: var(--hb-fill);
 }
-.net-floor[data-outdoor] { background: color-mix(in srgb, var(--hb-ok) 8%, var(--hb-fill)); }
+.net-floor[data-outdoor] { background: none; box-shadow: inset 0 0 0 1px var(--hb-edge-strong); }
 .net-floor-name { font-size: 13px; font-weight: 600; color: var(--hb-t2); }
 .net-floor-aps { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .net-ap { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; }
@@ -83,7 +85,7 @@ export const networkStyles = `
 .net-load-bar span { display: block; height: 100%; border-radius: inherit; background: var(--hb-ac); }
 .net-load li[data-problem] .net-load-bar span { background: var(--hb-warn); }
 .net-load strong { grid-area: c; text-align: right; font-variant-numeric: tabular-nums; }
-.net-load small { grid-area: s; color: var(--hb-t2); font-size: 12px; }
+.net-load small { grid-area: s; color: var(--hb-t2); font-size: 13px; }
 .net-note { color: var(--hb-t2); font-size: 14px; line-height: 1.45; }
 .net-problem { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; }
 .net-problem-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -160,7 +162,7 @@ export const networkStyles = `
   .net-hero { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
-  .net-grid { grid-template-columns: minmax(0, 1fr); }
+  .net-grid, .net-summary-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 600px) {
   .net-hero { padding: 20px 18px; }
