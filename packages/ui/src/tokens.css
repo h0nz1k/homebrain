@@ -45,6 +45,10 @@
   --hb-model-met-no: #22d3ee;
   --hb-model-gfs: #fbbf24;
   --hb-ac-s: color-mix(in srgb, var(--hb-ac) 14%, transparent);
+  /* Selection language (chips, segmented accent, map rooms): one tint, ring, ink. */
+  --hb-sel-a: 22%;
+  --hb-sel: color-mix(in srgb, var(--hb-ac) var(--hb-sel-a), transparent);
+  --hb-sel-ink: color-mix(in oklch, var(--hb-ac) 42%, white);
   --hb-ok-s: color-mix(in srgb, var(--hb-ok) 14%, transparent);
   --hb-warn-s: color-mix(in srgb, var(--hb-warn) 14%, transparent);
   --hb-crit-s: color-mix(in srgb, var(--hb-crit) 14%, transparent);
@@ -58,6 +62,15 @@
   --hb-glass: linear-gradient(180deg, rgb(20 28 44 / 78%), rgb(10 15 25 / 82%));
   --hb-glass-edge: rgb(225 235 250 / 12%);
   --hb-card-shadow: none;
+  /* Robot map base layer (Roboti; robots/raster_map.py PALETTES must match – pytest) */
+  --hb-map-floor: #2c323d;
+  --hb-map-tone2: #353c49;
+  --hb-map-tone3: #252b36;
+  --hb-map-drop: #000000;
+  --hb-map-shade: #14181f;
+  --hb-map-rim: #565f6e;
+  --hb-map-seam: #626b7a;
+  --hb-map-wall: #929daf;
 }
 [data-theme='light'],
 [data-theme='system'] {
@@ -84,12 +97,24 @@
   --hb-weather-rain: #1c8fe0;
   --hb-weather-sun: #d99a00;
   --hb-weather-measured: #0e1116;
+  /* Robot map base layer, light */
+  --hb-map-floor: #ffffff;
+  --hb-map-tone2: #edf1f8;
+  --hb-map-tone3: #e3e9f2;
+  --hb-map-drop: #28344a;
+  --hb-map-shade: #c4ccd8;
+  --hb-map-rim: #b2bbc9;
+  --hb-map-seam: #c8cfdb;
+  --hb-map-wall: #626c7d;
   --hb-model-icon-d2: #7c5ce0;
   --hb-model-ecmwf: #be4288;
   --hb-model-aladin: #0e9f6e;
   --hb-model-met-no: #0891b2;
   --hb-model-gfs: #a16207;
   --hb-ac-s: color-mix(in srgb, var(--hb-ac) 9%, transparent);
+  --hb-sel-a: 12%;
+  --hb-sel: color-mix(in srgb, var(--hb-ac) var(--hb-sel-a), transparent);
+  --hb-sel-ink: color-mix(in oklch, var(--hb-ac) 80%, black);
   --hb-ok-s: color-mix(in srgb, var(--hb-ok) 9%, transparent);
   --hb-warn-s: color-mix(in srgb, var(--hb-warn) 9%, transparent);
   --hb-crit-s: color-mix(in srgb, var(--hb-crit) 9%, transparent);
@@ -135,6 +160,10 @@
     --hb-model-met-no: #22d3ee;
     --hb-model-gfs: #fbbf24;
     --hb-ac-s: color-mix(in srgb, var(--hb-ac) 14%, transparent);
+    /* Selection language (chips, segmented accent, map rooms): one tint, ring, ink. */
+    --hb-sel-a: 22%;
+    --hb-sel: color-mix(in srgb, var(--hb-ac) var(--hb-sel-a), transparent);
+    --hb-sel-ink: color-mix(in oklch, var(--hb-ac) 42%, white);
     --hb-ok-s: color-mix(in srgb, var(--hb-ok) 14%, transparent);
     --hb-warn-s: color-mix(in srgb, var(--hb-warn) 14%, transparent);
     --hb-crit-s: color-mix(in srgb, var(--hb-crit) 14%, transparent);

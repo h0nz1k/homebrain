@@ -348,8 +348,30 @@
   color: var(--hb-on-ac);
   font-weight: 600;
 }
+.hb-chip[data-toggle][aria-pressed='true']:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--hb-ac) 88%, black);
+}
 .hb-chip[data-toggle][aria-pressed='true']:has(.hb-chip-badge) {
   padding-left: 6px;
+}
+.hb-chip[data-toggle][data-look='soft'][aria-pressed='true'] {
+  /* Same selection language as SegmentedControl tone="accent": tint, accent ring, accent ink. */
+  background: var(--hb-sel);
+  color: var(--hb-sel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--hb-ac);
+}
+.hb-chip[data-toggle][data-look='soft'][aria-pressed='true']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-ac) calc(var(--hb-sel-a) + 6%), transparent);
+}
+.hb-chip[data-toggle][data-look='soft'][aria-pressed='true']:has(.hb-chip-badge) {
+  padding-left: 9px;
+}
+.hb-chip[data-look='soft'] .hb-chip-badge {
+  width: 22px;
+  height: 22px;
+  background: var(--hb-ac);
+  color: var(--hb-on-ac);
+  font-size: 12.5px;
 }
 .hb-chip-badge {
   display: grid;
@@ -1270,7 +1292,11 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-seg {
   box-sizing: border-box;
-  display: flex;
+  /* Equal-width segments (grid 1fr columns), so two controls under each other line up. */
+  display: grid;
+  grid-auto-flow: column;
+  /* minmax(0, …): a long label must not widen its own column (1fr = minmax(auto, 1fr)). */
+  grid-auto-columns: minmax(0, 1fr);
   flex: 1;
   gap: 3px;
   padding: 3px;
@@ -1279,6 +1305,7 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-seg button {
   flex: 1;
+  min-width: 0;
   min-height: 38px;
   padding: 0 14px;
   border: 0;
@@ -1295,14 +1322,26 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     color var(--hb-dur-base),
     box-shadow var(--hb-dur-base);
 }
+.hb-seg:has(> button:nth-of-type(4)) button {
+  padding-inline: 6px;
+}
 .hb-seg button[aria-checked='true'] {
-  background: var(--hb-s3);
+  background: color-mix(in srgb, var(--hb-t1) 20%, var(--hb-s2));
   color: var(--hb-t1);
   font-weight: 600;
-  box-shadow: var(--hb-elev-1);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 35%);
 }
 [data-theme='light'] .hb-seg button[aria-checked='true'] {
   background: var(--hb-s1);
+  box-shadow:
+    0 0 0 0.5px rgb(16 24 40 / 10%),
+    0 1px 3px rgb(16 24 40 / 10%);
+}
+.hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] {
+  /* Shared selection language (= Chip look="soft", Roboti map rooms): tint + ring + ink. */
+  background: var(--hb-sel);
+  color: var(--hb-sel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--hb-ac);
 }
 .hb-seg button:disabled {
   cursor: default;
@@ -1333,8 +1372,20 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
     display: none;
   }
   .hb-seg button {
-    flex: 1 0 auto;
-    padding: 0 12px;
+    padding: 0 8px;
+  }
+  /* 4+ equal columns: 13 px labels („Vyvážené“ 600 ≈ 63 px) fit from ~390 px phones up. */
+  .hb-seg:has(> button:nth-of-type(4)) button {
+    padding-inline: 4px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 380px) {
+  /* 360/320 px phones: columns are ≤ 69 px, too tight for four labels (and wider fallback
+     fonts) → 2 × 2, still equal columns. */
+  .hb-seg:has(> button:nth-of-type(4)) {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

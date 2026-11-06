@@ -29,7 +29,12 @@ import {
   SETTINGS_PANEL_PATH,
 } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
-import { createRobotsDemo, type RobotsScenario } from '@homebrain/module-robots';
+import {
+  createRobotsDemo,
+  demoVectorMap,
+  type DemoScene,
+  type RobotsScenario,
+} from '@homebrain/module-robots';
 import { createMockWineApi, createSyntheticWines, setWineApiFactory } from '@homebrain/module-wine';
 import {
   createMockRecipesApi,
@@ -298,7 +303,46 @@ demoHass.connection = createMockConnection({
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).
   'homebrain/weather/get': () => buildMockSnapshot(scenarioFromUrl(location.search)),
   'energy/solar_forecast': pvDemo.ha,
-  'homebrain/robots/get': () => robotsDemo.ws,
+  // `window.__HB_ROBOT_ROOMS__` (local shot script): placeholder room names for robot 1.
+  'homebrain/robots/get': () => {
+    const rooms = (globalThis as { __HB_ROBOT_ROOMS__?: { id: number; name: string }[] })
+      .__HB_ROBOT_ROOMS__;
+    if (!rooms) return robotsDemo.ws;
+    return {
+      robots: robotsDemo.ws.robots.map((r, i) =>
+        i === 0 ? { ...r, maps: r.maps.map((m) => ({ ...m, rooms })) } : r,
+      ),
+    };
+  },
+  // Invented vector plans; robot 1 advances one step per `?mapapoll` tick, robot 3 = PNG fallback.
+  // `window.__HB_ROBOT_MAP__` (set by a local shot script) renders a locally parsed plan.
+  'homebrain/robots/map': (message: unknown) =>
+    new URLSearchParams(location.search).get('vektor') === 'chyba'
+      ? { available: false, reason: 'parse_failed' }
+      : (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__
+        ? { available: true, map: (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__ }
+        : demoVectorMap(
+            Number((message as { slot?: number }).slot),
+            Date.now(),
+            Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
+            // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
+            new URLSearchParams(location.search).get('scena') as DemoScene | null,
+          ),
+  // Raster base layers of the demo plans (scripts/build_robot_demo_rasters.py); a local shot
+  // script may inject its own via `window.__HB_ROBOT_RASTER__ = { light, dark }` (data URLs).
+  'auth/sign_path': (message: unknown) => {
+    const path = String((message as { path?: string }).path ?? '');
+    const hit =
+      /^\/api\/homebrain\/robots\/map\/(\d)\/[^/]+\/((?:light|dark)(?:-walls)?)\.png$/.exec(path);
+    if (!hit) return { path };
+    const injected = (globalThis as { __HB_ROBOT_RASTER__?: Record<string, string> })
+      .__HB_ROBOT_RASTER__;
+    return {
+      path:
+        injected?.[hit[2]!] ??
+        new URL(`./dev-assets/robots/demo-${hit[1]}-${hit[2]}.png`, import.meta.url).href,
+    };
+  },
   call_service: (message: unknown) => {
     robotCalls.push(message);
     return { context: { id: 'demo' } };

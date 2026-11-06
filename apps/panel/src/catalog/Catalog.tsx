@@ -198,8 +198,9 @@ const specs: Spec[] = [
     name: 'Chip',
     summary: 'Pill pro filtry a metadata (stejné API, jemnější vzhled).',
     importName: 'Chip',
-    states: ['neutral', 'accent', 'ok', 'warn', 'crit', 'pressed', 'badge', 'disabled'],
-    doText: 'Filtry v řádku, ať se zalomí bez ořezu.',
+    states: ['neutral', 'accent', 'ok', 'warn', 'crit', 'pressed', 'badge', 'soft', 'disabled'],
+    doText:
+      'Filtry v řádku, ať se zalomí bez ořezu. look="soft" = sdílený jazyk výběru (tón + linka + text v akcentu) tam, kde výběr ukazuje i mapa nebo SegmentedControl tone="accent".',
     dontText: 'Vlastní .x-chip v modulu – použijte Chip a className.',
     notes: 'Energie, Víno a Dnes mají zatím vlastní čipy → sjednotit (viz revize).',
     render: () => (
@@ -211,6 +212,9 @@ const specs: Spec[] = [
         <ToggleChipDemo />
         <Chip pressed badge={1} badgeLabel="pořadí 1" onPress={() => undefined}>
           Kuchyně
+        </Chip>
+        <Chip pressed look="soft" badge={2} badgeLabel="pořadí 2" onPress={() => undefined}>
+          Jídelna
         </Chip>
       </div>
     ),
@@ -485,11 +489,11 @@ const specs: Spec[] = [
     name: 'SegmentedControl',
     summary: 'Výběr jedné ze 2–4 krátkých možností.',
     importName: 'SegmentedControl',
-    states: ['vybraná', 'nevybraná', 'disabled', 'size = sm'],
+    states: ['vybraná', 'nevybraná', 'disabled', 'size = sm', 'tone = accent'],
     doText: 'Krátké popisky (1–2 slova).',
     dontText: 'Víc než 4 možnosti – použijte seznam.',
     notes:
-      'radiogroup + role=radio (aria-checked); viditelný štítek vlevo, hideLabel pro záložky. Stejné API jako Roboti (PR #97). Nahradí wine-seg / wx-seg.',
+      'radiogroup + role=radio (aria-checked); viditelný štítek vlevo, hideLabel pro záložky. Stejné API jako Roboti (PR #97). tone="accent" vedle stisknutých Chipů (Roboti: Režim/Sání), aby výběr vypadal všude stejně. Nahradí wine-seg / wx-seg.',
     render: () => <SegDemo />,
   },
   {
@@ -585,15 +589,27 @@ function SwitchDemo() {
 function SegDemo() {
   const [v, setV] = useState<'unlock' | 'open'>('unlock');
   return (
-    <SegmentedControl
-      label="Akce"
-      value={v}
-      onChange={setV}
-      options={[
-        ['unlock', 'Odemknout'],
-        ['open', 'Otevřít západku'],
-      ]}
-    />
+    <div className="cat-row">
+      <SegmentedControl
+        label="Akce"
+        value={v}
+        onChange={setV}
+        options={[
+          ['unlock', 'Odemknout'],
+          ['open', 'Otevřít západku'],
+        ]}
+      />
+      <SegmentedControl
+        label="Akce (accent)"
+        tone="accent"
+        value={v}
+        onChange={setV}
+        options={[
+          ['unlock', 'Odemknout'],
+          ['open', 'Otevřít západku'],
+        ]}
+      />
+    </div>
   );
 }
 
@@ -668,6 +684,20 @@ const tokenGroups: Array<{ id: string; title: string; kind: string; tokens: stri
       '--hb-crit',
       '--hb-edge',
       '--hb-fill',
+    ],
+  },
+  {
+    id: 'map-colors',
+    title: 'Barvy mapy robotů',
+    kind: 'color',
+    tokens: [
+      '--hb-map-floor',
+      '--hb-map-tone2',
+      '--hb-map-tone3',
+      '--hb-map-seam',
+      '--hb-map-rim',
+      '--hb-map-shade',
+      '--hb-map-wall',
     ],
   },
   {

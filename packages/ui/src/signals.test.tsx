@@ -363,6 +363,23 @@ it('Button superset API: default secondary, lg/block, loading; Chip onPress + ba
   expect((screen.getByRole('button', { name: 'Sklep' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
+it('Chip look="soft" marks the shared selection language, solid stays the default', () => {
+  render(
+    <>
+      <Chip pressed look="soft" badge={1} badgeLabel="pořadí 1" onPress={() => undefined}>
+        Jídelna
+      </Chip>
+      <Chip pressed onPress={() => undefined}>
+        Filtr
+      </Chip>
+    </>,
+  );
+  const soft = screen.getByRole('button', { name: /Jídelna/ });
+  expect(soft.dataset.look).toBe('soft');
+  expect(soft.querySelector('.hb-chip-badge')?.textContent).toBe('1');
+  expect(screen.getByRole('button', { name: 'Filtr' }).hasAttribute('data-look')).toBe(false);
+});
+
 it('Button danger variant (extends the canonical Button) keeps type=button', () => {
   render(<Button variant="danger">Smazat</Button>);
   const b = screen.getByRole('button', { name: 'Smazat' });

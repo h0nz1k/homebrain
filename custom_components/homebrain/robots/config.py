@@ -31,6 +31,9 @@ ROBOT_KEY_DOMAINS: Final[dict[str, str | tuple[str, ...]]] = {
     "cleaning_fluid": "binary_sensor",
     "water_shortage": "binary_sensor",
     "cleaning_mode": "select",
+    # Roborock mop water level (key water_box_mode) and mop route (standard/deep/deep_plus).
+    "mop_intensity": "select",
+    "mop_mode": "select",
     "selected_map": "select",
     "map_image": "image",
 }

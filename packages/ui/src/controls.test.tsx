@@ -36,6 +36,21 @@ describe('controls', () => {
     fireEvent.click(sw);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+  it('SegmentedControl tone=accent marks the wrapper (accent thumb like pressed chips)', () => {
+    const { container } = render(
+      <SegmentedControl
+        label="Sání"
+        tone="accent"
+        value="b"
+        onChange={() => {}}
+        options={[
+          ['a', 'Tiché'],
+          ['b', 'Turbo'],
+        ]}
+      />,
+    );
+    expect(container.querySelector('.hb-seg-wrap')?.getAttribute('data-tone')).toBe('accent');
+  });
   it('SegmentedControl is a radiogroup and reports only a changed value', () => {
     const onChange = vi.fn();
     render(
