@@ -134,7 +134,7 @@
       },
       "robots_1": {
         "title": "Robot 1",
-        "description": "Robot 1 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps).",
+        "description": "Robot 1 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps). Po výběru vysavače se prázdná pole předvyplní entitami stejného zařízení v HA (i doku); vyplněné vazby se nikdy nepřepisují. Patro z oblasti v HA: {ha_floor} (pole Patro se použije jen když vysavač nemá oblast s patrem).",
         "data": {
           "name": "Jméno v HomeBrainu",
           "floor": "Patro (např. Přízemí)",
@@ -166,7 +166,7 @@
       },
       "robots_2": {
         "title": "Robot 2",
-        "description": "Robot 2 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps).",
+        "description": "Robot 2 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps). Po výběru vysavače se prázdná pole předvyplní entitami stejného zařízení v HA (i doku); vyplněné vazby se nikdy nepřepisují. Patro z oblasti v HA: {ha_floor} (pole Patro se použije jen když vysavač nemá oblast s patrem).",
         "data": {
           "name": "Jméno v HomeBrainu",
           "floor": "Patro (např. Přízemí)",
@@ -198,7 +198,7 @@
       },
       "robots_3": {
         "title": "Robot 3",
-        "description": "Robot 3 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps).",
+        "description": "Robot 3 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps). Po výběru vysavače se prázdná pole předvyplní entitami stejného zařízení v HA (i doku); vyplněné vazby se nikdy nepřepisují. Patro z oblasti v HA: {ha_floor} (pole Patro se použije jen když vysavač nemá oblast s patrem).",
         "data": {
           "name": "Jméno v HomeBrainu",
           "floor": "Patro (např. Přízemí)",

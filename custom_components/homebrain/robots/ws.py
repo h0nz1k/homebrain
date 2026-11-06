@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from ..bindings import get_bindings
 from ..const import DOMAIN
 from .config import ROBOT_SLOTS, slot_settings
+from .discovery import discover_floor
 from .map_source import RASTER_PATH, VectorMapCache
 from .presets import (
     MAX_PASSES,
@@ -59,10 +60,13 @@ async def websocket_robots_get(
         if not vacuum:
             continue
         rooms = await cache.async_get(vacuum, refresh=msg["refresh"])
+        settings = slot_settings(entry.options, slot)
         robots.append(
             {
                 "slot": slot,
-                **slot_settings(entry.options, slot),
+                **settings,
+                # HA area -> floor of the vacuum's device; the manual floor is the fallback.
+                "floor": discover_floor(hass, vacuum) or settings["floor"],
                 "vacuum": vacuum,
                 "maps": rooms["maps"],
                 "maps_error": rooms["error"],

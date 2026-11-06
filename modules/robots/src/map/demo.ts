@@ -312,14 +312,21 @@ const PLANS: Record<number, DemoPlan> = {
  * its route instead of following the wall clock.
  */
 export type DemoScene = 'kuchyne' | 'chodba' | 'dok';
+/** Sketch units between recorded path points when a route start is given. */
+const DENSE_STEP = 8;
 const SCENE_AT: Record<Exclude<DemoScene, 'dok'>, number> = { kuchyne: 0.5435, chodba: 0.07 };
 
-/** Demo `homebrain/robots/map` answer; robot 1 drives a route, one step per tick. */
+/**
+ * Demo `homebrain/robots/map` answer; robot 1 drives a route, one step per tick, looping.
+ * `startShare` (0–1): where on the route the robot is at `nowMs` 0 – callers pass the time
+ * since page load, so e2e runs start far from the loop's jump back to the route start (#38).
+ */
 export function demoVectorMap(
   slot: number,
   nowMs: number,
   tickMs = 30_000,
   scene?: DemoScene | null,
+  startShare?: number | null,
 ): VectorMapResult {
   const plan = PLANS[slot];
   if (!plan) return { available: false, reason: 'parse_failed' };
@@ -342,12 +349,26 @@ export function demoVectorMap(
       total += seg[i - 1]!;
     }
     const tick = Math.floor(nowMs / tickMs);
-    let left = scene && scene !== 'dok' ? SCENE_AT[scene] * total : ((tick * 46) % total) + 30;
+    let left =
+      scene && scene !== 'dok'
+        ? SCENE_AT[scene] * total
+        : startShare == null
+          ? ((tick * 46) % total) + 30
+          : (startShare * total + tick * 46) % total;
     path = [plan.route[0]!];
     robot = plan.route[0]!;
     for (let i = 1; i < plan.route.length; i++) {
       const a = plan.route[i - 1]!;
       const b = plan.route[i]!;
+      const done = Math.min(left, seg[i - 1]!);
+      // With a route start (dev/e2e) record points every few units, like a real robot's path,
+      // so the marker can glide along it; the default demo output stays unchanged.
+      if (startShare != null) {
+        for (let d = DENSE_STEP; d < done; d += DENSE_STEP) {
+          const k = d / seg[i - 1]!;
+          path.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]);
+        }
+      }
       if (left >= seg[i - 1]!) {
         left -= seg[i - 1]!;
         path.push(b);

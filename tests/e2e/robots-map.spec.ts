@@ -164,7 +164,9 @@ test('otočení mapy o 90°: rozměry prohozené, popisky rovně, klik vybere sp
 });
 
 test('robot se mezi aktualizacemi plynule posouvá po dráze', async ({ page }) => {
-  await page.goto('/homebrain-roboti?mapapoll=2000');
+  // #38: the demo route loops by wall clock and jumps back to its start at the loop end. Start at
+  // 5 % of the route at page load instead: ~16 wrap-free ticks (≈ 32 s) for 3.5 s of sampling.
+  await page.goto('/homebrain-roboti?mapapoll=2000&drahaod=0.05');
   await expect(page.getByTestId('robots-map-robot')).toBeVisible();
   const samples: number[][] = [];
   for (let i = 0; i < 8; i++) {
