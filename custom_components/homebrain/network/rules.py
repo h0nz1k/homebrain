@@ -66,6 +66,13 @@ def _minutes(seconds: float) -> str:
     return f"{hours} h {rest} min" if rest else f"{hours} h"
 
 
+def _speed(mbps: int) -> str:
+    if mbps < 1000:
+        return f"{mbps} Mb/s"
+    gbps = mbps / 1000
+    return f"{gbps:g}".replace(".", ",") + " Gb/s"
+
+
 def _times(n: int) -> str:
     return f"{n}×"
 
@@ -234,7 +241,8 @@ def imbalance_rules(snap: Snapshot, now: float) -> list[Problem]:
                 "notice",
                 ("ap", ap["id"]),
                 f"{ap['name']} má většinu klientů",
-                f"{n} zařízení, {idle[0]['name']} na stejném patře jen {idle[0].get('clients') or 0}.",
+                f"{n} zařízení, {idle[0]['name']} na stejném patře "
+                f"jen {idle[0].get('clients') or 0}.",
                 f"Snižte vysílací výkon {ap['name']} nebo zapněte band steering, "
                 "ať se zařízení rozloží.",
             )
@@ -289,8 +297,7 @@ def port_rules(snap: Snapshot, now: float) -> list[Problem]:
                     "warning" if powered else "notice",
                     ("port", f"{sw['id']}:{port['n']}"),
                     f"{sw['name']}, port {port['n']}: jen 100 Mb/s",
-                    f"Port umí {cap // 1000 if cap >= 1000 else cap} {'Gb/s' if cap >= 1000 else 'Mb/s'}, "
-                    "linka jede desetinou.",
+                    f"Port umí {_speed(cap)}, linka jede jen na zlomek.",
                     "Vyměňte patch kabel nebo zkontrolujte konektor; "
                     "100 Mb/s bývá vadný pár v kabelu.",
                 )
@@ -363,7 +370,8 @@ def important_rules(snap: Snapshot, now: float) -> list[Problem]:
                 f"{c['label']} drží vzdálený bod",
                 f"Připojený k {ap['name']} ({here}) místo bodu v {want}"
                 + (f", {_minutes(now - ap_since)}." if ap_since else "."),
-                "Vypněte a zapněte Wi-Fi na zařízení. Opakuje se to? Povolte rychlý roaming (802.11r).",
+                "Vypněte a zapněte Wi-Fi na zařízení. "
+                "Opakuje se to? Povolte rychlý roaming (802.11r).",
                 ap_since,
                 important=True,
             )
