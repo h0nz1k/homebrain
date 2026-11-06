@@ -28,7 +28,8 @@ export function createWsNetworkApi(connection: ConnectionLike): NetworkApi {
 }
 
 export type NetworkApiFactory = (connection: ConnectionLike | undefined) => NetworkApi | null;
-let factory: NetworkApiFactory = (connection) => (connection ? createWsNetworkApi(connection) : null);
+let factory: NetworkApiFactory = (connection) =>
+  connection ? createWsNetworkApi(connection) : null;
 
 /** Dev/tests replace the WS client with the synthetic network (`createMockNetworkApi`). */
 export function setNetworkApiFactory(next: NetworkApiFactory): void {

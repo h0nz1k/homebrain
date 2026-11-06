@@ -24,7 +24,9 @@ describe('NetworkView', () => {
   it('adult gets only the summary and the guest QR', async () => {
     mount({ role: 'adult' });
     expect((await screen.findByTestId('network-summary')).dataset.netState).toBe('problem');
-    await waitFor(() => expect(screen.getByTestId('network-guest-ssid').textContent).toBe('Host demo'));
+    await waitFor(() =>
+      expect(screen.getByTestId('network-guest-ssid').textContent).toBe('Host demo'),
+    );
     expect(screen.queryByTestId('network-hero')).toBeNull();
     expect(screen.queryByTestId('network-devices')).toBeNull();
     expect(screen.queryByTestId('network-guest-edit')).toBeNull();

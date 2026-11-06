@@ -41,7 +41,14 @@ const dev = (over: Partial<NetDevice> & Pick<NetDevice, 'id' | 'name'>): NetDevi
 function snapshotFor(scenario: NetworkScenario, now: number): NetSnapshot {
   const h = 3600;
   const aps: NetDevice[] = [
-    dev({ id: 'ap-pracovna', name: 'Pracovna', floor_id: 'f1', clients: 8, cpu_pct: 9, mem_pct: 71 }),
+    dev({
+      id: 'ap-pracovna',
+      name: 'Pracovna',
+      floor_id: 'f1',
+      clients: 8,
+      cpu_pct: 9,
+      mem_pct: 71,
+    }),
     dev({ id: 'ap-obyvak', name: 'Obývák', floor_id: 'f0', clients: 6, cpu_pct: 7, mem_pct: 58 }),
     dev({ id: 'ap-kuchyn', name: 'Kuchyň', floor_id: 'f0', clients: 5, cpu_pct: 5, mem_pct: 55 }),
     dev({
@@ -321,7 +328,8 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
   };
   const calls: Array<{ type: string; payload?: unknown }> = [];
   const admin = () => {
-    if (role !== 'owner') return Promise.reject(Object.assign(new Error('unauthorized'), { code: 'unauthorized' }));
+    if (role !== 'owner')
+      return Promise.reject(Object.assign(new Error('unauthorized'), { code: 'unauthorized' }));
     return null;
   };
   const snapshot = () => {
@@ -346,7 +354,9 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
         configured: true,
         ssid: g.ssid,
         open: !g.password,
-        qr_payload: g.password ? `WIFI:T:WPA;S:${g.ssid};P:${g.password};;` : `WIFI:T:nopass;S:${g.ssid};;`,
+        qr_payload: g.password
+          ? `WIFI:T:WPA;S:${g.ssid};P:${g.password};;`
+          : `WIFI:T:nopass;S:${g.ssid};;`,
       };
     },
     settings: () => admin() ?? Promise.resolve(settings),

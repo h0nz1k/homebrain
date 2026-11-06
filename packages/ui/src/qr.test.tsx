@@ -6,7 +6,7 @@ import { QrCode } from './qr-code.js';
 // Reference matrices produced by an independent QR library (ECC M, fixed mask, byte mode).
 const REFERENCE = [
   {
-    text: "WIFI:T:WPA;S:Host demo;P:synthetic-pass;;",
+    text: 'WIFI:T:WPA;S:Host demo;P:synthetic-pass;;',
     mask: 3,
     rows: [
       '11111110100100001101001111111',
@@ -41,7 +41,7 @@ const REFERENCE = [
     ],
   },
   {
-    text: "WIFI:T:WPA;S:Dlouhé jméno sítě hostů;P:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;;",
+    text: 'WIFI:T:WPA;S:Dlouhé jméno sítě hostů;P:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;;',
     mask: 6,
     rows: [
       '11111110110110010011111000000011110000111110001111111',
@@ -121,7 +121,9 @@ describe('encodeQr', () => {
 
 describe('QrCode', () => {
   it('renders an accessible SVG, or nothing for oversized payloads', () => {
-    const { container, rerender } = render(<QrCode value="WIFI:T:nopass;S:Host;;" label="QR kód" />);
+    const { container, rerender } = render(
+      <QrCode value="WIFI:T:nopass;S:Host;;" label="QR kód" />,
+    );
     const svg = container.querySelector('svg');
     expect(svg?.getAttribute('aria-label')).toBe('QR kód');
     expect(svg?.getAttribute('viewBox')).toBe('0 0 33 33');

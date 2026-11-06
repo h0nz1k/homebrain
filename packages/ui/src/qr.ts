@@ -124,8 +124,7 @@ function penalty(m: boolean[][]): number {
     for (let a = 0; a < size; a++) {
       let run = 1;
       for (let b = 1; b <= size; b++) {
-        const same =
-          b < size && (pass ? m[b]![a] === m[b - 1]![a] : m[a]![b] === m[a]![b - 1]);
+        const same = b < size && (pass ? m[b]![a] === m[b - 1]![a] : m[a]![b] === m[a]![b - 1]);
         if (same) run++;
         else {
           if (run >= 5) score += run - 2;
@@ -147,7 +146,10 @@ function penalty(m: boolean[][]): number {
 export function encodeQr(text: string, opts: { mask?: number } = {}): boolean[][] | null {
   const bytes = Array.from(new TextEncoder().encode(text));
   let ver = 1;
-  while (ver <= QR_MAX_VERSION && 4 + (ver <= 9 ? 8 : 16) + bytes.length * 8 > dataCodewords(ver) * 8)
+  while (
+    ver <= QR_MAX_VERSION &&
+    4 + (ver <= 9 ? 8 : 16) + bytes.length * 8 > dataCodewords(ver) * 8
+  )
     ver++;
   if (ver > QR_MAX_VERSION) return null;
   const size = ver * 4 + 17;

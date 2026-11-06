@@ -109,7 +109,12 @@ function Hero({ snap, onTab }: { snap: NetSnapshot; onTab: (t: TabId) => void })
       </div>
       <div className="net-stats">
         {tiles.map((t) => (
-          <div key={t.id} className="net-stat" data-tone={t.tone} data-testid={`network-stat-${t.id}`}>
+          <div
+            key={t.id}
+            className="net-stat"
+            data-tone={t.tone}
+            data-testid={`network-stat-${t.id}`}
+          >
             <span className="net-stat-label">{t.label}</span>
             <strong>{t.value}</strong>
             <small>{t.detail}</small>
@@ -221,8 +226,7 @@ function Overview({ snap, onTab }: { snap: NetSnapshot; onTab: (t: TabId) => voi
     !snap.problems.some((p) => p.rule.startsWith('internet')) && 'internet',
     !snap.problems.some((p) => p.rule === 'client_imbalance' || p.rule.startsWith('device_high')) &&
       'zátěž',
-    !snap.problems.some((p) => p.target.kind === 'switch' || p.target.kind === 'port') &&
-      'switche',
+    !snap.problems.some((p) => p.target.kind === 'switch' || p.target.kind === 'port') && 'switche',
     !snap.problems.some((p) => p.rule.startsWith('important')) && 'důležitá zařízení',
   ].filter(Boolean);
   return (
@@ -313,13 +317,7 @@ function Devices({
     save(on ? [...current(), { id }] : current().filter((i) => i.id !== id));
   const setFloor = (id: string, floor: string) =>
     save(
-      current().map((i) =>
-        i.id === id
-          ? floor
-            ? { id, expected_floor_id: floor }
-            : { id }
-          : i,
-      ),
+      current().map((i) => (i.id === id ? (floor ? { id, expected_floor_id: floor } : { id }) : i)),
     );
   if (!snap.clients.length)
     return (
@@ -416,7 +414,10 @@ function Switches({ snap }: { snap: NetSnapshot }) {
               <span>{sw.model_label}</span>
             </header>
             {share != null && sw.poe && (
-              <div className="net-budget" data-level={share >= 0.95 ? 'crit' : share >= 0.8 ? 'warn' : 'ok'}>
+              <div
+                className="net-budget"
+                data-level={share >= 0.95 ? 'crit' : share >= 0.8 ? 'warn' : 'ok'}
+              >
                 <div className="net-budget-head">
                   <span>PoE</span>
                   <strong>
@@ -489,14 +490,22 @@ function GuestWifi({
     }
   };
   return (
-    <Card className="net-card net-guest" data-testid="network-guest" data-compact={compact || undefined}>
+    <Card
+      className="net-card net-guest"
+      data-testid="network-guest"
+      data-compact={compact || undefined}
+    >
       <header className="net-card-head">
         <h3>Wi-Fi pro hosty</h3>
         <span>naskenujte fotoaparátem</span>
       </header>
       {qr?.configured && qr.qr_payload ? (
         <div className="net-guest-body">
-          <QrCode value={qr.qr_payload} label={`QR kód Wi-Fi ${qr.ssid}`} size={compact ? 168 : 220} />
+          <QrCode
+            value={qr.qr_payload}
+            label={`QR kód Wi-Fi ${qr.ssid}`}
+            size={compact ? 168 : 220}
+          />
           <div className="net-guest-copy">
             <span className="net-stat-label">Síť</span>
             <strong data-testid="network-guest-ssid">{qr.ssid}</strong>
@@ -632,8 +641,8 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
   else if (!snap.aps.length && !snap.switches.length && tab !== 'hoste')
     body = (
       <EmptyState title="UniFi nenalezeno">
-        Modul čte integraci UniFi Network a ping v Home Assistantu. Přidejte je a zařízení se
-        objeví samy.
+        Modul čte integraci UniFi Network a ping v Home Assistantu. Přidejte je a zařízení se objeví
+        samy.
       </EmptyState>
     );
   else
@@ -654,7 +663,10 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
         <h1>Síť</h1>
         {admin && snap && (
           <span className="net-updated">
-            aktualizováno {sinceLabel(snap.updated_at, nowS()) === 'právě teď' ? 'teď' : `před ${sinceLabel(snap.updated_at, nowS())}`}
+            aktualizováno{' '}
+            {sinceLabel(snap.updated_at, nowS()) === 'právě teď'
+              ? 'teď'
+              : `před ${sinceLabel(snap.updated_at, nowS())}`}
           </span>
         )}
         {admin && (

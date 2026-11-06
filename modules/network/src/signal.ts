@@ -34,9 +34,9 @@ export interface NetworkSignalFeed {
 }
 
 /** Dnes signal source: polls `homebrain/network/summary` (allowed for adults and the kiosk). */
-export function networkTodaySignalSource(context: {
-  connection?: ConnectionLike;
-}): NetworkSignalFeed | null {
+export function networkTodaySignalSource(
+  context: { connection?: ConnectionLike } = {},
+): NetworkSignalFeed | null {
   const api = getNetworkApi(context.connection);
   if (!api) return null;
   return {

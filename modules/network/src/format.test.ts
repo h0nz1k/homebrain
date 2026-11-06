@@ -42,8 +42,17 @@ describe('Síť format', () => {
 
   it('floors top-down with outdoor last and switches on their floor', async () => {
     const rows = floorRows(await snap('problems'));
-    expect(rows.map((r) => r.name)).toEqual(['2. patro', '1. patro', 'Přízemí', '-1. patro', 'Venku']);
-    expect(rows.find((r) => r.id === 'outdoor')!.aps[0]).toMatchObject({ name: 'Terasa', problem: 'warning' });
+    expect(rows.map((r) => r.name)).toEqual([
+      '2. patro',
+      '1. patro',
+      'Přízemí',
+      '-1. patro',
+      'Venku',
+    ]);
+    expect(rows.find((r) => r.id === 'outdoor')!.aps[0]).toMatchObject({
+      name: 'Terasa',
+      problem: 'warning',
+    });
     expect(rows.find((r) => r.id === 'fm1')!.switches).toBe(3);
   });
 
