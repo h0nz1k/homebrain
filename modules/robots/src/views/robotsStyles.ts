@@ -252,6 +252,17 @@ export const robotsStyles = `
 .rb-maint-tile .rb-tank { width: 20px; height: 26px; }
 .rb-maint-glyph { width: 18px; height: 18px; fill: currentColor; }
 .rb-maint-foot { margin: 12px 0 0; }
+.rb-maint-pct::after { content: '%'; font-size: 9px; font-weight: 500; margin-left: 1px; opacity: 0.7; }
+/* Overdue (0 %) still shows a red ring, not just an empty track. */
+.rb .rb-maint-tile[data-tone='crit'] .hb-ring-track { stroke: color-mix(in srgb, var(--hb-crit) 45%, transparent); }
+[data-theme='light'] .rb .rb-maint-tile[data-tone='warn'] .hb-tile-status { color: #a35d00; }
+[data-theme='light'] .rb .rb-maint-tile[data-tone='crit'] .hb-tile-status { color: #c4262c; }
+/* Wide tiles (desktop column): icon beside the text, shorter rows; phones keep the stacked tile. */
+.rb-maint-grid li { container-type: inline-size; }
+@container (min-width: 200px) {
+  .rb .rb-maint-tile { display: grid; grid-template-columns: 40px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 12px; align-content: center; min-height: 72px; }
+  .rb .rb-maint-tile .hb-tile-icon { grid-row: 1 / 3; margin: 0; align-self: center; }
+}
 .rb-tank { width: 24px; height: 32px; flex: none; }
 .rb-tank-shell { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 30%, transparent); stroke-width: 1.5; }
 .rb-tank-fill { fill: #4cb8ff; opacity: 0.85; }
