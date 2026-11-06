@@ -1,6 +1,7 @@
 services:
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:2026.10.4
+    # CI matrix sets HA_VERSION (minimum from hacs.json, stable, beta); default = pinned local version.
+    image: ghcr.io/home-assistant/home-assistant:${HA_VERSION:-2026.10.4}
     ports:
       - '127.0.0.1:8123:8123'
     volumes:
@@ -8,3 +9,9 @@ services:
       - ../custom_components/homebrain:/config/custom_components/homebrain:ro
     environment:
       TZ: Etc/UTC
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', '-o', '/dev/null', 'http://127.0.0.1:8123/manifest.json']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
