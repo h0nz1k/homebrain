@@ -16,7 +16,8 @@ test('panel HomeBrain se načte ve skutečném HA a zobrazí Odpady', async ({ p
   await expect(panel.getByText('Každá nádoba má svůj den', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(panel.getByRole('list', { name: 'Nejbližší svozy' })).toContainText('Papír');
+  // Jediná demo nádoba je hlavní karta; seznam „Nejbližší svozy“ (další nádoby) se nezobrazí.
+  await expect(panel.locator('.hb-shell')).toContainText('Papír');
   await expect(panel.getByText('Není nastavena vazba na entitu odpadů')).not.toBeVisible();
   await testInfo.attach('ha-odpady', {
     body: await page.screenshot({ fullPage: true }),
