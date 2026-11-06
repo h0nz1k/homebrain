@@ -105,6 +105,8 @@ jobs:
           python -m pip install --disable-pip-version-check uv==0.13.7
           uv pip install --system -r requirements-test.txt
       - run: ruff check .
+      - name: Private HA API guard (#27)
+        run: python scripts/ci/check_private_ha_api.py
       - run: ruff format --check .
       - name: Python tests (pytest)
         run: pytest tests/python

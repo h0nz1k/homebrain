@@ -23,7 +23,8 @@
           "robots_1": "Robot 1",
           "robots_2": "Robot 2",
           "robots_3": "Robot 3",
-          "recipes": "Recepty"
+          "recipes": "Recepty",
+          "modules": "Moduly (zapnout/vypnout)"
         }
       },
       "waste": {
@@ -239,6 +240,13 @@
           "recipes_airfryer_drawer": "Fritéza: senzor otevřené zásuvky (binary_sensor)",
           "recipes_airfryer_remaining": "Fritéza: zbývající čas (volitelné)"
         }
+      },
+      "modules": {
+        "title": "Moduly",
+        "description": "Zapněte nebo vypněte moduly HomeBrainu. Vypnutý modul neregistruje WebSocket příkazy ani panel; změna HomeBrain znovu načte.",
+        "data": {
+          "enabled_modules": "Zapnuté moduly"
+        }
       }
     },
     "error": {
@@ -254,6 +262,23 @@
         "180": "180°",
         "270": "270° (90° proti směru hodin)"
       }
+    },
+    "modules": {
+      "options": {
+        "weather": "Počasí",
+        "energy": "Energie",
+        "waste": "Odpady",
+        "robots": "Roboti",
+        "wine": "Vinotéka",
+        "recipes": "Recepty",
+        "access": "Přístup"
+      }
+    }
+  },
+  "issues": {
+    "module_failed": {
+      "title": "Modul HomeBrainu {module} je nedostupný",
+      "description": "Modul HomeBrainu **{module}** se nepodařilo spustit a v panelu je označen jako nedostupný; ostatní moduly fungují dál. Chyba: `{error}`. Zkontrolujte log Home Assistantu a pak HomeBrain znovu načtěte nebo restartujte Home Assistant. Modul lze také vypnout v možnostech HomeBrainu."
     }
   }
 }

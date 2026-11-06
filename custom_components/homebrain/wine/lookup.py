@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urljoin, urlsplit
 
+from homeassistant.exceptions import HomeAssistantError
+
 from ..const import DOMAIN
 from . import enrich as zn
 from .domain import WINE_COLORS, WINE_TYPES, WineError, normalize_ean
@@ -752,17 +754,13 @@ def ai_entities(hass: Any) -> list[tuple[str, int]]:
 
 
 def ai_entity(hass: Any, need_photo: bool) -> str | None:
-    entities = dict(ai_entities(hass))
-    preferred = None
-    try:
-        from homeassistant.components.ai_task.const import DATA_PREFERENCES  # noqa: PLC0415
+    """First capable ``ai_task`` entity (sorted); only a fallback, see ``AiTaskProvider``.
 
-        prefs = hass.data.get(DATA_PREFERENCES)
-        preferred = getattr(prefs, "gen_data_entity_id", None)
-    except ImportError:  # pragma: no cover - HA without ai_task
-        pass
-    order = ([preferred] if preferred in entities else []) + sorted(entities)
-    for entity_id in order:
+    The owner's preferred entity is not read here: it lives in ``ai_task``'s private
+    ``hass.data`` (#27). ``ai_task.generate_data`` without ``entity_id`` uses it publicly.
+    """
+    entities = dict(ai_entities(hass))
+    for entity_id in sorted(entities):
         if not need_photo or entities[entity_id] & 2:
             return entity_id
     return None
@@ -795,7 +793,6 @@ class AiTaskProvider(Provider):
             raise WineError("LOOKUP_AI_NO_ATTACHMENTS")
         data: dict[str, Any] = {
             "task_name": "HomeBrain – etiketa vína",
-            "entity_id": entity_id,
             "instructions": AI_INSTRUCTIONS
             + (f"\nText from the owner: {query.text}" if query.text else ""),
             "structure": AI_STRUCTURE,
@@ -815,9 +812,21 @@ class AiTaskProvider(Provider):
             ]
         try:
             async with asyncio.timeout(AI_TIMEOUT_S):
-                response = await hass.services.async_call(
-                    "ai_task", "generate_data", data, blocking=True, return_response=True
-                )
+                try:
+                    # No entity_id: ai_task uses the owner's preferred entity (public API).
+                    response = await hass.services.async_call(
+                        "ai_task", "generate_data", data, blocking=True, return_response=True
+                    )
+                except HomeAssistantError as err:
+                    # No preferred entity set, or it cannot take the photo: use one that can.
+                    _LOGGER.debug("ai_task: no usable preferred entity (%s)", err)
+                    response = await hass.services.async_call(
+                        "ai_task",
+                        "generate_data",
+                        {**data, "entity_id": entity_id},
+                        blocking=True,
+                        return_response=True,
+                    )
         except TimeoutError as err:
             raise WineError("LOOKUP_AI_TIMEOUT") from err
         except WineError:

@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 
 from custom_components.homebrain.const import DOMAIN
@@ -423,8 +424,14 @@ async def test_ws_ai_task_photo_proposal(hass, ws):
     hass.config.components.add("ai_task")
     hass.states.async_set("ai_task.synthetic", "unknown", {"supported_features": 3})
     seen: dict = {}
+    calls: list = []
 
     async def generate(call):
+        # Like ai_task without a preferred entity: HomeBrain must not read ai_task's private
+        # preferences (#27) and falls back to an explicit attachment-capable entity.
+        calls.append(call.data.get("entity_id"))
+        if "entity_id" not in call.data:
+            raise HomeAssistantError("No entity_id provided and no preferred entity set")
         seen.update(call.data)
         item = call.data["attachments"][0]["media_content_id"]
         token = item.rsplit("/", 1)[-1]
@@ -483,6 +490,7 @@ async def test_ws_ai_task_photo_proposal(hass, ws):
     assert by["ai_task"]["confidence"] == "inferred"
     assert "openfoodfacts" in by  # barcode read by the AI → exact OFF lookup
     assert seen["entity_id"] == "ai_task.synthetic" and seen["structure"]["producer"]
+    assert calls == [None, "ai_task.synthetic"]
     gone = not await hass.async_add_executor_job(Path(seen["path"]).exists)
     assert seen["path_exists"] and gone  # temp photo removed right after the AI call
 
@@ -523,3 +531,23 @@ async def test_ws_vivino_dry_run(ws):
     res = await _call(ws, type="homebrain/wine/import_vivino", content=VIVINO_CSV)
     assert res["success"], res
     assert res["result"]["summary"] == {"exact": 1, "none": 2}
+
+
+async def test_ai_task_uses_the_preferred_entity_via_public_service(hass, ws):
+    """No private ``ai_task`` const: the service call omits entity_id when it can (#27)."""
+    hass.config.components.add("ai_task")
+    hass.states.async_set("ai_task.synthetic", "unknown", {"supported_features": 3})
+    calls: list = []
+
+    async def generate(call):
+        calls.append(call.data.get("entity_id"))
+        return {"conversation_id": "x", "data": {"producer": "Synthetic", "name": "Test"}}
+
+    hass.services.async_register(
+        "ai_task", "generate_data", generate, supports_response=SupportsResponse.ONLY
+    )
+    with patch.object(wsmod, "_web", return_value=_FakeWeb()):
+        photo = "data:image/jpeg;base64," + base64.b64encode(_jpeg()).decode()
+        res = await _call(ws, type="homebrain/wine/lookup", photo=photo, providers=["ai_task"])
+    assert res["success"], res
+    assert calls == [None]

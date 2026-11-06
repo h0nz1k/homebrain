@@ -15,6 +15,7 @@ from functools import partial
 from importlib import metadata
 from typing import Any, Final
 
+from homeassistant.components import image
 from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
 
@@ -33,6 +34,9 @@ HA_MIN: Final = (2025, 12)
 HA_MAX: Final = (2026, 12)
 ROBOROCK_LIB_MAJORS: Final = frozenset({7})
 PARSE_TIMEOUT: Final = 20
+IMAGE_TIMEOUT: Final = 10
+# A Roborock map PNG is ~50-300 kB; anything far larger is not a map (decompression bomb).
+MAX_INTEGRATION_PNG_BYTES: Final = 8 * 1024 * 1024
 
 REASON_UNSUPPORTED_HA: Final = "unsupported_ha"
 REASON_UNSUPPORTED_LIB: Final = "unsupported_library"
@@ -73,11 +77,26 @@ def version_guard(ha_version: str = HA_VERSION, roborock_version: str | None = N
     return None
 
 
+def _roborock_image_entity(hass: HomeAssistant, image_entity_id: str) -> Any | None:
+    """The Roborock ``ImageEntity`` object, or ``None``.
+
+    DOCUMENTED EXCEPTION to the "no foreign ``hass.data``" rule (#27, see
+    ``docs/architecture/robustness.md`` and ``scripts/ci/private_ha_api_allowlist.txt``):
+    HA has no public API that returns an entity object and the Roborock integration does
+    not expose its raw map. Callers stay behind ``version_guard`` and every failure
+    (component missing, attribute renamed) degrades to the integration PNG, never raises.
+    """
+    try:
+        component = hass.data.get("image")
+        get_entity = getattr(component, "get_entity", None)
+        return get_entity(image_entity_id) if callable(get_entity) else None
+    except Exception:  # noqa: BLE001 - private structure may change between HA versions
+        return None
+
+
 def raw_map_blob(hass: HomeAssistant, image_entity_id: str) -> tuple[bytes | None, str | None]:
     """``(blob, None)`` or ``(None, reason)`` for a bound ``image.*`` map entity."""
-    component = hass.data.get("image")
-    get_entity = getattr(component, "get_entity", None)
-    entity = get_entity(image_entity_id) if callable(get_entity) else None
+    entity = _roborock_image_entity(hass, image_entity_id)
     if entity is None:
         return None, REASON_NO_ENTITY
     platform = getattr(getattr(entity, "platform", None), "platform_name", None)
@@ -101,17 +120,17 @@ async def integration_image(
     Calibration (``MapData.calibration()``, map units → image pixels) is optional: it only
     cross-checks the offset that the raw map header already gives.
     """
-    component = hass.data.get("image")
-    get_entity = getattr(component, "get_entity", None)
-    entity = get_entity(image_entity_id) if callable(get_entity) else None
-    if entity is None:
-        return None, None
     try:
-        png = await entity.async_image()
+        # Public image API (#27): the same bytes the HA image proxy serves.
+        png = (await image.async_get_image(hass, image_entity_id, timeout=IMAGE_TIMEOUT)).content
     except Exception:  # noqa: BLE001 - map flag missing, cloud hiccup: use the raw data
         _LOGGER.debug("No integration image for %s", image_entity_id, exc_info=True)
         return None, None
+    if isinstance(png, (bytes, bytearray)) and len(png) > MAX_INTEGRATION_PNG_BYTES:
+        _LOGGER.debug("Integration image for %s too large (%d B)", image_entity_id, len(png))
+        png = None
     calibration = None
+    entity = _roborock_image_entity(hass, image_entity_id)
     try:
         map_data = getattr(getattr(entity, "_map_content", None), "map_data", None)
         points = map_data.calibration() if map_data is not None else None

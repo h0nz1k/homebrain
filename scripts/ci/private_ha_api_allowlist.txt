@@ -1,0 +1,8 @@
+# Documented exceptions to scripts/ci/check_private_ha_api.py (#27).
+# Format: <path>:<rule>:<detail>. Every entry needs a reason and a test; see
+# docs/architecture/robustness.md.
+
+# Roborock vector map: HA has no public API returning the ImageEntity object, and the
+# Roborock integration keeps the raw map private. Behind version_guard + PNG fallback;
+# covered by tests/python/test_robot_map.py (missing component / missing _map_content).
+custom_components/homebrain/robots/map_source.py:hass-data:image

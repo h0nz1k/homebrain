@@ -124,6 +124,21 @@ it('kiosk role (server session) forces the kiosk shell on Dnes and sends no admi
   expect(adminOnly).toEqual([]);
 }, 15000);
 
+it('shows "Modul nedostupný" when the module backend failed to start (#28)', async () => {
+  const connection = createMockConnection({
+    'homebrain/bindings/get': {},
+    'homebrain/session/get': {
+      role: 'owner',
+      visible_modules: ['wine', 'waste'],
+      is_admin: true,
+      kiosk: false,
+      unavailable_modules: ['wine'],
+    },
+  });
+  render(<App store={createEntityStore()} connection={connection} moduleId="wine" />);
+  expect((await screen.findByRole('alert')).textContent).toContain('Modul nedostupný');
+});
+
 it('kiosk panel (config.kiosk) always renders Dnes in kiosk layout, ignoring the route', () => {
   expect(isKioskPanel({ config: { kiosk: true } })).toBe(true);
   expect(isKioskPanel({ config: {} })).toBe(false);

@@ -219,14 +219,20 @@ export const App = memo(function App({
               {t('disconnected')}
             </p>
           )}
-          <ModuleContent
-            store={store}
-            bindings={bindings}
-            id={id}
-            connection={connection}
-            route={route}
-            kiosk={kiosk}
-          />
+          {session?.unavailableModules.includes(id) ? (
+            <p className="hb-module-unavailable" role="alert">
+              {t('moduleUnavailable')}
+            </p>
+          ) : (
+            <ModuleContent
+              store={store}
+              bindings={bindings}
+              id={id}
+              connection={connection}
+              route={route}
+              kiosk={kiosk}
+            />
+          )}
         </main>
       </div>
       <Toaster />

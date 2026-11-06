@@ -11,6 +11,7 @@ from homeassistant.helpers import selector
 from .bindings import binding_domains, get_bindings, validate_binding
 from .const import BINDING_MODULES, DOMAIN, PANEL_TITLE
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
+from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
@@ -24,7 +25,11 @@ from .robots.config import (
 
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
 # Extra menu steps that are not entity bindings.
-OPTIONS_FLOW_EXTRA = ("energy_pv", *(f"robots_{slot}" for slot in ROBOT_SLOTS))
+OPTIONS_FLOW_EXTRA = (
+    "energy_pv",
+    *(f"robots_{slot}" for slot in ROBOT_SLOTS),
+    "modules",
+)
 
 
 class HomeBrainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -115,6 +120,35 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="energy_pv", data_schema=schema)
+
+    async def async_step_modules(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Switch modules on/off; a disabled module registers no WS commands nor panel."""
+        if user_input is not None:
+            enabled = set(user_input.get("enabled_modules") or ())
+            options = {**self.config_entry.options}
+            if off := [module for module in MODULES if module not in enabled]:
+                options[CONF_DISABLED_MODULES] = off
+            else:
+                # All enabled = the pre-#28 default: keep old entries byte-identical.
+                options.pop(CONF_DISABLED_MODULES, None)
+            return self.async_create_entry(title="", data=options)
+        disabled = disabled_modules(self.config_entry.options)
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    "enabled_modules",
+                    default=[module for module in MODULES if module not in disabled],
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=list(MODULES),
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                        translation_key="modules",
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="modules", data_schema=schema)
 
     async def async_step_robots_1(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Robot 1: name, floor, picture and its Roborock entities."""

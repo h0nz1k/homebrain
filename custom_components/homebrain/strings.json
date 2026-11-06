@@ -23,7 +23,8 @@
           "robots_1": "Robot 1",
           "robots_2": "Robot 2",
           "robots_3": "Robot 3",
-          "recipes": "Recipes"
+          "recipes": "Recipes",
+          "modules": "Modules (on/off)"
         }
       },
       "waste": {
@@ -239,6 +240,13 @@
           "recipes_airfryer_drawer": "Airfryer: drawer open sensor (binary_sensor)",
           "recipes_airfryer_remaining": "Airfryer: remaining time sensor (optional)"
         }
+      },
+      "modules": {
+        "title": "Modules",
+        "description": "Switch HomeBrain modules on or off. A disabled module registers no WebSocket commands and no panel; changing this reloads HomeBrain.",
+        "data": {
+          "enabled_modules": "Enabled modules"
+        }
       }
     },
     "error": {
@@ -254,6 +262,23 @@
         "180": "180°",
         "270": "270° (90° counter-clockwise)"
       }
+    },
+    "modules": {
+      "options": {
+        "weather": "Weather",
+        "energy": "Energy",
+        "waste": "Waste",
+        "robots": "Robots",
+        "wine": "Wine cellar",
+        "recipes": "Recipes",
+        "access": "Access"
+      }
+    }
+  },
+  "issues": {
+    "module_failed": {
+      "title": "HomeBrain module {module} is unavailable",
+      "description": "The HomeBrain module **{module}** failed to start and is shown as unavailable; the other modules keep working. Error: `{error}`. Check the Home Assistant log, then reload HomeBrain or restart Home Assistant. You can also switch the module off in the HomeBrain options."
     }
   }
 }

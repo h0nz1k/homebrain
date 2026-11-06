@@ -1,7 +1,14 @@
-"""Register the HomeBrain panel and its versioned frontend assets."""
+"""Register the HomeBrain panel, its versioned frontend assets and the modules.
+
+Every backend module is registered and set up in isolation (``modules.py``, #28): a
+failing module gets a repair issue and an "unavailable" panel, the others keep running.
+Panels are tracked in HomeBrain's own bookkeeping (no foreign ``hass.data`` keys, #27).
+"""
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
@@ -28,6 +35,16 @@ from .const import (
 )
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_pv_forecast
+from .modules import (
+    STATE_DISABLED,
+    Registrar,
+    async_setup_modules,
+    async_unload_modules,
+    disabled_modules,
+    module_states,
+    record_failure,
+    register_modules,
+)
 from .recipes import websocket as recipes_ws
 from .robots.ws import RobotMapImageView, websocket_robots_get, websocket_robots_map
 from .waste.history import WasteHistoryManager
@@ -51,30 +68,62 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
 _FRONTEND_DIR = Path(__file__).parent / "frontend"
+_PANELS_KEY = "panels"
+
+
+def _http_view(hass: HomeAssistant, view: Any) -> None:
+    if hass.http is not None:
+        hass.http.register_view(view)
+
+
+def _commands(*handlers: Any) -> Callable[[HomeAssistant], Callable[[Registrar], None]]:
+    def bind(hass: HomeAssistant) -> Callable[[Registrar], None]:
+        def register(reg: Registrar) -> None:
+            for handler in handlers:
+                reg(hass, handler)
+
+        return register
+
+    return bind
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register WebSocket commands once for the integration."""
+    """Register WebSocket commands once; each module in isolation (disabled -> skipped)."""
+    # Core: bindings, session and roles are always available (Settings, kiosk, Dnes).
     websocket_api.async_register_command(hass, websocket_get_bindings)
     websocket_api.async_register_command(hass, websocket_set_bindings)
     websocket_api.async_register_command(hass, websocket_get_session)
     websocket_api.async_register_command(hass, websocket_get_roles)
     websocket_api.async_register_command(hass, websocket_set_roles)
-    wine_ws.async_register(hass)
-    recipes_ws.async_register(hass)
-    access_ws.async_register(hass)
-    await wine_services.async_setup_services(hass)
-    await wine_intents.async_register_intents(hass)
-    await wine_sentences.async_install_sentences(hass)
-    websocket_api.async_register_command(hass, websocket_weather_get)
-    websocket_api.async_register_command(hass, websocket_weather_alerts)
-    if hass.http is not None:
-        hass.http.register_view(RadarImageView())
-        hass.http.register_view(RobotMapImageView())
-    websocket_api.async_register_command(hass, websocket_pv_forecast)
-    websocket_api.async_register_command(hass, websocket_waste_history)
-    websocket_api.async_register_command(hass, websocket_robots_get)
-    websocket_api.async_register_command(hass, websocket_robots_map)
+
+    def weather_reg(reg: Registrar) -> None:
+        _commands(websocket_weather_get, websocket_weather_alerts)(hass)(reg)
+        _http_view(hass, RadarImageView())
+
+    def robots_reg(reg: Registrar) -> None:
+        _commands(websocket_robots_get, websocket_robots_map)(hass)(reg)
+        _http_view(hass, RobotMapImageView())
+
+    register_modules(
+        hass,
+        {
+            "weather": weather_reg,
+            "energy": _commands(websocket_pv_forecast)(hass),
+            "waste": _commands(websocket_waste_history)(hass),
+            "robots": robots_reg,
+            "wine": lambda reg: wine_ws.async_register(hass, reg),
+            "recipes": lambda reg: recipes_ws.async_register(hass, reg),
+            "access": lambda reg: access_ws.async_register(hass, reg),
+        },
+    )
+    if module_states(hass).get("wine") is None:
+        # Services, intents and sentences are wine's non-WS surface; same isolation.
+        try:
+            await wine_services.async_setup_services(hass)
+            await wine_intents.async_register_intents(hass)
+            await wine_sentences.async_install_sentences(hass)
+        except Exception as err:  # noqa: BLE001 - isolate the module, keep HA running
+            record_failure(hass, "wine", err, registration=True)
     return True
 
 
@@ -83,8 +132,58 @@ def _frontend_status() -> tuple[bool, bool]:
     return _FRONTEND_DIR.is_dir(), (_FRONTEND_DIR / "homebrain-panel.js").is_file()
 
 
+def _registered_panels(hass: HomeAssistant) -> set[str]:
+    """Panels HomeBrain registered itself (own bookkeeping, not HA's private panel map)."""
+    return hass.data.setdefault(DOMAIN, {}).setdefault(_PANELS_KEY, set())
+
+
+async def _async_register_panel(hass: HomeAssistant, path: str, **kwargs: Any) -> None:
+    registered = _registered_panels(hass)
+    if path in registered:
+        return
+    await panel_custom.async_register_panel(hass, frontend_url_path=path, **kwargs)
+    registered.add(path)
+
+
+async def _async_setup_panels(hass: HomeAssistant, static_url: str, disabled: set[str]) -> None:
+    panels = {
+        **{
+            path: panel
+            for path, panel in MODULE_PANELS.items()
+            if panel.get("module") not in disabled
+        },
+        SETTINGS_PANEL_URL_PATH: {"module": "settings"},
+        PANEL_URL_PATH: {"legacy": True},
+    }
+    for path, panel in panels.items():
+        await _async_register_panel(
+            hass,
+            path,
+            webcomponent_name=WEB_COMPONENT,
+            sidebar_title=panel.get("title"),
+            sidebar_icon=panel.get("icon"),
+            module_url=f"{static_url}/homebrain-panel.js",
+            embed_iframe=True,
+            require_admin=panel.get("require_admin", True),
+            config={"legacy": True} if panel.get("legacy") else {"module": panel["module"]},
+        )
+    # Wall tablet: same bundle, always Dnes in kiosk layout. Non-admin users may open it;
+    # the server only answers them the kiosk WS commands (roles.KIOSK_WS_COMMANDS).
+    await _async_register_panel(
+        hass,
+        KIOSK_PANEL_URL_PATH,
+        webcomponent_name=WEB_COMPONENT,
+        sidebar_title=KIOSK_PANEL_TITLE,
+        sidebar_icon=KIOSK_PANEL_ICON,
+        module_url=f"{static_url}/homebrain-panel.js",
+        embed_iframe=True,
+        require_admin=False,
+        config={"kiosk": True},
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Serve the frontend, admin module panels and the Dnes kiosk panel."""
+    """Serve the frontend, admin module panels, the Dnes kiosk panel and the modules."""
     integration = await async_get_integration(hass, DOMAIN)
     version = integration.version
     static_url = f"{STATIC_URL_BASE}/{version}"
@@ -105,60 +204,61 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         registered_paths.add(static_url)
 
-    panels = {
-        **MODULE_PANELS,
-        SETTINGS_PANEL_URL_PATH: {"module": "settings"},
-        PANEL_URL_PATH: {"legacy": True},
-    }
-    for path, panel in panels.items():
-        if path in hass.data.get("frontend_panels", {}):
-            continue
-        await panel_custom.async_register_panel(
-            hass,
-            frontend_url_path=path,
-            webcomponent_name=WEB_COMPONENT,
-            sidebar_title=panel.get("title"),
-            sidebar_icon=panel.get("icon"),
-            module_url=f"{static_url}/homebrain-panel.js",
-            embed_iframe=True,
-            require_admin=panel.get("require_admin", True),
-            config={"legacy": True} if panel.get("legacy") else {"module": panel["module"]},
-        )
-    # Wall tablet: same bundle, always Dnes in kiosk layout. Non-admin users may open it;
-    # the server only answers them the kiosk WS commands (roles.KIOSK_WS_COMMANDS).
-    if KIOSK_PANEL_URL_PATH not in hass.data.get("frontend_panels", {}):
-        await panel_custom.async_register_panel(
-            hass,
-            frontend_url_path=KIOSK_PANEL_URL_PATH,
-            webcomponent_name=WEB_COMPONENT,
-            sidebar_title=KIOSK_PANEL_TITLE,
-            sidebar_icon=KIOSK_PANEL_ICON,
-            module_url=f"{static_url}/homebrain-panel.js",
-            embed_iframe=True,
-            require_admin=False,
-            config={"kiosk": True},
-        )
+    disabled = disabled_modules(entry.options)
+    await _async_setup_panels(hass, static_url, disabled)
 
-    await _async_setup_waste_history(hass, entry)
-    # Přístup: listen to esphome.biolock_* events from the start (history, live wizard state).
-    await access_ws.async_get_manager(hass)
+    async def _setup_weather(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        if "weather" in hass.data[DOMAIN]:
+            return
+        manager = WeatherManager(hass, entry, str(version))
+        hass.data[DOMAIN]["weather"] = manager
+        if weather.AUTOSTART:
+            await manager.async_start()
 
-    async def _restore_timers(_hass: HomeAssistant) -> None:
-        # Recepty minutky: re-arm persisted timers (expired-while-down ones fire now).
-        await recipes_ws.async_restore_timers(hass)
+    async def _setup_energy(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        if "pv_forecast" not in hass.data[DOMAIN]:
+            hass.data[DOMAIN]["pv_forecast"] = PvForecastManager(
+                hass, USER_AGENT.format(version=version)
+            )
 
-    entry.async_on_unload(async_at_started(hass, _restore_timers))
+    async def _setup_wine(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        if weather.AUTOSTART:
+            # Weekly polite Znovín e-shop price snapshots (background, ≤1 request/s).
+            wine_ws.async_setup_price_refresh(hass, entry)
 
-    if "weather" in hass.data[DOMAIN]:
-        return True
-    manager = WeatherManager(hass, entry, str(version))
-    hass.data[DOMAIN]["weather"] = manager
-    hass.data[DOMAIN]["pv_forecast"] = PvForecastManager(hass, USER_AGENT.format(version=version))
-    if weather.AUTOSTART:
-        await manager.async_start()
-        # Weekly polite Znovín e-shop price snapshots (background, ≤1 request/s).
-        wine_ws.async_setup_price_refresh(hass, entry)
+    async def _setup_recipes(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        async def _restore_timers(_hass: HomeAssistant) -> None:
+            # Recepty minutky: re-arm persisted timers (expired-while-down ones fire now).
+            await recipes_ws.async_restore_timers(hass)
+
+        entry.async_on_unload(async_at_started(hass, _restore_timers))
+
+    async def _setup_access(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        # Přístup: listen to esphome.biolock_* events from the start (history, live wizard).
+        await access_ws.async_get_manager(hass)
+
+    await async_setup_modules(
+        hass,
+        entry,
+        {
+            "weather": _setup_weather,
+            "energy": _setup_energy,
+            "waste": _async_setup_waste_history,
+            "wine": _setup_wine,
+            "recipes": _setup_recipes,
+            "access": _setup_access,
+        },
+    )
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload when a module was switched on/off; plain binding edits need no reload."""
+    states = module_states(hass)
+    was_disabled = {module for module, state in states.items() if state == STATE_DISABLED}
+    if disabled_modules(entry.options) != was_disabled:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
 
 
 async def _async_setup_waste_history(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -180,18 +280,45 @@ async def _async_setup_waste_history(hass: HomeAssistant, entry: ConfigEntry) ->
     entry.async_on_unload(entry.add_update_listener(_options_updated))
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Remove all panels while retaining the registered static route."""
-    for path in (*MODULE_PANELS, SETTINGS_PANEL_URL_PATH, PANEL_URL_PATH, KIOSK_PANEL_URL_PATH):
-        frontend.async_remove_panel(hass, path)
-    await wine_services.async_unload_services(hass)
-    await wine_ws.async_close_store(hass)
-    await recipes_ws.async_close_store(hass)
-    await access_ws.async_stop(hass)
+async def _unload_weather(hass: HomeAssistant) -> None:
     if (manager := hass.data.get(DOMAIN, {}).pop("weather", None)) is not None:
         await manager.async_stop()
+
+
+async def _unload_energy(hass: HomeAssistant) -> None:
     hass.data.get(DOMAIN, {}).pop("pv_forecast", None)
+
+
+async def _unload_robots(hass: HomeAssistant) -> None:
     hass.data.get(DOMAIN, {}).pop("robot_rooms", None)
+
+
+async def _unload_waste(hass: HomeAssistant) -> None:
     if (history := hass.data.get(DOMAIN, {}).pop("waste_history", None)) is not None:
         await history.async_stop()
+
+
+async def _unload_wine(hass: HomeAssistant) -> None:
+    await wine_services.async_unload_services(hass)
+    await wine_ws.async_close_store(hass)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Remove our panels (own bookkeeping) while retaining the registered static route."""
+    registered = _registered_panels(hass)
+    for path in sorted(registered):
+        frontend.async_remove_panel(hass, path)
+    registered.clear()
+    await async_unload_modules(
+        hass,
+        (
+            ("wine", _unload_wine),
+            ("recipes", recipes_ws.async_close_store),
+            ("access", access_ws.async_stop),
+            ("weather", _unload_weather),
+            ("energy", _unload_energy),
+            ("robots", _unload_robots),
+            ("waste", _unload_waste),
+        ),
+    )
     return True

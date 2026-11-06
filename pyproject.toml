@@ -14,3 +14,6 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 testpaths = ["tests/python"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+  "allow_blocking_calls: opt out of the event-loop blocking-call guard (conftest.py)",
+]
