@@ -103,7 +103,11 @@ export function fryerSignals(
         ? {
             value: {
               v: left,
-              label: held ? (model.phase === 'paused' ? 'pozastaveno' : 'stojí') : 'do konce',
+              label: held
+                ? model.phase === 'paused'
+                  ? 'pozastaveno, zbývá'
+                  : 'stojí, zbývá'
+                : 'do konce',
               ...(model.progress !== null ? { progress: model.progress } : {}),
               ...(held ? { held: true } : {}),
             },

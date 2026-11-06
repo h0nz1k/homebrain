@@ -11,14 +11,13 @@ import {
   fryerNeedsAction,
   fryerPhase,
   fryerProgramLine,
-  fryerSeen,
   fryerTimeline,
   fryerVisible,
   type FryerControl,
-  type FryerPhase,
 } from '../domain/fryerLive.js';
 import { FRYER_HINT, fryerHeld, readFryerStates } from '../fryerSignal.js';
 import { cachedProgramName, resolveProgramName } from '../fryerProgram.js';
+import { FryerArt } from './FryerArt.js';
 import { Icon } from './parts.js';
 
 const CONTROL_LABEL: Record<FryerControl, string> = {
@@ -109,13 +108,6 @@ export function FryerLiveCard({
   }, [api, programId]);
   const [confirmStop, setConfirmStop] = useState(false);
   const [busy, setBusy] = useState<FryerControl | null>(null);
-  // Phases seen during this cook (stored from the previous render, React's derived-state pattern).
-  const [seen, setSeen] = useState<FryerPhase[]>([]);
-  // off/idle reset the list and are never stored themselves, so only update when it changes.
-  const reset = phase === 'off' || phase === 'idle';
-  if (reset ? seen.length > 0 : !seen.includes(phase)) {
-    setSeen(fryerSeen(seen, phase));
-  }
   if (!entities) return null;
   const m = fryerModel(states, now);
   if (!fryerVisible(m.phase)) return null;
@@ -139,25 +131,28 @@ export function FryerLiveCard({
   const countdown = m.remainingS !== null ? formatCountdown(m.remainingS) : null;
   const eta = fryerEta(m, now);
   const finished = m.phase === 'done' || m.phase === 'warm';
-  const steps = fryerTimeline(m.phase, seen);
+  const steps = fryerTimeline(m.phase, m.progress);
   const isError = m.phase === 'error';
   // Shake / drawer: the instruction is the hero, the (stopped) countdown a plain-text side note.
   const instruction = m.phase === 'action' || m.phase === 'drawer';
+  // Calm states lead with the food („Hranolky“) and show the phase as a status pill.
+  const food = program === 'Ruční' ? 'Ruční pečení' : program || 'Fritéza';
+  const foodTitle = !instruction && !isError;
   // One muted line under the title; joined here so no separator is ever left dangling.
-  const meta = ['Fritéza', program, m.amount ? `Zaplnění ${m.amount}/7` : null]
+  const meta = [
+    foodTitle && food === 'Fritéza' ? null : 'Fritéza',
+    foodTitle ? null : program,
+    m.amount ? `Zaplnění ${m.amount}/7` : null,
+  ]
     .filter(Boolean)
     .join(' · ');
-  const visual = isError ? null : instruction ? (
-    <span className="rc-fl-glyph" aria-hidden="true">
-      <Icon name={m.phase === 'drawer' ? 'drawer' : 'shake'} />
-    </span>
-  ) : (
+  const ring = (
     <span className="rc-fl-ringwrap">
       <ProgressRing
         className="rc-fl-ring"
         value={m.progress ?? 0}
-        size={136}
-        thickness={9}
+        size={176}
+        thickness={10}
         tone={finished ? 'ok' : held ? 'warn' : 'accent'}
         held={held}
         data-testid="recipes-fryer-ring"
@@ -180,38 +175,39 @@ export function FryerLiveCard({
       ) : null}
     </span>
   );
-  // Plain-text facts: temperature, ETA, stopped countdown (never pill/button-like).
+  const visual = isError ? null : instruction ? (
+    <FryerArt phase={m.phase} className="rc-fl-hero-art" />
+  ) : (
+    ring
+  );
+  // Labelled stats: temperature, ETA or the stopped countdown (plain text, never pill/button-like).
   const facts: ReactNode[] = [];
   if (m.currentTemp !== null && !finished && !isError) {
     facts.push(
-      <span className="rc-fl-fact num" key="t" data-testid="recipes-fryer-temp">
-        <Icon name="thermo" />
-        <span className="rc-fl-nw">
-          <b>{Math.round(m.currentTemp)}</b>
-          {m.targetTemp ? <> / {Math.round(m.targetTemp)}</> : null}&nbsp;°C
-        </span>
+      <span className="rc-fl-fact" key="t">
+        <small>
+          {m.targetTemp ? `Teplota · cíl ${Math.round(m.targetTemp)}\u00a0°C` : 'Teplota'}
+        </small>
+        <b className="rc-fl-nw num" data-testid="recipes-fryer-temp">
+          {Math.round(m.currentTemp)}&nbsp;°C
+        </b>
       </span>,
     );
   }
   if (instruction && countdown) {
     facts.push(
       <span className="rc-fl-fact" key="h" data-testid="recipes-fryer-held">
-        <Icon name="pause" />
-        <span>
-          Odpočet stojí na{' '}
-          <b className="num" data-testid="recipes-fryer-countdown">
-            {countdown}
-          </b>
-        </span>
+        <small>Odpočet stojí na</small>
+        <b className="num" data-testid="recipes-fryer-countdown">
+          {countdown}
+        </b>
       </span>,
     );
   } else if (eta && !held) {
     facts.push(
       <span className="rc-fl-fact" key="e">
-        <Icon name="clock" />
-        <span>
-          Hotovo v <b className="num">{eta}</b>
-        </span>
+        <small>Konec v</small>
+        <b className="num">{eta}</b>
       </span>,
     );
   }
@@ -227,7 +223,7 @@ export function FryerLiveCard({
       ? 'Vytáhněte koš a protřepejte nebo otočte jídlo.'
       : m.phase === 'drawer'
         ? 'Po protřepání koš zasuňte zpět.'
-        : m.phase === 'paused'
+        : m.phase === 'paused' || m.phase === 'cooking' || m.phase === 'preheat'
           ? null
           : FRYER_HINT[m.phase];
   const primary = controls.filter((c) => c !== 'stop');
@@ -257,6 +253,23 @@ export function FryerLiveCard({
         <div className="rc-fl-main">
           {isError ? (
             <p className="rc-fl-meta">{meta}</p>
+          ) : foodTitle ? (
+            <div className="rc-fl-head">
+              <span
+                className="rc-fl-pill"
+                role="status"
+                aria-live="polite"
+                data-testid="recipes-fryer-state"
+              >
+                {m.label}
+              </span>
+              <h2 data-testid="recipes-fryer-title">{food}</h2>
+              {meta ? (
+                <p className="rc-fl-meta" title={meta} data-testid="recipes-fryer-meta">
+                  {meta}
+                </p>
+              ) : null}
+            </div>
           ) : (
             <div className="rc-fl-head">
               <h2 role="status" aria-live="polite" data-testid="recipes-fryer-state">
@@ -270,7 +283,7 @@ export function FryerLiveCard({
           <div className="rc-fl-body">
             {hint ? <p className="rc-fl-hint">{hint}</p> : null}
             {facts.length ? <div className="rc-fl-facts">{facts}</div> : null}
-            {!isError && steps.length > 1 && !finished ? (
+            {!isError && !finished ? (
               <div className="rc-fl-steps">
                 <Stepper steps={steps} compact label="Průběh pečení" />
               </div>
@@ -288,7 +301,8 @@ export function FryerLiveCard({
                 <Button
                   key={c}
                   size="md"
-                  variant="primary"
+                  // Pause is routine: calm tonal button; only Udržovat v teple (done) is a filled CTA.
+                  variant={c === 'pause' ? 'strong' : 'primary'}
                   icon={c === 'pause' ? <Icon name="pause" /> : undefined}
                   loading={busy === c}
                   disabled={busy !== null}
@@ -300,8 +314,8 @@ export function FryerLiveCard({
               ))}
               {hasStop ? (
                 <Button
-                  size="sm"
-                  variant={finished ? 'secondary' : 'ghost'}
+                  size="md"
+                  variant="secondary"
                   className="rc-fl-stop"
                   data-tone={finished ? undefined : 'danger'}
                   loading={busy === 'stop'}
@@ -315,6 +329,7 @@ export function FryerLiveCard({
             </div>
           ) : null}
         </div>
+        {!instruction && !isError ? <FryerArt phase={m.phase} className="rc-fl-side-art" /> : null}
       </section>
       {/* Outside the card: its isolation would trap the sheet under the recipe grid. */}
       {confirmStop ? (

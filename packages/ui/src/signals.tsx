@@ -347,7 +347,14 @@ function Signal({
             <ProgressRing
               value={value.progress}
               size={value.held ? 28 : variant === 'mobile' ? 40 : variant ? 56 : 40}
-              tone={value.held ? 'muted' : 'accent'}
+              // A held countdown that needs someone now keeps the warning tone (grey read as 'loading').
+              tone={
+                value.held
+                  ? severity === 'warning' || severity === 'critical'
+                    ? 'warn'
+                    : 'muted'
+                  : 'accent'
+              }
               held={value.held}
               data-testid="signal-ring"
             />

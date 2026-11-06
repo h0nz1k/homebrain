@@ -259,64 +259,43 @@ export function fryerProgramLine(m: FryerModel, programName?: string | null): st
   return m.method ?? '';
 }
 
-export type FryerStepKey = 'preheat' | 'cook' | 'shake' | 'finish' | 'done';
+export type FryerStepKey = 'heat' | 'cook' | 'done';
 export type FryerStepState = 'todo' | 'active' | 'done' | 'error';
 export interface FryerStep {
   key: FryerStepKey;
   title: string;
   state: FryerStepState;
+  /** 0…1 fill of the active Pečení step = the countdown progress (same number as the ring). */
+  progress?: number;
 }
 
-/** Phases of this cook seen so far (preheat / shake only appear once they really happened). */
-export function fryerSeen(prev: readonly FryerPhase[], phase: FryerPhase): FryerPhase[] {
-  if (phase === 'off' || phase === 'idle') return [];
-  return prev.includes(phase) ? [...prev] : [...prev, phase];
-}
+const STEP_TITLE: Record<FryerStepKey, string> = {
+  heat: 'Ohřev',
+  cook: 'Pečení',
+  done: 'Hotovo',
+};
 
 /**
- * Phase timeline: Předehřátí → Pečení → Protřepat → Dopékání → Hotovo, only the phases that
- * exist for this cook (the device does not announce a shake in advance).
+ * Phase timeline with the same three steps for the whole cook (Ohřev → Pečení → Hotovo) on every
+ * screen. Shake / drawer / pause interrupt Pečení (the card itself carries the instruction), so
+ * the step bar never grows or relabels mid-cook. Ohřev counts as done when the device skipped it.
  */
-export function fryerTimeline(phase: FryerPhase, seen: readonly FryerPhase[]): FryerStep[] {
-  const had = (p: FryerPhase) => phase === p || seen.includes(p);
-  const shake = had('action') || had('drawer');
+export function fryerTimeline(phase: FryerPhase, progress: number | null = null): FryerStep[] {
   const finished = phase === 'done' || phase === 'warm';
-  const current: FryerStepKey =
-    phase === 'preheat'
-      ? 'preheat'
-      : phase === 'action' || phase === 'drawer'
-        ? 'shake'
-        : finished
-          ? 'done'
-          : shake
-            ? 'finish'
-            : 'cook';
-  const keys: FryerStepKey[] = [];
-  if (had('preheat')) keys.push('preheat');
-  keys.push('cook');
-  if (shake) keys.push('shake');
-  if (shake && (current === 'finish' || finished)) keys.push('finish');
-  keys.push('done');
-  const title: Record<FryerStepKey, string> = {
-    preheat: 'Předehřátí',
-    cook: 'Pečení',
-    shake: 'Protřepat',
-    finish: 'Dopékání',
-    done: 'Hotovo',
-  };
-  const at = keys.indexOf(current);
-  return keys.map((key, i) => ({
-    key,
-    title: title[key],
-    state:
+  const at = phase === 'preheat' ? 0 : finished ? 2 : 1;
+  const keys: FryerStepKey[] = ['heat', 'cook', 'done'];
+  return keys.map((key, i) => {
+    const state: FryerStepState =
       i < at || (finished && key === 'done')
         ? 'done'
         : i === at
           ? phase === 'error'
             ? 'error'
             : 'active'
-          : 'todo',
-  }));
+          : 'todo';
+    const fill = state === 'active' && key === 'cook' && progress !== null;
+    return { key, title: STEP_TITLE[key], state, ...(fill ? { progress } : {}) };
+  });
 }
 
 /** Wall-clock time the cook ends („v 18:42“), null when the countdown is not running. */

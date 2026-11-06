@@ -28,6 +28,23 @@ describe('controls', () => {
     fireEvent.click(btn);
     expect(onPress).toHaveBeenCalledTimes(1);
   });
+  it('compact Stepper fills only the active step by its progress', () => {
+    const { container } = render(
+      <Stepper
+        compact
+        steps={[
+          { key: 'a', title: 'Ohřev', state: 'done' },
+          { key: 'b', title: 'Pečení', state: 'active', progress: 0.42 },
+          { key: 'c', title: 'Hotovo', state: 'todo' },
+        ]}
+      />,
+    );
+    const active = container.querySelector<HTMLElement>('[data-testid=hb-step-b]')!;
+    expect(active.hasAttribute('data-progress')).toBe(true);
+    expect(active.style.getPropertyValue('--hb-step-p')).toBe('42%');
+    const done = container.querySelector('[data-testid=hb-step-a]')!;
+    expect(done.hasAttribute('data-progress')).toBe(false);
+  });
   it('Switch toggles via onChange', () => {
     const onChange = vi.fn();
     render(<Switch checked={false} onChange={onChange} label="Servisní režim" />);

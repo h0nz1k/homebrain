@@ -370,7 +370,7 @@ export function createMockRecipesApi(
     },
     async airfryerProgram(program) {
       // Synthetic dev names only – the vendor catalogue is never part of the repo.
-      return program === 14 ? 'Demo hranolky' : null;
+      return program === 14 ? 'Hranolky' : null;
     },
   };
 }

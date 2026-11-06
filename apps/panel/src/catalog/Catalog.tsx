@@ -548,6 +548,27 @@ const specs: Spec[] = [
     ),
   },
   {
+    id: 'stepper-compact',
+    name: 'Stepper compact + progress',
+    summary: 'Tenká lišta fází v živé kartě; aktivní fáze se plní podle průběhu (fritéza).',
+    importName: 'Stepper',
+    states: ['todo', 'active + progress', 'done', 'error'],
+    doText: 'Stejné fáze po celou dobu (Ohřev → Pečení → Hotovo), progress jen u aktivní.',
+    dontText: 'Měnit počet nebo názvy kroků během běhu.',
+    notes: 'progress 0–1 nastaví --hb-step-p; modul tónuje přes --hb-step-ink.',
+    render: () => (
+      <Stepper
+        compact
+        label="Průběh pečení"
+        steps={[
+          { key: 'heat', title: 'Ohřev', state: 'done' },
+          { key: 'cook', title: 'Pečení', state: 'active', progress: 0.55 },
+          { key: 'done', title: 'Hotovo', state: 'todo' },
+        ]}
+      />
+    ),
+  },
+  {
     id: 'progress-ring',
     name: 'ProgressRing',
     summary:

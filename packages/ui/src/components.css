@@ -225,14 +225,13 @@
   outline: 2px solid var(--hb-ac);
   outline-offset: 2px;
 }
+/* Flat solid fill (no gloss gradient / inset highlight – those read as 2015 skeuomorphism). */
 .hb-btn[data-variant='primary'] {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--hb-ac) 88%, white), var(--hb-ac));
+  background: var(--hb-ac);
   color: var(--hb-on-ac);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
 }
 .hb-btn[data-variant='primary']:hover:not(:disabled) {
-  filter: brightness(1.06);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--hb-ac) 88%, white), var(--hb-ac));
+  background: color-mix(in srgb, var(--hb-ac) 90%, var(--hb-t1));
 }
 .hb-btn[data-variant='primary']:disabled:not([aria-busy='true']) {
   opacity: 1;
@@ -532,13 +531,19 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-signal-action button {
   min-height: 44px;
-  padding: var(--hb-sp-2) var(--hb-sp-4);
-  border: 1px solid var(--hb-b2);
-  border-radius: var(--hb-radius-nested);
+  padding: var(--hb-sp-2) 18px;
+  /* same tonal pill as the shared secondary Button (outlined boxes read dated) */
+  border: 1px solid transparent;
+  border-radius: var(--hb-radius-pill);
   font: inherit;
-  background: var(--hb-s3);
+  font-weight: 600;
+  background: var(--hb-fill-strong);
   color: var(--hb-t1);
   cursor: pointer;
+  transition: background-color var(--hb-dur-fast) var(--hb-ease-out);
+}
+.hb-signal-action button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-t1) 13%, transparent);
 }
 .hb-signal-action button:disabled {
   cursor: default;
@@ -1707,6 +1712,14 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-stepper[data-compact] .hb-step[data-state='active'] .hb-step-n {
   background: var(--hb-ac);
+}
+/* active segment filled by its own progress (`progress` on the step); the rest stays a track */
+.hb-stepper[data-compact] .hb-step[data-state='active'][data-progress] .hb-step-n {
+  background: linear-gradient(
+    90deg,
+    var(--hb-step-ink, var(--hb-ac)) var(--hb-step-p, 0%),
+    color-mix(in srgb, var(--hb-step-ink, var(--hb-ac)) 24%, transparent) 0
+  );
 }
 .hb-stepper[data-compact] .hb-step[data-state='error'] .hb-step-n {
   background: var(--hb-tone, var(--hb-crit));

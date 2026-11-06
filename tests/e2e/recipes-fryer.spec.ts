@@ -12,16 +12,19 @@ test('Recepty: fritéza peče – odpočet, teploty, pozastavit, zastavit s potv
   const card = page.getByTestId('recipes-fryer-live');
   await expect(card).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('recipes-fryer-state')).toHaveText('Peče');
-  await expect(card).toContainText('Demo hranolky', { timeout: 10_000 });
-  // Temperature is plain text 'current / target °C' (no second bar next to the step bar).
-  await expect(page.getByTestId('recipes-fryer-temp')).toHaveText('189 / 200 °C');
+  // Calm states lead with the food; the phase is the status pill.
+  await expect(page.getByTestId('recipes-fryer-title')).toHaveText('Hranolky', { timeout: 10_000 });
+  // Temperature value is plain text; the target sits in its label.
+  await expect(page.getByTestId('recipes-fryer-temp')).toHaveText('189 °C');
+  await expect(card).toContainText('cíl 200 °C');
   await expect(card.locator('.hb-stepper')).toHaveCount(1);
+  // Same three phases from the start, with the same labels on phone and desktop.
+  await expect(card.locator('.hb-step-t')).toHaveText(['Ohřev', 'Pečení', 'Hotovo']);
+  await expect(card.locator('.hb-step-t').first()).toBeVisible();
   // Meta line under the title: one line, no dangling separators.
-  await expect(page.getByTestId('recipes-fryer-meta')).toHaveText(
-    'Fritéza · Demo hranolky · Zaplnění 3/7',
-  );
-  // Hierarchy: Pozastavit is the primary, Zastavit a quiet secondary after it.
-  await expect(page.getByTestId('recipes-fryer-pause')).toHaveAttribute('data-variant', 'primary');
+  await expect(page.getByTestId('recipes-fryer-meta')).toHaveText('Fritéza · Zaplnění 3/7');
+  // Hierarchy: Pozastavit is the strong action, Zastavit a quiet secondary after it.
+  await expect(page.getByTestId('recipes-fryer-pause')).toHaveAttribute('data-variant', 'strong');
   await expect(page.getByTestId('recipes-fryer-stop')).not.toHaveAttribute(
     'data-variant',
     'primary',
@@ -116,7 +119,9 @@ test('Recepty: vypnutá fritéza je skrytá', async ({ page }) => {
   await expect(page.getByTestId('recipes-fryer-live')).toHaveCount(0);
 });
 
-test('Recepty na desktopu: karta fritézy má výšku a akce hned pod obsahem', async ({ page }) => {
+test('Recepty na desktopu: karta fritézy – kroužek | obsah | ilustrace, akce hned pod obsahem', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/homebrain-recepty?fryerlive=cooking');
   const card = page.getByTestId('recipes-fryer-live');
@@ -128,14 +133,15 @@ test('Recepty na desktopu: karta fritézy má výšku a akce hned pod obsahem', 
       h: c.height,
       w: c.width,
       gap: r('[data-testid="recipes-fryer-actions"]').top - r('.rc-fl-steps').bottom,
-      stopRight: r('[data-testid="recipes-fryer-stop"]').right - c.left,
+      stopIn: r('[data-testid="recipes-fryer-stop"]').right <= c.right,
+      art: r('.rc-fl-side-art').left >= r('.rc-fl-main').right,
       ring: r('[data-testid="recipes-fryer-ring"]').right <= r('.rc-fl-head').left,
     };
   });
   expect(geo.h).toBeGreaterThanOrEqual(240);
-  expect(geo.w).toBeLessThanOrEqual(880);
   expect(geo.gap).toBeLessThan(32);
-  expect(geo.stopRight).toBeLessThanOrEqual(880);
+  expect(geo.stopIn).toBe(true);
+  expect(geo.art).toBe(true);
   expect(geo.ring).toBe(true);
 });
 

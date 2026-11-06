@@ -8,7 +8,6 @@ import {
   fryerPhase,
   fryerProgramLine,
   fryerRemaining,
-  fryerSeen,
   fryerTimeline,
   fryerVisible,
   type FryerStates,
@@ -163,32 +162,22 @@ describe('fryer Dnes signal', () => {
 });
 
 describe('fryer timeline', () => {
-  it('shows only phases that happened and tracks the shake', () => {
+  it('keeps the same three steps for the whole cook', () => {
     const titles = (steps: Array<{ title: string; state: string }>) =>
       steps.map((s) => `${s.title}:${s.state}`);
-    expect(titles(fryerTimeline('cooking', []))).toEqual(['Pečení:active', 'Hotovo:todo']);
-    let seen = fryerSeen([], 'preheat');
-    expect(titles(fryerTimeline('preheat', seen))).toEqual([
-      'Předehřátí:active',
+    expect(titles(fryerTimeline('preheat'))).toEqual([
+      'Ohřev:active',
       'Pečení:todo',
       'Hotovo:todo',
     ]);
-    seen = fryerSeen(fryerSeen(seen, 'cooking'), 'action');
-    expect(titles(fryerTimeline('action', seen))).toEqual([
-      'Předehřátí:done',
-      'Pečení:done',
-      'Protřepat:active',
-      'Hotovo:todo',
-    ]);
-    expect(titles(fryerTimeline('cooking', seen))).toEqual([
-      'Předehřátí:done',
-      'Pečení:done',
-      'Protřepat:done',
-      'Dopékání:active',
-      'Hotovo:todo',
-    ]);
-    expect(fryerTimeline('done', seen).every((s) => s.state === 'done')).toBe(true);
-    expect(fryerSeen(seen, 'off')).toEqual([]);
+    for (const phase of ['cooking', 'action', 'drawer', 'paused'] as const) {
+      expect(titles(fryerTimeline(phase))).toEqual(['Ohřev:done', 'Pečení:active', 'Hotovo:todo']);
+    }
+    expect(fryerTimeline('cooking', 0.4)[1]!.progress).toBe(0.4);
+    expect(fryerTimeline('preheat', 0.4).some((s) => s.progress !== undefined)).toBe(false);
+    expect(fryerTimeline('done').every((s) => s.state === 'done')).toBe(true);
+    expect(fryerTimeline('warm').every((s) => s.state === 'done')).toBe(true);
+    expect(titles(fryerTimeline('error'))).toEqual(['Ohřev:done', 'Pečení:error', 'Hotovo:todo']);
   });
   it('keeps a stopped countdown secondary on Dnes and names the program', () => {
     const now = Date.parse('2026-06-02T17:07:00Z');
@@ -201,7 +190,7 @@ describe('fryer timeline', () => {
       method: st('auto_cook'),
     };
     const [held] = fryerSignals(fryerModel(states, now), now);
-    expect(held!.value).toMatchObject({ v: '8:42', label: 'stojí', held: true });
+    expect(held!.value).toMatchObject({ v: '8:42', label: 'stojí, zbývá', held: true });
     // An error is not a running countdown: no ring/time on the Dnes card.
     const [err] = fryerSignals(fryerModel({ ...states, error: st('3') }, now), now);
     expect(err!.title).toBe('Fritéza · Chyba 3');
