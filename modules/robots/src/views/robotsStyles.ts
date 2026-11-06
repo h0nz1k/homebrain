@@ -734,4 +734,5 @@ export const robotsStyles = `
   .rb-sched-item { flex-wrap: wrap; }
   .rb-sched-side { width: 100%; justify-content: space-between; padding-left: 76px; }
 }
+.rb-hint { margin: -6px 0 0; color: var(--hb-warn-ink, var(--hb-t2)); }
 `;

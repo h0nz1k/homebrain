@@ -55,7 +55,14 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
 from .config import ROBOT_SLOTS, clean_text
-from .presets import PresetError, PresetStore, async_start_cleaning, clean_rooms, clean_settings
+from .presets import (
+    PresetError,
+    PresetStore,
+    async_start_cleaning,
+    check_max_plus,
+    clean_rooms,
+    clean_settings,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -673,6 +680,10 @@ class RobotScheduler:
                 raise ScheduleError("invalid_format", "Schedule needs a name, days and time")
             if existing is None and len(data["schedules"]) >= MAX_SCHEDULES:
                 raise ScheduleError("too_many", f"At most {MAX_SCHEDULES} schedules")
+            try:
+                check_max_plus(schedule["settings"])
+            except PresetError as err:
+                raise ScheduleError(err.code, str(err)) from err
             if self._quiet(data, parse_hm(schedule["time"])):
                 raise ScheduleError("quiet_hours", "The time falls into quiet hours")
             if schedule["preset_id"] and not await self._presets.async_get_preset(

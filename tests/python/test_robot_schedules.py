@@ -344,3 +344,13 @@ def test_next_run_skips_disabled():
     settings = {"quiet_start": "22:00", "quiet_end": "07:00", "paused_until": None}
     assert next_run(schedule, settings, datetime.now(dt_util.UTC), None) is None
     assert timedelta(minutes=30)
+
+
+async def test_schedule_inline_max_plus_requires_vacuum(hass: HomeAssistant, env):
+    manager, _, _, _ = env
+    bad = {"mode": "both", "fan": "max_plus", "passes": 1}
+    with pytest.raises(ScheduleError) as err:
+        await _schedule(manager, at("08:00"), settings=bad)
+    assert err.value.code == "max_plus_requires_vacuum"
+    ok = await _schedule(manager, at("08:00"), settings={**bad, "mode": "vacuum"})
+    assert ok["settings"]["fan"] == "max_plus"

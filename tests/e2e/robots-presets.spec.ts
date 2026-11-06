@@ -120,3 +120,18 @@ test('editor předvolby: poslední místnost není schovaná pod patičkou', asy
   const footBox = (await page.locator('.hb-sheet-foot').boundingBox())!;
   expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(footBox.y + 1);
 });
+
+test('Max+ jen při samotném vysávání', async ({ page }) => {
+  await page.goto('/homebrain-roboti');
+  await page.getByTestId('robots-defaults-edit').click();
+  const editor = page.getByTestId('robots-preset-editor');
+  await expect(editor.getByRole('radio', { name: 'Max+' })).toHaveCount(0);
+  await editor.getByRole('radio', { name: 'Vysát' }).click();
+  await editor.getByRole('radio', { name: 'Max+' }).click();
+  await editor.getByRole('radio', { name: 'Obojí' }).click();
+  await expect(page.getByTestId('robots-maxplus-hint')).toHaveText(
+    'Max+ jen při samotném vysávání',
+  );
+  await expect(editor.getByRole('radio', { name: 'Max', exact: true })).toBeChecked();
+  await expect(editor.getByRole('radio', { name: 'Max+' })).toHaveCount(0);
+});

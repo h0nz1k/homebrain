@@ -12,7 +12,10 @@ import {
 import type { RobotModel } from '../model.js';
 import {
   MAX_PASSES,
+  MAX_PLUS_HINT,
   PRESET_NAME_MAX,
+  applyMode,
+  fansForMode,
   fitSettings,
   robotCapabilities,
   validateDraft,
@@ -158,6 +161,8 @@ export function CleanSettingsFields({
 }) {
   const caps = robotCapabilities(robot);
   const mops = modeMops(value.mode ?? robot.mode);
+  const [maxPlusHint, setMaxPlusHint] = useState(false);
+  const fans = fansForMode(caps.fans, value.mode);
   const pick = (option: string) => (option === KEEP ? null : option);
   const withKeep = (options: [string, string][]) => [
     [KEEP, 'Ponechat'] as [string, string],
@@ -171,7 +176,11 @@ export function CleanSettingsFields({
           tone="accent"
           value={value.mode ?? KEEP}
           options={withKeep(caps.modes.map((m) => [m, CLEAN_MODE_LABELS[m]]))}
-          onChange={(v) => onChange({ mode: pick(v) as CleanMode | null })}
+          onChange={(v) => {
+            const { next, downgraded } = applyMode(value, pick(v) as CleanMode | null, caps.fans);
+            setMaxPlusHint(downgraded);
+            onChange({ mode: next.mode, fan: next.fan });
+          }}
         />
       )}
       {caps.fans.length > 1 && value.mode !== 'mop' && (
@@ -179,9 +188,14 @@ export function CleanSettingsFields({
           label="Sání"
           tone="accent"
           value={value.fan ?? KEEP}
-          options={withKeep(caps.fans.map((f) => [f, FAN_LABELS[f] ?? f]))}
+          options={withKeep(fans.map((f) => [f, FAN_LABELS[f] ?? f]))}
           onChange={(v) => onChange({ fan: pick(v) })}
         />
+      )}
+      {maxPlusHint && (
+        <p className="rb-micro rb-hint" role="status" data-testid="robots-maxplus-hint">
+          {MAX_PLUS_HINT}
+        </p>
       )}
       {mops && caps.water.length > 1 && (
         <SegmentedControl

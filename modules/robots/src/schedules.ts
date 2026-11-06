@@ -1,6 +1,12 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
 import { czCount } from '@homebrain/ui';
-import { effectiveSettings, type CleanSettings, type PresetsBySlot } from './presets.js';
+import {
+  MAX_PLUS,
+  MAX_PLUS_HINT,
+  effectiveSettings,
+  type CleanSettings,
+  type PresetsBySlot,
+} from './presets.js';
 
 /**
  * Cleaning schedules run by the HomeBrain integration (backend `homebrain/robots/schedules/*`):
@@ -172,6 +178,8 @@ export function validateSchedule(draft: ScheduleDraft, settings: ScheduleSetting
   if (!name) return 'Zadejte název plánu.';
   if (name.length > SCHEDULE_NAME_MAX) return `Název může mít nejvýš ${SCHEDULE_NAME_MAX} znaků.`;
   if (!draft.days.length) return 'Vyberte aspoň jeden den.';
+  if (!draft.preset_id && draft.settings?.fan === MAX_PLUS && draft.settings.mode !== 'vacuum')
+    return `${MAX_PLUS_HINT}.`;
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.time)) return 'Zadejte čas.';
   if (inQuiet(draft.time, settings.quiet_start, settings.quiet_end))
     return `Čas spadá do nočního klidu (${settings.quiet_start}–${settings.quiet_end}).`;

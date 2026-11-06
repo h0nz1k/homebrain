@@ -31,6 +31,9 @@ import { GuideSheet, useGuides } from './GuideSheet.js';
 import { PresetSheet, type PresetEditorTarget } from './PresetSheet.js';
 import { SchedulesCard } from './SchedulesCard.js';
 import {
+  MAX_PLUS,
+  MAX_PLUS_HINT,
+  fansForMode,
   PRESET_START_DELAY_MS,
   delayedStart,
   deletePreset,
@@ -236,7 +239,16 @@ function RobotPanel({
     rest.find((v) => v !== null && v !== undefined && (!choices || choices.includes(v))) ??
     null;
   const mode = pickOr<CleanMode>(modePick, null, defaults?.mode, robot.mode);
-  const fan = pickOr(fanPick, robot.fanChoices, defaults?.fan, robot.fan);
+  const rawFan = pickOr(fanPick, robot.fanChoices, defaults?.fan, robot.fan);
+  // Max+ only in vacuum-only mode (Roborock flips the mode / drops Max+ otherwise).
+  const fan = rawFan === MAX_PLUS && mode !== 'vacuum' ? 'max' : rawFan;
+  const [maxPlusHint, setMaxPlusHint] = useState(false);
+  const chooseMode = (next: CleanMode) => {
+    setMode(next);
+    const downgraded = fan === MAX_PLUS && next !== 'vacuum';
+    setMaxPlusHint(downgraded);
+    if (downgraded) setFan('max');
+  };
   const water = pickOr(
     waterPick,
     robot.water?.choices ?? null,
@@ -923,7 +935,7 @@ function RobotPanel({
                       tone="accent"
                       value={mode}
                       options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
-                      onChange={(value) => setMode(value as CleanMode)}
+                      onChange={(value) => chooseMode(value as CleanMode)}
                     />
                   )}
                   {robot.fanChoices.length > 1 && (
@@ -931,9 +943,20 @@ function RobotPanel({
                       label="Sání"
                       tone="accent"
                       value={fan}
-                      options={robot.fanChoices.map((f) => [f, FAN_LABELS[f] ?? f])}
-                      onChange={setFan}
+                      options={fansForMode(robot.fanChoices, mode).map((f) => [
+                        f,
+                        FAN_LABELS[f] ?? f,
+                      ])}
+                      onChange={(value) => {
+                        setFan(value);
+                        setMaxPlusHint(false);
+                      }}
                     />
+                  )}
+                  {maxPlusHint && (
+                    <p className="rb-micro rb-hint" role="status" data-testid="robots-maxplus-hint">
+                      {MAX_PLUS_HINT}
+                    </p>
                   )}
                   {advanced && mops && robot.water && (
                     <SegmentedControl

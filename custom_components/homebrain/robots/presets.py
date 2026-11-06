@@ -70,6 +70,16 @@ class PresetError(Exception):
         self.code = code
 
 
+MAX_PLUS: Final = "max_plus"
+
+
+def check_max_plus(settings: Mapping[str, Any] | None) -> None:
+    """Max+ suction only exists in vacuum-only mode (verified on Roborock Qrevo/Saros/S-series:
+    Max+ with mopping flips the robot to vacuum; switching to mopping drops Max+ to balanced)."""
+    if settings and settings.get("fan") == MAX_PLUS and settings.get("mode") != "vacuum":
+        raise PresetError("max_plus_requires_vacuum", "Max+ suction needs mode vacuum")
+
+
 # --- validation -------------------------------------------------------------------------
 
 
@@ -189,6 +199,7 @@ class PresetStore:
         async with self._lock:
             data = await self._async_data()
             defaults = clean_settings(raw) if raw is not None else None
+            check_max_plus(defaults)
             self._robot(data, slot)["defaults"] = defaults
             await self._store.async_save(data)
             return defaults
@@ -206,6 +217,7 @@ class PresetStore:
             preset = clean_preset({**raw, "id": preset_id})
             if preset is None:
                 raise PresetError("invalid_format", "Preset needs a name")
+            check_max_plus(preset)
             others = [p for p in robot["presets"] if p["id"] != preset_id]
             if raw.get("id") and len(others) == len(robot["presets"]):
                 raise PresetError("not_found", "Preset not found")
@@ -298,14 +310,21 @@ def build_plan(
         (m for m, o in MODE_OPTION.items() if mode_state and mode_state.state == o), None
     )
     run_mode = mode if mode and "mode" not in skipped else current_mode
+    mode_changes = any(step["field"] == "mode" for step in steps)
     fan = settings.get("fan")
+    if fan == MAX_PLUS and run_mode != "vacuum":
+        fan = "max"  # Max+ only when vacuuming alone; mopping would flip the robot's mode
+        skipped.append("max_plus")
     if fan is not None:
         vac_state = get_state(vacuum)
         if run_mode == "mop":
             pass  # mop-only run: suction is irrelevant (robot lifts / turns the fan off itself)
         elif fan in BLOCKED_OPTIONS or fan not in _options(vac_state, "fan_speed_list"):
             skipped.append("fan")
-        elif vac_state is not None and vac_state.attributes.get("fan_speed") != fan:
+        elif vac_state is not None and (
+            # A mode change resets the robot's suction, so the fan is always re-applied after it.
+            mode_changes or vac_state.attributes.get("fan_speed") != fan
+        ):
             steps.append(
                 {
                     "domain": "vacuum",
