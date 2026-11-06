@@ -689,4 +689,51 @@ export const robotsStyles = `
 .rb-editor-rooms { display: grid; gap: 8px; }
 .rb-chips.rb-chips-wrap { flex-wrap: wrap; }
 .rb-form-error { color: var(--hb-crit); margin: 0; font-size: 14px; }
+
+/* Sticky sheet footer: keep the last room chip scrollable above it (footer height inset). */
+.hb-sheet[data-sticky-foot] .rb-editor { padding-bottom: 12px; }
+@media (max-width: 600px) {
+  .hb-sheet[data-sticky-foot] .rb-editor { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+}
+
+/* Plány úklidu */
+.rb-sched { margin-top: 16px; }
+.rb-sched .rb-card-head { align-items: center; flex-wrap: wrap; }
+.rb-sched-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.rb-sched-item {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 10px 0; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 9%, transparent);
+}
+.rb-sched-item:first-child { border-top: 0; }
+.rb-sched-item:not([data-enabled]) .rb-sched-main { opacity: .55; }
+.rb-sched-main {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 14px; border-radius: var(--hb-radius-sm);
+}
+.rb-sched-main:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
+.rb-sched-time {
+  font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em; color: var(--hb-t1); min-width: 62px;
+}
+.rb-sched-text { display: grid; gap: 2px; min-width: 0; }
+.rb-sched-name { color: var(--hb-t1); font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.rb-sched-meta { color: var(--hb-t2); font-size: 13px; overflow-wrap: anywhere; }
+.rb-sched-side { display: flex; align-items: center; gap: 10px; flex: none; }
+.rb-sched-empty { margin: 0 0 6px; }
+.rb-sched-paused {
+  margin: 0 0 10px; padding: 8px 12px; border-radius: var(--hb-radius-sm); font-size: 14px;
+  color: var(--hb-t1); background: color-mix(in srgb, var(--hb-warn) 14%, var(--hb-s1));
+}
+.rb-sched-foot { margin: 12px 0 0; color: var(--hb-t2); }
+.rb-sched-days { flex-wrap: wrap; }
+.rb-sched-days > * { min-width: 44px; justify-content: center; }
+.rb-sched-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+.rb-sched-row > .rb-field { flex: 1 1 120px; }
+.rb-sched-enabled { flex: 0 0 auto !important; justify-items: start; }
+@media (max-width: 600px) {
+  .rb-sched-item { flex-wrap: wrap; }
+  .rb-sched-side { width: 100%; justify-content: flex-start; padding-left: 76px; }
+  .rb-sched-side > .hb-switch { margin-left: auto; }
+}
+.rb-hint { margin: -6px 0 0; color: var(--hb-warn-ink, var(--hb-t2)); }
 `;

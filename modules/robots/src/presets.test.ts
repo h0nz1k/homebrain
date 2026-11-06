@@ -107,3 +107,18 @@ describe('presets', () => {
     expect(mock.handlers['homebrain/robots/presets/list']().robots['1']!.presets).toHaveLength(1);
   });
 });
+
+describe('Max+ only when vacuuming alone', () => {
+  it('offers Max+ only in vacuum mode and downgrades on mode switch', async () => {
+    const { applyMode, fansForMode, validateDraft } = await import('./presets.js');
+    const fans = ['quiet', 'balanced', 'max', 'max_plus'];
+    expect(fansForMode(fans, 'vacuum')).toContain('max_plus');
+    expect(fansForMode(fans, 'both')).not.toContain('max_plus');
+    expect(fansForMode(fans, null)).not.toContain('max_plus'); // „Ponechat“ + Max+ not allowed
+    const switched = applyMode({ mode: 'vacuum', fan: 'max_plus' }, 'mop', fans);
+    expect(switched).toEqual({ next: { mode: 'mop', fan: 'max' }, downgraded: true });
+    expect(applyMode({ mode: 'vacuum', fan: 'turbo' }, 'both', fans).downgraded).toBe(false);
+    const draft = { name: 'X', mode: 'both' as const, fan: 'max_plus', water: null, route: null };
+    expect(validateDraft({ ...draft, passes: 1, rooms: [] }, [])).toMatch(/Max\+/);
+  });
+});

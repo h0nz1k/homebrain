@@ -22,7 +22,7 @@ import asyncio
 import logging
 import re
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Final
 
 from homeassistant.core import HomeAssistant, State
@@ -68,6 +68,16 @@ class PresetError(Exception):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+MAX_PLUS: Final = "max_plus"
+
+
+def check_max_plus(settings: Mapping[str, Any] | None) -> None:
+    """Max+ suction only exists in vacuum-only mode (verified on Roborock Qrevo/Saros/S-series:
+    Max+ with mopping flips the robot to vacuum; switching to mopping drops Max+ to balanced)."""
+    if settings and settings.get("fan") == MAX_PLUS and settings.get("mode") != "vacuum":
+        raise PresetError("max_plus_requires_vacuum", "Max+ suction needs mode vacuum")
 
 
 # --- validation -------------------------------------------------------------------------
@@ -189,6 +199,7 @@ class PresetStore:
         async with self._lock:
             data = await self._async_data()
             defaults = clean_settings(raw) if raw is not None else None
+            check_max_plus(defaults)
             self._robot(data, slot)["defaults"] = defaults
             await self._store.async_save(data)
             return defaults
@@ -206,6 +217,7 @@ class PresetStore:
             preset = clean_preset({**raw, "id": preset_id})
             if preset is None:
                 raise PresetError("invalid_format", "Preset needs a name")
+            check_max_plus(preset)
             others = [p for p in robot["presets"] if p["id"] != preset_id]
             if raw.get("id") and len(others) == len(robot["presets"]):
                 raise PresetError("not_found", "Preset not found")
@@ -298,14 +310,21 @@ def build_plan(
         (m for m, o in MODE_OPTION.items() if mode_state and mode_state.state == o), None
     )
     run_mode = mode if mode and "mode" not in skipped else current_mode
+    mode_changes = any(step["field"] == "mode" for step in steps)
     fan = settings.get("fan")
+    if fan == MAX_PLUS and run_mode != "vacuum":
+        fan = "max"  # Max+ only when vacuuming alone; mopping would flip the robot's mode
+        skipped.append("max_plus")
     if fan is not None:
         vac_state = get_state(vacuum)
         if run_mode == "mop":
             pass  # mop-only run: suction is irrelevant (robot lifts / turns the fan off itself)
         elif fan in BLOCKED_OPTIONS or fan not in _options(vac_state, "fan_speed_list"):
             skipped.append("fan")
-        elif vac_state is not None and vac_state.attributes.get("fan_speed") != fan:
+        elif vac_state is not None and (
+            # A mode change resets the robot's suction, so the fan is always re-applied after it.
+            mode_changes or vac_state.attributes.get("fan_speed") != fan
+        ):
             steps.append(
                 {
                     "domain": "vacuum",
@@ -422,3 +441,36 @@ async def async_apply_and_start(
                 await asyncio.sleep(VERIFY_STEP)
         applied.append(step["field"])
     return {"started": True, "applied": applied, "skipped": skipped, "unconfirmed": unconfirmed}
+
+
+async def async_start_cleaning(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    store: PresetStore,
+    *,
+    preset_id: str | None = None,
+    rooms: list[int] | None = None,
+    settings: Mapping[str, Any] | None = None,
+    known_rooms: Callable[[str], Awaitable[set[int]]] | None = None,
+) -> dict[str, Any]:
+    """Resolve defaults ← preset ← explicit settings, check rooms, apply, then start.
+
+    Shared by the ``robots/start`` WS command and the schedules (one code path, so a
+    scheduled run behaves exactly like a manual start). Raises :class:`PresetError`.
+    """
+    vacuum = bindings.get(f"robot{slot}_vacuum")
+    if not vacuum:
+        raise PresetError("not_found", "Robot is not configured")
+    preset = None
+    if preset_id:
+        if (preset := await store.async_get_preset(slot, preset_id)) is None:
+            raise PresetError("not_found", "Preset not found")
+    effective = effective_settings(await store.async_get_defaults(slot), preset, settings)
+    room_ids = clean_rooms(rooms if preset is None else preset["rooms"])
+    if room_ids and known_rooms is not None:
+        known = await known_rooms(vacuum)
+        if known and not set(room_ids) <= known:
+            raise PresetError("unknown_room", "Room is not on the robot's map")
+    result = await async_apply_and_start(hass, bindings, slot, effective, room_ids)
+    return {**result, "settings": effective, "rooms": room_ids}

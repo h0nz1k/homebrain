@@ -12,7 +12,10 @@ import {
 import type { RobotModel } from '../model.js';
 import {
   MAX_PASSES,
+  MAX_PLUS_HINT,
   PRESET_NAME_MAX,
+  applyMode,
+  fansForMode,
   fitSettings,
   robotCapabilities,
   validateDraft,
@@ -65,12 +68,6 @@ export function PresetSheet({
   const [error, setError] = useState<string | null>(null);
   const isPreset = target.kind === 'preset';
   const set = (patch: Partial<PresetDraft>) => setDraft((d) => ({ ...d, ...patch }));
-  const mops = modeMops(draft.mode ?? robot.mode);
-  const pick = (value: string) => (value === KEEP ? null : value);
-  const withKeep = (options: [string, string][]) => [
-    [KEEP, 'Ponechat'] as [string, string],
-    ...options,
-  ];
   const submit = () => {
     const problem = isPreset ? validateDraft(draft, presets) : null;
     if (problem) return setError(problem);
@@ -132,74 +129,15 @@ export function PresetSheet({
             />
           </label>
         )}
-        {caps.modes.length > 1 && (
-          <SegmentedControl
-            label="Režim"
-            tone="accent"
-            value={draft.mode ?? KEEP}
-            options={withKeep(caps.modes.map((m) => [m, CLEAN_MODE_LABELS[m]]))}
-            onChange={(value) => set({ mode: pick(value) as CleanMode | null })}
+        <CleanSettingsFields robot={robot} value={draft} onChange={set} />
+        {isPreset && (
+          <RoomOrderChips
+            robot={robot}
+            rooms={draft.rooms}
+            onChange={(rooms) => set({ rooms })}
+            label="Místnosti předvolby"
+            testIdPrefix="robots-preset-room"
           />
-        )}
-        {caps.fans.length > 1 && draft.mode !== 'mop' && (
-          <SegmentedControl
-            label="Sání"
-            tone="accent"
-            value={draft.fan ?? KEEP}
-            options={withKeep(caps.fans.map((f) => [f, FAN_LABELS[f] ?? f]))}
-            onChange={(value) => set({ fan: pick(value) })}
-          />
-        )}
-        {mops && caps.water.length > 1 && (
-          <SegmentedControl
-            label="Voda"
-            tone="accent"
-            value={draft.water ?? KEEP}
-            options={withKeep(caps.water.map((w) => [w, WATER_LABELS[w] ?? w]))}
-            onChange={(value) => set({ water: pick(value) })}
-          />
-        )}
-        {mops && caps.routes.length > 1 && (
-          <SegmentedControl
-            label="Mopování"
-            tone="accent"
-            value={draft.route ?? KEEP}
-            options={withKeep(caps.routes.map((r) => [r, MOP_ROUTE_LABELS[r] ?? r]))}
-            onChange={(value) => set({ route: pick(value) })}
-          />
-        )}
-        <SegmentedControl
-          label="Průchody"
-          tone="accent"
-          value={String(draft.passes)}
-          options={Array.from({ length: MAX_PASSES }, (_, i) => [String(i + 1), `${i + 1}×`])}
-          onChange={(value) => set({ passes: Number(value) })}
-        />
-        {isPreset && robot.rooms.length > 0 && (
-          <div className="rb-editor-rooms">
-            <p className="rb-micro">
-              Místnosti v pořadí · {draft.rooms.length ? 'jen vybrané' : 'žádná = celý byt'}
-            </p>
-            <div className="rb-chips rb-chips-wrap" role="group" aria-label="Místnosti předvolby">
-              {robot.rooms.map((room) => {
-                const badge = orderBadge(draft.rooms, room.id);
-                return (
-                  <Chip
-                    key={room.id}
-                    className="rb-chip"
-                    look="soft"
-                    pressed={badge !== null}
-                    badge={badge}
-                    badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
-                    data-testid={`robots-preset-room-${room.id}`}
-                    onPress={() => set({ rooms: toggleRoom(draft.rooms, room.id) })}
-                  >
-                    <span className="rb-chip-name">{room.name}</span>
-                  </Chip>
-                );
-              })}
-            </div>
-          </div>
         )}
         {error && (
           <p className="rb-form-error" role="alert" data-testid="robots-preset-error">
@@ -211,7 +149,127 @@ export function PresetSheet({
   );
 }
 
-function robotNow(robot: RobotModel): CleanSettings {
+/** Mode / suction / water / route / passes – only what the robot exposes („Ponechat“ = keep). */
+export function CleanSettingsFields({
+  robot,
+  value,
+  onChange,
+}: {
+  robot: RobotModel;
+  value: CleanSettings;
+  onChange: (patch: Partial<CleanSettings>) => void;
+}) {
+  const caps = robotCapabilities(robot);
+  const mops = modeMops(value.mode ?? robot.mode);
+  const [maxPlusHint, setMaxPlusHint] = useState(false);
+  const fans = fansForMode(caps.fans, value.mode);
+  const pick = (option: string) => (option === KEEP ? null : option);
+  const withKeep = (options: [string, string][]) => [
+    [KEEP, 'Ponechat'] as [string, string],
+    ...options,
+  ];
+  return (
+    <>
+      {caps.modes.length > 1 && (
+        <SegmentedControl
+          label="Režim"
+          tone="accent"
+          value={value.mode ?? KEEP}
+          options={withKeep(caps.modes.map((m) => [m, CLEAN_MODE_LABELS[m]]))}
+          onChange={(v) => {
+            const { next, downgraded } = applyMode(value, pick(v) as CleanMode | null, caps.fans);
+            setMaxPlusHint(downgraded);
+            onChange({ mode: next.mode, fan: next.fan });
+          }}
+        />
+      )}
+      {caps.fans.length > 1 && value.mode !== 'mop' && (
+        <SegmentedControl
+          label="Sání"
+          tone="accent"
+          value={value.fan ?? KEEP}
+          options={withKeep(fans.map((f) => [f, FAN_LABELS[f] ?? f]))}
+          onChange={(v) => onChange({ fan: pick(v) })}
+        />
+      )}
+      {maxPlusHint && (
+        <p className="rb-micro rb-hint" role="status" data-testid="robots-maxplus-hint">
+          {MAX_PLUS_HINT}
+        </p>
+      )}
+      {mops && caps.water.length > 1 && (
+        <SegmentedControl
+          label="Voda"
+          tone="accent"
+          value={value.water ?? KEEP}
+          options={withKeep(caps.water.map((w) => [w, WATER_LABELS[w] ?? w]))}
+          onChange={(v) => onChange({ water: pick(v) })}
+        />
+      )}
+      {mops && caps.routes.length > 1 && (
+        <SegmentedControl
+          label="Mopování"
+          tone="accent"
+          value={value.route ?? KEEP}
+          options={withKeep(caps.routes.map((r) => [r, MOP_ROUTE_LABELS[r] ?? r]))}
+          onChange={(v) => onChange({ route: pick(v) })}
+        />
+      )}
+      <SegmentedControl
+        label="Průchody"
+        tone="accent"
+        value={String(value.passes)}
+        options={Array.from({ length: MAX_PASSES }, (_, i) => [String(i + 1), `${i + 1}×`])}
+        onChange={(v) => onChange({ passes: Number(v) })}
+      />
+    </>
+  );
+}
+
+/** Room chips with order badges (none selected = whole home). */
+export function RoomOrderChips({
+  robot,
+  rooms,
+  onChange,
+  label,
+  testIdPrefix,
+}: {
+  robot: RobotModel;
+  rooms: number[];
+  onChange: (rooms: number[]) => void;
+  label: string;
+  testIdPrefix: string;
+}) {
+  if (!robot.rooms.length) return null;
+  return (
+    <div className="rb-editor-rooms">
+      <p className="rb-micro">
+        Místnosti v pořadí · {rooms.length ? 'jen vybrané' : 'žádná = celý byt'}
+      </p>
+      <div className="rb-chips rb-chips-wrap" role="group" aria-label={label}>
+        {robot.rooms.map((room) => {
+          const badge = orderBadge(rooms, room.id);
+          return (
+            <Chip
+              key={room.id}
+              className="rb-chip"
+              look="soft"
+              pressed={badge !== null}
+              badge={badge}
+              badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
+              data-testid={`${testIdPrefix}-${room.id}`}
+              onPress={() => onChange(toggleRoom(rooms, room.id))}
+            >
+              <span className="rb-chip-name">{room.name}</span>
+            </Chip>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function robotNow(robot: RobotModel): CleanSettings {
   return {
     mode: robot.mode,
     fan: robot.fan,

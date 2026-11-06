@@ -356,3 +356,31 @@ async def test_ws_non_admin_is_refused(hass: HomeAssistant, setup, hass_ws_clien
         res = await _ws(client, payload)
         assert res["error"]["code"] == "unauthorized"
     assert calls == []
+
+
+async def test_max_plus_requires_vacuum_and_fan_reapplied_after_mode(hass: HomeAssistant):
+    from custom_components.homebrain.robots.presets import check_max_plus
+
+    with pytest.raises(PresetError) as err:
+        check_max_plus({"mode": "both", "fan": "max_plus"})
+    assert err.value.code == "max_plus_requires_vacuum"
+    with pytest.raises(PresetError):
+        check_max_plus({"mode": None, "fan": "max_plus"})  # „Ponechat“ + Max+ not allowed
+    check_max_plus({"mode": "vacuum", "fan": "max_plus"})
+    store = PresetStore(hass)
+    with pytest.raises(PresetError):
+        await store.async_save_preset(1, {"name": "X", "mode": "mop", "fan": "max_plus"})
+    with pytest.raises(PresetError):
+        await store.async_set_defaults(1, {"mode": "both", "fan": "max_plus"})
+    # Mode change → the (unchanged) fan is still re-applied after it, in that order.
+    _states(hass, mode="vac_and_mop", fan="max_plus")
+    steps, _ = build_plan(
+        BINDINGS, 1, hass.states.get, {"mode": "vacuum", "fan": "max_plus", "passes": 1}, []
+    )
+    assert [s["field"] for s in steps] == ["mode", "fan", "start"]
+    # Layered settings that end up mopping with Max+ are downgraded to Max.
+    steps, skipped = build_plan(
+        BINDINGS, 1, hass.states.get, {"mode": "both", "fan": "max_plus", "passes": 1}, []
+    )
+    fan = next(s for s in steps if s["field"] == "fan")
+    assert fan["data"] == {"fan_speed": "max"} and "max_plus" in skipped

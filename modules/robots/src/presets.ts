@@ -90,11 +90,38 @@ export function robotCapabilities(robot: RobotModel): RobotCapabilities {
   };
 }
 
+export const MAX_PLUS = 'max_plus';
+export const MAX_PLUS_HINT = 'Max+ jen při samotném vysávání';
+
+/** Max+ suction is offered only in vacuum-only mode („Ponechat“ + Max+ is not allowed). */
+export function fansForMode(fans: string[], mode: CleanMode | null): string[] {
+  return mode === 'vacuum' ? fans : fans.filter((f) => f !== MAX_PLUS);
+}
+
+/**
+ * Switch mode; Max+ becomes Max when the new mode mops (the robot would flip back to vacuum
+ * or drop to balanced otherwise). `downgraded` drives the „Max+ jen při…“ hint.
+ */
+export function applyMode<T extends { mode: CleanMode | null; fan: string | null }>(
+  settings: T,
+  mode: CleanMode | null,
+  fans: string[],
+): { next: T; downgraded: boolean } {
+  const downgraded = settings.fan === MAX_PLUS && mode !== 'vacuum';
+  const fan = downgraded ? (fans.includes('max') ? 'max' : null) : settings.fan;
+  return { next: { ...settings, mode, fan }, downgraded };
+}
+
 /** Drop values the robot does not expose (another model, removed option). */
 export function fitSettings(settings: CleanSettings, caps: RobotCapabilities): CleanSettings {
   return {
     mode: settings.mode && caps.modes.includes(settings.mode) ? settings.mode : null,
-    fan: settings.fan && caps.fans.includes(settings.fan) ? settings.fan : null,
+    fan:
+      settings.fan && fansForMode(caps.fans, settings.mode).includes(settings.fan)
+        ? settings.fan
+        : settings.fan === MAX_PLUS && caps.fans.includes('max')
+          ? 'max'
+          : null,
     water: settings.water && caps.water.includes(settings.water) ? settings.water : null,
     route: settings.route && caps.routes.includes(settings.route) ? settings.route : null,
     passes: Math.min(MAX_PASSES, Math.max(1, Math.round(settings.passes || 1))),
@@ -159,6 +186,7 @@ export interface PresetDraft extends CleanSettings {
 export function validateDraft(draft: PresetDraft, others: RobotPreset[]): string | null {
   const name = draft.name.trim().replace(/\s+/g, ' ');
   if (!name) return 'Zadejte název předvolby.';
+  if (draft.fan === MAX_PLUS && draft.mode !== 'vacuum') return `${MAX_PLUS_HINT}.`;
   if (name.length > PRESET_NAME_MAX) return `Název může mít nejvýš ${PRESET_NAME_MAX} znaků.`;
   if (
     others.some(
@@ -167,6 +195,30 @@ export function validateDraft(draft: PresetDraft, others: RobotPreset[]): string
   )
     return 'Předvolba s tímto názvem už existuje.';
   return null;
+}
+
+/** Preset chips start after this undo window (owner: no confirm dialog, „Zrušit“ in a toast). */
+export const PRESET_START_DELAY_MS = 5000;
+
+/**
+ * Run `start` after `delayMs` unless the returned cancel function is called first. Nothing is
+ * sent to HA during the window, so cancelling never has to stop a running robot.
+ */
+export function delayedStart(
+  start: () => void,
+  delayMs: number = PRESET_START_DELAY_MS,
+): () => boolean {
+  let pending = true;
+  const timer = setTimeout(() => {
+    pending = false;
+    start();
+  }, delayMs);
+  return () => {
+    if (!pending) return false;
+    pending = false;
+    clearTimeout(timer);
+    return true;
+  };
 }
 
 // --- WebSocket ---------------------------------------------------------------------------

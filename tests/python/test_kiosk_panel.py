@@ -30,6 +30,15 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/robots/defaults/set": {"slot": 1, "defaults": None},
     # No robot is bound in the matrix entry: an admin gets not_found, nothing ever starts.
     "homebrain/robots/start": {"slot": 1},
+    "homebrain/robots/schedules/list": {},
+    "homebrain/robots/schedules/save": {
+        "schedule": {"name": "x", "slot": 1, "days": [0], "time": "10:00"}
+    },
+    "homebrain/robots/schedules/delete": {"schedule_id": "abcdef012345"},
+    "homebrain/robots/schedules/pause": {"until": None},
+    "homebrain/robots/schedules/settings": {"quiet_start": "22:00", "quiet_end": "07:00"},
+    # Unknown schedule (no robot bound): admin gets not_found, nothing ever starts.
+    "homebrain/robots/schedules/run_now": {"schedule_id": "abcdef012345"},
     "homebrain/wine/list": {},
     "homebrain/wine/search": {"query": "x"},
     "homebrain/wine/get": {"wine_id": "x"},

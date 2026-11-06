@@ -51,8 +51,9 @@ export const FAN_LABELS: Record<string, string> = {
   max_plus: 'Max+',
   smart_mode: 'Chytré',
 };
-const CORE_FANS = ['quiet', 'balanced', 'turbo', 'max'];
-/** Fan speeds shown as segments in power order: the 4 core ones + the current one (Max+, Chytré). */
+// Max+ is core too, but the views only offer it in vacuum-only mode (`fansForMode`).
+const CORE_FANS = ['quiet', 'balanced', 'turbo', 'max', 'max_plus'];
+/** Fan speeds shown as segments in power order: the core ones + the current one (Chytré). */
 export function fanChoices(list: string[], current: string | null = null): string[] {
   return Object.keys(FAN_LABELS).filter(
     (speed) => list.includes(speed) && (CORE_FANS.includes(speed) || speed === current),

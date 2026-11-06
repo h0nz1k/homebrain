@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest';
 import { createEntityStore, type ConnectionLike } from '@homebrain/ha-client';
 import { createRobotsDemo } from '../demo.js';
+import { createSchedulesDemo } from '../schedules.js';
 import { demoVectorMap } from '../map/demo.js';
 import { Toaster } from '@homebrain/ui';
 import RobotsView from './RobotsView.js';
@@ -33,6 +34,8 @@ function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
     async sendMessagePromise<T>(message: { type: string }) {
       if (message.type === 'homebrain/robots/get') return demo.ws as T;
       if (message.type === 'homebrain/robots/presets/list') return { robots: {} } as T;
+      if (message.type === 'homebrain/robots/schedules/list')
+        return createSchedulesDemo().handlers['homebrain/robots/schedules/list']() as T;
       if (message.type === 'homebrain/robots/map') {
         const slot = (message as { slot?: number }).slot ?? 0;
         if (vector === 'off') return { available: false, reason: 'unsupported_ha' } as T;

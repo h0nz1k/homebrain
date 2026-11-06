@@ -20,9 +20,7 @@ from .presets import (
     MODES,
     PresetError,
     PresetStore,
-    async_apply_and_start,
-    clean_rooms,
-    effective_settings,
+    async_start_cleaning,
 )
 from .rooms import RoomCache
 
@@ -32,6 +30,12 @@ def _cache(hass: HomeAssistant) -> RoomCache:
     if (cache := data.get("robot_rooms")) is None:
         cache = data["robot_rooms"] = RoomCache(hass)
     return cache
+
+
+async def known_room_ids(hass: HomeAssistant, vacuum: str) -> set[int]:
+    """Segment ids on the robot's maps (empty = unknown, the start is not blocked)."""
+    maps = (await _cache(hass).async_get(vacuum))["maps"]
+    return {room["id"] for item in maps for room in item["rooms"]}
 
 
 @websocket_api.websocket_command(
@@ -285,30 +289,24 @@ async def websocket_robots_start(
     """
     if (bindings := _robot_bindings(hass, connection, msg)) is None:
         return
-    slot = msg["slot"]
-    store = preset_store(hass)
-    preset = None
-    if preset_id := msg.get("preset_id"):
-        if (preset := await store.async_get_preset(slot, preset_id)) is None:
-            connection.send_error(msg["id"], "not_found", "Preset not found")
-            return
-    settings = effective_settings(await store.async_get_defaults(slot), preset, msg.get("settings"))
-    rooms = clean_rooms(msg.get("rooms") if preset is None else preset["rooms"])
-    if rooms:
-        maps = (await _cache(hass).async_get(bindings[f"robot{slot}_vacuum"]))["maps"]
-        known = {room["id"] for item in maps for room in item["rooms"]}
-        if known and not set(rooms) <= known:
-            connection.send_error(msg["id"], "unknown_room", "Room is not on the robot's map")
-            return
     try:
-        result = await async_apply_and_start(hass, bindings, slot, settings, rooms)
+        result = await async_start_cleaning(
+            hass,
+            bindings,
+            msg["slot"],
+            preset_store(hass),
+            preset_id=msg.get("preset_id"),
+            rooms=msg.get("rooms"),
+            settings=msg.get("settings"),
+            known_rooms=lambda vacuum: known_room_ids(hass, vacuum),
+        )
     except PresetError as err:
         connection.send_error(msg["id"], err.code, str(err))
         return
     except Exception as err:  # noqa: BLE001 - integration errors must reach the panel
         connection.send_error(msg["id"], "failed", str(err) or type(err).__name__)
         return
-    connection.send_result(msg["id"], {**result, "settings": settings, "rooms": rooms})
+    connection.send_result(msg["id"], result)
 
 
 PRESET_COMMANDS = (
