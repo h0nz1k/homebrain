@@ -244,6 +244,8 @@ export const robotsStyles = `
 .rb-maint-note { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .rb-maint-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .rb-maint-grid li { display: grid; min-width: 0; }
+/* Odd count: the last tile spans the row instead of leaving an empty cell. */
+.rb-maint-grid > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .rb .rb-maint-tile { width: 100%; box-sizing: border-box; min-height: 104px; -webkit-tap-highlight-color: transparent; }
 .rb .rb-maint-tile .hb-tile-icon { width: 40px; height: 40px; border-radius: 50%; margin-bottom: 6px; }
 .rb .rb-maint-tile .hb-tile-icon:has(.hb-ring) { background: none; }
@@ -253,8 +255,9 @@ export const robotsStyles = `
 .rb-maint-glyph { width: 18px; height: 18px; fill: currentColor; }
 .rb-maint-foot { margin: 12px 0 0; }
 .rb-maint-pct::after { content: '%'; font-size: 9px; font-weight: 500; margin-left: 1px; opacity: 0.7; }
-/* Overdue (0 %) still shows a red ring, not just an empty track. */
-.rb .rb-maint-tile[data-tone='crit'] .hb-ring-track { stroke: color-mix(in srgb, var(--hb-crit) 45%, transparent); }
+/* Overdue (0 %): empty neutral track (never a full ring – that reads as 100 %), red „0 %“ inside. */
+.rb .rb-maint-tile[data-tone='crit'] .rb-maint-pct { color: var(--hb-crit); }
+[data-theme='light'] .rb .rb-maint-tile[data-tone='crit'] .rb-maint-pct { color: #c4262c; }
 [data-theme='light'] .rb .rb-maint-tile[data-tone='warn'] .hb-tile-status { color: #a35d00; }
 [data-theme='light'] .rb .rb-maint-tile[data-tone='crit'] .hb-tile-status { color: #c4262c; }
 /* Wide tiles (desktop column): icon beside the text, shorter rows; phones keep the stacked tile. */

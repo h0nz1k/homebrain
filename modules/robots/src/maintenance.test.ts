@@ -54,24 +54,62 @@ describe('Údržba model', () => {
     expect(items.at(-1)?.kind).toBe('guide');
   });
 
-  it('summary: all fine / Czech count / dock error not counted twice', () => {
+  it('summary: all fine / red waits, amber is only „brzy“ / dock error not counted twice', () => {
     expect(
       maintenanceSummary(maintenanceItems({ ...robot, consumables: [], tanks: [] }, null), null),
-    ).toEqual({ tone: 'ok', count: 0, text: 'Vše v pořádku' });
+    ).toEqual({ tone: 'ok', count: 0, soon: 0, text: 'Vše v pořádku' });
     const items = maintenanceItems(robot, null);
-    expect(maintenanceSummary(items, null)).toMatchObject({ tone: 'crit', text: '3 věci čekají' });
-    expect(maintenanceSummary(items, { title: 'Plná nádrž' }).count).toBe(3);
-    const fine = maintenanceItems(
+    // sensors + dirty water red, dock brush amber
+    expect(maintenanceSummary(items, null)).toEqual({
+      tone: 'crit',
+      count: 2,
+      soon: 1,
+      text: '2 věci čekají · 1 brzy',
+    });
+    expect(maintenanceSummary(items, { title: 'Plná nádrž' }).count).toBe(2);
+    const soonOnly = maintenanceItems(
       { ...robot, tanks: [], consumables: [consumableInfo('filter', 30)] },
       null,
     );
-    expect(maintenanceSummary(fine, null)).toEqual({ tone: 'warn', count: 1, text: '1 věc čeká' });
-    expect(maintenanceSummary(fine, { title: 'Chyba doku' })).toMatchObject({
+    expect(maintenanceSummary(soonOnly, null)).toEqual({
+      tone: 'warn',
+      count: 0,
+      soon: 1,
+      text: '1 brzy',
+    });
+    expect(maintenanceSummary(soonOnly, { title: 'Chyba doku' })).toEqual({
       tone: 'crit',
-      count: 2,
+      count: 1,
+      soon: 1,
+      text: '1 věc čeká · 1 brzy',
     });
     expect(maintenanceGroups([], { title: 'Chyba doku' })).toEqual([
       { id: 'dock', label: 'Dok', items: [], note: 'Chyba doku' },
+    ]);
+  });
+
+  it('summary: Czech plural of waiting items (1 věc čeká, 2–4 věci čekají, 5+ věcí čeká)', () => {
+    const red = (n: number) =>
+      maintenanceItems(
+        {
+          consumables: [],
+          tanks: Array.from({ length: n }, (_, i) => ({
+            key: (['clean_water', 'dirty_water', 'cleaning_fluid', 'water_shortage'] as const)[
+              i % 4
+            ]!,
+            label: `T${i}`,
+            ok: false,
+            text: 'Doplnit',
+          })),
+          dockError: null,
+        },
+        null,
+      ).map((item, i) => ({ ...item, id: `t${i}` }));
+    expect([1, 2, 4, 5].map((n) => maintenanceSummary(red(n), null).text)).toEqual([
+      '1 věc čeká',
+      '2 věci čekají',
+      '4 věci čekají',
+      '5 věcí čeká',
     ]);
   });
 });

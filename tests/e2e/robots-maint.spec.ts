@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // Roboti → Údržba: one tile model for counters, tanks and guide-only parts, grouped Robot / Dok,
-// most urgent first, with a summary line. Dev mock robot 3: sensors overdue (red), dock brush
-// 14 % (amber), the rest fine; robot 2: cleaning fluid empty.
+// most urgent first, with a summary line. Dev mock robot 3: sensors overdue (red, empty ring),
+// dirty dock water full (red „Vylít“), dock brush (amber), the rest fine; robot 2: cleaning fluid
+// empty.
 async function tiles(page: Page, group: 'robot' | 'dock') {
   return page
     .getByTestId(`robots-maint-${group}`)
@@ -14,7 +15,7 @@ test('údržba: jednotné dlaždice Robot / Dok seřazené podle naléhavosti', 
   await page.goto('/homebrain-roboti');
   await page.getByTestId('robots-floor-3').click();
   const care = page.getByTestId('robots-care');
-  await expect(care.getByTestId('robots-maint-summary')).toHaveText('2 věci čekají', {
+  await expect(care.getByTestId('robots-maint-summary')).toHaveText('2 věci čekají · 1 brzy', {
     timeout: 20_000,
   });
   await expect(care).toHaveAttribute('data-rb-maint', 'crit');
@@ -22,12 +23,20 @@ test('údržba: jednotné dlaždice Robot / Dok seřazené podle naléhavosti', 
   await expect(page.getByTestId('robots-dock')).toHaveCount(0);
   await expect(page.getByTestId('robots-guides-more')).toHaveCount(0);
   const items = care.locator('.rb-maint-grid > li');
-  await expect(care.locator('.rb-maint-grid > li > button.hb-tile')).toHaveCount(await items.count());
+  await expect(care.locator('.rb-maint-grid > li > button.hb-tile')).toHaveCount(
+    await items.count(),
+  );
   expect((await tiles(page, 'robot'))[0]).toBe('robots-part-sensors');
   expect(await tiles(page, 'dock')).toEqual([
+    'robots-part-dirty_water',
     'robots-part-dock_brush',
     'robots-part-dock_strainer',
+    'robots-part-clean_water',
+    'robots-part-cleaning_fluid',
   ]);
+  await expect(page.getByTestId('robots-part-dirty_water')).toContainText('Vylít');
+  // Overdue counter: empty ring (no arc), never a full circle.
+  await expect(page.getByTestId('robots-part-sensors').locator('.hb-ring-arc')).toHaveCount(0);
   await expect(page.getByTestId('robots-part-sensors')).toHaveAttribute('data-rb-tone', 'crit');
   await expect(page.getByTestId('robots-part-sensors')).toContainText('Vyčistit teď');
   await expect(page.getByTestId('robots-part-dock_brush')).toHaveAttribute('data-rb-tone', 'warn');
@@ -42,10 +51,16 @@ test('údržba: jednotné dlaždice Robot / Dok seřazené podle naléhavosti', 
     return {
       inside: rects.every((r) => r.left >= box.left - 1 && r.right <= box.right + 1),
       firstRowSameTop: Math.abs(rects[0]!.top - rects[1]!.top) < 1,
+      // Odd dock group (5 tiles): the orphan last tile spans the whole row.
+      orphanFull: (() => {
+        const grid = card.querySelector('[data-testid=robots-maint-dock] .rb-maint-grid')!;
+        const last = grid.lastElementChild!.getBoundingClientRect();
+        return Math.abs(last.width - grid.getBoundingClientRect().width) < 1;
+      })(),
       overflow: document.documentElement.scrollWidth - window.innerWidth,
     };
   });
-  expect(geo).toEqual({ inside: true, firstRowSameTop: true, overflow: 0 });
+  expect(geo).toEqual({ inside: true, firstRowSameTop: true, orphanFull: true, overflow: 0 });
 
   // Tap → guide; the robot's dock-brush reset button is found in HA → reset after confirmation.
   await page.getByTestId('robots-guide-open-dock_brush').click();

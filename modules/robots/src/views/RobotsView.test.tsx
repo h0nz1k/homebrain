@@ -34,6 +34,20 @@ it('Údržba: reset tlačítko robota v HA se najde samo (bez soukromého návod
   );
 });
 
+it('Údržba: díl po termínu má prázdný kroužek (ne plný) a souhrn rozliší čeká / brzy', async () => {
+  setup();
+  fireEvent.click(await screen.findByTestId('robots-floor-3'));
+  const sensors = await screen.findByTestId('robots-part-sensors');
+  expect(sensors.getAttribute('data-rb-tone')).toBe('crit');
+  const ring = sensors.querySelector('.hb-ring');
+  expect(ring?.getAttribute('data-value')).toBe('0.000');
+  expect(ring?.querySelector('.hb-ring-arc')).toBeNull();
+  expect(sensors.querySelector('.rb-maint-pct')?.textContent).toBe('0');
+  // Red: sensors + dirty dock water; amber dock brush is only „brzy“.
+  expect(screen.getByTestId('robots-maint-summary').textContent).toBe('2 věci čekají · 1 brzy');
+  expect(screen.getByTestId('robots-part-dirty_water').textContent).toContain('Vylít');
+});
+
 function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
   const demo = createRobotsDemo(Date.now());
   const store = createEntityStore();

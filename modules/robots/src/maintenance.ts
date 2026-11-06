@@ -39,8 +39,10 @@ export interface MaintGroup {
 
 export interface MaintSummary {
   tone: 'ok' | 'warn' | 'crit';
-  /** Items (plus an uncovered dock error) that need the owner now or soon. */
+  /** Red items (plus an uncovered dock error) that need the owner now. */
   count: number;
+  /** Amber items: due soon, not waiting yet. */
+  soon: number;
   text: string;
 }
 
@@ -139,15 +141,16 @@ export function maintenanceSummary(
   items: MaintItem[],
   dockError: { title: string } | null,
 ): MaintSummary {
-  const due = items.filter((item) => item.tone === 'crit' || item.tone === 'warn');
   // A dock error that a red dock tank already explains is not counted twice.
   const dockUncovered =
     !!dockError && !items.some((i) => i.group === 'dock' && i.kind === 'tank' && i.tone === 'crit');
-  const count = due.length + (dockUncovered ? 1 : 0);
-  const tone =
-    dockError || due.some((item) => item.tone === 'crit') ? 'crit' : count ? 'warn' : 'ok';
-  const text = count
-    ? `${count} ${czPlural(count, 'věc čeká', 'věci čekají', 'věcí čeká')}`
-    : 'Vše v pořádku';
-  return { tone, count, text };
+  // Only red items „wait“; amber ones are merely due soon („Vyměnit za 41 dní“ is not waiting).
+  const count = items.filter((item) => item.tone === 'crit').length + (dockUncovered ? 1 : 0);
+  const soon = items.filter((item) => item.tone === 'warn').length;
+  const tone = dockError || count ? 'crit' : soon ? 'warn' : 'ok';
+  const parts = [
+    count ? `${count} ${czPlural(count, 'věc čeká', 'věci čekají', 'věcí čeká')}` : '',
+    soon ? `${soon} brzy` : '',
+  ].filter(Boolean);
+  return { tone, count, soon, text: parts.join(' · ') || 'Vše v pořádku' };
 }
