@@ -135,6 +135,12 @@ window.top?.addEventListener('location-changed', updatePanelRoute);
 window.top?.addEventListener('popstate', updatePanelRoute);
 updatePanelRoute();
 const now = new Date();
+const pageLoadedAt = Date.now();
+const routeStartRaw = new URLSearchParams(location.search).get('drahaod');
+const routeStart =
+  routeStartRaw !== null && Number(routeStartRaw) >= 0 && Number(routeStartRaw) < 1
+    ? Number(routeStartRaw)
+    : null;
 const scenario = new URLSearchParams(location.search).get('waste');
 const wasteDayOffset = scenario === 'bins-evening' ? 1 : scenario === 'bins-collected' ? 7 : 0;
 const updatedAt = new Date(now.getTime() - (scenario === 'stale' ? 3 * 86400000 : 0)).toISOString();
@@ -446,10 +452,12 @@ demoHass.connection = createMockConnection({
         ? { available: true, map: (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__ }
         : demoVectorMap(
             Number((message as { slot?: number }).slot),
-            Date.now(),
+            // `?drahaod=<0–1>`: start there at page load (wrap-free e2e, #38), else wall clock.
+            routeStart === null ? Date.now() : Date.now() - pageLoadedAt,
             Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
             // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
             new URLSearchParams(location.search).get('scena') as DemoScene | null,
+            routeStart,
           ),
   // Raster base layers of the demo plans (scripts/build_robot_demo_rasters.py); a local shot
   // script may inject its own via `window.__HB_ROBOT_RASTER__ = { light, dark }` (data URLs).
