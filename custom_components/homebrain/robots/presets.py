@@ -22,7 +22,7 @@ import asyncio
 import logging
 import re
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Final
 
 from homeassistant.core import HomeAssistant, State
@@ -422,3 +422,36 @@ async def async_apply_and_start(
                 await asyncio.sleep(VERIFY_STEP)
         applied.append(step["field"])
     return {"started": True, "applied": applied, "skipped": skipped, "unconfirmed": unconfirmed}
+
+
+async def async_start_cleaning(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    store: PresetStore,
+    *,
+    preset_id: str | None = None,
+    rooms: list[int] | None = None,
+    settings: Mapping[str, Any] | None = None,
+    known_rooms: Callable[[str], Awaitable[set[int]]] | None = None,
+) -> dict[str, Any]:
+    """Resolve defaults ← preset ← explicit settings, check rooms, apply, then start.
+
+    Shared by the ``robots/start`` WS command and the schedules (one code path, so a
+    scheduled run behaves exactly like a manual start). Raises :class:`PresetError`.
+    """
+    vacuum = bindings.get(f"robot{slot}_vacuum")
+    if not vacuum:
+        raise PresetError("not_found", "Robot is not configured")
+    preset = None
+    if preset_id:
+        if (preset := await store.async_get_preset(slot, preset_id)) is None:
+            raise PresetError("not_found", "Preset not found")
+    effective = effective_settings(await store.async_get_defaults(slot), preset, settings)
+    room_ids = clean_rooms(rooms if preset is None else preset["rooms"])
+    if room_ids and known_rooms is not None:
+        known = await known_rooms(vacuum)
+        if known and not set(room_ids) <= known:
+            raise PresetError("unknown_room", "Room is not on the robot's map")
+    result = await async_apply_and_start(hass, bindings, slot, effective, room_ids)
+    return {**result, "settings": effective, "rooms": room_ids}

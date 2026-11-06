@@ -46,9 +46,13 @@ from .modules import (
     register_modules,
 )
 from .recipes import websocket as recipes_ws
+from .robots.schedules import RobotScheduler
+from .robots.schedules_ws import SCHEDULE_COMMANDS
 from .robots.ws import (
     PRESET_COMMANDS,
     RobotMapImageView,
+    known_room_ids,
+    preset_store,
     websocket_robots_get,
     websocket_robots_map,
 )
@@ -106,7 +110,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _http_view(hass, RadarImageView())
 
     def robots_reg(reg: Registrar) -> None:
-        _commands(websocket_robots_get, websocket_robots_map, *PRESET_COMMANDS)(hass)(reg)
+        _commands(websocket_robots_get, websocket_robots_map, *PRESET_COMMANDS, *SCHEDULE_COMMANDS)(
+            hass
+        )(reg)
         _http_view(hass, RobotMapImageView())
 
     register_modules(
@@ -238,6 +244,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         entry.async_on_unload(async_at_started(hass, _restore_timers))
 
+    async def _setup_robots(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        # Roboti: cleaning schedules run by the integration (minute tick, after HA start).
+        if "robot_scheduler" in hass.data[DOMAIN]:
+            return
+        manager = RobotScheduler(
+            hass,
+            lambda: get_bindings(entry).get("robots", {}),
+            lambda: entry.options,
+            preset_store(hass),
+            lambda vacuum: known_room_ids(hass, vacuum),
+        )
+        hass.data[DOMAIN]["robot_scheduler"] = manager
+
+        async def _start(_hass: HomeAssistant) -> None:
+            await manager.async_start()
+
+        entry.async_on_unload(async_at_started(hass, _start))
+
     async def _setup_access(hass: HomeAssistant, entry: ConfigEntry) -> None:
         # Přístup: listen to esphome.biolock_* events from the start (history, live wizard).
         await access_ws.async_get_manager(hass)
@@ -252,6 +276,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "wine": _setup_wine,
             "recipes": _setup_recipes,
             "access": _setup_access,
+            "robots": _setup_robots,
         },
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
@@ -296,6 +321,8 @@ async def _unload_energy(hass: HomeAssistant) -> None:
 
 async def _unload_robots(hass: HomeAssistant) -> None:
     hass.data.get(DOMAIN, {}).pop("robot_rooms", None)
+    if (manager := hass.data.get(DOMAIN, {}).pop("robot_scheduler", None)) is not None:
+        await manager.async_stop()
 
 
 async def _unload_waste(hass: HomeAssistant) -> None:
