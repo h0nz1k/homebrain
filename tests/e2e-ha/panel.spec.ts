@@ -10,16 +10,12 @@ test('panel HomeBrain se načte ve skutečném HA a zobrazí Odpady', async ({ p
   await page.addInitScript(
     `localStorage.setItem('hassTokens', ${JSON.stringify(JSON.stringify(tokens))});`,
   );
-  await page.goto('/homebrain');
+  // Modulový panel Odpady (legacy /homebrain už úvodní nadpis Dnes nezobrazuje).
+  await page.goto('/homebrain-odpady');
   const panel = page.frameLocator('iframe');
-  await expect(panel.getByRole('heading', { name: 'Dnes', exact: true })).toBeVisible({
+  await expect(panel.getByText('Každá nádoba má svůj den', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
-  await panel
-    .getByRole('navigation', { name: 'Hlavní navigace' })
-    .getByRole('link', { name: 'Odpady', exact: true })
-    .click();
-  await expect(panel.getByText('Každá nádoba má svůj den', { exact: true })).toBeVisible();
   await expect(panel.getByRole('list', { name: 'Nejbližší svozy' })).toContainText('Papír');
   await expect(panel.getByText('Není nastavena vazba na entitu odpadů')).not.toBeVisible();
   await testInfo.attach('ha-odpady', {
