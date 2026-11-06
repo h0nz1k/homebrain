@@ -75,8 +75,9 @@ export function Chip({
       </Pill>
     );
   }
-  // Badge-only props (tone/dot/variant/size) do not apply to the selectable form.
-  const { icon } = props;
+  // Badge-only props (dot/variant/size) do not apply to the selectable form. A non-neutral
+  // `tone` tints the toggle (e.g. amber „Údržba“ when a part is due) in both pressed states.
+  const { icon, tone } = props;
   const rest: Record<string, unknown> = { ...props };
   for (const key of ['tone', 'dot', 'icon', 'variant', 'size']) delete rest[key];
   return (
@@ -85,6 +86,7 @@ export function Chip({
       type="button"
       className={`hb-chip ${className}`}
       data-toggle=""
+      data-tone={tone && tone !== 'neutral' ? tone : undefined}
       data-look={look === 'soft' ? 'soft' : undefined}
       aria-pressed={pressed}
       disabled={disabled}

@@ -366,6 +366,17 @@
 .hb-chip[data-toggle][data-look='soft'][aria-pressed='true']:has(.hb-chip-badge) {
   padding-left: 9px;
 }
+/* Toned toggle (Chip pressed + tone): tint + tone ink; pressed adds a tone ring. */
+.hb-chip[data-toggle][data-tone] {
+  background: color-mix(in srgb, var(--hb-tone) 16%, var(--hb-fill-strong));
+  color: color-mix(in oklch, var(--hb-tone) 72%, var(--hb-t1));
+}
+.hb-chip[data-toggle][data-tone][aria-pressed='true'] {
+  background: color-mix(in srgb, var(--hb-tone) 30%, var(--hb-fill-strong));
+  color: color-mix(in oklch, var(--hb-tone) 72%, var(--hb-t1));
+  box-shadow: inset 0 0 0 2px var(--hb-tone);
+  font-weight: 600;
+}
 .hb-chip[data-look='soft'] .hb-chip-badge {
   width: 22px;
   height: 22px;

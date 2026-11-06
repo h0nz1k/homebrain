@@ -307,6 +307,15 @@ demoHass.connection = createMockConnection({
   'homebrain/robots/get': () => {
     const rooms = (globalThis as { __HB_ROBOT_ROOMS__?: { id: number; name: string }[] })
       .__HB_ROBOT_ROOMS__;
+    // `?photos=a,b,c`: robot N uses the photo set `/local/homebrain/robots/<name N>/` (dev server
+    // serves a local folder via HB_ROBOT_PHOTOS_DIR; e2e routes synthetic images).
+    const photos = new URLSearchParams(location.search).get('photos')?.split(',') ?? [];
+    if (photos.length && !rooms)
+      return {
+        robots: robotsDemo.ws.robots.map((r, i) =>
+          photos[i] ? { ...r, image: `/local/homebrain/robots/${photos[i]}/` } : r,
+        ),
+      };
     if (!rooms) return robotsDemo.ws;
     return {
       robots: robotsDemo.ws.robots.map((r, i) =>

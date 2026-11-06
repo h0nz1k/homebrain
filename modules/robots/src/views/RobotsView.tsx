@@ -25,6 +25,8 @@ import {
 } from '../commands.js';
 import { orderBadge, pruneOrder, toggleRoom } from '../rooms.js';
 import { RobotArt } from './RobotArt.js';
+import { RobotPhoto, usePhotoManifest } from './RobotPhoto.js';
+import { anyPartLow, photoBase, photoView } from '../photo.js';
 import {
   VectorFloorPlan,
   VectorMapBoundary,
@@ -348,14 +350,43 @@ function RobotPanel({
   const tone = robot.status.tone;
   const busy = tone === 'cleaning' || tone === 'returning';
   const problem = robot.error ?? robot.dockError;
+  const photoDir = photoBase(robot);
+  const manifest = usePhotoManifest(photoDir);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const [maintenance, setMaintenance] = useState(false);
+  const photo = !!photoDir && !!manifest && !photoFailed;
   return (
     <div className="rb-grid" data-rb-tone={tone}>
       <div className="rb-col">
-        <Card as="article" className="rb-hero rb-card" data-testid="robots-hero">
-          {/* Visual slot: today the vector/photo RobotArt; a future 3D or per-state photo view
-              plugs in here (data-rb-visual) without touching the hero layout. */}
-          <div className="rb-hero-art" data-rb-visual="art" data-testid="robots-hero-visual">
-            <RobotArt tone={tone} image={robot.image} name={robot.name} />
+        <Card
+          as="article"
+          className="rb-hero rb-card"
+          data-testid="robots-hero"
+          data-rb-photo={photo || undefined}
+        >
+          {/* Visual slot: the owner's photo set (manifest under /local/homebrain/robots/<robot>/,
+              never bundled) or the neutral RobotArt fallback. */}
+          <div
+            className="rb-hero-art"
+            data-rb-visual={photo ? 'photo' : 'art'}
+            data-testid="robots-hero-visual"
+          >
+            {photo ? (
+              <RobotPhoto
+                base={photoDir}
+                manifest={manifest}
+                name={robot.name}
+                view={photoView(tone, robot.error ?? robot.dockError, maintenance)}
+                error={robot.error ?? robot.dockError}
+                parts={robot.consumables}
+                partsLow={anyPartLow(robot.consumables)}
+                maintenance={maintenance}
+                onMaintenance={setMaintenance}
+                onFail={() => setPhotoFailed(true)}
+              />
+            ) : (
+              <RobotArt tone={tone} image={robot.image} name={robot.name} />
+            )}
           </div>
           <div className="rb-hero-body">
             <p className="rb-eyebrow">
