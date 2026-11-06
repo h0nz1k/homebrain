@@ -31,7 +31,16 @@ _LOGGER = logging.getLogger(__name__)
 
 # Backend modules that can fail or be switched off independently. ``today``/``health``/
 # ``settings`` have no backend of their own and are always available.
-MODULES: Final = ("weather", "energy", "waste", "robots", "wine", "recipes", "access")
+MODULES: Final = (
+    "weather",
+    "energy",
+    "waste",
+    "robots",
+    "wine",
+    "recipes",
+    "access",
+    "network",
+)
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 
 STATE_OK: Final = "ok"

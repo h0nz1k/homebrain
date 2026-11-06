@@ -271,7 +271,8 @@
         "robots": "Robots",
         "wine": "Wine cellar",
         "recipes": "Recipes",
-        "access": "Access"
+        "access": "Access",
+        "network": "Network"
       }
     }
   },

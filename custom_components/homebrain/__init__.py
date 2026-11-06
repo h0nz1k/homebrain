@@ -45,6 +45,7 @@ from .modules import (
     record_failure,
     register_modules,
 )
+from .network import ws as network_ws
 from .recipes import websocket as recipes_ws
 from .robots.schedules import RobotScheduler
 from .robots.schedules_ws import SCHEDULE_COMMANDS
@@ -125,6 +126,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "wine": lambda reg: wine_ws.async_register(hass, reg),
             "recipes": lambda reg: recipes_ws.async_register(hass, reg),
             "access": lambda reg: access_ws.async_register(hass, reg),
+            "network": _commands(*network_ws.COMMANDS)(hass),
         },
     )
     if module_states(hass).get("wine") is None:
@@ -277,6 +279,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "recipes": _setup_recipes,
             "access": _setup_access,
             "robots": _setup_robots,
+            "network": network_ws.async_setup,
         },
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
@@ -351,6 +354,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("energy", _unload_energy),
             ("robots", _unload_robots),
             ("waste", _unload_waste),
+            ("network", network_ws.async_unload),
         ),
     )
     return True
