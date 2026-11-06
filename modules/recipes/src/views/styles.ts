@@ -291,7 +291,7 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl .hb-stepper[data-compact] .hb-step[data-state='done'] .hb-step-n { background:color-mix(in srgb, var(--hb-t1) 42%, transparent); }
 .rc-fl .hb-stepper[data-compact] .hb-step[data-state='active']:not([data-progress]) .hb-step-n { background:var(--rc-fl-tone); }
 .rc-fl .hb-stepper[data-compact] .hb-step[data-state='done'] { color:var(--hb-t2); }
-.rc-fl-band { grid-area:band; display:flex; align-items:center; gap:10px; margin:0 -36px; padding:14px 36px; background:color-mix(in srgb, var(--hb-crit) 80%, black); color:#fff; }
+.rc-fl-band { grid-area:band; display:flex; align-items:center; gap:10px; margin:0 -40px; padding:16px 40px; background:color-mix(in srgb, var(--hb-crit) 80%, black); color:#fff; }
 .rc-fl-band h2 { color:inherit; font-size:20px; }
 .rc-fl-band svg.rc-i { width:22px; height:22px; flex:none; }
 .rc-fl-code { margin-left:auto; font-size:14px; font-weight:500; opacity:.85; white-space:nowrap; }

@@ -34,6 +34,6 @@ describe('ProgressRing', () => {
     );
     const value = screen.getByTestId('hero-signal').querySelector('.hb-signal-value')!;
     expect(value.hasAttribute('data-held')).toBe(true);
-    expect(screen.getByTestId('signal-ring').dataset.tone).toBe('muted');
+    expect(screen.getByTestId('signal-ring').dataset.tone).toBe('warn');
   });
 });
