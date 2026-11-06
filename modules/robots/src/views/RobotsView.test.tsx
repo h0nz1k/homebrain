@@ -10,9 +10,9 @@ import RobotsView from './RobotsView.js';
 
 afterEach(cleanup);
 
-it('Údržba: klik na díl otevře návod a „Hotovo“ vynuluje počítadlo po potvrzení', async () => {
+it('Údržba: klik na díl otevře návod; bez tlačítka resetu v HA jen „Hotovo“', async () => {
   const { sent } = setup();
-  fireEvent.click(await screen.findByTestId('robots-guide-open-main_brush'));
+  fireEvent.click(await screen.findByTestId('robots-guide-open-side_brush'));
   const sheet = screen.getByTestId('robots-guide');
   expect(sheet.textContent).toContain('obecný postup');
   expect(
@@ -23,6 +23,15 @@ it('Údržba: klik na díl otevře návod a „Hotovo“ vynuluje počítadlo po
   fireEvent.click(screen.getByText('Hotovo'));
   expect(screen.queryByTestId('robots-guide')).toBeNull();
   expect(sent).toEqual([]);
+});
+
+it('Údržba: reset tlačítko robota v HA se najde samo (bez soukromého návodu)', async () => {
+  setup();
+  fireEvent.click(await screen.findByTestId('robots-guide-open-main_brush'));
+  fireEvent.click(screen.getByTestId('robots-guide-reset'));
+  expect((await screen.findByTestId('robots-confirm')).textContent).toContain(
+    'Vynulovat počítadlo: Hlavní kartáč',
+  );
 });
 
 function setup(vector: 'demo' | 'broken' | 'off' = 'off') {

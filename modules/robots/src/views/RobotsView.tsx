@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
-import { Button, Card, Chip, SegmentedControl, Stepper, czCount, useToast } from '@homebrain/ui';
+import {
+  Button,
+  Card,
+  Chip,
+  ProgressRing,
+  SegmentedControl,
+  Stepper,
+  Tile,
+  czCount,
+  useToast,
+} from '@homebrain/ui';
 import {
   attention,
   buildRobot,
@@ -17,6 +27,7 @@ import {
   modeMops,
   modeOptionAvailable,
   planCleanRooms,
+  findResetButton,
   isRobotResetButton,
   planResetCounter,
   planResumeAfterFix,
@@ -49,7 +60,13 @@ import {
   type RobotPreset,
   type StartRequest,
 } from '../presets.js';
-import { TANK_GUIDE, extraGuideParts, guideFor, type GuidePart } from '../guides.js';
+import { guideFor, type GuidePart } from '../guides.js';
+import {
+  maintenanceGroups,
+  maintenanceItems,
+  maintenanceSummary,
+  type MaintItem,
+} from '../maintenance.js';
 import { RobotPhoto, usePhotoManifest } from './RobotPhoto.js';
 import { anyPartLow, photoBase, photoView } from '../photo.js';
 import {
@@ -275,10 +292,16 @@ function RobotPanel({
   const [guidePart, setGuidePart] = useState<GuidePart | null>(null);
   const photoDir = photoBase(robot);
   const guides = useGuides(photoDir);
-  const extraParts = extraGuideParts(guides, [
-    ...robot.consumables.map((item) => item.kind),
-    ...robot.tanks.flatMap((tank) => TANK_GUIDE[tank.key] ?? []),
-  ]);
+  const maintItems = maintenanceItems(robot, guides);
+  const maintGroups = maintenanceGroups(maintItems, robot.dockError);
+  const maintSummary = maintenanceSummary(maintItems, robot.dockError);
+  // Guide's own reset entity wins; else the robot's Roborock reset button found in HA.
+  const guideWithReset = (part: GuidePart) => {
+    const guide = guideFor(guides, part);
+    return guide.reset
+      ? guide
+      : { ...guide, reset: findResetButton(part, robot.vacuum, hasEntity) };
+  };
   const selected = pruneOrder(order, robot.rooms);
   const [vectorOn] = useState(vectorMapEnabled);
   const [fullTrail, setFullTrail] = useState(readTrailPref);
@@ -458,103 +481,68 @@ function RobotPanel({
     }
   };
   const care = (
-    <>
-      <Card as="article" className="rb-care rb-card" data-testid="robots-care">
-        <div className="rb-card-head">
-          <h3>Údržba</h3>
-          <p className="rb-micro">Odhad při ~1 h úklidu denně</p>
-        </div>
-        {robot.consumables.length ? (
-          <ul className="rb-parts">
-            {robot.consumables.map((item) => (
-              <li key={item.kind} data-rb-tone={item.tone} data-testid={`robots-part-${item.kind}`}>
-                <button
-                  type="button"
-                  className="rb-part-btn"
-                  aria-label={`${item.label}: ${item.action}. Otevřít návod`}
-                  data-testid={`robots-guide-open-${item.kind}`}
-                  onClick={() => setGuidePart(item.kind)}
-                >
-                  <span className="rb-ring-wrap">
-                    <Ring percent={item.percent} />
-                    <em>{item.percent}</em>
-                  </span>
-                  <span className="rb-part-text">
-                    <b>{item.label}</b>
-                    <span>{item.action}</span>
-                  </span>
-                  <Chevron />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rb-note">Spotřební díly nejsou přiřazené.</p>
-        )}
-        {extraParts.length > 0 && (
-          <div className="rb-guides-more" data-testid="robots-guides-more">
-            <p className="rb-micro">Další údržba</p>
-            <div className="rb-chips">
-              {extraParts.map((part) => (
-                <Button
-                  key={part}
-                  size="sm"
-                  data-testid={`robots-guide-open-${part}`}
-                  onClick={() => setGuidePart(part)}
-                >
-                  {guideFor(guides, part).title}
-                </Button>
-              ))}
+    <Card
+      as="article"
+      className="rb-care rb-card"
+      data-testid="robots-care"
+      data-rb-maint={maintSummary.tone}
+    >
+      <div className="rb-card-head">
+        <h3>Údržba</h3>
+        <p className="rb-micro rb-maint-summary" data-testid="robots-maint-summary">
+          {maintSummary.text}
+        </p>
+      </div>
+      {maintGroups.length ? (
+        maintGroups.map((group) => (
+          <section
+            key={group.id}
+            className="rb-maint-group"
+            aria-label={group.label}
+            data-testid={`robots-maint-${group.id}`}
+          >
+            <div className="rb-maint-head">
+              <h4>{group.label}</h4>
+              {group.note && (
+                <span className="rb-maint-note" data-testid={`robots-maint-${group.id}-note`}>
+                  {group.note}
+                </span>
+              )}
             </div>
-          </div>
-        )}
-      </Card>
-
-      <Card
-        as="article"
-        className="rb-dock rb-card"
-        data-testid="robots-dock"
-        data-rb-dock-warn={!!robot.dockError || robot.tanks.some((tank) => !tank.ok)}
-      >
-        <div className="rb-card-head">
-          <h3>Dok</h3>
-          <p className="rb-micro">
-            {robot.dockError
-              ? robot.dockError.title
-              : robot.tanks.some((tank) => !tank.ok)
-                ? 'Potřebuje doplnit'
-                : 'Vše v pořádku'}
-          </p>
-        </div>
-        {robot.tanks.length ? (
-          <ul className="rb-tanks">
-            {robot.tanks.map((tank) => (
-              <li key={tank.key} data-rb-ok={tank.ok} data-rb-tank={tank.key}>
-                <button
-                  type="button"
-                  className="rb-tank-btn"
-                  data-testid={`robots-guide-open-${tank.key}`}
-                  aria-label={`${tank.label}: ${tank.text}. Otevřít návod`}
-                  disabled={!TANK_GUIDE[tank.key]}
-                  onClick={() => {
-                    const part = TANK_GUIDE[tank.key];
-                    if (part) setGuidePart(part);
-                  }}
-                >
-                  <Tank ok={tank.ok} kind={tank.key} />
-                  <span>
-                    <b>{tank.label}</b>
-                    <span>{tank.text}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rb-note">Nádrže doku nejsou přiřazené.</p>
-        )}
-      </Card>
-    </>
+            {group.items.length > 0 && (
+              <ul className="rb-maint-grid">
+                {group.items.map((item) => (
+                  <li
+                    key={item.id}
+                    data-testid={`robots-part-${item.id}`}
+                    data-rb-tone={item.tone}
+                    data-rb-kind={item.kind}
+                  >
+                    <Tile
+                      className="rb-maint-tile"
+                      tone={item.tone === 'ok' ? 'neutral' : item.tone}
+                      icon={<MaintIcon item={item} />}
+                      label={item.label}
+                      status={item.status}
+                      onPress={() => setGuidePart(item.part)}
+                      aria-label={`${item.label}: ${item.status}${
+                        item.percent !== null ? ` (${item.percent} %)` : ''
+                      }. Otevřít návod`}
+                      data-testid={`robots-guide-open-${item.id}`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))
+      ) : (
+        <p className="rb-note">Díly ani nádrže nejsou přiřazené.</p>
+      )}
+      {maintItems.some((item) => item.kind === 'counter') && (
+        <p className="rb-micro rb-maint-foot">Odhad zbývající doby při ~1 h úklidu denně</p>
+      )}
+    </Card>
   );
   const tone = robot.status.tone;
   const busy = tone === 'cleaning' || tone === 'returning';
@@ -1084,18 +1072,18 @@ function RobotPanel({
       {guidePart && (
         <GuideSheet
           part={guidePart}
-          guide={guideFor(guides, guidePart)}
+          guide={guideWithReset(guidePart)}
           robotName={robot.name}
           base={photoDir}
           manifest={manifest}
           resetReady={(() => {
-            const reset = guideFor(guides, guidePart).reset;
+            const reset = guideWithReset(guidePart).reset;
             return !!reset && isRobotResetButton(reset, robot.vacuum) && hasEntity(reset);
           })()}
           canAct={canAct}
           onClose={() => setGuidePart(null)}
           onReset={() => {
-            const guide = guideFor(guides, guidePart);
+            const guide = guideWithReset(guidePart);
             setGuidePart(null);
             if (guide.reset)
               ask('Vynulovat počítadlo?', planResetCounter(guide.reset, robot.vacuum, guide.title));
@@ -1188,21 +1176,6 @@ function Battery({ value, charging }: { value: number | null; charging: boolean 
   );
 }
 
-function Chevron() {
-  return (
-    <svg className="rb-chevron" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M6 3.5 10.5 8 6 12.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function EditIcon() {
   return (
     <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
@@ -1239,20 +1212,23 @@ function HomeIcon() {
   );
 }
 
-function Ring({ percent }: { percent: number }) {
-  const r = 16;
-  const c = 2 * Math.PI * r;
+/** Tile icon: life-left ring for counters, tank level for tanks, wrench for guide-only parts. */
+function MaintIcon({ item }: { item: MaintItem }) {
+  if (item.kind === 'counter' && item.percent !== null)
+    return (
+      <ProgressRing
+        value={item.percent / 100}
+        size={40}
+        thickness={4}
+        tone={item.tone === 'crit' ? 'crit' : item.tone === 'warn' ? 'warn' : 'ok'}
+      >
+        <em className="rb-maint-pct">{item.percent}</em>
+      </ProgressRing>
+    );
+  if (item.kind === 'tank') return <Tank ok={item.ok !== false} kind={item.id} />;
   return (
-    <svg className="rb-ring" viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r={r} className="rb-ring-track" />
-      <circle
-        cx="20"
-        cy="20"
-        r={r}
-        className="rb-ring-fill"
-        strokeDasharray={`${(c * Math.max(percent, 1.5)) / 100} ${c}`}
-        transform="rotate(-90 20 20)"
-      />
+    <svg viewBox="0 0 20 20" className="rb-maint-glyph" aria-hidden="true">
+      <path d="M13.9 2.6a4 4 0 0 0-4.6 5.3l-6 6a1.6 1.6 0 1 0 2.3 2.3l6-6a4 4 0 0 0 5.3-4.6l-2.4 2.4-2.3-.6-.6-2.3Z" />
     </svg>
   );
 }
@@ -1260,7 +1236,13 @@ function Ring({ percent }: { percent: number }) {
 function Tank({ ok, kind }: { ok: boolean; kind: string }) {
   const level = kind === 'dirty_water' ? (ok ? 0.25 : 0.92) : ok ? 0.72 : 0.08;
   return (
-    <svg className="rb-tank" viewBox="0 0 28 36" aria-hidden="true">
+    <svg
+      className="rb-tank"
+      viewBox="0 0 28 36"
+      aria-hidden="true"
+      data-rb-tank={kind}
+      data-rb-ok={ok}
+    >
       <rect x="2" y="2" width="24" height="32" rx="7" className="rb-tank-shell" />
       <rect
         x="5"

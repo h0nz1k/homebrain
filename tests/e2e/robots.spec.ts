@@ -15,7 +15,7 @@ test('patra, stav, chyba s návodem a úklid místností v pořadí', async ({ p
 
   await page.getByTestId('robots-floor-2').click();
   await expect(page.getByTestId('robots-problem')).toContainText('Zamotaný hlavní kartáč');
-  await expect(page.getByTestId('robots-dock')).toContainText('Došel');
+  await expect(page.getByTestId('robots-part-cleaning_fluid')).toContainText('Došel');
   await page.getByTestId('robots-fixed-resume').click();
   await expect(page.getByTestId('robots-confirm')).toContainText('pokračovat v úklidu');
   await page.getByRole('button', { name: 'Zrušit' }).click();

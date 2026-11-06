@@ -183,6 +183,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     });
     // Roborock „reset consumable“ button (maintenance guide → „Hotovo, vynulovat počítadlo“).
     put(r.slot, 'reset_main_brush', 'button', 'unknown');
+    if (r.slot === 3) put(r.slot, 'dock_reset_cleaning_brush', 'button', 'unknown');
     (['clean_water', 'dirty_water', 'cleaning_fluid', 'water_shortage'] as const).forEach(
       (tank, i) => {
         if (r.slot !== 3 || tank === 'water_shortage')
