@@ -9,6 +9,7 @@ import * as family from '@homebrain/module-family';
 import * as robots from '@homebrain/module-robots';
 import * as recipes from '@homebrain/module-recipes';
 import * as access from '@homebrain/module-access';
+import * as network from '@homebrain/module-network';
 import { createLiveTodayAdapter } from './today/liveAdapter';
 // Dnes: live HA data (connection state, station, sun, hourly blend, day ribbon). dev.tsx may
 // replace it with fixtures; production never does.
@@ -22,6 +23,8 @@ today.registerTodaySignalSource('energy.appliances', energy.energyAppliancesToda
 today.registerTodaySignalSource('recipes', recipes.recipesFryerTodaySignalSource);
 // Dnes: running kitchen timers (Minutky), own key so other recipes signals stay untouched.
 today.registerTodaySignalSource('recipes.timers', recipes.recipesTimersTodaySignalSource);
+// Dnes: network problem headline (adults + kitchen kiosk get only this summary).
+today.registerTodaySignalSource('network', network.networkTodaySignalSource);
 export const modules = [
   today,
   weather,
@@ -33,6 +36,7 @@ export const modules = [
   recipes,
   family,
   access,
+  network,
 ].map((module) => ({
   ...module.moduleManifest,
   View: lazy(module.loadView),
