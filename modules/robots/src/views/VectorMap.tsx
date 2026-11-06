@@ -22,7 +22,9 @@ import {
   toView,
   containsPoint,
   rasterRect,
+  rotationTransform,
   type Frame,
+  type MapRotation,
   type Ring,
   type VectorMap,
 } from '../map/geometry.js';
@@ -51,9 +53,35 @@ interface Props {
   callout?: { title: string; detail?: string } | null;
   /** Signs the raster base path (`auth/sign_path`); without it the vector drawing is used. */
   resolveBase?: ((path: string) => Promise<string>) | null;
-  /** `faded` (default): only the latest stretch of the route is drawn strongly. */
-  trail?: 'faded' | 'full';
+  /** `full`: the whole route of the current/last run; `faded` (default): no history, only a
+   * short fading tail behind the robot while it drives. */
+  trail?: TrailMode;
+  /** Clockwise rotation of the whole drawing (per-robot option, vendor app rotation). */
+  rotation?: MapRotation;
 }
+
+export type TrailMode = 'faded' | 'full';
+/** Number of path points per trail layer (0 = layer not drawn). */
+export interface TrailLayers {
+  /** Swept area (wide translucent stroke). */
+  cover: number;
+  /** Route line. */
+  line: number;
+  /** Line fades from its oldest point towards the robot. */
+  fade: boolean;
+}
+/**
+ * Trail chip semantics: ON (`full`) draws the whole cleaning path of the current/last run
+ * (swept area + line), OFF (`faded`) drops all history and keeps only a short fading tail
+ * while the robot is moving (cleaning/returning); a parked robot shows no trail at all.
+ */
+export function trailLayers(mode: TrailMode, tone: MarkerTone, total: number): TrailLayers {
+  if (mode === 'full') return { cover: total, line: total, fade: false };
+  const moving = tone === 'cleaning' || tone === 'returning';
+  return { cover: 0, line: moving ? Math.min(TRAIL_POINTS, total) : 0, fade: true };
+}
+/** Last `n` points (`n <= 0` → none; plain `slice(-0)` would return everything). */
+const lastPts = (pts: Pt[], n: number): Pt[] => (n > 0 ? pts.slice(-n) : []);
 
 interface Placed {
   id: number;
@@ -93,13 +121,14 @@ export function VectorFloorPlan({
   rooms,
   selected,
   trail = 'faded',
+  rotation = 0,
   onToggle,
   tone,
   label,
   callout,
   resolveBase,
 }: Props) {
-  const frame = useMemo(() => frameFor(map), [map]);
+  const frame = useMemo(() => frameFor(map, 120, rotation), [map, rotation]);
   const rootRef = useRef<HTMLDivElement>(null);
   const theme = useThemeName(rootRef);
   const base = useRasterBase(rasterMode() ? map.raster : null, theme, resolveBase);
@@ -277,6 +306,7 @@ export function VectorFloorPlan({
       data-testid="robots-vector-map"
       data-has-selection={selected.length > 0 || undefined}
       data-trail={trail}
+      data-rotation={frame.rot || undefined}
       data-walls={wallsD && !raster ? '' : undefined}
       data-base={raster ? (base.ready ? 'ready' : 'loading') : undefined}
       data-base-source={raster ? (map.raster?.source ?? 'map_data') : undefined}
@@ -359,7 +389,8 @@ export function VectorFloorPlan({
         )}
         {raster && (
           <clipPath id={clipId}>
-            <rect width={frame.width} height={frame.height} />
+            {/* Unrotated space: the clip is applied inside the rotated group of the base. */}
+            <rect width={frame.w0} height={frame.h0} />
           </clipPath>
         )}
         {raster ? (
@@ -370,6 +401,8 @@ export function VectorFloorPlan({
               data-testid="robots-map-base"
               href={base.url}
               {...rasterRect(frame, map.raster!)}
+              // Rect + clip are in unrotated space; the transform turns the bitmap with the plan.
+              transform={rotationTransform(frame)}
               preserveAspectRatio="none"
               onLoad={base.onLoad}
               onError={base.onError}
@@ -444,6 +477,7 @@ export function VectorFloorPlan({
             data-testid="robots-map-base-walls"
             href={base.wallsUrl}
             {...rasterRect(frame, map.raster!)}
+            transform={rotationTransform(frame)}
             preserveAspectRatio="none"
             onError={base.onError}
           />
@@ -564,6 +598,7 @@ export function VectorFloorPlan({
           dockGeo={dockGeo}
           docked={docked}
           r={botR}
+          mode={trail}
         />
       </svg>
       <div className="rv-labels" aria-hidden="true">
@@ -655,9 +690,8 @@ function flatToView(frame: Frame, flat: number[]): Ring {
 }
 
 const polyline = (pts: Pt[]) => pts.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`).join(' ');
-/** Only the recent part of the route is drawn (older lanes would criss-cross the walls). */
+/** Fading tail behind a driving robot (trail chip off). */
 const TRAIL_POINTS = 8;
-const COVER_POINTS = 140;
 /** Hops longer than this (in % of the map's longer side) are jumps, not glides. */
 const GLIDE_MAX_GAP = 12;
 
@@ -675,7 +709,9 @@ function RobotLayer({
   dockGeo,
   docked,
   r,
+  mode,
 }: {
+  mode: TrailMode;
   tailId: string;
   dockGeo: DockGeo | null;
   docked: boolean;
@@ -710,7 +746,10 @@ function RobotLayer({
   // Parked: the marker sits on the dock plate facing into the room (pose from the dock geometry).
   const target: Pt | null =
     docked && dockGeo ? dockGeo.robot : map.robot ? toView(frame, map.robot.x, map.robot.y) : null;
-  const heading = docked && dockGeo ? dockGeo.angle : map.robot?.a != null ? -map.robot.a : null;
+  // Map angle is counter-clockwise (y up); the view is y-down and rotated clockwise by `rot`.
+  const heading =
+    docked && dockGeo ? dockGeo.angle : map.robot?.a != null ? -map.robot.a + frame.rot : null;
+  const layers = trailLayers(mode, tone, path.length);
   const targetKey = target ? `${target[0].toFixed(1)},${target[1].toFixed(1)}` : '';
 
   useLayoutEffect(() => {
@@ -729,9 +768,9 @@ function RobotLayer({
     // Static trail = already travelled part; the rest is revealed behind the gliding marker.
     const travelled = path.slice(0, plan.travelled);
     const trail = plan.track.length > 1 ? [...travelled, plan.track[0]!] : path;
-    trailRef.current?.setAttribute('d', trailD(trail.slice(-TRAIL_POINTS)));
+    trailRef.current?.setAttribute('d', trailD(lastPts(trail, layers.line)));
     // Fading tail: the gradient runs from the oldest drawn point to the robot.
-    const tail = trail.slice(-TRAIL_POINTS);
+    const tail = lastPts(trail, layers.line);
     const grad = trailRef.current?.ownerSVGElement?.getElementById(tailId);
     if (grad && tail.length > 1) {
       const [x1, y1] = tail[0]!;
@@ -742,9 +781,11 @@ function RobotLayer({
       grad.setAttribute('x2', far[0]!.toFixed(1));
       grad.setAttribute('y2', far[1]!.toFixed(1));
     }
-    coverRef.current?.setAttribute('d', trailD(trail.slice(-COVER_POINTS)));
-    reveal.current?.setAttribute('points', plan.track.length > 1 ? polyline(plan.track) : '');
-    reveal.current?.style.setProperty('stroke-dashoffset', plan.track.length > 1 ? '1' : '0');
+    coverRef.current?.setAttribute('d', trailD(lastPts(trail, layers.cover)));
+    // The reveal behind the gliding marker belongs to the drawn line (none when it is off).
+    const glide = plan.track.length > 1 && layers.line > 0;
+    reveal.current?.setAttribute('points', glide ? polyline(plan.track) : '');
+    reveal.current?.style.setProperty('stroke-dashoffset', glide ? '1' : '0');
     const place = (pt: Pt, deg: number) => {
       shown.current = { pt, heading: deg };
       marker.current?.setAttribute(
@@ -772,7 +813,7 @@ function RobotLayer({
     frameId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frameId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the pose moves
-  }, [targetKey, map.digest]);
+  }, [targetKey, map.digest, mode, layers.line]);
 
   const trail = path;
   // Dedicated charger glyph: tower against the wall + a plate the robot parks on.
@@ -837,23 +878,31 @@ function RobotLayer({
           />
         )}
       </mask>
-      <g mask={`url(#${maskId})`} data-testid="robots-map-trail">
-        <path
-          ref={coverRef}
-          className="rv-cover"
-          d={trailD(trail.slice(-COVER_POINTS))}
-          // Wide enough that neighbouring lanes merge into one swept area (≈ 20 cm lanes).
-          strokeWidth={unit * 1.7}
-          data-rv-avoid="cover"
-          data-rv-pts={ptsAttr([trail.slice(-COVER_POINTS)])}
-        />
+      <g
+        mask={`url(#${maskId})`}
+        data-testid="robots-map-trail"
+        data-trail-cover={layers.cover}
+        data-trail-line={layers.line}
+      >
+        {layers.cover > 0 && (
+          <path
+            ref={coverRef}
+            className="rv-cover"
+            data-testid="robots-map-cover"
+            d={trailD(lastPts(trail, layers.cover))}
+            // Wide enough that neighbouring lanes merge into one swept area (≈ 20 cm lanes).
+            // The whole run covers most rooms: labels stay on top instead of avoiding it.
+            strokeWidth={unit * 1.7}
+          />
+        )}
         <path
           ref={trailRef}
-          className="rv-trail rv-trail-tail"
-          d={trailD(trail.slice(-TRAIL_POINTS))}
-          data-rv-avoid="4"
-          data-rv-pts={ptsAttr([trail.slice(-TRAIL_POINTS)])}
-          stroke={`url(#${tailId})`}
+          className={layers.fade ? 'rv-trail rv-trail-tail' : 'rv-trail rv-trail-line'}
+          data-testid="robots-map-trail-line"
+          d={trailD(lastPts(trail, layers.line))}
+          data-rv-avoid={layers.fade ? '4' : undefined}
+          data-rv-pts={layers.fade ? ptsAttr([lastPts(trail, layers.line)]) : undefined}
+          stroke={layers.fade ? `url(#${tailId})` : undefined}
         />
         <polyline
           ref={reveal}

@@ -138,6 +138,7 @@
           "name": "Name shown in HomeBrain",
           "floor": "Floor (e.g. Ground floor)",
           "image": "Robot picture (/local/… or https URL; optional)",
+          "rotation": "Map rotation (clockwise, like in the Roborock app)",
           "robot1_vacuum": "Robot vacuum",
           "robot1_status": "Status sensor",
           "robot1_error": "Robot error sensor",
@@ -169,6 +170,7 @@
           "name": "Name shown in HomeBrain",
           "floor": "Floor (e.g. Ground floor)",
           "image": "Robot picture (/local/… or https URL; optional)",
+          "rotation": "Map rotation (clockwise, like in the Roborock app)",
           "robot2_vacuum": "Robot vacuum",
           "robot2_status": "Status sensor",
           "robot2_error": "Robot error sensor",
@@ -200,6 +202,7 @@
           "name": "Name shown in HomeBrain",
           "floor": "Floor (e.g. Ground floor)",
           "image": "Robot picture (/local/… or https URL; optional)",
+          "rotation": "Map rotation (clockwise, like in the Roborock app)",
           "robot3_vacuum": "Robot vacuum",
           "robot3_status": "Status sensor",
           "robot3_error": "Robot error sensor",
@@ -241,6 +244,16 @@
     "error": {
       "invalid_entity_id": "Enter a valid entity ID.",
       "invalid_image": "Use a /local/… path or an https URL."
+    }
+  },
+  "selector": {
+    "map_rotation": {
+      "options": {
+        "0": "0° (as reported)",
+        "90": "90° clockwise",
+        "180": "180°",
+        "270": "270° (90° counter-clockwise)"
+      }
     }
   }
 }

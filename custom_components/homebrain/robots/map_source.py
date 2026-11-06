@@ -51,7 +51,11 @@ def _version_tuple(value: str) -> tuple[int, int] | None:
 
 
 def lib_version() -> str | None:
-    """Installed python-roborock version (None when the integration is not installed)."""
+    """Installed python-roborock version (None when the integration is not installed).
+
+    Reads package metadata from disk: blocking, so never call it on the event loop
+    (``VectorMapCache`` resolves it once in the executor and caches it).
+    """
     try:
         return metadata.version("python-roborock")
     except metadata.PackageNotFoundError:
@@ -171,6 +175,8 @@ class VectorMapCache:
         self._layers: dict[str, dict[str, RasterLayers]] = {}
         self._png: dict[str, dict[tuple[str, str], bytes]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        # Resolved once per cache (= per HA run) off the event loop; see ``_lib_version``.
+        self._lib: tuple[str | None] | None = None
 
     async def async_png(self, image_entity_id: str, digest: str, theme: str) -> bytes | None:
         """Cached raster layer (``dark`` / ``dark-walls`` …); ``None`` when unknown/stale."""
@@ -189,9 +195,19 @@ class VectorMapCache:
             cache[(digest, theme)] = png
         return png
 
+    async def _lib_version(self) -> str | None:
+        """python-roborock version, read in the executor on first use and then cached.
+
+        ``importlib.metadata.version`` does file I/O; calling it on the event loop made HA
+        log a blocking-call warning on every map request.
+        """
+        if self._lib is None:
+            self._lib = (await self.hass.async_add_executor_job(lib_version),)
+        return self._lib[0]
+
     async def async_get(self, image_entity_id: str) -> dict[str, Any]:
         """``{available: True, map: {...}}`` or ``{available: False, reason}``."""
-        if reason := version_guard(HA_VERSION, lib_version()):
+        if reason := version_guard(HA_VERSION, await self._lib_version()):
             return {"available": False, "reason": reason}
         blob, reason = raw_map_blob(self.hass, image_entity_id)
         if blob is None:

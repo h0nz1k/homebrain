@@ -14,6 +14,8 @@ from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
+    ROTATIONS,
+    clean_rotation,
     clean_text,
     slot_keys,
     slot_settings,
@@ -149,6 +151,7 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                     "name": clean_text(user_input.get("name")),
                     "floor": clean_text(user_input.get("floor")),
                     "image": image,
+                    "rotation": clean_rotation(user_input.get("rotation", 0)),
                 }
                 options = {**self.config_entry.options, "bindings": bindings, CONF_ROBOTS: robots}
                 return self.async_create_entry(title="", data=options)
@@ -158,6 +161,13 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional("name", description={"suggested_value": current["name"]}): text,
                 vol.Optional("floor", description={"suggested_value": current["floor"]}): text,
                 vol.Optional("image", description={"suggested_value": current["image"]}): text,
+                vol.Optional("rotation", default=str(current["rotation"])): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[str(value) for value in ROTATIONS],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                        translation_key="map_rotation",
+                    )
+                ),
                 **{
                     vol.Optional(key, description={"suggested_value": values.get(key)}): (
                         selector.EntitySelector(
