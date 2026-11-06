@@ -28,6 +28,22 @@ import {
 import { orderBadge, pruneOrder, toggleRoom } from '../rooms.js';
 import { RobotArt } from './RobotArt.js';
 import { GuideSheet, useGuides } from './GuideSheet.js';
+import { PresetSheet, type PresetEditorTarget } from './PresetSheet.js';
+import {
+  deletePreset,
+  effectiveSettings,
+  fetchPresets,
+  planStart,
+  saveDefaults,
+  savePreset,
+  settingsSummary,
+  startCleaning,
+  type PresetDraft,
+  type PresetsBySlot,
+  type RobotPresetData,
+  type RobotPreset,
+  type StartRequest,
+} from '../presets.js';
 import { TANK_GUIDE, extraGuideParts, guideFor, type GuidePart } from '../guides.js';
 import { RobotPhoto, usePhotoManifest } from './RobotPhoto.js';
 import { anyPartLow, photoBase, photoView } from '../photo.js';
@@ -81,6 +97,17 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
   useEffect(() => {
     load(false);
   }, [load]);
+  // Defaults + named presets per robot (HA storage); empty until loaded or on old backends.
+  const [presets, setPresets] = useState<PresetsBySlot>({});
+  const loadPresets = useCallback(() => {
+    if (!connection) return;
+    fetchPresets(connection)
+      .then(setPresets)
+      .catch(() => setPresets({}));
+  }, [connection]);
+  useEffect(() => {
+    loadPresets();
+  }, [loadPresets]);
   const slots = configuredSlots(bindings, metas);
   const slotKey = slots.join(',');
   // `version` ticks on every entity store update, so the models follow live HA states.
@@ -158,6 +185,8 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
           return !!state && state.state !== 'unavailable';
         }}
         onReloadRooms={() => load(true)}
+        presetData={presets[String(active.slot)] ?? null}
+        onPresetsChanged={loadPresets}
       />
     </section>
   );
@@ -168,21 +197,59 @@ function RobotPanel({
   connection,
   hasEntity,
   onReloadRooms,
+  presetData,
+  onPresetsChanged,
 }: {
   robot: RobotModel;
   connection: ModuleViewProps['connection'];
   hasEntity: (entityId: string) => boolean;
   onReloadRooms: () => void;
+  presetData: RobotPresetData | null;
+  onPresetsChanged: () => void;
 }) {
   const [order, setOrder] = useState<number[]>([]);
-  const [mode, setMode] = useState<CleanMode | null>(robot.mode);
-  const [fan, setFan] = useState<string | null>(robot.fan);
-  const [water, setWater] = useState<string | null>(robot.water?.value ?? null);
-  const [mopRoute, setMopRoute] = useState<string | null>(robot.mopRoute?.value ?? null);
-  const [passes, setPasses] = useState(1);
+  // Inline controls start from the robot's remembered default setup (else its current
+  // values); a tap overrides them for this run only.
+  const defaults = presetData?.defaults ?? null;
+  const presetList = presetData?.presets ?? [];
+  const [modePick, setMode] = useState<CleanMode | null>(null);
+  const [fanPick, setFan] = useState<string | null>(null);
+  const [waterPick, setWater] = useState<string | null>(null);
+  const [routePick, setMopRoute] = useState<string | null>(null);
+  const [passesPick, setPasses] = useState<number | null>(null);
+  const pickOr = <T,>(
+    pick: T | null,
+    choices: readonly T[] | null,
+    ...rest: (T | null | undefined)[]
+  ) =>
+    pick ??
+    rest.find((v) => v !== null && v !== undefined && (!choices || choices.includes(v))) ??
+    null;
+  const mode = pickOr<CleanMode>(modePick, null, defaults?.mode, robot.mode);
+  const fan = pickOr(fanPick, robot.fanChoices, defaults?.fan, robot.fan);
+  const water = pickOr(
+    waterPick,
+    robot.water?.choices ?? null,
+    defaults?.water,
+    robot.water?.value,
+  );
+  const mopRoute = pickOr(
+    routePick,
+    robot.mopRoute?.choices ?? null,
+    defaults?.route,
+    robot.mopRoute?.value,
+  );
+  const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
-  const [confirm, setConfirm] = useState<{ title: string; plan: ServiceCallPlan[] } | null>(null);
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    plan: ServiceCallPlan[];
+    start?: StartRequest;
+    preset?: RobotPreset;
+  } | null>(null);
   const [sending, setSending] = useState(false);
+  const [editor, setEditor] = useState<PresetEditorTarget | null>(null);
+  const [saving, setSaving] = useState(false);
   const notify = useToast();
   const [guidePart, setGuidePart] = useState<GuidePart | null>(null);
   const photoDir = photoBase(robot);
@@ -290,13 +357,59 @@ function RobotPanel({
   const mops = modeMops(mode ?? robot.mode);
   const ask = (title: string, plan: ServiceCallPlan[]) =>
     plan.length && setConfirm({ title, plan });
+  const askPreset = (preset: RobotPreset) =>
+    setConfirm({
+      title: `Spustit „${preset.name}“?`,
+      plan: planStart(robot, effectiveSettings(defaults, preset), preset.rooms),
+      start: { slot: robot.slot, preset_id: preset.id },
+      preset,
+    });
+  const persist = async (draft: PresetDraft) => {
+    if (!connection || !editor) return;
+    setSaving(true);
+    try {
+      if (editor.kind === 'defaults') {
+        const { mode, fan, water, route, passes } = draft;
+        await saveDefaults(connection, robot.slot, { mode, fan, water, route, passes });
+        notify.success('Výchozí nastavení uloženo.');
+      } else {
+        await savePreset(connection, robot.slot, draft);
+        notify.success(`Předvolba „${draft.name.trim()}“ uložena.`);
+      }
+      setEditor(null);
+      onPresetsChanged();
+    } catch (error) {
+      notify.error(
+        `Uložení se nepodařilo${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async (preset: RobotPreset) => {
+    if (!connection) return;
+    setSaving(true);
+    try {
+      await deletePreset(connection, robot.slot, preset.id);
+      notify.success(`Předvolba „${preset.name}“ smazána.`);
+      setEditor(null);
+      onPresetsChanged();
+    } catch {
+      notify.error('Předvolbu se nepodařilo smazat.');
+    } finally {
+      setSaving(false);
+    }
+  };
   const send = async () => {
     if (!confirm || !connection) return;
     setSending(true);
     try {
-      await runPlan(connection, confirm.plan, [robot.vacuum]);
+      // Cleaning starts go through the backend: it applies the settings, waits until HA
+      // reports them and only then starts the robot (no race with the old suction/water).
+      if (confirm.start) await startCleaning(connection, confirm.start);
+      else await runPlan(connection, confirm.plan, [robot.vacuum]);
       notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
-      if (confirm.plan.some((step) => step.service === 'vacuum.send_command')) setOrder([]);
+      if (confirm.start) setOrder([]);
     } catch (error) {
       notify.error(
         `Příkaz se nepodařilo odeslat${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
@@ -622,6 +735,55 @@ function RobotPanel({
                 </Chip>
               )}
             </div>
+            {connection && (
+              <div className="rb-presets" data-testid="robots-presets">
+                <div className="rb-chips" role="group" aria-label="Předvolby úklidu">
+                  {presetList.map((preset) => (
+                    <Chip
+                      key={preset.id}
+                      className="rb-chip rb-preset"
+                      pressed={false}
+                      look="soft"
+                      data-testid={`robots-preset-${preset.id}`}
+                      disabled={!canAct || Boolean(robot.error)}
+                      aria-label={`Spustit předvolbu ${preset.name}`}
+                      onPress={() => askPreset(preset)}
+                    >
+                      <PlayIcon />
+                      <span className="rb-chip-name">{preset.name}</span>
+                      <span className="rb-chip-sub">
+                        {[
+                          ...settingsSummary(effectiveSettings(defaults, preset)).slice(0, 2),
+                          preset.rooms.length
+                            ? czCount(preset.rooms.length, 'místnost', 'místnosti', 'místností')
+                            : 'celý byt',
+                        ].join(' · ')}
+                      </span>
+                    </Chip>
+                  ))}
+                  <Chip
+                    className="rb-chip"
+                    data-testid="robots-preset-add"
+                    pressed={false}
+                    onPress={() => setEditor({ kind: 'preset', preset: null })}
+                  >
+                    + Předvolba
+                  </Chip>
+                  <Chip
+                    className="rb-chip"
+                    data-testid="robots-defaults-edit"
+                    pressed={false}
+                    aria-label="Výchozí nastavení úklidu"
+                    onPress={() => setEditor({ kind: 'defaults' })}
+                  >
+                    Výchozí
+                    {defaults
+                      ? `: ${settingsSummary(defaults).slice(0, 2).join(' · ') || 'beze změn'}`
+                      : ''}
+                  </Chip>
+                </div>
+              </div>
+            )}
             <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
               <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
                 {vector?.available ? (
@@ -760,6 +922,7 @@ function RobotPanel({
                       options={[
                         ['1', '1×'],
                         ['2', '2×'],
+                        ['3', '3×'],
                       ]}
                       onChange={(value) => setPasses(Number(value))}
                     />
@@ -785,9 +948,21 @@ function RobotPanel({
                     data-testid="robots-start"
                     disabled={!canAct || !selected.length || Boolean(robot.error)}
                     onClick={() =>
-                      ask(
-                        'Spustit úklid?',
-                        planCleanRooms({
+                      setConfirm({
+                        title: 'Spustit úklid?',
+                        // Explicit values from the controls (prefilled with the defaults).
+                        start: {
+                          slot: robot.slot,
+                          rooms: selected,
+                          settings: {
+                            mode,
+                            fan,
+                            water: modeMops(mode ?? robot.mode) ? water : null,
+                            route: modeMops(mode ?? robot.mode) ? mopRoute : null,
+                            passes,
+                          },
+                        },
+                        plan: planCleanRooms({
                           vacuum: robot.vacuum,
                           rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
                           mode,
@@ -811,7 +986,7 @@ function RobotPanel({
                               }
                             : undefined,
                         }),
-                      )
+                      })
                     }
                   >
                     {robot.error
@@ -862,6 +1037,18 @@ function RobotPanel({
           }}
         />
       )}
+      {editor && (
+        <PresetSheet
+          robot={robot}
+          target={editor}
+          defaults={defaults}
+          presets={presetList}
+          busy={saving}
+          onClose={() => !saving && setEditor(null)}
+          onSave={(draft) => void persist(draft)}
+          onDelete={(preset) => void remove(preset)}
+        />
+      )}
       {confirm && (
         <div className="rb-scrim" onClick={() => !sending && setConfirm(null)}>
           <div
@@ -887,6 +1074,19 @@ function RobotPanel({
                 <p className="rb-micro">Robot právě uklízí – nový úklid nahradí ten současný.</p>
               )}
             <div className="rb-sheet-actions">
+              {confirm.preset && (
+                <Button
+                  variant="ghost"
+                  data-testid="robots-preset-edit"
+                  disabled={sending}
+                  onClick={() => {
+                    setEditor({ kind: 'preset', preset: confirm.preset! });
+                    setConfirm(null);
+                  }}
+                >
+                  Upravit
+                </Button>
+              )}
               <Button onClick={() => setConfirm(null)} disabled={sending}>
                 Zrušit
               </Button>
@@ -947,6 +1147,14 @@ function Chevron() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M5 3.5v9l7.5-4.5z" fill="currentColor" />
     </svg>
   );
 }

@@ -32,6 +32,7 @@ function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
   const connection: ConnectionLike = {
     async sendMessagePromise<T>(message: { type: string }) {
       if (message.type === 'homebrain/robots/get') return demo.ws as T;
+      if (message.type === 'homebrain/robots/presets/list') return { robots: {} } as T;
       if (message.type === 'homebrain/robots/map') {
         const slot = (message as { slot?: number }).slot ?? 0;
         if (vector === 'off') return { available: false, reason: 'unsupported_ha' } as T;
@@ -81,15 +82,14 @@ it('selects rooms in order and sends only after confirmation', async () => {
   await act(async () => {
     fireEvent.click(screen.getByTestId('robots-confirm-send'));
   });
-  expect(sent).toEqual([
-    {
-      type: 'call_service',
-      domain: 'vacuum',
-      service: 'send_command',
-      service_data: { command: 'app_segment_clean', params: [{ segments: [3, 1], repeat: 1 }] },
-      target: { entity_id: 'vacuum.demo_robot_1' },
-    },
-  ]);
+  // The backend applies the settings, waits for HA and only then starts (rooms in order).
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({
+    type: 'homebrain/robots/start',
+    slot: 1,
+    rooms: [3, 1],
+    settings: { passes: 1 },
+  });
   expect((await screen.findAllByText(/Čekám na skutečný stav/)).length).toBeGreaterThan(0);
   expect(screen.getByTestId('robots-room-3').getAttribute('aria-pressed')).toBe('false');
 });

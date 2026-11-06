@@ -46,7 +46,12 @@ from .modules import (
     register_modules,
 )
 from .recipes import websocket as recipes_ws
-from .robots.ws import RobotMapImageView, websocket_robots_get, websocket_robots_map
+from .robots.ws import (
+    PRESET_COMMANDS,
+    RobotMapImageView,
+    websocket_robots_get,
+    websocket_robots_map,
+)
 from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
@@ -101,7 +106,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _http_view(hass, RadarImageView())
 
     def robots_reg(reg: Registrar) -> None:
-        _commands(websocket_robots_get, websocket_robots_map)(hass)(reg)
+        _commands(websocket_robots_get, websocket_robots_map, *PRESET_COMMANDS)(hass)(reg)
         _http_view(hass, RobotMapImageView())
 
     register_modules(
