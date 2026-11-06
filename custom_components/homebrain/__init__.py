@@ -85,6 +85,10 @@ def _frontend_status() -> tuple[bool, bool]:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Serve the frontend, admin module panels and the Dnes kiosk panel."""
+    # THROWAWAY (#26): deliberate failure to prove ha-compat CI fails. Reverted next commit.
+    _LOGGER.error("HB-COMPAT-CI deliberate failure (#26)")
+    with open(__file__, encoding="utf-8") as handle:  # noqa: PTH123 - deliberate blocking call
+        handle.read(1)
     integration = await async_get_integration(hass, DOMAIN)
     version = integration.version
     static_url = f"{STATIC_URL_BASE}/{version}"
