@@ -30,6 +30,8 @@ import {
 } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
 import {
+  buildRobot,
+  createPresetsDemo,
   createRobotsDemo,
   demoVectorMap,
   type DemoScene,
@@ -280,6 +282,48 @@ Object.assign(demoHass.states, robotsDemo.states);
 // Dev only: service calls from the Roboti panel are recorded, never sent anywhere.
 const robotCalls: unknown[] = [];
 (window as unknown as { __hbRobotCalls: unknown[] }).__hbRobotCalls = robotCalls;
+// Presets/defaults backend mock: a start records the service calls the integration would send.
+const presetsDemo = createPresetsDemo(
+  (slot) => {
+    const meta = robotsGet().robots.find((robot) => robot.slot === slot);
+    return meta
+      ? buildRobot(slot, robotsDemo.bindings, (id) => (id ? demoHass.states[id] : undefined), meta)
+      : null;
+  },
+  (message) => robotCalls.push(message),
+);
+// `?presets=demo`: two saved presets + a remembered default on robot 1 (screenshots).
+if (new URLSearchParams(location.search).get('presets') === 'demo') {
+  const save = presetsDemo.handlers['homebrain/robots/presets/save'];
+  save({
+    slot: 1,
+    preset: {
+      name: 'Rychlé vysátí',
+      mode: 'vacuum',
+      fan: 'turbo',
+      water: null,
+      route: null,
+      passes: 1,
+      rooms: [],
+    },
+  });
+  save({
+    slot: 1,
+    preset: {
+      name: 'Důkladné vytření 2×',
+      mode: 'mop',
+      fan: null,
+      water: 'intense',
+      route: 'deep',
+      passes: 2,
+      rooms: [3, 2],
+    },
+  });
+  presetsDemo.handlers['homebrain/robots/defaults/set']({
+    slot: 1,
+    defaults: { mode: 'both', fan: 'balanced', water: null, route: null, passes: 1 },
+  });
+}
 const healthDemoIds = new Set(Object.values(healthDemo.bindings));
 const isHealthDemo = (ids: string[] | undefined) => (ids ?? []).some((id) => healthDemoIds.has(id));
 const pvDemo = createPvForecastDemo(
@@ -358,6 +402,7 @@ demoHass.connection = createMockConnection({
         new URL(`./dev-assets/robots/demo-${hit[1]}-${hit[2]}.png`, import.meta.url).href,
     };
   },
+  ...presetsDemo.handlers,
   call_service: (message: unknown) => {
     robotCalls.push(message);
     return { context: { id: 'demo' } };

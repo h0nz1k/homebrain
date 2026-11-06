@@ -23,6 +23,13 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/waste/history": {},
     "homebrain/robots/get": {},
     "homebrain/robots/map": {"slot": 1},
+    "homebrain/robots/presets/list": {},
+    "homebrain/robots/presets/save": {"slot": 1, "preset": {"name": "x"}},
+    "homebrain/robots/presets/delete": {"slot": 1, "preset_id": "abcdef012345"},
+    "homebrain/robots/defaults/get": {"slot": 1},
+    "homebrain/robots/defaults/set": {"slot": 1, "defaults": None},
+    # No robot is bound in the matrix entry: an admin gets not_found, nothing ever starts.
+    "homebrain/robots/start": {"slot": 1},
     "homebrain/wine/list": {},
     "homebrain/wine/search": {"query": "x"},
     "homebrain/wine/get": {"wine_id": "x"},

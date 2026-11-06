@@ -669,4 +669,24 @@ export const robotsStyles = `
   .rbp-dot-label { display: none; }
   .rbp-callout { font-size: 12px; padding: 5px 8px; }
 }
+
+/* Předvolby: one-tap preset chips under the clean card header (scroll sideways on phones). */
+.rb-presets { margin: 2px 0 12px; min-width: 0; }
+.rb-presets .rb-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.rb-presets .rb-chips::-webkit-scrollbar { display: none; }
+.rb-presets .rb-chips > * { flex: none; }
+.rb-preset .rb-ico { width: 12px; height: 12px; color: var(--hb-ac); }
+.rb-chip-sub { color: var(--hb-t2); font-weight: 500; font-size: 13px; margin-left: 4px; }
+.rb-editor { display: grid; gap: 16px; margin-top: 4px; min-width: 0; }
+.rb-field { display: grid; gap: 6px; }
+.rb-field input {
+  box-sizing: border-box; width: 100%; font: inherit; font-size: 16px; color: var(--hb-t1);
+  padding: 10px 12px; border-radius: var(--hb-radius-sm); border: 0;
+  background: color-mix(in srgb, var(--hb-t1) 7%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 13%, transparent);
+}
+.rb-field input:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 1px; }
+.rb-editor-rooms { display: grid; gap: 8px; }
+.rb-chips.rb-chips-wrap { flex-wrap: wrap; }
+.rb-form-error { color: var(--hb-crit); margin: 0; font-size: 14px; }
 `;

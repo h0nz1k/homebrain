@@ -93,7 +93,7 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
   await page.goto('/homebrain-roboti');
   await expect(page.getByTestId('robots-vector-map')).toBeVisible();
   // Room chips start flush: no fade (and no half chip) at the start edge.
-  const row = page.locator('.rb-chips');
+  const row = page.locator('.rb-map-row .rb-chips');
   await expect(row).not.toHaveAttribute('data-fade', /start/);
   const flush = await row.evaluate((el) => {
     const first = el.querySelector('[data-testid^="robots-room-"]')!.getBoundingClientRect();
