@@ -732,7 +732,8 @@ export const robotsStyles = `
 .rb-sched-enabled { flex: 0 0 auto !important; justify-items: start; }
 @media (max-width: 600px) {
   .rb-sched-item { flex-wrap: wrap; }
-  .rb-sched-side { width: 100%; justify-content: space-between; padding-left: 76px; }
+  .rb-sched-side { width: 100%; justify-content: flex-start; padding-left: 76px; }
+  .rb-sched-side > .hb-switch { margin-left: auto; }
 }
 .rb-hint { margin: -6px 0 0; color: var(--hb-warn-ink, var(--hb-t2)); }
 `;
