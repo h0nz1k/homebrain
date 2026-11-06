@@ -74,6 +74,15 @@ const OPENERS: Opener[] = [
     },
   },
   {
+    name: 'Roboti: plán úklidu',
+    path: '/homebrain-roboti?presets=demo&schedules=demo',
+    sheet: 'robots-schedule-editor',
+    open: async (page) => {
+      await page.getByTestId('robots-schedule-add').click();
+      await page.getByTestId('robots-schedule-preset-custom').click();
+    },
+  },
+  {
     name: 'Recepty: fritéza',
     path: '/homebrain-recepty?fryer=1',
     sheet: 'recipes-airfryer-dialog',

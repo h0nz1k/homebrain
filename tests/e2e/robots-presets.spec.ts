@@ -62,13 +62,12 @@ test('nová předvolba → chip → spuštění jedním klepnutím', async ({ pa
     name: 'Spustit předvolbu Důkladně 2×',
   });
   await expect(chip).toBeVisible();
+  // Owner decision: no confirm dialog – the chip starts after a 5 s „Zrušit“ window.
   await chip.click();
-  const sheet = page.getByTestId('robots-confirm');
-  await expect(sheet).toContainText('Spustit „Důkladně 2×“?');
-  await expect(sheet).toContainText('1. Jídelna → 2. Kuchyně · 2× každou');
+  await expect(page.getByTestId('robots-confirm')).toHaveCount(0);
+  await expect(page.getByText('Spouštím „Důkladně 2×“…')).toBeVisible();
   expect(await calls(page)).toHaveLength(0);
-  await page.getByTestId('robots-confirm-send').click();
-  await expect(page.getByText(/Čekám na skutečný stav/).first()).toBeVisible();
+  await expect.poll(async () => (await calls(page)).length, { timeout: 12_000 }).toBeGreaterThan(0);
   const sent = await calls(page);
   expect(sent[0]).toMatchObject({ service: 'select_option', service_data: { option: 'mop' } });
   expect(sent.some((c) => c.service === 'set_fan_speed')).toBe(false);
@@ -77,13 +76,47 @@ test('nová předvolba → chip → spuštění jedním klepnutím', async ({ pa
     params: [{ segments: [3, 2], repeat: 2 }],
   });
 
-  // Edit from the confirmation sheet, then delete: the chip disappears.
-  await chip.click();
-  await page.getByTestId('robots-preset-edit').click();
+  // Edit via „Upravit“ (chips switch to edit mode), then delete: the chip disappears.
+  await page.getByTestId('robots-presets-manage').click();
+  await page
+    .getByTestId('robots-presets')
+    .getByRole('button', { name: 'Upravit předvolbu Důkladně 2×' })
+    .click();
   await expect(page.getByTestId('robots-preset-name')).toHaveValue('Důkladně 2×');
   await page.getByTestId('robots-preset-delete').click();
-  await expect(chip).toHaveCount(0);
+  await expect(
+    page.getByTestId('robots-presets').getByRole('button', { name: /Důkladně 2×/ }),
+  ).toHaveCount(0);
   expect(await page.locator('html').evaluate((root) => root.scrollWidth)).toBeLessThanOrEqual(
     page.viewportSize()!.width,
   );
+});
+
+test('předvolba: „Zrušit“ do 5 s nic neodešle', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/homebrain-roboti?presets=demo');
+  await page
+    .getByTestId('robots-presets')
+    .getByRole('button', { name: 'Spustit předvolbu Rychlé vysátí' })
+    .click();
+  await page.getByRole('button', { name: 'Zrušit' }).click();
+  await expect(page.getByText('Spuštění „Rychlé vysátí“ zrušeno.')).toBeVisible();
+  await page.waitForTimeout(6_000);
+  expect(await calls(page)).toHaveLength(0);
+});
+
+test('editor předvolby: poslední místnost není schovaná pod patičkou', async ({ page }) => {
+  await page.goto('/homebrain-roboti?presets=demo');
+  await page.getByTestId('robots-preset-add').click();
+  const editor = page.getByTestId('robots-preset-editor');
+  const chips = editor.locator('[data-testid^="robots-preset-room-"]');
+  const last = chips.last();
+  await last.scrollIntoViewIfNeeded();
+  await editor.evaluate((el) => {
+    const box = el.closest('.hb-sheet') ?? el;
+    box.scrollTop = box.scrollHeight;
+  });
+  const chipBox = (await last.boundingBox())!;
+  const footBox = (await page.locator('.hb-sheet-foot').boundingBox())!;
+  expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(footBox.y + 1);
 });

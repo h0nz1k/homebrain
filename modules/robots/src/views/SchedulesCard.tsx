@@ -49,7 +49,7 @@ export function SchedulesCard({
   const notify = useToast();
   const load = useCallback(() => {
     fetchSchedules(connection)
-      .then(setData)
+      .then((overview) => setData(Array.isArray(overview?.schedules) ? overview : null))
       .catch(() => setData(null));
   }, [connection]);
   useEffect(() => {
