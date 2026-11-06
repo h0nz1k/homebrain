@@ -65,7 +65,7 @@ test('nová předvolba → chip → spuštění jedním klepnutím', async ({ pa
   // Owner decision: no confirm dialog – the chip starts after a 5 s „Zrušit“ window.
   await chip.click();
   await expect(page.getByTestId('robots-confirm')).toHaveCount(0);
-  await expect(page.getByText('Spouštím „Důkladně 2×“…')).toBeVisible();
+  await expect(page.getByText('Spouštím „Důkladně 2×“…').first()).toBeVisible();
   expect(await calls(page)).toHaveLength(0);
   await expect.poll(async () => (await calls(page)).length, { timeout: 12_000 }).toBeGreaterThan(0);
   const sent = await calls(page);
@@ -100,7 +100,7 @@ test('předvolba: „Zrušit“ do 5 s nic neodešle', async ({ page }) => {
     .getByRole('button', { name: 'Spustit předvolbu Rychlé vysátí' })
     .click();
   await page.getByRole('button', { name: 'Zrušit' }).click();
-  await expect(page.getByText('Spuštění „Rychlé vysátí“ zrušeno.')).toBeVisible();
+  await expect(page.getByText('Spuštění „Rychlé vysátí“ zrušeno.').first()).toBeVisible();
   await page.waitForTimeout(6_000);
   expect(await calls(page)).toHaveLength(0);
 });
