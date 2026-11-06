@@ -69,7 +69,7 @@ export function heroModel(snap: NetSnapshot): HeroModel {
     };
   const rest =
     serious.length > 1
-      ? ` Dále ${czCount(serious.length - 1, 'další problém', 'další problémy', 'dalších problémů')} níže.`
+      ? ` Níže ${czCount(serious.length - 1, 'další problém', 'další problémy', 'dalších problémů')}.`
       : '';
   return {
     severity: top.severity === 'critical' ? 'critical' : 'warning',

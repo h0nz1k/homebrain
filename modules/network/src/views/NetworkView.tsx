@@ -165,14 +165,11 @@ function House({ snap }: { snap: NetSnapshot }) {
                 </span>
               ))}
               {f.switches > 0 && (
-                <span
-                  className="net-ap net-sw"
-                  data-testid="network-floor-switches"
-                  aria-label={czCount(f.switches, 'switch', 'switche', 'switchů')}
-                >
+                <span className="net-ap net-sw" data-testid="network-floor-switches">
                   <span className="net-ap-dot net-sw-glyph" aria-hidden="true" />
-                  <span className="net-ap-name">{f.switches === 1 ? 'Switch' : 'Switche'}</span>
-                  <span className="net-ap-n">{f.switches}</span>
+                  <span className="net-ap-name">
+                    {czCount(f.switches, 'switch', 'switche', 'switchů')}
+                  </span>
                 </span>
               )}
             </div>
