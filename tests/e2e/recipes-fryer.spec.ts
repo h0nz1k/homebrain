@@ -228,7 +228,7 @@ test('Recepty: fritéza s fotkou – přední pohled při pečení, vysunutý š
   await expect(page.locator('.rc-fa')).toHaveCount(0);
   await page.goto('/homebrain-recepty?fryerlive=action');
   await expect(photo).toBeVisible({ timeout: 20_000 });
-  await expect(photo).toHaveAttribute('data-out', '');
+  await expect(photo).toHaveAttribute('data-out', 'true');
   await expect(photo.locator('img')).toHaveAttribute('src', /demo\/open\.svg$/);
   // Rejected: no resume / start control next to the photo.
   await expect(page.getByRole('button', { name: /Protřepáno|Pokračovat|Spustit/ })).toHaveCount(0);
