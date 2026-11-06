@@ -76,27 +76,27 @@ describe('header status', () => {
 
 describe('findResetButton', () => {
   const ha = new Set([
-    'button.bobik_resetovat_hlavni_kartac',
-    'button.bobik_dock_resetovat_cistici_kartac',
-    'button.bobik_dock_resetovat_sitko',
+    'button.demo_robot_2_resetovat_hlavni_kartac',
+    'button.demo_robot_2_dock_resetovat_cistici_kartac',
+    'button.demo_robot_2_dock_resetovat_sitko',
     'button.garage_resetovat_hlavni_kartac',
   ]);
   const has = (id: string) => ha.has(id);
   it('finds the robot\'s own Czech/English reset button per part', () => {
-    expect(findResetButton('main_brush', 'vacuum.bobik', has)).toBe(
-      'button.bobik_resetovat_hlavni_kartac',
+    expect(findResetButton('main_brush', 'vacuum.demo_robot_2', has)).toBe(
+      'button.demo_robot_2_resetovat_hlavni_kartac',
     );
-    expect(findResetButton('dock_brush', 'vacuum.bobik', has)).toBe(
-      'button.bobik_dock_resetovat_cistici_kartac',
+    expect(findResetButton('dock_brush', 'vacuum.demo_robot_2', has)).toBe(
+      'button.demo_robot_2_dock_resetovat_cistici_kartac',
     );
-    expect(findResetButton('dock_strainer', 'vacuum.bobik', has)).toBe(
-      'button.bobik_dock_resetovat_sitko',
+    expect(findResetButton('dock_strainer', 'vacuum.demo_robot_2', has)).toBe(
+      'button.demo_robot_2_dock_resetovat_sitko',
     );
   });
   it('nothing for missing buttons, guide-only parts or another device', () => {
-    expect(findResetButton('side_brush', 'vacuum.bobik', has)).toBeUndefined();
-    expect(findResetButton('mop', 'vacuum.bobik', has)).toBeUndefined();
-    expect(findResetButton('main_brush', 'vacuum.kraken', has)).toBeUndefined();
+    expect(findResetButton('side_brush', 'vacuum.demo_robot_2', has)).toBeUndefined();
+    expect(findResetButton('mop', 'vacuum.demo_robot_2', has)).toBeUndefined();
+    expect(findResetButton('main_brush', 'vacuum.demo_robot_3', has)).toBeUndefined();
     expect(findResetButton('main_brush', '', has)).toBeUndefined();
   });
 });
