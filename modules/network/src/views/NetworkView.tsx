@@ -13,7 +13,9 @@ import {
 } from '@homebrain/ui';
 import { getNetworkApi, type NetworkApi } from '../api.js';
 import {
+  floorLabel,
   floorRows,
+  glue,
   heroModel,
   isOnline,
   loadRows,
@@ -47,7 +49,16 @@ const SEV_LABEL: Record<string, string> = {
   notice: 'Tip',
   info: 'Info',
 };
-const SEV_TONE = { critical: 'crit', warning: 'warn', notice: 'accent', info: 'neutral' } as const;
+const SEV_TONE = { critical: 'crit', warning: 'warn', notice: 'neutral', info: 'neutral' } as const;
+const problemAnchor = (id: string) => `network-problem-${id}`;
+
+function scrollToProblem(id: string) {
+  const el = document.getElementById(problemAnchor(id));
+  if (!el) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  el.focus({ preventScroll: true });
+}
 
 const nowS = () => Date.now() / 1000;
 
@@ -96,8 +107,18 @@ function Hero({ snap }: { snap: NetSnapshot }) {
         >
           {hero.badge}
         </Pill>
-        <h2 data-testid="network-headline">{hero.headline}</h2>
-        <p>{hero.context}</p>
+        <h2 data-testid="network-headline">{glue(hero.headline)}</h2>
+        {hero.context && <p>{glue(hero.context)}</p>}
+        {hero.topId && (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="network-hero-fix"
+            onClick={() => scrollToProblem(hero.topId!)}
+          >
+            Co s tím
+          </Button>
+        )}
       </div>
       <div className="net-stats">
         {tiles.map((t) => (
@@ -105,6 +126,7 @@ function Hero({ snap }: { snap: NetSnapshot }) {
             key={t.id}
             className="net-stat"
             data-tone={t.tone}
+            data-detail-tone={t.detailTone}
             data-testid={`network-stat-${t.id}`}
           >
             <span className="net-stat-label">{t.label}</span>
@@ -143,11 +165,14 @@ function House({ snap }: { snap: NetSnapshot }) {
                 </span>
               ))}
               {f.switches > 0 && (
-                <span className="net-ap net-sw">
-                  <span className="net-sw-glyph" aria-hidden="true" />
-                  <span className="net-ap-name">
-                    {czCount(f.switches, 'switch', 'switche', 'switchů')}
-                  </span>
+                <span
+                  className="net-ap net-sw"
+                  data-testid="network-floor-switches"
+                  aria-label={czCount(f.switches, 'switch', 'switche', 'switchů')}
+                >
+                  <span className="net-ap-dot net-sw-glyph" aria-hidden="true" />
+                  <span className="net-ap-name">{f.switches === 1 ? 'Switch' : 'Switche'}</span>
+                  <span className="net-ap-n">{f.switches}</span>
                 </span>
               )}
             </div>
@@ -181,31 +206,45 @@ function Load({ snap }: { snap: NetSnapshot }) {
           </li>
         ))}
       </ul>
-      {note && <p className="net-note">{note}</p>}
+      {note && <p className="net-note">{glue(note)}</p>}
     </Card>
   );
 }
 
-function ProblemCard({ p, now }: { p: NetProblem; now: number }) {
+function ProblemCard({ p, now, inHero }: { p: NetProblem; now: number; inHero: boolean }) {
+  const since = p.since != null ? sinceLabel(p.since, now) : '';
+  // „41 min“ once: skip the chip when the context sentence already says it.
+  const showSince = since && !p.context.includes(since);
   return (
     <Card
+      id={problemAnchor(p.id)}
+      tabIndex={-1}
       className="net-problem"
       tone={p.severity === 'critical' ? 'critical' : 'warning'}
       data-testid="network-problem"
       data-rule={p.rule}
+      data-in-hero={inHero || undefined}
+      aria-label={inHero ? p.title : undefined}
     >
       <div className="net-problem-head">
         <Pill tone={SEV_TONE[p.severity]} size="sm">
           {SEV_LABEL[p.severity]}
         </Pill>
         {p.important && <small>důležité zařízení</small>}
-        {p.since != null && <small>{sinceLabel(p.since, now)}</small>}
+        {showSince && <small>{glue(since)}</small>}
       </div>
-      <h4>{p.title}</h4>
-      {p.context && <p>{p.context}</p>}
+      {/* The hero already names this problem; the card leads with the detail instead. */}
+      {inHero ? (
+        p.context && <h4>{glue(p.context)}</h4>
+      ) : (
+        <>
+          <h4>{glue(p.title)}</h4>
+          {p.context && <p>{glue(p.context)}</p>}
+        </>
+      )}
       <div className="net-fix">
         <span>Co s tím</span>
-        <p>{p.fix}</p>
+        <p>{glue(p.fix)}</p>
       </div>
     </Card>
   );
@@ -213,6 +252,7 @@ function ProblemCard({ p, now }: { p: NetProblem; now: number }) {
 
 function Overview({ snap }: { snap: NetSnapshot }) {
   const { serious, tips } = splitProblems(snap.problems);
+  const heroId = heroModel(snap).topId;
   const now = nowS();
   const okAreas = [
     !snap.problems.some((p) => p.rule.startsWith('internet')) && 'internet',
@@ -240,10 +280,10 @@ function Overview({ snap }: { snap: NetSnapshot }) {
             </Card>
           )}
           {serious.map((p) => (
-            <ProblemCard key={p.id} p={p} now={now} />
+            <ProblemCard key={p.id} p={p} now={now} inHero={p.id === heroId} />
           ))}
           {tips.length > 0 && (
-            <Card className="net-card" data-testid="network-tips">
+            <Card className="net-card net-tips" data-testid="network-tips">
               <header className="net-card-head">
                 <h3>Tipy</h3>
                 <span>{czCount(tips.length, 'tip', 'tipy', 'tipů')} · nic nehoří</span>
@@ -251,10 +291,10 @@ function Overview({ snap }: { snap: NetSnapshot }) {
               {tips.map((t) => (
                 <StatusRow
                   key={t.id}
-                  label={t.title}
+                  label={glue(t.title)}
                   value={null}
-                  detail={t.fix}
-                  tone={t.severity === 'notice' ? 'accent' : 'neutral'}
+                  detail={glue(t.fix)}
+                  tone="neutral"
                   data-testid="network-tip"
                 />
               ))}
@@ -364,7 +404,7 @@ function Devices({
                 <option value="">kdekoli</option>
                 {floors.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.name}
+                    {floorLabel(f.name)}
                   </option>
                 ))}
               </select>
@@ -412,9 +452,7 @@ function Switches({ snap }: { snap: NetSnapshot }) {
               >
                 <div className="net-budget-head">
                   <span>PoE</span>
-                  <strong>
-                    {Math.round(sw.poe.used_w)} W z {sw.poe.budget_w} W
-                  </strong>
+                  <strong>{glue(`${Math.round(sw.poe.used_w)} W z ${sw.poe.budget_w} W`)}</strong>
                 </div>
                 <span className="net-budget-bar">
                   <span style={{ width: `${share * 100}%` }} />
@@ -579,12 +617,12 @@ function SummaryView({ api }: { api: NetworkApi }) {
           data-net-state={summary.status}
         >
           <div className="net-hero-copy">
-            <Pill tone={problem ? 'warn' : 'ok'} dot>
+            <Pill tone={problem ? (summary.severity === 'critical' ? 'crit' : 'warn') : 'ok'} dot>
               {problem
                 ? czCount(summary.problems_count, 'problém', 'problémy', 'problémů')
                 : 'Vše v pořádku'}
             </Pill>
-            <h2 data-testid="network-headline">{summary.headline}</h2>
+            <h2 data-testid="network-headline">{glue(summary.headline)}</h2>
             <p>
               {summary.internet_online === false
                 ? 'Internet teď nejde.'
@@ -652,15 +690,8 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
     <div className="net" data-testid="network-view" data-role={role ?? undefined}>
       <style>{networkStyles}</style>
       <header className="net-head">
-        <h1>Síť</h1>
-        {admin && snap && (
-          <span className="net-updated">
-            aktualizováno{' '}
-            {sinceLabel(snap.updated_at, nowS()) === 'právě teď'
-              ? 'teď'
-              : `před ${sinceLabel(snap.updated_at, nowS())}`}
-          </span>
-        )}
+        {/* The shell top bar shows the module name; keep the heading for screen readers only. */}
+        <h1 className="hb-sr-only">Síť</h1>
         {admin && (
           <SegmentedControl
             label="Sekce"
@@ -671,6 +702,14 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
             onChange={selectTab}
             className="net-tabs"
           />
+        )}
+        {admin && snap && (
+          <span className="net-updated">
+            aktualizováno{' '}
+            {sinceLabel(snap.updated_at, nowS()) === 'právě teď'
+              ? 'teď'
+              : `před ${glue(sinceLabel(snap.updated_at, nowS()))}`}
+          </span>
         )}
       </header>
       {body}

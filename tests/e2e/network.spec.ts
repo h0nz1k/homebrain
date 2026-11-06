@@ -20,7 +20,25 @@ test.describe('Síť – správce', () => {
     await expect(page.getByTestId('network-problem').first()).toContainText('Co s tím');
     await expect(page.getByTestId('network-tip')).toHaveCount(2);
     await expect(page.getByTestId('network-ap')).toHaveCount(7);
+    // All APs online: the count is calm, only „1 nestabilní“ is amber.
+    await expect(page.getByTestId('network-stat-aps')).toHaveAttribute('data-tone', 'ok');
+    await expect(page.getByTestId('network-stat-aps')).toHaveAttribute('data-detail-tone', 'warn');
+    await expect(page.getByTestId('network-house')).toContainText('\u22121. patro');
+    // The title lives in the shell top bar only.
+    await expect(page.getByRole('heading', { level: 1, name: 'Síť' })).toHaveClass(/hb-sr-only/);
     await noSidewaysScroll(page);
+  });
+
+  test('přehled: „Co s tím“ v hero vede na kartu, která titulek neopakuje', async ({ page }) => {
+    await page.goto('/homebrain-sit');
+    await expect(page.getByTestId('network-hero')).toBeVisible({ timeout: 20_000 });
+    const first = page.getByTestId('network-problem').first();
+    await expect(first).toHaveAttribute('data-in-hero', 'true');
+    await expect(first.locator('h4')).not.toHaveText('Terasa vypadává');
+    await expect(first).toContainText('Upozornění');
+    await page.getByTestId('network-hero-fix').click();
+    await expect(first).toBeFocused();
+    await expect(first).toBeInViewport();
   });
 
   test('záložky: switche s pomalým portem a zařízení s hlídáním', async ({ page }) => {

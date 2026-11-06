@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import re
 import time
 from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping
@@ -98,13 +99,20 @@ class FlapTracker:
         return hass.bus.async_listen("state_changed", _changed)
 
 
+_MINUS_RE: Final = re.compile(r"(^|[\s(])-(?=\d)")
+
+
 def _floors(hass: HomeAssistant) -> list[dict[str, Any]]:
     floors = sorted(
         fr.async_get(hass).async_list_floors(),
         key=lambda f: (f.level if f.level is not None else 0, f.name),
         reverse=True,
     )
-    out = [{"id": f.floor_id, "name": f.name, "level": f.level} for f in floors]
+    # „-1. patro“ → „−1. patro“ (U+2212) so problem copy uses a real minus sign.
+    out = [
+        {"id": f.floor_id, "name": _MINUS_RE.sub("\\1\u2212", f.name), "level": f.level}
+        for f in floors
+    ]
     return out
 
 

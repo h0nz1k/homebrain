@@ -17,7 +17,16 @@ describe('NetworkView', () => {
     expect(await screen.findByTestId('network-hero')).toBeTruthy();
     expect(screen.getByTestId('network-headline').textContent).toBe('Terasa vypadává');
     expect(screen.getAllByTestId('network-problem')).toHaveLength(3);
-    expect(screen.getAllByText('Co s tím')).toHaveLength(3);
+    // 3 problem cards + the hero CTA that scrolls to the first one.
+    expect(screen.getAllByText('Co s tím')).toHaveLength(4);
+    expect(screen.getByTestId('network-hero-fix')).toBeTruthy();
+    // The hero names the top problem, so its card does not repeat the title.
+    const cards = screen.getAllByTestId('network-problem');
+    const titles = cards.map((c) => c.querySelector('h4')?.textContent);
+    expect(titles).not.toContain('Terasa vypadává');
+    expect(cards[0]!.getAttribute('aria-label')).toBe('Terasa vypadává');
+    // „41 min“ once (context), not again as a chip.
+    expect(document.body.textContent!.split('41\u00a0min').length - 1).toBe(1);
     expect(screen.getAllByTestId('network-tip')).toHaveLength(2);
   });
 

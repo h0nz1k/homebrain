@@ -98,6 +98,10 @@ async def test_discovery_pairs_by_device_not_entity_id(hass: HomeAssistant):
     assert aps["AP Zahrada"]["floor_id"] == "outdoor"
     assert snap["floors"][-1] == {"id": "outdoor", "name": "Venku", "level": None}
     assert [f["name"] for f in snap["floors"][:2]] == ["1. patro", "Přízemí"]
+    # Basement names get a real minus sign (U+2212) for UI copy.
+    fr.async_get(hass).async_create("-1. patro", level=-1)
+    names = [f["name"] for f in build_snapshot(hass, {}, now=NOW)["floors"]]
+    assert "\u22121. patro" in names and "-1. patro" not in names
     sw = {s["name"]: s for s in snap["switches"]}
     assert set(sw) == {"USW Lite 16", "USW Flex"}
     lite = sw["USW Lite 16"]

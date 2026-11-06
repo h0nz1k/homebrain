@@ -10,6 +10,7 @@ export const networkStyles = `
 .net * { box-sizing: border-box; }
 .net h1, .net h2, .net h3, .net h4, .net p { margin: 0; }
 .net :where(button) { color: inherit; }
+.net :where(p, h2, h4, small, li, .hb-status-row-copy) { text-wrap: pretty; }
 .net-head {
   display: flex;
   align-items: center;
@@ -18,6 +19,7 @@ export const networkStyles = `
 }
 .net-head h1 { font-size: var(--hb-type-headline, 28px); letter-spacing: var(--hb-tracking-title, -0.01em); }
 .net-updated { color: var(--hb-t2); font-size: 13px; margin-left: auto; }
+.net-hero-copy .hb-button { margin-top: 2px; }
 .net-tabs { flex: 0 1 auto; }
 .net-hero {
   display: grid;
@@ -48,6 +50,7 @@ export const networkStyles = `
 .net-stat-label { font-size: 13px; color: var(--hb-t2); font-weight: 600; }
 .net-stat[data-tone='warn'] strong { color: var(--hb-warn); }
 .net-stat[data-tone='crit'] strong { color: var(--hb-crit); }
+.net-stat[data-detail-tone='warn'] small { color: var(--hb-warn); font-weight: 600; }
 .net-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .net-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .net-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; }
@@ -77,7 +80,7 @@ export const networkStyles = `
 .net-ap[data-problem='critical'] .net-ap-dot { background: var(--hb-crit); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hb-crit) 25%, transparent); }
 .net-ap-n { color: var(--hb-t2); font-variant-numeric: tabular-nums; }
 .net-ap-n::before { content: '· '; }
-.net-sw-glyph { width: 16px; height: 9px; border-radius: 3px; background: var(--hb-t3); }
+.net-ap-dot.net-sw-glyph { border-radius: 3px; background: var(--hb-t3); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hb-t3) 18%, transparent); }
 .net-load { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .net-load li { display: grid; grid-template-columns: 88px minmax(0, 1fr) 28px; grid-template-areas: 'n b c' '. s s'; gap: 2px 10px; align-items: center; }
 .net-load-name { grid-area: n; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -87,11 +90,18 @@ export const networkStyles = `
 .net-load strong { grid-area: c; text-align: right; font-variant-numeric: tabular-nums; }
 .net-load small { grid-area: s; color: var(--hb-t2); font-size: 13px; }
 .net-note { color: var(--hb-t2); font-size: 14px; line-height: 1.45; }
-.net-problem { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; }
+/* Severity hierarchy: problem (red) > warning (amber) > tip (neutral, no accent). */
+.net-problem { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 18px 20px 18px 24px; scroll-margin: 96px; }
+.net-problem::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--hb-signal-tone); }
+.net-problem[data-severity='critical'] { background: color-mix(in srgb, var(--hb-crit) 7%, var(--hb-s1)); }
+.net-problem:focus-visible { outline: 2px solid var(--hb-signal-tone); outline-offset: 2px; }
+.net-problem:focus:not(:focus-visible) { outline: none; }
 .net-problem-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .net-problem-head small { color: var(--hb-t2); font-size: 13px; }
 .net-problem h4 { font-size: 18px; line-height: 1.25; }
 .net-problem > p { color: var(--hb-t2); line-height: 1.45; }
+.net-tips .hb-status-row-copy small { color: var(--hb-t2); font-size: var(--hb-font-body, 14px); line-height: 1.45; }
+.net-tips .hb-status-row:last-child { border-bottom: 0; }
 .net-fix {
   margin-top: 4px;
   padding: 12px 14px;
@@ -170,7 +180,8 @@ export const networkStyles = `
   .net-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .net-updated { margin-left: 0; order: 3; width: 100%; }
   .net-tabs { width: 100%; }
-  .net-card, .net-problem { padding: 16px; }
+  .net-card { padding: 16px; }
+  .net-problem { padding: 16px 16px 16px 20px; }
   .net-floor { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
 `;

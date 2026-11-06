@@ -4,11 +4,33 @@ import type { NetDevice, NetProblem, NetSeverity, NetSnapshot, NetSummary } from
 export const SERIOUS: ReadonlySet<NetSeverity> = new Set(['critical', 'warning']);
 export const isOnline = (d: NetDevice) => d.state === null || d.state === 'connected';
 
+const SEV_RANK: Record<NetSeverity, number> = { critical: 0, warning: 1, notice: 2, info: 3 };
+
+/** Problems (critical before warning) and tips, each ordered by severity (stable). */
 export function splitProblems(problems: NetProblem[]) {
+  const sorted = [...problems].sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
   return {
-    serious: problems.filter((p) => SERIOUS.has(p.severity)),
-    tips: problems.filter((p) => !SERIOUS.has(p.severity)),
+    serious: sorted.filter((p) => SERIOUS.has(p.severity)),
+    tips: sorted.filter((p) => !SERIOUS.has(p.severity)),
   };
+}
+
+const NBSP = '\u00a0';
+const UNIT = String.raw`(?:%|W|ms|min|h|d|s|Mb\/s|Gb\/s|G|M|GB|MB|°C|×)(?![\p{L}\d])`;
+
+/** Floor names with a real minus sign: „-1. patro“ → „−1. patro“. */
+export function floorLabel(name: string): string {
+  return name.replace(/(^|[\s(])-(?=\d)/g, '$1\u2212');
+}
+
+/**
+ * Czech typography for UI copy: no line break between a number and its unit („26 %“, „30 W“)
+ * or after one-letter prepositions („v Přízemí“), minus sign in floor names.
+ */
+export function glue(text: string): string {
+  return floorLabel(text)
+    .replace(new RegExp(String.raw`(\d) (?=${UNIT})`, 'gu'), `$1${NBSP}`)
+    .replace(/(^|[\s(])([kosuvzaiKOSUVZAI]) /g, `$1$2${NBSP}`);
 }
 
 /** Badge text of the hero: „2 problémy · 2 tipy“, „Vše v pořádku“, „1 tip“. */
@@ -25,6 +47,8 @@ export interface HeroModel {
   badge: string;
   headline: string;
   context: string;
+  /** Problem the hero headline names; its card drops the repeated title. */
+  topId: string | null;
 }
 
 /** The hero answers „Je v síti problém?“ in one sentence. */
@@ -38,6 +62,7 @@ export function heroModel(snap: NetSnapshot): HeroModel {
       severity: 'ok',
       badge,
       headline: 'Síť v pořádku',
+      topId: null,
       context: internetOk
         ? `Internet běží, ${czCount(snap.aps.filter(isOnline).length, 'Wi-Fi bod', 'Wi-Fi body', 'Wi-Fi bodů')} online.`
         : 'Stav internetu neznáme.',
@@ -50,10 +75,11 @@ export function heroModel(snap: NetSnapshot): HeroModel {
     severity: top.severity === 'critical' ? 'critical' : 'warning',
     badge,
     headline: top.title,
-    context:
-      (top.rule.startsWith('internet') ? '' : internetOk ? 'Internet je v pořádku. ' : '') +
-      top.context +
-      rest,
+    topId: top.id,
+    // Detail (context + fix) lives only in the problem card; the hero links there.
+    context: (
+      (top.rule.startsWith('internet') ? '' : internetOk ? 'Internet je v pořádku.' : '') + rest
+    ).trim(),
   };
 }
 
@@ -63,6 +89,8 @@ export interface StatTile {
   value: string;
   detail: string;
   tone: 'ok' | 'warn' | 'crit' | 'neutral';
+  /** Colour of the detail line only (e.g. „1 nestabilní“ while all APs are online). */
+  detailTone?: 'warn';
 }
 
 export function statTiles(snap: NetSnapshot): StatTile[] {
@@ -97,7 +125,8 @@ export function statTiles(snap: NetSnapshot): StatTile[] {
         : apsOn === snap.aps.length
           ? 'vše online'
           : 'některé offline',
-      tone: badAp || apsOn < snap.aps.length ? 'warn' : 'ok',
+      tone: apsOn < snap.aps.length ? 'warn' : 'ok',
+      ...(badAp ? { detailTone: 'warn' as const } : {}),
     },
     {
       id: 'switches',
@@ -129,7 +158,7 @@ export function floorRows(snap: NetSnapshot): FloorRow[] {
     snap.problems.find((p) => p.target.kind === 'ap' && p.target.id === id)?.severity ?? null;
   const rows = snap.floors.map((f) => ({
     id: f.id,
-    name: f.name,
+    name: floorLabel(f.name),
     aps: snap.aps
       .filter((a) => a.floor_id === f.id)
       .map((a) => ({ ...a, problem: isOnline(a) ? worst(a.id) : ('critical' as const) })),
