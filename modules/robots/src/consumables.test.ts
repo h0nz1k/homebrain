@@ -15,12 +15,16 @@ describe('consumables', () => {
       action: 'Vyměnit za 30 dní',
     });
   });
-  it('sensors are cleaned, not replaced, and warn when nearly due', () => {
+  it('sensors are cleaned, not replaced; ≤ 10 % red, ≤ 25 % amber', () => {
     expect(consumableInfo('sensors', 2.9)).toMatchObject({
       percent: 10,
       daysLeft: 2,
       action: 'Vyčistit za 2 dny',
-      tone: 'warn',
+      tone: 'crit',
+    });
+    expect(consumableInfo('sensors', 7)).toMatchObject({ percent: 23, tone: 'warn' });
+    expect(consumableInfo('sensors', 8)).toMatchObject({ percent: 27, tone: 'ok' });
+    expect(consumableInfo('dock_brush', 41)).toMatchObject({ percent: 14, tone: 'warn'
     });
     expect(consumableInfo('sensors', 0.5).action).toBe('Vyčistit zítra');
   });

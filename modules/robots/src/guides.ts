@@ -8,9 +8,9 @@ import type { ConsumableKind } from './consumables.js';
  * guide falls back to the generic text below.
  */
 export type GuidePart =
-  ConsumableKind | 'mop' | 'wheel' | 'clean_water' | 'dirty_water' | 'dust_bag';
+  ConsumableKind | 'mop' | 'wheel' | 'clean_water' | 'dirty_water' | 'cleaning_fluid' | 'dust_bag';
 
-/** Order of the „Další údržba“ row (parts without a counter tile). */
+/** Guide-only parts (no counter / tank entity): shown as „Údržba“ tiles when a private guide exists. */
 export const EXTRA_GUIDE_PARTS: readonly GuidePart[] = [
   'filter',
   'mop',
@@ -18,6 +18,7 @@ export const EXTRA_GUIDE_PARTS: readonly GuidePart[] = [
   'dust_bag',
   'clean_water',
   'dirty_water',
+  'cleaning_fluid',
   'dock_strainer',
   'dock_brush',
 ];
@@ -27,6 +28,7 @@ export const TANK_GUIDE: Record<string, GuidePart | undefined> = {
   clean_water: 'clean_water',
   water_shortage: 'clean_water',
   dirty_water: 'dirty_water',
+  cleaning_fluid: 'cleaning_fluid',
 };
 
 const file = z
@@ -180,6 +182,15 @@ const GENERIC: Record<GuidePart, { title: string; interval: string; steps: strin
     interval: 'Vylít po mopování',
     steps: ['Vytáhněte nádrž z doku.', 'Vylijte ji a vypláchněte.', 'Nádrž vraťte zpět.'],
   },
+  cleaning_fluid: {
+    title: 'Saponát',
+    interval: 'Doplnit, když dok hlásí, že došel',
+    steps: [
+      'Otevřete zásobník saponátu v doku.',
+      'Doplňte čisticí prostředek určený pro robota.',
+      'Zásobník zavřete.',
+    ],
+  },
   dust_bag: {
     title: 'Sáček na prach',
     interval: 'Vyměnit, když je plný',
@@ -207,7 +218,7 @@ export function guideFor(
   };
 }
 
-/** Parts offered in the „Další údržba“ row: private guides without a tile + never duplicates. */
+/** Guide-only „Údržba“ tiles: private guides for parts without a counter/tank tile (no duplicates). */
 export function extraGuideParts(
   set: GuideSet | null | undefined,
   tiles: readonly string[],

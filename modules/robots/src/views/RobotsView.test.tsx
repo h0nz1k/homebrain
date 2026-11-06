@@ -10,9 +10,9 @@ import RobotsView from './RobotsView.js';
 
 afterEach(cleanup);
 
-it('Údržba: klik na díl otevře návod a „Hotovo“ vynuluje počítadlo po potvrzení', async () => {
+it('Údržba: klik na díl otevře návod; bez tlačítka resetu v HA jen „Hotovo“', async () => {
   const { sent } = setup();
-  fireEvent.click(await screen.findByTestId('robots-guide-open-main_brush'));
+  fireEvent.click(await screen.findByTestId('robots-guide-open-side_brush'));
   const sheet = screen.getByTestId('robots-guide');
   expect(sheet.textContent).toContain('obecný postup');
   expect(
@@ -23,6 +23,29 @@ it('Údržba: klik na díl otevře návod a „Hotovo“ vynuluje počítadlo po
   fireEvent.click(screen.getByText('Hotovo'));
   expect(screen.queryByTestId('robots-guide')).toBeNull();
   expect(sent).toEqual([]);
+});
+
+it('Údržba: reset tlačítko robota v HA se najde samo (bez soukromého návodu)', async () => {
+  setup();
+  fireEvent.click(await screen.findByTestId('robots-guide-open-main_brush'));
+  fireEvent.click(screen.getByTestId('robots-guide-reset'));
+  expect((await screen.findByTestId('robots-confirm')).textContent).toContain(
+    'Vynulovat počítadlo: Hlavní kartáč',
+  );
+});
+
+it('Údržba: díl po termínu má prázdný kroužek (ne plný) a souhrn rozliší čeká / brzy', async () => {
+  setup();
+  fireEvent.click(await screen.findByTestId('robots-floor-3'));
+  const sensors = await screen.findByTestId('robots-part-sensors');
+  expect(sensors.getAttribute('data-rb-tone')).toBe('crit');
+  const ring = sensors.querySelector('.hb-ring');
+  expect(ring?.getAttribute('data-value')).toBe('0.000');
+  expect(ring?.querySelector('.hb-ring-arc')).toBeNull();
+  expect(sensors.querySelector('.rb-maint-pct')?.textContent).toBe('0');
+  // Red: sensors + dirty dock water; amber dock brush is only „brzy“.
+  expect(screen.getByTestId('robots-maint-summary').textContent).toBe('2 věci čekají · 1 brzy');
+  expect(screen.getByTestId('robots-part-dirty_water').textContent).toContain('Vylít');
 });
 
 function setup(vector: 'demo' | 'broken' | 'off' = 'off') {

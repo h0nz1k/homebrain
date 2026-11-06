@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CLEAN_MODE_LABELS, mopRouteChoices, planCleanRooms, waterChoices } from './commands.js';
+import {
+  CLEAN_MODE_LABELS,
+  findResetButton,
+  mopRouteChoices,
+  planCleanRooms,
+  waterChoices,
+} from './commands.js';
 import { statusWithBattery } from './views/RobotsView.js';
 
 const base = {
@@ -65,5 +71,32 @@ describe('header status', () => {
     expect(statusWithBattery('Nabito, čeká v doku', 100)).toBe('Nabito 100\u00a0% · čeká v doku');
     expect(statusWithBattery('V doku', 64)).toBe('V doku · 64\u00a0%');
     expect(statusWithBattery('V doku', null)).toBe('V doku');
+  });
+});
+
+describe('findResetButton', () => {
+  const ha = new Set([
+    'button.demo_robot_2_resetovat_hlavni_kartac',
+    'button.demo_robot_2_dock_resetovat_cistici_kartac',
+    'button.demo_robot_2_dock_resetovat_sitko',
+    'button.garage_resetovat_hlavni_kartac',
+  ]);
+  const has = (id: string) => ha.has(id);
+  it('finds the robot\'s own Czech/English reset button per part', () => {
+    expect(findResetButton('main_brush', 'vacuum.demo_robot_2', has)).toBe(
+      'button.demo_robot_2_resetovat_hlavni_kartac',
+    );
+    expect(findResetButton('dock_brush', 'vacuum.demo_robot_2', has)).toBe(
+      'button.demo_robot_2_dock_resetovat_cistici_kartac',
+    );
+    expect(findResetButton('dock_strainer', 'vacuum.demo_robot_2', has)).toBe(
+      'button.demo_robot_2_dock_resetovat_sitko',
+    );
+  });
+  it('nothing for missing buttons, guide-only parts or another device', () => {
+    expect(findResetButton('side_brush', 'vacuum.demo_robot_2', has)).toBeUndefined();
+    expect(findResetButton('mop', 'vacuum.demo_robot_2', has)).toBeUndefined();
+    expect(findResetButton('main_brush', 'vacuum.demo_robot_3', has)).toBeUndefined();
+    expect(findResetButton('main_brush', '', has)).toBeUndefined();
   });
 });

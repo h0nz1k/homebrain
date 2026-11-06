@@ -33,7 +33,7 @@ describe('robot model', () => {
     expect(attention(b)).toBe('crit');
     expect(c.consumables[0]).toMatchObject({ kind: 'sensors', action: 'Vyčistit teď' });
     expect(c.fanChoices).not.toContain('smart_mode');
-    expect(b.consumables.find((item) => item.kind === 'sensors')?.tone).toBe('warn');
+    expect(b.consumables.find((item) => item.kind === 'sensors')?.tone).toBe('ok');
     expect(c.rooms.map((r) => r.name)).toContain('Podkrovní pokoj');
   });
   it('works from bindings alone (no WS answer)', () => {

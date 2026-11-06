@@ -230,6 +230,32 @@ export function isRobotResetButton(button: string, vacuum: string): boolean {
   return new RegExp(`^button\\.${robot}_(?:dock_)?(?:reset|resetovat)_[a-z0-9_]+$`).test(button);
 }
 
+/**
+ * HA Roborock reset buttons per part (object-id suffix after the vacuum's object id). HA names
+ * them after the device in the UI language: Czech `resetovat_*`, English `reset_*`.
+ */
+const RESET_SUFFIXES: Partial<Record<string, string[]>> = {
+  main_brush: ['resetovat_hlavni_kartac', 'reset_main_brush', 'reset_main_brush_consumable'],
+  side_brush: ['resetovat_bocni_kartac', 'reset_side_brush', 'reset_side_brush_consumable'],
+  filter: ['resetovat_vzduchovy_filtr', 'reset_air_filter', 'reset_filter'],
+  sensors: ['resetovat_senzor', 'reset_sensor', 'reset_sensor_consumable'],
+  dock_strainer: ['dock_resetovat_sitko', 'dock_reset_strainer', 'reset_strainer'],
+  dock_brush: ['dock_resetovat_cistici_kartac', 'dock_reset_cleaning_brush', 'reset_dock_brush'],
+};
+
+/** The robot's existing reset button for a part (first match in HA), else undefined. */
+export function findResetButton(
+  part: string,
+  vacuum: string,
+  hasEntity: (entityId: string) => boolean,
+): string | undefined {
+  const robot = vacuum.startsWith('vacuum.') ? vacuum.slice('vacuum.'.length) : '';
+  if (!robot) return undefined;
+  return (RESET_SUFFIXES[part] ?? [])
+    .map((suffix) => `button.${robot}_${suffix}`)
+    .find((id) => isRobotResetButton(id, vacuum) && hasEntity(id));
+}
+
 /** „Hotovo, vynulovat počítadlo“: presses the robot's reset button after confirmation. */
 export function planResetCounter(button: string, vacuum: string, part: string): ServiceCallPlan[] {
   if (!isRobotResetButton(button, vacuum)) return [];

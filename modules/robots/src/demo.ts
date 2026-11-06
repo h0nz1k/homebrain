@@ -147,7 +147,8 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       error: 'none',
       dock: 'ok',
       hours: [264, 164, 70, -5.9, 42, 41],
-      tanks: ['off', 'off', 'off', 'off'],
+      // Dock tanks like prod (all 3 robots): dirty water full → red „Vylít“.
+      tanks: ['off', 'on', 'off', 'off'],
       mode: 'vac_and_mop',
     },
   ];
@@ -183,11 +184,9 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     });
     // Roborock „reset consumable“ button (maintenance guide → „Hotovo, vynulovat počítadlo“).
     put(r.slot, 'reset_main_brush', 'button', 'unknown');
+    if (r.slot === 3) put(r.slot, 'dock_reset_cleaning_brush', 'button', 'unknown');
     (['clean_water', 'dirty_water', 'cleaning_fluid', 'water_shortage'] as const).forEach(
-      (tank, i) => {
-        if (r.slot !== 3 || tank === 'water_shortage')
-          put(r.slot, tank, 'binary_sensor', r.tanks[i]!);
-      },
+      (tank, i) => put(r.slot, tank, 'binary_sensor', r.tanks[i]!),
     );
     put(r.slot, 'cleaning_mode', 'select', r.mode, {
       options: ['vacuum', 'vac_and_mop', 'mop', 'custom'],

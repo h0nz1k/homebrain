@@ -198,5 +198,6 @@ test('údržba: bez soukromého návodu obecný postup bez videa', async ({ page
   const sheet = page.getByTestId('robots-guide');
   await expect(sheet).toContainText('obecný postup', { timeout: 20_000 });
   await expect(sheet.getByTestId('robots-guide-video')).toHaveCount(0);
-  await expect(page.getByTestId('robots-guides-more')).toHaveCount(0);
+  // No private guides → no guide-only tiles (mops, wheel, dust bag…).
+  await expect(page.locator('[data-rb-kind=guide]')).toHaveCount(0);
 });

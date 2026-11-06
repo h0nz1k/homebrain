@@ -2,6 +2,10 @@
 export type ConsumableKind =
   'main_brush' | 'side_brush' | 'filter' | 'sensors' | 'dock_strainer' | 'dock_brush';
 
+/** „Údržba“ thresholds in % of service life left: red at or below CRIT, amber at or below WARN. */
+export const MAINT_CRIT_PCT = 10;
+export const MAINT_WARN_PCT = 25;
+
 /** Service life in hours (python-roborock *_REPLACE_TIME constants). */
 export const CONSUMABLE_LIFETIME_H: Record<ConsumableKind, number> = {
   main_brush: 300,
@@ -51,7 +55,9 @@ export function consumableInfo(
   const daysLeft = left <= 0 ? 0 : Math.max(1, Math.floor(left / rate));
   const { label, verb } = META[kind];
   const overdue = left <= 0;
-  const tone = overdue ? 'crit' : percent <= 15 || daysLeft <= 14 ? 'warn' : 'ok';
+  // Same thresholds as every „Údržba“ tile: ≤ 10 % (or overdue) red, ≤ 25 % amber.
+  const tone =
+    overdue || percent <= MAINT_CRIT_PCT ? 'crit' : percent <= MAINT_WARN_PCT ? 'warn' : 'ok';
   const action = overdue
     ? `${verb} teď`
     : daysLeft <= 1
