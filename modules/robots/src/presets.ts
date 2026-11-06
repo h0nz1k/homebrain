@@ -169,6 +169,30 @@ export function validateDraft(draft: PresetDraft, others: RobotPreset[]): string
   return null;
 }
 
+/** Preset chips start after this undo window (owner: no confirm dialog, „Zrušit“ in a toast). */
+export const PRESET_START_DELAY_MS = 5000;
+
+/**
+ * Run `start` after `delayMs` unless the returned cancel function is called first. Nothing is
+ * sent to HA during the window, so cancelling never has to stop a running robot.
+ */
+export function delayedStart(
+  start: () => void,
+  delayMs: number = PRESET_START_DELAY_MS,
+): () => boolean {
+  let pending = true;
+  const timer = setTimeout(() => {
+    pending = false;
+    start();
+  }, delayMs);
+  return () => {
+    if (!pending) return false;
+    pending = false;
+    clearTimeout(timer);
+    return true;
+  };
+}
+
 // --- WebSocket ---------------------------------------------------------------------------
 
 export async function fetchPresets(connection: ConnectionLike): Promise<PresetsBySlot> {

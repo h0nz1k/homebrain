@@ -13,6 +13,7 @@ export * from './consumables.js';
 export * from './rooms.js';
 export * from './commands.js';
 export * from './presets.js';
+export * from './schedules.js';
 export * from './model.js';
 export * from './demo.js';
 export * from './map/geometry.js';

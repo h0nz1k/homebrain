@@ -29,11 +29,13 @@ import { orderBadge, pruneOrder, toggleRoom } from '../rooms.js';
 import { RobotArt } from './RobotArt.js';
 import { GuideSheet, useGuides } from './GuideSheet.js';
 import { PresetSheet, type PresetEditorTarget } from './PresetSheet.js';
+import { SchedulesCard } from './SchedulesCard.js';
 import {
+  PRESET_START_DELAY_MS,
+  delayedStart,
   deletePreset,
   effectiveSettings,
   fetchPresets,
-  planStart,
   saveDefaults,
   savePreset,
   settingsSummary,
@@ -188,6 +190,14 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
         presetData={presets[String(active.slot)] ?? null}
         onPresetsChanged={loadPresets}
       />
+      {connection && (
+        <SchedulesCard
+          key={`s${active.slot}`}
+          robot={active}
+          connection={connection}
+          presets={presets}
+        />
+      )}
     </section>
   );
 }
@@ -245,7 +255,6 @@ function RobotPanel({
     title: string;
     plan: ServiceCallPlan[];
     start?: StartRequest;
-    preset?: RobotPreset;
   } | null>(null);
   const [sending, setSending] = useState(false);
   const [editor, setEditor] = useState<PresetEditorTarget | null>(null);
@@ -357,13 +366,30 @@ function RobotPanel({
   const mops = modeMops(mode ?? robot.mode);
   const ask = (title: string, plan: ServiceCallPlan[]) =>
     plan.length && setConfirm({ title, plan });
-  const askPreset = (preset: RobotPreset) =>
-    setConfirm({
-      title: `Spustit „${preset.name}“?`,
-      plan: planStart(robot, effectiveSettings(defaults, preset), preset.rooms),
-      start: { slot: robot.slot, preset_id: preset.id },
-      preset,
-    });
+  // Owner decision: a preset chip starts right away (no confirm); the WS start is sent only
+  // after the 5 s „Zrušit“ window, so cancelling never has to stop a running robot.
+  const [managePresets, setManagePresets] = useState(false);
+  const launchPreset = (preset: RobotPreset) => {
+    if (!connection) return;
+    const toastId = `rb-preset-start-${robot.slot}`;
+    const cancel = delayedStart(() => {
+      notify.dismiss(toastId);
+      startCleaning(connection, { slot: robot.slot, preset_id: preset.id })
+        .then(() => notify.success(`Úklid „${preset.name}“ spuštěn. Čekám na stav robota.`))
+        .catch((error: unknown) =>
+          notify.error(
+            `Spuštění „${preset.name}“ se nepodařilo${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
+          ),
+        );
+    }, PRESET_START_DELAY_MS);
+    notify.undo(
+      `Spouštím „${preset.name}“…`,
+      () => {
+        if (cancel()) notify.info(`Spuštění „${preset.name}“ zrušeno.`);
+      },
+      { id: toastId, actionLabel: 'Zrušit', duration: PRESET_START_DELAY_MS },
+    );
+  };
   const persist = async (draft: PresetDraft) => {
     if (!connection || !editor) return;
     setSaving(true);
@@ -745,11 +771,17 @@ function RobotPanel({
                       pressed={false}
                       look="soft"
                       data-testid={`robots-preset-${preset.id}`}
-                      disabled={!canAct || Boolean(robot.error)}
-                      aria-label={`Spustit předvolbu ${preset.name}`}
-                      onPress={() => askPreset(preset)}
+                      disabled={!managePresets && (!canAct || Boolean(robot.error))}
+                      aria-label={
+                        managePresets
+                          ? `Upravit předvolbu ${preset.name}`
+                          : `Spustit předvolbu ${preset.name}`
+                      }
+                      onPress={() =>
+                        managePresets ? setEditor({ kind: 'preset', preset }) : launchPreset(preset)
+                      }
                     >
-                      <PlayIcon />
+                      {managePresets ? <EditIcon /> : <PlayIcon />}
                       <span className="rb-chip-name">{preset.name}</span>
                       <span className="rb-chip-sub">
                         {[
@@ -761,6 +793,16 @@ function RobotPanel({
                       </span>
                     </Chip>
                   ))}
+                  {presetList.length > 0 && (
+                    <Chip
+                      className="rb-chip"
+                      data-testid="robots-presets-manage"
+                      pressed={managePresets}
+                      onPressedChange={setManagePresets}
+                    >
+                      {managePresets ? 'Hotovo' : 'Upravit'}
+                    </Chip>
+                  )}
                   <Chip
                     className="rb-chip"
                     data-testid="robots-preset-add"
@@ -1074,19 +1116,6 @@ function RobotPanel({
                 <p className="rb-micro">Robot právě uklízí – nový úklid nahradí ten současný.</p>
               )}
             <div className="rb-sheet-actions">
-              {confirm.preset && (
-                <Button
-                  variant="ghost"
-                  data-testid="robots-preset-edit"
-                  disabled={sending}
-                  onClick={() => {
-                    setEditor({ kind: 'preset', preset: confirm.preset! });
-                    setConfirm(null);
-                  }}
-                >
-                  Upravit
-                </Button>
-              )}
               <Button onClick={() => setConfirm(null)} disabled={sending}>
                 Zrušit
               </Button>
@@ -1146,6 +1175,17 @@ function Chevron() {
         strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M3 11.5V13h1.5l7-7L10 4.5l-7 7zm9.7-6.2a.8.8 0 000-1.1l-.9-.9a.8.8 0 00-1.1 0l-.7.7 2 2 .7-.7z"
+        fill="currentColor"
       />
     </svg>
   );

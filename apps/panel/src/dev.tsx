@@ -32,6 +32,7 @@ import { createFakeHass, createMockConnection } from '@homebrain/testing';
 import {
   buildRobot,
   createPresetsDemo,
+  createSchedulesDemo,
   createRobotsDemo,
   demoVectorMap,
   type DemoScene,
@@ -324,6 +325,69 @@ if (new URLSearchParams(location.search).get('presets') === 'demo') {
     defaults: { mode: 'both', fan: 'balanced', water: null, route: null, passes: 1 },
   });
 }
+// Schedules backend mock (no robot ever starts); `?schedules=demo` seeds two plans + results.
+const schedulesDemo = createSchedulesDemo();
+if (new URLSearchParams(location.search).get('schedules') === 'demo') {
+  const quick = presetsDemo.data['1']?.presets[0]?.id ?? null;
+  const save = schedulesDemo.handlers['homebrain/robots/schedules/save'];
+  const daily = save({
+    schedule: {
+      name: 'Chodba potichu',
+      slot: 1,
+      preset_id: null,
+      settings: { mode: 'vacuum', fan: 'quiet', water: null, route: null, passes: 1 },
+      rooms: [2],
+      days: [0, 1, 2, 3, 4, 5, 6],
+      time: '09:30',
+      enabled: true,
+    },
+  }).schedule;
+  const wednesday = save({
+    schedule: {
+      name: 'Středeční vytírání',
+      slot: 1,
+      preset_id: presetsDemo.data['1']?.presets[1]?.id ?? quick,
+      settings: null,
+      rooms: [],
+      days: [2],
+      time: '13:00',
+      enabled: true,
+    },
+  }).schedule;
+  save({
+    schedule: {
+      name: 'Víkendový úklid',
+      slot: 1,
+      preset_id: quick,
+      settings: null,
+      rooms: [],
+      days: [5, 6],
+      time: '08:00',
+      enabled: false,
+    },
+  });
+  const day = new Date(Date.now() - 86_400_000).toISOString();
+  schedulesDemo.addRun({
+    schedule_id: daily.id,
+    name: daily.name,
+    slot: 1,
+    at: day,
+    result: 'ok',
+    reason: null,
+    attempts: 1,
+    manual: false,
+  });
+  schedulesDemo.addRun({
+    schedule_id: wednesday.id,
+    name: wednesday.name,
+    slot: 1,
+    at: day,
+    result: 'gave_up',
+    reason: 'battery',
+    attempts: 3,
+    manual: false,
+  });
+}
 const healthDemoIds = new Set(Object.values(healthDemo.bindings));
 const isHealthDemo = (ids: string[] | undefined) => (ids ?? []).some((id) => healthDemoIds.has(id));
 const pvDemo = createPvForecastDemo(
@@ -403,6 +467,7 @@ demoHass.connection = createMockConnection({
     };
   },
   ...presetsDemo.handlers,
+  ...schedulesDemo.handlers,
   call_service: (message: unknown) => {
     robotCalls.push(message);
     return { context: { id: 'demo' } };
