@@ -51,6 +51,12 @@
       "module": "health"
     },
     {
+      "url_path": "homebrain-roboti",
+      "title": "Roboti",
+      "icon": "mdi:robot-vacuum",
+      "module": "robots"
+    },
+    {
       "url_path": "homebrain-pristup",
       "title": "Přístup",
       "icon": "mdi:fingerprint",

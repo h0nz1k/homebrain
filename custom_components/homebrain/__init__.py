@@ -29,6 +29,7 @@ from .const import (
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_pv_forecast
 from .recipes import websocket as recipes_ws
+from .robots.ws import websocket_robots_get
 from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
@@ -71,6 +72,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass.http.register_view(RadarImageView())
     websocket_api.async_register_command(hass, websocket_pv_forecast)
     websocket_api.async_register_command(hass, websocket_waste_history)
+    websocket_api.async_register_command(hass, websocket_robots_get)
     return True
 
 
@@ -187,6 +189,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if (manager := hass.data.get(DOMAIN, {}).pop("weather", None)) is not None:
         await manager.async_stop()
     hass.data.get(DOMAIN, {}).pop("pv_forecast", None)
+    hass.data.get(DOMAIN, {}).pop("robot_rooms", None)
     if (history := hass.data.get(DOMAIN, {}).pop("waste_history", None)) is not None:
         await history.async_stop()
     return True

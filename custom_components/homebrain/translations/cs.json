@@ -20,6 +20,9 @@
           "energy": "Energie",
           "family": "Rodina",
           "energy_pv": "Fotovoltaika",
+          "robots_1": "Robot 1",
+          "robots_2": "Robot 2",
+          "robots_3": "Robot 3",
           "recipes": "Recepty"
         }
       },
@@ -128,6 +131,93 @@
           "export_limit_kw": "Limit přetoku do sítě (kW)"
         }
       },
+      "robots_1": {
+        "title": "Robot 1",
+        "description": "Robot 1 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps).",
+        "data": {
+          "name": "Jméno v HomeBrainu",
+          "floor": "Patro (např. Přízemí)",
+          "image": "Obrázek robota (/local/… nebo https URL; nepovinné)",
+          "robot1_vacuum": "Robotický vysavač",
+          "robot1_status": "Senzor stavu",
+          "robot1_error": "Senzor chyby robota",
+          "robot1_dock_error": "Senzor chyby doku",
+          "robot1_battery": "Senzor baterie",
+          "robot1_current_room": "Senzor aktuální místnosti",
+          "robot1_cleaning_progress": "Senzor průběhu úklidu",
+          "robot1_main_brush": "Zbývající čas hlavního kartáče (h)",
+          "robot1_side_brush": "Zbývající čas bočního kartáče (h)",
+          "robot1_filter": "Zbývající čas filtru (h)",
+          "robot1_sensors": "Zbývající čas do čištění senzorů (h)",
+          "robot1_dock_strainer": "Zbývající čas sítka doku (h)",
+          "robot1_dock_brush": "Zbývající čas kartáčku doku (h)",
+          "robot1_clean_water": "Nádrž na čistou vodu (problém = prázdná)",
+          "robot1_dirty_water": "Nádrž na špinavou vodu (problém = plná)",
+          "robot1_cleaning_fluid": "Čisticí kapalina (problém = došla)",
+          "robot1_water_shortage": "Nedostatek vody v robotu",
+          "robot1_cleaning_mode": "Výběr režimu úklidu",
+          "robot1_selected_map": "Výběr mapy",
+          "robot1_map_image": "Obrázek mapy"
+        }
+      },
+      "robots_2": {
+        "title": "Robot 2",
+        "description": "Robot 2 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps).",
+        "data": {
+          "name": "Jméno v HomeBrainu",
+          "floor": "Patro (např. Přízemí)",
+          "image": "Obrázek robota (/local/… nebo https URL; nepovinné)",
+          "robot2_vacuum": "Robotický vysavač",
+          "robot2_status": "Senzor stavu",
+          "robot2_error": "Senzor chyby robota",
+          "robot2_dock_error": "Senzor chyby doku",
+          "robot2_battery": "Senzor baterie",
+          "robot2_current_room": "Senzor aktuální místnosti",
+          "robot2_cleaning_progress": "Senzor průběhu úklidu",
+          "robot2_main_brush": "Zbývající čas hlavního kartáče (h)",
+          "robot2_side_brush": "Zbývající čas bočního kartáče (h)",
+          "robot2_filter": "Zbývající čas filtru (h)",
+          "robot2_sensors": "Zbývající čas do čištění senzorů (h)",
+          "robot2_dock_strainer": "Zbývající čas sítka doku (h)",
+          "robot2_dock_brush": "Zbývající čas kartáčku doku (h)",
+          "robot2_clean_water": "Nádrž na čistou vodu (problém = prázdná)",
+          "robot2_dirty_water": "Nádrž na špinavou vodu (problém = plná)",
+          "robot2_cleaning_fluid": "Čisticí kapalina (problém = došla)",
+          "robot2_water_shortage": "Nedostatek vody v robotu",
+          "robot2_cleaning_mode": "Výběr režimu úklidu",
+          "robot2_selected_map": "Výběr mapy",
+          "robot2_map_image": "Obrázek mapy"
+        }
+      },
+      "robots_3": {
+        "title": "Robot 3",
+        "description": "Robot 3 pro modul Roboti. Vyberte jeho entity Roborock; prázdné pole vazbu odebere. HomeBrain sám jen čte seznam místností (roborock.get_maps).",
+        "data": {
+          "name": "Jméno v HomeBrainu",
+          "floor": "Patro (např. Přízemí)",
+          "image": "Obrázek robota (/local/… nebo https URL; nepovinné)",
+          "robot3_vacuum": "Robotický vysavač",
+          "robot3_status": "Senzor stavu",
+          "robot3_error": "Senzor chyby robota",
+          "robot3_dock_error": "Senzor chyby doku",
+          "robot3_battery": "Senzor baterie",
+          "robot3_current_room": "Senzor aktuální místnosti",
+          "robot3_cleaning_progress": "Senzor průběhu úklidu",
+          "robot3_main_brush": "Zbývající čas hlavního kartáče (h)",
+          "robot3_side_brush": "Zbývající čas bočního kartáče (h)",
+          "robot3_filter": "Zbývající čas filtru (h)",
+          "robot3_sensors": "Zbývající čas do čištění senzorů (h)",
+          "robot3_dock_strainer": "Zbývající čas sítka doku (h)",
+          "robot3_dock_brush": "Zbývající čas kartáčku doku (h)",
+          "robot3_clean_water": "Nádrž na čistou vodu (problém = prázdná)",
+          "robot3_dirty_water": "Nádrž na špinavou vodu (problém = plná)",
+          "robot3_cleaning_fluid": "Čisticí kapalina (problém = došla)",
+          "robot3_water_shortage": "Nedostatek vody v robotu",
+          "robot3_cleaning_mode": "Výběr režimu úklidu",
+          "robot3_selected_map": "Výběr mapy",
+          "robot3_map_image": "Obrázek mapy"
+        }
+      },
       "recipes": {
         "title": "Vazby entit pro Recepty",
         "description": "Volitelné. Hudební lišta a akce fritézy se zobrazí až po navázání. Fritézu HomeBrain spustí jen po výslovném potvrzení v režimu vaření. Cíl notifikací pro hudbu (notify.mobile_app_<tablet>) se nastavuje v Recepty → Nastavení.",
@@ -143,7 +233,8 @@
       }
     },
     "error": {
-      "invalid_entity_id": "Zadejte platné ID entity."
+      "invalid_entity_id": "Zadejte platné ID entity.",
+      "invalid_image": "Zadejte cestu /local/… nebo https URL."
     }
   }
 }

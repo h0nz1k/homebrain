@@ -67,7 +67,16 @@ async def test_options_bindings(hass: HomeAssistant, user_input, expected):
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "init"
-    assert result["menu_options"] == ["waste", "energy", "family", "recipes", "energy_pv"]
+    assert result["menu_options"] == [
+        "waste",
+        "energy",
+        "family",
+        "recipes",
+        "energy_pv",
+        "robots_1",
+        "robots_2",
+        "robots_3",
+    ]
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "waste"}
     )

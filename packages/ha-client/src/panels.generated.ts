@@ -8,6 +8,7 @@ export const PANEL_PATHS_BY_MODULE: Readonly<Record<string, string>> = {
   waste: 'homebrain-odpady',
   wine: 'homebrain-vinoteka',
   health: 'homebrain-zdravi',
+  robots: 'homebrain-roboti',
   access: 'homebrain-pristup',
   recipes: 'homebrain-recepty',
 };

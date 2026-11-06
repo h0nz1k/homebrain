@@ -74,6 +74,9 @@ importers:
       '@homebrain/module-recipes':
         specifier: workspace:*
         version: link:../../modules/recipes
+      '@homebrain/module-robots':
+        specifier: workspace:*
+        version: link:../../modules/robots
       '@homebrain/module-today':
         specifier: workspace:*
         version: link:../../modules/today
@@ -265,6 +268,43 @@ importers:
       '@homebrain/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+    devDependencies:
+      '@testing-library/react':
+        specifier: ^16.0.0
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.3.0
+      jsdom:
+        specifier: ^30.1.3
+        version: 30.1.3
+      react:
+        specifier: ^19.0.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(jsdom@30.1.3)(vite@8.3.5(@types/node@24.19.2))
+
+  modules/robots:
+    dependencies:
+      '@homebrain/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@homebrain/ha-client':
+        specifier: workspace:*
+        version: link:../../packages/ha-client
+      '@homebrain/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@testing-library/react':
         specifier: ^16.0.0

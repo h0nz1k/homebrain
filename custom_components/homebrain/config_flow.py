@@ -11,10 +11,18 @@ from homeassistant.helpers import selector
 from .bindings import binding_domains, get_bindings, validate_binding
 from .const import BINDING_MODULES, DOMAIN, PANEL_TITLE
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
+from .robots.config import (
+    CONF_ROBOTS,
+    ROBOT_SLOTS,
+    clean_text,
+    slot_keys,
+    slot_settings,
+    valid_image,
+)
 
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
 # Extra menu steps that are not entity bindings.
-OPTIONS_FLOW_EXTRA = ("energy_pv",)
+OPTIONS_FLOW_EXTRA = ("energy_pv", *(f"robots_{slot}" for slot in ROBOT_SLOTS))
 
 
 class HomeBrainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -105,6 +113,62 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="energy_pv", data_schema=schema)
+
+    async def async_step_robots_1(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Robot 1: name, floor, picture and its Roborock entities."""
+        return self._robot_step(1, user_input)
+
+    async def async_step_robots_2(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Robot 2: name, floor, picture and its Roborock entities."""
+        return self._robot_step(2, user_input)
+
+    async def async_step_robots_3(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Robot 3: name, floor, picture and its Roborock entities."""
+        return self._robot_step(3, user_input)
+
+    def _robot_step(self, slot: int, user_input: dict[str, Any] | None) -> FlowResult:
+        bindings = get_bindings(self.config_entry)
+        values = bindings.setdefault("robots", {})
+        current = slot_settings(self.config_entry.options, slot)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            image = (user_input.get("image") or "").strip()
+            if image and not valid_image(image):
+                errors["image"] = "invalid_image"
+            try:
+                for key in slot_keys(slot):
+                    if value := user_input.get(key):
+                        values[key] = validate_binding(key, value)
+                    else:
+                        values.pop(key, None)
+            except vol.Invalid:
+                errors["base"] = "invalid_entity_id"
+            if not errors:
+                robots = dict(self.config_entry.options.get(CONF_ROBOTS) or {})
+                robots[str(slot)] = {
+                    "name": clean_text(user_input.get("name")),
+                    "floor": clean_text(user_input.get("floor")),
+                    "image": image,
+                }
+                options = {**self.config_entry.options, "bindings": bindings, CONF_ROBOTS: robots}
+                return self.async_create_entry(title="", data=options)
+        text = selector.TextSelector()
+        schema = vol.Schema(
+            {
+                vol.Optional("name", description={"suggested_value": current["name"]}): text,
+                vol.Optional("floor", description={"suggested_value": current["floor"]}): text,
+                vol.Optional("image", description={"suggested_value": current["image"]}): text,
+                **{
+                    vol.Optional(key, description={"suggested_value": values.get(key)}): (
+                        selector.EntitySelector(
+                            selector.EntitySelectorConfig(domain=list(binding_domains(key)))
+                        )
+                    )
+                    for key in slot_keys(slot)
+                },
+            }
+        )
+        return self.async_show_form(step_id=f"robots_{slot}", data_schema=schema, errors=errors)
 
     def _bindings_step(self, module: str, user_input: dict[str, Any] | None) -> FlowResult:
         bindings = get_bindings(self.config_entry)

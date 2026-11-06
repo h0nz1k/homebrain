@@ -6,6 +6,7 @@ import * as waste from '@homebrain/module-waste';
 import * as health from '@homebrain/module-health';
 import * as wine from '@homebrain/module-wine';
 import * as family from '@homebrain/module-family';
+import * as robots from '@homebrain/module-robots';
 import * as recipes from '@homebrain/module-recipes';
 import * as access from '@homebrain/module-access';
 import { createLiveTodayAdapter } from './today/liveAdapter';
@@ -21,9 +22,18 @@ today.registerTodaySignalSource('energy.appliances', energy.energyAppliancesToda
 today.registerTodaySignalSource('recipes', recipes.recipesFryerTodaySignalSource);
 // Dnes: running kitchen timers (Minutky), own key so other recipes signals stay untouched.
 today.registerTodaySignalSource('recipes.timers', recipes.recipesTimersTodaySignalSource);
-export const modules = [today, weather, energy, waste, health, wine, recipes, family, access].map(
-  (module) => ({
-    ...module.moduleManifest,
-    View: lazy(module.loadView),
-  }),
-);
+export const modules = [
+  today,
+  weather,
+  energy,
+  waste,
+  robots,
+  health,
+  wine,
+  recipes,
+  family,
+  access,
+].map((module) => ({
+  ...module.moduleManifest,
+  View: lazy(module.loadView),
+}));
