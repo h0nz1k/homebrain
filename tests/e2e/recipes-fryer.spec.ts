@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 // Several dev-server navigations per test; first module render is slow under CI/host load.
 test.describe.configure({ timeout: 120_000 });
@@ -23,8 +23,14 @@ test('Recepty: fritéza peče – odpočet, teploty, pozastavit, zastavit s potv
   await expect(card.locator('.hb-step-t').first()).toBeVisible();
   // Meta line under the title: one line, no dangling separators.
   await expect(page.getByTestId('recipes-fryer-meta')).toHaveText('Fritéza · Zaplnění 3/7');
-  // Hierarchy: Pozastavit is the strong action, Zastavit a quiet secondary after it.
-  await expect(page.getByTestId('recipes-fryer-pause')).toHaveAttribute('data-variant', 'strong');
+  // One progress display: the ring. Phases are a text line only (no segment bars).
+  await expect(card.locator('.hb-step-n').first()).toBeHidden();
+  await expect(page.getByTestId('recipes-fryer-ring')).toHaveCount(1);
+  // Hierarchy: the countdown is the hero; Pozastavit and Zastavit are both quiet secondaries.
+  await expect(page.getByTestId('recipes-fryer-pause')).toHaveAttribute(
+    'data-variant',
+    'secondary',
+  );
   await expect(page.getByTestId('recipes-fryer-stop')).not.toHaveAttribute(
     'data-variant',
     'primary',
@@ -183,4 +189,79 @@ test('Dnes: běžící fritéza je běžná karta, vypnutá nemá signál', asyn
   await page.goto('/homebrain-dnes?fryerlive=off');
   await expect(page.getByTestId('today')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/Fritéza ·/)).toHaveCount(0);
+});
+
+// Owner photo set (HA /local/homebrain/airfryer/, never in the repo): SYNTHETIC manifest + SVG here.
+const fryerManifest = {
+  schema: 1,
+  model: 'Synthetic fryer',
+  images: { front: 'demo/front.svg', drawerOpen: 'demo/open.svg' },
+  hotspots: { display: [40, 10, 60, 26], drawer: [4, 40, 96, 96] },
+};
+const fryerSvg = (fill: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 210" width="200" height="210"><rect x="10" y="4" width="180" height="200" rx="24" fill="${fill}"/></svg>`;
+async function serveFryerPhotos(page: Page, available = true) {
+  await page.route('**/local/homebrain/airfryer/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (!available) return route.fulfill({ status: 404, body: '' });
+    if (path.endsWith('/manifest.json')) return route.fulfill({ json: fryerManifest });
+    if (path.endsWith('/demo/front.svg'))
+      return route.fulfill({ body: fryerSvg('#22262c'), contentType: 'image/svg+xml' });
+    if (path.endsWith('/demo/open.svg'))
+      return route.fulfill({ body: fryerSvg('#3a2f22'), contentType: 'image/svg+xml' });
+    return route.fulfill({ status: 404, body: '' });
+  });
+}
+
+test('Recepty: fritéza s fotkou – přední pohled při pečení, vysunutý šuplík při protřepání', async ({
+  page,
+}) => {
+  await serveFryerPhotos(page);
+  await page.goto('/homebrain-recepty?fryerlive=cooking');
+  const photo = page.getByTestId('recipes-fryer-photo');
+  await expect(photo).toBeVisible({ timeout: 20_000 });
+  await expect(photo).toHaveAttribute('data-phase', 'cooking');
+  await expect(photo.locator('img')).toHaveAttribute(
+    'src',
+    /\/local\/homebrain\/airfryer\/demo\/front\.svg$/,
+  );
+  await expect(page.locator('.rc-fa')).toHaveCount(0);
+  await page.goto('/homebrain-recepty?fryerlive=action');
+  await expect(photo).toBeVisible({ timeout: 20_000 });
+  await expect(photo).toHaveAttribute('data-out', '');
+  await expect(photo.locator('img')).toHaveAttribute('src', /demo\/open\.svg$/);
+  // Rejected: no resume / start control next to the photo.
+  await expect(page.getByRole('button', { name: /Protřepáno|Pokračovat|Spustit/ })).toHaveCount(0);
+});
+
+test('Recepty: fritéza s fotkou – chyba i reduced motion bez smyček', async ({ browser }) => {
+  const ctx = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await ctx.newPage();
+  await serveFryerPhotos(page);
+  await page.goto('/homebrain-recepty?fryerlive=cooking');
+  const photo = page.getByTestId('recipes-fryer-photo');
+  await expect(photo).toBeVisible({ timeout: 20_000 });
+  const loops = await page.evaluate(() => {
+    const card = document.querySelector('[data-testid=recipes-fryer-live]');
+    return document.getAnimations().filter((a) => {
+      const effect = a.effect as KeyframeEffect | null;
+      return (
+        a.playState === 'running' &&
+        card?.contains(effect?.target ?? null) &&
+        effect?.getTiming().iterations === Infinity
+      );
+    }).length;
+  });
+  expect(loops).toBe(0);
+  await page.goto('/homebrain-recepty?fryerlive=error');
+  await expect(photo).toHaveAttribute('data-phase', 'error', { timeout: 20_000 });
+  await ctx.close();
+});
+
+test('Recepty: bez fotek fritézy zůstává SVG ilustrace', async ({ page }) => {
+  await serveFryerPhotos(page, false);
+  await page.goto('/homebrain-recepty?fryerlive=cooking');
+  await expect(page.getByTestId('recipes-fryer-live')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.rc-fa').first()).toBeVisible();
+  await expect(page.getByTestId('recipes-fryer-photo')).toHaveCount(0);
 });

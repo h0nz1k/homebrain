@@ -4,20 +4,20 @@ import { join, normalize } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
 /**
- * Dev only: serve a LOCAL robot photo folder (`HB_ROBOT_PHOTOS_DIR`, one subfolder per robot with
- * manifest.json) at the same URL Home Assistant uses (`/local/homebrain/robots/…`). The photos are
- * never part of the repo or the build output.
+ * Dev only: serve a LOCAL photo folder at the same URL Home Assistant uses (`/local/homebrain/…`):
+ * `HB_ROBOT_PHOTOS_DIR` (one subfolder per robot with manifest.json) → `/local/homebrain/robots/`,
+ * `HB_AIRFRYER_PHOTOS_DIR` (manifest.json + pictures) → `/local/homebrain/airfryer/`. The photos
+ * are never part of the repo or the build output.
  */
-function robotPhotosDev(): Plugin {
-  const root = process.env.HB_ROBOT_PHOTOS_DIR;
-  const prefix = '/local/homebrain/robots/';
+function localPhotosDev(env: string, prefix: string): Plugin {
+  const root = process.env[env];
   const types: Record<string, string> = {
     json: 'application/json',
     webp: 'image/webp',
     png: 'image/png',
   };
   return {
-    name: 'hb-robot-photos-dev',
+    name: `hb-photos-dev:${prefix}`,
     apply: 'serve',
     configureServer(server) {
       if (!root) return;
@@ -45,7 +45,11 @@ export default defineConfig(({ command }) => ({
   define: {
     'process.env.NODE_ENV': JSON.stringify(command === 'build' ? 'production' : 'development'),
   },
-  plugins: [react(), robotPhotosDev()],
+  plugins: [
+    react(),
+    localPhotosDev('HB_ROBOT_PHOTOS_DIR', '/local/homebrain/robots/'),
+    localPhotosDev('HB_AIRFRYER_PHOTOS_DIR', '/local/homebrain/airfryer/'),
+  ],
   build: {
     lib: { entry: 'src/index.ts', formats: ['es'], fileName: () => 'homebrain-panel.js' },
     assetsInlineLimit: 0,

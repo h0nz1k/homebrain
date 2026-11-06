@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useBackClosable, type EntityStore } from '@homebrain/ha-client';
-import { Button, ProgressRing, Sheet, Stepper, toast } from '@homebrain/ui';
+import { Button, ProgressRing, Sheet, Stepper, toast, useAssetManifest } from '@homebrain/ui';
 import { RecipesApiError, type RecipesApi } from '../api.js';
 import {
   detectFryerEntities,
@@ -17,7 +17,9 @@ import {
 } from '../domain/fryerLive.js';
 import { FRYER_HINT, fryerHeld, readFryerStates } from '../fryerSignal.js';
 import { cachedProgramName, resolveProgramName } from '../fryerProgram.js';
+import { FRYER_PHOTO_ROOT, parseFryerPhotoManifest } from '../fryerPhoto.js';
 import { FryerArt } from './FryerArt.js';
+import { FryerPhoto } from './FryerPhoto.js';
 import { Icon } from './parts.js';
 
 const CONTROL_LABEL: Record<FryerControl, string> = {
@@ -108,6 +110,9 @@ export function FryerLiveCard({
   }, [api, programId]);
   const [confirmStop, setConfirmStop] = useState(false);
   const [busy, setBusy] = useState<FryerControl | null>(null);
+  // Owner's product photos (HA /local/homebrain/airfryer/); the SVG stays as the fallback.
+  const photo = useAssetManifest(FRYER_PHOTO_ROOT, parseFryerPhotoManifest);
+  const [photoFailed, setPhotoFailed] = useState(false);
   if (!entities) return null;
   const m = fryerModel(states, now);
   if (!fryerVisible(m.phase)) return null;
@@ -175,11 +180,19 @@ export function FryerLiveCard({
       ) : null}
     </span>
   );
-  const visual = isError ? null : instruction ? (
-    <FryerArt phase={m.phase} className="rc-fl-hero-art" />
-  ) : (
-    ring
-  );
+  const art = (className: string) =>
+    photo && !photoFailed ? (
+      <FryerPhoto
+        base={FRYER_PHOTO_ROOT}
+        manifest={photo}
+        phase={m.phase}
+        className={className}
+        onFail={() => setPhotoFailed(true)}
+      />
+    ) : (
+      <FryerArt phase={m.phase} className={className} />
+    );
+  const visual = isError ? null : instruction ? art('rc-fl-hero-art') : ring;
   // Labelled stats: temperature, ETA or the stopped countdown (plain text, never pill/button-like).
   const facts: ReactNode[] = [];
   if (m.currentTemp !== null && !finished && !isError) {
@@ -284,7 +297,8 @@ export function FryerLiveCard({
             {hint ? <p className="rc-fl-hint">{hint}</p> : null}
             {facts.length ? <div className="rc-fl-facts">{facts}</div> : null}
             {!isError && !finished ? (
-              <div className="rc-fl-steps">
+              // Phase names only (Ohřev → Pečení → Hotovo); the ring is the one progress display.
+              <div className="rc-fl-steps" data-testid="recipes-fryer-steps">
                 <Stepper steps={steps} compact label="Průběh pečení" />
               </div>
             ) : null}
@@ -301,8 +315,9 @@ export function FryerLiveCard({
                 <Button
                   key={c}
                   size="md"
-                  // Pause is routine: calm tonal button; only Udržovat v teple (done) is a filled CTA.
-                  variant={c === 'pause' ? 'strong' : 'primary'}
+                  // Pause is routine: quiet secondary button – the countdown is the hero, not a CTA.
+                  // Only Udržovat v teple (done) is a filled call to action.
+                  variant={c === 'pause' ? 'secondary' : 'primary'}
                   icon={c === 'pause' ? <Icon name="pause" /> : undefined}
                   loading={busy === c}
                   disabled={busy !== null}
@@ -329,7 +344,7 @@ export function FryerLiveCard({
             </div>
           ) : null}
         </div>
-        {!instruction && !isError ? <FryerArt phase={m.phase} className="rc-fl-side-art" /> : null}
+        {!instruction ? art('rc-fl-side-art') : null}
       </section>
       {/* Outside the card: its isolation would trap the sheet under the recipe grid. */}
       {confirmStop ? (

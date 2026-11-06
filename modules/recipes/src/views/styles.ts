@@ -285,12 +285,12 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl .hb-steptrack { max-width:none; margin-top:0; }
 .rc-fl .hb-steptrack-sum { display:none !important; }
 .rc-fl .hb-stepper[data-compact] .hb-step .hb-step-t { display:block !important; }
-.rc-fl .hb-stepper[data-compact] .hb-step { --hb-step-ink:var(--rc-fl-tone); font-size:13px; }
-/* phases: done = solid tone, current = tone + soft glow, upcoming = neutral track (the ring is the only time progress) */
-.rc-fl .hb-stepper[data-compact] .hb-step-n { height:6px; background:color-mix(in srgb, var(--hb-t1) 12%, transparent); }
-.rc-fl .hb-stepper[data-compact] .hb-step[data-state='done'] .hb-step-n { background:color-mix(in srgb, var(--hb-t1) 42%, transparent); }
-.rc-fl .hb-stepper[data-compact] .hb-step[data-state='active']:not([data-progress]) .hb-step-n { background:var(--rc-fl-tone); }
-.rc-fl .hb-stepper[data-compact] .hb-step[data-state='done'] { color:var(--hb-t2); }
+.rc-fl .hb-stepper[data-compact] { display:flex; flex-wrap:wrap; gap:0; }
+/* phases as a quiet text line (Ohřev → Pečení → Hotovo) – the ring is the only progress display */
+.rc-fl .hb-stepper[data-compact] .hb-step { flex:none; flex-direction:row; align-items:center; gap:0; font-size:13px; font-weight:500; color:var(--hb-t2); }
+.rc-fl .hb-stepper[data-compact] .hb-step-n { display:none; }
+.rc-fl .hb-stepper[data-compact] .hb-step + .hb-step::before { content:'→'; margin:0 8px; color:var(--hb-t2); opacity:.6; font-weight:400; }
+.rc-fl .hb-stepper[data-compact] .hb-step[data-state='active'] { color:var(--rc-fl-ink); font-weight:650; }
 .rc-fl-band { grid-area:band; display:flex; align-items:center; gap:10px; margin:0 -40px; padding:16px 40px; background:color-mix(in srgb, var(--hb-crit) 80%, black); color:#fff; }
 .rc-fl-band h2 { color:inherit; font-size:20px; }
 .rc-fl-band svg.rc-i { width:22px; height:22px; flex:none; }
@@ -333,7 +333,37 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fa-bits rect { fill:color-mix(in srgb, #e9b04a 85%, var(--hb-t1)); }
 .rc-fa[data-phase='action'] .rc-fa-bits { animation:rc-fa-hop 1.6s var(--hb-ease-out, ease-out) infinite; transform-origin:70px 66px; }
 @keyframes rc-fa-hop { 0%, 100% { transform:translateY(4px); } 35% { transform:translateY(-7px); } 60% { transform:translateY(0); } }
-@media (max-width: 1100px) and (min-width: 641px) { .rc-fl { grid-template-columns:184px minmax(0,1fr); grid-template-areas:'band band' 'vis main'; } .rc-fl-side-art { display:none; } }
+/* Owner's product photo (HA /local/homebrain/airfryer/) – replaces the SVG fryer when a manifest exists */
+.rc-fp { --rc-fp-h:212px; position:relative; display:grid; place-items:center; }
+/* soft backdrop so the black appliance separates from dark cards (faint grey disc on light) */
+.rc-fp::before { content:''; position:absolute; left:50%; top:54%; width:120%; aspect-ratio:1; translate:-50% -50%; border-radius:50%; pointer-events:none; background:radial-gradient(closest-side, color-mix(in srgb, var(--hb-t1) 11%, transparent), color-mix(in srgb, var(--hb-t1) 4%, transparent) 62%, transparent); }
+.rc-fp-frame { z-index:0; }
+/* with a photo the neutral backdrop above replaces the tone glow behind the illustration */
+.rc-fl:has(> .rc-fp.rc-fl-side-art)::before { background:radial-gradient(220px 200px at 132px 50%, color-mix(in srgb, var(--rc-fl-tone) 7%, transparent), transparent 75%); }
+.rc-fp.rc-fl-side-art, .rc-fp.rc-fl-hero-art { width:auto; }
+.rc-fp.rc-fl-hero-art { --rc-fp-h:200px; }
+.rc-fp-frame { position:relative; display:inline-block; line-height:0; }
+.rc-fp-img { display:block; height:var(--rc-fp-h); width:auto; max-width:none; filter:drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)) drop-shadow(0 12px 20px rgb(0 0 0 / .22)); transition:filter var(--hb-dur-slow, .4s), opacity var(--hb-dur-slow, .4s); }
+.rc-fp-heat, .rc-fp-tint, .rc-fp-display { position:absolute; pointer-events:none; opacity:0; transition:opacity var(--hb-dur-slow, .4s); }
+/* warm light leaking at the drawer seam and onto the counter while heating – no flames */
+.rc-fp-heat { filter:blur(3px); background:radial-gradient(56% 16% at 50% 1%, rgb(255 140 60 / .8), transparent 72%); mix-blend-mode:screen; }
+.rc-fp-tint { inset:0; mask-size:100% 100%; mask-repeat:no-repeat; -webkit-mask-size:100% 100%; -webkit-mask-repeat:no-repeat; background:var(--rc-fl-tone); mix-blend-mode:screen; }
+/* the photo's display shows a fixed demo value – cover the glass and light only the ring in the card tone */
+.rc-fp-display { border-radius:50%; background:radial-gradient(circle at 36% 30%, rgb(255 255 255 / .1), transparent 26%), radial-gradient(closest-side, #0b0d10 0 60%, color-mix(in srgb, var(--rc-fl-tone) 75%, transparent) 70%, transparent 86%); opacity:.92; }
+.rc-fp[data-phase='cooking'] .rc-fp-heat, .rc-fp[data-phase='preheat'] .rc-fp-heat { opacity:.9; animation:rc-fp-breathe 6s ease-in-out infinite; }
+@keyframes rc-fp-breathe { 0%, 100% { opacity:.55; } 50% { opacity:.95; } }
+.rc-fp[data-phase='warm'] .rc-fp-heat { opacity:.35; }
+.rc-fp[data-phase='paused'] .rc-fp-img { filter:brightness(.66) saturate(.7) drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)); }
+.rc-fp[data-out] .rc-fp-tint { opacity:.1; }
+.rc-fp[data-phase='error'] .rc-fp-img { filter:drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)) drop-shadow(0 0 10px color-mix(in srgb, var(--hb-crit) 45%, transparent)); }
+.rc-fp[data-phase='off'] .rc-fp-img, .rc-fp[data-phase='idle'] .rc-fp-img { filter:grayscale(1); opacity:.6; }
+.rc-fp[data-phase='off'] .rc-fp-display, .rc-fp[data-phase='idle'] .rc-fp-display { background:radial-gradient(closest-side, #0b0d10 0 66%, transparent 80%); }
+.rc-fp[data-nudge] .rc-fp-frame { animation:rc-fp-nudge 2.4s ease-in-out infinite; }
+@keyframes rc-fp-nudge { 0%, 60%, 100% { transform:translateY(0); } 30% { transform:translateY(4px); } }
+@media (min-width: 1101px) { .rc-fl:has(> .rc-fp.rc-fl-side-art):not([data-phase='error']) { grid-template-columns:184px minmax(0,1fr) 250px; } }
+.rc-fp.rc-fl-side-art { --rc-fp-h:232px; }
+.rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr) 250px; grid-template-areas:'band band' 'main art'; }
+@media (max-width: 1100px) and (min-width: 641px) { .rc-fl { grid-template-columns:184px minmax(0,1fr); grid-template-areas:'band band' 'vis main'; } .rc-fl-side-art { display:none; } .rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr); grid-template-areas:'band' 'main'; } }
 @media (max-width: 640px) {
   .rc-fl { min-height:0; margin:4px 16px 14px; padding:18px; grid-template-columns:104px minmax(0,1fr); grid-template-areas:none; grid-template-rows:none; column-gap:20px; row-gap:16px; }
   .rc-fl::before { background:radial-gradient(160px 140px at calc(100% - 44px) 46px, color-mix(in srgb, var(--rc-fl-tone) 16%, transparent), transparent 75%); }
@@ -362,7 +392,14 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
   .rc-fl-badge svg.rc-i { width:14px; height:14px; }
   .rc-fl-hero-art { width:104px; }
   .rc-fl-side-art { display:block; grid-area:auto; position:absolute; top:12px; right:14px; width:70px; }
+  .rc-fp.rc-fl-side-art { --rc-fp-h:88px; width:auto; top:14px; right:16px; }
+  .rc-fp.rc-fl-hero-art { --rc-fp-h:124px; }
+  .rc-fl:has(> .rc-fp.rc-fl-side-art)::before { background:none; }
+  .rc-fl:has(> .rc-fp.rc-fl-side-art) .rc-fl-head { padding-right:96px; }
+  .rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr); grid-template-areas:none; }
+  .rc-fl[data-phase='error'] > .rc-fl-side-art { top:62px; --rc-fp-h:80px; }
+  .rc-fl[data-phase='error']:has(> .rc-fp.rc-fl-side-art) :is(.rc-fl-meta, .rc-fl-hint) { padding-right:88px; box-sizing:border-box; white-space:normal; }
   .rc-fl-actions > .hb-btn { flex:1 1 0; }
 }
-@media (prefers-reduced-motion: reduce) { .rc-fl .hb-ring-arc { transition:none !important; } .rc-fa *, .rc-fl-pill::before, .rc-fl::after { animation:none !important; } }
+@media (prefers-reduced-motion: reduce) { .rc-fl .hb-ring-arc { transition:none !important; } .rc-fa *, .rc-fp, .rc-fp *, .rc-fl-pill::before, .rc-fl::after { animation:none !important; transition:none !important; } }
 `;

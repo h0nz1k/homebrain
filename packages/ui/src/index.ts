@@ -6,3 +6,4 @@ export * from './save-state.js';
 export * from './controls.js';
 export * from './plural.js';
 export * from './progress-ring.js';
+export * from './asset-manifest.js';
