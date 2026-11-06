@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "model": "Example robot (synthetic)",
+  "images": {
+    "dock": "dock.webp",
+    "bottom": "bottom.webp",
+    "sideBrush": "side_brush.webp"
+  },
+  "bottom": {
+    "roller": [28, 42, 72, 50],
+    "caster": [47, 11, 53, 17],
+    "wheels": [
+      [14, 40, 19, 61],
+      [81, 40, 86, 61]
+    ],
+    "mops": [
+      [32, 78, 17],
+      [68, 78, 17]
+    ],
+    "sideBrush": {
+      "box": [-10, -3, 50],
+      "centre": [15, 22],
+      "dir": 1
+    }
+  },
+  "hotspots": {
+    "bottom": {
+      "main_brush": [50, 46],
+      "side_brush": [15, 22],
+      "wheels": [84, 51],
+      "mop": [68, 78],
+      "sensors": [62, 8]
+    },
+    "dock": {
+      "clean_tank": [30, 20],
+      "dirty_tank": [66, 20],
+      "dust_bag": [52, 58]
+    }
+  }
+}

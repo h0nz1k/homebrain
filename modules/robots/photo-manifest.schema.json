@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "homebrain/robots/photo-manifest.schema.json",
+  "title": "HomeBrain robot photo set manifest",
+  "description": "Lives next to the owner's pictures in Home Assistant /config/www/homebrain/robots/<robot>/manifest.json (served as /local/…). Coordinates are percent (0–100) of the square bottom image, robot front = top edge. Pictures are never part of the HomeBrain repo or release.",
+  "type": "object",
+  "required": ["schema", "images"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "const": 1
+    },
+    "model": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "images": {
+      "type": "object",
+      "required": ["dock", "bottom"],
+      "properties": {
+        "dock": {
+          "type": "string",
+          "pattern": "^[\\w.-]+$",
+          "maxLength": 120
+        },
+        "bottom": {
+          "type": "string",
+          "pattern": "^[\\w.-]+$",
+          "maxLength": 120
+        },
+        "sideBrush": {
+          "type": "string",
+          "pattern": "^[\\w.-]+$",
+          "maxLength": 120
+        }
+      }
+    },
+    "bottom": {
+      "type": "object",
+      "properties": {
+        "roller": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "[x0, y0, x1, y1] in % of the bottom image"
+        },
+        "caster": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "[x0, y0, x1, y1] in % of the bottom image"
+        },
+        "wheels": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "[x0, y0, x1, y1] in % of the bottom image"
+          },
+          "maxItems": 4
+        },
+        "mops": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "description": "round mops [cx, cy, r]; neighbours counter-rotate"
+        },
+        "plate": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "vibrating mop plate rectangle"
+        },
+        "sideBrush": {
+          "type": "object",
+          "required": ["box", "dir"],
+          "properties": {
+            "box": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "[left, top, size]; rotates around the box centre"
+            },
+            "centre": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "[x, y] in % of the image"
+            },
+            "dir": {
+              "enum": [1, -1]
+            }
+          }
+        }
+      }
+    },
+    "hotspots": {
+      "type": "object",
+      "properties": {
+        "bottom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "[x, y] in % of the image"
+          },
+          "description": "main_brush, side_brush, wheels, mop, sensors…"
+        },
+        "dock": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "[x, y] in % of the image"
+          },
+          "description": "clean_tank, dirty_tank, dust_bag"
+        }
+      }
+    }
+  }
+}

@@ -386,3 +386,19 @@ it('Button danger variant (extends the canonical Button) keeps type=button', () 
   expect(b.getAttribute('type')).toBe('button');
   expect(b.dataset.variant).toBe('danger');
 });
+
+it('toggle Chip keeps a non-neutral tone (amber maintenance toggle)', () => {
+  const { container } = render(
+    <>
+      <Chip pressed={false} tone="warn" onPress={() => undefined}>
+        Údržba
+      </Chip>
+      <Chip pressed tone="neutral" onPress={() => undefined}>
+        Kuchyně
+      </Chip>
+    </>,
+  );
+  const [warn, neutral] = Array.from(container.querySelectorAll('button'));
+  expect(warn?.getAttribute('data-tone')).toBe('warn');
+  expect(neutral?.hasAttribute('data-tone')).toBe(false);
+});
