@@ -75,6 +75,8 @@ async def test_session_get_kiosk_user(hass: HomeAssistant, hass_ws_client, hass_
         "visible_modules": ["energy", "family", "recipes", "today", "waste", "weather"],
         "is_admin": False,
         "kiosk": True,
+        "unavailable_modules": [],
+        "disabled_modules": [],
     }
     # Admin-only commands stay admin-only for the kiosk account.
     await client.send_json_auto_id(

@@ -23,6 +23,8 @@ from typing import Any
 
 import numpy as np
 
+# The CZRAD composite is 680x460 px; anything far larger is not a radar frame (#28).
+MAX_PNG_SIDE = 4096
 BASE = "https://opendata.chmi.cz/meteorology/weather/radar/composite"
 WIDTH, HEIGHT = 680, 460
 WEST, EAST, SOUTH, NORTH = 11.267, 19.624, 48.047, 51.458
@@ -78,6 +80,8 @@ def decode_png(data: bytes) -> tuple[np.ndarray, list[tuple[int, int, int]]]:
             width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
             if depth != 8 or colour not in (0, 3) or interlace:
                 raise ValueError(f"unsupported PNG depth={depth} colour={colour}")
+            if not (0 < width <= MAX_PNG_SIDE and 0 < height <= MAX_PNG_SIDE):
+                raise ValueError(f"PNG {width}x{height} exceeds {MAX_PNG_SIDE}px")
         elif ctype == b"PLTE":
             palette = [(chunk[i], chunk[i + 1], chunk[i + 2]) for i in range(0, length, 3)]
         elif ctype == b"IDAT":
@@ -85,7 +89,13 @@ def decode_png(data: bytes) -> tuple[np.ndarray, list[tuple[int, int, int]]]:
         elif ctype == b"IEND":
             break
         pos += 12 + length
-    raw = np.frombuffer(zlib.decompress(b"".join(idat)), dtype=np.uint8)
+    # Bounded inflate: a tiny compressed body must not expand beyond the declared image.
+    expected = height * (width + 1)
+    inflater = zlib.decompressobj()
+    plain = inflater.decompress(b"".join(idat), expected)
+    if len(plain) != expected or inflater.unconsumed_tail:
+        raise ValueError("PNG data does not match its header")
+    raw = np.frombuffer(plain, dtype=np.uint8)
     rows = raw.reshape(height, width + 1)
     out = np.zeros((height, width), dtype=np.uint8)
     prev = np.zeros(width, dtype=np.int32)

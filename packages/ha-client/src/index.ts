@@ -158,6 +158,8 @@ export type HomeBrainSession = {
   visibleModules: string[];
   isAdmin: boolean;
   kiosk: boolean;
+  /** Modules whose backend failed to start (#28): the panel shows "Modul nedostupný". */
+  unavailableModules: string[];
 };
 const SESSION_ROLES: HomeBrainRole[] = ['owner', 'adult', 'child', 'guest', 'kiosk'];
 
@@ -179,6 +181,9 @@ export async function getSession(connection: ConnectionLike): Promise<HomeBrainS
         : [],
       isAdmin: response.is_admin === true,
       kiosk: response.kiosk === true,
+      unavailableModules: Array.isArray(response.unavailable_modules)
+        ? response.unavailable_modules.filter((m): m is string => typeof m === 'string')
+        : [],
     };
   } catch {
     return null;

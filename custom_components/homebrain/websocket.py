@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from .bindings import get_bindings, is_valid_key, validate_binding
 from .const import BINDING_MODULES, DOMAIN
+from .modules import entry_disabled_modules, unavailable_modules
 from .roles import (
     ASSIGNABLE_ROLES,
     CONF_ROLES,
@@ -28,11 +29,15 @@ def websocket_get_session(
         connection.send_error(msg["id"], "unauthorized", "Authentication required")
         return
     role = resolve_role(connection.user, entry_roles(hass))
+    disabled = entry_disabled_modules(hass)
     connection.send_result(
         msg["id"],
         {
             "role": role,
-            "visible_modules": visible_modules(role),
+            "visible_modules": [m for m in visible_modules(role) if m not in disabled],
+            # Module isolation (#28): failed modules render "modul nedostupný" in the panel.
+            "unavailable_modules": unavailable_modules(hass),
+            "disabled_modules": sorted(disabled),
             "is_admin": bool(connection.user.is_admin),
             # The client always applies the kiosk layout for this role (?kiosk=1 is layout only).
             "kiosk": role == "kiosk",

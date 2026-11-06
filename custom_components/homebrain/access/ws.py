@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -595,7 +596,10 @@ async def ws_history(
     connection.send_result(msg["id"], {"items": items, "more": len(items) == msg["limit"]})
 
 
-def async_register(hass: HomeAssistant) -> None:
+def async_register(
+    hass: HomeAssistant,
+    register: Callable[[HomeAssistant, Any], None] = websocket_api.async_register_command,
+) -> None:
     for handler in (
         ws_state,
         ws_subscribe,
@@ -605,4 +609,4 @@ def async_register(hass: HomeAssistant) -> None:
         ws_settings,
         ws_history,
     ):
-        websocket_api.async_register_command(hass, handler)
+        register(hass, handler)

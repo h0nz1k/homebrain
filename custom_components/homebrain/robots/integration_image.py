@@ -57,6 +57,8 @@ MAX_STRAY_SHARE: Final = 0.08  # more unrecognised opaque pixels → not the def
 WALL_REACH_PX: Final = 3  # walls further than this from any room are scan lines (windows)
 MAX_INPAINT_STEPS: Final = 40
 MAX_SCALE: Final = 8
+# Roborock map PNGs are ~1 Mpx; refuse anything that could be a decompression bomb (#28).
+MAX_PIXELS: Final = 16_000_000
 
 L_UNKNOWN: Final = -1
 L_CARPET: Final = -2  # floor, room unknown
@@ -114,6 +116,8 @@ def _labels(png: bytes, width: int, height: int) -> tuple[Any, int, float]:
     from PIL import Image  # noqa: PLC0415 - HA ships Pillow
 
     with Image.open(io.BytesIO(png)) as img:
+        if img.width * img.height > MAX_PIXELS:
+            raise MapParseError(f"integration image {img.width}x{img.height} too large")
         scale = block_scale(img.size, width, height)
         rgba = np.asarray(img.convert("RGBA"))
     half = scale // 2

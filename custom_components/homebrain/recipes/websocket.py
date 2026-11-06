@@ -838,8 +838,11 @@ COMMANDS = (
 )
 
 
-def async_register(hass: HomeAssistant) -> None:
+def async_register(
+    hass: HomeAssistant,
+    register: Callable[[HomeAssistant, Any], None] = websocket_api.async_register_command,
+) -> None:
     for command in COMMANDS:
-        websocket_api.async_register_command(hass, command)
+        register(hass, command)
     if getattr(hass, "http", None) is not None:
         hass.http.register_view(RecipePhotoView())

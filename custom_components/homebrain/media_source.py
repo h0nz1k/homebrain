@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 
-from homeassistant.components.media_player.const import MediaClass
+from homeassistant.components.media_player import MediaClass
 from homeassistant.components.media_source import (
     BrowseMediaSource,
     MediaSource,

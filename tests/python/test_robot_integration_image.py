@@ -177,6 +177,7 @@ def _entity(blob, png, calibration=None):
         platform=SimpleNamespace(platform_name="roborock"),
         _map_content=content,
         async_image=async_image,
+        content_type="image/png",
     )
 
 

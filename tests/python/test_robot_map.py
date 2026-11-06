@@ -631,3 +631,37 @@ async def test_robot_map_image_view(hass: HomeAssistant, hass_client, hass_ws_cl
     assert (await client.get(raster["path"].format(theme="neon"))).status == 404
     assert (await client.get(f"/api/homebrain/robots/map/1/{'0' * 16}/dark.png")).status == 404
     assert (await client.get(f"/api/homebrain/robots/map/2/{digest}/dark.png")).status == 404
+
+
+class _RaisingContent:
+    """A Roborock entity whose private ``_map_content`` property raises."""
+
+    platform = SimpleNamespace(platform_name="roborock")
+
+    @property
+    def _map_content(self):
+        raise AttributeError("renamed upstream")
+
+
+@pytest.mark.parametrize(
+    ("component", "reason"),
+    [
+        # Roborock renamed/dropped the private attribute: degrade, never raise (#27).
+        (
+            _FakeComponent(
+                {"image.map": SimpleNamespace(platform=SimpleNamespace(platform_name="roborock"))}
+            ),
+            REASON_NO_DATA,
+        ),
+        (_FakeComponent({"image.map": _RaisingContent()}), REASON_NO_DATA),
+        # The image component itself is missing or changed shape.
+        (None, REASON_NO_ENTITY),
+        (object(), REASON_NO_ENTITY),
+    ],
+)
+async def test_private_map_api_missing_degrades_gracefully(hass, component, reason):
+    if component is not None:
+        hass.data["image"] = component
+    with patch.object(map_source, "lib_version", return_value="7.12.0"):
+        result = await VectorMapCache(hass).async_get("image.map")
+    assert result == {"available": False, "reason": reason}
