@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { extraGuideParts, guideFor, parseGuides } from './guides.js';
-import { planResetCounter, runPlan } from './commands.js';
+import { isRobotResetButton, planResetCounter, runPlan } from './commands.js';
 
 const example = JSON.parse(
   readFileSync(join(import.meta.dirname, '../guides.example.json'), 'utf8'),
@@ -44,15 +44,47 @@ describe('maintenance guides', () => {
     const connection = {
       sendMessagePromise: async <T>(message: unknown) => (sent.push(message), undefined as T),
     };
-    await runPlan(connection, planResetCounter('button.demo_reset', 'Hlavní kartáč'));
+    const button = 'button.demo_robot_1_reset_main_brush';
+    await runPlan(connection, planResetCounter(button, 'vacuum.demo_robot_1', 'Hlavní kartáč'), [
+      'vacuum.demo_robot_1',
+    ]);
     expect(sent).toEqual([
       {
         type: 'call_service',
         domain: 'button',
         service: 'press',
         service_data: {},
-        target: { entity_id: 'button.demo_reset' },
+        target: { entity_id: button },
       },
     ]);
+  });
+  it('button.press is limited to reset buttons of configured robots', async () => {
+    expect(isRobotResetButton('button.robot_a_resetovat_hlavni_kartac', 'vacuum.robot_a')).toBe(
+      true,
+    );
+    expect(isRobotResetButton('button.robot_a_dock_resetovat_sitko', 'vacuum.robot_a')).toBe(true);
+    expect(isRobotResetButton('button.demo_robot_1_reset_side_brush', 'vacuum.demo_robot_1')).toBe(
+      true,
+    );
+    // Other robot, other buttons, prefix tricks and non-vacuum owners are refused.
+    expect(isRobotResetButton('button.robot_b_resetovat_senzor', 'vacuum.robot_a')).toBe(false);
+    expect(isRobotResetButton('button.garage_door_open', 'vacuum.robot_a')).toBe(false);
+    expect(isRobotResetButton('button.robot_a_reboot', 'vacuum.robot_a')).toBe(false);
+    expect(isRobotResetButton('button.robot_ab_resetovat_senzor', 'vacuum.robot_a')).toBe(false);
+    expect(isRobotResetButton('button.robot_a_resetovat_senzor', 'switch.robot_a')).toBe(false);
+    expect(planResetCounter('button.garage_door_open', 'vacuum.robot_a', 'x')).toEqual([]);
+    const sent: unknown[] = [];
+    const connection = {
+      sendMessagePromise: async <T>(message: unknown) => (sent.push(message), undefined as T),
+    };
+    const forged = [
+      { service: 'button.press' as const, entityId: 'button.garage_door_open', summary: 'x' },
+    ];
+    await expect(runPlan(connection, forged, ['vacuum.robot_a'])).rejects.toThrow();
+    const reset = planResetCounter('button.robot_a_resetovat_senzor', 'vacuum.robot_a', 'Senzory');
+    // Without the configured robots no button may be pressed at all.
+    await expect(runPlan(connection, reset)).rejects.toThrow();
+    await expect(runPlan(connection, reset, ['vacuum.robot_b'])).rejects.toThrow();
+    expect(sent).toEqual([]);
   });
 });

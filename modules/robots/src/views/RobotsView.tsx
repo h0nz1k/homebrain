@@ -17,6 +17,7 @@ import {
   modeMops,
   modeOptionAvailable,
   planCleanRooms,
+  isRobotResetButton,
   planResetCounter,
   planResumeAfterFix,
   planSimple,
@@ -293,7 +294,7 @@ function RobotPanel({
     if (!confirm || !connection) return;
     setSending(true);
     try {
-      await runPlan(connection, confirm.plan);
+      await runPlan(connection, confirm.plan, [robot.vacuum]);
       notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
       if (confirm.plan.some((step) => step.service === 'vacuum.send_command')) setOrder([]);
     } catch (error) {
@@ -849,7 +850,7 @@ function RobotPanel({
           manifest={manifest}
           resetReady={(() => {
             const reset = guideFor(guides, guidePart).reset;
-            return !!reset && hasEntity(reset);
+            return !!reset && isRobotResetButton(reset, robot.vacuum) && hasEntity(reset);
           })()}
           canAct={canAct}
           onClose={() => setGuidePart(null)}
@@ -857,7 +858,7 @@ function RobotPanel({
             const guide = guideFor(guides, guidePart);
             setGuidePart(null);
             if (guide.reset)
-              ask('Vynulovat počítadlo?', planResetCounter(guide.reset, guide.title));
+              ask('Vynulovat počítadlo?', planResetCounter(guide.reset, robot.vacuum, guide.title));
           }}
         />
       )}

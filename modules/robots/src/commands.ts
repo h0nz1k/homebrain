@@ -218,16 +218,41 @@ export function planResumeAfterFix(vacuum: string, problem: string): ServiceCall
   ];
 }
 
-/** „Hotovo, vynulovat počítadlo“: presses the bound Roborock reset button after confirmation. */
-export function planResetCounter(button: string, part: string): ServiceCallPlan[] {
+/**
+ * `button.press` is allowlisted ONLY for Roborock consumable-reset buttons of a configured robot:
+ * `button.<vacuum object id>_[dock_](reset|resetovat)_<part>` (HA names them after the vacuum
+ * device, Czech UI → `resetovat`). Any other button (garage, doorbell, …) is refused.
+ */
+export function isRobotResetButton(button: string, vacuum: string): boolean {
+  const robot = /^vacuum\.([a-z0-9_]+)$/.exec(vacuum)?.[1];
+  if (!robot) return false;
+  return new RegExp(`^button\\.${robot}_(?:dock_)?(?:reset|resetovat)_[a-z0-9_]+$`).test(button);
+}
+
+/** „Hotovo, vynulovat počítadlo“: presses the robot's reset button after confirmation. */
+export function planResetCounter(button: string, vacuum: string, part: string): ServiceCallPlan[] {
+  if (!isRobotResetButton(button, vacuum)) return [];
   return [{ service: 'button.press', entityId: button, summary: `Vynulovat počítadlo: ${part}` }];
 }
 
-/** Sends the plan in order through HA `call_service`; rejects anything off the allowlist. */
-export async function runPlan(connection: ConnectionLike, plan: ServiceCallPlan[]): Promise<void> {
+/**
+ * Sends the plan in order through HA `call_service`; rejects anything off the allowlist.
+ * `button.press` additionally needs `vacuums` (the configured robots) and a reset-button target.
+ */
+export async function runPlan(
+  connection: ConnectionLike,
+  plan: ServiceCallPlan[],
+  vacuums: readonly string[] = [],
+): Promise<void> {
   const allowed = new Set<string>(ROBOT_SERVICE_ALLOWLIST);
-  for (const step of plan)
+  for (const step of plan) {
     if (!allowed.has(step.service)) throw new ServiceNotAllowedError(step.service);
+    if (
+      step.service === 'button.press' &&
+      !vacuums.some((vacuum) => isRobotResetButton(step.entityId, vacuum))
+    )
+      throw new ServiceNotAllowedError(`${step.service} ${step.entityId}`);
+  }
   for (const step of plan) {
     const [domain, service] = step.service.split('.') as [string, string];
     const message = {

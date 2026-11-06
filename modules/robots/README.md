@@ -43,3 +43,6 @@ příklad `guides.example.json`; bez manifestu se ukáže obecný postup bez obr
 „Hotovo, vynulovat počítadlo“ stiskne tlačítko `button.*` z pole `reset` (Roborock „reset
 consumable“). Integrace Roborock je má ve výchozím stavu vypnuté – bez povolené entity je akce
 neaktivní a návod ukáže, kterou entitu povolit. Odeslání vždy potvrzuje dialog.
+Z bezpečnostních důvodů panel stiskne jen tlačítko daného robota ve tvaru
+`button.<robot>_[dock_]reset_…` / `button.<robot>_[dock_]resetovat_…` (`<robot>` = object id jeho
+entity `vacuum.*`); jiná tlačítka z manifestu odmítne.
