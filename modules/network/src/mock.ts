@@ -245,7 +245,7 @@ function snapshotFor(scenario: NetworkScenario, now: number): NetSnapshot {
       severity: 'warning',
       title: 'Tablet Kuchyň drží vzdálený bod',
       target: { kind: 'client', id: 'c-tablet' },
-      context: 'Připojený k Pracovna (1. patro) místo bodu v Přízemí, 41 min.',
+      context: 'Připojený na AP Pracovna – 1. patro, očekávané patro: Přízemí, 41 min.',
       fix: 'Vypněte a zapněte Wi-Fi na zařízení. Opakuje se to? Povolte rychlý roaming (802.11r).',
       since: now - 41 * 60,
       important: true,

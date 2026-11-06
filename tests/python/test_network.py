@@ -238,7 +238,7 @@ def test_important_offline_and_wrong_ap():
         "ap_since": NOW - 2400,
     }
     [p] = rules.important_rules({"aps": aps, "floors": floors, "clients": [c]}, NOW)
-    assert p["rule"] == "important_wrong_ap" and "AP Pracovna (1. patro)" in p["context"]
+    assert p["rule"] == "important_wrong_ap" and "AP Pracovna – 1. patro" in p["context"]
     off = {**c, "online": False, "since": NOW - 1200}
     assert rules.important_rules({"clients": [off]}, NOW)[0]["rule"] == "important_offline"
     assert rules.important_rules({"clients": [{**off, "since": NOW - 60}]}, NOW) == []

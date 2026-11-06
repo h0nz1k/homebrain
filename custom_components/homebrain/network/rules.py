@@ -368,7 +368,7 @@ def important_rules(snap: Snapshot, now: float) -> list[Problem]:
                 "warning",
                 target,
                 f"{c['label']} drží vzdálený bod",
-                f"Připojený k {ap['name']} ({here}) místo bodu v {want}"
+                f"Připojený na {ap['name']} – {here}, očekávané patro: {want}"
                 + (f", {_minutes(now - ap_since)}." if ap_since else "."),
                 "Vypněte a zapněte Wi-Fi na zařízení. "
                 "Opakuje se to? Povolte rychlý roaming (802.11r).",
