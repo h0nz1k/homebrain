@@ -102,6 +102,11 @@ PAYLOADS: dict[str, dict] = {
     # No fryer in the test HA: NOT_CONFIGURED; stop is never confirmed here.
     "homebrain/recipes/airfryer_control": {"action": "stop"},
     "homebrain/recipes/airfryer_program": {"program": 1},
+    "homebrain/network/get": {},
+    "homebrain/network/summary": {},
+    "homebrain/network/guest_qr": {},
+    "homebrain/network/settings/get": {},
+    "homebrain/network/settings/set": {},
 }
 
 

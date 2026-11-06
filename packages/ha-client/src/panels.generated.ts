@@ -11,6 +11,7 @@ export const PANEL_PATHS_BY_MODULE: Readonly<Record<string, string>> = {
   robots: 'homebrain-roboti',
   access: 'homebrain-pristup',
   recipes: 'homebrain-recepty',
+  network: 'homebrain-sit',
 };
 export const SETTINGS_PANEL_PATH = 'homebrain-nastaveni';
 export const KIOSK_PANEL_PATH = 'homebrain-kiosk';

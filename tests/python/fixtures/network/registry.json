@@ -1,0 +1,280 @@
+{
+ "floors": [
+  {
+   "name": "Přízemí",
+   "level": 0
+  },
+  {
+   "name": "1. patro",
+   "level": 1
+  }
+ ],
+ "areas": [
+  {
+   "name": "Obývák",
+   "floor": "Přízemí"
+  },
+  {
+   "name": "Pracovna",
+   "floor": "1. patro"
+  },
+  {
+   "name": "Technická",
+   "floor": "Přízemí"
+  },
+  {
+   "name": "Zahrada",
+   "floor": null
+  }
+ ],
+ "devices": [
+  {
+   "key": "ap_living",
+   "name": "AP Obývák",
+   "model": "UAP6MP",
+   "mac": "02:00:00:00:00:01",
+   "area": "Obývák"
+  },
+  {
+   "key": "ap_office",
+   "name": "AP Pracovna",
+   "model": "U7PRO",
+   "mac": "02:00:00:00:00:02",
+   "area": "Pracovna"
+  },
+  {
+   "key": "ap_garden",
+   "name": "AP Zahrada",
+   "model": "UKPW",
+   "mac": "02:00:00:00:00:03",
+   "area": "Zahrada"
+  },
+  {
+   "key": "sw_main",
+   "name": "USW Lite 16",
+   "model": "USL16LP",
+   "mac": "02:00:00:00:00:04",
+   "area": "Technická"
+  },
+  {
+   "key": "sw_flex",
+   "name": "USW Flex",
+   "model": "USWED35",
+   "mac": "02:00:00:00:00:05",
+   "area": "Technická"
+  },
+  {
+   "key": "wlan_home",
+   "name": "demo_home",
+   "model": "UniFi WLAN",
+   "mac": null,
+   "area": null
+  },
+  {
+   "key": "tablet",
+   "name": "Tablet demo",
+   "model": null,
+   "mac": "02:00:00:00:00:10",
+   "area": "Obývák"
+  },
+  {
+   "key": "robot",
+   "name": "Robot demo",
+   "model": null,
+   "mac": "02:00:00:00:00:11",
+   "area": null
+  },
+  {
+   "key": "laptop",
+   "name": "Notebook demo",
+   "model": null,
+   "mac": "02:00:00:00:00:12",
+   "area": null
+  }
+ ],
+ "entities": [
+  {
+   "entity_id": "sensor.ap_zahrada_stav",
+   "device": "ap_living",
+   "tk": "device_state",
+   "uid": "device_state-02:00:00:00:00:01",
+   "state": "connected"
+  },
+  {
+   "entity_id": "sensor.ap_zahrada_klienti",
+   "device": "ap_living",
+   "tk": "device_clients",
+   "uid": "device_clients-02:00:00:00:00:01",
+   "state": "14"
+  },
+  {
+   "entity_id": "sensor.ap_zahrada_cpu",
+   "device": "ap_living",
+   "tk": "device_cpu_utilization",
+   "uid": "cpu-02:00:00:00:00:01",
+   "state": "9.5"
+  },
+  {
+   "entity_id": "sensor.ap_zahrada_pamet",
+   "device": "ap_living",
+   "tk": "device_memory_utilization",
+   "uid": "mem-02:00:00:00:00:01",
+   "state": "88"
+  },
+  {
+   "entity_id": "sensor.ap_zahrada_uplink",
+   "device": "ap_living",
+   "tk": "device_uplink_mac",
+   "uid": "uplink-02:00:00:00:00:01",
+   "state": "02:00:00:00:00:04"
+  },
+  {
+   "entity_id": "update.ap_zahrada",
+   "device": "ap_living",
+   "tk": null,
+   "uid": "update-02:00:00:00:00:01",
+   "state": "on",
+   "domain": "update",
+   "attrs": {
+    "installed_version": "6.8.2",
+    "latest_version": "6.8.3"
+   }
+  },
+  {
+   "entity_id": "sensor.u7_pro_stav",
+   "device": "ap_office",
+   "tk": "device_state",
+   "uid": "device_state-02:00:00:00:00:02",
+   "state": "connected"
+  },
+  {
+   "entity_id": "sensor.u7_pro_klienti",
+   "device": "ap_office",
+   "tk": "device_clients",
+   "uid": "device_clients-02:00:00:00:00:02",
+   "state": "3"
+  },
+  {
+   "entity_id": "sensor.u7_pro_pamet",
+   "device": "ap_office",
+   "tk": "device_memory_utilization",
+   "uid": "mem-02:00:00:00:00:02",
+   "state": "81"
+  },
+  {
+   "entity_id": "sensor.ap_obyvak_stav",
+   "device": "ap_garden",
+   "tk": "device_state",
+   "uid": "device_state-02:00:00:00:00:03",
+   "state": "disconnected"
+  },
+  {
+   "entity_id": "sensor.ap_obyvak_klienti",
+   "device": "ap_garden",
+   "tk": "device_clients",
+   "uid": "device_clients-02:00:00:00:00:03",
+   "state": "0"
+  },
+  {
+   "entity_id": "sensor.lite_poe_2",
+   "device": "sw_main",
+   "tk": "port_poe_power",
+   "uid": "poe_power-02:00:00:00:00:04_2",
+   "state": "7.5"
+  },
+  {
+   "entity_id": "sensor.lite_poe_5",
+   "device": "sw_main",
+   "tk": "port_poe_power",
+   "uid": "poe_power-02:00:00:00:00:04_5",
+   "state": "30.1"
+  },
+  {
+   "entity_id": "sensor.lite_speed_2",
+   "device": "sw_main",
+   "tk": "port_link_speed",
+   "uid": "port_link_speed-02:00:00:00:00:04_2",
+   "state": "100"
+  },
+  {
+   "entity_id": "sensor.lite_speed_9",
+   "device": "sw_main",
+   "tk": "port_link_speed",
+   "uid": "port_link_speed-02:00:00:00:00:04_9",
+   "state": "1000"
+  },
+  {
+   "entity_id": "sensor.lite_speed_10",
+   "device": "sw_main",
+   "tk": "port_link_speed",
+   "uid": "port_link_speed-02:00:00:00:00:04_10",
+   "state": null,
+   "disabled": true
+  },
+  {
+   "entity_id": "sensor.lite_stav",
+   "device": "sw_main",
+   "tk": "device_state",
+   "uid": "device_state-02:00:00:00:00:04",
+   "state": "connected"
+  },
+  {
+   "entity_id": "sensor.lite_cpu",
+   "device": "sw_main",
+   "tk": "device_cpu_utilization",
+   "uid": "cpu-02:00:00:00:00:04",
+   "state": "91"
+  },
+  {
+   "entity_id": "sensor.flex_stav",
+   "device": "sw_flex",
+   "tk": "device_state",
+   "uid": "device_state-02:00:00:00:00:05",
+   "state": "connected"
+  },
+  {
+   "entity_id": "sensor.flex_pamet",
+   "device": "sw_flex",
+   "tk": "device_memory_utilization",
+   "uid": "mem-02:00:00:00:00:05",
+   "state": "77"
+  },
+  {
+   "entity_id": "sensor.demo_home",
+   "device": "wlan_home",
+   "tk": "wlan_clients",
+   "uid": "wlan_clients-abc",
+   "state": "17"
+  },
+  {
+   "entity_id": "device_tracker.tablet",
+   "device": "tablet",
+   "tk": null,
+   "uid": "tracker-tablet",
+   "state": "home",
+   "domain": "device_tracker",
+   "attrs": {
+    "ap_mac": "02:00:00:00:00:02",
+    "essid": "demo_home"
+   }
+  },
+  {
+   "entity_id": "device_tracker.robot",
+   "device": "robot",
+   "tk": null,
+   "uid": "tracker-robot",
+   "state": "not_home",
+   "domain": "device_tracker",
+   "attrs": {}
+  },
+  {
+   "entity_id": "device_tracker.laptop",
+   "device": "laptop",
+   "tk": null,
+   "uid": "tracker-laptop",
+   "state": "home",
+   "domain": "device_tracker",
+   "attrs": {}
+  }
+ ]
+}

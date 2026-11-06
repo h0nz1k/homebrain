@@ -9,12 +9,33 @@ export type HomeBrainRole = 'owner' | 'adult' | 'child' | 'guest' | 'kiosk';
  * shown on a shared screen; wine and system diagnostics are not for the wall tablet either.
  */
 const SIGNAL_VISIBILITY: Record<HomeBrainRole, ReadonlySet<ModuleId>> = {
-  owner: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'recipes', 'system']),
-  adult: new Set(['weather', 'energy', 'waste', 'calendar', 'health', 'wine', 'recipes', 'system']),
+  owner: new Set([
+    'weather',
+    'energy',
+    'waste',
+    'calendar',
+    'health',
+    'wine',
+    'recipes',
+    'network',
+    'system',
+  ]),
+  adult: new Set([
+    'weather',
+    'energy',
+    'waste',
+    'calendar',
+    'health',
+    'wine',
+    'recipes',
+    'network',
+    'system',
+  ]),
   child: new Set(['weather', 'waste', 'calendar', 'recipes']),
   // Kitchen tablet: the airfryer status („Protřepej“, „Hotovo“) and running kitchen timers
   // (Minutky) belong on the wall.
-  kiosk: new Set(['weather', 'energy', 'waste', 'calendar', 'recipes']),
+  // Síť: only the summary headline („Internet nefunguje“), never a device list.
+  kiosk: new Set(['weather', 'energy', 'waste', 'calendar', 'recipes', 'network']),
   guest: new Set(),
 };
 
@@ -72,6 +93,7 @@ const MODULE_PREFIXES: Record<ModuleId, true> = {
   health: true,
   wine: true,
   recipes: true,
+  network: true,
   system: true,
 };
 

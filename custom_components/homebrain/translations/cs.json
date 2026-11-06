@@ -271,7 +271,8 @@
         "robots": "Roboti",
         "wine": "Vinotéka",
         "recipes": "Recepty",
-        "access": "Přístup"
+        "access": "Přístup",
+        "network": "Síť"
       }
     }
   },

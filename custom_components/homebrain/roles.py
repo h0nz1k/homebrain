@@ -30,6 +30,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "robots",
             "recipes",
             "access",
+            "network",
             "settings",
             "about",
         }
@@ -45,6 +46,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "family",
             "robots",
             "recipes",
+            "network",
             "about",
         }
     ),
@@ -125,11 +127,21 @@ RECIPES_DEVICE_WS_COMMANDS: Final = frozenset(
 RECIPES_DEVICE_ROLES: Final = frozenset({"owner", "adult", "kiosk"})
 
 
+# Síť: adults and the kitchen kiosk get the summary (status + headline, no device list); the
+# guest Wi-Fi QR is for every mapped role. Device list, settings and the password stay admin-only.
+NETWORK_SUMMARY_ROLES: Final = frozenset({"adult", "kiosk"})
+NETWORK_QR_ROLES: Final = frozenset({"adult", "child", "kiosk"})
+
+
 def role_ws_commands(role: str) -> frozenset[str]:
     """Every ``homebrain/*`` WS command a mapped non-admin role may call."""
     if role == "guest":
         return frozenset({"homebrain/session/get"})
     extra = RECIPES_DEVICE_WS_COMMANDS if role in RECIPES_DEVICE_ROLES else frozenset()
+    if role in NETWORK_SUMMARY_ROLES:
+        extra |= {"homebrain/network/summary"}
+    if role in NETWORK_QR_ROLES:
+        extra |= {"homebrain/network/guest_qr"}
     return KIOSK_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
 
 

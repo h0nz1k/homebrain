@@ -2,7 +2,15 @@ export type Severity = 'critical' | 'warning' | 'notice' | 'info' | 'calm';
 export const SEVERITY_RANK = { critical: 4, warning: 3, notice: 2, info: 1, calm: 0 } as const;
 export type SignalKind = 'event' | 'deadline' | 'window' | 'state';
 export type ModuleId =
-  'weather' | 'energy' | 'waste' | 'calendar' | 'health' | 'wine' | 'recipes' | 'system';
+  | 'weather'
+  | 'energy'
+  | 'waste'
+  | 'calendar'
+  | 'health'
+  | 'wine'
+  | 'recipes'
+  | 'network'
+  | 'system';
 export type Tone = 'risk' | 'opportunity' | 'neutral';
 export type Action =
   | { type: 'navigate'; label: string; href: string }

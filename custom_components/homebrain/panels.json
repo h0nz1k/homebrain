@@ -68,6 +68,13 @@
       "icon": "mdi:chef-hat",
       "module": "recipes",
       "require_admin": false
+    },
+    {
+      "url_path": "homebrain-sit",
+      "title": "Síť",
+      "icon": "mdi:wifi",
+      "module": "network",
+      "require_admin": false
     }
   ]
 }

@@ -1,5 +1,11 @@
 import { createHealthDemo, type HealthScenario } from '@homebrain/module-health';
 import {
+  createMockNetworkApi,
+  setNetworkApiFactory,
+  type NetRole,
+  type NetworkScenario,
+} from '@homebrain/module-network';
+import {
   clearTodaySignalSources,
   registerTodaySignalSource,
   createMockAdapter,
@@ -84,6 +90,14 @@ const recipesApi = createMockRecipesApi(undefined, {
   }>,
 });
 setRecipesApiFactory(() => recipesApi);
+// Síť: synthetic house (7 APs, 3 switches). `?sit=problems|ok|down|empty`, `?role=adult|kiosk`
+// (summary only), `?hoste=0` = guest Wi-Fi not set up yet.
+const networkApi = createMockNetworkApi({
+  scenario: (recipesQuery.get('sit') as NetworkScenario | null) ?? 'problems',
+  role: (recipesQuery.get('role') as NetRole | null) ?? 'owner',
+  guest: recipesQuery.get('hoste') !== '0',
+});
+setNetworkApiFactory(() => networkApi);
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
 if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
 // `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).
