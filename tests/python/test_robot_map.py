@@ -253,6 +253,7 @@ async def test_cache_falls_back_on_version_and_parse_errors(hass: HomeAssistant)
     assert ok["available"] and [r["id"] for r in ok["map"]["rooms"]] == [16, 17, 18]
     assert bad == {"available": False, "reason": REASON_PARSE_FAILED}
     with patch.object(map_source, "lib_version", return_value=None):
+        cache = VectorMapCache(hass)  # the version is cached per cache instance
         assert await cache.async_get("image.ok") == {
             "available": False,
             "reason": REASON_UNSUPPORTED_LIB,
@@ -262,6 +263,27 @@ async def test_cache_falls_back_on_version_and_parse_errors(hass: HomeAssistant)
         patch.object(map_source, "HA_VERSION", "2030.1.0"),
     ):
         assert (await cache.async_get("image.ok"))["reason"] == REASON_UNSUPPORTED_HA
+
+
+async def test_lib_version_read_once_off_the_event_loop(hass: HomeAssistant):
+    """Issue #20: metadata.version is blocking I/O – one executor call, then cached."""
+    import threading
+
+    hass.data["image"] = _FakeComponent({"image.ok": _entity("roborock", make_blob(PLAN, LEGEND))})
+    loop_thread = threading.get_ident()
+    threads: list[int] = []
+
+    def fake_version(name: str) -> str:
+        assert name == "python-roborock"
+        threads.append(threading.get_ident())
+        return "7.12.0"
+
+    cache = VectorMapCache(hass)
+    with patch.object(map_source.metadata, "version", side_effect=fake_version):
+        for _ in range(3):
+            assert (await cache.async_get("image.ok"))["available"]
+    assert len(threads) == 1
+    assert threads[0] != loop_thread
 
 
 async def test_ws_robots_map(hass: HomeAssistant, hass_ws_client):

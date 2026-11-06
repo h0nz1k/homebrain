@@ -239,8 +239,11 @@ function RobotPanel({
       observer?.disconnect();
     };
   }, [robot.slot, robot.rooms.length]);
-  const portraitMap =
-    !!vmap && vmap.bounds[3] - vmap.bounds[1] > (vmap.bounds[2] - vmap.bounds[0]) * 1.1;
+  // A quarter-turn rotation swaps the drawn width and height (portrait ↔ landscape).
+  const quarter = robot.rotation === 90 || robot.rotation === 270;
+  const mapW = vmap ? vmap.bounds[2] - vmap.bounds[0] : 0;
+  const mapH = vmap ? vmap.bounds[3] - vmap.bounds[1] : 0;
+  const portraitMap = !!vmap && (quarter ? mapW > mapH * 1.1 : mapH > mapW * 1.1);
   // <image> cannot send the bearer token: the raster base path is signed by HA (10 min).
   const resolveBase = useMemo(
     () =>
@@ -533,7 +536,8 @@ function RobotPanel({
                 )}
               </p>
             </div>
-            {vector?.available && vector.map.path.length > 0 && (
+            {/* At least two path points: a single point has nothing to show or hide. */}
+            {vector?.available && vector.map.path.length >= 4 && (
               <Chip
                 className="rb-chip rb-trail-toggle"
                 pressed={fullTrail}
@@ -577,6 +581,7 @@ function RobotPanel({
                     }
                     resolveBase={resolveBase}
                     trail={fullTrail ? 'full' : 'faded'}
+                    rotation={robot.rotation}
                   />
                 </VectorMapBoundary>
               ) : vector === null && robot.mapImage ? (

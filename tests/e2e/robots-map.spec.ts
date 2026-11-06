@@ -69,6 +69,100 @@ test('rastrový podklad jen s ?mapa=rastr; výchozí je vektor, trasa ztlumená 
   await expect(vmap).toHaveAttribute('data-trail', 'full');
 });
 
+// rc.20 bug: the 'Trasa' chip only flipped data-trail, the drawing stayed identical.
+const trailState = (page: Page) =>
+  page.getByTestId('robots-map-trail').evaluate((el) => ({
+    cover: el.querySelectorAll('.rv-cover').length,
+    line: Number(el.getAttribute('data-trail-line')),
+    d: (el.querySelector('[data-testid="robots-map-trail-line"]')?.getAttribute('d') ?? '').length,
+  }));
+
+test('trasa: přepínač viditelně zapíná a vypíná celou dráhu (i v doku)', async ({ page }) => {
+  await page.goto('/homebrain-roboti?robots=docked&scena=dok');
+  await expect(page.getByTestId('robots-map-robot')).toHaveAttribute('data-docked', 'true');
+  const chip = page.getByTestId('robots-trail-toggle');
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  // OFF + parked: no historical trail at all.
+  await expect.poll(() => trailState(page)).toEqual({ cover: 0, line: 0, d: 0 });
+  await chip.click();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  // ON: whole last run = swept area + a long route line.
+  await expect(page.getByTestId('robots-map-cover')).toBeVisible();
+  const on = await trailState(page);
+  expect(on.cover).toBe(1);
+  expect(on.line).toBeGreaterThan(8);
+  expect(on.d).toBeGreaterThan(200);
+  // The choice survives a reload (localStorage), and OFF again removes the drawing.
+  await page.reload();
+  await expect(page.getByTestId('robots-map-cover')).toBeVisible();
+  await page.getByTestId('robots-trail-toggle').click();
+  await expect(page.getByTestId('robots-map-cover')).toHaveCount(0);
+  await expect.poll(async () => (await trailState(page)).d).toBe(0);
+});
+
+test('trasa vypnutá při úklidu: jen krátký mizející konec za robotem', async ({ page }) => {
+  await page.goto('/homebrain-roboti?scena=kuchyne');
+  await expect(page.getByTestId('robots-map-robot')).toHaveAttribute('data-tone', 'cleaning');
+  await expect(page.getByTestId('robots-map-cover')).toHaveCount(0);
+  const off = await trailState(page);
+  expect(off.line).toBeGreaterThan(0);
+  expect(off.line).toBeLessThanOrEqual(8);
+  await page.getByTestId('robots-trail-toggle').click();
+  await expect(page.getByTestId('robots-map-cover')).toBeVisible();
+  const on = await trailState(page);
+  expect(on.line).toBeGreaterThan(off.line);
+  expect(on.d).toBeGreaterThan(off.d);
+});
+
+test('otočení mapy o 90°: rozměry prohozené, popisky rovně, klik vybere správnou místnost', async ({
+  page,
+}) => {
+  const ratio = () =>
+    page.getByTestId('robots-vector-map').evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return box.width / box.height;
+    });
+  await page.goto('/homebrain-roboti');
+  await expect(page.getByTestId('robots-vector-map')).toBeVisible();
+  const r0 = await ratio();
+  await page.goto('/homebrain-roboti?otoceni=90');
+  const map = page.getByTestId('robots-vector-map');
+  await expect(map).toHaveAttribute('data-rotation', '90');
+  await expect(map.locator('.rv-room')).toHaveCount(8);
+  expect(await ratio()).toBeCloseTo(1 / r0, 1);
+  // Labels stay upright (no rotation in their transform) and inside their own room.
+  const labels = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('.rv-label:not([data-hidden])')).map(
+      (label) => {
+        // elementsFromPoint only sees the viewport (phones scroll the map).
+        label.scrollIntoView({ block: 'center' });
+        const m = new DOMMatrix(getComputedStyle(label).transform);
+        const box = label.getBoundingClientRect();
+        const hit = document
+          .elementsFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+          .find((el) => el.classList.contains('rv-room'));
+        return {
+          id: label.dataset.rvLabel,
+          upright: Math.abs(m.b) < 1e-6 && Math.abs(m.c) < 1e-6 && m.a > 0,
+          room: hit?.getAttribute('data-testid'),
+        };
+      },
+    ),
+  );
+  expect(labels.length).toBeGreaterThan(3);
+  for (const label of labels) {
+    expect(label.upright).toBe(true);
+    expect(label.room).toBe(`robots-map-room-${label.id}`);
+  }
+  // Clicking where the 'Jídelna' label sits selects Jídelna (hit areas rotate with the plan).
+  await map.locator('[data-rv-label="3"]').scrollIntoViewIfNeeded();
+  const box = await map.locator('[data-rv-label="3"]').boundingBox();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await expect(page.getByTestId('robots-room-3')).toContainText('1');
+  await expect(page.getByTestId('robots-map-room-3')).toHaveAttribute('data-selected', 'true');
+});
+
 test('robot se mezi aktualizacemi plynule posouvá po dráze', async ({ page }) => {
   await page.goto('/homebrain-roboti?mapapoll=2000');
   await expect(page.getByTestId('robots-map-robot')).toBeVisible();

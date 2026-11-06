@@ -120,7 +120,8 @@ function rasterBase(value: unknown): RasterBase | null {
   return { bounds: [x0!, y0!, x1!, y1!], path };
 }
 
-/** Rectangle of the raster base layer in view coordinates (y flipped like everything else). */
+/** Rectangle of the raster base layer in UNROTATED view coordinates (y flipped like everything
+ * else); draw it inside `<g transform={rotationTransform(frame)}>`. */
 export function rasterRect(f: Frame, base: RasterBase) {
   const [x0, y0, x1, y1] = base.bounds;
   return { x: x0 - f.minX, y: f.maxY - y1, width: x1 - x0, height: y1 - y0 };
@@ -132,14 +133,28 @@ export function toRing(flat: number[]): Ring {
   return ring;
 }
 
-/** View frame: crop to the drawn floor (+padding), flip y (map y grows up, SVG y down). */
+/** Map rotation (clockwise, degrees) set per robot: the vendor app rotation is not in the map data. */
+export type MapRotation = 0 | 90 | 180 | 270;
+export function normRotation(value: unknown): MapRotation {
+  const n = Number(value);
+  return n === 90 || n === 180 || n === 270 ? n : 0;
+}
+
+/**
+ * View frame: crop to the drawn floor (+padding), flip y (map y grows up, SVG y down), then
+ * rotate clockwise by `rot`. `width`/`height` are the ROTATED view size (swapped for 90/270),
+ * `w0`/`h0` the unrotated one (raster base rectangle space).
+ */
 export interface Frame {
   minX: number;
   maxY: number;
   width: number;
   height: number;
+  w0: number;
+  h0: number;
+  rot: MapRotation;
 }
-export function frameFor(map: VectorMap, pad = 120): Frame {
+export function frameFor(map: VectorMap, pad = 120, rotation: MapRotation = 0): Frame {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -155,17 +170,41 @@ export function frameFor(map: VectorMap, pad = 120): Frame {
   (map.floor.length ? map.floor : map.rooms.flatMap((r) => r.polygons)).forEach(take);
   for (const p of [map.dock, map.robot]) if (p) take([p.x, p.y]);
   if (!Number.isFinite(minX)) [minX, minY, maxX, maxY] = map.bounds;
+  const w0 = maxX - minX + 2 * pad;
+  const h0 = maxY - minY + 2 * pad;
+  const swap = rotation === 90 || rotation === 270;
   return {
     minX: minX - pad,
     maxY: maxY + pad,
-    width: maxX - minX + 2 * pad,
-    height: maxY - minY + 2 * pad,
+    width: swap ? h0 : w0,
+    height: swap ? w0 : h0,
+    w0,
+    h0,
+    rot: rotation,
   };
 }
-export const toView = (f: Frame, x: number, y: number): [number, number] => [
-  x - f.minX,
-  f.maxY - y,
-];
+/** Unrotated view point → rotated view point (clockwise quarter turns). */
+export function rotatePoint(f: Frame, ux: number, uy: number): [number, number] {
+  switch (f.rot) {
+    case 90:
+      return [f.h0 - uy, ux];
+    case 180:
+      return [f.w0 - ux, f.h0 - uy];
+    case 270:
+      return [uy, f.w0 - ux];
+    default:
+      return [ux, uy];
+  }
+}
+/** SVG transform that maps the unrotated view space onto the rotated one (raster base). */
+export function rotationTransform(f: Frame): string | undefined {
+  if (f.rot === 90) return `translate(${f.h0} 0) rotate(90)`;
+  if (f.rot === 180) return `translate(${f.w0} ${f.h0}) rotate(180)`;
+  if (f.rot === 270) return `translate(0 ${f.w0}) rotate(270)`;
+  return undefined;
+}
+export const toView = (f: Frame, x: number, y: number): [number, number] =>
+  rotatePoint(f, x - f.minX, f.maxY - y);
 export const viewRing = (f: Frame, flat: number[]): Ring =>
   toRing(flat).map(([x, y]) => toView(f, x, y));
 

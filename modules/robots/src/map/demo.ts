@@ -326,8 +326,9 @@ export function demoVectorMap(
   let robot: P;
   let path: P[];
   if (scene === 'dok' && !plan.parked) {
+    // Back on the dock after a run: the robot still reports the last run's path.
     robot = plan.dock;
-    path = [];
+    path = plan.route;
   } else if (plan.parked) {
     robot = plan.parked;
     path = plan.route;

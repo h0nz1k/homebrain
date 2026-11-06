@@ -299,29 +299,35 @@ demoHass.states['sun.sun'] = {
   last_updated: now.toISOString(),
   attributes: { next_rising: nextAt(6, 56), next_setting: nextAt(16, 47) },
 };
+function robotsGet(): { robots: (typeof robotsDemo.ws.robots)[number][] } {
+  const rooms = (globalThis as { __HB_ROBOT_ROOMS__?: { id: number; name: string }[] })
+    .__HB_ROBOT_ROOMS__;
+  // `?photos=a,b,c`: robot N uses the photo set `/local/homebrain/robots/<name N>/` (dev server
+  // serves a local folder via HB_ROBOT_PHOTOS_DIR; e2e routes synthetic images).
+  const photos = new URLSearchParams(location.search).get('photos')?.split(',') ?? [];
+  if (photos.length && !rooms)
+    return {
+      robots: robotsDemo.ws.robots.map((r, i) =>
+        photos[i] ? { ...r, image: `/local/homebrain/robots/${photos[i]}/` } : r,
+      ),
+    };
+  if (!rooms) return robotsDemo.ws;
+  return {
+    robots: robotsDemo.ws.robots.map((r, i) =>
+      i === 0 ? { ...r, maps: r.maps.map((m) => ({ ...m, rooms })) } : r,
+    ),
+  };
+}
 demoHass.connection = createMockConnection({
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).
   'homebrain/weather/get': () => buildMockSnapshot(scenarioFromUrl(location.search)),
   'energy/solar_forecast': pvDemo.ha,
   // `window.__HB_ROBOT_ROOMS__` (local shot script): placeholder room names for robot 1.
+  // `?otoceni=90|180|270`: robot 1 map rotated like the per-robot option.
   'homebrain/robots/get': () => {
-    const rooms = (globalThis as { __HB_ROBOT_ROOMS__?: { id: number; name: string }[] })
-      .__HB_ROBOT_ROOMS__;
-    // `?photos=a,b,c`: robot N uses the photo set `/local/homebrain/robots/<name N>/` (dev server
-    // serves a local folder via HB_ROBOT_PHOTOS_DIR; e2e routes synthetic images).
-    const photos = new URLSearchParams(location.search).get('photos')?.split(',') ?? [];
-    if (photos.length && !rooms)
-      return {
-        robots: robotsDemo.ws.robots.map((r, i) =>
-          photos[i] ? { ...r, image: `/local/homebrain/robots/${photos[i]}/` } : r,
-        ),
-      };
-    if (!rooms) return robotsDemo.ws;
-    return {
-      robots: robotsDemo.ws.robots.map((r, i) =>
-        i === 0 ? { ...r, maps: r.maps.map((m) => ({ ...m, rooms })) } : r,
-      ),
-    };
+    const rot = Number(new URLSearchParams(location.search).get('otoceni')) || 0;
+    const ws = robotsGet();
+    return rot ? { robots: ws.robots.map((r, i) => (i === 0 ? { ...r, rotation: rot } : r)) } : ws;
   },
   // Invented vector plans; robot 1 advances one step per `?mapapoll` tick, robot 3 = PNG fallback.
   // `window.__HB_ROBOT_MAP__` (set by a local shot script) renders a locally parsed plan.

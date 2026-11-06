@@ -37,6 +37,8 @@ ROBOT_KEY_DOMAINS: Final[dict[str, str | tuple[str, ...]]] = {
     "selected_map": "select",
     "map_image": "image",
 }
+# Clockwise map rotation per robot (the vendor app rotation is not part of the map data).
+ROTATIONS: Final = (0, 90, 180, 270)
 MAX_TEXT: Final = 40
 MAX_IMAGE: Final = 300
 
@@ -73,7 +75,16 @@ def clean_text(value: Any, default: str = "") -> str:
     return text or default
 
 
-def slot_settings(options: Mapping[str, Any], slot: int) -> dict[str, str]:
+def clean_rotation(value: Any) -> int:
+    """Map rotation in degrees (0/90/180/270); anything else falls back to 0."""
+    try:
+        rotation = int(str(value).strip())
+    except (TypeError, ValueError):
+        return 0
+    return rotation if rotation in ROTATIONS else 0
+
+
+def slot_settings(options: Mapping[str, Any], slot: int) -> dict[str, Any]:
     """Validated display settings of a slot (missing values fall back to defaults)."""
     raw = options.get(CONF_ROBOTS)
     values = raw.get(str(slot)) if isinstance(raw, Mapping) else None
@@ -83,4 +94,5 @@ def slot_settings(options: Mapping[str, Any], slot: int) -> dict[str, str]:
         "name": clean_text(values.get("name"), f"Robot {slot}"),
         "floor": clean_text(values.get("floor"), DEFAULT_FLOORS[slot]),
         "image": image if isinstance(image, str) and valid_image(image) else "",
+        "rotation": clean_rotation(values.get("rotation", 0)),
     }

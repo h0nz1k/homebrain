@@ -63,20 +63,31 @@ def test_slot_keys_and_bindings_domains():
 
 
 def test_slot_settings_defaults_and_validation():
-    assert slot_settings({}, 1) == {"name": "Robot 1", "floor": "Přízemí", "image": ""}
+    assert slot_settings({}, 1) == {
+        "name": "Robot 1",
+        "floor": "Přízemí",
+        "image": "",
+        "rotation": 0,
+    }
     options = {
         "robots": {
-            "2": {"name": "  Alfa  ", "floor": "3. patro", "image": "/local/roboti/alfa.png"},
-            "3": {"name": "x" * 99, "image": "javascript:alert(1)"},
+            "2": {
+                "name": "  Alfa  ",
+                "floor": "3. patro",
+                "image": "/local/roboti/alfa.png",
+                "rotation": "90",
+            },
+            "3": {"name": "x" * 99, "image": "javascript:alert(1)", "rotation": 45},
         }
     }
     assert slot_settings(options, 2) == {
         "name": "Alfa",
         "floor": "3. patro",
         "image": "/local/roboti/alfa.png",
+        "rotation": 90,
     }
     third = slot_settings(options, 3)
-    assert len(third["name"]) == 40 and third["image"] == ""
+    assert len(third["name"]) == 40 and third["image"] == "" and third["rotation"] == 0
     assert valid_image("https://example.com/robot.webp")
     assert not valid_image("http://example.com/robot.webp")
     assert not valid_image("/local/../secrets.yaml")
@@ -190,8 +201,31 @@ async def test_options_flow_robot_step(hass: HomeAssistant):
         "name": "Alfa",
         "floor": "Přízemí",
         "image": "/local/roboti/alfa.png",
+        "rotation": 0,
     }
     assert entry.options["bindings"]["robots"] == {
         "robot1_vacuum": "vacuum.robot_a",
         "robot1_battery": "sensor.robot_a_battery",
     }
+
+
+async def test_options_flow_robot_rotation(hass: HomeAssistant):
+    """Per-robot map rotation: offered with the stored value, saved as int, other keys kept."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={"robots": {"2": {"name": "Beta", "floor": "1. patro", "image": ""}}},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "robots_2"}
+    )
+    rotation = next(key for key in result["data_schema"].schema if key == "rotation")
+    assert rotation.default() == "0"
+    done = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"name": "Beta", "floor": "1. patro", "rotation": "270"}
+    )
+    assert done["type"] == "create_entry"
+    assert entry.options["robots"]["2"]["rotation"] == 270
+    assert slot_settings(entry.options, 2)["rotation"] == 270
+    assert entry.options["robots"]["2"]["name"] == "Beta"

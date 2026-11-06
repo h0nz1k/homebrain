@@ -415,8 +415,8 @@ export const robotsStyles = `
 .rv-wall-line { fill: none; stroke: var(--rv-wall-line); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .rv .rv-wall-line.rv-seam { stroke: var(--rv-seam); }
 /* Route history is context, not content: only the recent stretch unless "Trasa" is on. */
-.rv[data-trail='faded'] .rv-cover { opacity: .55; }
-.rv[data-trail='faded'] .rv-trail:not(.rv-trail-recent) { opacity: 1; }
+/* Trail chip ON: the whole run as a calm line over the swept area (OFF draws only the tail). */
+.rv-trail.rv-trail-line { stroke-opacity: .7; stroke-width: 1.5px; }
 .rv-trail.rv-trail-tail { stroke-opacity: 1; stroke-width: 3px; }
 .rv-divider { fill: none; stroke: var(--rv-divider); stroke-width: 1px; vector-effect: non-scaling-stroke; stroke-linecap: round; pointer-events: none; }
 .rv-callout {

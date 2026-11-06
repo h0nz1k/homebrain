@@ -8,6 +8,7 @@ import {
 import { describeError, type ErrorAdvice } from './errors.js';
 import { describeStatus, type RobotStatus } from './status.js';
 import { activeMap, type RobotMap, type Room } from './rooms.js';
+import { normRotation, type MapRotation } from './map/geometry.js';
 import {
   fanChoices,
   modeFromOption,
@@ -24,6 +25,8 @@ export interface RobotMeta {
   name: string;
   floor: string;
   image: string;
+  /** Clockwise map rotation in degrees (0/90/180/270; older backends omit it). */
+  rotation?: number;
   vacuum: string;
   maps: RobotMap[];
   maps_error: string | null;
@@ -42,6 +45,8 @@ export interface RobotModel {
   name: string;
   floor: string;
   image: string;
+  /** Clockwise map rotation (per-robot option). */
+  rotation: MapRotation;
   vacuum: string;
   available: boolean;
   status: RobotStatus;
@@ -174,6 +179,7 @@ export function buildRobot(
         : `Robot ${slot}`),
     floor: meta?.floor || '',
     image: meta?.image ?? '',
+    rotation: normRotation(meta?.rotation),
     vacuum: vacuumId,
     available,
     status,

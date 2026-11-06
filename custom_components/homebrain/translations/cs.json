@@ -138,6 +138,7 @@
           "name": "Jméno v HomeBrainu",
           "floor": "Patro (např. Přízemí)",
           "image": "Obrázek robota (/local/… nebo https URL; nepovinné)",
+          "rotation": "Otočení mapy (po směru hodin, jako v aplikaci Roborock)",
           "robot1_vacuum": "Robotický vysavač",
           "robot1_status": "Senzor stavu",
           "robot1_error": "Senzor chyby robota",
@@ -169,6 +170,7 @@
           "name": "Jméno v HomeBrainu",
           "floor": "Patro (např. Přízemí)",
           "image": "Obrázek robota (/local/… nebo https URL; nepovinné)",
+          "rotation": "Otočení mapy (po směru hodin, jako v aplikaci Roborock)",
           "robot2_vacuum": "Robotický vysavač",
           "robot2_status": "Senzor stavu",
           "robot2_error": "Senzor chyby robota",
@@ -200,6 +202,7 @@
           "name": "Jméno v HomeBrainu",
           "floor": "Patro (např. Přízemí)",
           "image": "Obrázek robota (/local/… nebo https URL; nepovinné)",
+          "rotation": "Otočení mapy (po směru hodin, jako v aplikaci Roborock)",
           "robot3_vacuum": "Robotický vysavač",
           "robot3_status": "Senzor stavu",
           "robot3_error": "Senzor chyby robota",
@@ -241,6 +244,16 @@
     "error": {
       "invalid_entity_id": "Zadejte platné ID entity.",
       "invalid_image": "Zadejte cestu /local/… nebo https URL."
+    }
+  },
+  "selector": {
+    "map_rotation": {
+      "options": {
+        "0": "0° (jak ji posílá robot)",
+        "90": "90° po směru hodin",
+        "180": "180°",
+        "270": "270° (90° proti směru hodin)"
+      }
     }
   }
 }
