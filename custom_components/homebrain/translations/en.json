@@ -134,7 +134,7 @@
       },
       "robots_1": {
         "title": "Robot 1",
-        "description": "Robot 1 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps).",
+        "description": "Robot 1 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps). After you pick the vacuum, empty fields are prefilled from entities of the same HA device (and its dock); filled bindings are never overwritten. Floor from the HA area: {ha_floor} (the Floor field is only used when the vacuum has no area with a floor).",
         "data": {
           "name": "Name shown in HomeBrain",
           "floor": "Floor (e.g. Ground floor)",
@@ -166,7 +166,7 @@
       },
       "robots_2": {
         "title": "Robot 2",
-        "description": "Robot 2 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps).",
+        "description": "Robot 2 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps). After you pick the vacuum, empty fields are prefilled from entities of the same HA device (and its dock); filled bindings are never overwritten. Floor from the HA area: {ha_floor} (the Floor field is only used when the vacuum has no area with a floor).",
         "data": {
           "name": "Name shown in HomeBrain",
           "floor": "Floor (e.g. Ground floor)",
@@ -198,7 +198,7 @@
       },
       "robots_3": {
         "title": "Robot 3",
-        "description": "Robot 3 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps).",
+        "description": "Robot 3 for the Roboti module. Pick its Roborock entities; clear a field to remove the binding. HomeBrain only reads the room list (roborock.get_maps). After you pick the vacuum, empty fields are prefilled from entities of the same HA device (and its dock); filled bindings are never overwritten. Floor from the HA area: {ha_floor} (the Floor field is only used when the vacuum has no area with a floor).",
         "data": {
           "name": "Name shown in HomeBrain",
           "floor": "Floor (e.g. Ground floor)",

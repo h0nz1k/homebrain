@@ -22,6 +22,7 @@ from .robots.config import (
     slot_settings,
     valid_image,
 )
+from .robots.discovery import discover_bindings, discover_floor, missing_bindings
 
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
 # Extra menu steps that are not entity bindings.
@@ -54,6 +55,10 @@ class HomeBrainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class HomeBrainOptionsFlow(config_entries.OptionsFlow):
     """Configure module entity bindings, one step per module."""
+
+    def __init__(self) -> None:
+        """Remember per robot slot which vacuum was already offered its discovered entities."""
+        self._prefilled: dict[int, str] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Choose which module bindings to edit."""
@@ -166,20 +171,33 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
         bindings = get_bindings(self.config_entry)
         values = bindings.setdefault("robots", {})
         current = slot_settings(self.config_entry.options, slot)
+        vacuum_key = f"robot{slot}_vacuum"
+        prefilled = self._prefilled
         errors: dict[str, str] = {}
+        shown = dict(values)
         if user_input is not None:
             image = (user_input.get("image") or "").strip()
             if image and not valid_image(image):
                 errors["image"] = "invalid_image"
+            chosen: dict[str, str] = {}
             try:
                 for key in slot_keys(slot):
                     if value := user_input.get(key):
-                        values[key] = validate_binding(key, value)
-                    else:
-                        values.pop(key, None)
+                        chosen[key] = validate_binding(key, value)
             except vol.Invalid:
                 errors["base"] = "invalid_entity_id"
-            if not errors:
+            vacuum = chosen.get(vacuum_key, "")
+            extra: dict[str, str] = {}
+            if not errors and vacuum and prefilled.get(slot) != vacuum:
+                # A newly picked vacuum: show the form once more with its device's entities.
+                prefilled[slot] = vacuum
+                extra = missing_bindings(chosen, slot, discover_bindings(self.hass, vacuum))
+            if not errors and not extra:
+                for key in slot_keys(slot):
+                    if key in chosen:
+                        values[key] = chosen[key]
+                    else:
+                        values.pop(key, None)
                 robots = dict(self.config_entry.options.get(CONF_ROBOTS) or {})
                 robots[str(slot)] = {
                     "name": clean_text(user_input.get("name")),
@@ -189,11 +207,25 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 }
                 options = {**self.config_entry.options, "bindings": bindings, CONF_ROBOTS: robots}
                 return self.async_create_entry(title="", data=options)
+            if extra:
+                shown = {**chosen, **extra}
+                current = {
+                    "name": clean_text(user_input.get("name")),
+                    "floor": clean_text(user_input.get("floor")),
+                    "image": image,
+                    "rotation": clean_rotation(user_input.get("rotation", 0)),
+                }
+        elif vacuum := values.get(vacuum_key):
+            prefilled[slot] = vacuum
+            shown |= missing_bindings(values, slot, discover_bindings(self.hass, vacuum))
+        # HA area -> floor of the vacuum's device wins; the text field is the fallback.
+        ha_floor = discover_floor(self.hass, shown.get(vacuum_key, ""))
+        floor = ha_floor or current["floor"]
         text = selector.TextSelector()
         schema = vol.Schema(
             {
                 vol.Optional("name", description={"suggested_value": current["name"]}): text,
-                vol.Optional("floor", description={"suggested_value": current["floor"]}): text,
+                vol.Optional("floor", description={"suggested_value": floor}): text,
                 vol.Optional("image", description={"suggested_value": current["image"]}): text,
                 vol.Optional("rotation", default=str(current["rotation"])): selector.SelectSelector(
                     selector.SelectSelectorConfig(
@@ -203,7 +235,7 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                     )
                 ),
                 **{
-                    vol.Optional(key, description={"suggested_value": values.get(key)}): (
+                    vol.Optional(key, description={"suggested_value": shown.get(key)}): (
                         selector.EntitySelector(
                             selector.EntitySelectorConfig(domain=list(binding_domains(key)))
                         )
@@ -212,7 +244,12 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 },
             }
         )
-        return self.async_show_form(step_id=f"robots_{slot}", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id=f"robots_{slot}",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"ha_floor": ha_floor or "–"},
+        )
 
     def _bindings_step(self, module: str, user_input: dict[str, Any] | None) -> FlowResult:
         bindings = get_bindings(self.config_entry)

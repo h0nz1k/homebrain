@@ -1,0 +1,360 @@
+{
+ "model": "roborock.vacuum.a144",
+ "vacuum": "vacuum.robot_b",
+ "floor": {
+  "name": "1. patro",
+  "level": 1
+ },
+ "entities": [
+  {
+   "device": "main",
+   "entity_id": "binary_sensor.robot_b_mop_je_pripojen",
+   "translation_key": "mop_attached",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "binary_sensor.robot_b_zasobnik_na_vodu_je_pripojen",
+   "translation_key": "water_box_attached",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "binary_sensor.robot_b_nedostatek_vody",
+   "translation_key": "water_shortage",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "binary_sensor.robot_b_uklid",
+   "translation_key": "in_cleaning",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "binary_sensor.robot_b_nabijeni",
+   "translation_key": null,
+   "original_device_class": "battery_charging",
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "button.robot_b_resetovat_senzor",
+   "translation_key": "reset_sensor_consumable",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "button.robot_b_resetovat_vzduchovy_filtr",
+   "translation_key": "reset_air_filter_consumable",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "button.robot_b_resetovat_bocni_kartac",
+   "translation_key": "reset_side_brush_consumable",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "button.robot_b_resetovat_hlavni_kartac",
+   "translation_key": "reset_main_brush_consumable",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "image.robot_b_map_0",
+   "translation_key": null,
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "number.robot_b_hlasitost",
+   "translation_key": "volume",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "select.robot_b_intenzita_mopovani",
+   "translation_key": "mop_intensity",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "select.robot_b_rezim_mopovani",
+   "translation_key": "mop_mode",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "select.robot_b_rezim_uklidu",
+   "translation_key": "cleaning_mode",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "select.robot_b_vybrana_mapa",
+   "translation_key": "selected_map",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_zbyvajici_cas_hlavniho_kartace",
+   "translation_key": "main_brush_time_left",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_zbyvajici_cas_bocniho_kartace",
+   "translation_key": "side_brush_time_left",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_zbyvajici_cas_filtru",
+   "translation_key": "filter_time_left",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_zbyvajici_cas_senzoru",
+   "translation_key": "sensor_time_left",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_cas_uklidu",
+   "translation_key": "cleaning_time",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_celkovy_cas_uklidu",
+   "translation_key": "total_cleaning_time",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_celkovy_pocet_uklidu",
+   "translation_key": "total_cleaning_count",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_stav",
+   "translation_key": "status",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_uklizena_oblast",
+   "translation_key": "cleaning_area",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_celkova_uklizena_oblast",
+   "translation_key": "total_cleaning_area",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_chyba_vysavace",
+   "translation_key": "vacuum_error",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_baterie",
+   "translation_key": null,
+   "original_device_class": "battery",
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_zacatek_posledniho_uklidu",
+   "translation_key": "last_clean_start",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_konec_posledniho_uklidu",
+   "translation_key": "last_clean_end",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_prubeh_uklidu",
+   "translation_key": "clean_percent",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "sensor.robot_b_aktualni_mistnost",
+   "translation_key": "current_room",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "switch.robot_b_nerusit",
+   "translation_key": "dnd_switch",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "switch.robot_b_nabijeni_mimo_spicku",
+   "translation_key": "off_peak_switch",
+   "original_device_class": null,
+   "disabled": true
+  },
+  {
+   "device": "main",
+   "entity_id": "time.robot_b_zacatek_rezimu_nerusit",
+   "translation_key": "dnd_start_time",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "time.robot_b_konec_rezimu_nerusit",
+   "translation_key": "dnd_end_time",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "main",
+   "entity_id": "time.robot_b_zacatek_mimo_spicku",
+   "translation_key": "off_peak_start",
+   "original_device_class": null,
+   "disabled": true
+  },
+  {
+   "device": "main",
+   "entity_id": "time.robot_b_konec_mimo_spicku",
+   "translation_key": "off_peak_end",
+   "original_device_class": null,
+   "disabled": true
+  },
+  {
+   "device": "main",
+   "entity_id": "vacuum.robot_b",
+   "translation_key": "roborock",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "binary_sensor.robot_b_dock_nadoba_na_spinavou_vodu",
+   "translation_key": "dirty_box_full",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "binary_sensor.robot_b_dock_nadoba_na_cistou_vodu",
+   "translation_key": "clean_box_empty",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "binary_sensor.robot_b_dock_cistici_kapalina",
+   "translation_key": "clean_fluid_empty",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "button.robot_b_dock_resetovat_sitko",
+   "translation_key": "reset_dock_strainer_consumable",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "select.robot_b_dock_rezim_vyprazdnovani",
+   "translation_key": "dust_collection_mode",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "sensor.robot_b_dock_zbyvajici_doba_sitka",
+   "translation_key": "strainer_time_left",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "sensor.robot_b_dock_chyba_doku",
+   "translation_key": "dock_error",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "sensor.robot_b_dock_zbyvajici_cas_vyschnuti_mopu",
+   "translation_key": "mop_drying_remaining_time",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "switch.robot_b_dock_detsky_zamek",
+   "translation_key": "child_lock",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "switch.robot_b_dock_vysypavani_prachu",
+   "translation_key": "dust_emptying",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "switch.robot_b_dock_mop_se_pere",
+   "translation_key": "mop_washing",
+   "original_device_class": null,
+   "disabled": false
+  },
+  {
+   "device": "dock",
+   "entity_id": "switch.robot_b_dock_mop_schne",
+   "translation_key": "mop_drying",
+   "original_device_class": null,
+   "disabled": false
+  }
+ ]
+}
