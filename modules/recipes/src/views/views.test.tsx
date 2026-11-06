@@ -4,6 +4,9 @@ import { createMockRecipesApi, type RecipesApi } from '../api.js';
 import { AirfryerStep, MusicBar } from './parts.js';
 import { AddRecipe, parseIngredientLine, detectSeconds } from './AddRecipe.js';
 import { parseRoute } from './RecipesView.js';
+import { FryerLiveCard } from './FryerLive.js';
+import { fryerDemoStates } from '../mock.js';
+import { createEntityStore } from '@homebrain/ha-client';
 import type { RecipesConfig } from '../types.js';
 
 afterEach(cleanup);
@@ -196,5 +199,23 @@ describe('form helpers + routes', () => {
     expect(parseRoute('/abc')).toEqual({ view: 'detail', id: 'abc' });
     expect(parseRoute('/abc/varit/3')).toEqual({ view: 'cook', id: 'abc', step: 2 });
     expect(parseRoute('/abc/upravit')).toEqual({ view: 'edit', id: 'abc' });
+  });
+});
+
+describe('live fryer card', () => {
+  it('renders nothing for an idle fryer and survives cooking → off without a render loop', () => {
+    const now = new Date('2026-06-02T18:00:00+02:00');
+    const store = createEntityStore();
+    store.update(fryerDemoStates('off', now));
+    const api = createMockRecipesApi(undefined, { airfryer: true });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<FryerLiveCard api={api} store={store} />);
+    expect(screen.queryByTestId('recipes-fryer-live')).toBeNull();
+    act(() => store.update(fryerDemoStates('cooking', now)));
+    expect(screen.getByTestId('recipes-fryer-live')).toBeTruthy();
+    act(() => store.update(fryerDemoStates('off', now)));
+    expect(screen.queryByTestId('recipes-fryer-live')).toBeNull();
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });

@@ -8,6 +8,7 @@ import {
   fryerPhase,
   fryerProgramLine,
   fryerRemaining,
+  fryerTimeline,
   fryerVisible,
   type FryerStates,
 } from './fryerLive.js';
@@ -113,9 +114,12 @@ describe('fryer countdown', () => {
     const m = fryerModel(states, t0);
     expect(m).toMatchObject({ phase: 'cooking', label: 'Peče', remainingS: 570 });
     expect(m.progress).toBeCloseTo(0.5, 5);
-    expect(fryerProgramLine(m)).toBe('AutoCook 14 · fáze 2');
+    expect(fryerProgramLine(m)).toBe('AutoCook 14');
     expect(fryerModel({ ...states, status: st('finish') }, t0).progress).toBe(1);
-    expect(fryerModel({ ...states, error: st('3') }, t0).label).toBe('Chyba 3');
+    expect(fryerModel({ ...states, error: st('3') }, t0)).toMatchObject({
+      label: 'Fritéza hlásí chybu',
+      errorCode: 3,
+    });
   });
 });
 
@@ -136,6 +140,7 @@ describe('fryer Dnes signal', () => {
       now,
     );
     expect(cook).toMatchObject({ severity: 'notice', value: { v: '2:05', label: 'do konce' } });
+    expect(cook!.action).toMatchObject({ label: 'Detail fritézy' });
     expect(cook!.immediate).toBeUndefined();
   });
   it('feeds Dnes from the entity store and follows updates', () => {
@@ -153,5 +158,51 @@ describe('fryer Dnes signal', () => {
     off();
     expect(seen).toEqual([[], ['Fritéza · Hotovo']]);
     expect(recipesFryerTodaySignalSource({})).toBeNull();
+  });
+});
+
+describe('fryer timeline', () => {
+  it('keeps the same three steps for the whole cook', () => {
+    const titles = (steps: Array<{ title: string; state: string }>) =>
+      steps.map((s) => `${s.title}:${s.state}`);
+    expect(titles(fryerTimeline('preheat'))).toEqual([
+      'Ohřev:active',
+      'Pečení:todo',
+      'Hotovo:todo',
+    ]);
+    for (const phase of ['cooking', 'action', 'drawer', 'paused'] as const) {
+      expect(titles(fryerTimeline(phase))).toEqual(['Ohřev:done', 'Pečení:active', 'Hotovo:todo']);
+    }
+    expect(fryerTimeline('cooking', 0.4)[1]!.progress).toBe(0.4);
+    expect(fryerTimeline('preheat', 0.4).some((s) => s.progress !== undefined)).toBe(false);
+    expect(fryerTimeline('done').every((s) => s.state === 'done')).toBe(true);
+    expect(fryerTimeline('warm').every((s) => s.state === 'done')).toBe(true);
+    expect(titles(fryerTimeline('error'))).toEqual(['Ohřev:done', 'Pečení:error', 'Hotovo:todo']);
+  });
+  it('keeps a stopped countdown secondary on Dnes and names the program', () => {
+    const now = Date.parse('2026-06-02T17:07:00Z');
+    const states = {
+      status: st('user_action'),
+      drawer: st('off'),
+      remaining: st('522'),
+      total: st('19'),
+      program: st('14'),
+      method: st('auto_cook'),
+    };
+    const [held] = fryerSignals(fryerModel(states, now), now);
+    expect(held!.value).toMatchObject({ v: '8:42', label: 'stojí, zbývá', held: true });
+    // An error is not a running countdown: no ring/time on the Dnes card.
+    const [err] = fryerSignals(fryerModel({ ...states, error: st('3') }, now), now);
+    expect(err!.title).toBe('Fritéza · Chyba 3');
+    expect(err!.value).toBeUndefined();
+    const cooking = fryerModel({ ...states, status: st('cooking') }, now);
+    expect(fryerProgramLine(cooking)).toBe('AutoCook 14');
+    expect(fryerProgramLine(cooking, 'Demo hranolky')).toBe('Demo hranolky');
+    expect(fryerModel({ ...states, amount: st('3') }, now).amount).toBe(3);
+    expect(fryerModel({ ...states, method: st('manual'), amount: st('3') }, now).amount).toBeNull();
+    expect(fryerControls('error')).toEqual(['stop']);
+    const [cook] = fryerSignals(cooking, now, 'Demo hranolky');
+    expect(cook!.context).toContain('Demo hranolky');
+    expect(cook!.value?.progress).toBeCloseTo(1 - 522 / (19 * 60), 3);
   });
 });

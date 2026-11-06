@@ -225,14 +225,13 @@
   outline: 2px solid var(--hb-ac);
   outline-offset: 2px;
 }
+/* Flat solid fill (no gloss gradient / inset highlight – those read as 2015 skeuomorphism). */
 .hb-btn[data-variant='primary'] {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--hb-ac) 88%, white), var(--hb-ac));
+  background: var(--hb-ac);
   color: var(--hb-on-ac);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
 }
 .hb-btn[data-variant='primary']:hover:not(:disabled) {
-  filter: brightness(1.06);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--hb-ac) 88%, white), var(--hb-ac));
+  background: color-mix(in srgb, var(--hb-ac) 90%, var(--hb-t1));
 }
 .hb-btn[data-variant='primary']:disabled:not([aria-busy='true']) {
   opacity: 1;
@@ -532,13 +531,19 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-signal-action button {
   min-height: 44px;
-  padding: var(--hb-sp-2) var(--hb-sp-4);
-  border: 1px solid var(--hb-b2);
-  border-radius: var(--hb-radius-nested);
+  padding: var(--hb-sp-2) 18px;
+  /* same tonal pill as the shared secondary Button (outlined boxes read dated) */
+  border: 1px solid transparent;
+  border-radius: var(--hb-radius-pill);
   font: inherit;
-  background: var(--hb-s3);
+  font-weight: 600;
+  background: var(--hb-fill-strong);
   color: var(--hb-t1);
   cursor: pointer;
+  transition: background-color var(--hb-dur-fast) var(--hb-ease-out);
+}
+.hb-signal-action button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-t1) 13%, transparent);
 }
 .hb-signal-action button:disabled {
   cursor: default;
@@ -1708,6 +1713,14 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 .hb-stepper[data-compact] .hb-step[data-state='active'] .hb-step-n {
   background: var(--hb-ac);
 }
+/* active segment filled by its own progress (`progress` on the step); the rest stays a track */
+.hb-stepper[data-compact] .hb-step[data-state='active'][data-progress] .hb-step-n {
+  background: linear-gradient(
+    90deg,
+    var(--hb-step-ink, var(--hb-ac)) var(--hb-step-p, 0%),
+    color-mix(in srgb, var(--hb-step-ink, var(--hb-ac)) 24%, transparent) 0
+  );
+}
 .hb-stepper[data-compact] .hb-step[data-state='error'] .hb-step-n {
   background: var(--hb-tone, var(--hb-crit));
 }
@@ -1922,4 +1935,103 @@ button.hb-tile[data-empty] .hb-tile-status {
   margin-right: 8px;
   border-radius: 50%;
   vertical-align: 1px;
+}
+
+/* ProgressRing: countdown / progress ring for live devices (airfryer, timers) and signal values. */
+.hb-ring {
+  --hb-ring-tone: var(--hb-ring-ink, var(--hb-ac));
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--hb-ring-size);
+  height: var(--hb-ring-size);
+}
+.hb-ring[data-tone='ok'] {
+  --hb-ring-tone: var(--hb-ok);
+}
+.hb-ring[data-tone='warn'] {
+  --hb-ring-tone: var(--hb-warn);
+}
+.hb-ring[data-tone='crit'] {
+  --hb-ring-tone: var(--hb-crit);
+}
+.hb-ring[data-tone='muted'] {
+  --hb-ring-tone: var(--hb-t3);
+}
+.hb-ring > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.hb-ring-track,
+.hb-ring-arc {
+  fill: none;
+}
+.hb-ring-track {
+  stroke: var(--hb-fill-strong, color-mix(in srgb, var(--hb-t1) 12%, transparent));
+}
+.hb-ring[data-held] .hb-ring-track {
+  stroke-dasharray: 2 4;
+}
+.hb-ring-arc {
+  stroke: var(--hb-ring-tone);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+.hb-ring-c {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-ring-arc {
+    transition: none !important;
+  }
+}
+/* Signal value with a countdown ring; a held (stopped) countdown stays secondary to the title. */
+.hb-signal-value[data-ring] {
+  display: flex;
+  align-items: center;
+  gap: var(--hb-sp-3);
+}
+.hb-signal-value-t {
+  display: block;
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] strong {
+  font-weight: 500;
+  color: var(--hb-t2);
+}
+
+/* Phones: the hero value (ringed or a word like „Hotovo“) gets its own row under the copy, so the
+   title keeps the full width instead of wrapping letter by letter beside it. */
+.hb-hero[data-variant='mobile'] .hb-signal-value,
+.hb-signal-compact .hb-signal-value[data-ring] {
+  flex-basis: 100%;
+  text-align: left;
+}
+.hb-hero[data-variant='mobile'] .hb-signal-value[data-ring] strong {
+  font-size: 32px;
+}
+.hb-signal-value[data-ring] .hb-signal-value-t > span {
+  display: block;
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] .hb-signal-value-t {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hb-sp-2);
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] strong {
+  font-size: var(--hb-font-lg);
+}
+.hb-signal.hb-signal .hb-signal-value[data-held] .hb-signal-value-t > span {
+  font-size: var(--hb-font-body);
+  color: var(--hb-t2);
 }

@@ -1,10 +1,13 @@
-import type { EntityStore } from '@homebrain/ha-client';
+import type { ConnectionLike, EntityStore } from '@homebrain/ha-client';
+import { getRecipesApi } from './api.js';
+import { cachedProgramName, resolveProgramName } from './fryerProgram.js';
 import type { Signal } from '@homebrain/signals';
 import {
   detectFryerEntities,
   formatCountdown,
   fryerModel,
   fryerNeedsAction,
+  fryerProgramLine,
   fryerVisible,
   type FryerEntities,
   type FryerModel,
@@ -32,12 +35,36 @@ export function readFryerStates(
   return out;
 }
 
+/** One short instruction per phase – the same copy in Recepty and on Dnes (vykání). */
+export const FRYER_HINT: Partial<Record<FryerModel['phase'], string>> = {
+  action:
+    'Vytáhněte koš, protřepejte nebo otočte jídlo a koš zasuňte zpět. Pečení pak samo naváže.',
+  drawer: 'Po protřepání koš zasuňte, fritéza sama naváže.',
+  paused: 'Pokračovat lze na fritéze.',
+  done: 'Jídlo je hotové, můžete ho vyndat.',
+  warm: 'Jídlo se udržuje teplé.',
+  error:
+    'Vypněte fritézu, zkontrolujte koš a zapněte ji znovu. Když chyba trvá, odpojte ji na minutu ze zásuvky.',
+};
+
+/** Countdown stopped by the device (drawer out, paused): shown but secondary. */
+export const fryerHeld = (phase: FryerModel['phase']) =>
+  phase === 'action' || phase === 'drawer' || phase === 'paused';
+
 /** Dnes signal while the fryer runs or needs someone; [] when off/idle. */
-export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
+export function fryerSignals(
+  model: FryerModel | null,
+  now: number,
+  programName?: string | null,
+): Signal[] {
   if (!model || !fryerVisible(model.phase)) return [];
   const urgent = fryerNeedsAction(model.phase);
+  const held = fryerHeld(model.phase);
   const left =
-    model.remainingS !== null && model.phase !== 'done' && model.phase !== 'warm'
+    model.remainingS !== null &&
+    model.phase !== 'done' &&
+    model.phase !== 'warm' &&
+    model.phase !== 'error'
       ? formatCountdown(model.remainingS)
       : null;
   const temp =
@@ -46,16 +73,12 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       : null;
   const context =
     model.phase === 'action'
-      ? 'Šuplík ven, protřepat nebo otočit a zpět – pečení pak samo pokračuje.'
+      ? 'Vytáhněte koš, protřepejte a zasuňte zpět – pečení naváže samo.'
       : model.phase === 'drawer'
-        ? 'Pečení stojí, dokud šuplík nezasunete.'
-        : model.phase === 'done'
-          ? 'Pečení doběhlo, jídlo můžete vyndat.'
-          : model.phase === 'warm'
-            ? 'Jídlo se udržuje teplé.'
-            : model.phase === 'error'
-              ? 'Fritéza hlásí chybu, zkontrolujte ji.'
-              : [temp, left ? `do konce ${left}` : null].filter(Boolean).join(' · ');
+        ? 'Pečení stojí a čeká na vás.'
+        : model.phase === 'cooking' || model.phase === 'preheat'
+          ? [temp, fryerProgramLine(model, programName)].filter(Boolean).join(' · ')
+          : (FRYER_HINT[model.phase] ?? '');
   return [
     {
       id: 'recipes.airfryer',
@@ -70,10 +93,27 @@ export function fryerSignals(model: FryerModel | null, now: number): Signal[] {
       relevance: urgent ? 0.9 : 0.6,
       valid_from: new Date(now - 60_000).toISOString(),
       valid_to: new Date(now + 15 * 60_000).toISOString(),
-      title: `Fritéza · ${SIGNAL_TITLE[model.phase] ?? model.label}`,
+      title: `Fritéza · ${
+        model.phase === 'error'
+          ? `Chyba ${model.errorCode ?? ''}`.trim()
+          : (SIGNAL_TITLE[model.phase] ?? model.label)
+      }`,
       context,
-      ...(left ? { value: { v: left, label: 'do konce' } } : {}),
-      action: { type: 'navigate', label: 'Otevřít fritézu', href: RECIPES_PATH },
+      ...(left
+        ? {
+            value: {
+              v: left,
+              label: held
+                ? model.phase === 'paused'
+                  ? 'pozastaveno, zbývá'
+                  : 'stojí, zbývá'
+                : 'do konce',
+              ...(model.progress !== null ? { progress: model.progress } : {}),
+              ...(held ? { held: true } : {}),
+            },
+          }
+        : {}),
+      action: { type: 'navigate', label: 'Detail fritézy', href: RECIPES_PATH },
       source: { name: 'Fritéza', updated_at: new Date(now).toISOString(), stale_after_s: 300 },
     },
   ];
@@ -88,7 +128,11 @@ export interface FryerSignalFeed {
  * with the first HA update after the fryer starts and disappears when it is switched off.
  */
 export function recipesFryerTodaySignalSource(
-  context?: { store?: EntityStore; bindings?: Record<string, string> },
+  context?: {
+    store?: EntityStore;
+    bindings?: Record<string, string>;
+    connection?: ConnectionLike;
+  },
   options: { clock?: () => number } = {},
 ): FryerSignalFeed | null {
   const store = context?.store;
@@ -97,10 +141,20 @@ export function recipesFryerTodaySignalSource(
   return {
     subscribe: (cb) => {
       let last = '';
+      const asked = new Set<number>();
+      let closed = false;
       const emit = () => {
+        if (closed) return;
         const entities = detectFryerEntities(store.entityIds(), context?.bindings);
         const model = entities ? fryerModel(readFryerStates(store, entities), clock()) : null;
-        const signals = fryerSignals(model, clock());
+        const program = model?.program ?? null;
+        if (program && !cachedProgramName(program) && !asked.has(program)) {
+          asked.add(program);
+          void resolveProgramName(getRecipesApi(context?.connection), program).then(
+            (name) => name && emit(),
+          );
+        }
+        const signals = fryerSignals(model, clock(), cachedProgramName(program));
         const key = JSON.stringify(signals.map((s) => [s.title, s.context, s.value?.v]));
         if (key !== last) {
           last = key;
@@ -108,7 +162,11 @@ export function recipesFryerTodaySignalSource(
         }
       };
       emit();
-      return store.subscribeAll(emit);
+      const off = store.subscribeAll(emit);
+      return () => {
+        closed = true;
+        off();
+      };
     },
   };
 }

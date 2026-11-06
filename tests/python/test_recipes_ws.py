@@ -246,3 +246,49 @@ async def test_airfryer_control_autodetects_and_guards(hass, setup, hass_ws_clie
         "button.demo_fryer_pause",
         "button.demo_fryer_stop",
     ]
+
+
+def test_program_name_from_cache_shapes():
+    """Synthetic recipe caches only (the real catalogue never lives in the repo)."""
+    from custom_components.homebrain.recipes.websocket import program_name_from_cache
+
+    assert program_name_from_cache({"7": "Demo brambory"}, 7) == "Demo brambory"
+    assert program_name_from_cache({"7": {"name": "Demo brambory"}}, 7) == "Demo brambory"
+    listed = [{"referenceId": 3, "name": "Demo zelenina"}, {"referenceId": "7", "title": "Demo"}]
+    assert program_name_from_cache(listed, 7) == "Demo"
+    assert program_name_from_cache({"recipes": listed}, 3) == "Demo zelenina"
+    assert program_name_from_cache(listed, 9) is None
+    assert program_name_from_cache(None, 7) is None
+    assert program_name_from_cache("garbage", 7) is None
+
+
+async def test_airfryer_program_name_from_owning_entry(hass, setup, hass_ws_client):
+    """The name comes from the config entry that owns the status sensor; unknown -> None."""
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    ws = await hass_ws_client(hass)
+    msg = {"type": "homebrain/recipes/airfryer_program", "program": 7}
+    assert (await _call(ws, **msg))["error"]["code"] == "NOT_CONFIGURED"
+    entry = MockConfigEntry(
+        domain="demo_fryer_vendor", data={"recipe_cache": {"7": "Demo brambory"}}
+    )
+    entry.add_to_hass(hass)
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        "demo_fryer_vendor",
+        "status-1",
+        suggested_object_id="demo_fryer_cooking_status",
+        config_entry=entry,
+    )
+    hass.states.async_set("sensor.demo_fryer_cooking_status", "cooking")
+    assert (await _call(ws, **msg))["result"] == {"name": "Demo brambory"}
+    assert (await _call(ws, **{**msg, "program": 8}))["result"] == {"name": None}
+    # Owner override (device naming) wins; blank clears.
+    saved = await _call(
+        ws, type="homebrain/recipes/settings_set", airfryer_program_names={"7": "Demo mražené"}
+    )
+    assert saved["result"]["airfryerProgramNames"] == {"7": "Demo mražené"}
+    assert (await _call(ws, **msg))["result"] == {"name": "Demo mražené"}
+    bad = await _call(ws, type="homebrain/recipes/settings_set", airfryer_program_names={"x": "y"})
+    assert not bad["success"]

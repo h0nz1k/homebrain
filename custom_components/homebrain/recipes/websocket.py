@@ -31,6 +31,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.components.http.auth import async_sign_path
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
+from homeassistant.helpers import entity_registry as er
 
 from ..bindings import get_bindings
 from ..const import DOMAIN
@@ -406,6 +407,7 @@ async def ws_settings_get(hass, connection, msg):
             "musicNotifyService": await _notify_service(hass),
             "availableNotifyServices": services,
             "timerNotifyTargets": targets,
+            "airfryerProgramNames": await _owner_program_names(hass),
             "availableTimerNotifyTargets": sorted(
                 name
                 for name in hass.services.async_services_for_domain("notify")
@@ -421,6 +423,11 @@ async def ws_settings_get(hass, connection, msg):
         vol.Required("type"): "homebrain/recipes/settings_set",
         vol.Optional("music_notify_service"): vol.Any(None, str),
         vol.Optional("timer_notify_targets"): vol.All([str], vol.Length(max=10)),
+        # Owner names for AutoCook programs as shown on the device ({"14": "…"}); {} clears.
+        vol.Optional("airfryer_program_names"): vol.All(
+            {vol.All(str, vol.Match(r"^[0-9]{1,6}$")): vol.All(str, vol.Length(min=1, max=80))},
+            vol.Length(max=200),
+        ),
     }
 )
 @websocket_api.require_admin
@@ -428,6 +435,12 @@ async def ws_settings_get(hass, connection, msg):
 async def ws_settings_set(hass, connection, msg):
     store = await async_get_store(hass)
     result: dict[str, Any] = {}
+    if "airfryer_program_names" in msg:
+        names = {k: v.strip() for k, v in msg["airfryer_program_names"].items() if v.strip()}
+        await hass.async_add_executor_job(
+            store.set_setting, SETTING_FRYER_NAMES, json.dumps(names) if names else None
+        )
+        result["airfryerProgramNames"] = names
     if "timer_notify_targets" in msg:
         targets = [t.removeprefix("notify.") for t in msg["timer_notify_targets"]]
         if any(not NOTIFY_TARGET_RE.match(t) for t in targets):
@@ -682,6 +695,97 @@ async def ws_airfryer_control(hass, connection, msg):
     connection.send_result(msg["id"], {"sent": msg["action"]})
 
 
+_PROGRAM_ID_KEYS = ("referenceId", "reference_id", "id", "recipeId", "recipe_id", "uuid")
+_PROGRAM_NAME_KEYS = ("name", "title", "recipeName", "recipe_name", "displayName")
+
+
+def _program_name_from(item: Any) -> str | None:
+    if isinstance(item, str):
+        return item.strip() or None
+    if isinstance(item, dict):
+        for key in _PROGRAM_NAME_KEYS:
+            value = item.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def program_name_from_cache(cache: Any, program: int) -> str | None:
+    """AutoCook program name from the airfryer integration's recipe cache (shape-tolerant).
+
+    Accepts ``{id: name}``, ``{id: {name: …}}``, ``[{referenceId: id, name: …}]`` or the same
+    list under a ``recipes``/``items`` key. Unknown shapes simply give ``None``.
+    """
+    wanted = str(program)
+    if isinstance(cache, dict):
+        for nested in ("recipes", "items", "data"):
+            if isinstance(cache.get(nested), list | dict):
+                found = program_name_from_cache(cache[nested], program)
+                if found:
+                    return found
+        for key, value in cache.items():
+            if str(key) == wanted:
+                return _program_name_from(value)
+        return None
+    if isinstance(cache, list):
+        for item in cache:
+            if not isinstance(item, dict):
+                continue
+            if any(str(item.get(k)) == wanted for k in _PROGRAM_ID_KEYS if k in item):
+                return _program_name_from(item)
+    return None
+
+
+SETTING_FRYER_NAMES = "airfryer_program_names"
+
+
+async def _owner_program_names(hass: HomeAssistant) -> dict[str, str]:
+    store = await async_get_store(hass)
+    raw = await hass.async_add_executor_job(store.setting, SETTING_FRYER_NAMES)
+    try:
+        data = json.loads(raw) if raw else {}
+    except ValueError:
+        return {}
+    return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+
+
+def fryer_program_name(hass: HomeAssistant, status_id: str, program: int) -> str | None:
+    """Resolve the name via the config entry that owns the fryer status sensor (never a copy)."""
+    try:
+        reg_entry = er.async_get(hass).async_get(status_id)
+        entry_id = reg_entry.config_entry_id if reg_entry else None
+        entry = hass.config_entries.async_get_entry(entry_id) if entry_id else None
+        if entry is None:
+            return None
+        for source in (entry.data, entry.options):
+            name = program_name_from_cache((source or {}).get("recipe_cache"), program)
+            if name:
+                return name[:80]
+    except Exception:  # noqa: BLE001 - foreign integration data must never break the card
+        _LOGGER.debug("Airfryer program name lookup failed", exc_info=True)
+    return None
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "homebrain/recipes/airfryer_program",
+        vol.Required("program"): vol.All(int, vol.Range(min=1, max=100000)),
+    }
+)
+@require_role(RECIPES_DEVICE_ROLES)
+@websocket_api.async_response
+async def ws_airfryer_program(hass, connection, msg):
+    """AutoCook program id -> display name from the fryer integration (``None`` = unknown)."""
+    status_id = fryer_status_entity(hass, _recipe_bindings(hass))
+    if not status_id or not status_id.endswith(FRYER_STATUS_SUFFIX):
+        connection.send_error(msg["id"], "NOT_CONFIGURED", "airfryer")
+        return
+    # Owner names (as printed on the device) win over the integration's cloud catalogue.
+    owner = (await _owner_program_names(hass)).get(str(msg["program"]))
+    name = owner or fryer_program_name(hass, status_id, msg["program"])
+    connection.send_result(msg["id"], {"name": name})
+
+
 class RecipePhotoView(HomeAssistantView):
     """Locally stored recipe photos for mapped users (bearer or signed path)."""
 
@@ -726,6 +830,7 @@ COMMANDS = (
     ws_music,
     ws_airfryer,
     ws_airfryer_control,
+    ws_airfryer_program,
     ws_timers_subscribe,
     ws_timers_start,
     ws_timers_update,

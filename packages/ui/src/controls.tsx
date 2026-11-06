@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
 /**
  * Shared interactive controls. Until now every module kept its own copy (wine-btn, rc-btn,
@@ -166,11 +166,19 @@ export function Sheet({
 
 export type StepState = 'todo' | 'active' | 'done' | 'skipped' | 'error';
 export interface StepperProps {
-  steps: ReadonlyArray<{ key: string; title: string; detail?: ReactNode; state: StepState }>;
+  steps: ReadonlyArray<{
+    key: string;
+    title: string;
+    detail?: ReactNode;
+    state: StepState;
+    /** Compact only: 0–1 fill of the active segment (e.g. cooking countdown inside its step). */
+    progress?: number;
+  }>;
   label?: string;
   /** Small inline variant for progress inside a status surface (LiveStatus `steps`). */
   compact?: boolean;
 }
+const stepPct = (p: number) => Math.round(Math.max(0, Math.min(1, p)) * 1000) / 10;
 /** Horizontal progress of a multi-step flow (wizard). Collapses to numbers on phones. */
 export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
   const list = (
@@ -182,6 +190,12 @@ export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
           data-state={s.state}
           data-testid={`hb-step-${s.key}`}
           aria-current={s.state === 'active' ? 'step' : undefined}
+          data-progress={s.progress !== undefined ? '' : undefined}
+          style={
+            s.progress !== undefined
+              ? ({ '--hb-step-p': `${stepPct(s.progress)}%` } as CSSProperties)
+              : undefined
+          }
         >
           <span className="hb-step-n" aria-hidden="true">
             {s.state === 'done' ? '✓' : s.state === 'error' ? '!' : i + 1}

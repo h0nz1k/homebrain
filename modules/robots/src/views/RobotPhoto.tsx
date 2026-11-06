@@ -1,10 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import { Chip, Pill } from '@homebrain/ui';
+import type { CSSProperties } from 'react';
+import { Chip, Pill, useAssetManifest } from '@homebrain/ui';
 import type { ConsumableInfo } from '../consumables.js';
 import type { ErrorAdvice } from '../errors.js';
 import {
   errorHotspot,
-  loadPhotoManifest,
+  parsePhotoManifest,
   maintenanceDots,
   type PhotoManifest,
   type PhotoView,
@@ -12,17 +12,7 @@ import {
 
 /** Manifest of the robot's photo set; `undefined` while loading, `null` = no photo set. */
 export function usePhotoManifest(base: string | null): PhotoManifest | null | undefined {
-  const [state, setState] = useState<{ base: string | null; manifest: PhotoManifest | null }>();
-  useEffect(() => {
-    if (!base) return;
-    let live = true;
-    loadPhotoManifest(base).then((manifest) => live && setState({ base, manifest }));
-    return () => {
-      live = false;
-    };
-  }, [base]);
-  if (!base) return null;
-  return state?.base === base ? state.manifest : undefined;
+  return useAssetManifest(base, parsePhotoManifest);
 }
 
 type Rect = [number, number, number, number];

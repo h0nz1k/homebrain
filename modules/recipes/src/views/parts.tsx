@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
-import { Button, Sheet, toast } from '@homebrain/ui';
+import { Button, ProgressRing, Sheet, toast } from '@homebrain/ui';
 import type { RecipesApi } from '../api.js';
 import { RecipesApiError } from '../api.js';
 import { BLOCK_TEXT, airfryerBlock, describeAction, remainingMinutes } from '../domain/airfryer.js';
@@ -62,6 +62,27 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   trash: <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />,
+  alert: (
+    <>
+      <path d="M12 4.5L21 19.5H3z" />
+      <path d="M12 10v4.2M12 17.2v.1" />
+    </>
+  ),
+  thermo: <path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0zM12 9v7.5" />,
+  // airfryer basket pulled out with food bits in the air (shake / turn the food)
+  shake: (
+    <>
+      <path d="M4 11h12.5l-1.2 7a2 2 0 0 1-2 1.7H7.2a2 2 0 0 1-2-1.7z" />
+      <path d="M16.5 13H21" />
+      <path d="M7.5 7.5l.5-1.5M11 6.5V4.5M14 7.5l1-1.5" />
+    </>
+  ),
+  drawer: (
+    <>
+      <rect x="4" y="3.5" width="12" height="17" rx="3.5" />
+      <path d="M8 14.5h12M16 11.5h4v6h-4" />
+    </>
+  ),
   edit: <path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" />,
 };
 export function Icon({ name }: { name: keyof typeof PATHS | string }) {
@@ -73,33 +94,9 @@ export function Icon({ name }: { name: keyof typeof PATHS | string }) {
 }
 
 /* ---------- timers ---------- */
+/** Timer ring = the shared ProgressRing tinted with the Recepty accent (`.rc` sets the ink). */
 export function Ring({ fraction, size = 64 }: { fraction: number; size?: number }) {
-  const r = size / 2 - 5;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke="var(--hb-fill-strong)"
-        strokeWidth="6"
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={c * (1 - Math.max(0, Math.min(1, fraction)))}
-        style={{ color: 'var(--rc-ac)' }}
-      />
-    </svg>
-  );
+  return <ProgressRing value={fraction} size={size} thickness={6} />;
 }
 
 export function TimerCard({

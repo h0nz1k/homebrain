@@ -122,7 +122,7 @@ export const recipesStyles = String.raw`
 .rc-tstrip { margin-top:22px; display:flex; gap:16px; flex-wrap:wrap; }
 .rc-tcard { flex:1 1 220px; display:flex; align-items:center; gap:16px; padding:14px 18px 14px 14px; border-radius:var(--hb-radius-lg); background:var(--hb-s1); box-shadow:var(--hb-elev-1); min-width:0; }
 .rc-tcard .ring { position:relative; flex:none; width:64px; height:64px; }
-.rc-tcard .ring svg { transform:rotate(-90deg); width:64px; height:64px; }
+.rc-tcard .ring .hb-ring { --hb-ring-ink:var(--rc-ac); }
 .rc-tcard b { display:block; font-size:40px; font-weight:550; letter-spacing:-.02em; line-height:1.15; font-variant-numeric:tabular-nums; }
 .rc-tcard span { display:block; font-size:16px; color:var(--hb-t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rc-tcard .tx { min-width:0; flex:1; }
@@ -244,46 +244,176 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
   .rc-tcard b { font-size:30px; }
 }
 @media (prefers-reduced-motion: reduce) { .rc *, .rc *::before, .rc *::after { transition:none !important; animation:none !important; } }
-/* live airfryer card */
-.rc-fl { flex:none; margin:4px 32px 18px; padding:20px 24px; border-radius:var(--hb-radius-xl); background:var(--hb-s1); box-shadow:var(--hb-elev-1); display:grid; grid-template-columns:112px minmax(0,1fr) auto; grid-template-areas:'ring head actions' 'ring body actions'; column-gap:24px; row-gap:6px; align-items:center; }
-.rc-fl-ring { grid-area:ring; }
-.rc-fl-head { grid-area:head; align-self:end; display:flex; flex-direction:column; gap:4px; min-width:0; }
-.rc-fl-body { grid-area:body; align-self:start; }
-.rc-fl-actions { grid-area:actions; }
+/* live airfryer card – state-driven hierarchy: countdown ring while cooking, the instruction is
+   the hero when the fryer needs a hand (shake / drawer), solid red band on error, amber when paused.
+   Desktop and phone share one type scale; desktop = 2 columns (ring | details + actions). */
+.rc-fl { --rc-fl-tone:var(--rc-ac); --rc-fl-ink:var(--rc-ac-ink); --rc-fl-on:var(--rc-on-ac); position:relative; isolation:isolate; overflow:hidden; flex:none; box-sizing:border-box; min-height:264px; margin:4px 32px 20px; padding:30px 40px; border-radius:var(--hb-radius-xl); background:var(--hb-s1); box-shadow:var(--hb-elev-2, var(--hb-elev-1)); display:grid; grid-template-columns:184px minmax(0,1fr) 230px; grid-template-areas:'band band band' 'vis main art'; grid-template-rows:auto 1fr; column-gap:36px; align-items:center; }
+.rc-fl::before { content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; background:radial-gradient(260px 220px at calc(100% - 155px) 58%, color-mix(in srgb, var(--rc-fl-tone) 15%, transparent), transparent 75%), radial-gradient(220px 200px at 132px 50%, color-mix(in srgb, var(--rc-fl-tone) 7%, transparent), transparent 75%); }
+.rc-fl[data-urgent] { box-shadow:var(--hb-elev-1), inset 0 0 0 1.5px color-mix(in srgb, var(--rc-fl-tone) 50%, transparent); }
+.rc-fl[data-phase='action'], .rc-fl[data-phase='drawer'] { --rc-fl-tone:var(--hb-warn); --rc-fl-ink:var(--hb-warn); background:color-mix(in srgb, var(--hb-warn) 8%, var(--hb-s1)); box-shadow:var(--hb-elev-1), inset 0 0 0 2px color-mix(in srgb, var(--hb-warn) 70%, transparent); grid-template-columns:184px minmax(0,1fr); grid-template-areas:'vis main'; }
+.rc-fl[data-instruction]::after { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; box-shadow:inset 0 0 0 4px var(--hb-warn); opacity:0; animation:rc-fl-glow 2.4s ease-in-out infinite; }
+@keyframes rc-fl-glow { 0%, 100% { opacity:0; } 50% { opacity:.55; } }
+.rc-fl[data-phase='error'] { --rc-fl-tone:var(--hb-crit); --rc-fl-ink:var(--hb-crit); grid-template-columns:minmax(0,1fr); grid-template-areas:'band' 'main'; padding-top:0; align-items:start; row-gap:18px; min-height:0; }
+.rc-fl[data-phase='done'], .rc-fl[data-phase='warm'] { --rc-fl-tone:var(--hb-ok); --rc-fl-ink:var(--hb-ok); --rc-fl-on:var(--hb-on-ok); }
+.rc-fl[data-phase='paused'] { --rc-fl-tone:var(--hb-warn); --rc-fl-ink:var(--hb-t1); --rc-fl-on:var(--hb-on-warn); }
+.rc-fl-vis { grid-area:vis; display:grid; place-items:center; }
+.rc-fl-main { grid-area:main; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:20px; }
+.rc-fl-head { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; max-width:100%; }
+.rc-fl h2 { margin:0; font-size:30px; font-weight:650; letter-spacing:-.022em; line-height:1.15; color:var(--hb-t1); }
+.rc-fl[data-instruction] h2 { color:var(--rc-fl-ink); font-size:28px; }
+.rc-fl-pill { display:inline-flex; align-items:center; gap:8px; padding:5px 12px 5px 10px; border-radius:var(--hb-radius-pill); font-size:14px; font-weight:650; color:var(--hb-t1); background:var(--hb-fill-strong); }
+.rc-fl-pill::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--rc-fl-tone); box-shadow:0 0 0 3px color-mix(in srgb, var(--rc-fl-tone) 28%, transparent), 0 0 10px var(--rc-fl-tone); }
+.rc-fl[data-phase='cooking'] .rc-fl-pill::before, .rc-fl[data-phase='preheat'] .rc-fl-pill::before { animation:rc-fl-live 2s ease-in-out infinite; }
+@keyframes rc-fl-live { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+.rc-fl-meta { margin:0; max-width:100%; font-size:15px; font-weight:500; color:var(--hb-t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rc-fl-body { align-self:stretch; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:16px; }
+.rc-fl-hint { margin:0; font-size:16px; color:var(--hb-t2); line-height:1.45; max-width:60ch; }
+.rc-fl[data-instruction] .rc-fl-hint, .rc-fl[data-phase='error'] .rc-fl-hint { color:var(--hb-t1); }
+.rc-fl-ringwrap { position:relative; display:grid; place-items:center; }
+.rc-fl .rc-fl-ring { --hb-ring-ink:var(--rc-ac); }
+.rc-fl-ring .hb-ring-c small { margin-top:2px; font-size:14px; font-weight:500; color:var(--hb-t2); }
+.rc-fl-time { font-size:46px; font-weight:500; letter-spacing:-.035em; line-height:1.15; color:var(--hb-t1); }
+.rc-fl-ring svg.rc-i { width:60px; height:60px; stroke-width:2.2; color:var(--hb-ok); }
+.rc-fl-badge { position:absolute; top:6px; right:6px; display:grid; place-items:center; width:38px; height:38px; border-radius:50%; background:var(--hb-warn); color:var(--hb-on-warn); box-shadow:0 0 0 4px var(--hb-s1); }
+.rc-fl-badge svg.rc-i { width:18px; height:18px; }
 .rc-fl-nw { white-space:nowrap; }
-.rc-fl-prog { white-space:nowrap; }
-.rc-fl-prog::before { content:'·'; margin:0 6px 0 2px; }
-.rc-fl-time svg.rc-i { width:40px; height:40px; stroke-width:2.4; color:var(--rc-ac-ink); }
-.rc-fl[data-urgent] { background:linear-gradient(0deg, var(--rc-ac-s), var(--rc-ac-s)), var(--hb-s1); box-shadow:var(--hb-elev-1), inset 0 0 0 1.5px color-mix(in srgb, var(--rc-ac) 45%, transparent); }
-.rc-fl[data-phase='error'] { --rc-ac:var(--hb-crit, #e5484d); --rc-ac-s:color-mix(in srgb, var(--hb-crit, #e5484d) 12%, transparent); }
-.rc-fl-ring { position:relative; width:112px; height:112px; flex:none; }
-.rc-fl-ring svg { width:112px; height:112px; transform:rotate(-90deg); }
-.rc-fl-ring circle { transition:stroke-dashoffset 1s linear; }
-.rc-fl-time { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:26px; font-weight:650; letter-spacing:-.02em; line-height:1.15; }
-.rc-fl-time small { font-size:13px; font-weight:500; color:var(--hb-t2); letter-spacing:0; }
-.rc-fl[data-phase='done'] .rc-fl-time { font-size:19px; color:var(--rc-ac-ink); }
-.rc-fl-body { min-width:0; display:flex; flex-direction:column; gap:6px; }
-.rc-fl-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:0 8px; font-size:14px; color:var(--hb-t2); font-weight:550; }
-.rc-fl-kicker svg.rc-i { width:18px; height:18px; color:var(--rc-ac-ink); }
-.rc-fl h2 { margin:0; font-size:24px; font-weight:650; letter-spacing:-.02em; line-height:1.2; }
-.rc-fl[data-urgent] h2 { color:var(--rc-ac-ink); }
-.rc-fl-hint { margin:0; font-size:15px; color:var(--hb-t2); line-height:1.4; }
-.rc-fl-temp { display:flex; align-items:center; gap:12px; font-size:15px; margin-top:2px; }
-.rc-fl-temp b { font-size:18px; font-weight:650; }
-.rc-fl-temp .t2 { color:var(--hb-t2); }
-.rc-fl-bar { flex:0 1 160px; height:6px; border-radius:999px; background:var(--hb-fill-strong); overflow:hidden; }
-.rc-fl-bar i { display:block; height:100%; border-radius:inherit; background:var(--rc-ac); transition:width var(--hb-dur-2, .3s) var(--hb-ease-out, ease-out); }
-.rc-fl-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
-@media (max-width: 640px) {
-  .rc-fl { margin:4px 16px 14px; padding:16px; grid-template-columns:72px minmax(0,1fr); grid-template-areas:'ring head' 'body body' 'actions actions'; column-gap:16px; row-gap:10px; }
-  .rc-fl-head { align-self:center; }
-  .rc-fl-ring, .rc-fl-ring svg { width:72px; height:72px; }
-  .rc-fl-time { font-size:17px; }
-  .rc-fl-time small { font-size:11px; }
-  .rc-fl-time svg.rc-i { width:30px; height:30px; }
-  .rc-fl h2 { font-size:20px; }
-  .rc-fl-actions { margin-top:4px; justify-content:stretch; }
-  .rc-fl-actions > * { flex:1 1 0; }
+.rc-fl-facts { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px 44px; }
+.rc-fl-fact { display:flex; flex-direction:column; gap:3px; font-variant-numeric:tabular-nums; font-size:22px; font-weight:500; color:var(--hb-t2); }
+.rc-fl-fact small { font-size:13px; font-weight:500; color:var(--hb-t2); }
+.rc-fl-fact b { color:var(--hb-t1); font-weight:650; }
+.rc-fl-steps { align-self:stretch; }
+.rc-fl .hb-steptrack { max-width:none; margin-top:0; }
+.rc-fl .hb-steptrack-sum { display:none !important; }
+.rc-fl .hb-stepper[data-compact] .hb-step .hb-step-t { display:block !important; }
+.rc-fl .hb-stepper[data-compact] { display:flex; flex-wrap:wrap; gap:0; }
+/* phases as a quiet text line (Ohřev → Pečení → Hotovo) – the ring is the only progress display */
+.rc-fl .hb-stepper[data-compact] .hb-step { flex:none; flex-direction:row; align-items:center; gap:0; font-size:13px; font-weight:500; color:var(--hb-t2); }
+.rc-fl .hb-stepper[data-compact] .hb-step-n { display:none; }
+.rc-fl .hb-stepper[data-compact] .hb-step + .hb-step::before { content:'→'; margin:0 8px; color:var(--hb-t2); opacity:.6; font-weight:400; }
+.rc-fl .hb-stepper[data-compact] .hb-step[data-state='active'] { color:var(--rc-fl-ink); font-weight:650; }
+.rc-fl-band { grid-area:band; display:flex; align-items:center; gap:10px; margin:0 -40px; padding:16px 40px; background:color-mix(in srgb, var(--hb-crit) 80%, black); color:#fff; }
+.rc-fl-band h2 { color:inherit; font-size:20px; }
+.rc-fl-band svg.rc-i { width:22px; height:22px; flex:none; }
+.rc-fl-code { margin-left:auto; font-size:14px; font-weight:500; opacity:.85; white-space:nowrap; }
+.rc-fl .hb-btn svg.rc-i path { fill:currentColor; stroke:none; }
+.rc-fl-badge svg.rc-i path { fill:currentColor; stroke:none; }
+.rc-fl-actions { --hb-ac:var(--rc-fl-tone); --hb-on-ac:var(--rc-fl-on); align-self:stretch; display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; }
+.rc-fl-guide { margin:0; flex:1 1 220px; display:flex; align-items:center; gap:8px; font-size:15px; font-weight:550; color:var(--hb-t1); }
+.rc-fl-guide svg.rc-i { width:18px; height:18px; flex:none; color:var(--rc-fl-ink); }
+.rc-fl[data-phase='paused'] .rc-fl-guide svg.rc-i { color:var(--hb-warn); }
+.rc-fl .hb-btn { min-width:132px; }
+.rc-fl .hb-btn.rc-fl-stop[data-tone='danger'] { color:var(--hb-crit); }
+/* Fryer illustration (FryerArt): theme-neutral shell, tone glow while heating */
+.rc-fa { display:block; overflow:visible; }
+.rc-fl-side-art { grid-area:art; justify-self:center; width:190px; height:auto; }
+.rc-fl-hero-art { width:176px; height:auto; }
+.rc-fa-top { stop-color:color-mix(in srgb, var(--hb-t1) 22%, var(--hb-s1)); }
+.rc-fa-bot { stop-color:color-mix(in srgb, var(--hb-t1) 11%, var(--hb-s1)); }
+.rc-fa-body { stroke:color-mix(in srgb, var(--hb-t1) 16%, transparent); stroke-width:1; }
+.rc-fa-panel { fill:color-mix(in srgb, var(--hb-t1) 6%, #0b0d10 70%); }
+.rc-fa-led { fill:var(--rc-fl-tone); }
+.rc-fa-panel-bar { fill:color-mix(in srgb, white 30%, transparent); }
+.rc-fa-cavity { fill:#07090c; opacity:0; }
+.rc-fa-front { fill:color-mix(in srgb, var(--hb-t1) 15%, var(--hb-s1)); stroke:color-mix(in srgb, var(--hb-t1) 18%, transparent); stroke-width:1; }
+.rc-fa-handle { fill:color-mix(in srgb, var(--hb-t1) 24%, var(--hb-s1)); }
+.rc-fa-shadow { fill:color-mix(in srgb, black 34%, transparent); filter:blur(2px); }
+.rc-fa-sheen { fill:white; opacity:.06; }
+.rc-fa-slit { fill:var(--rc-fl-tone); opacity:0; }
+.rc-fa[data-phase='cooking'] .rc-fa-slit, .rc-fa[data-phase='preheat'] .rc-fa-slit { opacity:.85; }
+.rc-fa-rim { fill:none; stroke:white; stroke-opacity:.14; stroke-width:1.2; stroke-linecap:round; }
+.rc-fa-foot { fill:color-mix(in srgb, var(--hb-t1) 30%, var(--hb-s1)); }
+.rc-fa-glow0 { stop-color:var(--rc-fl-tone); stop-opacity:.34; }
+.rc-fa-glow1 { stop-color:var(--rc-fl-tone); stop-opacity:0; }
+.rc-fa-heat { opacity:0; transition:opacity var(--hb-dur-slow, .4s); }
+.rc-fa[data-phase='cooking'] .rc-fa-heat, .rc-fa[data-phase='preheat'] .rc-fa-heat { opacity:1; animation:rc-fa-breathe 5s ease-in-out infinite; }
+.rc-fa[data-phase='done'] .rc-fa-heat, .rc-fa[data-phase='warm'] .rc-fa-heat { opacity:.6; }
+@keyframes rc-fa-breathe { 0%, 100% { opacity:.7; } 50% { opacity:1; } }
+.rc-fa[data-out] .rc-fa-cavity { opacity:1; }
+.rc-fa[data-out] .rc-fa-drawer { transform:translateY(9px) scale(1.06); transform-origin:70px 133px; }
+.rc-fa-bits rect { fill:color-mix(in srgb, #e9b04a 85%, var(--hb-t1)); }
+.rc-fa[data-phase='action'] .rc-fa-bits { animation:rc-fa-hop 1.6s var(--hb-ease-out, ease-out) infinite; transform-origin:70px 66px; }
+@keyframes rc-fa-hop { 0%, 100% { transform:translateY(4px); } 35% { transform:translateY(-7px); } 60% { transform:translateY(0); } }
+/* Owner's product photo (HA /local/homebrain/airfryer/) – replaces the SVG fryer when a manifest exists */
+.rc-fp { --rc-fp-h:212px; position:relative; display:grid; place-items:center; }
+/* soft backdrop so the black appliance separates from dark cards (faint grey disc on light) */
+.rc-fp::before { content:''; position:absolute; left:50%; top:54%; width:120%; aspect-ratio:1; translate:-50% -50%; border-radius:50%; pointer-events:none; background:radial-gradient(closest-side, color-mix(in srgb, var(--hb-t1) 11%, transparent), color-mix(in srgb, var(--hb-t1) 4%, transparent) 62%, transparent); }
+.rc-fp-frame { z-index:0; }
+/* with a photo the neutral backdrop above replaces the tone glow behind the illustration */
+.rc-fl:has(> .rc-fp.rc-fl-side-art)::before { background:radial-gradient(220px 200px at 132px 50%, color-mix(in srgb, var(--rc-fl-tone) 7%, transparent), transparent 75%); }
+.rc-fp.rc-fl-side-art, .rc-fp.rc-fl-hero-art { width:auto; }
+.rc-fp.rc-fl-hero-art { --rc-fp-h:200px; }
+.rc-fp-frame { position:relative; display:inline-block; line-height:0; }
+.rc-fp-img { display:block; height:var(--rc-fp-h); width:auto; max-width:none; filter:drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)) drop-shadow(0 12px 20px rgb(0 0 0 / .22)); transition:filter var(--hb-dur-slow, .4s), opacity var(--hb-dur-slow, .4s); }
+.rc-fp-heat, .rc-fp-tint, .rc-fp-display { position:absolute; pointer-events:none; opacity:0; transition:opacity var(--hb-dur-slow, .4s); }
+/* warm light leaking at the drawer seam and onto the counter while heating – no flames */
+.rc-fp-heat { filter:blur(3px); background:radial-gradient(56% 16% at 50% 1%, rgb(255 140 60 / .8), transparent 72%); mix-blend-mode:screen; }
+.rc-fp-tint { inset:0; mask-size:100% 100%; mask-repeat:no-repeat; -webkit-mask-size:100% 100%; -webkit-mask-repeat:no-repeat; background:var(--rc-fl-tone); mix-blend-mode:screen; }
+/* the photo's display shows a fixed demo value – cover the glass and light only the ring in the card tone */
+.rc-fp { --rc-fp-glass:#0b0d10; }
+/* white appliance: light glass display, darker hairline + counter shadow so it never melts into a white card */
+.rc-fp[data-finish='light'] { --rc-fp-glass:#dcdddf; }
+.rc-fp[data-finish='light']::before { background:radial-gradient(closest-side, color-mix(in srgb, var(--hb-t1) 10%, transparent) 0 52%, color-mix(in srgb, var(--hb-t1) 5%, transparent) 74%, transparent); }
+.rc-fp[data-finish='light'] .rc-fp-img { filter:drop-shadow(0 0 1px color-mix(in srgb, var(--hb-t1) 30%, transparent)) drop-shadow(0 10px 16px rgb(0 0 0 / .26)); }
+.rc-fp[data-finish='light'] .rc-fp-heat { mix-blend-mode:multiply; background:radial-gradient(56% 14% at 50% 1%, rgb(255 132 48 / .6), transparent 72%); }
+.rc-fp-display { border-radius:50%; background:radial-gradient(circle at 36% 30%, rgb(255 255 255 / .1), transparent 26%), radial-gradient(closest-side, var(--rc-fp-glass) 0 60%, color-mix(in srgb, var(--rc-fl-tone) 75%, transparent) 70%, transparent 86%); opacity:.92; }
+.rc-fp[data-phase='cooking'] .rc-fp-heat, .rc-fp[data-phase='preheat'] .rc-fp-heat { opacity:.9; animation:rc-fp-breathe 6s ease-in-out infinite; }
+@keyframes rc-fp-breathe { 0%, 100% { opacity:.55; } 50% { opacity:.95; } }
+.rc-fp[data-phase='warm'] .rc-fp-heat { opacity:.35; }
+.rc-fp[data-phase='paused'] .rc-fp-img { filter:brightness(.7) saturate(.7) drop-shadow(0 0 .6px color-mix(in srgb, var(--hb-t1) 40%, transparent)); }
+.rc-fp[data-out] .rc-fp-tint { opacity:.1; }
+/* error: a clean red outline + red glow around the silhouette – the photo itself is never tinted (reads brown) */
+.rc-fp[data-phase='error'] .rc-fp-img, .rc-fp[data-finish][data-phase='error'] .rc-fp-img { filter:drop-shadow(0 0 1.2px var(--hb-crit)) drop-shadow(0 0 1.2px var(--hb-crit)) drop-shadow(0 0 10px color-mix(in srgb, var(--hb-crit) 55%, transparent)); }
+.rc-fp[data-phase='error'] .rc-fp-tint, .rc-fp[data-phase='error'] .rc-fp-heat { opacity:0; }
+.rc-fp[data-phase='off'] .rc-fp-img, .rc-fp[data-phase='idle'] .rc-fp-img { filter:grayscale(1); opacity:.6; }
+.rc-fp[data-phase='off'] .rc-fp-display, .rc-fp[data-phase='idle'] .rc-fp-display { background:radial-gradient(closest-side, var(--rc-fp-glass) 0 66%, transparent 80%); }
+.rc-fp[data-nudge] .rc-fp-frame { animation:rc-fp-nudge 2.4s ease-in-out infinite; }
+@keyframes rc-fp-nudge { 0%, 60%, 100% { transform:translateY(0); } 30% { transform:translateY(4px); } }
+/* desktop: content column hugs its content and the photo sits right next to it (no dead band between buttons and photo) */
+@media (min-width: 1101px) {
+  .rc-fl:has(> .rc-fp.rc-fl-side-art):not([data-phase='error']) { grid-template-columns:184px minmax(0,max-content) 250px; justify-content:center; column-gap:48px; }
+  .rc-fl[data-phase='error']:has(> .rc-fp.rc-fl-side-art) { grid-template-columns:minmax(0,max-content) minmax(250px,1fr); }
+  .rc-fl[data-phase='error'] > .rc-fp.rc-fl-side-art { justify-self:center; }
+  .rc-fl:has(> .rc-fp.rc-fl-side-art)::before { background:none; }
 }
-@media (prefers-reduced-motion: reduce) { .rc-fl-ring circle, .rc-fl-bar i { transition:none !important; } }
+.rc-fp.rc-fl-side-art { --rc-fp-h:232px; }
+.rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr) 250px; grid-template-areas:'band band' 'main art'; }
+@media (max-width: 1100px) and (min-width: 641px) { .rc-fl { grid-template-columns:184px minmax(0,1fr); grid-template-areas:'band band' 'vis main'; } .rc-fl-side-art { display:none; } .rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr); grid-template-areas:'band' 'main'; } }
+@media (max-width: 640px) {
+  .rc-fl { min-height:0; margin:4px 16px 14px; padding:18px; grid-template-columns:104px minmax(0,1fr); grid-template-areas:none; grid-template-rows:none; column-gap:20px; row-gap:16px; }
+  .rc-fl::before { background:radial-gradient(160px 140px at calc(100% - 44px) 46px, color-mix(in srgb, var(--rc-fl-tone) 16%, transparent), transparent 75%); }
+  .rc-fl-head { padding-right:78px; }
+  .rc-fl .hb-btn { min-width:0; }
+  .rc-fl[data-phase='action'], .rc-fl[data-phase='drawer'] { grid-template-columns:104px minmax(0,1fr); grid-template-areas:none; }
+  .rc-fl[data-phase='error'] { grid-template-columns:minmax(0,1fr); padding-top:0; }
+  .rc-fl-band { grid-area:auto; grid-column:1 / -1; margin:0 -18px; padding:12px 18px; }
+  /* phone: head on top, ring | stats, steps + actions full width */
+  .rc-fl-main, .rc-fl-body { display:contents; }
+  .rc-fl-head, .rc-fl-actions, .rc-fl-main > .rc-fl-meta, .rc-fl-steps, .rc-fl-hint { grid-column:1 / -1; }
+  .rc-fl-vis { grid-area:auto; grid-column:1; grid-row:2; align-self:center; }
+  .rc-fl-facts { grid-column:2; grid-row:2; align-self:center; flex-direction:column; gap:12px; }
+  .rc-fl[data-instruction] .rc-fl-hint { grid-column:2; grid-row:2; align-self:center; }
+  .rc-fl[data-instruction] .rc-fl-facts { grid-column:1 / -1; grid-row:auto; flex-direction:row; }
+  .rc-fl[data-phase='error'] .rc-fl-hint { grid-row:auto; }
+  .rc-fl-steps { max-width:none; }
+  .rc-fl h2 { font-size:25px; }
+  .rc-fl[data-instruction] h2 { font-size:23px; }
+  .rc-fl-band h2 { font-size:19px; }
+  .rc-fl .rc-fl-ring { --hb-ring-size:104px !important; }
+  .rc-fl-time { font-size:28px; }
+  .rc-fl-fact { font-size:18px; }
+  .rc-fl-ring svg.rc-i { width:40px; height:40px; }
+  .rc-fl-badge { top:0; right:0; width:30px; height:30px; box-shadow:0 0 0 3px var(--hb-s1); }
+  .rc-fl-badge svg.rc-i { width:14px; height:14px; }
+  .rc-fl-hero-art { width:104px; }
+  .rc-fl-side-art { display:block; grid-area:auto; position:absolute; top:12px; right:14px; width:70px; }
+  .rc-fp.rc-fl-side-art { --rc-fp-h:88px; width:auto; top:14px; right:16px; }
+  .rc-fp.rc-fl-hero-art { --rc-fp-h:124px; }
+  .rc-fl:has(> .rc-fp.rc-fl-side-art)::before { background:none; }
+  .rc-fl:has(> .rc-fp.rc-fl-side-art) .rc-fl-head { padding-right:96px; }
+  .rc-fl[data-phase='error']:has(> .rc-fl-side-art) { grid-template-columns:minmax(0,1fr); grid-template-areas:none; }
+  .rc-fl[data-phase='error'] > .rc-fl-side-art { top:62px; --rc-fp-h:80px; }
+  .rc-fl[data-phase='error']:has(> .rc-fp.rc-fl-side-art) :is(.rc-fl-meta, .rc-fl-hint) { padding-right:88px; box-sizing:border-box; white-space:normal; }
+  .rc-fl-actions > .hb-btn { flex:1 1 0; }
+}
+@media (prefers-reduced-motion: reduce) { .rc-fl .hb-ring-arc { transition:none !important; } .rc-fa *, .rc-fp, .rc-fp *, .rc-fl-pill::before, .rc-fl::after { animation:none !important; transition:none !important; } }
 `;

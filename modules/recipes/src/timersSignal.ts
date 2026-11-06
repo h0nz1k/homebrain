@@ -57,8 +57,14 @@ export function timerSignals(timers: Timer[], now: number): Signal[] {
         : `${first.status === 'paused' ? 'Minutka v pauze' : 'Minutka'} · ${first.label}`,
       context,
       value: ringing
-        ? { v: 'Hotovo', label: 'doběhla' }
-        : { v: clock(first.remainingMs), label: first.status === 'paused' ? 'pauza' : 'zbývá' },
+        ? { v: 'Hotovo' }
+        : {
+            v: clock(first.remainingMs),
+            label: first.status === 'paused' ? 'pauza' : 'zbývá',
+            // shared countdown ring (same as the airfryer); a paused timer stays secondary
+            progress: Math.max(0, Math.min(1, 1 - first.fraction)),
+            ...(first.status === 'paused' ? { held: true } : {}),
+          },
       action: { type: 'navigate', label: 'Minutky', href: TIMERS_PATH },
       source: { name: 'Minutky', updated_at: new Date(now).toISOString(), stale_after_s: 600 },
     },

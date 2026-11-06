@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assetSlug, clearAssetManifestCache, loadAssetManifest } from '@homebrain/ui';
 import type { ConsumableInfo } from './consumables.js';
 import type { ErrorAdvice } from './errors.js';
 import type { RobotTone } from './status.js';
@@ -56,15 +57,8 @@ export const photoManifestSchema = z.object({
 });
 export type PhotoManifest = z.infer<typeof photoManifestSchema>;
 
-/** „Bobík“ → „bobik“ (folder name of the default photo path). */
-export function photoSlug(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+/** „Bobík“ → „bobik“ (folder name of the default photo path); shared with other photo cards. */
+export const photoSlug = assetSlug;
 
 /**
  * Folder of the photo set. The robot option „Obrázek robota“ may point to a folder (`…/`) or its
@@ -85,23 +79,11 @@ export function parsePhotoManifest(data: unknown): PhotoManifest | null {
   return parsed.success ? parsed.data : null;
 }
 
-const cache = new Map<string, Promise<PhotoManifest | null>>();
 export function loadPhotoManifest(base: string): Promise<PhotoManifest | null> {
-  let hit = cache.get(base);
-  if (!hit) {
-    hit =
-      typeof fetch === 'function' && /^(\/|https?:)/.test(base)
-        ? fetch(`${base}manifest.json`, { credentials: 'same-origin' })
-            .then((res) => (res.ok ? res.json() : null))
-            .then(parsePhotoManifest)
-            .catch(() => null)
-        : Promise.resolve(null);
-    cache.set(base, hit);
-  }
-  return hit;
+  return loadAssetManifest(base, parsePhotoManifest);
 }
 export function clearPhotoCache() {
-  cache.clear();
+  clearAssetManifestCache();
 }
 
 export type PhotoView = 'dock' | 'cleaning' | 'error' | 'maintenance' | 'parked';

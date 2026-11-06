@@ -23,6 +23,7 @@ export type FryerRole =
   | 'targetTemp'
   | 'stage'
   | 'program'
+  | 'amount'
   | 'method'
   | 'preheat'
   | 'drawer'
@@ -41,6 +42,7 @@ export const FRYER_SUFFIXES: Record<FryerRole, readonly [domain: string, suffix:
   targetTemp: ['sensor', 'target_temperature'],
   stage: ['sensor', 'current_stage'],
   program: ['sensor', 'autocook_program'],
+  amount: ['sensor', 'autocook_amount'],
   method: ['select', 'cooking_method'],
   preheat: ['sensor', 'preheat_status'],
   drawer: ['binary_sensor', 'drawer'],
@@ -102,12 +104,12 @@ export const FRYER_PHASE_LABEL: Record<FryerPhase, string> = {
   idle: 'Připraveno',
   preheat: 'Předehřívá',
   cooking: 'Peče',
-  action: 'Protřepejte nebo otočte jídlo',
+  action: 'Protřepejte jídlo',
   drawer: 'Šuplík otevřený',
   paused: 'Pozastaveno',
   done: 'Hotovo',
   warm: 'Udržuje teplé',
-  error: 'Chyba',
+  error: 'Fritéza hlásí chybu',
 };
 
 const UNKNOWN = new Set(['unknown', 'unavailable', '']);
@@ -210,6 +212,8 @@ export interface FryerModel {
   targetTemp: number | null;
   stage: number | null;
   program: number | null;
+  /** AutoCook basket fill level; the device shows plain 1–7 (assumed scale, unverified). */
+  amount: number | null;
   method: string | null;
   errorCode: number | null;
 }
@@ -230,26 +234,75 @@ export function fryerModel(states: FryerStates, now: number): FryerModel {
   const errorCode = fryerErrorCode(states.error);
   return {
     phase,
-    label: errorCode !== null ? `Chyba ${errorCode}` : FRYER_PHASE_LABEL[phase],
+    label: FRYER_PHASE_LABEL[phase],
     remainingS,
     progress: phase === 'done' ? 1 : fryerProgress(remainingS, num(states.total)),
     currentTemp: num(states.currentTemp),
     targetTemp: num(states.targetTemp),
     stage: num(states.stage) || null,
     program: num(states.program) || null,
+    amount: method === 'auto_cook' ? num(states.amount) || null : null,
     method: method ? (METHOD_LABEL[method] ?? null) : null,
     errorCode,
   };
 }
 
-/** Short program line: „AutoCook 14 · fáze 2“. */
-export function fryerProgramLine(m: FryerModel): string {
-  const parts: string[] = [];
-  if (m.method)
-    parts.push(m.method === 'AutoCook' && m.program ? `AutoCook ${m.program}` : m.method);
-  else if (m.program) parts.push(`Program ${m.program}`);
-  if (m.stage) parts.push(`fáze ${m.stage}`);
-  return parts.join(' · ');
+/**
+ * Short program line: AutoCook name when the integration knows it („Hranolky“), else
+ * „AutoCook 14“. The device stage number is not shown (its meaning differs per program).
+ */
+export function fryerProgramLine(m: FryerModel, programName?: string | null): string {
+  if (m.method === 'AutoCook' || (!m.method && m.program)) {
+    if (programName) return programName;
+    return m.program ? `AutoCook ${m.program}` : (m.method ?? '');
+  }
+  return m.method ?? '';
+}
+
+export type FryerStepKey = 'heat' | 'cook' | 'done';
+export type FryerStepState = 'todo' | 'active' | 'done' | 'error';
+export interface FryerStep {
+  key: FryerStepKey;
+  title: string;
+  state: FryerStepState;
+  /** 0…1 fill of the active Pečení step = the countdown progress (same number as the ring). */
+  progress?: number;
+}
+
+const STEP_TITLE: Record<FryerStepKey, string> = {
+  heat: 'Ohřev',
+  cook: 'Pečení',
+  done: 'Hotovo',
+};
+
+/**
+ * Phase timeline with the same three steps for the whole cook (Ohřev → Pečení → Hotovo) on every
+ * screen. Shake / drawer / pause interrupt Pečení (the card itself carries the instruction), so
+ * the step bar never grows or relabels mid-cook. Ohřev counts as done when the device skipped it.
+ */
+export function fryerTimeline(phase: FryerPhase, progress: number | null = null): FryerStep[] {
+  const finished = phase === 'done' || phase === 'warm';
+  const at = phase === 'preheat' ? 0 : finished ? 2 : 1;
+  const keys: FryerStepKey[] = ['heat', 'cook', 'done'];
+  return keys.map((key, i) => {
+    const state: FryerStepState =
+      i < at || (finished && key === 'done')
+        ? 'done'
+        : i === at
+          ? phase === 'error'
+            ? 'error'
+            : 'active'
+          : 'todo';
+    const fill = state === 'active' && key === 'cook' && progress !== null;
+    return { key, title: STEP_TITLE[key], state, ...(fill ? { progress } : {}) };
+  });
+}
+
+/** Wall-clock time the cook ends („v 18:42“), null when the countdown is not running. */
+export function fryerEta(m: FryerModel, now: number): string | null {
+  if (m.remainingS === null || (m.phase !== 'cooking' && m.phase !== 'preheat')) return null;
+  const d = new Date(now + m.remainingS * 1000);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export type FryerControl = 'pause' | 'stop' | 'keep_warm';
@@ -267,6 +320,7 @@ export function fryerControls(phase: FryerPhase): FryerControl[] {
     case 'done':
       return ['keep_warm', 'stop'];
     case 'warm':
+    case 'error':
       return ['stop'];
     default:
       return [];
