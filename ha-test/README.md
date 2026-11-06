@@ -69,10 +69,32 @@ pnpm test:e2e:ha
 docker compose -f ha-test/docker-compose.yml down
 ```
 
+Verzi image určuje `HA_VERSION` (výchozí připnutá 2026.10.4), např.
+`HA_VERSION=beta docker compose -f ha-test/docker-compose.yml up -d --wait`.
+Konfigurace zapíná i integraci `demo` (syntetická světla, vysavače, senzory).
+
 Port http://127.0.0.1:8123 je publikovaný pouze na loopbacku. Integrace je
 připojená pouze pro čtení. YAML `homebrain:` není potřeba, onboarding používá
 config flow. Runtime kontejneru je v ignorovaném `ha-test/config/`; verzovaný
 je jen `configuration.yaml`. Neukládejte sem skutečné entity ani osobní údaje.
+
+## Kompatibilita se stable a beta (issue #26)
+
+Job `ha-compat` v `.github/workflows/nightly.yml` běží týdně a ručně
+(`gh workflow run nightly.yml --ref <větev> -f scope=ha-compat`) v matici
+minimální verze z `hacs.json`, `stable` a `beta`. Po onboardingu spustí
+`node ha-test/compat-check.mjs`, který ověří:
+
+- config entry HomeBrain je ve stavu `loaded`,
+- `get_panels` vrací přesně panely z `panels.json` (12) a každý panel i bundle odpovídá HTTP 200,
+- WS `homebrain/bindings/get` (včetně demo vazby), `robots/get`, `recipes/timers/subscribe`
+  (výsledek + úvodní snapshot), `access/state` a `session/get` odpovídají úspěchem,
+- `system_log` neobsahuje ERROR/CRITICAL z HomeBrain ani „blocking call“ v HomeBrain
+  (ostatní varování HA jen vypíše jako anotace).
+
+Následuje `pnpm test:e2e:ha` (desktop) a znovu kontrola logu
+(`HB_COMPAT_LOGS_ONLY=1`). Když selže beta, workflow založí nebo doplní issue
+„HA beta: HomeBrain compatibility check fails“.
 
 ## Prohlížeč a mock e2e
 

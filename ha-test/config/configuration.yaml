@@ -1,5 +1,8 @@
 default_config:
 
+# Syntetické demo entity HA (světla, vysavače, senzory…) – žádná reálná data (issue #26).
+demo:
+
 template:
   - sensor:
       - name: Demo Waste Next
