@@ -9,6 +9,21 @@ import RobotsView from './RobotsView.js';
 
 afterEach(cleanup);
 
+it('Údržba: klik na díl otevře návod a „Hotovo“ vynuluje počítadlo po potvrzení', async () => {
+  const { sent } = setup();
+  fireEvent.click(await screen.findByTestId('robots-guide-open-main_brush'));
+  const sheet = screen.getByTestId('robots-guide');
+  expect(sheet.textContent).toContain('obecný postup');
+  expect(
+    sheet.querySelectorAll('.hb-stepper[data-variant=instructions] li').length,
+  ).toBeGreaterThan(2);
+  // Generic fallback has no reset entity → only „Hotovo“ closes the sheet.
+  expect(screen.queryByTestId('robots-guide-reset')).toBeNull();
+  fireEvent.click(screen.getByText('Hotovo'));
+  expect(screen.queryByTestId('robots-guide')).toBeNull();
+  expect(sent).toEqual([]);
+});
+
 function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
   const demo = createRobotsDemo(Date.now());
   const store = createEntityStore();

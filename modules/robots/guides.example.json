@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "model": "Synthetic robot (example – real guides live only in Home Assistant)",
+  "parts": {
+    "main_brush": {
+      "title": "Hlavní kartáč",
+      "interval": "Čistit 1× týdně",
+      "photo": {
+        "view": "bottom",
+        "spot": [50, 46],
+        "r": 13
+      },
+      "steps": [
+        {
+          "text": "Robota otočte vzhůru nohama.",
+          "image": "main_brush_1.svg"
+        },
+        {
+          "text": "Sundejte kryt a vytáhněte kartáč."
+        },
+        {
+          "text": "Odstraňte vlasy a kartáč vraťte."
+        }
+      ],
+      "video": {
+        "src": "main_brush.mp4",
+        "poster": "main_brush_poster.svg"
+      },
+      "source": {
+        "label": "Výrobce – návod",
+        "url": "https://example.com/manual"
+      },
+      "reset": "button.demo_robot_1_reset_main_brush"
+    },
+    "side_brush": {
+      "title": "Boční kartáč",
+      "interval": "Čistit 1× měsíčně",
+      "photo": {
+        "view": "bottom",
+        "spot": [15, 22],
+        "r": 9
+      },
+      "steps": [
+        {
+          "text": "Kartáček sundejte."
+        },
+        {
+          "text": "Očistěte ho a nasaďte zpět."
+        }
+      ],
+      "reset": "button.demo_robot_1_reset_side_brush"
+    },
+    "dust_bag": {
+      "title": "Sáček na prach",
+      "interval": "Vyměnit, když je plný",
+      "photo": {
+        "view": "dock",
+        "spot": [50, 55],
+        "r": 10
+      },
+      "steps": [
+        {
+          "text": "Otevřete komoru."
+        },
+        {
+          "text": "Vyměňte sáček."
+        }
+      ]
+    }
+  }
+}

@@ -102,6 +102,8 @@ export interface SheetProps {
   width?: 'md' | 'lg';
   /** Scrim click closes (default true for alert, false for dialog – avoids losing a flow). */
   dismissOnScrim?: boolean;
+  /** Footer stays pinned at the bottom while long content scrolls (guides, long forms). */
+  stickyFooter?: boolean;
   'data-testid'?: string;
 }
 /** Modal sheet: phone = bottom sheet, tablet = centred panel. Esc closes; focus moves inside. */
@@ -114,6 +116,7 @@ export function Sheet({
   variant = 'dialog',
   width = 'md',
   dismissOnScrim,
+  stickyFooter,
   ...rest
 }: SheetProps) {
   const titleId = useId();
@@ -148,6 +151,7 @@ export function Sheet({
         className="hb-sheet"
         data-variant={variant}
         data-width={width}
+        data-sticky-foot={stickyFooter && footer ? '' : undefined}
         role={variant === 'alert' ? 'alertdialog' : 'dialog'}
         aria-modal="true"
         aria-labelledby={titleId}
@@ -170,6 +174,8 @@ export interface StepperProps {
     key: string;
     title: string;
     detail?: ReactNode;
+    /** Picture/illustration under the step text (`instructions` variant). */
+    media?: ReactNode;
     state: StepState;
     /** Compact only: 0–1 fill of the active segment (e.g. cooking countdown inside its step). */
     progress?: number;
@@ -177,12 +183,23 @@ export interface StepperProps {
   label?: string;
   /** Small inline variant for progress inside a status surface (LiveStatus `steps`). */
   compact?: boolean;
+  /**
+   * `progress` (default) = horizontal wizard progress; `instructions` = vertical numbered how-to
+   * list (full text wraps on every screen, optional media per step) for repair/maintenance guides.
+   */
+  variant?: 'progress' | 'instructions';
 }
 const stepPct = (p: number) => Math.round(Math.max(0, Math.min(1, p)) * 1000) / 10;
 /** Horizontal progress of a multi-step flow (wizard). Collapses to numbers on phones. */
-export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
+export function Stepper({ steps, label = 'Postup', compact, variant = 'progress' }: StepperProps) {
+  const howTo = variant === 'instructions';
   const list = (
-    <ol className="hb-stepper" data-compact={compact ? '' : undefined} aria-label={label}>
+    <ol
+      className="hb-stepper"
+      data-compact={compact && !howTo ? '' : undefined}
+      data-variant={howTo ? 'instructions' : undefined}
+      aria-label={label}
+    >
       {steps.map((s, i) => (
         <li
           key={s.key}
@@ -204,11 +221,12 @@ export function Stepper({ steps, label = 'Postup', compact }: StepperProps) {
             {s.title}
             {s.detail && <small>{s.detail}</small>}
           </span>
+          {howTo && s.media && <span className="hb-step-media">{s.media}</span>}
         </li>
       ))}
     </ol>
   );
-  if (!compact) return list;
+  if (!compact || howTo) return list;
   // compact = connected segment track; phones show one 'Krok 3 z 5 · Snímám' caption instead of labels
   const at = steps.findIndex((s) => s.state === 'active' || s.state === 'error');
   const cur = steps[at];

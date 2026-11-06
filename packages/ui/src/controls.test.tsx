@@ -126,6 +126,43 @@ describe('controls', () => {
     expect(items[1]!.getAttribute('aria-current')).toBe('step');
     expect(items[0]!.textContent).toContain('✓');
   });
+  it('Sheet stickyFooter pins the footer only when there is one', () => {
+    const { rerender } = render(
+      <Sheet title="Návod" onClose={() => {}} stickyFooter footer={<button>Hotovo</button>}>
+        x
+      </Sheet>,
+    );
+    expect(screen.getByRole('dialog').hasAttribute('data-sticky-foot')).toBe(true);
+    rerender(
+      <Sheet title="Návod" onClose={() => {}} stickyFooter>
+        x
+      </Sheet>,
+    );
+    expect(screen.getByRole('dialog').hasAttribute('data-sticky-foot')).toBe(false);
+  });
+  it('Stepper instructions variant keeps every step text and its media', () => {
+    const { container } = render(
+      <Stepper
+        variant="instructions"
+        label="Jak na to"
+        steps={[
+          {
+            key: '1',
+            title: 'Otočte robota',
+            state: 'todo',
+            media: <img alt="krok 1" src="a.webp" />,
+          },
+          { key: '2', title: 'Sundejte kryt', state: 'todo' },
+        ]}
+      />,
+    );
+    const list = container.querySelector('ol')!;
+    expect(list.getAttribute('data-variant')).toBe('instructions');
+    expect(list.getAttribute('aria-label')).toBe('Jak na to');
+    expect(screen.getAllByRole('listitem')[1]!.textContent).toBe('2Sundejte kryt');
+    expect(screen.getByAltText('krok 1').closest('.hb-step-media')).not.toBeNull();
+    expect(container.querySelector('.hb-steptrack')).toBeNull();
+  });
   it('LiveStatus renders actions inside the status surface', () => {
     render(
       <LiveStatus state="ok" title="Zapsáno" actions={<button>Levá</button>}>

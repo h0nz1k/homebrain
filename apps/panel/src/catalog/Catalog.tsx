@@ -535,16 +535,28 @@ const specs: Spec[] = [
     states: ['todo', 'active', 'done', 'skipped', 'error'],
     doText: 'Krátké názvy kroků, stav kroku v detailu („uloženo · ID 1003“).',
     dontText: 'Víc než 5 kroků.',
-    notes: 'Na telefonu ukazuje jen čísla a název aktivního kroku.',
+    notes:
+      'Na telefonu ukazuje jen čísla a název aktivního kroku. variant="instructions" = svislý číslovaný návod (Jak to opravit, údržba robota) s volitelným obrázkem u kroku.',
     render: () => (
-      <Stepper
-        steps={[
-          { key: 'name', title: 'Jméno', detail: 'Petra', state: 'done' },
-          { key: 'face', title: 'Obličej', detail: 'uloženo · ID 2', state: 'done' },
-          { key: 'right', title: 'Pravá dlaň', detail: 'snímám…', state: 'active' },
-          { key: 'left', title: 'Levá dlaň', detail: 'volitelné', state: 'todo' },
-        ]}
-      />
+      <div style={{ display: 'grid', gap: 24 }}>
+        <Stepper
+          steps={[
+            { key: 'name', title: 'Jméno', detail: 'Petra', state: 'done' },
+            { key: 'face', title: 'Obličej', detail: 'uloženo · ID 2', state: 'done' },
+            { key: 'right', title: 'Pravá dlaň', detail: 'snímám…', state: 'active' },
+            { key: 'left', title: 'Levá dlaň', detail: 'volitelné', state: 'todo' },
+          ]}
+        />
+        <Stepper
+          variant="instructions"
+          label="Jak to opravit"
+          steps={[
+            { key: '1', title: 'Robota otočte vzhůru nohama na měkkou podložku.', state: 'todo' },
+            { key: '2', title: 'Sundejte kryt a vytáhněte kartáč.', state: 'todo' },
+            { key: '3', title: 'Odstraňte namotané vlasy a kartáč vraťte.', state: 'todo' },
+          ]}
+        />
+      </div>
     ),
   },
   {

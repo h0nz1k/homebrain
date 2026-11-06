@@ -181,6 +181,8 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       if (hours !== null && hours !== undefined)
         put(r.slot, kind, 'sensor', String(hours), { unit_of_measurement: 'h' });
     });
+    // Roborock „reset consumable“ button (maintenance guide → „Hotovo, vynulovat počítadlo“).
+    put(r.slot, 'reset_main_brush', 'button', 'unknown');
     (['clean_water', 'dirty_water', 'cleaning_fluid', 'water_shortage'] as const).forEach(
       (tank, i) => {
         if (r.slot !== 3 || tank === 'water_shortage')

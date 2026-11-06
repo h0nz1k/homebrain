@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 // Roboti – photo card (owner's photo set under /local/homebrain/robots/<robot>/, never in the repo).
@@ -40,10 +42,22 @@ const pictures: Record<string, string> = {
   ),
 };
 
+// Synthetic maintenance guides (real ones with vendor videos live only in Home Assistant).
+const guides = JSON.parse(
+  readFileSync(join(import.meta.dirname, '../../modules/robots/guides.example.json'), 'utf8'),
+) as unknown;
+pictures['main_brush_1.svg'] = svg('<rect width="320" height="180" fill="#3a4250"/>', 320, 180);
+pictures['main_brush_poster.svg'] = svg(
+  '<rect width="320" height="180" fill="#1d2430"/>',
+  320,
+  180,
+);
+
 async function servePhotos(page: Page) {
   await page.route('**/local/homebrain/robots/**', (route) => {
     const file = new URL(route.request().url()).pathname.split('/').pop() ?? '';
     if (file === 'manifest.json') return route.fulfill({ json: manifest });
+    if (file === 'guides.json') return route.fulfill({ json: guides });
     const body = pictures[file];
     return body
       ? route.fulfill({ body, contentType: 'image/svg+xml' })
@@ -131,4 +145,58 @@ test.describe('omezený pohyb', () => {
     await page.waitForTimeout(300);
     expect(await running(page, false)).toBe(0);
   });
+});
+
+test('údržba: návod k dílu s fotkou, kroky, videem a vynulováním počítadla', async ({ page }) => {
+  await servePhotos(page);
+  await page.goto('/homebrain-roboti?photos=a,b,c');
+  await page.getByTestId('robots-guide-open-main_brush').click();
+  const sheet = page.getByTestId('robots-guide');
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  await expect(sheet.getByTestId('robots-guide-photo')).toBeVisible();
+  await expect(sheet.locator('.hb-stepper[data-variant=instructions] > li')).toHaveCount(3);
+  await expect(sheet.locator('.hb-step-media img')).toHaveCount(1);
+  await expect(sheet.getByTestId('robots-guide-video')).toHaveAttribute(
+    'src',
+    /guides\/main_brush\.mp4$/,
+  );
+  await expect(sheet.getByRole('link', { name: 'Výrobce – návod' })).toHaveAttribute(
+    'target',
+    '_blank',
+  );
+  // The sheet fits the viewport width (phones included) – nothing scrolls sideways.
+  const fits = await page.evaluate(() => {
+    const box = document.querySelector('[data-testid=robots-guide]')!.getBoundingClientRect();
+    return (
+      box.left >= -1 &&
+      box.right <= window.innerWidth + 1 &&
+      document.documentElement.scrollWidth <= window.innerWidth
+    );
+  });
+  expect(fits).toBe(true);
+  await sheet.getByTestId('robots-guide-reset').click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId('robots-confirm')).toContainText(
+    'Vynulovat počítadlo: Hlavní kartáč',
+  );
+  await page.getByRole('button', { name: 'Zrušit' }).click();
+
+  // Reset entity missing in HA → disabled action + hint; extra parts row opens the dock guide.
+  await page.getByTestId('robots-guide-open-side_brush').click();
+  await expect(page.getByTestId('robots-guide-reset')).toBeDisabled();
+  await expect(page.getByTestId('robots-guide-reset-missing')).toContainText(
+    'button.demo_robot_1_reset_side_brush',
+  );
+  await page.keyboard.press('Escape');
+  await page.getByTestId('robots-guide-open-dust_bag').click();
+  await expect(page.getByTestId('robots-guide')).toContainText('Vyměňte sáček');
+});
+
+test('údržba: bez soukromého návodu obecný postup bez videa', async ({ page }) => {
+  await page.goto('/homebrain-roboti');
+  await page.getByTestId('robots-guide-open-filter').click();
+  const sheet = page.getByTestId('robots-guide');
+  await expect(sheet).toContainText('obecný postup', { timeout: 20_000 });
+  await expect(sheet.getByTestId('robots-guide-video')).toHaveCount(0);
+  await expect(page.getByTestId('robots-guides-more')).toHaveCount(0);
 });

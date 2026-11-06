@@ -173,12 +173,6 @@ export const robotsStyles = `
 }
 .rb-problem .rb-eyebrow { color: var(--hb-crit); font-weight: 600; }
 .rb-problem h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin: 4px 0 14px; }
-.rb-problem ol { counter-reset: step; display: grid; gap: 10px; }
-.rb-problem li { counter-increment: step; display: grid; grid-template-columns: 26px 1fr; gap: 10px; font-size: 15px; line-height: 1.45; }
-.rb-problem li::before {
-  content: counter(step); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
-  background: var(--hb-crit); color: #fff; font-size: 13px; font-weight: 700;
-}
 .rb-problem-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 18px; }
 .rb-problem-cta span { font-size: 13px; color: var(--hb-t2); }
 .rb-problem-more { margin-top: 14px; font-size: 14px; color: var(--hb-t2); }
@@ -213,7 +207,38 @@ export const robotsStyles = `
 
 /* Maintenance */
 .rb-parts { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(68px, 1fr); }
-.rb-parts li { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 14px; padding: 7px 0; }
+.rb-parts li { display: grid; }
+.rb :where(.rb-part-btn, .rb-tank-btn) { font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rb-part-btn { display: grid; grid-template-columns: 54px minmax(0, 1fr) 16px; align-items: center; gap: 14px; padding: 7px 4px 7px 0; border-radius: 12px; transition: background var(--hb-dur-fast, 120ms) var(--hb-ease-out, ease-out); }
+.rb-part-btn:hover { background: color-mix(in srgb, var(--hb-t1) 5%, transparent); }
+.rb :where(.rb-part-btn, .rb-tank-btn):focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
+.rb-chevron { width: 16px; height: 16px; color: var(--hb-t3); }
+.rb-guides-more { margin-top: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); display: grid; gap: 8px; }
+.rb-tank-btn { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 0; }
+.rb-tank-btn:disabled { cursor: default; }
+.rb-tank-btn > span { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+/* Maintenance guide sheet */
+.rbg { display: grid; gap: 18px; }
+.rbg-sub { margin: -6px 0 0; color: var(--hb-t2); font-size: 14px; }
+.rbg-photo { position: relative; margin: 0; border-radius: var(--hb-radius-md, 14px); overflow: hidden; background: var(--rb-fill, var(--hb-fill)); aspect-ratio: 4 / 3; }
+.rbg-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.rbg-photo[data-rbg-spot]::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at var(--rbg-x) var(--rbg-y), transparent calc(var(--rbg-r) * 0.75), rgba(4, 8, 16, 0.5) calc(var(--rbg-r) * 0.75 + 6%)); }
+.rbg-ring { position: absolute; left: var(--rbg-x); top: var(--rbg-y); width: calc(var(--rbg-r) * 1.5); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 2px var(--hb-ac), 0 0 0 6px color-mix(in srgb, var(--hb-ac) 28%, transparent); z-index: 1; }
+.rbg-video { margin: 0; display: grid; gap: 6px; align-content: start; }
+.rbg-interval { justify-self: start; margin-top: -8px; white-space: normal; }
+.rbg-hero { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.rbg-hero:has(.rbg-video):has(.rbg-photo) .rbg-photo { aspect-ratio: 16 / 10; }
+@media (min-width: 760px) {
+  .rbg-hero:has(.rbg-video):has(.rbg-photo) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; }
+  .rbg-hero:has(.rbg-video):has(.rbg-photo) .rbg-photo { aspect-ratio: 16 / 11; }
+  .rbg .hb-stepper[data-variant='instructions'] .hb-step:has(.hb-step-media) { grid-template-columns: 26px minmax(0, 1fr) minmax(0, 300px); }
+  .rbg .hb-stepper[data-variant='instructions'] .hb-step-media { grid-column: 3; grid-row: 1; }
+}
+.rbg-video video { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--hb-radius-md, 14px); background: #000; }
+.rbg-video figcaption, .rbg-source, .rbg-note { color: var(--hb-t2); font-size: 13px; margin: 0; }
+.rbg-source a { color: var(--hb-ac); }
+.rbg-note code { font-size: 12px; overflow-wrap: anywhere; }
+.rbg-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; width: 100%; }
 .rb-parts li + li { border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
 .rb-ring-wrap { position: relative; width: 54px; height: 54px; }
 .rb-ring-wrap em::after { content: '%'; font-size: 10px; font-weight: 500; margin-left: 1px; opacity: 0.7; }
@@ -237,12 +262,12 @@ export const robotsStyles = `
 [data-theme='light'] .rb-dock[data-rb-dock-warn='true'] .rb-card-head .rb-micro { color: #a35d00; }
 .rb-tanks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .rb-tanks li { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--hb-fill); }
-.rb-tanks li > span { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+
 .rb-tanks b { font-size: 14px; font-weight: 600; }
-.rb-tanks li > span > span { font-size: 13px; color: var(--hb-t2); }
+.rb-tank-btn > span > span { font-size: 13px; color: var(--hb-t2); }
 .rb-tanks [data-rb-ok='false'] { background: color-mix(in srgb, var(--hb-warn) 13%, transparent); }
-.rb-tanks [data-rb-ok='false'] li > span > span, .rb-tanks [data-rb-ok='false'] > span > span { color: var(--hb-warn); font-weight: 600; }
-[data-theme='light'] .rb-tanks [data-rb-ok='false'] > span > span { color: #a35d00; }
+.rb-tanks [data-rb-ok='false'] .rb-tank-btn > span > span { color: var(--hb-warn); font-weight: 600; }
+[data-theme='light'] .rb-tanks [data-rb-ok='false'] .rb-tank-btn > span > span { color: #a35d00; }
 .rb-tank { width: 24px; height: 32px; flex: none; }
 .rb-tank-shell { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 30%, transparent); stroke-width: 1.5; }
 .rb-tank-fill { fill: #4cb8ff; opacity: 0.85; }
