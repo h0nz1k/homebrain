@@ -254,9 +254,9 @@ export const networkStyles = `
 .net-topo-legend small { flex-basis: 100%; font-size: 12px; color: var(--hb-t3); }
 /* Phone: vertical tree, APs collapsible. */
 .net-tree { list-style: none; margin: 0; padding: 0; }
-.net-tree .net-tree { margin-left: 23px; }
-.net-tree .net-tree > li { position: relative; padding-left: 14px; }
-.net-tree .net-tree > li::before { content: ''; position: absolute; left: 0; top: 0; width: 13px; height: 30px; border-left: 1.5px solid var(--topo-line); border-bottom: 1.5px solid var(--topo-line); border-bottom-left-radius: 8px; }
+.net-tree .net-tree { margin-left: 21px; }
+.net-tree .net-tree > li { position: relative; padding-left: 12px; }
+.net-tree .net-tree > li::before { content: ''; position: absolute; left: 0; top: 0; width: 11px; height: 30px; border-left: 1.5px solid var(--topo-line); border-bottom: 1.5px solid var(--topo-line); border-bottom-left-radius: 8px; }
 .net-tree .net-tree > li[data-leaf]::before { height: 24px; }
 .net-tree .net-tree > li::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--topo-line); }
 .net-tree .net-tree > li:last-child::after { display: none; }
@@ -264,12 +264,18 @@ export const networkStyles = `
 .net-tree .net-tree > li[data-type='mesh']::before { border-style: dotted; border-color: var(--hb-ac); border-width: 2px; }
 .net-tree .net-tree > li[data-type='wireless']::before { border-style: dotted; border-color: var(--topo-soft); }
 .net-tree .net-tree > li[data-tone='slow']::before { border-color: var(--hb-crit); border-width: 2px; }
+.net-tree-root > li + li { position: relative; padding-top: 12px; }
+.net-tree-root > li + li::before { content: ''; position: absolute; left: 22px; top: -2px; height: 18px; border-left: 1.5px solid var(--topo-line); }
 .net-tree-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; min-width: 0; }
 .net-tree .net-topo-node { position: relative; flex: 1 1 auto; min-width: 0; padding: 6px 10px 6px 6px; gap: 8px; }
 .net-tree .net-topo-tile { width: 32px; height: 32px; }
+.net-tree .net-topo-copy strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.net-tree .net-topo-badge { min-width: 24px; height: 24px; }
 .net-tree .net-topo-node[data-kind='client'], .net-tree .net-topo-node[data-kind='more'] { flex: 0 1 auto; padding: 3px 12px 3px 3px; }
 .net-tree .net-topo-node[data-kind='client'] .net-topo-tile, .net-tree .net-topo-node[data-kind='more'] .net-topo-tile { width: 26px; height: 26px; }
-.net-tree-chip { position: static; transform: none; flex: none; }
+.net-topo-inline[data-tone='slow'] { color: var(--hb-crit); font-weight: 600; }
+.net-topo-inline[data-assumed] { font-style: italic; }
+.net-topo-inline[data-tone='fast'], .net-topo-inline[data-type='mesh'] { color: var(--hb-ac); }
 .net-tree-toggle { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--hb-fill); display: grid; place-items: center; cursor: pointer; }
 .net-tree-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; transition: transform var(--hb-dur-1, 120ms); }
 .net-tree-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }

@@ -114,11 +114,15 @@ function NodeButton({
   n,
   onOpen,
   style,
+  link,
 }: {
   n: TopoNode;
   onOpen: (n: TopoNode) => void;
   style?: React.CSSProperties;
+  /** Phone: the uplink chip rides in the sub line (no room beside the node). */
+  link?: TopoEdge;
 }) {
+  const chip = link ? edgeLabel(link) : null;
   const sub = subLabel(n);
   const clickable = n.kind !== 'more' && n.kind !== 'internet';
   const label = n.kind === 'more' ? more(n.count ?? 0) : n.label;
@@ -142,7 +146,21 @@ function NodeButton({
       </span>
       <span className="net-topo-copy">
         <strong>{label}</strong>
-        {sub && <small>{sub}</small>}
+        {(sub || chip) && (
+          <small>
+            {sub}
+            {chip && (
+              <span
+                className="net-topo-inline"
+                data-testid="network-topo-chip"
+                {...linkAttrs(link!)}
+              >
+                {sub ? ' · ' : ''}
+                {chip}
+              </span>
+            )}
+          </small>
+        )}
       </span>
       {n.kind === 'ap' && n.clients != null && n.status !== 'offline' && (
         <span className="net-topo-badge" title="klienti">
@@ -152,6 +170,8 @@ function NodeButton({
     </button>
   );
 }
+
+const isLeafKind = (n: TopoNode) => n.kind === 'client' || n.kind === 'more';
 
 const linkAttrs = (e: TopoEdge) => ({
   'data-type': e.type,
@@ -243,12 +263,7 @@ function PhoneTree({ graph, onOpen }: { graph: TopoGraph; onOpen: (n: TopoNode) 
         {...(e ? linkAttrs(e) : {})}
       >
         <div className="net-tree-row">
-          <NodeButton n={n} onOpen={onOpen} />
-          {chip && (
-            <span className="net-topo-chip net-tree-chip" {...(e ? linkAttrs(e) : {})}>
-              {chip}
-            </span>
-          )}
+          <NodeButton n={n} onOpen={onOpen} link={chip && !isLeafKind(n) ? e : undefined} />
           {leaves.length > 0 && (
             <button
               type="button"
@@ -276,8 +291,18 @@ function PhoneTree({ graph, onOpen }: { graph: TopoGraph; onOpen: (n: TopoNode) 
     );
   };
   return (
+    // Internet → router is a straight chain: keep both on the root spine to save one indent.
     <ul className="net-tree net-tree-root" data-testid="network-topo-phone">
-      {graph.nodes.filter((n) => !n.parent).map(render)}
+      {graph.nodes
+        .filter((n) => !n.parent)
+        .flatMap((root) => [
+          <li key={root.id} className="net-tree-item">
+            <div className="net-tree-row">
+              <NodeButton n={root} onOpen={onOpen} />
+            </div>
+          </li>,
+          ...(kids.get(root.id) ?? []).map(render),
+        ])}
     </ul>
   );
 }

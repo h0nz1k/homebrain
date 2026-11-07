@@ -41,7 +41,7 @@ const WIDTH: Record<TopoKind, number> = {
 };
 const DEVICE_H = 60;
 const LEAF_H = 36;
-const COL_GAP = 108;
+const COL_GAP = 144;
 const TRUNK = 22;
 const ROW_GAP = 12;
 const LEAF_GAP = 8;
