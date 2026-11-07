@@ -227,8 +227,8 @@ export const networkStyles = `
 .net-topo-node[data-kind='more'] .net-topo-tile { background: none; }
 .net-topo-ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .net-topo-node[data-kind='client'] .net-topo-ico { width: 16px; height: 16px; }
-.net-topo-dot { position: absolute; left: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--hb-ok); box-shadow: 0 0 0 2px var(--hb-s1); }
-.net-topo-node[data-kind='client'] .net-topo-dot { width: 8px; height: 8px; left: -1px; bottom: -1px; }
+.net-topo-dot { position: absolute; right: -3px; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--hb-ok); box-shadow: 0 0 0 2px var(--hb-s1); }
+.net-topo-node[data-kind='client'] .net-topo-dot { width: 8px; height: 8px; right: -1px; top: -1px; }
 .net-topo-node[data-status='offline'] .net-topo-dot, .net-topo-node[data-status='unknown'] .net-topo-dot { background: var(--hb-t3); }
 .net-topo-node[data-status='offline'] .net-topo-copy { opacity: 0.7; }
 .net-topo-node[data-severity='critical'] { box-shadow: var(--hb-elev-1), inset 0 0 0 1.5px var(--hb-crit); }

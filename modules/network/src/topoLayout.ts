@@ -32,17 +32,17 @@ export interface TopoLayout {
 }
 
 const WIDTH: Record<TopoKind, number> = {
-  internet: 168,
-  gateway: 168,
-  switch: 200,
-  ap: 200,
-  client: 184,
-  more: 184,
+  internet: 176,
+  gateway: 176,
+  switch: 184,
+  ap: 184,
+  client: 168,
+  more: 168,
 };
 const DEVICE_H = 60;
 const LEAF_H = 36;
-const COL_GAP = 144;
-const TRUNK = 22;
+const COL_GAP = 128;
+const TRUNK = 16;
 const ROW_GAP = 12;
 const LEAF_GAP = 8;
 const MESH_X = 26;
@@ -113,8 +113,10 @@ export function layoutTopology(
     const y = cursor;
     placed.push({ node: n, col, y });
     const children = opts.collapsed?.has(n.id) ? [] : (kids.get(n.id) ?? []);
-    const side = children.filter((c) => edgeTo.get(c.id)?.type !== 'mesh');
-    const below = children.filter((c) => edgeTo.get(c.id)?.type === 'mesh');
+    // Mesh children and the router (under Internet) hang below their parent, same column.
+    const stacked = (c: TopoNode) => edgeTo.get(c.id)?.type === 'mesh' || n.kind === 'internet';
+    const side = children.filter((c) => !stacked(c));
+    const below = children.filter(stacked);
     side.forEach((c) => visit(c, col + 1));
     const own = y + height(n) + (isLeaf(n) ? LEAF_GAP : ROW_GAP);
     cursor = Math.max(cursor, own);
@@ -142,11 +144,17 @@ export function layoutTopology(
   }));
   const byId = new Map(boxes.map((b) => [b.id, b]));
   const links: TopoLink[] = [];
+  const assumedLabelled = new Set<string>();
   for (const b of boxes) {
     const parent = b.node.parent ? byId.get(b.node.parent) : undefined;
     if (!parent || !b.edge) continue;
-    const text = edgeLabel(b.edge);
-    if (b.edge.type === 'mesh') {
+    let text = edgeLabel(b.edge);
+    // „předpoklad“ once per shared trunk – the dashed style + legend say the rest.
+    if (text === 'předpoklad') {
+      if (assumedLabelled.has(parent.id)) text = null;
+      assumedLabelled.add(parent.id);
+    }
+    if (b.edge.type === 'mesh' || parent.node.kind === 'internet') {
       const x = parent.x + MESH_X;
       const y1 = parent.y + parent.h;
       links.push({

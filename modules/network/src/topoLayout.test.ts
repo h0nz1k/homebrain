@@ -27,10 +27,12 @@ const box = (id: string) => {
 describe('layoutTopology (desktop, horizontal tree)', () => {
   it('puts levels in columns left → right', () => {
     expect(box('internet').col).toBe(0);
-    expect(box('gateway').col).toBe(1);
-    expect(box('sw-lite').col).toBe(2);
-    expect(box('ap-obyvak').col).toBe(3);
-    expect(box('client:c-robot').col).toBe(4);
+    // Router stacks under Internet (one column saved, the map fits a laptop).
+    expect(box('gateway').col).toBe(0);
+    expect(box('gateway').y).toBeGreaterThan(box('internet').y + box('internet').h);
+    expect(box('sw-lite').col).toBe(1);
+    expect(box('ap-obyvak').col).toBe(2);
+    expect(box('client:c-robot').col).toBe(3);
     expect(box('sw-lite').x).toBeGreaterThan(box('gateway').x + box('gateway').w);
   });
 
@@ -63,6 +65,11 @@ describe('layoutTopology (desktop, horizontal tree)', () => {
     expect(wired?.branch).toMatch(/^M[\d.]+ [\d.]+ H[\d.]+$/);
     expect(width).toBeGreaterThan(800);
     expect(height).toBeGreaterThan(200);
+  });
+
+  it('labels the assumed trunk once, not on every switch', () => {
+    const labels = layoutTopology(graph).links.filter((l) => l.label?.text === 'předpoklad');
+    expect(labels).toHaveLength(1);
   });
 
   it('skips collapsed subtrees', () => {

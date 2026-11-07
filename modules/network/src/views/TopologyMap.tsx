@@ -57,7 +57,7 @@ function subLabel(n: TopoNode): string | null {
     case 'internet':
       return ms(n.latency_ms) ?? 'stav neznámý';
     case 'gateway':
-      return ['mimo UniFi', ms(n.latency_ms)].filter(Boolean).join(' · ');
+      return [ms(n.latency_ms), 'mimo UniFi'].filter(Boolean).join(' · ');
     case 'switch':
     case 'ap':
       return n.model_label ?? null;
@@ -163,7 +163,11 @@ function NodeButton({
         )}
       </span>
       {n.kind === 'ap' && n.clients != null && n.status !== 'offline' && (
-        <span className="net-topo-badge" title="klienti">
+        <span
+          className="net-topo-badge"
+          title="připojení klienti"
+          aria-label={`${n.clients} klientů`}
+        >
           {n.clients}
         </span>
       )}
