@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { horizonNotice, parseWasteHorizon, typesWithoutNext } from './horizon.js';
+import {
+  horizonNotice,
+  parseWasteHorizon,
+  typesWithoutNext,
+  type WasteHorizon,
+} from './horizon.js';
 import type { WasteCollectionEvent } from './contract.js';
 
-const ending = {
+const ending: WasteHorizon = {
   status: 'ending',
   last_date: '2026-12-30',
   days_left: 20,
