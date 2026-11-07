@@ -136,7 +136,7 @@ BINDING_MODULES = {
     # Roboti: up to 3 robot vacuums (robot1_vacuum, robot1_status, …); see robots/config.py.
     "robots": ROBOT_BINDING_KEYS,
     # Shared family / school calendars (calendar.*); Dnes shows today's events on the ribbon.
-    "family": ("family_calendar_family", "family_calendar_school"),
+    "family": ("family_calendar_family", "family_calendar_school", "family_todo_shared"),
     # Station entities (e.g. Ecowitt) + the met.no weather entity; see weather/station.py.
     "weather": (
         "weather_temperature",
@@ -173,6 +173,7 @@ BINDING_DOMAINS: dict[str, str | tuple[str, ...]] = {
     "waste_calendar": "calendar",
     "family_calendar_family": "calendar",
     "family_calendar_school": "calendar",
+    "family_todo_shared": "todo",
     "weather_forecast": "weather",
     "wine_light": "light",
     "energy_appliance_heat_pump_switch": "switch",

@@ -57,6 +57,13 @@
       "module": "robots"
     },
     {
+      "url_path": "homebrain-rodina",
+      "title": "Rodina",
+      "icon": "mdi:account-group",
+      "module": "family",
+      "require_admin": false
+    },
+    {
       "url_path": "homebrain-pristup",
       "title": "Přístup",
       "icon": "mdi:fingerprint",

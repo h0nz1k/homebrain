@@ -127,8 +127,14 @@ async def test_options_family_calendars(hass: HomeAssistant):
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "family"
     fields = result["data_schema"].schema
-    assert [str(key) for key in fields] == ["family_calendar_family", "family_calendar_school"]
-    assert all(fields[key].config["domain"] == ["calendar"] for key in fields)
+    assert [str(key) for key in fields] == [
+        "family_calendar_family",
+        "family_calendar_school",
+        "family_todo_shared",
+    ]
+    domains = {str(key): fields[key].config["domain"] for key in fields}
+    assert domains["family_calendar_family"] == domains["family_calendar_school"] == ["calendar"]
+    assert domains["family_todo_shared"] == ["todo"]
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"family_calendar_family": "calendar.demo_family"}

@@ -40,6 +40,7 @@ MODULES: Final = (
     "recipes",
     "access",
     "network",
+    "family",
 )
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 

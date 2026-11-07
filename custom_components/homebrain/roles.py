@@ -133,6 +133,17 @@ NETWORK_SUMMARY_ROLES: Final = frozenset({"adult", "kiosk"})
 NETWORK_QR_ROLES: Final = frozenset({"adult", "child", "kiosk"})
 
 
+# Rodina: every mapped role reads the family overview, ticks off chores (a child only its own,
+# checked in the handler) and edits the shopping list; approving chores is for adults.
+FAMILY_WS_COMMANDS: Final = frozenset(
+    {
+        "homebrain/family/get",
+        "homebrain/family/chore/claim",
+        "homebrain/family/shopping/add",
+        "homebrain/family/shopping/update",
+    }
+)
+FAMILY_APPROVE_ROLES: Final = frozenset({"adult"})
 # Energie details (period comparison): HA admins and adults; the kiosk keeps the summary only.
 ENERGY_DETAIL_ROLES: Final = frozenset({"adult"})
 
@@ -146,9 +157,11 @@ def role_ws_commands(role: str) -> frozenset[str]:
         extra |= {"homebrain/network/summary"}
     if role in NETWORK_QR_ROLES:
         extra |= {"homebrain/network/guest_qr"}
+    if role in FAMILY_APPROVE_ROLES:
+        extra |= {"homebrain/family/chore/approve"}
     if role in ENERGY_DETAIL_ROLES:
         extra |= {"homebrain/energy/compare"}
-    return KIOSK_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
+    return KIOSK_WS_COMMANDS | FAMILY_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
 
 
 def entry_roles(hass: HomeAssistant) -> dict[str, str]:

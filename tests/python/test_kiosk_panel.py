@@ -109,6 +109,13 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/network/guest_qr": {},
     "homebrain/network/settings/get": {},
     "homebrain/network/settings/set": {},
+    "homebrain/family/get": {},
+    "homebrain/family/chore/claim": {"kid": "nobody", "chore": "sensor.nothing"},
+    "homebrain/family/chore/approve": {"kid": "nobody", "chore": "sensor.nothing"},
+    "homebrain/family/shopping/add": {"summary": "Mléko"},
+    "homebrain/family/shopping/update": {"uid": "u1", "done": True},
+    "homebrain/family/settings/get": {},
+    "homebrain/family/settings/set": {},
 }
 
 

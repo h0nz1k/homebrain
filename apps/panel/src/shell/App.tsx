@@ -37,6 +37,8 @@ if (!styleEl) {
 styleEl.textContent = tokens + components + shellStyles;
 
 /** The separate wall-tablet panel (`/homebrain-kiosk`) registers `config: { kiosk: true }`. */
+const KIOSK_SESSION_MODULES: ReadonlySet<string> = new Set(['today', 'family']);
+
 export function isKioskPanel(panel: unknown): boolean {
   if (typeof panel !== 'object' || panel === null) return false;
   const config = (panel as { config?: unknown }).config;
@@ -140,7 +142,9 @@ export const App = memo(function App({
   // ADR-0002: the kiosk role always gets the kiosk shell on Dnes; `?kiosk=1` alone is layout only.
   // The kiosk panel always shows only Dnes, whatever the route or role.
   const kiosk = kioskPanel || isKioskRoute(path, search) || session?.kiosk === true;
-  const id = kioskPanel || session?.kiosk ? 'today' : moduleId;
+  // A kiosk session may also open Rodina (kitchen tablet: family overview + shopping list).
+  const id =
+    kioskPanel || (session?.kiosk && !KIOSK_SESSION_MODULES.has(moduleId)) ? 'today' : moduleId;
   const activeModule =
     modules.find((module) => module.id === (id === 'settings' ? 'family' : id)) ?? modules[0]!;
 
