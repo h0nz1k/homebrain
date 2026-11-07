@@ -299,6 +299,10 @@
     "network_unifi_auth": {
       "title": "HomeBrain Síť: přihlášení k UniFi selhalo",
       "description": "Účet HomeBrainu pro přímé čtení UniFi se nedokázal přihlásit (změněné heslo nebo smazaný účet). Modul Síť dál běží jen z dat HA. Opravte heslo v Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Síť – UniFi; hlášení zmizí po prvním úspěšném čtení."
+    },
+    "waste_data_horizon": {
+      "title": "HomeBrain Odpady: svozový kalendář končí {last_date}",
+      "description": "Poslední známý svoz je **{last_date}**, pozdější termíny zatím nejsou zveřejněné. Po tomto dni panel Odpady neukáže další svoz. Doplňte rozpis na {next_year}: ověřte, že zdroj kalendáře (web obce, soubor ICS nebo zdroj waste_collection_schedule) už rok {next_year} zveřejňuje, a data obnovte (např. akcí `waste_collection_schedule.fetch_data`). Hlášení zmizí samo, jakmile se objeví pozdější termíny."
     }
   }
 }

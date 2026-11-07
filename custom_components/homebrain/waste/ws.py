@@ -9,18 +9,28 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
+from .horizon import WARN_DAYS, compute_horizon
 
 # Opening the panel re-reads the sources when the last pass is older than this.
 STALE_AFTER = timedelta(minutes=30)
 
 
-@websocket_api.websocket_command({vol.Required("type"): "homebrain/waste/history"})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "homebrain/waste/history",
+        vol.Optional("warn_days", default=WARN_DAYS): vol.All(int, vol.Range(min=1, max=366)),
+    }
+)
 @websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_waste_history(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Observed collections up to today (oldest first) for "last collected" and the calendar."""
+    """Observed collections up to today (oldest first) + the data horizon of the schedule.
+
+    ``horizon`` = last known pickup overall and per type (incl. future ones), so the admin panel
+    can warn before the published schedule runs out (``warn_days``, default 30).
+    """
     manager = hass.data.get(DOMAIN, {}).get("waste_history")
     if manager is None:
         connection.send_error(msg["id"], "not_found", "HomeBrain is not configured")
@@ -34,5 +44,6 @@ async def websocket_waste_history(
             "events": events,
             "since": events[0]["date"] if events else None,
             "updated_at": manager.last_refresh.isoformat() if manager.last_refresh else None,
+            "horizon": compute_horizon(manager.store.records(), dt_util.now(), msg["warn_days"]),
         },
     )
