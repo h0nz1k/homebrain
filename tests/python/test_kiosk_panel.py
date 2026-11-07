@@ -20,6 +20,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/weather/get": {},
     "homebrain/weather/alerts": {},
     "homebrain/energy/pv_forecast": {},
+    "homebrain/energy/compare": {},
     "homebrain/waste/history": {},
     "homebrain/robots/get": {},
     "homebrain/robots/map": {"slot": 1},
