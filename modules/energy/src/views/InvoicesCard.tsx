@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ConnectionLike } from '@homebrain/ha-client';
-import { Button, Sheet, toast } from '@homebrain/ui';
+import { Button, ConfirmDialog, Sheet, toast } from '@homebrain/ui';
 import {
   TARIFF_LABELS,
   contractNotice,
@@ -587,68 +587,38 @@ export function InvoicesCard({
         />
       )}
       {confirm === 'tariff' && cmp && (
-        <Sheet
-          variant="alert"
+        <ConfirmDialog
           title="Přepsat ceny podle faktury?"
-          onClose={() => setConfirm(null)}
+          confirmLabel="Přepsat ceny"
+          confirmTestId="energy-invoice-tariff-confirm-ok"
           data-testid="energy-invoice-tariff-confirm"
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setConfirm(null)}>
-                Zrušit
-              </Button>
-              <Button
-                variant="primary"
-                data-testid="energy-invoice-tariff-confirm-ok"
-                onClick={async () => {
-                  try {
-                    for (const call of tariffUpdateCalls(cmp.tariff))
-                      await connection.sendMessagePromise(call);
-                    toast.success('Ceny v HomeBrainu odpovídají faktuře.');
-                    setConfirm(null);
-                    await reload();
-                  } catch {
-                    toast.error('Ceny se nepodařilo přepsat.');
-                  }
-                }}
-              >
-                Přepsat ceny
-              </Button>
-            </>
-          }
+          errorText="Ceny se nepodařilo přepsat. Zkuste to znovu."
+          onClose={() => setConfirm(null)}
+          onConfirm={async () => {
+            for (const call of tariffUpdateCalls(cmp.tariff))
+              await connection.sendMessagePromise(call);
+            toast.success('Ceny v HomeBrainu odpovídají faktuře.');
+            await reload();
+          }}
         >
-          <p>
-            Nastavíme pomocníky tarifu v Home Assistantu na průměrné ceny z faktury (s DPH). Odhady
-            nákladů v Energii se pak počítají podle nich.
-          </p>
-        </Sheet>
+          Nastavíme pomocníky tarifu v Home Assistantu na průměrné ceny z faktury (s DPH). Odhady
+          nákladů v Energii se pak počítají podle nich.
+        </ConfirmDialog>
       )}
       {confirm === 'delete' && current && (
-        <Sheet
-          variant="alert"
+        <ConfirmDialog
           title="Smazat fakturu?"
+          confirmLabel="Smazat"
+          danger
           onClose={() => setConfirm(null)}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setConfirm(null)}>
-                Zrušit
-              </Button>
-              <Button
-                variant="danger"
-                onClick={async () => {
-                  await deleteInvoice(connection, current.id).catch(() => null);
-                  setConfirm(null);
-                  setSelected(null);
-                  await reload();
-                }}
-              >
-                Smazat
-              </Button>
-            </>
-          }
+          onConfirm={async () => {
+            await deleteInvoice(connection, current.id);
+            setSelected(null);
+            await reload();
+          }}
         >
-          <p>Smažeme uložený soubor i načtené údaje za {periodLabel(current.fields.period)}.</p>
-        </Sheet>
+          Smažeme uložený soubor i načtené údaje za {periodLabel(current.fields.period)}.
+        </ConfirmDialog>
       )}
     </section>
   );
