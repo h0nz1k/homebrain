@@ -23,8 +23,8 @@ from . import rules
 from .discovery import FlapTracker, build_snapshot
 from .enrich import enrich_snapshot
 from .topology import build_topology
-from .unifi_client import UnifiConfig
 from .unifi_poller import UnifiPoller
+from .unifi_source import UnifiSource
 
 CONF_NETWORK: Final = "network"
 FLAPS_KEY: Final = "network_flaps"
@@ -81,19 +81,25 @@ def _snapshot(hass: HomeAssistant) -> tuple[dict[str, Any], list[dict[str, Any]]
     if poller is not None:
         if (data := poller.current(now)) is not None:
             enrich_snapshot(snap, data, macs, poller.downs)
-        snap["unifi"] = poller.status()
+        snap["unifi"] = {**poller.status(), "source": poller.source.kind}
     else:
         snap["unifi"] = {"configured": False}
     return snap, rules.evaluate(snap, now)
 
 
 def _unifi_public(hass: HomeAssistant) -> dict[str, Any]:
-    """Connection state only – never the URL, account or password."""
+    """Admin settings: state, account source and username – never the URL or password."""
     poller: UnifiPoller | None = hass.data.get(DOMAIN, {}).get(UNIFI_KEY)
     if poller is None:
         return {"configured": False}
     status = poller.status()
-    return {"configured": True, "status": status["status"], "readonly": status["readonly"]}
+    return {
+        "configured": True,
+        "status": status["status"],
+        "readonly": status["readonly"],
+        "source": poller.source.kind,
+        "account": poller.source.account(hass),
+    }
 
 
 @websocket_api.websocket_command({vol.Required("type"): "homebrain/network/get"})
@@ -252,8 +258,8 @@ async def async_setup(hass: HomeAssistant, entry: Any) -> None:
 
     async def _options_updated(hass: HomeAssistant, entry: Any) -> None:
         poller: UnifiPoller | None = hass.data.get(DOMAIN, {}).get(UNIFI_KEY)
-        new = UnifiConfig.from_options(entry.options.get(CONF_UNIFI))
-        if (poller.cfg if poller else None) == new:
+        new = UnifiSource.from_options(entry.options.get(CONF_UNIFI), hass)
+        if (poller.source if poller else None) == new:
             return
         await _async_stop_unifi(hass)
         await _async_start_unifi(hass, entry)
@@ -262,11 +268,11 @@ async def async_setup(hass: HomeAssistant, entry: Any) -> None:
 
 
 async def _async_start_unifi(hass: HomeAssistant, entry: Any) -> None:
-    """Direct read-only UniFi polling (V2) – only when the owner configured an account."""
-    cfg = UnifiConfig.from_options(entry.options.get(CONF_UNIFI))
-    if cfg is None:
+    """Direct read-only UniFi polling (V2): HA's UniFi account or an own manual one."""
+    source = UnifiSource.from_options(entry.options.get(CONF_UNIFI), hass)
+    if source is None:
         return
-    poller = UnifiPoller(hass, cfg)
+    poller = UnifiPoller(hass, source)
     hass.data.setdefault(DOMAIN, {})[UNIFI_KEY] = poller
     await poller.async_start()
 

@@ -253,7 +253,15 @@
       },
       "network_unifi": {
         "title": "UniFi – direct read-only (optional)",
-        "description": "Optional extension of the Network module: HomeBrain reads the UniFi Network controller with its own account and adds ports, link speeds, signal strength and channel utilization. Recommended: create a local UniFi account \"homebrain\" with the **View Only** role. HomeBrain never reads the credentials of the HA UniFi integration. URL: classic application `https://<controller>:8443`, UniFi OS `https://<controller>`. The password is never shown; leave it empty to keep the stored one. Clear the URL to switch direct reading off.",
+        "description": "Optional extension of the Network module: HomeBrain reads the UniFi Network controller (GET requests only) and adds ports, link speeds, signal strength and channel utilization. Recommended: **Use the account of the HA UniFi integration** – no second account and no password to enter; HomeBrain reads host, port, site and login from that integration each time it connects and never stores the password. With several UniFi integrations pick the one to use. \"Own account\" lets you enter separate credentials (View Only recommended).",
+        "data": {
+          "source": "UniFi account",
+          "entry_id": "UniFi integration in HA"
+        }
+      },
+      "network_unifi_manual": {
+        "title": "UniFi – own account",
+        "description": "HomeBrain's own read-only UniFi account. Recommended: a local UniFi account \"homebrain\" with the **View Only** role. URL: classic application `https://<controller>:8443`, UniFi OS `https://<controller>`. The password is never shown; leave it empty to keep the stored one. Clear the URL to switch direct reading off.",
         "data": {
           "url": "Controller URL",
           "site": "Site (default \"default\")",
@@ -275,7 +283,8 @@
       "invalid_image": "Use a /local/… path or an https URL.",
       "invalid_auth": "UniFi login failed – check username and password.",
       "cannot_connect": "Cannot reach the UniFi controller – check the URL and certificate.",
-      "invalid_url": "Enter a URL starting with https:// (or http://)."
+      "invalid_url": "Enter a URL starting with https:// (or http://).",
+      "unifi_source_missing": "The selected UniFi integration is not loaded in Home Assistant (removed or failing). Check it in Settings → Devices & services → UniFi Network, or choose another account."
     }
   },
   "selector": {
@@ -304,6 +313,13 @@
         "auto": "Auto (only with Mealie)",
         "off": "Off"
       }
+    },
+    "network_unifi_source": {
+      "options": {
+        "ha_integration": "Use the account of the HA UniFi integration",
+        "manual": "Own account (enter credentials)",
+        "off": "Off (HA data only)"
+      }
     }
   },
   "issues": {
@@ -313,7 +329,7 @@
     },
     "network_unifi_auth": {
       "title": "HomeBrain Network: UniFi login failed",
-      "description": "HomeBrain's own UniFi account could not log in (changed password or deleted account). The Network module keeps running on HA data only. Fix the password in Settings → Devices & services → HomeBrain → Configure → Network – UniFi; this issue clears after the next successful read."
+      "description": "The UniFi account used by HomeBrain could not log in (changed password or deleted account). The Network module keeps running on HA data only. With the HA UniFi integration account, fix the login in that integration; with an own account, fix the password in Settings → Devices & services → HomeBrain → Configure → Network – UniFi. This issue clears after the next successful read."
     },
     "waste_data_horizon": {
       "title": "HomeBrain Waste: the collection schedule ends on {last_date}",

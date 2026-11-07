@@ -14,6 +14,13 @@ from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
 from .network.unifi_client import UnifiAuthError, UnifiConfig, UnifiError
 from .network.unifi_poller import async_validate_unifi
+from .network.unifi_source import (
+    SOURCE_HA,
+    SOURCE_MANUAL,
+    SOURCE_OFF,
+    UnifiSource,
+    ha_unifi_entries,
+)
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
@@ -134,16 +141,89 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
     async def async_step_network_unifi(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Optional direct read-only UniFi connection with HomeBrain's own account (V2)."""
+        """Optional direct read-only UniFi connection (V2): which account to use.
+
+        Default = the account of HA's own UniFi integration (exactly one entry, no manual
+        credentials). Only ``source`` + ``entry_id`` are stored – never HA's password.
+        """
         current = self.config_entry.options.get(UNIFI_OPTION_KEY) or {}
+        entries = ha_unifi_entries(self.hass)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            choice = user_input.get("source")
+            options = {**self.config_entry.options}
+            if choice == SOURCE_MANUAL:
+                return await self.async_step_network_unifi_manual()
+            if choice == SOURCE_OFF:
+                options[UNIFI_OPTION_KEY] = {"source": SOURCE_OFF}
+                return self.async_create_entry(title="", data=options)
+            entry_id = user_input.get("entry_id") or (
+                entries[0].entry_id if len(entries) == 1 else None
+            )
+            cfg = UnifiSource(SOURCE_HA, entry_id=entry_id).resolve(self.hass)
+            if cfg is None:
+                errors["base"] = "unifi_source_missing"
+            else:
+                try:
+                    await async_validate_unifi(self.hass, cfg)
+                except UnifiAuthError:
+                    errors["base"] = "invalid_auth"
+                except UnifiError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    options[UNIFI_OPTION_KEY] = {"source": SOURCE_HA, "entry_id": entry_id}
+                    return self.async_create_entry(title="", data=options)
+
+        kind = current.get("source") or (
+            SOURCE_MANUAL if current.get("url") else SOURCE_HA if len(entries) == 1 else None
+        )
+        if kind is None:
+            kind = SOURCE_HA if entries else SOURCE_MANUAL
+        choices = ([SOURCE_HA] if entries else []) + [SOURCE_MANUAL, SOURCE_OFF]
+        fields: dict[Any, Any] = {
+            vol.Required("source", default=kind if kind in choices else choices[0]): (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=choices,
+                        mode=selector.SelectSelectorMode.LIST,
+                        translation_key="network_unifi_source",
+                    )
+                )
+            )
+        }
+        if entries:
+            picked = current.get("entry_id")
+            ids = [e.entry_id for e in entries]
+            fields[vol.Optional("entry_id", default=picked if picked in ids else ids[0])] = (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value=e.entry_id, label=e.title or e.entry_id)
+                            for e in entries
+                        ]
+                    )
+                )
+            )
+        return self.async_show_form(
+            step_id="network_unifi", data_schema=vol.Schema(fields), errors=errors
+        )
+
+    async def async_step_network_unifi_manual(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """HomeBrain's own read-only UniFi account (manual credentials, optional)."""
+        current = self.config_entry.options.get(UNIFI_OPTION_KEY) or {}
+        if current.get("source") not in (None, SOURCE_MANUAL):
+            current = {}
         errors: dict[str, str] = {}
         if user_input is not None:
             options = {**self.config_entry.options}
             url = str(user_input.get("url") or "").strip().rstrip("/")
             if not url:
-                options.pop(UNIFI_OPTION_KEY, None)
+                options[UNIFI_OPTION_KEY] = {"source": SOURCE_OFF}
                 return self.async_create_entry(title="", data=options)
             values = {
+                "source": SOURCE_MANUAL,
                 "url": url,
                 "site": str(user_input.get("site") or "default").strip(),
                 "username": str(user_input.get("username") or "").strip(),
@@ -187,7 +267,7 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(
-            step_id="network_unifi",
+            step_id="network_unifi_manual",
             data_schema=schema,
             errors=errors,
         )
