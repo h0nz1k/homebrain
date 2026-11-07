@@ -31,6 +31,7 @@ import {
   FLOW_SCENARIOS,
   type FlowScenario,
   createCompareDemo,
+  createInvoicesDemo,
   createEnergyDemo,
   type CompareScenario,
   createPvForecastDemo,
@@ -473,6 +474,23 @@ function robotsGet(): { robots: (typeof robotsDemo.ws.robots)[number][] } {
     ),
   };
 }
+// Energie „Faktury“: `?faktury=none` (empty list), `?role=adult` (read-only), `?role=kiosk` (hidden).
+const invoiceRole = recipesQuery.get('role') ?? 'owner';
+const invoicesDemo = createInvoicesDemo(
+  Date.now(),
+  recipesQuery.get('faktury') === 'none' ? 'none' : 'one',
+);
+demoHass.fetchWithAuth = async (path: string, init?: RequestInit) => {
+  await new Promise((r) => setTimeout(r, 300));
+  if (path === '/api/homebrain/energy/invoices' && init?.method === 'POST') {
+    if (invoiceRole !== 'owner') return new Response('{"message":"admin only"}', { status: 403 });
+    return new Response(JSON.stringify(invoicesDemo.upload()), { status: 201 });
+  }
+  return new Response('{}', { status: 404 });
+};
+const invoiceGate = () => {
+  if (invoiceRole !== 'owner' && invoiceRole !== 'adult') throw new Error('unauthorized');
+};
 demoHass.connection = createMockConnection({
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).
   'homebrain/weather/get': () => buildMockSnapshot(scenarioFromUrl(location.search)),
@@ -517,7 +535,26 @@ demoHass.connection = createMockConnection({
   },
   ...presetsDemo.handlers,
   ...schedulesDemo.handlers,
+  'homebrain/energy/invoices/list': () => {
+    invoiceGate();
+    return invoicesDemo.list(invoiceRole === 'owner');
+  },
+  'homebrain/energy/invoices/compare': (m: { invoice_id: string }) => {
+    invoiceGate();
+    return invoicesDemo.compare(m.invoice_id);
+  },
+  'homebrain/energy/invoices/save': (m: { invoice_id: string; fields: never }) =>
+    invoicesDemo.save(m.invoice_id, m.fields),
+  'homebrain/energy/invoices/delete': (m: { invoice_id: string }) =>
+    invoicesDemo.remove(m.invoice_id),
   call_service: (message: unknown) => {
+    const call = message as {
+      domain?: string;
+      service_data?: { value?: number };
+      target?: { entity_id?: string };
+    };
+    if (call.domain === 'input_number' && call.target?.entity_id)
+      invoicesDemo.setTariff(call.target.entity_id, Number(call.service_data?.value));
     robotCalls.push(message);
     return { context: { id: 'demo' } };
   },

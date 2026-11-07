@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { EntityStateLike, EntityStore, ModuleViewProps } from '@homebrain/ha-client';
 import { Breakdown, EmptyState, SegmentedControl, StatusBadge } from '@homebrain/ui';
 import { fetchComparison, type Comparison } from '../compare.js';
 import { CompareCard } from './CompareCard.js';
+import { InvoicesCard } from './InvoicesCard.js';
 import {
   adaptEnergyEntities,
   fetchEnergyHistory,
@@ -793,8 +794,11 @@ export function EnergyScreen({
   thermalHistory = THERMAL_HISTORY_NONE,
   cost = null,
   comparison = { status: 'unconfigured' },
+  invoices = null,
 }: {
   model: EnergyModel;
+  /** Energie „Faktury“ card (needs the connection; absent in pure screen tests). */
+  invoices?: ReactNode;
   cost?: CostView | null;
   comparison?: Comparison;
   history: EnergyHistory;
@@ -941,6 +945,7 @@ export function EnergyScreen({
         />
         <CostCard cost={cost} model={model} />
         <CompareCard comparison={comparison} />
+        {invoices}
         <PriceCard model={model} />
         <DayChart model={model} history={history} />
         <WeekChart model={model} history={history} />
@@ -951,7 +956,13 @@ export function EnergyScreen({
   );
 }
 
-export default function EnergyView({ store, bindings, connection }: ModuleViewProps) {
+export default function EnergyView({
+  store,
+  bindings,
+  connection,
+  fetchWithAuth,
+  kiosk,
+}: ModuleViewProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -1106,6 +1117,14 @@ export default function EnergyView({ store, bindings, connection }: ModuleViewPr
           thermalHistory={thermalHistory}
           cost={cost}
           comparison={comparison}
+          invoices={
+            <InvoicesCard
+              connection={connection}
+              fetchWithAuth={fetchWithAuth}
+              kiosk={kiosk}
+              now={now}
+            />
+          }
         />
       ) : (
         <div className="en-root">

@@ -9,6 +9,11 @@ export class HomebrainPanel extends HTMLElement {
   private currentRoute = { path: '' };
   private currentPanel?: { config?: { legacy?: boolean; module?: string; kiosk?: boolean } };
   readonly entityStore = createEntityStore();
+  private readonly fetchWithAuth = (path: string, init?: RequestInit) => {
+    const hass = this.currentHass;
+    if (!hass?.fetchWithAuth) return Promise.reject(new Error('fetchWithAuth unavailable'));
+    return hass.fetchWithAuth(path, init);
+  };
   set hass(value: HassLike) {
     const previous = this.currentHass;
     this.currentHass = value;
@@ -68,6 +73,7 @@ export class HomebrainPanel extends HTMLElement {
         <App
           store={this.entityStore}
           connection={this.currentHass.connection}
+          fetchWithAuth={this.currentHass.fetchWithAuth ? this.fetchWithAuth : undefined}
           narrow={this.currentNarrow}
           moduleId={module}
           route={this.currentRoute}
