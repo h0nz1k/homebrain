@@ -24,7 +24,8 @@
           "robots_2": "Robot 2",
           "robots_3": "Robot 3",
           "recipes": "Recepty",
-          "modules": "Moduly (zapnout/vypnout)"
+          "modules": "Moduly (zapnout/vypnout)",
+          "network_unifi": "Síť – UniFi (volitelné)"
         }
       },
       "waste": {
@@ -247,11 +248,25 @@
         "data": {
           "enabled_modules": "Zapnuté moduly"
         }
+      },
+      "network_unifi": {
+        "title": "UniFi – přímé čtení (volitelné)",
+        "description": "Volitelné rozšíření modulu Síť: HomeBrain čte řadič UniFi Network vlastním účtem a doplní porty, rychlosti linek, sílu signálu a vytížení kanálů. Doporučeno: v UniFi vytvořte lokální účet „homebrain“ s rolí **View Only** (jen čtení). HomeBrain nikdy nečte přihlašovací údaje integrace UniFi v HA. Adresa: klasická aplikace `https://<řadič>:8443`, UniFi OS `https://<řadič>`. Heslo se nikdy nezobrazuje; prázdné pole ponechá uložené. Vymazáním adresy přímé čtení vypnete.",
+        "data": {
+          "url": "Adresa řadiče (URL)",
+          "site": "Site (výchozí „default“)",
+          "username": "Uživatel (doporučeno View Only)",
+          "password": "Heslo",
+          "verify_ssl": "Ověřovat certifikát (vypněte pro self-signed)"
+        }
       }
     },
     "error": {
       "invalid_entity_id": "Zadejte platné ID entity.",
-      "invalid_image": "Zadejte cestu /local/… nebo https URL."
+      "invalid_image": "Zadejte cestu /local/… nebo https URL.",
+      "invalid_auth": "Přihlášení k UniFi selhalo – zkontrolujte uživatele a heslo.",
+      "cannot_connect": "Řadič UniFi není dostupný – zkontrolujte adresu a certifikát.",
+      "invalid_url": "Zadejte adresu začínající https:// (nebo http://)."
     }
   },
   "selector": {
@@ -280,6 +295,10 @@
     "module_failed": {
       "title": "Modul HomeBrainu {module} je nedostupný",
       "description": "Modul HomeBrainu **{module}** se nepodařilo spustit a v panelu je označen jako nedostupný; ostatní moduly fungují dál. Chyba: `{error}`. Zkontrolujte log Home Assistantu a pak HomeBrain znovu načtěte nebo restartujte Home Assistant. Modul lze také vypnout v možnostech HomeBrainu."
+    },
+    "network_unifi_auth": {
+      "title": "HomeBrain Síť: přihlášení k UniFi selhalo",
+      "description": "Účet HomeBrainu pro přímé čtení UniFi se nedokázal přihlásit (změněné heslo nebo smazaný účet). Modul Síť dál běží jen z dat HA. Opravte heslo v Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Síť – UniFi; hlášení zmizí po prvním úspěšném čtení."
     }
   }
 }

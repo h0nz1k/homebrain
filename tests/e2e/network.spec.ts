@@ -188,3 +188,65 @@ test.describe('Síť – mapa', () => {
     ).toBeVisible();
   });
 });
+
+test.describe('Síť V2 – přímé čtení UniFi (?unifi=1)', () => {
+  test('desktop: zdroj HA + UniFi, přesné linky, kanály AP a signál klientů', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop layout');
+    await page.goto('/homebrain-sit/mapa?unifi=1');
+    await expect(page.getByTestId('network-topo-desktop')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('network-source')).toHaveText('Zdroj: HA + UniFi');
+    await expect(page.getByTestId('network-source-note')).toHaveCount(0);
+    await expect(page.getByTestId('network-topo-source')).toContainText('přímo z řadiče UniFi');
+    await expect(
+      page.getByTestId('network-topo-chip').filter({ hasText: '\u221269 dBm' }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId('network-topo-chip').filter({ hasText: 'p6' }).first(),
+    ).toBeVisible();
+    // Dev harness: a query string breaks SPA tab switching, so open each tab directly.
+    await page.goto('/homebrain-sit?unifi=1');
+    await expect(page.getByTestId('network-ap-radios').first()).toContainText('kanál', {
+      timeout: 20_000,
+    });
+    await expect(
+      page.getByTestId('network-problem').filter({ hasText: 'slabý bezdrátový spoj' }),
+    ).toContainText('Co s tím');
+    await page.goto('/homebrain-sit/zarizeni?unifi=1');
+    await expect(
+      page.locator('#network-device-c-tablet [data-testid="network-signal"]'),
+    ).toHaveAttribute('data-bars', '1');
+    await noSidewaysScroll(page);
+  });
+
+  test('bez účtu UniFi: zdroj HA a nápověda, kde ho nastavit', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop layout');
+    await page.goto('/homebrain-sit/mapa');
+    await expect(page.getByTestId('network-topo-desktop')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('network-source')).toHaveText('Zdroj: HA');
+    await expect(page.getByTestId('network-source-note')).toContainText('Síť – UniFi');
+    await expect(page.locator('[data-testid="network-signal"]')).toHaveCount(0);
+  });
+
+  test('telefon: kanály a signál bez ořezu a bez vodorovného posunu', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-s21', 'phone layout');
+    await page.goto('/homebrain-sit?unifi=1');
+    await expect(page.getByTestId('network-ap-radios').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('network-source')).toHaveText('Zdroj: HA + UniFi');
+    const clipped = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.net-radios small, .net-source'))
+        .filter((el) => el.scrollWidth > el.clientWidth + 1)
+        .map((el) => el.textContent),
+    );
+    expect(clipped).toEqual([]);
+    await noSidewaysScroll(page);
+    await page.goto('/homebrain-sit/mapa?unifi=1');
+    const tree = page.getByTestId('network-topo-phone');
+    await expect(tree).toBeVisible({ timeout: 20_000 });
+    await expect(tree.locator('li[data-type="mesh"]').first()).toContainText('dBm');
+    await noSidewaysScroll(page);
+  });
+});

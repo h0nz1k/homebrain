@@ -382,11 +382,18 @@ export function TopologyMap({ api, onOpen }: { api: NetworkApi; onOpen: (n: Topo
         <span data-type="wired" data-assumed="true">
           předpoklad
         </span>
-        <small>
-          Podle Home Assistantu: rodiče AP a mesh přesně; připojení switchů k bráně a kabelových
-          zařízení je předpoklad (brána není UniFi). Porty, rychlosti a signál jen tam, kde jsou
-          jisté.
-        </small>
+        {graph.meta.source === 'ha+unifi' ? (
+          <small data-testid="network-topo-source">
+            Podle HA a UniFi: porty, rychlosti linek a signál přímo z řadiče UniFi; připojení
+            switchů k bráně zůstává předpoklad (brána není UniFi).
+          </small>
+        ) : (
+          <small data-testid="network-topo-source">
+            Podle Home Assistantu: rodiče AP a mesh přesně; připojení switchů k bráně a kabelových
+            zařízení je předpoklad (brána není UniFi). Porty, rychlosti a signál jen tam, kde jsou
+            jisté.
+          </small>
+        )}
       </footer>
     </Card>
   );

@@ -12,6 +12,8 @@ from .bindings import binding_domains, get_bindings, validate_binding
 from .const import BINDING_MODULES, DOMAIN, PANEL_TITLE
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
+from .network.unifi_client import UnifiAuthError, UnifiConfig, UnifiError
+from .network.unifi_poller import async_validate_unifi
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
@@ -24,11 +26,13 @@ from .robots.config import (
 )
 from .robots.discovery import discover_bindings, discover_floor, missing_bindings
 
+UNIFI_OPTION_KEY = "network_unifi"
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
 # Extra menu steps that are not entity bindings.
 OPTIONS_FLOW_EXTRA = (
     "energy_pv",
     *(f"robots_{slot}" for slot in ROBOT_SLOTS),
+    "network_unifi",
     "modules",
 )
 
@@ -125,6 +129,67 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="energy_pv", data_schema=schema)
+
+    async def async_step_network_unifi(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Optional direct read-only UniFi connection with HomeBrain's own account (V2)."""
+        current = self.config_entry.options.get(UNIFI_OPTION_KEY) or {}
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            options = {**self.config_entry.options}
+            url = str(user_input.get("url") or "").strip().rstrip("/")
+            if not url:
+                options.pop(UNIFI_OPTION_KEY, None)
+                return self.async_create_entry(title="", data=options)
+            values = {
+                "url": url,
+                "site": str(user_input.get("site") or "default").strip(),
+                "username": str(user_input.get("username") or "").strip(),
+                # an empty password field keeps the stored one (it is never shown back)
+                "password": user_input.get("password") or current.get("password") or "",
+                "verify_ssl": bool(user_input.get("verify_ssl", False)),
+            }
+            if not url.startswith(("http://", "https://")):
+                errors["url"] = "invalid_url"
+            elif not values["username"] or not values["password"]:
+                errors["base"] = "invalid_auth"
+            else:
+                try:
+                    await async_validate_unifi(self.hass, UnifiConfig.from_options(values))
+                except UnifiAuthError:
+                    errors["base"] = "invalid_auth"
+                except UnifiError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    options[UNIFI_OPTION_KEY] = values
+                    return self.async_create_entry(title="", data=options)
+            current = {**values, "password": ""}
+
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    "url", description={"suggested_value": current.get("url", "")}
+                ): selector.TextSelector(selector.TextSelectorConfig(type="url")),
+                vol.Optional(
+                    "site", default=current.get("site") or "default"
+                ): selector.TextSelector(),
+                vol.Optional(
+                    "username", description={"suggested_value": current.get("username", "")}
+                ): selector.TextSelector(),
+                vol.Optional("password"): selector.TextSelector(
+                    selector.TextSelectorConfig(type="password")
+                ),
+                vol.Optional(
+                    "verify_ssl", default=bool(current.get("verify_ssl", False))
+                ): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="network_unifi",
+            data_schema=schema,
+            errors=errors,
+        )
 
     async def async_step_modules(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Switch modules on/off; a disabled module registers no WS commands nor panel."""

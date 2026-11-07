@@ -19,6 +19,37 @@ export interface NetPort {
   n: number;
   speed_mbps: number | null;
   poe_w: number | null;
+  /** V2 (own UniFi account): link state and link drops in the last 24 h. */
+  up?: boolean;
+  link_down_24h?: number | null;
+}
+
+/** V2: one radio of an AP (channel utilisation from the UniFi controller). */
+export interface NetRadio {
+  band: '2.4' | '5' | '6';
+  channel: number | null;
+  utilization_pct: number | null;
+  self_pct: number | null;
+  interference_pct: number | null;
+  clients: number | null;
+  satisfaction: number | null;
+}
+
+/** V2: exact uplink of an AP/switch. */
+export interface NetLink {
+  type: 'wired' | 'mesh';
+  port: number | null;
+  speed_mbps: number | null;
+  max_mbps: number | null;
+  signal_dbm: number | null;
+}
+
+/** Direct UniFi connection state – never the URL or the account. */
+export interface NetUnifiStatus {
+  configured: boolean;
+  status?: 'pending' | 'ok' | 'auth_failed' | 'unreachable';
+  updated_at?: number | null;
+  readonly?: boolean | null;
 }
 
 export interface NetDevice {
@@ -39,6 +70,8 @@ export interface NetDevice {
   max_link_mbps?: number;
   ports: NetPort[];
   poe?: { used_w: number; budget_w: number | null };
+  link?: NetLink;
+  radios?: NetRadio[];
 }
 
 export interface NetClient {
@@ -53,6 +86,11 @@ export interface NetClient {
   since: number | null;
   important: boolean;
   expected_floor_id: string | null;
+  /** V2 only. */
+  signal_dbm?: number | null;
+  band?: '2.4' | '5' | '6' | null;
+  switch_id?: string;
+  switch_port?: number | null;
 }
 
 export interface NetSummary {
@@ -81,6 +119,8 @@ export interface NetSnapshot {
   clients: NetClient[];
   problems: NetProblem[];
   summary: NetSummary;
+  source?: 'ha' | 'ha+unifi';
+  unifi?: NetUnifiStatus;
 }
 
 export interface GuestQr {
@@ -100,6 +140,7 @@ export interface NetSettings {
   important: ImportantItem[];
   guest: { ssid: string; password?: string | null; security?: 'WPA' | 'WEP' | 'nopass' } | null;
   gateway_label?: string | null;
+  unifi?: NetUnifiStatus;
 }
 
 /** Topology graph (`homebrain/network/topology`, admin only). V1 = HA data; V2 fills port/speed/dBm. */
@@ -138,5 +179,5 @@ export interface TopoEdge {
 export interface TopoGraph {
   nodes: TopoNode[];
   edges: TopoEdge[];
-  meta: { source: 'ha' | 'unifi'; slow_links: number; mesh: number; assumed: number };
+  meta: { source: 'ha' | 'ha+unifi'; slow_links: number; mesh: number; assumed: number };
 }

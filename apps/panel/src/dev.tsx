@@ -96,6 +96,8 @@ const networkApi = createMockNetworkApi({
   scenario: (recipesQuery.get('sit') as NetworkScenario | null) ?? 'problems',
   role: (recipesQuery.get('role') as NetRole | null) ?? 'owner',
   guest: recipesQuery.get('hoste') !== '0',
+  // `?unifi=1` = V2: own read-only UniFi account configured (ports, signal, channels).
+  unifi: recipesQuery.get('unifi') === '1',
 });
 setNetworkApiFactory(() => networkApi);
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.

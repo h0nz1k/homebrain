@@ -17,8 +17,12 @@ import {
   floorRows,
   glue,
   heroModel,
+  dbmText,
   isOnline,
   loadRows,
+  radioText,
+  signalBars,
+  sourceModel,
   poeShare,
   sinceLabel,
   speedLabel,
@@ -191,6 +195,25 @@ function House({ snap }: { snap: NetSnapshot }) {
   );
 }
 
+function SignalBars({ dbm }: { dbm: number | null | undefined }) {
+  const bars = signalBars(dbm);
+  if (bars == null || dbm == null) return null;
+  return (
+    <span
+      className="net-signal"
+      data-bars={bars}
+      data-testid="network-signal"
+      role="img"
+      aria-label={`Signál ${dbmText(dbm)}`}
+      title={dbmText(dbm)}
+    >
+      {[1, 2, 3, 4].map((n) => (
+        <i key={n} data-on={n <= bars || undefined} />
+      ))}
+    </span>
+  );
+}
+
 function Load({ snap }: { snap: NetSnapshot }) {
   const { rows, note } = loadRows(snap);
   return (
@@ -211,6 +234,25 @@ function Load({ snap }: { snap: NetSnapshot }) {
               CPU {r.cpu != null ? Math.round(r.cpu) : '–'} % · RAM{' '}
               {r.mem != null ? Math.round(r.mem) : '–'} %
             </small>
+            {(r.radios.length > 0 || r.link?.type === 'mesh') && (
+              <span className="net-radios" data-testid="network-ap-radios">
+                {r.radios.map((x) => (
+                  <small
+                    key={x.band}
+                    data-busy={
+                      ((x.utilization_pct ?? 0) >= 60 && (x.self_pct ?? 100) < 20) || undefined
+                    }
+                  >
+                    {glue(radioText(x))}
+                  </small>
+                ))}
+                {r.link?.type === 'mesh' && r.link.signal_dbm != null && (
+                  <small data-busy={r.link.signal_dbm < -65 || undefined}>
+                    mesh {glue(dbmText(r.link.signal_dbm))}
+                  </small>
+                )}
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -402,11 +444,12 @@ function Devices({
               <small>
                 {c.online
                   ? c.wired
-                    ? 'kabel'
+                    ? `kabel${c.switch_port != null ? ` · port ${c.switch_port}` : ''}`
                     : `Wi-Fi${c.ap_id ? ` · ${apName.get(c.ap_id) ?? 'bod'}` : ''}`
                   : `offline ${sinceLabel(c.since, nowS())}`}
               </small>
             </span>
+            {c.online && !c.wired && <SignalBars dbm={c.signal_dbm} />}
             {c.important && floors.length > 0 && (
               <select
                 className="net-select"
@@ -735,6 +778,9 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
       ) : (
         <GuestWifi api={api} admin />
       );
+  const source = admin && snap ? sourceModel(snap) : null;
+  const sourceNote =
+    source?.note && (source.tone === 'warn' || tab === 'mapa') ? source.note : null;
   return (
     <div className="net" data-testid="network-view" data-role={role ?? undefined}>
       <style>{networkStyles}</style>
@@ -760,7 +806,17 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
               : `před ${glue(sinceLabel(snap.updated_at, nowS()))}`}
           </span>
         )}
+        {source && (
+          <span className="net-source" data-tone={source.tone} data-testid="network-source">
+            {source.label}
+          </span>
+        )}
       </header>
+      {sourceNote && (
+        <p className="net-note net-source-note" data-testid="network-source-note">
+          {glue(sourceNote)}
+        </p>
+      )}
       {body}
     </div>
   );

@@ -1,5 +1,12 @@
 import { czCount } from '@homebrain/ui';
-import type { NetDevice, NetProblem, NetSeverity, NetSnapshot, NetSummary } from './types.js';
+import type {
+  NetRadio,
+  NetDevice,
+  NetProblem,
+  NetSeverity,
+  NetSnapshot,
+  NetSummary,
+} from './types.js';
 
 export const SERIOUS: ReadonlySet<NetSeverity> = new Set(['critical', 'warning']);
 export const isOnline = (d: NetDevice) => d.state === null || d.state === 'connected';
@@ -188,6 +195,8 @@ export function loadRows(snap: NetSnapshot) {
       frac: (a.clients ?? 0) / max,
       cpu: a.cpu_pct,
       mem: a.mem_pct,
+      radios: a.radios ?? [],
+      link: a.link ?? null,
       problem: snap.problems.some((p) => p.target.kind === 'ap' && p.target.id === a.id),
     }));
   const top = rows[0];
@@ -219,4 +228,66 @@ export function sinceLabel(since: number | null, now: number): string {
 export function speedLabel(mbps: number | null): string {
   if (mbps == null) return '—';
   return mbps >= 1000 ? `${String(mbps / 1000).replace('.', ',')} G` : `${mbps} M`;
+}
+
+/** 0–4 bars from Wi-Fi signal (UniFi dBm): ≥ −55 excellent … < −75 weak. */
+export function signalBars(dbm: number | null | undefined): number | null {
+  if (dbm == null) return null;
+  if (dbm >= -55) return 4;
+  if (dbm >= -65) return 3;
+  if (dbm >= -75) return 2;
+  return 1;
+}
+
+export function dbmText(dbm: number): string {
+  return `${dbm < 0 ? '\u2212' : ''}${Math.abs(dbm)} dBm`;
+}
+
+/** „5 GHz · kanál 44 · 72 % (rušení 62 %)“ */
+export function radioText(r: NetRadio): string {
+  const parts = [`${r.band.replace('.', ',')} GHz`];
+  if (r.channel != null) parts.push(`kanál ${r.channel}`);
+  if (r.utilization_pct != null) {
+    const noise = r.interference_pct ?? 0;
+    parts.push(`${r.utilization_pct} %${noise >= 10 ? ` (rušení ${noise} %)` : ''}`);
+  }
+  return parts.join(' · ');
+}
+
+export interface SourceModel {
+  label: string;
+  tone: 'neutral' | 'ok' | 'warn';
+  note: string | null;
+}
+
+/** „Zdroj: HA“ / „Zdroj: HA + UniFi“ + a short note for problems or the setup hint. */
+export function sourceModel(snap: Pick<NetSnapshot, 'source' | 'unifi'>): SourceModel {
+  const u = snap.unifi;
+  if (!u?.configured)
+    return {
+      label: 'Zdroj: HA',
+      tone: 'neutral',
+      note: 'Porty, signál a kanály doplní volitelné přímé čtení UniFi: Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Síť – UniFi.',
+    };
+  if (u.status === 'auth_failed')
+    return {
+      label: 'Zdroj: HA',
+      tone: 'warn',
+      note: 'Přihlášení k UniFi selhalo – opravte heslo v možnostech HomeBrainu (Síť – UniFi).',
+    };
+  if (u.status === 'unreachable')
+    return {
+      label: 'Zdroj: HA',
+      tone: 'warn',
+      note: 'Řadič UniFi teď neodpovídá – zkouším znovu.',
+    };
+  if (snap.source !== 'ha+unifi') return { label: 'Zdroj: HA', tone: 'neutral', note: null };
+  return {
+    label: 'Zdroj: HA + UniFi',
+    tone: u.readonly === false ? 'warn' : 'ok',
+    note:
+      u.readonly === false
+        ? 'Účet UniFi má práva zápisu – doporučeno View Only (HomeBrain jen čte).'
+        : null,
+  };
 }
