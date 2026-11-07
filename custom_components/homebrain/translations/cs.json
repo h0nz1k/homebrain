@@ -25,7 +25,8 @@
           "robots_3": "Robot 3",
           "recipes": "Recepty",
           "modules": "Moduly (zapnout/vypnout)",
-          "network_unifi": "Síť – UniFi (volitelné)"
+          "network_unifi": "Síť – UniFi (volitelné)",
+          "meals": "Zobrazit jídelníček (Mealie)"
         }
       },
       "waste": {
@@ -260,6 +261,13 @@
           "password": "Heslo",
           "verify_ssl": "Ověřovat certifikát (vypněte pro self-signed)"
         }
+      },
+      "meals": {
+        "title": "Zobrazit jídelníček (Mealie)",
+        "description": "„Co se dnes vaří“ na Dnes a kuchyňském tabletu. Automaticky se zobrazí jen tehdy, když je integrace Mealie nastavená a načtená; bez Mealie se nezobrazí nic. Vypnuto skryje jídelníček i s Mealie.",
+        "data": {
+          "meals_display": "Zobrazit jídelníček (Mealie)"
+        }
       }
     },
     "error": {
@@ -289,6 +297,12 @@
         "recipes": "Recepty",
         "access": "Přístup",
         "network": "Síť"
+      }
+    },
+    "meals_display": {
+      "options": {
+        "auto": "Automaticky (jen s Mealie)",
+        "off": "Vypnuto"
       }
     }
   },

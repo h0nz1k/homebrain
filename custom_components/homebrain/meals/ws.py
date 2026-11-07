@@ -1,7 +1,9 @@
 """WebSocket ``homebrain/today/meals``: what is cooked today (Mealie meal plan) for Dnes.
 
 Every mapped role reads it (the kitchen kiosk too); the „naplánujte v Mealie“ hint is only
-for HA admins (``can_plan``). Mealie is optional: no loaded entry = calm empty state.
+for HA admins (``can_plan``). Mealie is optional: without a loaded entry (or with the
+``meals_display`` option set to ``off``) the command answers ``available: false`` at once,
+without touching Mealie or logging, and Dnes renders no meals tile at all.
 """
 
 from __future__ import annotations
@@ -15,11 +17,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import Unauthorized
 from homeassistant.util import dt as dt_util
 
+from ..const import DOMAIN, MEALS_DISPLAY
 from ..modules import module_states
 from ..roles import entry_roles, resolve_role
 from . import model
 
 MEALIE: Final = "mealie"
+
+
+def meals_enabled(hass: HomeAssistant) -> bool:
+    """False when the owner switched „Zobrazit jídelníček (Mealie)“ off."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    return not any(e.options.get(MEALS_DISPLAY) == "off" for e in entries)
 
 
 async def _local_recipes(hass: HomeAssistant) -> list[dict[str, Any]]:
@@ -46,9 +55,23 @@ async def websocket_today_meals(hass: HomeAssistant, connection: Any, msg: dict[
         e for e in hass.config_entries.async_entries(MEALIE) if e.state is ConfigEntryState.LOADED
     ]
     configured = bool(entries) and hass.services.has_service(MEALIE, "get_mealplan")
+    available = configured and meals_enabled(hass)
+    if not available:
+        connection.send_result(
+            msg["id"],
+            {
+                "date": today.isoformat(),
+                "configured": configured,
+                "available": False,
+                "can_plan": role == "owner",
+                "meals": [],
+                "errors": [],
+            },
+        )
+        return
     plans: list[Any] = []
     errors: list[str] = []
-    for entry in entries if configured else []:
+    for entry in entries:
         try:
             resp = await hass.services.async_call(
                 MEALIE,
@@ -72,6 +95,7 @@ async def websocket_today_meals(hass: HomeAssistant, connection: Any, msg: dict[
         {
             "date": today.isoformat(),
             "configured": configured,
+            "available": True,
             "can_plan": role == "owner",
             "meals": model.build_meals(plans, today, local),
             "errors": sorted(set(errors)),
