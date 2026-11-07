@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
-import { Button, ProgressRing, Sheet, toast } from '@homebrain/ui';
+import { Button, ConfirmDialog, ProgressRing, runMutation, toast } from '@homebrain/ui';
 import type { RecipesApi } from '../api.js';
 import { RecipesApiError } from '../api.js';
 import { BLOCK_TEXT, airfryerBlock, describeAction, remainingMinutes } from '../domain/airfryer.js';
@@ -333,37 +333,24 @@ export function AirfryerConfirm({
   onClose,
 }: {
   action: AirfryerAction;
-  onConfirm: () => void;
+  onConfirm: () => unknown;
   onClose: () => void;
 }) {
   useBackClosable(onClose);
   return (
-    <Sheet
+    <ConfirmDialog
       title="Spustit fritézu?"
+      confirmLabel="Spustit"
+      cancelLabel="Zrušit"
+      confirmIcon={<Icon name="fryer" />}
+      onConfirm={onConfirm}
       onClose={onClose}
-      dismissOnScrim
       data-testid="recipes-airfryer-dialog"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Zrušit
-          </Button>
-          <Button
-            variant="primary"
-            icon={<Icon name="fryer" />}
-            data-testid="recipes-airfryer-confirm"
-            onClick={onConfirm}
-          >
-            Spustit
-          </Button>
-        </>
-      }
+      confirmTestId="recipes-airfryer-confirm"
     >
-      <p>
-        Nastaví se <b>{describeAction(action)}</b> a fritéza se hned rozběhne. Zkontrolujte, že je
-        jídlo v koši a zásuvka zavřená.
-      </p>
-    </Sheet>
+      Nastaví se <b>{describeAction(action)}</b> a fritéza se hned rozběhne. Zkontrolujte, že je
+      jídlo v koši a zásuvka zavřená.
+    </ConfirmDialog>
   );
 }
 
@@ -390,26 +377,25 @@ export function AirfryerStep({
   const start = () => {
     setConfirming(false);
     setBusy(true);
-    api
-      .airfryer({
-        temperature: action.temperature,
-        minutes: action.minutes,
-        method: action.method,
-        confirmed: true,
-      })
-      .then((res) => {
-        toast.success(`Fritéza běží · ${res.minutes} min`);
-        onStarted?.(res.minutes);
-      })
-      .catch((err: unknown) => {
-        const code = err instanceof RecipesApiError ? err.code : '';
-        toast.error(
-          code === 'AIRFRYER_DRAWER_OPEN'
+    // runMutation: one start per fryer even on a double tap, error toast with „Zkusit znovu“.
+    void runMutation(
+      () =>
+        api.airfryer({
+          temperature: action.temperature,
+          minutes: action.minutes,
+          method: action.method,
+          confirmed: true,
+        }),
+      {
+        key: 'recipes/airfryer',
+        success: (res) => `Fritéza běží · ${res.minutes} min`,
+        error: (err) =>
+          err instanceof RecipesApiError && err.code === 'AIRFRYER_DRAWER_OPEN'
             ? 'Zavřete zásuvku fritézy'
             : 'Fritézu se nepodařilo spustit',
-        );
-      })
-      .finally(() => setBusy(false));
+        onSuccess: (res) => onStarted?.(res.minutes),
+      },
+    ).finally(() => setBusy(false));
   };
   return (
     <div className="rc-fryact" data-testid="recipes-airfryer">

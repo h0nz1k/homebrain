@@ -209,3 +209,32 @@ it('renders family inside the hidden settings panel', async () => {
   expect(await screen.findByRole('heading', { name: 'Rodina' })).toBeDefined();
   expect(screen.queryByRole('navigation', { name: 'Hlavní navigace' })).toBeNull();
 });
+
+it('kiosk panel opened by an admin shows the ADR-0002 warning; a non-admin kiosk user does not', async () => {
+  const session = (isAdmin: boolean) =>
+    createMockConnection({
+      'homebrain/bindings/get': {},
+      'homebrain/session/get': {
+        role: isAdmin ? 'owner' : 'kiosk',
+        visible_modules: ['today'],
+        is_admin: isAdmin,
+        kiosk: !isAdmin,
+      },
+    });
+  const admin = render(<App store={createEntityStore()} connection={session(true)} kioskPanel />);
+  const warning = await screen.findByTestId('kiosk-admin-warning');
+  expect(warning.textContent).toContain('administrátor');
+  expect(warning.getAttribute('role')).toBe('alert');
+  admin.unmount();
+  const kiosk = render(<App store={createEntityStore()} connection={session(false)} kioskPanel />);
+  await new Promise((r) => setTimeout(r, 50));
+  expect(screen.queryByTestId('kiosk-admin-warning')).toBeNull();
+  kiosk.unmount();
+  // Admin on the normal (non-kiosk) panel: no warning.
+  const normal = render(
+    <App store={createEntityStore()} connection={session(true)} moduleId="family" />,
+  );
+  await new Promise((r) => setTimeout(r, 50));
+  expect(screen.queryByTestId('kiosk-admin-warning')).toBeNull();
+  normal.unmount();
+}, 15000);

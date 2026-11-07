@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   navigatePanel,
   navigateUp,
+  useBackClosable,
   useEntity,
   type ConnectionLike,
   type EntityStore,
   type ModuleViewProps,
 } from '@homebrain/ha-client';
-import { EmptyState, toast } from '@homebrain/ui';
+import { ConfirmDialog, EmptyState, runMutation, Skeleton, toast } from '@homebrain/ui';
 import { getRecipesApi, RecipesApiError, type RecipesApi } from '../api.js';
 import { createTimerStore, type TimerStore } from '../domain/timers.js';
 import { formatDuration, krokyWord, porce, scaleIngredients } from '../domain/scale.js';
@@ -171,7 +172,10 @@ function RecipeLoader({
         </button>
       </EmptyState>
     );
-  if (!recipe || recipe.id !== id) return <div className="rc-empty">Načítám…</div>;
+  if (!recipe || recipe.id !== id)
+    return (
+      <Skeleton variant="card" lines={4} label="Načítám recept…" data-testid="recipes-loading" />
+    );
   return <>{children(recipe, setRecipe)}</>;
 }
 
@@ -372,16 +376,14 @@ function RecipeDetail({
       .setFavourite(recipe.id, !recipe.favourite)
       .catch(() => toast.error('Oblíbené se nepodařilo uložit'));
   };
-  const remove = () => {
-    if (!window.confirm(`Smazat recept „${recipe.title}“?`)) return;
-    api
-      .remove(recipe.id)
-      .then(() => {
-        toast.success('Recept smazán');
-        navigateUp(BASE);
-      })
-      .catch(() => toast.error('Recept se nepodařilo smazat'));
-  };
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const remove = () =>
+    runMutation(() => api.remove(recipe.id), {
+      key: `recipes/remove/${recipe.id}`,
+      success: 'Recept smazán',
+      error: 'Recept se nepodařilo smazat',
+      onSuccess: () => navigateUp(BASE),
+    });
   return (
     <div className="rc-detail" data-testid="recipes-detail">
       <section className="rc-col rc-c1">
@@ -566,9 +568,21 @@ function RecipeDetail({
             ))}
           </ol>
           {config?.canEdit ? (
-            <button type="button" className="rc-remove" onClick={remove}>
+            <button
+              type="button"
+              className="rc-remove"
+              data-testid="recipes-remove"
+              onClick={() => setConfirmRemove(true)}
+            >
               <Icon name="trash" /> Smazat recept
             </button>
+          ) : null}
+          {confirmRemove ? (
+            <RemoveConfirm
+              title={recipe.title}
+              onConfirm={remove}
+              onClose={() => setConfirmRemove(false)}
+            />
           ) : null}
         </div>
       </section>
@@ -796,6 +810,31 @@ function CookingMode({
         </button>
       </nav>
     </div>
+  );
+}
+
+function RemoveConfirm({
+  title,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  onConfirm: () => unknown;
+  onClose: () => void;
+}) {
+  useBackClosable(onClose);
+  return (
+    <ConfirmDialog
+      title={`Smazat recept „${title}“?`}
+      confirmLabel="Smazat"
+      danger
+      onConfirm={onConfirm}
+      onClose={onClose}
+      data-testid="recipes-remove-dialog"
+      confirmTestId="recipes-remove-confirm"
+    >
+      Recept zmizí ze sbírky i z oblíbených. Vrátit to nejde.
+    </ConfirmDialog>
   );
 }
 

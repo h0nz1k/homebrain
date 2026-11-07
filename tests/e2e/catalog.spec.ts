@@ -8,7 +8,16 @@ test('katalog: všechny sdílené prvky, tokeny a oznámení naživo', async ({ 
   await expect(page.getByRole('heading', { name: 'Katalog prvků a komponent' })).toBeVisible();
   const components = page.getByTestId('cat-component');
   expect(await components.count()).toBeGreaterThanOrEqual(13);
-  for (const name of ['Toast', 'SaveState', 'Card', 'Pill', 'Sparkline']) {
+  for (const name of [
+    'Toast',
+    'SaveState',
+    'Card',
+    'Pill',
+    'Sparkline',
+    'ErrorState',
+    'Skeleton',
+    'ConfirmDialog',
+  ]) {
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   }
   // Tokeny se čtou z computed style v obou tématech.

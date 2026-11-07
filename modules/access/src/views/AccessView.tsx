@@ -21,7 +21,9 @@ import {
   Stepper,
   Switch,
   Tile,
+  ConfirmDialog,
   czCount,
+  Skeleton,
   toast,
   type StepState,
   type Tone,
@@ -1107,7 +1109,7 @@ function EnrolBanner({ ctx }: { ctx: Ctx }) {
 
 function PeopleTab({ ctx }: { ctx: Ctx }) {
   const { state, people, selectTab, setWizard, refresh, now } = ctx;
-  if (!state) return <EmptyState title="Načítám…" />;
+  if (!state) return <Skeleton variant="card" lines={3} label="Načítám osoby…" />;
   if (state.users === null)
     return (
       <div data-testid="access-no-list">
@@ -1333,7 +1335,7 @@ function AccessLog({ ctx }: { ctx: Ctx }) {
         </small>
       </div>
       {loading ? (
-        <EmptyState title="Načítám historii…" />
+        <Skeleton lines={5} label="Načítám historii…" />
       ) : !groups.length ? (
         <EmptyState title={filter === 'problems' ? 'Žádné problémy' : 'Žádné záznamy'}>
           {filter === 'problems'
@@ -1904,35 +1906,18 @@ function DeviceTab({ ctx }: { ctx: Ctx }) {
 
 function Confirm({ spec, onClose }: { spec: ConfirmSpec; onClose: () => void }) {
   useBackClosable(onClose);
-  const [busy, setBusy] = useState(false);
   return (
-    <Sheet
-      variant="alert"
+    <ConfirmDialog
       title={spec.title}
+      confirmLabel={spec.confirm}
+      danger={spec.danger}
+      onConfirm={spec.run}
       onClose={onClose}
       data-testid="access-confirm"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Zpět
-          </Button>
-          <Button
-            variant={spec.danger ? 'danger' : 'primary'}
-            data-testid="access-confirm-ok"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              await spec.run();
-              onClose();
-            }}
-          >
-            {spec.confirm}
-          </Button>
-        </>
-      }
+      confirmTestId="access-confirm-ok"
     >
       {spec.body}
-    </Sheet>
+    </ConfirmDialog>
   );
 }
 

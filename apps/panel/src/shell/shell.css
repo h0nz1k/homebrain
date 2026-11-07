@@ -107,7 +107,7 @@ homebrain-panel {
 .hb-module-unavailable {
   padding: var(--hb-sp-4);
   border: 1px solid color-mix(in srgb, var(--hb-color-warning) 30%, transparent);
-  border-radius: var(--hb-radius);
+  border-radius: var(--hb-radius-card);
   background: var(--hb-warn-s);
 }
 
@@ -115,7 +115,7 @@ homebrain-panel {
   margin-bottom: var(--hb-sp-4);
   padding: var(--hb-sp-3) var(--hb-sp-4);
   border: 1px solid color-mix(in srgb, var(--hb-color-warning) 30%, transparent);
-  border-radius: var(--hb-radius);
+  border-radius: var(--hb-radius-card);
   background: var(--hb-warn-s);
 }
 
@@ -140,4 +140,71 @@ homebrain-panel {
 }
 .hb-menu-button:hover {
   background: var(--hb-fill-strong, var(--hb-s2));
+}
+
+/* Kiosk: ADR-0002 admin warning (admin-facing, top of the tablet) and connection-lost overlay. */
+.hb-kiosk-admin {
+  margin: 0 0 var(--hb-sp-3);
+  padding: var(--hb-sp-3) var(--hb-sp-4);
+  border-radius: var(--hb-radius-md);
+  background: color-mix(in srgb, var(--hb-warn) 16%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-warn) 55%, transparent);
+  color: var(--hb-t1);
+  font-size: var(--hb-type-body);
+  line-height: var(--hb-leading-body);
+}
+.hb-kiosk-admin b {
+  color: var(--hb-warn);
+}
+.hb-reconnect {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--hb-sp-6);
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(8px);
+}
+.hb-reconnect-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hb-sp-3);
+  width: min(560px, 100%);
+  padding: var(--hb-sp-8) var(--hb-sp-6);
+  border-radius: var(--hb-radius-xl);
+  background: var(--hb-s1);
+  box-shadow:
+    inset 0 0 0 1px var(--hb-edge-strong),
+    var(--hb-elev-2);
+  color: var(--hb-t1);
+  text-align: center;
+}
+.hb-reconnect-card h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: var(--hb-tracking-title);
+  text-wrap: balance;
+}
+.hb-reconnect-card p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--hb-t2);
+  font-size: 18px;
+  line-height: var(--hb-leading-body);
+}
+.hb-reconnect-card .hb-reconnect-meta {
+  color: var(--hb-t3);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.hb-reconnect-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--hb-warn);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--hb-warn) 22%, transparent);
 }

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { expect, it } from 'vitest';
 
 const css = readFileSync(join(import.meta.dirname, 'tokens.css'), 'utf8');
@@ -65,7 +66,21 @@ it('bundles both Inter subsets for every supported weight', () => {
 });
 
 it('defines the Dnes display tokens from the signals spec', () => {
-  for (const token of ['--hb-display-w', '--hb-r-lg', '--hb-glow', '--hb-space-page'])
+  for (const token of ['--hb-display-w', '--hb-radius-hero', '--hb-glow', '--hb-space-page'])
     expect(css).toContain(`${token}:`);
-  expect(css).toMatch(/--hb-r-lg:\s*18px/);
+  expect(css).toMatch(/--hb-radius-hero:\s*18px/);
+});
+
+it('has one name per token: --hb-sp-* for spacing, --hb-radius-<size> for radii (review §11.5)', () => {
+  // Retired aliases must be neither defined nor used anywhere in the panel sources.
+  const retired = /--hb-space-\d|--hb-r-[a-z]|--hb-radius(?![-\w])/;
+  const root = join(import.meta.dirname, '../../..');
+  const files = execFileSync('git', ['ls-files', '*.css', '*.ts', '*.tsx'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter((f) => f && !f.endsWith('tokens.test.ts'));
+  const offenders = files.filter((f) => retired.test(readFileSync(join(root, f), 'utf8')));
+  expect(offenders).toEqual([]);
 });

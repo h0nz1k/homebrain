@@ -3,7 +3,6 @@
 :root {
   --hb-display-w: 200; /* large thin numerals (clock); 300 for temperature/values */
   --hb-display-w-value: 300;
-  --hb-r-lg: 18px; /* hero card; regular cards 14 px */
   --hb-glow: radial-gradient(60% 50% at 0% 0%, rgb(61 139 255 / 7%), transparent 70%);
   --hb-glow-crit: radial-gradient(60% 50% at 0% 0%, rgb(242 85 90 / 9%), transparent 70%);
   --hb-space-page: 48px; /* 56 px kiosk, 16 px mobile */
@@ -190,27 +189,20 @@
   --hb-waste-bulky: #827b70;
   --hb-waste-other: #5d6572;
   --hb-sp-1: 4px;
-  --hb-space-1: var(--hb-sp-1);
   --hb-sp-2: 8px;
-  --hb-space-2: var(--hb-sp-2);
   --hb-sp-3: 12px;
-  --hb-space-3: var(--hb-sp-3);
   --hb-sp-4: 16px;
-  --hb-space-4: var(--hb-sp-4);
   --hb-sp-5: 20px;
-  --hb-space-5: var(--hb-sp-5);
   --hb-sp-6: 24px;
-  --hb-space-6: var(--hb-sp-6);
   --hb-sp-7: 28px;
-  --hb-space-7: var(--hb-sp-7);
   --hb-sp-8: 32px;
-  --hb-space-8: var(--hb-sp-8);
   /* Radius scale (#64): nested surfaces step down so corners stay concentric. */
   --hb-radius-xs: 6px;
   --hb-radius-sm: 10px;
   --hb-radius-md: 14px;
   --hb-radius-lg: 20px;
   --hb-radius-xl: 28px;
+  --hb-radius-hero: 18px; /* Dnes hero/ribbon card; regular cards = --hb-radius-card */
   --hb-radius-card: 16px;
   --hb-radius-nested: 10px;
   --hb-radius-chip: 8px;
@@ -218,7 +210,6 @@
   /* One icon weight (#64): rendered px, same on 16/24/32/64 viewBoxes (non-scaling stroke). */
   --hb-icon-stroke: 1.75px;
   --hb-icon-stroke-lg: 2.5px;
-  --hb-radius: var(--hb-radius-card);
   --hb-sidebar-width: 232px;
   --hb-topbar-height: 56px;
   --hb-tabbar-height: 72px;
@@ -365,11 +356,11 @@
   overflow-wrap: anywhere;
 }
 .hb-waste-highlight {
-  margin-block: var(--hb-space-6);
-  padding: var(--hb-space-4);
+  margin-block: var(--hb-sp-6);
+  padding: var(--hb-sp-4);
   background: var(--hb-color-bg);
   border-inline-start: 4px solid var(--hb-color-accent);
-  border-radius: var(--hb-radius);
+  border-radius: var(--hb-radius-card);
   font-size: 1.125rem;
 }
 .hb-waste-list {
@@ -377,25 +368,25 @@
   padding: 0;
 }
 .hb-waste-list li {
-  padding: var(--hb-space-3) 0;
+  padding: var(--hb-sp-3) 0;
   border-bottom: 1px solid var(--hb-color-divider);
 }
 .hb-waste-list .is-today {
   border-inline-start: 4px solid var(--hb-color-accent);
-  padding-inline-start: var(--hb-space-2);
+  padding-inline-start: var(--hb-sp-2);
 }
 .hb-waste-list .is-tomorrow {
   background: var(--hb-color-bg);
 }
 .hb-waste-relative {
   display: block;
-  margin-top: var(--hb-space-1);
+  margin-top: var(--hb-sp-1);
 }
 .hb-waste-chip {
   display: inline-block;
   width: 0.85em;
   height: 0.85em;
-  margin-inline-end: var(--hb-space-2);
+  margin-inline-end: var(--hb-sp-2);
   border-radius: 50%;
   border: 1px solid var(--hb-color-text);
   background: #888;
@@ -437,6 +428,6 @@
 }
 @media (max-width: 400px) {
   .hb-waste {
-    padding: var(--hb-space-4);
+    padding: var(--hb-sp-4);
   }
 }

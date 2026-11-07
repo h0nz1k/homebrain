@@ -61,6 +61,6 @@ test.describe('Dnes v HA iframe – živý adaptér', () => {
 
 declare global {
   interface Window {
-    __hbHarness?: { disconnect: () => void; reconnect: () => void };
+    __hbHarness?: { disconnect: () => void; reconnect: () => void; reconnectCalls: () => number };
   }
 }
