@@ -103,7 +103,7 @@ export const familyStyles = `
 .fam-box svg { width: 14px; height: 14px; opacity: 0; }
 .fam-item[data-done] { color: var(--hb-t2); }
 .fam-item[data-done] span { text-decoration: line-through; }
-.fam-item[data-done] .fam-box { background: var(--hb-t2); border-color: var(--hb-t2); color: var(--hb-s1); }
+.fam-item[data-done] .fam-box { background: color-mix(in srgb, var(--hb-t2) 30%, transparent); border-color: transparent; color: var(--hb-t1); }
 .fam-item[data-done] .fam-box svg { opacity: 1; }
 .fam-item span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .fam-done-h { color: var(--hb-t2); font-size: var(--hb-type-caption); font-weight: 600; padding: 16px 0 4px; }
@@ -155,7 +155,8 @@ export const familyStyles = `
 .fam-clock { font-size: 40px; line-height: 1; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .fam[data-kiosk] .fam-head { align-items: baseline; gap: 4px 16px; }
 .fam[data-kiosk] .fam-head p { font-size: 22px; color: var(--hb-t2); font-weight: 550; }
-.fam[data-kiosk] .fam-day { padding: 3px 0; grid-template-columns: 64px minmax(0, 1fr); }
+.fam[data-kiosk] .fam-day { padding: 3px 0; grid-template-columns: 96px minmax(0, 1fr); }
+.fam[data-kiosk] .fam-day > div:first-child { white-space: nowrap; }
 .fam[data-kiosk] .fam-day > div:first-child { display: flex; gap: 6px; align-items: baseline; }
 .fam[data-kiosk] .fam-day ul { gap: 2px; }
 .fam[data-kiosk] .fam-ev-past-note { display: none; }

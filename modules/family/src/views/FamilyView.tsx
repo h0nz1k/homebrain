@@ -257,7 +257,7 @@ function KidCard({
         <div>
           <b>{kid.name}</b>
           <small>
-            {t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic'}
+            <span>{t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic'}</span>
             {kid.points !== null && (
               <span data-testid="family-total"> · celkem {Math.round(kid.points)} b.</span>
             )}
