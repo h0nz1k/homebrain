@@ -15,6 +15,7 @@ import {
   type HomeBrainSession,
   type ConnectionLike,
   type EntityStore,
+  type ModuleViewProps,
 } from '@homebrain/ha-client';
 import { Toaster } from '@homebrain/ui';
 import { modules } from '../modules';
@@ -74,6 +75,7 @@ function useMatchMedia(query: string): boolean {
 export interface AppProps {
   store: EntityStore;
   connection?: ConnectionLike;
+  fetchWithAuth?: ModuleViewProps['fetchWithAuth'];
   narrow?: boolean;
   route?: { path: string };
   darkMode?: boolean;
@@ -98,12 +100,14 @@ const ModuleContent = memo(function ModuleContent({
   bindings,
   id,
   connection,
+  fetchWithAuth,
   route,
   kiosk,
 }: {
   store: EntityStore;
   bindings: BindingsByModule;
   connection?: ConnectionLike;
+  fetchWithAuth?: ModuleViewProps['fetchWithAuth'];
   id: string;
   route?: { path: string };
   kiosk: boolean;
@@ -117,6 +121,7 @@ const ModuleContent = memo(function ModuleContent({
           store={store}
           bindings={bindings[module.id] ?? {}}
           connection={connection}
+          fetchWithAuth={fetchWithAuth}
           route={route}
           kiosk={kiosk}
         />
@@ -128,6 +133,7 @@ const ModuleContent = memo(function ModuleContent({
 export const App = memo(function App({
   store,
   connection,
+  fetchWithAuth,
   narrow = false,
   route,
   darkMode,
@@ -235,6 +241,7 @@ export const App = memo(function App({
               bindings={bindings}
               id={id}
               connection={connection}
+              fetchWithAuth={fetchWithAuth}
               route={route}
               kiosk={kiosk}
             />

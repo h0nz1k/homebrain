@@ -1,0 +1,129 @@
+                  VYÚČTOVÁNÍ ZA ELEKTŘINU
+                  ŘÁDNÉ
+                  Daňový doklad: 9990001111
+
+ZÁKAZNÍK                                                                                                                                                              ČÁST A
+
+Tereza Ukázková
+Vzorová 12, 110 00 Praha 1                                                                                    Tereza Ukázková
+      +420 600 000 001            tereza@example.com                                                          Vzorová 12
+Nejsou údaje správné nebo je potřeba něco doplnit? Dejte nám vědět.                                           110 00 Praha 1
+Zákaznické číslo: 0011112222
+
+
+       Vyúčtování za období                         Variabilní symbol                Datum splatnosti                Produkt Elektřina - klesající na 2 roky
+       1. 9. 2026 – 30. 9. 2026                 5550001111                     20. 10. 2026                      Distribuční sazba D45D
+
+Dobrý den, jsme rádi, že můžeme být dodavatelem energie                                      Vzorová 12, 110 00 Praha 1
+pro Vaše odběrné místo                                                                       s číslem 3000000001 | s EAN kódem 859182400000000017
+    VYÚČTOVÁNÍ SKONČILO
+    NEDOPLATKEM                                                   Ten prosím zaplaťte na účet
+                                                                             1234567/0100
+
+                                                                             Variabilní symbol:   5550001111
+                                                                             Datum splatnosti:   20. 10. 2026
+    3 265,05 Kč
+                                                                             Při platbě v hotovosti částku zaokrouhlete na celé koruny.
+
+Jak vznikl nedoplatek?                                                                                          Stav elektroměru
+3 265,05 Kč       −  0,00 Kč              =  3 265,05 Kč                                                        600,00 kWh         VT 10 000,00 kWh    VT 10 120,00 kWh
+Celkové náklady                            Zaplaceno                                      Nedoplatek            Celková spotřeba       NT 50 000,00 kWh  NT 50 480,00 kWh
+                                                                                                                elektřiny              Počáteční stav                 Konečný stav
+
+                                                                                 1 001,17 KČ
+                                                                                   DISTRIBUCE                                                                           480
+                                                                                   ELEKTŘINY
+                                    3 265,05 Kč                                                                                                   380        400
+                                            Celkem                                                            90        100        120
+SPOTŘEBOVANÁ2 061,84 KČ                                                                                       7/2026     8/2026     9/2026         7/2026     8/2026     9/2026
+
+  ELEKTŘINA
+                                                                                                                                                Nízký tarif
+                                                                           202,05 KČ
+                                                                             OSTATNÍ
+
+                                 4,83 Kč                                       3,92 Kč
+                      Vaše průměrná cena za 1 kWh            Vaše průměrná cena za 1 kWh
+                             ve vysokém tarifu                       v nízkém tarifu
+Ceny uvádíme s DPH.
+
+Bezplatná zákaznická linka: 800 810 820, poruchová linka - EG.D: 800 225 577                             Dodavatel: ČEZ Prodej, a.s., Duhová 1/425, 140 53 Praha 4,
+                                                                                                                                                                  strana 1/4
+=====PAGE=====
+  Daňový přehled                                                             Základ daně                  Sazba DPH                              DPH          Celkem s DPH
+  Datum zdanitelného plnění 6. 10. 2026
+  Datum vystavení 6. 10. 2026
+  Cena za spotřebovanou elektřinu a služby                     2 698,39 Kč                             21 %                    566,66 Kč               3 265,05 Kč
+  Celkem                                                                            2 698,39 Kč                              21 %                         566,66 Kč              3 265,05 Kč
+  Nedoplatek                                                                                                                                                                                    3 265,05 Kč
+
+Ve vyúčtování pro odběrné místo s EAN kódem 859182400000000017 jsme Vám za období 1. 9. 2026 - 30. 9. 2026 zohlednili státem odpuštěnou
+platbu za podporované zdroje energie (POZE) ve výši 400,00 Kč.
+
+  Spotřeba                                                                                                                                     Vysoký tarif (VT/T1)     Nízký tarif (NT/T2)
+  Začátek zúčtovacího období              1. 9. 2026              Počáteční stav elektroměru                    10 000,00 kWh          50 000,00 kWh
+  Konec zúčtovacího období               30. 9. 2026              Konečný stav elektroměru                      10 120,00 kWh          50 480,00 kWh
+  Celkové distribuované množství elektřiny                                                                                           120,00 kWh                480,00 kWh
+  Celkové dodané množství elektřiny                                                                                                                                          600,00 kWh
+
+  Přehled plateb
+                                                                           Účtované                   Průměrná jedn.                                        Celkem                                  Celkem
+                                                                            množství                    cena bez DPH                                      bez DPH                                     s DPH
+  Vysoký tarif (VT/T1)                                          120,00 kWh                 3,99 Kč/kWh                            479,11 Kč                          579,72 Kč
+  Nízký tarif (NT/T2)                                           480,00 kWh                 3,24 Kč/kWh                         1 556,42 Kč                      1 883,27 Kč
+  Položky nezávislé na množství                            1,00 měs.            662,87 Kč/měs.                            662,87 Kč                          802,07 Kč
+  Celková platba s DPH                                                                                                                                                                  3 265,05 Kč
+
+  Podrobné vyúčtování
+  Odběrné místo: 3000000001
+  Adresa:      Vzorová 12, 110 00 Praha 1                                                                                    EAN:                    859182400000000017
+  Jistič:         3 × 25A                                                                                                                      Třída TDD:          7
+
+  Informace o měření
+
+  Období                                           Čísloelektroměru     Tarif                       Stav elektroměru                  Rozdíl                  Způsobpočáteční                konečnýodečtu               Spotřeba
+
+  1. 9. 2026 – 30. 9. 2026               10000001      VT/T1        10 000,00 kWh        10 120,00 kWh            120,00 kWh                                               odečet               120,00 kWh
+                                                                     NT/T2       50 000,00 kWh        50 480,00 kWh            480,00 kWh                           distributorem               480,00 kWh
+  Celkové dodané množství elektřiny                                                                                                                                          600,00 kWh
+
+  Spotřebovaná elektřina (obchodní část)
+  1. 9. 2026 - 30. 9. 2026                                                                                                                  Produkt Elektřina - klesající na 2 roky
+                                                                                                                Množství                 Jednotková cena              Celkem bez DPH
+  Spotřeba / vysoký tarif (VT/T1)                                                           0,12000 MWh                         3 000,00 Kč                          360,00 Kč
+  Spotřeba / nízký tarif (NT/T2)                                                             0,48000 MWh                         2 800,00 Kč                      1 344,00 Kč
+  Celková platba za spotřebu                                                                                                                    bez DPH                                      1 704,00 Kč
+                                                                                                                                                              s DPH                         2 061,84 Kč
+
+  Ostatní vyúčtované položky (obchodní část)
+  1. 9. 2026 - 30. 9. 2026
+                                                                                                                Množství                 Jednotková cena              Celkem bez DPH
+  Stálá platba                                                                                           1,00000 měs.                            150,00 Kč                          150,00 Kč
+  Daň z elektřiny                                                                                     0,60000 MWh                              28,30 Kč                            16,98 Kč
+  Celková platba za ostatní vyúčtované položky                                                                                    bez DPH                                                       166,98 Kč
+                                                                                                                                                              s DPH                            202,05 Kč
+                                                                                                                                                                                                         strana 2/4
+=====PAGE=====
+  Distribuce elektřiny (distribuční část)
+  1. 9. 2026 - 30. 9. 2026                                                                                                                                                           Sazba D45D
+                                                                                                            Množství                 Jednotková cena              Celkem bez DPH
+  Platba za jistič                                                                                       1,00000 měs.                            500,00 Kč                          500,00 Kč
+  Distribuce / vysoký tarif (VT/T1)                                                         0,12000 MWh                            800,00 Kč                            96,00 Kč
+  Distribuce / nízký tarif (NT/T2)                                                           0,48000 MWh                            250,00 Kč                          120,00 Kč
+  Systémové služby                                                                                0,60000 MWh                            164,24 Kč                            98,54 Kč
+  Platba POZE                                                                                         1,00000 měs.                                0,00 Kč                              0,00 Kč
+  Provoz nesíťové infrastruktury                                                              1,00000 měs.                              12,87 Kč                            12,87 Kč
+  Celková platba za distribuci a služby                                                                                                   bez DPHs DPH                                   827,41 Kč
+                                                                                                                                                                                     1 001,17 Kč
+
+  Historie spotřeby
+  Období                                     Počet dní            Vysoký tarif                        Nízký tarif                                                                   Celk. náklady
+                                                                            (VT/T1)                      (NT/T2)                   Celkem        Celk. nákladybez DPH                          s DPH
+  1. 9. 2026 – 30. 9. 2026             30                      120 kWh                 480 kWh                 600 kWh         2 698,39 Kč           3 265,05 Kč
+  1. 8. 2026 – 31. 8. 2026               31                      100 kWh                 400 kWh                 500 kWh         2 300,00 Kč           2 783,00 Kč
+  1. 7. 2026 – 31. 7. 2026               31                       90 kWh                 380 kWh                 470 kWh         2 200,00 Kč           2 662,00 Kč
+
+INFORMACE O TRVÁNÍ SMLOUVY
+Smlouva je sjednána na dobu určitou do dne 31. 1. 2027. Dne 1. 2. 2027 dojde ke změně na produkt na dobu neurčitou a současně ke
+změně ceny.
+                                                                                                                                                   strana 3/4

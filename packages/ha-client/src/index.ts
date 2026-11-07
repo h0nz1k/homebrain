@@ -27,6 +27,8 @@ export interface HassLike {
   user: { id: string; name?: string; is_admin?: boolean } | null;
   language: string;
   themes?: { darkMode?: boolean };
+  /** HA frontend helper: `fetch` with the user's bearer token (uploads to integration views). */
+  fetchWithAuth?: (path: string, init?: RequestInit) => Promise<Response>;
 }
 export function createEntityStore() {
   let states: Record<string, EntityStateLike> = {};
@@ -81,6 +83,8 @@ export interface ModuleViewProps {
   kiosk?: boolean;
   /** Optional HA connection for module WS commands (e.g. homebrain/wine/list, homebrain/weather/get, statistics, calendar events). */
   connection?: ConnectionLike;
+  /** Authenticated `fetch` for HomeBrain HTTP views (file uploads); absent in tests. */
+  fetchWithAuth?: (path: string, init?: RequestInit) => Promise<Response>;
 }
 export function useEntity(store: EntityStore, entityId: string) {
   const subscribe = useCallback(
