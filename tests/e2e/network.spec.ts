@@ -229,6 +229,15 @@ test.describe('Síť V2 – přímé čtení UniFi (?unifi=1)', () => {
     await expect(page.locator('[data-testid="network-signal"]')).toHaveCount(0);
   });
 
+  test('nastavení ukazuje účet z integrace UniFi v HA (bez hesla)', async ({ page }) => {
+    await page.goto('/homebrain-sit/hoste?unifi=1');
+    await expect(page.getByTestId('network-unifi-account')).toHaveText(
+      'Účet: ha (z integrace UniFi)',
+      { timeout: 20_000 },
+    );
+    await noSidewaysScroll(page);
+  });
+
   test('telefon: kanály a signál bez ořezu a bez vodorovného posunu', async ({
     page,
   }, testInfo) => {

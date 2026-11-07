@@ -300,6 +300,12 @@ export function sourceModel(snap: Pick<NetSnapshot, 'source' | 'unifi'>): Source
       note: 'Řadič UniFi teď neodpovídá – zkouším znovu.',
     };
   if (snap.source !== 'ha+unifi') return { label: 'Zdroj: HA', tone: 'neutral', note: null };
+  if (u.readonly === false && u.source === 'ha_integration')
+    return {
+      label: 'Zdroj: HA + UniFi',
+      tone: 'ok',
+      note: 'Účet z integrace UniFi v HA má práva zápisu – HomeBrain přesto jen čte.',
+    };
   return {
     label: 'Zdroj: HA + UniFi',
     tone: u.readonly === false ? 'warn' : 'ok',

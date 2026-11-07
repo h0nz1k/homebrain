@@ -11,7 +11,6 @@ import logging
 from unittest.mock import patch
 
 import pytest
-
 from homeassistant import data_entry_flow
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant

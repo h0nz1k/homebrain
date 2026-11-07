@@ -194,14 +194,14 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
         if entries:
             picked = current.get("entry_id")
             ids = [e.entry_id for e in entries]
-            fields[
-                vol.Optional("entry_id", default=picked if picked in ids else ids[0])
-            ] = selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[
-                        selector.SelectOptionDict(value=e.entry_id, label=e.title or e.entry_id)
-                        for e in entries
-                    ]
+            fields[vol.Optional("entry_id", default=picked if picked in ids else ids[0])] = (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value=e.entry_id, label=e.title or e.entry_id)
+                            for e in entries
+                        ]
+                    )
                 )
             )
         return self.async_show_form(

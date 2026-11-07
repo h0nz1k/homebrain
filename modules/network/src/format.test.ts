@@ -166,9 +166,9 @@ describe('Síť V2 (vlastní účet UniFi)', () => {
   });
 
   it('settings label names the UniFi account and where it comes from', () => {
-    expect(
-      unifiAccountLabel({ configured: true, source: 'ha_integration', account: 'ha' }),
-    ).toBe('Účet: ha (z integrace UniFi)');
+    expect(unifiAccountLabel({ configured: true, source: 'ha_integration', account: 'ha' })).toBe(
+      'Účet: ha (z integrace UniFi)',
+    );
     expect(unifiAccountLabel({ configured: true, source: 'manual', account: 'homebrain' })).toBe(
       'Účet: homebrain (vlastní účet)',
     );
@@ -193,6 +193,13 @@ describe('Síť V2 (vlastní účet UniFi)', () => {
         unifi: { configured: true, status: 'auth_failed', source: 'ha_integration' },
       }).note,
     ).toContain('integraci UniFi v HA');
+    // HA's own account is usually an admin: say it once, calmly – HomeBrain still only reads
+    const adminHa = sourceModel({
+      ...s,
+      unifi: { configured: true, status: 'ok', readonly: false, source: 'ha_integration' },
+    });
+    expect(adminHa.tone).toBe('ok');
+    expect(adminHa.note).toContain('jen čte');
   });
 
   it('mock V2 data fills AP radios, client signal and the new rules', async () => {
