@@ -567,3 +567,63 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
       expect((l1! + 0.05) / (l2! + 0.05)).toBeGreaterThanOrEqual(3);
     });
 });
+
+test.describe('srovnání období', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-07T15:23:00Z'));
+  });
+
+  test('měsíc vs loni a minulý měsíc, graf po měsících, přepnutí na rok a náklady', async ({
+    page,
+  }) => {
+    await page.goto('/homebrain-energie');
+    const card = page.getByTestId('energy-compare');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('energy-compare-current')).toContainText('Listopad 2026');
+    await expect(page.getByTestId('energy-compare-current')).toContainText('kWh');
+    await expect(page.getByTestId('energy-compare-last-year-delta')).toContainText(/[+−±]\d+\s%/);
+    await expect(page.getByTestId('energy-compare-previous')).toContainText('říjen 2026');
+    await expect(page.getByTestId('energy-compare-range')).toContainText('1.–7. 11. do 16:00');
+    await expect(page.getByTestId('energy-compare-headline')).toContainText('než loni');
+    const months = page.getByTestId('energy-compare-month');
+    await expect(months).toHaveCount(12);
+    await expect(months.nth(10)).toHaveAttribute('data-current', 'true');
+    // drawn bars: 12 months of 2025 (November like-for-like) + January–November 2026
+    const bars = await card
+      .locator('.en-cmp-bar')
+      .evaluateAll((els) => els.filter((el) => el.getBoundingClientRect().height > 1).length);
+    expect(bars).toBe(23);
+    await expect(months.nth(10).locator('.en-cmp-ghost')).toHaveCount(1);
+    await expect(months.nth(11).locator('.en-cmp-bar')).toHaveCount(1);
+
+    const box = (await card.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(await page.locator('html').evaluate((root) => root.scrollWidth)).toBeLessThanOrEqual(
+      page.viewportSize()!.width,
+    );
+
+    await card.getByRole('radio', { name: 'Od ledna' }).click();
+    await expect(card.locator('.en-cmp-tile')).toHaveCount(2);
+    await expect(page.getByTestId('energy-compare-current')).toContainText('Rok 2026 od ledna');
+    await expect(page.getByTestId('energy-compare-range')).toContainText('1. 1.–7. 11. do 16:00');
+
+    await card.getByRole('radio', { name: 'Náklady' }).click();
+    await expect(page.getByTestId('energy-compare-current')).toContainText('Kč');
+    await expect(page.getByTestId('energy-compare-range')).toContainText('současného tarifu');
+  });
+
+  test('chybí loňská data: hláška místo nuly', async ({ page }) => {
+    await page.goto('/homebrain-energie?srovnani=nodata');
+    const lastYear = page.getByTestId('energy-compare-last-year');
+    await expect(lastYear).toContainText('nemáme data za 2025', { timeout: 20_000 });
+    await expect(lastYear).not.toContainText('0 kWh');
+    await expect(page.getByTestId('energy-compare-note')).toContainText('Za rok 2025 nemáme data');
+    await expect(page.getByTestId('energy-compare-headline')).toHaveCount(0);
+  });
+
+  test('bez vazeb se karta nezobrazí', async ({ page }) => {
+    await page.goto('/homebrain-energie?srovnani=unconfigured');
+    await expect(page.getByTestId('energy-price')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('energy-compare')).toHaveCount(0);
+  });
+});

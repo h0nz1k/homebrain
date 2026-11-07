@@ -90,8 +90,12 @@ function MonthChart({
         aria-label={`${meta.label} po měsících, ${year} proti ${year - 1}`}
       >
         {thisYear.map((value, i) => {
-          const last = lastYear[i] ?? null;
           const current = i + 1 === month;
+          const fullLast = lastYear[i] ?? null;
+          // Running month: last year's bar is the like-for-like range, the full month a ghost.
+          const last = current ? series.month.last_year : fullLast;
+          const future = i + 1 > month;
+          const pct = (v: number) => `${(v / max) * 100}%`;
           return (
             <div
               key={i}
@@ -100,22 +104,31 @@ function MonthChart({
               data-testid="energy-compare-month"
             >
               <div className="en-cmp-pair">
-                <span
-                  className="en-cmp-bar en-cmp-bar--last"
-                  data-empty={last === null || undefined}
-                  style={{ height: last === null ? undefined : `${(last / max) * 100}%` }}
-                  title={`${cap(monthName(i + 1))} ${year - 1}: ${last === null ? 'bez dat' : formatCompareValue(last, meta.key)}`}
-                />
-                <span
-                  className="en-cmp-bar en-cmp-bar--this"
-                  data-partial={current || undefined}
-                  data-empty={value === null || undefined}
-                  style={{
-                    height: value === null ? undefined : `${(value / max) * 100}%`,
-                    background: value === null ? undefined : meta.color,
-                  }}
-                  title={`${cap(monthName(i + 1))} ${year}: ${value === null ? 'bez dat' : formatCompareValue(value, meta.key)}`}
-                />
+                <span className="en-cmp-slot">
+                  {current && fullLast !== null && (
+                    <span
+                      className="en-cmp-ghost"
+                      style={{ height: pct(fullLast) }}
+                      title={`${cap(monthName(i + 1))} ${year - 1} celý: ${formatCompareValue(fullLast, meta.key)}`}
+                    />
+                  )}
+                  {last !== null && (
+                    <span
+                      className="en-cmp-bar en-cmp-bar--last"
+                      style={{ height: pct(last) }}
+                      title={`${cap(monthName(i + 1))} ${year - 1}${current ? ' (stejné dny)' : ''}: ${formatCompareValue(last, meta.key)}`}
+                    />
+                  )}
+                </span>
+                <span className="en-cmp-slot">
+                  {!future && value !== null && (
+                    <span
+                      className="en-cmp-bar en-cmp-bar--this"
+                      style={{ height: pct(value), background: meta.color }}
+                      title={`${cap(monthName(i + 1))} ${year}: ${formatCompareValue(value, meta.key)}`}
+                    />
+                  )}
+                </span>
               </div>
               <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
             </div>
@@ -124,18 +137,18 @@ function MonthChart({
       </div>
       <div className="en-legend">
         <span>
-          <i style={{ background: meta.color }} />
-          {year}
+          <i className="en-cmp-sw en-cmp-legend-last" />
+          {year - 1}
         </span>
         <span>
-          <i className="en-cmp-legend-last" />
-          {year - 1}
+          <i className="en-cmp-sw" style={{ background: meta.color }} />
+          {year}
         </span>
         <span className="en-legend-note" data-testid="energy-compare-note">
           {noLastYear
             ? `Za rok ${year - 1} nemáme data.`
             : partialLabel
-              ? `${cap(monthName(month))} zatím ${partialLabel}`
+              ? `${monthName(month, 'short')}: stejné dny jako letos, obrys = celý ${monthName(month)} ${year - 1}`
               : ''}
         </span>
       </div>
@@ -147,9 +160,16 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
   const [period, setPeriod] = useState<ComparePeriod>('month');
   const [picked, setPicked] = useState<CompareSeriesKey>('house');
   if (comparison.status === 'unconfigured') return null;
-  const head = (extra?: ReactNode) => (
+  const head = (extra?: ReactNode, headline?: string | null, tone?: string) => (
     <header className="en-cost-head">
-      <h2 className="en-ct">Srovnání období</h2>
+      <div className="en-cmp-title">
+        <h2 className="en-ct">Srovnání období</h2>
+        {headline && (
+          <p className="en-cmp-headline" data-tone={tone} data-testid="energy-compare-headline">
+            {headline}
+          </p>
+        )}
+      </div>
       {extra}
     </header>
   );
@@ -179,6 +199,16 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
   const ytdLabel = ytdRangeLabel(comparison.partial, month);
   const rangeLabel = period === 'month' ? partialLabel : ytdLabel;
   const missingLastYear = `nemáme data za ${year - 1}`;
+  const yoy =
+    period === 'month'
+      ? compareDelta(series.month.current, series.month.last_year)
+      : compareDelta(series.ytd.current, series.ytd.last_year);
+  const headline =
+    yoy && yoy.pct !== null
+      ? Math.round(yoy.pct) === 0
+        ? `${meta.short} stejně jako loni`
+        : `${meta.short} o ${Math.abs(Math.round(yoy.pct))}\u00a0% ${yoy.pct < 0 ? 'nižší' : 'vyšší'} než loni`
+      : null;
   return (
     <section className="en-card en-cmp" aria-label="Srovnání období" data-testid="energy-compare">
       {head(
@@ -202,6 +232,8 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
             onChange={setPeriod}
           />
         </div>,
+        headline,
+        deltaTone(meta.key, yoy),
       )}
       <div className="en-cmp-tiles" data-period={period}>
         {period === 'month' ? (
@@ -212,7 +244,7 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
               value={series.month.current}
               seriesKey={meta.key}
               testId="energy-compare-current"
-              sub={partialLabel ? `${partialLabel} · rozpracovaný měsíc` : null}
+              sub={partialLabel ? 'rozpracovaný měsíc' : null}
               missing="zatím bez dat"
             />
             <Tile
@@ -240,7 +272,7 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
               value={series.ytd.current}
               seriesKey={meta.key}
               testId="energy-compare-current"
-              sub={rangeLabel}
+              sub="od 1. ledna"
               missing="nemáme data od ledna"
             />
             <Tile
