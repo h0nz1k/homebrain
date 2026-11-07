@@ -11,4 +11,5 @@ export * from './types.js';
 export * from './api.js';
 export * from './format.js';
 export * from './mock.js';
+export * from './topoLayout.js';
 export * from './signal.js';

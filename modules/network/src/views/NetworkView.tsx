@@ -34,10 +34,13 @@ import type {
   NetSummary,
 } from '../types.js';
 import { networkStyles } from './networkStyles.js';
+import { TopologyMap } from './TopologyMap.js';
+import type { TopoNode } from '../types.js';
 
-type TabId = 'prehled' | 'zarizeni' | 'switche' | 'hoste';
+type TabId = 'prehled' | 'mapa' | 'zarizeni' | 'switche' | 'hoste';
 const TABS: ReadonlyArray<readonly [TabId, string]> = [
   ['prehled', 'Přehled'],
+  ['mapa', 'Mapa'],
   ['zarizeni', 'Zařízení'],
   ['switche', 'Switche'],
   ['hoste', 'Hosté'],
@@ -53,11 +56,17 @@ const SEV_TONE = { critical: 'crit', warning: 'warn', notice: 'neutral', info: '
 const problemAnchor = (id: string) => `network-problem-${id}`;
 
 function scrollToProblem(id: string) {
-  const el = document.getElementById(problemAnchor(id));
-  if (!el) return;
+  revealElement(problemAnchor(id));
+}
+
+/** Scroll + focus the first element that exists (map taps: problem card, then the row). */
+function revealElement(...ids: string[]): boolean {
+  const el = ids.map((id) => document.getElementById(id)).find(Boolean);
+  if (!el) return false;
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
   el.focus({ preventScroll: true });
+  return true;
 }
 
 const nowS = () => Date.now() / 1000;
@@ -158,6 +167,8 @@ function House({ snap }: { snap: NetSnapshot }) {
                   className="net-ap"
                   data-problem={a.problem ?? undefined}
                   data-testid="network-ap"
+                  id={`network-ap-${a.id}`}
+                  tabIndex={-1}
                 >
                   <span className="net-ap-dot" aria-hidden="true" />
                   <span className="net-ap-name">{a.name}</span>
@@ -378,7 +389,13 @@ function Devices({
       </div>
       <ul className="net-devices">
         {shown.map((c) => (
-          <li key={c.id} data-testid="network-device" data-online={c.online}>
+          <li
+            key={c.id}
+            data-testid="network-device"
+            data-online={c.online}
+            id={`network-device-${c.id}`}
+            tabIndex={-1}
+          >
             <span className="net-dev-dot" data-online={c.online} aria-hidden="true" />
             <span className="net-dev-copy">
               <strong>{c.label}</strong>
@@ -437,7 +454,13 @@ function Switches({ snap }: { snap: NetSnapshot }) {
             .map((p) => Number(p.target.id.split(':').pop())),
         );
         return (
-          <Card key={sw.id} className="net-card" data-testid="network-switch">
+          <Card
+            key={sw.id}
+            className="net-card"
+            data-testid="network-switch"
+            id={`network-switch-${sw.id}`}
+            tabIndex={-1}
+          >
             <header className="net-card-head">
               <h3>{sw.name}</h3>
               <span>{sw.model_label}</span>
@@ -648,6 +671,15 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
   // A shared wall screen never gets more than the summary, even when signed in as admin.
   const admin = role === 'owner' && !kiosk;
   const { snap, error, reload } = useNetwork(api, admin);
+  const [reveal, setReveal] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!reveal) return;
+    const t = setTimeout(() => {
+      revealElement(...reveal);
+      setReveal(null);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [reveal, tab, snap]);
   const selectTab = (next: TabId) => {
     setTab(next);
     try {
@@ -655,6 +687,24 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
     } catch {
       /* outside HA */
     }
+  };
+  // Map tap: a node with a problem opens its „Co s tím“ card, otherwise the existing row/card.
+  const openNode = (n: TopoNode) => {
+    const problem = n.problem_ids.map(problemAnchor);
+    const ref = n.ref;
+    const target: [TabId, string[]] =
+      ref?.kind === 'switch'
+        ? ['switche', [`network-switch-${ref.id}`]]
+        : ref?.kind === 'client'
+          ? ['zarizeni', [`network-device-${ref.id}`]]
+          : ref?.kind === 'ap'
+            ? ['prehled', [`network-ap-${ref.id}`]]
+            : ['prehled', []];
+    const [nextTab, ids] = problem.length
+      ? (['prehled', [...problem, ...target[1]]] as const)
+      : target;
+    selectTab(nextTab);
+    setReveal([...ids]);
   };
   let body;
   if (!api)
@@ -676,6 +726,8 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
     body =
       tab === 'prehled' ? (
         <Overview snap={snap} />
+      ) : tab === 'mapa' ? (
+        <TopologyMap api={api} onOpen={openNode} />
       ) : tab === 'zarizeni' ? (
         <Devices snap={snap} api={api} onSaved={reload} />
       ) : tab === 'switche' ? (
