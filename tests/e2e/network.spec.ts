@@ -129,6 +129,21 @@ test.describe('Síť – mapa', () => {
     const parent = await node('ap-kuchyn').boundingBox();
     const mesh = await node('ap-podkrovi').boundingBox();
     expect(mesh && parent && Math.abs(mesh.x - parent.x) < 1 && mesh.y > parent.y).toBe(true);
+    // The tree fills the card and no key text (e.g. router „mimo UniFi“) ends in an ellipsis.
+    const fit = await page.evaluate(() => {
+      const sc = document.querySelector('.net-topo-scroll') as HTMLElement;
+      const r = sc.getBoundingClientRect();
+      const nodes = Array.from(sc.querySelectorAll('.net-topo-node')).map((n) =>
+        n.getBoundingClientRect(),
+      );
+      const span = Math.max(...nodes.map((n) => n.right)) - Math.min(...nodes.map((n) => n.left));
+      const clipped = Array.from(sc.querySelectorAll('.net-topo-copy strong, .net-topo-copy small'))
+        .filter((el) => el.scrollWidth > el.clientWidth + 1)
+        .map((el) => el.textContent);
+      return { fill: span / r.width, clipped };
+    });
+    expect(fit.clipped).toEqual([]);
+    expect(fit.fill).toBeGreaterThan(0.85);
     await node('sw-flex').click();
     await expect(page.getByRole('radio', { name: 'Switche' })).toBeChecked();
     await expect(page.locator('#network-switch-sw-flex')).toBeFocused();
@@ -151,8 +166,17 @@ test.describe('Síť – mapa', () => {
     await expect(robot).toBeVisible();
     await expect(tree.locator('[data-node-id="more:ap-obyvak"]')).toContainText('další');
     await expect(tree.locator('li[data-type="mesh"] [data-node-id="ap-podkrovi"]')).toBeVisible();
+    // Child APs come before client chips; the link meta wraps instead of being cut.
+    // Kuchyň is open from the start (its problem client).
+    await expect(page.getByRole('button', { name: 'Skrýt zařízení u Kuchyň' })).toBeVisible();
+    const kuchyn = tree.locator('li:has(> .net-tree-row [data-node-id="ap-kuchyn"]) > ul > li');
+    await expect(kuchyn.first()).toHaveAttribute('data-type', 'mesh');
     const clipped = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.net-tree .net-topo-copy strong'))
+      Array.from(
+        document.querySelectorAll(
+          '.net-tree .net-topo-copy strong, .net-tree .net-topo-copy small',
+        ),
+      )
         .filter((el) => el.scrollWidth > el.clientWidth + 1)
         .map((el) => el.textContent),
     );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Card, EmptyState, Pill } from '@homebrain/ui';
 import type { NetworkApi } from '../api.js';
 import { edgeLabel, edgeTone, layoutTopology, treeChildren } from '../topoLayout.js';
@@ -45,6 +45,28 @@ function useTopology(api: NetworkApi) {
     };
   }, [api]);
   return { graph, error };
+}
+
+/** Inner width of an element (0 until measured / without ResizeObserver). */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      setWidth(
+        Math.floor(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)),
+      );
+    };
+    measure();
+    if (typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
 }
 
 const ms = (v: number | null | undefined) =>
@@ -146,19 +168,10 @@ function NodeButton({
       </span>
       <span className="net-topo-copy">
         <strong>{label}</strong>
-        {(sub || chip) && (
-          <small>
-            {sub}
-            {chip && (
-              <span
-                className="net-topo-inline"
-                data-testid="network-topo-chip"
-                {...linkAttrs(link!)}
-              >
-                {sub ? ' · ' : ''}
-                {chip}
-              </span>
-            )}
+        {sub && <small>{sub}</small>}
+        {chip && (
+          <small className="net-topo-inline" data-testid="network-topo-chip" {...linkAttrs(link!)}>
+            {chip}
           </small>
         )}
       </span>
@@ -184,9 +197,13 @@ const linkAttrs = (e: TopoEdge) => ({
 });
 
 function DesktopMap({ graph, onOpen }: { graph: TopoGraph; onOpen: (n: TopoNode) => void }) {
-  const { boxes, links, width, height } = useMemo(() => layoutTopology(graph), [graph]);
+  const [ref, avail] = useWidth<HTMLDivElement>();
+  const { boxes, links, junctions, width, height } = useMemo(
+    () => layoutTopology(graph, { width: avail }),
+    [graph, avail],
+  );
   return (
-    <div className="net-topo-scroll" data-testid="network-topo-desktop">
+    <div className="net-topo-scroll" data-testid="network-topo-desktop" ref={ref}>
       <div className="net-topo-canvas" style={{ width, height }}>
         <svg width={width} height={height} className="net-topo-svg" aria-hidden="true">
           {links.map(
@@ -208,6 +225,15 @@ function DesktopMap({ graph, onOpen }: { graph: TopoGraph; onOpen: (n: TopoNode)
               data-testid="network-topo-link"
               data-to={l.edge.to}
               {...linkAttrs(l.edge)}
+            />
+          ))}
+          {junctions.map((j) => (
+            <circle
+              key={`j-${j.x}-${j.y}`}
+              cx={j.x}
+              cy={j.y}
+              r={3.5}
+              className="net-topo-junction"
             />
           ))}
         </svg>

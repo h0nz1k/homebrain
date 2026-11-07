@@ -27,22 +27,29 @@ export interface TopoLink {
 export interface TopoLayout {
   boxes: TopoBox[];
   links: TopoLink[];
+  /** Split points where one parent fans out to several side children. */
+  junctions: Array<{ x: number; y: number }>;
   width: number;
   height: number;
 }
 
 const WIDTH: Record<TopoKind, number> = {
-  internet: 176,
-  gateway: 176,
-  switch: 184,
-  ap: 184,
-  client: 168,
-  more: 168,
+  internet: 196,
+  gateway: 196,
+  switch: 196,
+  ap: 196,
+  client: 172,
+  more: 172,
 };
 const DEVICE_H = 60;
 const LEAF_H = 36;
 const COL_GAP = 128;
-const TRUNK = 16;
+/** Trunk leaves the parent this far right of its edge (scaled with the gap, never hugging). */
+const TRUNK_MIN = 32;
+const TRUNK_MAX = 56;
+/** Extra width a box may take when the card is wider than the tree. */
+const GROW_MAX = 48;
+const GAP_MAX = 220;
 const ROW_GAP = 12;
 const LEAF_GAP = 8;
 const MESH_X = 26;
@@ -58,7 +65,7 @@ const ORDER: Record<TopoKind, number> = {
 const isLeaf = (n: TopoNode) => n.kind === 'client' || n.kind === 'more';
 const height = (n: TopoNode) => (isLeaf(n) ? LEAF_H : DEVICE_H);
 
-/** Children per node: devices, then clients, the `+N` chip, mesh children last. */
+/** Children per node: devices (mesh APs included), then clients and the `+N` chip last. */
 export function treeChildren(graph: TopoGraph): Map<string, TopoNode[]> {
   const edgeTo = new Map(graph.edges.map((e) => [e.to, e]));
   const out = new Map<string, TopoNode[]>();
@@ -68,7 +75,7 @@ export function treeChildren(graph: TopoGraph): Map<string, TopoNode[]> {
     list.push(n);
     out.set(n.parent, list);
   });
-  const rank = (n: TopoNode) => (edgeTo.get(n.id)?.type === 'mesh' ? 9 : ORDER[n.kind]);
+  const rank = (n: TopoNode) => ORDER[n.kind] + (edgeTo.get(n.id)?.type === 'mesh' ? 0.5 : 0);
   for (const list of out.values()) list.sort((a, b) => rank(a) - rank(b));
   return out;
 }
@@ -102,7 +109,7 @@ export function edgeTone(edge: TopoEdge): EdgeTone {
 
 export function layoutTopology(
   graph: TopoGraph,
-  opts: { collapsed?: ReadonlySet<string> } = {},
+  opts: { collapsed?: ReadonlySet<string>; width?: number } = {},
 ): TopoLayout {
   const kids = treeChildren(graph);
   const edgeTo = new Map(graph.edges.map((e) => [e.to, e]));
@@ -131,7 +138,18 @@ export function layoutTopology(
   const colW = Array.from({ length: cols }, (_, c) =>
     Math.max(0, ...placed.filter((p) => p.col === c).map((p) => WIDTH[p.node.kind])),
   );
-  const colX = colW.map((_, c) => colW.slice(0, c).reduce((s, w) => s + w + COL_GAP, 0));
+  // Fill the card: widen boxes a little, then the gaps, and centre what is left.
+  const natural = colW.reduce((s, w) => s + w, 0) + COL_GAP * (cols - 1);
+  let extra = Math.max(0, (opts.width ?? 0) - natural);
+  const grow = Math.min(GROW_MAX, Math.floor(extra / 2 / cols));
+  extra -= grow * cols;
+  const gap = cols > 1 ? Math.min(GAP_MAX, COL_GAP + Math.floor(extra / (cols - 1))) : COL_GAP;
+  extra -= (gap - COL_GAP) * (cols - 1);
+  const offset = Math.floor(Math.max(0, extra) / 2);
+  const widths = colW.map((w) => w + grow);
+  const colX = widths.map((_, c) => offset + widths.slice(0, c).reduce((s, w) => s + w + gap, 0));
+  const trunk = Math.round(Math.min(TRUNK_MAX, Math.max(TRUNK_MIN, gap * 0.28)));
+  // Every box takes its column's width, so cards line up (a server is as wide as a switch).
   const boxes: TopoBox[] = placed.map((p) => ({
     id: p.node.id,
     node: p.node,
@@ -139,11 +157,13 @@ export function layoutTopology(
     col: p.col,
     x: colX[p.col] ?? 0,
     y: p.y,
-    w: WIDTH[p.node.kind],
+    w: widths[p.col] ?? WIDTH[p.node.kind],
     h: height(p.node),
   }));
   const byId = new Map(boxes.map((b) => [b.id, b]));
   const links: TopoLink[] = [];
+  const fan = new Map<string, number>();
+  const junctions: Array<{ x: number; y: number }> = [];
   const assumedLabelled = new Set<string>();
   for (const b of boxes) {
     const parent = b.node.parent ? byId.get(b.node.parent) : undefined;
@@ -167,7 +187,9 @@ export function layoutTopology(
     }
     const y1 = parent.y + parent.h / 2;
     const y2 = b.y + b.h / 2;
-    const mx = parent.x + parent.w + TRUNK;
+    const mx = parent.x + parent.w + trunk;
+    fan.set(parent.id, (fan.get(parent.id) ?? 0) + 1);
+    if (fan.get(parent.id) === 2) junctions.push({ x: mx, y: y1 });
     links.push({
       edge: b.edge,
       trunk: `M${parent.x + parent.w} ${y1} H${mx} V${y2}`,
@@ -178,7 +200,8 @@ export function layoutTopology(
   return {
     boxes,
     links,
-    width: Math.max(0, ...boxes.map((b) => b.x + b.w)),
+    junctions,
+    width: Math.max(opts.width ?? 0, ...boxes.map((b) => b.x + b.w)),
     height: Math.max(0, ...boxes.map((b) => b.y + b.h)),
   };
 }

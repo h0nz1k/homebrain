@@ -186,14 +186,20 @@ export const networkStyles = `
 }
 
 /* ---------- Mapa (topologie) ---------- */
-.net-topo { --topo-line: color-mix(in srgb, var(--hb-t1) 30%, transparent); --topo-soft: color-mix(in srgb, var(--hb-t1) 22%, transparent); }
+.net-topo {
+  --topo-line: color-mix(in srgb, var(--hb-t1) 34%, transparent);
+  --topo-soft: color-mix(in srgb, var(--hb-t1) 30%, transparent);
+  --topo-wifi: color-mix(in srgb, var(--hb-t1) 52%, transparent);
+}
+[data-theme='dark'] .net-topo { --topo-line: color-mix(in srgb, var(--hb-t1) 38%, transparent); --topo-soft: color-mix(in srgb, var(--hb-t1) 40%, transparent); --topo-wifi: color-mix(in srgb, var(--hb-t1) 62%, transparent); }
 .net-topo-scroll { overflow-x: auto; padding: 6px 2px 10px; }
 .net-topo-canvas { position: relative; }
 .net-topo-svg { position: absolute; inset: 0; overflow: visible; }
 .net-topo-trunk, .net-topo-line { fill: none; stroke: var(--topo-line); stroke-width: 1.5; stroke-linejoin: round; }
-.net-topo-trunk[data-assumed], .net-topo-line[data-assumed] { stroke: var(--topo-soft); stroke-dasharray: 5 4; }
+.net-topo-trunk[data-assumed], .net-topo-line[data-assumed] { stroke: var(--topo-soft); stroke-dasharray: 7 5; }
+.net-topo-junction { fill: var(--topo-line); }
 .net-topo-line[data-type='mesh'] { stroke: color-mix(in srgb, var(--hb-ac) 70%, transparent); stroke-width: 2; stroke-dasharray: 1 5; stroke-linecap: round; }
-.net-topo-trunk[data-type='wireless'], .net-topo-line[data-type='wireless'] { stroke: var(--topo-soft); stroke-width: 1.25; stroke-dasharray: 1 4; stroke-linecap: round; }
+.net-topo-trunk[data-type='wireless'], .net-topo-line[data-type='wireless'] { stroke: var(--topo-wifi); stroke-width: 2.5; stroke-dasharray: 0.01 5; stroke-linecap: round; }
 .net-topo-line[data-tone='slow'] { stroke: var(--hb-crit); stroke-width: 2.5; }
 .net-topo-line[data-tone='weak'] { stroke: var(--hb-warn); }
 .net-topo-line[data-tone='fast'] { stroke: var(--hb-ac); stroke-width: 2.5; }
@@ -240,36 +246,43 @@ export const networkStyles = `
 .net-topo-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .net-topo-copy strong { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .net-topo-node[data-kind='client'] .net-topo-copy strong, .net-topo-node[data-kind='more'] .net-topo-copy strong { font-size: 13px; font-weight: 500; }
-.net-topo-copy small { font-size: 12px; color: var(--hb-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.net-topo-copy small { font-size: 12px; color: var(--hb-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
 .net-topo-node[data-kind='client'] .net-topo-copy small { display: none; }
 .net-topo-node[data-status='offline'] .net-topo-copy small { display: block; }
 .net-topo-badge { flex: none; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--hb-fill); color: var(--hb-t2); font-variant-numeric: tabular-nums; }
 .net-topo-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 12px; color: var(--hb-t2); padding-top: 12px; border-top: 1px solid var(--hb-edge); }
 .net-topo-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.net-topo-legend span::before { content: ''; width: 22px; border-top: 2px solid var(--topo-line); }
-.net-topo-legend span[data-tone='slow']::before { border-top-color: var(--hb-crit); }
-.net-topo-legend span[data-type='mesh']::before { border-top: 2px dotted var(--hb-ac); }
-.net-topo-legend span[data-type='wireless']::before { border-top: 2px dotted var(--topo-soft); }
-.net-topo-legend span[data-assumed]::before { border-top: 2px dashed var(--topo-soft); }
-.net-topo-legend small { flex-basis: 100%; font-size: 12px; color: var(--hb-t3); }
+.net-topo-legend span::before { content: ''; width: 26px; height: 2px; border-radius: 1px; background: var(--topo-line); }
+.net-topo-legend span[data-tone='slow']::before { background: var(--hb-crit); height: 3px; }
+/* Same patterns as the lines: round dots (mesh accent, Wi-Fi neutral) vs long dashes (předpoklad). */
+.net-topo-legend span[data-type='mesh']::before, .net-topo-legend span[data-type='wireless']::before {
+  height: 4px; border-radius: 0; background: radial-gradient(circle, var(--hb-ac) 1.6px, transparent 2px) 0 50% / 6px 4px repeat-x;
+}
+.net-topo-legend span[data-type='wireless']::before { background-image: radial-gradient(circle, var(--topo-wifi) 1.4px, transparent 1.9px); }
+.net-topo-legend span[data-assumed]::before { border-radius: 0; background: repeating-linear-gradient(90deg, var(--topo-soft) 0 7px, transparent 7px 12px); }
+.net-topo-legend small { flex-basis: 100%; font-size: 12px; color: var(--hb-t2); }
 /* Phone: vertical tree, APs collapsible. */
 .net-tree { list-style: none; margin: 0; padding: 0; }
 .net-tree .net-tree { margin-left: 21px; }
 .net-tree .net-tree > li { position: relative; padding-left: 12px; }
-.net-tree .net-tree > li::before { content: ''; position: absolute; left: 0; top: 0; width: 11px; height: 30px; border-left: 1.5px solid var(--topo-line); border-bottom: 1.5px solid var(--topo-line); border-bottom-left-radius: 8px; }
-.net-tree .net-tree > li[data-leaf]::before { height: 24px; }
+/* Elbow from the parent card's bottom (-4 px row padding) to the child card's vertical middle. */
+.net-tree .net-tree > li > .net-tree-row { position: relative; }
+.net-tree .net-tree > li > .net-tree-row::before { content: ''; position: absolute; left: -12px; top: -4px; width: 12px; height: calc(50% + 4px); border-left: 1.5px solid var(--topo-line); border-bottom: 1.5px solid var(--topo-line); border-bottom-left-radius: 8px; box-sizing: border-box; }
 .net-tree .net-tree > li::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--topo-line); }
 .net-tree .net-tree > li:last-child::after { display: none; }
-.net-tree .net-tree > li[data-assumed]::before { border-style: dashed; border-color: var(--topo-soft); }
-.net-tree .net-tree > li[data-type='mesh']::before { border-style: dotted; border-color: var(--hb-ac); border-width: 2px; }
-.net-tree .net-tree > li[data-type='wireless']::before { border-style: dotted; border-color: var(--topo-soft); }
-.net-tree .net-tree > li[data-tone='slow']::before { border-color: var(--hb-crit); border-width: 2px; }
+/* The spine down to an assumed sibling is assumed too: same long dashes as its elbow. */
+.net-tree .net-tree > li:has(+ li[data-assumed])::after { border-left-style: dashed; border-color: var(--topo-soft); }
+.net-tree .net-tree > li[data-assumed] > .net-tree-row::before { border-style: dashed; border-color: var(--topo-soft); }
+.net-tree .net-tree > li[data-type='mesh'] > .net-tree-row::before { border-style: dotted; border-color: var(--hb-ac); border-width: 2px; }
+.net-tree .net-tree > li[data-type='wireless'] > .net-tree-row::before { border-style: dotted; border-color: var(--topo-wifi); border-width: 2px; }
+.net-tree .net-tree > li[data-tone='slow'] > .net-tree-row::before { border-color: var(--hb-crit); border-width: 2px; }
 .net-tree-root > li + li { position: relative; padding-top: 12px; }
-.net-tree-root > li + li::before { content: ''; position: absolute; left: 22px; top: -2px; height: 18px; border-left: 1.5px solid var(--topo-line); }
+.net-tree-root > li + li::before { content: ''; position: absolute; left: 22px; top: -4px; height: 20px; border-left: 1.5px solid var(--topo-line); }
 .net-tree-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; min-width: 0; }
 .net-tree .net-topo-node { position: relative; flex: 1 1 auto; min-width: 0; padding: 6px 10px 6px 6px; gap: 8px; }
 .net-tree .net-topo-tile { width: 32px; height: 32px; }
 .net-tree .net-topo-copy strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.net-tree .net-topo-copy small { white-space: normal; overflow-wrap: anywhere; }
 .net-tree .net-topo-badge { min-width: 24px; height: 24px; }
 .net-tree .net-topo-node[data-kind='client'], .net-tree .net-topo-node[data-kind='more'] { flex: 0 1 auto; padding: 3px 12px 3px 3px; }
 .net-tree .net-topo-node[data-kind='client'] .net-topo-tile, .net-tree .net-topo-node[data-kind='more'] .net-topo-tile { width: 26px; height: 26px; }

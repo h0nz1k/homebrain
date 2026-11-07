@@ -72,6 +72,23 @@ describe('layoutTopology (desktop, horizontal tree)', () => {
     expect(labels).toHaveLength(1);
   });
 
+  it('fills a wider card: same width per column, centred, trunk clear of the card edge', () => {
+    const tight = layoutTopology(graph);
+    const wide = layoutTopology(graph, { width: tight.width + 400 });
+    expect(wide.width).toBe(tight.width + 400);
+    const right = Math.max(...wide.boxes.map((b) => b.x + b.w));
+    const left = Math.min(...wide.boxes.map((b) => b.x));
+    expect(Math.abs(wide.width - right - left)).toBeLessThanOrEqual(1);
+    for (const col of new Set(wide.boxes.map((b) => b.col)))
+      expect(new Set(wide.boxes.filter((b) => b.col === col).map((b) => b.w)).size).toBe(1);
+    for (const l of wide.links.filter((k) => k.trunk)) {
+      const parent = wide.boxes.find((b) => b.id === l.edge.from);
+      const mx = Number(/H([\d.]+)/.exec(l.trunk ?? '')?.[1]);
+      if (parent) expect(mx - (parent.x + parent.w)).toBeGreaterThanOrEqual(32);
+    }
+    expect(wide.junctions.length).toBeGreaterThan(0);
+  });
+
   it('skips collapsed subtrees', () => {
     const all = layoutTopology(graph).boxes.length;
     const some = layoutTopology(graph, { collapsed: new Set(['ap-obyvak']) }).boxes;
@@ -101,9 +118,9 @@ describe('edge labels and tones', () => {
 });
 
 describe('treeChildren (phone tree)', () => {
-  it('orders devices first, then clients, the +N chip and mesh children last', () => {
+  it('orders devices first (mesh APs included), then clients and the +N chip', () => {
     const kids = treeChildren(graph).get('ap-kuchyn') ?? [];
-    expect(kids.map((k) => k.kind)).toEqual(['client', 'more', 'ap']);
+    expect(kids.map((k) => k.kind)).toEqual(['ap', 'client', 'more']);
     expect(treeChildren(graph).get('gateway')?.[0]?.kind).toBe('switch');
   });
 });
