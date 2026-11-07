@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
-import { Card, EmptyState, czCount } from '@homebrain/ui';
+import { Card, EmptyState, ErrorState, Skeleton, czCount } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
 import {
   choreNote,
@@ -501,9 +501,11 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   if (!api) return <EmptyState title="Rodina">Bez spojení s Home Assistantem.</EmptyState>;
   if (!snap)
     return error ? (
-      <EmptyState title="Rodina">{error}</EmptyState>
+      <ErrorState title="Rodina" onRetry={() => void load()} data-testid="family-error">
+        {error}
+      </ErrorState>
     ) : (
-      <div className="fam-loading" aria-busy="true" />
+      <Skeleton variant="card" lines={4} label="Načítám rodinný přehled…" data-testid="family-loading" />
     );
 
   const admin = snap.role === 'owner' && !kiosk;

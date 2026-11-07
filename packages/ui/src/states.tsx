@@ -91,6 +91,8 @@ export interface ConfirmDialogProps {
   children?: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
+  /** Leading icon of the confirm button. */
+  confirmIcon?: ReactNode;
   /** Destructive action: red button and the safe „Zpět“ gets the initial focus. */
   danger?: boolean;
   /**
@@ -115,6 +117,7 @@ export function ConfirmDialog({
   children,
   confirmLabel,
   cancelLabel = 'Zpět',
+  confirmIcon,
   danger,
   onConfirm,
   onClose,
@@ -156,6 +159,7 @@ export function ConfirmDialog({
           <Button
             variant={danger ? 'danger' : 'primary'}
             loading={busy}
+            icon={confirmIcon}
             data-testid={confirmTestId}
             onClick={() => void confirm()}
           >
