@@ -107,7 +107,7 @@ homebrain-panel {
 .hb-module-unavailable {
   padding: var(--hb-sp-4);
   border: 1px solid color-mix(in srgb, var(--hb-color-warning) 30%, transparent);
-  border-radius: var(--hb-radius);
+  border-radius: var(--hb-radius-card);
   background: var(--hb-warn-s);
 }
 
@@ -115,7 +115,7 @@ homebrain-panel {
   margin-bottom: var(--hb-sp-4);
   padding: var(--hb-sp-3) var(--hb-sp-4);
   border: 1px solid color-mix(in srgb, var(--hb-color-warning) 30%, transparent);
-  border-radius: var(--hb-radius);
+  border-radius: var(--hb-radius-card);
   background: var(--hb-warn-s);
 }
 

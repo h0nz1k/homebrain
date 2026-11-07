@@ -134,7 +134,7 @@ Stejné tokeny jako kolo 2 (`--hb-bg`, `s1–s3`, `b1–b2`, `t1–t3`, `ac #3D8
 | Token | Hodnota | Použití |
 |---|---|---|
 | `--hb-display-w` | Inter 200 (čas), 300 (teplota, hodnoty) | velké tenké číslice (vliv A1) |
-| `--hb-r-lg` | 18 px | hero karta (běžné karty 14 px, kolo 2 = 12 px) |
+| `--hb-radius-hero` | 18 px | hero karta (běžné karty 14 px, kolo 2 = 12 px) |
 | `--hb-glow` | radiální `ac` 7 % vlevo nahoře, `crit` 9 % při critical | měkká hloubka pozadí místo stínů |
 | `--hb-space-page` | 48 px desktop, 56 px kiosk, 16 px mobil | velkorysý okraj |
 

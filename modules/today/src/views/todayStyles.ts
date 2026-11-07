@@ -19,7 +19,7 @@ export const todayStyles = `
 .today-sun-band{position:absolute;inset:0;overflow:visible;pointer-events:none;color:var(--hb-t1)}
 .today-sun-band svg{width:100%;height:100%}
 .today-summary{font-size:22px;line-height:1.4;margin:0;flex:none;color:var(--hb-t2)}
-.today-ribbon-card{min-height:0;flex:none;display:flex;flex-direction:column;background:var(--hb-glass,var(--hb-s1));border:1px solid var(--hb-glass-edge,var(--hb-b1));border-radius:var(--hb-r-lg,18px);padding:18px 24px}
+.today-ribbon-card{min-height:0;flex:none;display:flex;flex-direction:column;background:var(--hb-glass,var(--hb-s1));border:1px solid var(--hb-glass-edge,var(--hb-b1));border-radius:var(--hb-radius-hero,18px);padding:18px 24px}
 .today-ribbon-heading{display:flex;justify-content:space-between;gap:12px;font-size:16px;color:var(--hb-t2)}
 .today-ribbon-heading span{font-size:14px;color:var(--hb-t2)}
 .today-ribbon-card .hb-ribbon{border:0;background:transparent;padding:12px 48px 0}
@@ -30,7 +30,7 @@ export const todayStyles = `
 .today-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;width:100%;flex:none}
 .today-chips .hb-chip{max-width:100%;white-space:normal;width:max-content;justify-self:start}
 .today-home{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);align-items:start;gap:12px;flex:none;min-height:0}
-.today-home-tile{display:flex;flex-direction:column;gap:8px;min-width:0;margin:0;padding:14px 20px;text-align:left;font:inherit;color:inherit;background:var(--hb-glass,var(--hb-s1));border:1px solid var(--hb-glass-edge,var(--hb-b1));border-radius:var(--hb-r-lg,18px)}
+.today-home-tile{display:flex;flex-direction:column;gap:8px;min-width:0;margin:0;padding:14px 20px;text-align:left;font:inherit;color:inherit;background:var(--hb-glass,var(--hb-s1));border:1px solid var(--hb-glass-edge,var(--hb-b1));border-radius:var(--hb-radius-hero,18px)}
 .today-home-title{margin:0;font-size:15px;font-weight:600;color:var(--hb-t1)}
 .today-meal-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 24px}
 .today-meal-list li{display:flex;flex-direction:column;gap:2px;min-width:0}

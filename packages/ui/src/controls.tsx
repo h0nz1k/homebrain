@@ -104,8 +104,12 @@ export interface SheetProps {
   dismissOnScrim?: boolean;
   /** Footer stays pinned at the bottom while long content scrolls (guides, long forms). */
   stickyFooter?: boolean;
+  /** id of the element describing the dialog (aria-describedby), e.g. a confirm's consequence. */
+  describedBy?: string;
   'data-testid'?: string;
 }
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 /** Modal sheet: phone = bottom sheet, tablet = centred panel. Esc closes; focus moves inside. */
 export function Sheet({
   title,
@@ -117,6 +121,7 @@ export function Sheet({
   width = 'md',
   dismissOnScrim,
   stickyFooter,
+  describedBy,
   ...rest
 }: SheetProps) {
   const titleId = useId();
@@ -128,10 +133,27 @@ export function Sheet({
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     const first = ref.current?.querySelector<HTMLElement>(
-      '[autofocus], input, button[data-variant="primary"]',
+      '[data-autofocus], [autofocus], input, button[data-variant="primary"]',
     );
     (first ?? ref.current)?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current();
+      if (e.key !== 'Tab' || !ref.current) return;
+      // Focus trap: Tab / Shift+Tab cycle inside the sheet (the page behind is inert for AT).
+      const items = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (!items.length) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement;
+      const inside = ref.current.contains(active);
+      if (e.shiftKey && (active === first || !inside || active === ref.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
@@ -155,6 +177,7 @@ export function Sheet({
         role={variant === 'alert' ? 'alertdialog' : 'dialog'}
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={describedBy}
         data-testid={rest['data-testid']}
       >
         <header className="hb-sheet-head">
