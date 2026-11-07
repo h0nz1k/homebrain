@@ -129,3 +129,15 @@ Zdraví je **per osoba** (data vázaná na `user_id`); ani `owner` nevidí cizí
 
 1. Kdy přepnout panel pro ne-adminy (P1 → P2) — doporučeno spolu s dedikovaným kiosk uživatelem.
 2. Detaily matice §3.1 — Energie pro `child`/`kiosk`, Zdraví per osoba (zatím platí výchozí hodnoty z matice).
+
+## 8. Stav po rc.36 (Fáze 4 — ne-admin panely)
+
+- Místo jednoho přepínače `panel_require_admin` (P2) má každý modul vlastní panel (ADR-0003);
+  `require_admin: false` mají Dnes, Počasí, Odpady, Rodina, Energie, Recepty a Síť.
+  Nastavení, Vinotéka, Zdraví, Roboti a Přístup zůstávají jen pro adminy.
+- `homebrain/waste/history` je pro každou namapovanou roli; datový horizont jen pro admina.
+- Panel ukáže ne-adminovi mimo jeho `visible_modules` (a uživateli bez role) klidný stav
+  „Nemáte přístup“ a modul vůbec nenačte.
+- Options flow má krok **Uživatelé a role** (§6 bod 4); varování u kiosku bez `local_only`
+  je zatím jen v popisu kroku.
+- Matice a testy: [docs/modules/roles.md](../modules/roles.md).

@@ -51,6 +51,14 @@ MATRIX: dict[str, tuple[dict, set[str]]] = {
     "homebrain/energy/pv_forecast": ({}, MAPPED),
     # Energie details are adult+admin; child has no Energie, kiosk the summary only.
     "homebrain/energy/compare": ({}, {"admin", "adult"}),
+    # Energie „Faktury“: adults read; upload/edit/delete stay admin-only.
+    "homebrain/energy/invoices/list": ({}, {"admin", "adult"}),
+    "homebrain/energy/invoices/compare": ({"invoice_id": "0000000000000000"}, {"admin", "adult"}),
+    "homebrain/energy/invoices/save": (
+        {"invoice_id": "0000000000000000", "fields": {}},
+        ADMIN,
+    ),
+    "homebrain/energy/invoices/delete": ({"invoice_id": "0000000000000000"}, ADMIN),
     "homebrain/waste/history": ({}, MAPPED),
     "homebrain/today/meals": ({}, MAPPED),
     "homebrain/family/get": ({}, MAPPED),
