@@ -119,9 +119,9 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         : events(now()).map((e) => {
             if (detail) return e;
             const rest = { ...e };
-        delete rest.location;
-        delete rest.description;
-        return rest;
+            delete rest.location;
+            delete rest.description;
+            return rest;
           }),
       kids: state.kids
         .filter((k) => role !== 'child' || k.id === own)
