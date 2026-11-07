@@ -584,7 +584,14 @@ test.describe('srovnání období', () => {
     await expect(page.getByTestId('energy-compare-last-year-delta')).toContainText(/[+−±]\d+\s%/);
     await expect(page.getByTestId('energy-compare-previous')).toContainText('říjen 2026');
     await expect(page.getByTestId('energy-compare-range')).toContainText('1.–7. 11. do 16:00');
-    await expect(page.getByTestId('energy-compare-headline')).toContainText('než loni');
+    await expect(page.getByTestId('energy-compare-headline')).toContainText(
+      'než loni za 1.–7. 11.',
+    );
+    await expect(page.getByTestId('energy-compare-previous')).toContainText('1.–7. 10. do 16:00');
+    await expect(page.getByTestId('energy-compare-yaxis')).toContainText('kWh');
+    await expect(page.getByTestId('energy-compare-legend')).toContainText(
+      'obrys = celý listopad 2025',
+    );
     const months = page.getByTestId('energy-compare-month');
     await expect(months).toHaveCount(12);
     await expect(months.nth(10)).toHaveAttribute('data-current', 'true');
@@ -595,6 +602,13 @@ test.describe('srovnání období', () => {
     expect(bars).toBe(23);
     await expect(months.nth(10).locator('.en-cmp-ghost')).toHaveCount(1);
     await expect(months.nth(11).locator('.en-cmp-bar')).toHaveCount(1);
+
+    // card == chart: the running-month bar carries the tile value
+    const tile = await page.getByTestId('energy-compare-current').locator('.en-cmp-v').innerText();
+    const barValue = await months.nth(10).locator('.en-cmp-bar--this').getAttribute('data-value');
+    expect(tile.replace(/\s/g, '').replace(',', '.')).toBe(`${barValue}kWh`);
+    await months.nth(2).click();
+    await expect(page.getByTestId('energy-compare-readout')).toContainText('Březen 2026');
 
     const box = (await card.boundingBox())!;
     expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);

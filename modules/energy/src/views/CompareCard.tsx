@@ -95,7 +95,8 @@ function MonthChart({
   const pct = (v: number) => `${(v / top) * 100}%`;
   const noLastYear = lastYear.every((v) => v === null);
   const unit = meta.key === 'cost' ? 'Kč' : 'kWh';
-  const tick = (v: number) => formatCompareValue(v, meta.key).replace(/\s?(kWh|Kč)$/, '');
+  const tick = (v: number) =>
+    new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 0 }).format(v).replace(/\s/g, '\u00a0');
   // Bars of the running month = the tile values (like-for-like); other months = whole months.
   const values = (i: number) => {
     const current = i + 1 === month;
@@ -110,13 +111,11 @@ function MonthChart({
     const v = values(i);
     const name = cap(monthName(i + 1));
     const parts = [
-      `${name} ${year}${v.current && partialLabel ? ` (${partialLabel})` : ''}: ${formatCompareValue(v.thisValue, meta.key)}`,
+      `${name} ${year}: ${formatCompareValue(v.thisValue, meta.key)}`,
       `${year - 1}${v.current ? ' stejné dny' : ''}: ${formatCompareValue(v.lastValue, meta.key)}`,
     ];
     if (v.current && v.fullLast !== null)
-      parts.push(
-        `celý ${monthName(i + 1)} ${year - 1}: ${formatCompareValue(v.fullLast, meta.key)}`,
-      );
+      parts.push(`celý ${year - 1}: ${formatCompareValue(v.fullLast, meta.key)}`);
     return parts.join(' · ');
   };
   return (
@@ -227,7 +226,7 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
   const [period, setPeriod] = useState<ComparePeriod>('month');
   const [picked, setPicked] = useState<CompareSeriesKey>('house');
   if (comparison.status === 'unconfigured') return null;
-  const head = (extra?: ReactNode, headline?: string | null, tone?: string) => (
+  const head = (extra?: ReactNode, headline?: ReactNode, tone?: string) => (
     <header className="en-cost-head">
       <div className="en-cmp-title">
         <h2 className="en-ct">Srovnání období</h2>
@@ -270,7 +269,19 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
     period === 'month'
       ? compareDelta(series.month.current, series.month.last_year)
       : compareDelta(series.ytd.current, series.ytd.last_year);
-  const headline = compareHeadline(meta.short, yoy, scopeLabel(comparison.partial, month, period));
+  const scope = scopeLabel(comparison.partial, month, period);
+  const headlineText = compareHeadline(meta.short, yoy, null);
+  const headline = headlineText && (
+    <>
+      {headlineText}
+      {scope && (
+        <>
+          {' '}
+          <span className="en-cmp-scope">za {scope}</span>
+        </>
+      )}
+    </>
+  );
   const prevFull =
     month === 1
       ? (series.monthly.last_year[11] ?? null)
