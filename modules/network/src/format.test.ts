@@ -6,6 +6,9 @@ import {
   glue,
   heroModel,
   loadRows,
+  radioText,
+  signalBars,
+  sourceModel,
   speedLabel,
   splitProblems,
   statTiles,
@@ -125,5 +128,59 @@ describe('Dnes signal', () => {
     expect(sig).toMatchObject({ module: 'network', title: 'Síť · Terasa vypadává (+2 další)' });
     expect(networkSignals((await snap('ok')).summary, NOW * 1000)).toEqual([]);
     expect(networkSignals((await snap('down')).summary, NOW * 1000)[0]!.severity).toBe('warning');
+  });
+});
+
+describe('Síť V2 (vlastní účet UniFi)', () => {
+  const unifiSnap = () =>
+    createMockNetworkApi({ scenario: 'problems', unifi: true, now: () => NOW }).get();
+
+  it('signal bars follow the dBm thresholds of the rules', () => {
+    expect([-50, -60, -70, -80].map(signalBars)).toEqual([4, 3, 2, 1]);
+    expect(signalBars(null)).toBeNull();
+  });
+
+  it('radio line shows channel, utilisation and interference only when it matters', () => {
+    const base = { band: '5', channel: 44, self_pct: 9, clients: 3, satisfaction: 90 } as const;
+    expect(radioText({ ...base, utilization_pct: 68, interference_pct: 59 })).toBe(
+      '5 GHz · kanál 44 · 68 % (rušení 59 %)',
+    );
+    expect(radioText({ ...base, band: '2.4', utilization_pct: 12, interference_pct: 3 })).toBe(
+      '2,4 GHz · kanál 44 · 12 %',
+    );
+  });
+
+  it('source indicator: HA only with a setup hint, HA + UniFi, login problems', async () => {
+    const plain = await snap('ok');
+    expect(sourceModel(plain)).toMatchObject({ label: 'Zdroj: HA', tone: 'neutral' });
+    expect(sourceModel(plain).note).toContain('Síť – UniFi');
+    const s = await unifiSnap();
+    expect(sourceModel(s)).toEqual({ label: 'Zdroj: HA + UniFi', tone: 'ok', note: null });
+    expect(
+      sourceModel({ ...s, unifi: { configured: true, status: 'ok', readonly: false } }),
+    ).toMatchObject({ tone: 'warn' });
+    expect(
+      sourceModel({ ...s, unifi: { configured: true, status: 'auth_failed' } }).note,
+    ).toContain('heslo');
+  });
+
+  it('mock V2 data fills AP radios, client signal and the new rules', async () => {
+    const s = await unifiSnap();
+    const rows = loadRows(s).rows;
+    expect(rows.find((r) => r.id === 'ap-obyvak')?.radios).toHaveLength(2);
+    expect(s.clients.find((c) => c.id === 'c-tablet')?.signal_dbm).toBe(-77);
+    expect(s.problems.map((p) => p.rule)).toEqual(
+      expect.arrayContaining(['mesh_weak', 'important_weak_signal', 'channel_congested']),
+    );
+    expect(s.summary.problems_count).toBe(
+      s.problems.filter((p) => p.severity === 'critical' || p.severity === 'warning').length,
+    );
+    const graph = await createMockNetworkApi({ unifi: true, now: () => NOW }).topology();
+    expect(graph.meta.source).toBe('ha+unifi');
+    const mesh = graph.edges.find((e) => e.to === 'ap-podkrovi');
+    expect(mesh?.signal_dbm).toBe(-69);
+    expect(
+      graph.edges.some((e) => e.from === 'sw-lite' && e.to.startsWith('client:') && !e.assumed),
+    ).toBe(true);
   });
 });

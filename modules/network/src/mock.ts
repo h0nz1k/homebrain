@@ -41,7 +41,136 @@ const dev = (over: Partial<NetDevice> & Pick<NetDevice, 'id' | 'name'>): NetDevi
   ...over,
 });
 
-function snapshotFor(scenario: NetworkScenario, now: number): NetSnapshot {
+const RADIOS: Record<string, [number, number, number, number]> = {
+  // id: [2.4 GHz channel, 5 GHz channel, 5 GHz utilisation %, own airtime %]
+  'ap-pracovna': [1, 36, 34, 22],
+  'ap-obyvak': [6, 44, 68, 9],
+  'ap-kuchyn': [11, 149, 21, 14],
+  'ap-terasa': [1, 52, 12, 6],
+  'ap-podkrovi': [6, 149, 18, 11],
+};
+
+/** V2 dev data (`?unifi=1`): what the own read-only UniFi account adds to the HA snapshot. */
+function withUnifi(snap: NetSnapshot, scenario: NetworkScenario, now: number): NetSnapshot {
+  const bad = scenario === 'problems';
+  const links: Record<string, NetDevice['link']> = {
+    'ap-terasa': { type: 'wired', port: 2, speed_mbps: 2500, max_mbps: 2500, signal_dbm: null },
+    'ap-obyvak': { type: 'wired', port: 3, speed_mbps: 1000, max_mbps: 1000, signal_dbm: null },
+    'ap-pracovna': { type: 'wired', port: 6, speed_mbps: 100, max_mbps: 2500, signal_dbm: null },
+    'ap-kuchyn': { type: 'wired', port: 1, speed_mbps: 1000, max_mbps: 1000, signal_dbm: null },
+    'ap-podkrovi': {
+      type: 'mesh',
+      port: null,
+      speed_mbps: null,
+      max_mbps: null,
+      signal_dbm: bad ? -69 : -58,
+    },
+  };
+  snap.aps = snap.aps.map((a) => {
+    const r = RADIOS[a.id];
+    if (!r) return a;
+    const [ch24, ch5, util, own] = r;
+    const util5 = bad || a.id !== 'ap-obyvak' ? util : 32;
+    return {
+      ...a,
+      link: links[a.id],
+      radios: [
+        {
+          band: '2.4',
+          channel: ch24,
+          utilization_pct: 24,
+          self_pct: 12,
+          interference_pct: 12,
+          clients: Math.ceil((a.clients ?? 0) / 3),
+          satisfaction: 96,
+        },
+        {
+          band: '5',
+          channel: ch5,
+          utilization_pct: util5,
+          self_pct: own,
+          interference_pct: util5 - own,
+          clients: Math.floor(((a.clients ?? 0) * 2) / 3),
+          satisfaction: 94,
+        },
+      ],
+    };
+  });
+  let port = 9;
+  snap.clients = snap.clients.map((c, i) =>
+    c.wired
+      ? { ...c, switch_id: 'sw-lite', switch_port: port++ }
+      : {
+          ...c,
+          band: i % 3 ? '5' : '2.4',
+          signal_dbm: c.id === 'c-tablet' ? (bad ? -77 : -61) : -48 - ((i * 7) % 24),
+        },
+  );
+  if (bad) {
+    const v2: NetProblem[] = [
+      {
+        id: 'mesh_weak:ap-podkrovi',
+        rule: 'mesh_weak',
+        severity: 'warning',
+        target: { kind: 'ap', id: 'ap-podkrovi' },
+        title: 'Podkroví: slabý bezdrátový spoj',
+        context: 'Mesh spoj na Kuchyň má \u221269 dBm (stabilní je od \u221260 dBm).',
+        fix: 'Posuňte AP blíž k rodiči nebo mezi ně nedávejte zdi a kov; nejlépe ho připojte kabelem.',
+        since: null,
+        important: false,
+        actions: [],
+      },
+      {
+        id: 'important_weak_signal:c-tablet',
+        rule: 'important_weak_signal',
+        severity: 'warning',
+        target: { kind: 'client', id: 'c-tablet' },
+        title: 'Tablet Kuchyň: slabý signál Wi-Fi',
+        context: '\u221277 dBm na Pracovna – hrozí výpadky.',
+        fix: 'Přesuňte zařízení blíž k Wi-Fi bodu nebo přidejte AP; pevně umístěné zařízení raději připojte kabelem.',
+        since: null,
+        important: true,
+        actions: [],
+      },
+      {
+        id: 'channel_congested:ap-obyvak:5',
+        rule: 'channel_congested',
+        severity: 'warning',
+        target: { kind: 'radio', id: 'ap-obyvak:5' },
+        title: 'Obývák: rušený kanál 44 (5 GHz)',
+        context:
+          'Kanál je vytížený na 68 %, vlastní provoz z toho jen 9 % – zbytek jsou sousední sítě nebo rušení.',
+        fix: 'V UniFi zvolte pro toto rádio jiný kanál (5 GHz: 36–48 nebo 149+, ve 2,4 GHz jen 1, 6 nebo 11).',
+        since: null,
+        important: false,
+        actions: [],
+      },
+    ];
+    snap.problems = [...snap.problems, ...v2];
+    const serious = snap.problems.filter(
+      (x) => x.severity === 'critical' || x.severity === 'warning',
+    );
+    snap.summary = {
+      ...snap.summary,
+      status: serious.length ? 'problem' : 'ok',
+      headline: serious[0]?.title ?? 'Síť v pořádku',
+      severity: serious[0]?.severity ?? null,
+      problems_count: serious.length,
+      tips_count: snap.problems.length - serious.length,
+    };
+  }
+  snap.source = 'ha+unifi';
+  snap.unifi = { configured: true, status: 'ok', updated_at: now - 30, readonly: true };
+  return snap;
+}
+
+function snapshotFor(scenario: NetworkScenario, now: number, unifi = false): NetSnapshot {
+  const snap = baseSnapshot(scenario, now);
+  if (unifi && scenario !== 'empty') return withUnifi(snap, scenario, now);
+  return { ...snap, source: 'ha', unifi: { configured: false } };
+}
+
+function baseSnapshot(scenario: NetworkScenario, now: number): NetSnapshot {
   const h = 3600;
   const aps: NetDevice[] = [
     dev({
@@ -314,6 +443,8 @@ export interface MockNetworkOptions {
   role?: NetRole;
   /** `false` = guest Wi-Fi not set up yet (hint instead of the QR). */
   guest?: boolean;
+  /** `true` = V2: the optional own read-only UniFi account is configured (`?unifi=1`). */
+  unifi?: boolean;
   now?: () => number;
 }
 
@@ -336,7 +467,7 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
     return null;
   };
   const snapshot = () => {
-    const snap = snapshotFor(opts.scenario ?? 'problems', now());
+    const snap = snapshotFor(opts.scenario ?? 'problems', now(), opts.unifi);
     const important = new Map(settings.important.map((i) => [i.id, i]));
     snap.clients = snap.clients.map((c) => ({
       ...c,
@@ -349,7 +480,8 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
     calls,
     role: async () => role,
     get: () => admin() ?? Promise.resolve(snapshot()),
-    topology: () => admin() ?? Promise.resolve(mockTopology(opts.scenario ?? 'problems', now())),
+    topology: () =>
+      admin() ?? Promise.resolve(mockTopology(opts.scenario ?? 'problems', now(), opts.unifi)),
     summary: async () => snapshot().summary,
     guestQr: async (): Promise<GuestQr> => {
       const g = settings.guest;
@@ -383,10 +515,14 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
  * Synthetic map for `?sit=` (same shape as the real HA-only graph): gateway outside UniFi,
  * 3 switches (uplink assumed), 5 APs incl. one mesh AP, important devices, `+N` per AP.
  */
-export function mockTopology(scenario: NetworkScenario, now = Date.now() / 1000): TopoGraph {
+export function mockTopology(
+  scenario: NetworkScenario,
+  now = Date.now() / 1000,
+  unifi = false,
+): TopoGraph {
   if (scenario === 'empty')
     return { nodes: [], edges: [], meta: { source: 'ha', slow_links: 0, mesh: 0, assumed: 0 } };
-  const snap = snapshotFor(scenario, now);
+  const snap = snapshotFor(scenario, now, unifi);
   const nodes: TopoNode[] = [];
   const edges: TopoEdge[] = [];
   const add = (
@@ -448,11 +584,23 @@ export function mockTopology(scenario: NetworkScenario, now = Date.now() / 1000)
       { max_mbps: a?.max_link_mbps ?? 1000, ...link },
     );
   };
-  ap('ap-terasa', 'sw-flex', { max_mbps: 2500 });
-  ap('ap-obyvak', 'sw-lite', {});
-  ap('ap-pracovna', 'sw-lite', { speed_mbps: 100, max_mbps: 2500, slow: true });
+  const u = (id: string): Partial<TopoEdge> => {
+    const l = apDev.get(id)?.link;
+    if (!unifi || !l) return {};
+    return l.type === 'mesh'
+      ? { signal_dbm: l.signal_dbm }
+      : { port: l.port, speed_mbps: l.speed_mbps };
+  };
+  ap('ap-terasa', 'sw-flex', { max_mbps: 2500, ...u('ap-terasa') });
+  ap('ap-obyvak', 'sw-lite', { ...u('ap-obyvak'), ...(unifi ? { poe_w: 6.1 } : {}) });
+  ap('ap-pracovna', 'sw-lite', {
+    speed_mbps: 100,
+    max_mbps: 2500,
+    slow: true,
+    ...u('ap-pracovna'),
+  });
   ap('ap-kuchyn', 'sw-ultra', { port: 1, speed_mbps: 1000, poe_w: 7.5 });
-  ap('ap-podkrovi', 'ap-kuchyn', { type: 'mesh', max_mbps: null });
+  ap('ap-podkrovi', 'ap-kuchyn', { type: 'mesh', max_mbps: null, ...u('ap-podkrovi') });
   const where: Record<string, string> = {
     'c-tablet': 'ap-kuchyn',
     'c-robot': 'ap-obyvak',
@@ -470,19 +618,40 @@ export function mockTopology(scenario: NetworkScenario, now = Date.now() / 1000)
   const important = [
     ...snap.clients
       .filter((c) => c.id === 'c-tablet' || c.id === 'c-robot' || c.id === 'c-server')
-      .map((c) => ({ id: c.id, label: c.label, wired: c.wired, online: c.online })),
-    ...extra.map(([id, label]) => ({ id, label, wired: false, online: true })),
+      .map((c) => ({
+        id: c.id,
+        label: c.label,
+        wired: c.wired,
+        online: c.online,
+        signal: c.signal_dbm ?? null,
+        port: c.switch_port ?? null,
+      })),
+    ...extra.map(([id, label], i) => ({
+      id,
+      label,
+      wired: false,
+      online: true,
+      signal: unifi ? -52 - i * 5 : null,
+      port: null,
+    })),
   ];
   const drawn = new Map<string, number>();
   for (const c of important) {
-    const parent = c.wired ? 'gateway' : (where[c.id] ?? 'gateway');
+    const onSwitch = unifi && c.wired && c.port != null;
+    const parent = onSwitch ? 'sw-lite' : c.wired ? 'gateway' : (where[c.id] ?? 'gateway');
     add(
       `client:${c.id}`,
       'client',
       c.label,
       parent,
       { status: c.online ? 'ok' : 'offline', wired: c.wired, ref: { kind: 'client', id: c.id } },
-      { type: c.wired ? 'wired' : 'wireless', assumed: parent === 'gateway' },
+      {
+        type: c.wired ? 'wired' : 'wireless',
+        assumed: parent === 'gateway',
+        port: onSwitch ? c.port : null,
+        speed_mbps: onSwitch ? 1000 : null,
+        signal_dbm: c.wired ? null : c.signal,
+      },
     );
     if (c.online) drawn.set(parent, (drawn.get(parent) ?? 0) + 1);
   }
@@ -496,7 +665,7 @@ export function mockTopology(scenario: NetworkScenario, now = Date.now() / 1000)
     const id =
       t.kind === 'internet'
         ? 'internet'
-        : t.kind === 'port'
+        : t.kind === 'port' || t.kind === 'radio'
           ? t.id.split(':')[0]
           : t.kind === 'client'
             ? `client:${t.id}`
@@ -510,7 +679,7 @@ export function mockTopology(scenario: NetworkScenario, now = Date.now() / 1000)
     nodes,
     edges,
     meta: {
-      source: 'ha',
+      source: unifi ? 'ha+unifi' : 'ha',
       slow_links: edges.filter((e) => e.slow).length,
       mesh: edges.filter((e) => e.type === 'mesh').length,
       assumed: edges.filter((e) => e.assumed).length,

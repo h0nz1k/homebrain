@@ -19,6 +19,19 @@ export const networkStyles = `
 }
 .net-head h1 { font-size: var(--hb-type-headline, 28px); letter-spacing: var(--hb-tracking-title, -0.01em); }
 .net-updated { color: var(--hb-t2); font-size: 13px; margin-left: auto; }
+.net-source { font-size: 13px; font-weight: 600; color: var(--hb-t2); padding: 3px 10px; border-radius: 99px; background: var(--hb-fill); white-space: nowrap; }
+.net-source[data-tone='ok'] { color: var(--hb-ok); background: color-mix(in srgb, var(--hb-ok) 12%, transparent); }
+.net-source[data-tone='warn'] { color: var(--hb-warn); background: color-mix(in srgb, var(--hb-warn) 14%, transparent); }
+.net-source-note { margin: -4px 0 12px; }
+.net-radios { grid-column: 1 / -1; grid-area: auto; display: flex; flex-wrap: wrap; gap: 2px 12px; padding-left: 98px; }
+.net-load .net-radios small { grid-area: auto; }
+.net-radios small[data-busy] { color: var(--hb-warn); font-weight: 600; }
+.net-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex-shrink: 0; }
+.net-signal i { width: 4px; border-radius: 1px; background: var(--hb-fill-strong); }
+.net-signal i:nth-child(1) { height: 25%; } .net-signal i:nth-child(2) { height: 50%; }
+.net-signal i:nth-child(3) { height: 75%; } .net-signal i:nth-child(4) { height: 100%; }
+.net-signal i[data-on] { background: var(--hb-ac); }
+.net-signal[data-bars='1'] i[data-on] { background: var(--hb-warn); }
 .net-hero-copy .hb-button { margin-top: 2px; }
 .net-tabs { flex: 0 1 auto; }
 .net-hero {
