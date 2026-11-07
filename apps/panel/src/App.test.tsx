@@ -238,3 +238,63 @@ it('kiosk panel opened by an admin shows the ADR-0002 warning; a non-admin kiosk
   expect(screen.queryByTestId('kiosk-admin-warning')).toBeNull();
   normal.unmount();
 }, 15000);
+
+function sessionConnection(session: Record<string, unknown>) {
+  const connection = createMockConnection({
+    'homebrain/bindings/get': {},
+    'homebrain/session/get': { kiosk: false, unavailable_modules: [], ...session },
+  });
+  const sent: string[] = [];
+  const original = connection.sendMessagePromise.bind(connection);
+  connection.sendMessagePromise = <T,>(message: { type: string }) => {
+    sent.push(message.type);
+    return original<T>(message);
+  };
+  return { connection, sent };
+}
+
+it('unmapped non-admin (guest) gets a calm „Nemáte přístup“ and the module never loads data', async () => {
+  const { connection, sent } = sessionConnection({
+    role: 'guest',
+    visible_modules: ['about'],
+    is_admin: false,
+  });
+  render(<App store={createEntityStore()} connection={connection} moduleId="waste" />);
+  const state = await screen.findByTestId('hb-no-access');
+  expect(state.textContent).toContain('Nemáte přístup');
+  expect(state.getAttribute('role')).toBe('status');
+  expect(screen.queryByText('Každá nádoba má svůj den')).toBeNull();
+  expect(sent).not.toContain('homebrain/waste/history');
+});
+
+it('adult sees the opened family modules (Odpady, Energie) without the no-access state', async () => {
+  const { connection } = sessionConnection({
+    role: 'adult',
+    visible_modules: ['energy', 'family', 'today', 'waste', 'weather'],
+    is_admin: false,
+  });
+  render(<App store={createEntityStore()} connection={connection} moduleId="waste" />);
+  expect(await screen.findByText('Každá nádoba má svůj den', {}, { timeout: 10000 })).toBeDefined();
+  expect(screen.queryByTestId('hb-no-access')).toBeNull();
+});
+
+it('child opening Energie (not in its visible modules) gets „Nemáte přístup“', async () => {
+  const { connection } = sessionConnection({
+    role: 'child',
+    visible_modules: ['family', 'today', 'waste', 'weather'],
+    is_admin: false,
+  });
+  render(<App store={createEntityStore()} connection={connection} moduleId="energy" />);
+  expect((await screen.findByTestId('hb-no-access')).textContent).toContain('Nemáte přístup');
+});
+
+it('an HA admin is never shown the no-access state', async () => {
+  const { connection } = sessionConnection({
+    role: 'owner',
+    visible_modules: ['today'],
+    is_admin: true,
+  });
+  render(<App store={createEntityStore()} connection={connection} moduleId="waste" />);
+  expect(await screen.findByText('Každá nádoba má svůj den', {}, { timeout: 10000 })).toBeDefined();
+  expect(screen.queryByTestId('hb-no-access')).toBeNull();
+});

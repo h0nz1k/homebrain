@@ -26,7 +26,8 @@
           "recipes": "Recipes",
           "modules": "Modules (on/off)",
           "network_unifi": "Network – UniFi (optional)",
-          "meals": "Show meal plan (Mealie)"
+          "meals": "Show meal plan (Mealie)",
+          "roles": "Users and roles"
         }
       },
       "waste": {
@@ -276,6 +277,14 @@
         "data": {
           "meals_display": "Show meal plan (Mealie)"
         }
+      },
+      "roles": {
+        "title": "Users and roles",
+        "description": "HomeBrain role of a non-admin Home Assistant user. HA administrators are always the owner. Adult: Dnes, Počasí, Odpady, Rodina (approve chores), Energie read-only, Recepty, Síť summary. Child: Dnes, Počasí, Odpady, own chores. Kiosk: the kitchen tablet (enable “Can only log in from the local network” for that user). Guest or no role: “No access” in every HomeBrain panel.",
+        "data": {
+          "user": "User",
+          "role": "Role"
+        }
       }
     },
     "error": {
@@ -312,6 +321,15 @@
       "options": {
         "auto": "Auto (only with Mealie)",
         "off": "Off"
+      }
+    },
+    "role": {
+      "options": {
+        "adult": "Adult",
+        "child": "Child",
+        "kiosk": "Kiosk (kitchen tablet)",
+        "guest": "Guest (no access)",
+        "none": "Remove mapping"
       }
     },
     "network_unifi_source": {
