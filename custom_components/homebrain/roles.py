@@ -144,6 +144,8 @@ FAMILY_WS_COMMANDS: Final = frozenset(
     }
 )
 FAMILY_APPROVE_ROLES: Final = frozenset({"adult"})
+# Energie details (period comparison): HA admins and adults; the kiosk keeps the summary only.
+ENERGY_DETAIL_ROLES: Final = frozenset({"adult"})
 
 
 def role_ws_commands(role: str) -> frozenset[str]:
@@ -157,6 +159,8 @@ def role_ws_commands(role: str) -> frozenset[str]:
         extra |= {"homebrain/network/guest_qr"}
     if role in FAMILY_APPROVE_ROLES:
         extra |= {"homebrain/family/chore/approve"}
+    if role in ENERGY_DETAIL_ROLES:
+        extra |= {"homebrain/energy/compare"}
     return KIOSK_WS_COMMANDS | FAMILY_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
 
 

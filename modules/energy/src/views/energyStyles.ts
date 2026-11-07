@@ -409,4 +409,64 @@ export const energyStyles = `
 .ef-name{gap:4px}
 .ef-sub .ef-temp{margin-left:4px}
 }
+
+/* Srovnání období */
+.en-cmp{grid-column:1/-1;display:flex;flex-direction:column;gap:14px}
+.en-cmp-tiles{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+.en-cmp-tiles[data-period='ytd']{grid-template-columns:minmax(0,1.2fr) minmax(0,2fr)}
+.en-cmp-tile{display:flex;flex-direction:column;gap:4px;min-width:0;padding:12px 14px;border-radius:var(--hb-radius-md,12px);background:color-mix(in srgb,var(--hb-t1) 5%,transparent)}
+.en-cmp-tile--main{background:color-mix(in srgb,var(--hb-ac) 10%,transparent)}
+.en-cmp-lbl{font-size:13px;color:var(--hb-t2);overflow-wrap:anywhere}
+.en-cmp-v{font-size:26px;font-weight:600;line-height:1.2;color:var(--hb-t1);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.en-cmp-tile--main .en-cmp-v{font-size:34px}
+.en-cmp-missing{font-size:15px;font-weight:500;line-height:1.6;color:var(--hb-t3)}
+.en-cmp-sub{font-size:13px;color:var(--hb-t2)}
+.en-cmp-delta{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:13px;color:var(--hb-t2)}
+.en-cmp-delta b{font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--hb-t1) 8%,transparent);color:var(--hb-t1)}
+.en-cmp-delta[data-tone='ok'] b{background:var(--hb-ok-s);color:var(--hb-ok)}
+.en-cmp-delta[data-tone='warn'] b{background:var(--hb-warn-s);color:var(--hb-warn)}
+.en-cmp-range{margin:0;font-size:13px;color:var(--hb-t2)}
+.en-cmp-chart-wrap{display:flex;flex-direction:column;gap:8px}
+.en-cmp-readout{margin:0;min-height:1.5em;font-size:13px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-cmp-plot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;height:196px}
+.en-cmp-yaxis{position:relative;margin-top:22px;height:calc(100% - 42px);min-width:34px;font-size:11px;color:var(--hb-t3);font-variant-numeric:tabular-nums;text-align:right}
+.en-cmp-tick{position:absolute;right:0;transform:translateY(50%);white-space:nowrap;line-height:1}
+.en-cmp-unit{position:absolute;right:0;top:-20px;font-weight:600;color:var(--hb-t2)}
+.en-cmp-chart{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;height:100%;padding-top:22px;box-sizing:border-box}
+.en-cmp-grid{position:absolute;left:0;right:0;top:22px;bottom:20px;pointer-events:none}
+.en-cmp-grid i{position:absolute;left:0;right:0;height:0;border-top:1px solid color-mix(in srgb,var(--hb-t1) 14%,transparent)}
+.en-cmp-col{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;padding:0;border:0;border-radius:8px;background:transparent;font:inherit;color:inherit;cursor:pointer}
+.en-cmp-col[data-current]{background:color-mix(in srgb,var(--hb-t1) 5%,transparent)}
+.en-cmp-col[data-active]{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--hb-ac) 55%,transparent)}
+.en-cmp-col:focus-visible{outline:2px solid var(--hb-ac);outline-offset:1px}
+.en-cmp-col[data-current] .en-axis-x,.en-cmp-col[data-active] .en-axis-x{color:var(--hb-t1);font-weight:600}
+.en-cmp-pair{flex:1;width:100%;display:flex;align-items:stretch;justify-content:center;gap:2px}
+.en-cmp-slot{position:relative;width:40%;max-width:20px}
+.en-cmp-slot>span{position:absolute;left:0;right:0;bottom:0}
+.en-cmp-ghost,.en-cmp-legend-ghost{border-radius:4px 4px 1px 1px;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--hb-t1) 72%,transparent);background:transparent}
+.en-cmp-scope{white-space:nowrap}
+.en-cmp-context{font-size:13px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-cmp-tools .hb-seg{grid-auto-columns:auto}
+.en-cmp-tools .hb-seg button,.en-cmp-tools .hb-seg:has(> button:nth-of-type(4)) button{padding-inline:12px}
+.en-cmp-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.en-cmp-headline{margin:0;font-size:17px;font-weight:600;color:var(--hb-t1)}
+.en-cmp-headline[data-tone='ok']{color:var(--hb-ok)}
+.en-cmp-headline[data-tone='warn']{color:var(--hb-warn)}
+.en-cmp-sw{width:10px!important;height:10px!important;border-radius:3px!important}
+.en-cmp-bar{border-radius:4px 4px 1px 1px;min-height:2px}
+.en-cmp-bar--last{background:color-mix(in srgb,var(--hb-t1) 30%,transparent)}
+.en-cmp-legend-last{background:color-mix(in srgb,var(--hb-t1) 30%,transparent)}
+@media (max-width:760px){
+.en-cmp-tiles,.en-cmp-tiles[data-period='ytd']{grid-template-columns:minmax(0,1fr);gap:8px}
+.en-cmp-tile{padding:10px 14px}
+.en-cmp-v{font-size:22px}
+.en-cmp-tile--main .en-cmp-v{font-size:30px}
+.en-cmp-plot{height:168px}
+.en-cmp-chart{gap:3px}
+.en-cmp-tools .hb-seg{width:max-content;max-width:100%}
+.en-cmp-tools .hb-seg button,.en-cmp-tools .hb-seg:has(> button:nth-of-type(4)) button{padding-inline:10px;font-size:13px}
+.en-cmp-slot{width:44%}
+.en-cmp-pair{gap:1px}
+.en-cmp-tools{width:100%}
+}
 `;

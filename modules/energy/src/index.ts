@@ -16,3 +16,4 @@ export * from './costs.js';
 export * from './fixtures.js';
 export * from './flow.js';
 export * from './phases.js';
+export * from './compare.js';

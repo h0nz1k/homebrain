@@ -3,7 +3,8 @@
   "name": "HomeBrain",
   "after_dependencies": [
     "ai_task",
-    "media_source"
+    "media_source",
+    "recorder"
   ],
   "codeowners": [
     "@h0nz1k"
@@ -21,5 +22,5 @@
   "requirements": [
     "pypdf==6.21.4"
   ],
-  "version": "0.1.0-rc.30"
+  "version": "0.1.0-rc.31"
 }

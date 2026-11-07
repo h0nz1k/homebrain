@@ -27,7 +27,9 @@ import {
   applyFlowScenario,
   FLOW_SCENARIOS,
   type FlowScenario,
+  createCompareDemo,
   createEnergyDemo,
+  type CompareScenario,
   createPvForecastDemo,
   type DishwasherScenario,
   type EnergyScenario,
@@ -509,6 +511,11 @@ demoHass.connection = createMockConnection({
     return { context: { id: 'demo' } };
   },
   'homebrain/energy/pv_forecast': pvDemo.server,
+  // `?srovnani=full|nodata|unconfigured`: Energie period comparison (synthetic).
+  'homebrain/energy/compare': () => {
+    const s = (new URLSearchParams(location.search).get('srovnani') ?? 'full') as CompareScenario;
+    return s === 'unconfigured' ? { status: 'unconfigured' } : createCompareDemo(s, Date.now());
+  },
   'homebrain/bindings/get': {
     waste: {
       waste_dataset: 'sensor.demo_waste_dataset',
