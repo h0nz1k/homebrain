@@ -1,5 +1,6 @@
 """Odpady: persistent collection history (store, sources, WS)."""
 
+import pytest
 from datetime import date, timedelta
 
 from homeassistant.core import HomeAssistant, ServiceCall, State, SupportsResponse
@@ -183,10 +184,38 @@ async def test_ws_history_from_all_sources(hass: HomeAssistant, hass_ws_client):
     assert msg["result"]["since"] == day(-40)
 
 
-async def test_ws_history_is_admin_only(hass: HomeAssistant, hass_ws_client, hass_admin_user):
+async def test_ws_history_denies_unmapped_non_admin(
+    hass: HomeAssistant, hass_ws_client, hass_admin_user
+):
     await _setup(hass, {})
     hass_admin_user.groups = []
     client = await hass_ws_client(hass)
     await client.send_json_auto_id({"type": "homebrain/waste/history"})
     msg = await client.receive_json()
     assert msg["error"]["code"] == "unauthorized"
+
+
+@pytest.mark.parametrize("role", ["adult", "child", "kiosk"])
+async def test_ws_history_mapped_role_gets_events_without_admin_horizon(
+    hass: HomeAssistant, hass_ws_client, hass_admin_user, role
+):
+    """Odpady for the family: history yes; the data horizon („Co s tím“) is admin-only."""
+    entry = await _setup(hass, {})
+    hass_admin_user.groups = []
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "roles": {hass_admin_user.id: role}}
+    )
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "homebrain/waste/history"})
+    msg = await client.receive_json()
+    assert msg["success"], msg
+    assert msg["result"]["events"] == []
+    assert msg["result"]["horizon"] is None
+
+
+async def test_ws_history_admin_gets_horizon(hass: HomeAssistant, hass_ws_client):
+    await _setup(hass, {})
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "homebrain/waste/history"})
+    msg = await client.receive_json()
+    assert msg["result"]["horizon"] is not None

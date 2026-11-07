@@ -18,25 +18,29 @@
       "url_path": "homebrain-dnes",
       "title": "Dnes",
       "icon": "mdi:calendar-today",
-      "module": "today"
+      "module": "today",
+      "require_admin": false
     },
     {
       "url_path": "homebrain-pocasi",
       "title": "Počasí",
       "icon": "mdi:weather-partly-cloudy",
-      "module": "weather"
+      "module": "weather",
+      "require_admin": false
     },
     {
       "url_path": "homebrain-energie",
       "title": "Energie",
       "icon": "mdi:lightning-bolt",
-      "module": "energy"
+      "module": "energy",
+      "require_admin": false
     },
     {
       "url_path": "homebrain-odpady",
       "title": "Odpady",
       "icon": "mdi:delete-empty",
-      "module": "waste"
+      "module": "waste",
+      "require_admin": false
     },
     {
       "url_path": "homebrain-vinoteka",

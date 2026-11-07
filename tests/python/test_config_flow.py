@@ -79,6 +79,7 @@ async def test_options_bindings(hass: HomeAssistant, user_input, expected):
         "network_unifi",
         "modules",
         "meals",
+        "roles",
     ]
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "waste"}
@@ -228,3 +229,65 @@ async def test_options_reject_wrong_domain(hass: HomeAssistant, user_input):
     with pytest.raises(InvalidData):
         await hass.config_entries.options.async_configure(result["flow_id"], user_input)
     assert entry.options == {}
+
+
+async def test_options_roles_maps_non_admin_user(hass: HomeAssistant, hass_admin_user):
+    """„Role uživatelů“: pick a non-admin HA user and a HomeBrain role (ADR-0002 §6 step 4)."""
+    wife = await hass.auth.async_create_user("Manželka", group_ids=["system-users"])
+    tablet = await hass.auth.async_create_user("Tablet kiosk", group_ids=["system-users"])
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={}, options={"demo_option": True, "roles": {tablet.id: "kiosk"}}
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "roles"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "roles"
+    fields = {str(key): value for key, value in result["data_schema"].schema.items()}
+    users = {o["value"]: o["label"] for o in fields["user"].config["options"]}
+    # Only non-admin, non-system users can get a role; admins are always owner.
+    assert users == {wife.id: "Manželka", tablet.id: "Tablet kiosk (kiosk)"}
+    assert hass_admin_user.id not in users
+    assert [o for o in fields["role"].config["options"]] == [
+        "adult",
+        "child",
+        "kiosk",
+        "guest",
+        "none",
+    ]
+    with patch("custom_components.homebrain.async_setup_entry"):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"user": wife.id, "role": "adult"}
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {
+        "demo_option": True,
+        "roles": {tablet.id: "kiosk", wife.id: "adult"},
+    }
+
+    # „none“ removes the mapping (the user falls back to guest = no access).
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "roles"}
+    )
+    with patch("custom_components.homebrain.async_setup_entry"):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"user": tablet.id, "role": "none"}
+        )
+    assert entry.options["roles"] == {wife.id: "adult"}
+
+
+async def test_options_roles_rejects_admin_user(hass: HomeAssistant, hass_admin_user):
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "roles"}
+    )
+    with pytest.raises(InvalidData):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"], {"user": hass_admin_user.id, "role": "adult"}
+        )
+    assert "roles" not in entry.options

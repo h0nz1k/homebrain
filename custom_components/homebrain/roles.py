@@ -135,6 +135,11 @@ NETWORK_SUMMARY_ROLES: Final = frozenset({"adult", "kiosk"})
 NETWORK_QR_ROLES: Final = frozenset({"adult", "child", "kiosk"})
 
 
+# Odpady: the collection history for every mapped role (the data horizon stays admin-only,
+# stripped in the handler).
+WASTE_WS_COMMANDS: Final = frozenset({"homebrain/waste/history"})
+
+
 # Rodina: every mapped role reads the family overview, ticks off chores (a child only its own,
 # checked in the handler) and edits the shopping list; approving chores is for adults.
 FAMILY_WS_COMMANDS: Final = frozenset(
@@ -167,7 +172,13 @@ def role_ws_commands(role: str) -> frozenset[str]:
             "homebrain/energy/invoices/list",
             "homebrain/energy/invoices/compare",
         }
-    return KIOSK_WS_COMMANDS | FAMILY_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
+    return (
+        KIOSK_WS_COMMANDS
+        | WASTE_WS_COMMANDS
+        | FAMILY_WS_COMMANDS
+        | RECIPES_USER_WS_COMMANDS
+        | extra
+    )
 
 
 def entry_roles(hass: HomeAssistant) -> dict[str, str]:

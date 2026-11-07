@@ -26,7 +26,8 @@
           "recipes": "Recepty",
           "modules": "Moduly (zapnout/vypnout)",
           "network_unifi": "Síť – UniFi (volitelné)",
-          "meals": "Zobrazit jídelníček (Mealie)"
+          "meals": "Zobrazit jídelníček (Mealie)",
+          "roles": "Uživatelé a role"
         }
       },
       "waste": {
@@ -268,6 +269,14 @@
         "data": {
           "meals_display": "Zobrazit jídelníček (Mealie)"
         }
+      },
+      "roles": {
+        "title": "Uživatelé a role",
+        "description": "Role HomeBrainu pro uživatele Home Assistantu bez administrátorských práv. Správci HA jsou vždy vlastník. Dospělý: Dnes, Počasí, Odpady, Rodina (schvalování povinností), Energie jen ke čtení, Recepty, souhrn Sítě. Dítě: Dnes, Počasí, Odpady, vlastní povinnosti. Kiosk: kuchyňský tablet (uživateli zapněte „Může se přihlásit pouze z místní sítě“). Host nebo bez role: „Nemáte přístup“ ve všech panelech HomeBrainu.",
+        "data": {
+          "user": "Uživatel",
+          "role": "Role"
+        }
       }
     },
     "error": {
@@ -303,6 +312,15 @@
       "options": {
         "auto": "Automaticky (jen s Mealie)",
         "off": "Vypnuto"
+      }
+    },
+    "role": {
+      "options": {
+        "adult": "Dospělý",
+        "child": "Dítě",
+        "kiosk": "Kiosk (kuchyňský tablet)",
+        "guest": "Host (bez přístupu)",
+        "none": "Odebrat roli"
       }
     }
   },

@@ -14,6 +14,7 @@ from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
 from .network.unifi_client import UnifiAuthError, UnifiConfig, UnifiError
 from .network.unifi_poller import async_validate_unifi
+from .roles import ASSIGNABLE_ROLES, CONF_ROLES
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
@@ -35,7 +36,12 @@ OPTIONS_FLOW_EXTRA = (
     "network_unifi",
     "modules",
     "meals",
+    "roles",
 )
+# „none“ in the roles step removes the mapping (the user falls back to guest = no access).
+ROLE_NONE = "none"
+# Order shown in the roles step (most common first).
+ASSIGNABLE_ROLES_ORDER = ("adult", "child", "kiosk", "guest")
 
 
 class HomeBrainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -216,6 +222,53 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="meals", data_schema=schema)
+
+    async def async_step_roles(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Map a non-admin HA user to a HomeBrain role (ADR-0002 §6 step 4).
+
+        HA admins are always ``owner`` and are not offered; „none“ removes the mapping.
+        """
+        roles = {
+            user_id: role
+            for user_id, role in (self.config_entry.options.get(CONF_ROLES) or {}).items()
+            if role in ASSIGNABLE_ROLES
+        }
+        if user_input is not None:
+            if user_input["role"] == ROLE_NONE:
+                roles.pop(user_input["user"], None)
+            else:
+                roles[user_input["user"]] = user_input["role"]
+            options = {**self.config_entry.options, CONF_ROLES: roles}
+            return self.async_create_entry(title="", data=options)
+        users = [
+            user
+            for user in await self.hass.auth.async_get_users()
+            if user.is_active and not user.system_generated and not user.is_admin
+        ]
+        user_options = [
+            selector.SelectOptionDict(
+                value=user.id,
+                label=f"{user.name} ({roles[user.id]})" if user.id in roles else str(user.name),
+            )
+            for user in sorted(users, key=lambda u: str(u.name).casefold())
+        ]
+        schema = vol.Schema(
+            {
+                vol.Required("user"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=user_options, mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                ),
+                vol.Required("role"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[*ASSIGNABLE_ROLES_ORDER, ROLE_NONE],
+                        mode=selector.SelectSelectorMode.LIST,
+                        translation_key="role",
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(step_id="roles", data_schema=schema)
 
     async def async_step_modules(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Switch modules on/off; a disabled module registers no WS commands nor panel."""
