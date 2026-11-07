@@ -21,10 +21,15 @@ from ..const import DOMAIN
 from ..roles import NETWORK_QR_ROLES, NETWORK_SUMMARY_ROLES, entry_roles, resolve_role
 from . import rules
 from .discovery import FlapTracker, build_snapshot
+from .enrich import enrich_snapshot
 from .topology import build_topology
+from .unifi_client import UnifiConfig
+from .unifi_poller import UnifiPoller
 
 CONF_NETWORK: Final = "network"
 FLAPS_KEY: Final = "network_flaps"
+UNIFI_KEY: Final = "network_unifi"
+CONF_UNIFI: Final = "network_unifi"
 SECURITY: Final = ("WPA", "WEP", "nopass")
 
 
@@ -68,10 +73,27 @@ def _require(roles: frozenset[str]) -> Callable:
 
 def _snapshot(hass: HomeAssistant) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     now = time.time()
+    macs: dict[str, dict[str, str]] = {}
     snap = build_snapshot(
-        hass, network_options(hass), hass.data.get(DOMAIN, {}).get(FLAPS_KEY), now
+        hass, network_options(hass), hass.data.get(DOMAIN, {}).get(FLAPS_KEY), now, macs
     )
+    poller: UnifiPoller | None = hass.data.get(DOMAIN, {}).get(UNIFI_KEY)
+    if poller is not None:
+        if (data := poller.current(now)) is not None:
+            enrich_snapshot(snap, data, macs, poller.downs)
+        snap["unifi"] = poller.status()
+    else:
+        snap["unifi"] = {"configured": False}
     return snap, rules.evaluate(snap, now)
+
+
+def _unifi_public(hass: HomeAssistant) -> dict[str, Any]:
+    """Connection state only – never the URL, account or password."""
+    poller: UnifiPoller | None = hass.data.get(DOMAIN, {}).get(UNIFI_KEY)
+    if poller is None:
+        return {"configured": False}
+    status = poller.status()
+    return {"configured": True, "status": status["status"], "readonly": status["readonly"]}
 
 
 @websocket_api.websocket_command({vol.Required("type"): "homebrain/network/get"})
@@ -135,6 +157,7 @@ def websocket_network_settings_get(
             "important": opts.get("important", []),
             "guest": opts.get("guest") or None,
             "gateway_label": opts.get("gateway_label"),
+            "unifi": _unifi_public(hass),
         },
     )
 
@@ -202,6 +225,7 @@ def websocket_network_settings_set(
             "important": opts.get("important", []),
             "guest": opts.get("guest") or None,
             "gateway_label": opts.get("gateway_label"),
+            "unifi": _unifi_public(hass),
         },
     )
 
@@ -224,7 +248,35 @@ async def async_setup(hass: HomeAssistant, entry: Any) -> None:
     tracker = FlapTracker()
     data[FLAPS_KEY] = tracker
     entry.async_on_unload(tracker.async_listen(hass))
+    await _async_start_unifi(hass, entry)
+
+    async def _options_updated(hass: HomeAssistant, entry: Any) -> None:
+        poller: UnifiPoller | None = hass.data.get(DOMAIN, {}).get(UNIFI_KEY)
+        new = UnifiConfig.from_options(entry.options.get(CONF_UNIFI))
+        if (poller.cfg if poller else None) == new:
+            return
+        await _async_stop_unifi(hass)
+        await _async_start_unifi(hass, entry)
+
+    entry.async_on_unload(entry.add_update_listener(_options_updated))
+
+
+async def _async_start_unifi(hass: HomeAssistant, entry: Any) -> None:
+    """Direct read-only UniFi polling (V2) – only when the owner configured an account."""
+    cfg = UnifiConfig.from_options(entry.options.get(CONF_UNIFI))
+    if cfg is None:
+        return
+    poller = UnifiPoller(hass, cfg)
+    hass.data.setdefault(DOMAIN, {})[UNIFI_KEY] = poller
+    await poller.async_start()
+
+
+async def _async_stop_unifi(hass: HomeAssistant) -> None:
+    poller: UnifiPoller | None = hass.data.get(DOMAIN, {}).pop(UNIFI_KEY, None)
+    if poller is not None:
+        await poller.async_stop()
 
 
 async def async_unload(hass: HomeAssistant) -> None:
     hass.data.get(DOMAIN, {}).pop(FLAPS_KEY, None)
+    await _async_stop_unifi(hass)

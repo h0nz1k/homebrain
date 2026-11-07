@@ -36,6 +36,7 @@ def _edge(
     speed: int | None = None,
     max_mbps: int | None = None,
     poe: float | None = None,
+    signal: int | None = None,
 ) -> dict[str, Any]:
     return {
         "from": src,
@@ -46,7 +47,7 @@ def _edge(
         "speed_mbps": speed,
         "max_mbps": max_mbps,
         "poe_w": poe,
-        "signal_dbm": None,
+        "signal_dbm": signal,
         # 100 Mb/s on a gigabit-capable link = bad cable/pair (red in the UI).
         "slow": bool(speed and speed < 1000 and (max_mbps or 1000) >= 1000),
     }
@@ -65,6 +66,20 @@ def _ap_link(ap: Mapping[str, Any], parent: Mapping[str, Any] | None, siblings: 
     return None, None, None
 
 
+def _port_poe(parent: Mapping[str, Any] | None, port: int | None) -> float | None:
+    for p in (parent or {}).get("ports", []):
+        if p.get("n") == port:
+            return p.get("poe_w")
+    return None
+
+
+def _port_speed(parent: Mapping[str, Any] | None, port: int | None) -> int | None:
+    for p in (parent or {}).get("ports", []):
+        if p.get("n") == port:
+            return p.get("speed_mbps")
+    return None
+
+
 def _severity(problems: Iterable[Mapping[str, Any]]) -> dict[str, list[Mapping[str, Any]]]:
     out: dict[str, list[Mapping[str, Any]]] = {}
     for p in problems:
@@ -74,7 +89,7 @@ def _severity(problems: Iterable[Mapping[str, Any]]) -> dict[str, list[Mapping[s
             node = INTERNET
         elif kind == "gateway":
             node = GATEWAY
-        elif kind == "port":
+        elif kind in ("port", "radio"):
             node = tid.rsplit(":", 1)[0]
         elif kind == "client":
             node = f"client:{tid}"
@@ -144,7 +159,17 @@ def build_topology(
             model_label=sw.get("model_label"),
             ref={"kind": "switch", "id": sw["id"]},
         )
-        edges.append(_edge(parent, sw["id"], assumed=parent == GATEWAY))
+        link = sw.get("link") or {}
+        edges.append(
+            _edge(
+                parent,
+                sw["id"],
+                assumed=parent == GATEWAY,
+                port=link.get("port"),
+                speed=link.get("speed_mbps"),
+                max_mbps=link.get("max_mbps"),
+            )
+        )
 
     wired_children: dict[str, int] = {}
     for ap in aps:
@@ -165,10 +190,15 @@ def build_topology(
             clients=ap.get("clients"),
             ref={"kind": "ap", "id": ap["id"]},
         )
+        link = ap.get("link") or {}
         if parent in ap_ids:
-            edges.append(_edge(parent, ap["id"], "mesh"))
+            edges.append(_edge(parent, ap["id"], "mesh", signal=link.get("signal_dbm")))
             continue
-        port, speed, poe = _ap_link(ap, devices.get(parent), wired_children.get(parent, 0))
+        if link.get("type") == "wired" and link.get("speed_mbps"):
+            port, speed = link.get("port"), link.get("speed_mbps")
+            poe = _port_poe(devices.get(parent), port)
+        else:
+            port, speed, poe = _ap_link(ap, devices.get(parent), wired_children.get(parent, 0))
         edges.append(
             _edge(
                 parent,
@@ -190,7 +220,8 @@ def build_topology(
                 others[ap_id] = others.get(ap_id, 0) + 1
             continue
         cid = f"client:{c['id']}"
-        parent = ap_id or GATEWAY
+        switch_id = c.get("switch_id") if c.get("switch_id") in devices else None
+        parent = ap_id or switch_id or GATEWAY
         node(
             cid,
             "client",
@@ -203,7 +234,12 @@ def build_topology(
         if ap_id:
             if c.get("online"):
                 drawn[ap_id] = drawn.get(ap_id, 0) + 1
-            edges.append(_edge(ap_id, cid, "wireless"))
+            edges.append(_edge(ap_id, cid, "wireless", signal=c.get("signal_dbm")))
+        elif switch_id:
+            port = c.get("switch_port")
+            edges.append(
+                _edge(switch_id, cid, port=port, speed=_port_speed(devices[switch_id], port))
+            )
         else:
             edges.append(
                 _edge(GATEWAY, cid, "wired" if c.get("wired") else "wireless", assumed=True)
@@ -227,7 +263,7 @@ def build_topology(
         "nodes": nodes,
         "edges": edges,
         "meta": {
-            "source": "ha",
+            "source": snap.get("source") or "ha",
             "slow_links": sum(1 for e in edges if e["slow"]),
             "mesh": sum(1 for e in edges if e["type"] == "mesh"),
             "assumed": sum(1 for e in edges if e["assumed"]),

@@ -30,6 +30,12 @@ POE_NOTICE: Final = 0.8
 POE_WARNING: Final = 0.95
 IMPORTANT_OFFLINE_AFTER_S: Final = 600
 WRONG_AP_AFTER_S: Final = 900
+# V2 (own read-only UniFi account)
+MESH_WEAK_DBM: Final = -65
+IMPORTANT_WEAK_DBM: Final = -75
+PORT_FLAPS_24H: Final = 3
+CONGESTED_PCT: Final = 60
+CONGESTED_SELF_PCT: Final = 20
 
 
 def _problem(
@@ -42,6 +48,7 @@ def _problem(
     since: float | None = None,
     important: bool = False,
     actions: list[dict[str, str]] | None = None,
+    source: str = "v1",
 ) -> Problem:
     return {
         "id": f"{rule}:{target[1]}",
@@ -54,7 +61,7 @@ def _problem(
         "since": since,
         "important": important,
         "actions": actions or [],
-        "source": "v1",
+        "source": source,
     }
 
 
@@ -379,6 +386,149 @@ def important_rules(snap: Snapshot, now: float) -> list[Problem]:
     return out
 
 
+def _dbm(value: int) -> str:
+    return f"{value} dBm".replace("-", "\u2212")
+
+
+def mesh_rules(snap: Snapshot, now: float) -> list[Problem]:
+    out = []
+    for ap in snap.get("aps", []):
+        link = ap.get("link") or {}
+        signal = link.get("signal_dbm")
+        if link.get("type") != "mesh" or signal is None or signal >= MESH_WEAK_DBM:
+            continue
+        parent = (ap.get("uplink") or {}).get("name") or "nadřazený AP"
+        out.append(
+            _problem(
+                "mesh_weak",
+                "warning",
+                ("ap", ap["id"]),
+                f"{ap['name']}: slabý bezdrátový spoj",
+                f"Mesh spoj na {parent} má {_dbm(signal)} (stabilní je od {_dbm(-60)}).",
+                "Posuňte AP blíž k rodiči nebo mezi ně nedávejte zdi a kov; nejlépe ho "
+                "připojte kabelem. Kanál 5 GHz rodiče nastavte pevně mimo DFS.",
+                source="v2",
+            )
+        )
+    return out
+
+
+def signal_rules(snap: Snapshot, now: float) -> list[Problem]:
+    aps = {a["id"]: a["name"] for a in snap.get("aps", [])}
+    out = []
+    for c in snap.get("clients", []):
+        signal = c.get("signal_dbm")
+        if not c.get("important") or not c.get("online") or c.get("wired"):
+            continue
+        if signal is None or signal >= IMPORTANT_WEAK_DBM:
+            continue
+        where = aps.get(c.get("ap_id") or "")
+        out.append(
+            _problem(
+                "important_weak_signal",
+                "warning",
+                ("client", c["id"]),
+                f"{c['label']}: slabý signál Wi-Fi",
+                f"{_dbm(signal)}" + (f" na {where}" if where else "") + " – hrozí výpadky.",
+                "Přesuňte zařízení blíž k Wi-Fi bodu nebo přidejte AP; pevně umístěné "
+                "zařízení raději připojte kabelem.",
+                important=True,
+                source="v2",
+            )
+        )
+    return out
+
+
+def flapping_port_rules(snap: Snapshot, now: float) -> list[Problem]:
+    out = []
+    for dev in [*snap.get("switches", []), *snap.get("aps", [])]:
+        for port in dev.get("ports", []):
+            drops = port.get("link_down_24h")
+            if drops is None or drops < PORT_FLAPS_24H:
+                continue
+            out.append(
+                _problem(
+                    "port_flapping",
+                    "warning",
+                    ("port", f"{dev['id']}:{port['n']}"),
+                    f"{dev['name']}, port {port['n']}: linka padá",
+                    f"Za posledních 24 h spojení spadlo {_times(drops)}.",
+                    "Zkontrolujte kabel a konektory na obou koncích; opakované výpadky dělá "
+                    "vadný kabel, uvolněný konektor nebo slabé napájení PoE.",
+                    source="v2",
+                )
+            )
+    return out
+
+
+def channel_rules(snap: Snapshot, now: float) -> list[Problem]:
+    out = []
+    for ap in snap.get("aps", []):
+        for r in ap.get("radios") or []:
+            total, own = r.get("utilization_pct"), r.get("self_pct")
+            if total is None or own is None:
+                continue
+            if total < CONGESTED_PCT or own >= CONGESTED_SELF_PCT:
+                continue
+            band = r["band"].replace(".", ",")
+            out.append(
+                _problem(
+                    "channel_congested",
+                    "warning",
+                    ("radio", f"{ap['id']}:{r['band']}"),
+                    f"{ap['name']}: rušený kanál {r['channel']} ({band} GHz)",
+                    f"Kanál je vytížený na {total} %, vlastní provoz z toho jen {own} % – "
+                    "zbytek jsou sousední sítě nebo rušení.",
+                    "V UniFi zvolte pro toto rádio jiný kanál (5 GHz: 36–48 nebo 149+, "
+                    "ve 2,4 GHz jen 1, 6 nebo 11), případně užší šířku pásma.",
+                    source="v2",
+                )
+            )
+    return out
+
+
+def _mesh_pair(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    def child_of(child: dict[str, Any], parent: dict[str, Any]) -> bool:
+        return (child.get("link") or {}).get("type") == "mesh" and (child.get("uplink") or {}).get(
+            "id"
+        ) == parent["id"]
+
+    return child_of(a, b) or child_of(b, a)
+
+
+def same_channel_rules(snap: Snapshot, now: float) -> list[Problem]:
+    by_channel: dict[int, list[dict[str, Any]]] = {}
+    for ap in snap.get("aps", []):
+        for r in ap.get("radios") or []:
+            if r.get("band") == "5" and r.get("channel"):
+                by_channel.setdefault(r["channel"], []).append(ap)
+    out = []
+    for channel, aps in sorted(by_channel.items()):
+        clash = {
+            x["id"]: x
+            for i, a in enumerate(aps)
+            for b in aps[i + 1 :]
+            if not _mesh_pair(a, b)
+            for x in (a, b)
+        }
+        if not clash:
+            continue
+        names = sorted(x["name"] for x in clash.values())
+        out.append(
+            _problem(
+                "same_channel_neighbors",
+                "notice",
+                ("channel", f"5:{channel}"),
+                f"{len(names)} Wi-Fi body na stejném kanálu {channel} (5 GHz)",
+                ", ".join(names[:-1]) + f" a {names[-1]} si navzájem berou vysílací čas.",
+                "Dejte sousedním AP různé kanály 5 GHz (např. 36, 44, 149); mesh AP musí "
+                "zůstat na kanálu svého rodiče.",
+                source="v2",
+            )
+        )
+    return out
+
+
 RULES: Final[tuple[Callable[[Snapshot, float], list[Problem]], ...]] = (
     internet_rules,
     ap_rules,
@@ -388,6 +538,11 @@ RULES: Final[tuple[Callable[[Snapshot, float], list[Problem]], ...]] = (
     port_rules,
     firmware_rules,
     important_rules,
+    mesh_rules,
+    signal_rules,
+    flapping_port_rules,
+    channel_rules,
+    same_channel_rules,
 )
 
 

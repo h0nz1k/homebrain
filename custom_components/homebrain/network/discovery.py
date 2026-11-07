@@ -99,6 +99,21 @@ class FlapTracker:
         return hass.bus.async_listen("state_changed", _changed)
 
 
+_MAC_RE: Final = re.compile(r"(?i)\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b")
+
+
+def _tracker_mac(
+    device: dr.DeviceEntry | None, entry: er.RegistryEntry, attrs: Mapping[str, Any]
+) -> str | None:
+    """MAC of a client tracker: device connection, then the ``mac`` attribute, then unique_id."""
+    for mac in sorted(_macs(device)):
+        return mac
+    if attrs.get("mac"):
+        return str(attrs["mac"]).lower()
+    found = _MAC_RE.search(entry.unique_id or "")
+    return found.group(0).lower() if found else None
+
+
 _MINUS_RE: Final = re.compile(r"(^|[\s(])-(?=\d)")
 
 
@@ -191,8 +206,13 @@ def build_snapshot(
     options: Mapping[str, Any],
     flaps: FlapTracker | None = None,
     now: float | None = None,
+    macs: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """Network snapshot (no MAC/IP) for the admin view; ``rules.evaluate`` adds problems."""
+    """Network snapshot (no MAC/IP) for the admin view; ``rules.evaluate`` adds problems.
+
+    ``macs`` (optional, backend only) is filled with MAC -> HA device id / hashed client id so
+    the V2 UniFi enrichment can pair API data without putting MACs into the snapshot.
+    """
     now = time.time() if now is None else now
     ents = er.async_get(hass)
     devs = dr.async_get(hass)
@@ -319,6 +339,8 @@ def build_snapshot(
         for mac in _macs(device):
             mac_owner[mac] = item
 
+    if macs is not None:
+        macs.setdefault("devices", {}).update({m: item["id"] for m, item in mac_owner.items()})
     for ap_id, mac in uplink_macs.items():
         parent = mac_owner.get(mac)
         ap = next((a for a in aps + switches if a["id"] == ap_id), None)
@@ -332,6 +354,8 @@ def build_snapshot(
             continue
         device = devs.async_get(e.device_id) if e.device_id else None
         cid = client_id(e.device_id or e.unique_id)
+        if macs is not None and (mac := _tracker_mac(device, e, st.attributes)):
+            macs.setdefault("clients", {})[mac] = cid
         ap = mac_owner.get(str(st.attributes.get("ap_mac", "")).lower())
         area, floor_id = _place(hass, device, e)
         cfg = important_cfg.get(cid, {})

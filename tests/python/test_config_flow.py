@@ -76,6 +76,7 @@ async def test_options_bindings(hass: HomeAssistant, user_input, expected):
         "robots_1",
         "robots_2",
         "robots_3",
+        "network_unifi",
         "modules",
     ]
     result = await hass.config_entries.options.async_configure(

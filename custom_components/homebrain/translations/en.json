@@ -24,7 +24,8 @@
           "robots_2": "Robot 2",
           "robots_3": "Robot 3",
           "recipes": "Recipes",
-          "modules": "Modules (on/off)"
+          "modules": "Modules (on/off)",
+          "network_unifi": "Network – UniFi (optional)"
         }
       },
       "waste": {
@@ -247,11 +248,25 @@
         "data": {
           "enabled_modules": "Enabled modules"
         }
+      },
+      "network_unifi": {
+        "title": "UniFi – direct read-only (optional)",
+        "description": "Optional extension of the Network module: HomeBrain reads the UniFi Network controller with its own account and adds ports, link speeds, signal strength and channel utilization. Recommended: create a local UniFi account \"homebrain\" with the **View Only** role. HomeBrain never reads the credentials of the HA UniFi integration. URL: classic application `https://<controller>:8443`, UniFi OS `https://<controller>`. The password is never shown; leave it empty to keep the stored one. Clear the URL to switch direct reading off.",
+        "data": {
+          "url": "Controller URL",
+          "site": "Site (default \"default\")",
+          "username": "Username (View Only recommended)",
+          "password": "Password",
+          "verify_ssl": "Verify certificate (off for self-signed)"
+        }
       }
     },
     "error": {
       "invalid_entity_id": "Enter a valid entity ID.",
-      "invalid_image": "Use a /local/… path or an https URL."
+      "invalid_image": "Use a /local/… path or an https URL.",
+      "invalid_auth": "UniFi login failed – check username and password.",
+      "cannot_connect": "Cannot reach the UniFi controller – check the URL and certificate.",
+      "invalid_url": "Enter a URL starting with https:// (or http://)."
     }
   },
   "selector": {
@@ -280,6 +295,10 @@
     "module_failed": {
       "title": "HomeBrain module {module} is unavailable",
       "description": "The HomeBrain module **{module}** failed to start and is shown as unavailable; the other modules keep working. Error: `{error}`. Check the Home Assistant log, then reload HomeBrain or restart Home Assistant. You can also switch the module off in the HomeBrain options."
+    },
+    "network_unifi_auth": {
+      "title": "HomeBrain Network: UniFi login failed",
+      "description": "HomeBrain's own UniFi account could not log in (changed password or deleted account). The Network module keeps running on HA data only. Fix the password in Settings → Devices & services → HomeBrain → Configure → Network – UniFi; this issue clears after the next successful read."
     }
   }
 }
