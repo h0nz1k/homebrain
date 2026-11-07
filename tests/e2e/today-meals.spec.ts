@@ -8,6 +8,17 @@ async function open(page: Page, query: string) {
   await expect(page.getByTestId('today-meals')).toBeVisible({ timeout: 20_000 });
 }
 
+/** Mealie not installed (`?jidlo=none`): no meals tile, no empty state, no Mealie hint. */
+async function expectNoMealsTile(page: Page, query: string) {
+  await page.goto(`/homebrain-dnes?${query}`);
+  await expect(page.getByTestId('today')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('today-chores')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('today-meals')).toHaveCount(0);
+  await expect(page.getByTestId('today-meals-empty')).toHaveCount(0);
+  await expect(page.getByText('Co se dnes vaří')).toHaveCount(0);
+  await expect(page.getByText(/Mealie/)).toHaveCount(0);
+}
+
 async function noHorizontalOverflow(page: Page) {
   const result = await page.evaluate(() => ({
     scrollW: document.documentElement.scrollWidth,
@@ -59,6 +70,13 @@ test.describe('Dnes – jídla a povinnosti (desktop)', () => {
     await expect(page.getByTestId('today-meals-empty')).toHaveText('Nic naplánováno');
   });
 
+  test('bez Mealie se dlaždice jídel vůbec nezobrazí (desktop i kiosk)', async ({ page }) => {
+    await expectNoMealsTile(page, 'state=a&jidlo=none');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expectNoMealsTile(page, 'kiosk=1&state=a&jidlo=none');
+    await expectNoMealsTile(page, 'kiosk=1&state=a&jidlo=none&role=kiosk');
+  });
+
   test('kiosk 1280×800: jídla bez odkazů, vše se vejde', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page, 'kiosk=1&state=a');
@@ -92,6 +110,11 @@ test.describe('Dnes – jídla a povinnosti (telefon)', () => {
       page.getByTestId('today-chores').boundingBox(),
     ]);
     expect(chores!.y).toBeGreaterThanOrEqual(meals!.y + meals!.height - 1);
+    await noHorizontalOverflow(page);
+  });
+
+  test('bez Mealie žádná dlaždice jídel', async ({ page }) => {
+    await expectNoMealsTile(page, 'state=a&jidlo=none');
     await noHorizontalOverflow(page);
   });
 });

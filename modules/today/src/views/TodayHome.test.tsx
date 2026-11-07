@@ -62,6 +62,7 @@ function api(meals: MealsSnapshot | Error, fam: FamilyLike | null | Error = null
 const snapshot = (over: Partial<MealsSnapshot> = {}): MealsSnapshot => ({
   date: '2026-06-02',
   configured: true,
+  available: true,
   can_plan: false,
   meals: [],
   errors: [],
@@ -135,7 +136,8 @@ describe('TodayHome', () => {
   });
 
   it('a Mealie error keeps the tile calm', async () => {
-    render(<TodayHome api={api(new Error('down'))} kiosk={false} />);
+    // Mealie installed but down: the server reports it in `errors`, the tile stays calm.
+    render(<TodayHome api={api(snapshot({ errors: ['mealie'] }))} kiosk={false} />);
     expect((await screen.findByTestId('today-meals-empty')).textContent).toContain(
       'Nic naplánováno',
     );
@@ -163,6 +165,39 @@ describe('TodayHome', () => {
     expect((await full.meals()).meals.length).toBeGreaterThan(1);
     expect((await full.family())?.kids.length).toBe(2);
     const empty = createMockHomeApi('empty', 'kiosk');
-    expect(await empty.meals()).toMatchObject({ meals: [], can_plan: false });
+    expect(await empty.meals()).toMatchObject({ meals: [], can_plan: false, available: true });
+    const none = createMockHomeApi('none', 'owner');
+    expect(await none.meals()).toMatchObject({ available: false, configured: false, meals: [] });
+    expect((await none.family())?.kids.length).toBe(2);
+  });
+
+  it.each([false, true])(
+    'hides the meals tile entirely without Mealie (kiosk=%s)',
+    async (kiosk) => {
+      const kids = family([{ id: 'a', name: 'Dcera', chores: [{ state: 'todo' }] }]);
+      const unavailable = snapshot({ configured: false, available: false, can_plan: true });
+      render(<TodayHome api={api(unavailable, kids)} kiosk={kiosk} />);
+      await screen.findByTestId('today-chores');
+      expect(screen.queryByTestId('today-meals')).toBeNull();
+      expect(screen.queryByTestId('today-meals-empty')).toBeNull();
+      expect(document.body.textContent).not.toContain('Mealie');
+      expect(document.body.textContent).not.toContain('Co se dnes vaří');
+    },
+  );
+
+  it('renders nothing without Mealie and without kids', async () => {
+    const meals = vi.fn(() => Promise.resolve(snapshot({ available: false, configured: false })));
+    const fam = vi.fn(() => Promise.resolve(family([])));
+    const { container } = render(<TodayHome api={{ meals, family: fam }} kiosk={false} />);
+    await waitFor(() => expect(fam).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('hides the meals tile when the meals command fails', async () => {
+    const kids = family([{ id: 'a', name: 'Dcera', chores: [{ state: 'todo' }] }]);
+    render(<TodayHome api={api(new Error('unknown_command'), kids)} kiosk={false} />);
+    await screen.findByTestId('today-chores');
+    expect(screen.queryByTestId('today-meals')).toBeNull();
   });
 });

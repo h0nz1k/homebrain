@@ -117,9 +117,11 @@ const familyApi = createMockFamilyApi({
 });
 (window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;
 setFamilyApiFactory(() => familyApi);
-// Dnes „Co se dnes vaří“ + kids' chores: `?jidlo=empty` = nothing planned, no kids.
+// Dnes „Co se dnes vaří“ + kids' chores: `?jidlo=empty` = nothing planned, no kids;
+// `?jidlo=none` = Mealie not installed (no meals tile at all).
+const jidlo = recipesQuery.get('jidlo');
 const homeApi = createMockHomeApi(
-  recipesQuery.get('jidlo') === 'empty' ? 'empty' : 'full',
+  jidlo === 'empty' || jidlo === 'none' ? jidlo : 'full',
   (recipesQuery.get('role') as HomeRole | null) ?? 'owner',
 );
 setTodayHomeApiFactory(() => homeApi);

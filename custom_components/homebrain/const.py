@@ -7,6 +7,9 @@ from typing import Any
 from .robots.config import ROBOT_BINDING_DOMAINS, ROBOT_BINDING_KEYS
 
 DOMAIN = "homebrain"
+# Dnes „Co se dnes vaří“: "auto" (default; shown only with a loaded Mealie entry) or "off".
+MEALS_DISPLAY = "meals_display"
+MEALS_DISPLAY_MODES = ("auto", "off")
 HEALTH_BINDING_KEYS = (
     "health_source_status",
     "health_last_success",

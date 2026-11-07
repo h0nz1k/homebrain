@@ -181,6 +181,7 @@ async def test_ws_uses_prague_date_after_utc_midnight_boundary(
 async def test_ws_without_mealie_is_calm_empty(hass, hb, hass_ws_client):
     res = (await _get(hass_ws_client, hass))["result"]
     assert res["configured"] is False
+    assert res["available"] is False
     assert res["meals"] == []
     assert res["errors"] == []
 
@@ -223,3 +224,67 @@ def test_every_mapped_role_may_read_meals():
     for role in ("adult", "child", "kiosk"):
         assert "homebrain/today/meals" in role_ws_commands(role)
     assert "homebrain/today/meals" not in role_ws_commands("guest")
+
+
+async def test_ws_without_mealie_is_unavailable_and_silent(hass, hb, hass_ws_client, caplog):
+    """No Mealie = Dnes hides the tile: ``available`` false, no service call, nothing logged."""
+    caplog.clear()
+    msg = await _get(hass_ws_client, hass)
+    assert msg["success"], msg
+    assert msg["result"]["available"] is False
+    assert msg["result"]["meals"] == []
+    noisy = [r for r in caplog.records if r.levelname in ("WARNING", "ERROR", "CRITICAL")]
+    assert noisy == []
+    assert "mealie" not in caplog.text.lower()
+
+
+async def test_ws_mealie_entry_not_loaded_is_unavailable(hass, hb, hass_ws_client):
+    calls: list[Any] = []
+
+    async def get_mealplan(call: ServiceCall):
+        calls.append(call)
+        return {"mealplan": []}
+
+    MockConfigEntry(domain="mealie", data={}).add_to_hass(hass)  # NOT_LOADED (removed add-on)
+    hass.services.async_register(
+        "mealie", "get_mealplan", get_mealplan, supports_response=SupportsResponse.ONLY
+    )
+    res = (await _get(hass_ws_client, hass))["result"]
+    assert res["available"] is False
+    assert res["errors"] == []
+    assert calls == []
+
+
+async def test_ws_with_mealie_is_available(hass, hb, mealie, hass_ws_client):
+    res = (await _get(hass_ws_client, hass))["result"]
+    assert res["available"] is True
+    assert res["configured"] is True
+
+
+async def test_ws_meals_switched_off_skips_mealie(hass, hb, mealie, hass_ws_client):
+    hass.config_entries.async_update_entry(hb, options={"meals_display": "off"})
+    await hass.async_block_till_done()
+    mealie["plans"] = [_plan("2026-06-02", "lunch", "Kuřecí vývar", pid=1)]
+    res = (await _get(hass_ws_client, hass))["result"]
+    assert res["available"] is False
+    assert res["meals"] == []
+    assert mealie["calls"] == []
+
+
+async def _meals_step(hass, entry, value: str) -> None:
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert "meals" in result["menu_options"]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "meals"}
+    )
+    assert result["step_id"] == "meals"
+    assert {str(key) for key in result["data_schema"].schema} == {"meals_display"}
+    await hass.config_entries.options.async_configure(result["flow_id"], {"meals_display": value})
+    await hass.async_block_till_done()
+
+
+async def test_options_meals_display_toggle(hass, hb):
+    await _meals_step(hass, hb, "off")
+    assert hb.options["meals_display"] == "off"
+    await _meals_step(hass, hb, "auto")
+    assert "meals_display" not in hb.options  # auto = default: old entries stay byte-identical

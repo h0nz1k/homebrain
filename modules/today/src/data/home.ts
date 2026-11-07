@@ -17,6 +17,11 @@ export interface MealsSnapshot {
   date: string;
   /** A loaded Mealie integration exists. */
   configured: boolean;
+  /**
+   * Show „Co se dnes vaří“ at all: Mealie is loaded and the `meals_display` option is not
+   * `off`. False = Dnes renders no meals tile (no empty state, no Mealie hint).
+   */
+  available: boolean;
   /** HA admin: may see the „naplánujte v Mealie“ hint. */
   can_plan: boolean;
   meals: Meal[];
@@ -62,12 +67,16 @@ export function createWsHomeApi(connection: ConnectionLike): HomeApi {
 }
 
 export type HomeRole = 'owner' | 'adult' | 'child' | 'kiosk';
-export type HomeScenario = 'full' | 'empty';
+/** `none` = Mealie not installed (no meals tile), kids' chores as in `full`. */
+export type HomeScenario = 'full' | 'empty' | 'none';
 
-/** Synthetic kitchen for dev/e2e: `?jidlo=empty`, `?role=…` (child sees only its own chores). */
+/**
+ * Synthetic kitchen for dev/e2e: `?jidlo=empty|none`, `?role=…` (child sees only its own
+ * chores).
+ */
 export function createMockHomeApi(scenario: HomeScenario, role: HomeRole): HomeApi {
   const meals: Meal[] =
-    scenario === 'empty'
+    scenario !== 'full'
       ? []
       : [
           {
@@ -118,7 +127,8 @@ export function createMockHomeApi(scenario: HomeScenario, role: HomeRole): HomeA
   return {
     meals: async () => ({
       date: new Date().toISOString().slice(0, 10),
-      configured: true,
+      configured: scenario !== 'none',
+      available: scenario !== 'none',
       can_plan: role === 'owner',
       meals,
       errors: [],
