@@ -6,6 +6,11 @@ import {
   type NetworkScenario,
 } from '@homebrain/module-network';
 import {
+  createMockFamilyApi,
+  setFamilyApiFactory,
+  type FamilyRole,
+} from '@homebrain/module-family';
+import {
   clearTodaySignalSources,
   registerTodaySignalSource,
   createMockAdapter,
@@ -100,6 +105,13 @@ const networkApi = createMockNetworkApi({
   unifi: recipesQuery.get('unifi') === '1',
 });
 setNetworkApiFactory(() => networkApi);
+// Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.
+const familyApi = createMockFamilyApi({
+  role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
+  scenario: recipesQuery.get('rodina') === 'empty' ? 'empty' : 'full',
+});
+(window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;
+setFamilyApiFactory(() => familyApi);
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
 if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
 // `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).
