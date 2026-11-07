@@ -23,6 +23,7 @@ from homeassistant.helpers.storage import Store
 from ..const import DOMAIN
 from .unifi_client import UnifiAuthError, UnifiClient, UnifiConfig, UnifiError
 from .unifi_data import parse_unifi
+from .unifi_source import UnifiSource
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,10 +74,15 @@ class PortHistory:
 
 
 class UnifiPoller:
-    def __init__(self, hass: HomeAssistant, cfg: UnifiConfig, client: Any | None = None) -> None:
+    def __init__(
+        self, hass: HomeAssistant, source: UnifiSource | UnifiConfig, client: Any | None = None
+    ) -> None:
         self.hass = hass
-        self.cfg = cfg
+        self.source = source if isinstance(source, UnifiSource) else UnifiSource.from_config(source)
+        # account in use (memory only); resolved again before every poll
+        self.cfg: UnifiConfig | None = None
         self._client = client
+        self._injected = client is not None
         self._session: aiohttp.ClientSession | None = None
         self._task: asyncio.Task | None = None
         self._store: Store = Store(hass, 1, STORE_KEY)
@@ -90,14 +96,6 @@ class UnifiPoller:
 
     async def async_start(self) -> None:
         self._history = PortHistory.from_dict(await self._store.async_load())
-        if self._client is None:
-            self._session = async_create_clientsession(
-                self.hass,
-                verify_ssl=self.cfg.verify_ssl,
-                cookie_jar=aiohttp.CookieJar(unsafe=True),
-                auto_cleanup=False,
-            )
-            self._client = UnifiClient(self._session, self.cfg)
         self._task = self.hass.async_create_background_task(
             self._run(), "homebrain network unifi poller"
         )
@@ -107,7 +105,41 @@ class UnifiPoller:
             await self.async_poll_once()
             await asyncio.sleep(self.next_delay())
 
+    async def _async_connect(self) -> bool:
+        """Resolve the account (HA UniFi entry read at connect time); new session on change."""
+        cfg = self.source.resolve(self.hass)
+        if cfg is None:
+            await self._async_close_session()
+            self.cfg = None
+            return False
+        if self._injected:
+            self.cfg = cfg
+            return True
+        if self._client is None or cfg != self.cfg:
+            await self._async_close_session()
+            self._session = async_create_clientsession(
+                self.hass,
+                verify_ssl=cfg.verify_ssl,
+                cookie_jar=aiohttp.CookieJar(unsafe=True),
+                auto_cleanup=False,
+            )
+            self._client = UnifiClient(self._session, cfg)
+            self.cfg = cfg
+        return True
+
+    async def _async_close_session(self) -> None:
+        if not self._injected:
+            self._client = None
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+
     async def async_poll_once(self) -> None:
+        if not await self._async_connect():
+            # HA UniFi integration removed / not loaded: wait calmly, no repair issue
+            # (no network request was made, so keep the normal 60 s rhythm)
+            self._status = "unifi_source_missing"
+            return
         try:
             raw = await self._client.fetch()
         except UnifiAuthError as err:
@@ -178,9 +210,7 @@ class UnifiPoller:
         if self._task is not None:
             self._task.cancel()
             self._task = None
-        if self._session is not None:
-            await self._session.close()
-            self._session = None
+        await self._async_close_session()
         if self._polls:
             await self._store.async_save(self._history.as_dict())
 

@@ -30,6 +30,15 @@ describe('NetworkView', () => {
     expect(screen.getAllByTestId('network-tip')).toHaveLength(2);
   });
 
+  it('admin settings show the UniFi account source (no password)', async () => {
+    setNetworkApiFactory(() => createMockNetworkApi({ role: 'owner', unifi: true }));
+    render(
+      <NetworkView store={{} as never} bindings={{}} route={{ path: '/network/hoste' } as never} />,
+    );
+    const label = await screen.findByTestId('network-unifi-account');
+    expect(label.textContent).toBe('Účet: ha (z integrace UniFi)');
+  });
+
   it('adult gets only the summary and the guest QR', async () => {
     mount({ role: 'adult' });
     expect((await screen.findByTestId('network-summary')).dataset.netState).toBe('problem');

@@ -160,7 +160,13 @@ function withUnifi(snap: NetSnapshot, scenario: NetworkScenario, now: number): N
     };
   }
   snap.source = 'ha+unifi';
-  snap.unifi = { configured: true, status: 'ok', updated_at: now - 30, readonly: true };
+  snap.unifi = {
+    configured: true,
+    status: 'ok',
+    updated_at: now - 30,
+    readonly: true,
+    source: 'ha_integration',
+  };
   return snap;
 }
 
@@ -459,6 +465,9 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
       opts.guest === false
         ? null
         : { ssid: 'Host demo', password: 'synthetic-pass', security: 'WPA' },
+    unifi: opts.unifi
+      ? { configured: true, status: 'ok', readonly: true, source: 'ha_integration', account: 'ha' }
+      : { configured: false },
   };
   const calls: Array<{ type: string; payload?: unknown }> = [];
   const admin = () => {
@@ -504,6 +513,7 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
           (settings = {
             important: patch.important ?? settings.important,
             guest: patch.guest !== undefined ? patch.guest : settings.guest,
+            unifi: settings.unifi,
           }),
         )
       );
