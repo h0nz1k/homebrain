@@ -30,7 +30,7 @@ test('smazání receptu: přístupný ConfirmDialog (fokus na Zpět, Tab zůstá
   await expect(page.getByTestId('recipes-remove')).toBeVisible();
   await page.getByTestId('recipes-remove').click();
   await page.getByTestId('recipes-remove-confirm').click();
-  await expect(page.getByText('Recept smazán')).toBeVisible();
+  await expect(page.getByTestId('hb-toast').getByText('Recept smazán')).toBeVisible();
   await expect(page).toHaveURL(/\/homebrain-recepty\/?(\?.*)?$/);
   await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 });
