@@ -66,7 +66,7 @@ function kids(now: Date): FamilyKid[] {
       id: 'dcera',
       name: 'Dcera',
       points: 128,
-      points_today: 6,
+      points_today: 2,
       chores: [
         c('kos', 'Vynést koš', 'done', 2, 18),
         c('luxovat', 'Vyluxovat pokoj', 'claimed', 4, 18),

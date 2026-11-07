@@ -97,6 +97,6 @@ it('navigates the top window without touching iframe history', () => {
   iframe.remove();
 });
 
-it('maps family into the hidden settings panel', () => {
-  expect(panelUrl('/family')).toBe('/homebrain-nastaveni/family');
+it('maps Rodina to its own panel', () => {
+  expect(panelUrl('/family')).toBe('/homebrain-rodina');
 });

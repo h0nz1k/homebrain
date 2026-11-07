@@ -113,8 +113,41 @@ function TodayCard({ snap, now, admin }: { snap: FamilySnapshot; now: Date; admi
   );
 }
 
-function WeekCard({ snap, now }: { snap: FamilySnapshot; now: Date }) {
+const KIOSK_WEEK_LINES = 6;
+
+function WeekCard({ snap, now, compact }: { snap: FamilySnapshot; now: Date; compact?: boolean }) {
   if (snap.calendars.length === 0) return null;
+  if (compact) {
+    // Kitchen tablet: one line per event, empty days skipped, so the page fits 800 px.
+    const lines = nextDays(snap.events, now).flatMap((day) =>
+      day.events.map((ev) => ({ day, ev })),
+    );
+    return (
+      <Card className="fam-card" data-testid="family-week">
+        <div className="fam-card-h">
+          <h2>Příštích 7 dní</h2>
+          {lines.length > KIOSK_WEEK_LINES && (
+            <span className="fam-meta">+{lines.length - KIOSK_WEEK_LINES} další</span>
+          )}
+        </div>
+        {lines.length === 0 ? (
+          <p className="fam-free">Nic v kalendáři</p>
+        ) : (
+          <ul className="fam-week-lines">
+            {lines.slice(0, KIOSK_WEEK_LINES).map(({ day, ev }) => (
+              <li key={ev.id} style={srcStyle(ev)} data-testid="family-week-line">
+                <b>
+                  {day.day} {day.date}
+                </b>
+                <span>{ev.all_day ? 'celý den' : timeLabel(ev.start)}</span>
+                <em>{ev.summary}</em>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    );
+  }
   return (
     <Card className="fam-card" data-testid="family-week">
       <div className="fam-card-h">
@@ -405,7 +438,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     approve: (kid, chore) => void run(`${kid}/${chore}`, () => api.approve(kid, chore)),
   };
   const today = <TodayCard snap={snap} now={now} admin={admin} />;
-  const week = <WeekCard snap={snap} now={now} />;
+  const week = <WeekCard snap={snap} now={now} compact={kiosk} />;
   const chores = <ChoresCard snap={snap} now={now} act={act} />;
   const shop = (
     <ShoppingCard
@@ -419,7 +452,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     <div className="fam" data-kiosk={kiosk || undefined} data-testid="family" data-role={snap.role}>
       <style>{familyStyles}</style>
       <header className="fam-head">
-        <h1>Rodina</h1>
+        <h1 className="hb-sr-only">Rodina</h1>
         <p>{longDate(now)}</p>
       </header>
       {error && (
