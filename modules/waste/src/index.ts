@@ -12,3 +12,4 @@ export * from './normalize.js';
 export * from './adapter.js';
 export * from './calendar.js';
 export * from './history.js';
+export * from './horizon.js';

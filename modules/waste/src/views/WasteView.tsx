@@ -4,7 +4,8 @@ import { Card, EmptyState, StatusBadge, toast } from '@homebrain/ui';
 import { adaptWasteEntities, selectWasteEntityIds } from '../adapter.js';
 import { toLocalDateKey, wasteLabel } from '../normalize.js';
 import { useWasteCalendar } from '../calendar.js';
-import { useWasteHistory } from '../history.js';
+import { useWasteHistoryData } from '../history.js';
+import { horizonNotice, typesWithoutNext } from '../horizon.js';
 import type { WasteCollectionEvent } from '../contract.js';
 import type { CSSProperties } from 'react';
 import { WasteBin, collectionDays, daysLabel, fillLevel } from './WasteBin.js';
@@ -605,7 +606,7 @@ function WeekStrip({
     </ol>
   );
 }
-export default function WasteView({ store, bindings, connection }: ModuleViewProps) {
+export default function WasteView({ store, bindings, connection, kiosk }: ModuleViewProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
@@ -617,7 +618,14 @@ export default function WasteView({ store, bindings, connection }: ModuleViewPro
     bindings.waste_calendar?.trim() || undefined,
     toLocalDateKey(new Date(now), 'Europe/Prague'),
   );
-  const history = useWasteHistory(connection, toLocalDateKey(new Date(now), 'Europe/Prague'));
+  const historyData = useWasteHistoryData(
+    connection,
+    toLocalDateKey(new Date(now), 'Europe/Prague'),
+  );
+  const history = historyData === 'error' ? 'error' : historyData?.events;
+  // Konec dat jen pro admina (WS je admin-only) a nikdy na kiosku – děti nemají co řešit.
+  const dataEnd =
+    kiosk || !historyData || historyData === 'error' ? null : horizonNotice(historyData.horizon);
   const schedule = useMemo(
     () =>
       adaptWasteEntities({
@@ -669,6 +677,7 @@ export default function WasteView({ store, bindings, connection }: ModuleViewPro
       [...schedule.past, ...collectedToday].map((event) => [event.waste_type, event]),
     ).values(),
   ].sort((a, b) => b.collection_date.localeCompare(a.collection_date));
+  const unknownNext = typesWithoutNext(lastByType, pending);
   return (
     <Card className="hb-waste wb-panel">
       <style>{wasteStyles}</style>
@@ -699,6 +708,28 @@ export default function WasteView({ store, bindings, connection }: ModuleViewPro
             <li key={notice}>{notice}</li>
           ))}
         </ul>
+      )}
+      {dataEnd && (
+        <section
+          className="wb-surface wb-horizon"
+          role="region"
+          aria-label="Konec svozových dat"
+          data-severity="info"
+          data-testid="waste-horizon"
+        >
+          <p className="wb-horizon-title">
+            <i aria-hidden="true" />
+            {dataEnd.title}
+          </p>
+          <details className="wb-horizon-help">
+            <summary>Co s tím</summary>
+            <ol>
+              {dataEnd.help.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </details>
+        </section>
       )}
       {next ? (
         <section
@@ -782,7 +813,11 @@ export default function WasteView({ store, bindings, connection }: ModuleViewPro
             <p className="wb-local">Dnes ani zítra se nic nevyváží</p>
             <EmptyState
               title={
-                schedule.quality === 'ok' ? 'Žádné naplánované svozy' : 'Čekáme na termíny svozu'
+                schedule.quality !== 'ok'
+                  ? 'Čekáme na termíny svozu'
+                  : schedule.past.length
+                    ? 'Další svozy zatím nejsou známé'
+                    : 'Žádné naplánované svozy'
               }
             />
           </div>
@@ -881,6 +916,9 @@ export default function WasteView({ store, bindings, connection }: ModuleViewPro
                     {lastCollectedLabel(event.collection_date, schedule.referenceDate, true)}
                     <time dateTime={event.collection_date}>{shortDate(event.collection_date)}</time>
                   </span>
+                  {unknownNext.has(event.waste_type) && (
+                    <span className="wb-history-next">Další termín zatím neznámý</span>
+                  )}
                 </li>
               ))}
             </ul>

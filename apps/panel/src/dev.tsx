@@ -564,8 +564,9 @@ if (scenario === 'calendar') {
 }
 // Produkční tvar (WCS senzor od zítřka + kalendář s dnešním svozem + historie z integrace):
 // dnes Plasty, sklo jako „Barevne sklo“, minulé svozy přes WS homebrain/waste/history.
-if (scenario === 'history') {
-  const future: [number, string][] = [
+// `?waste=horizon` = totéž, ale zveřejněný rozpis končí za 16 dní (upozornění „data končí“).
+if (scenario === 'history' || scenario === 'horizon') {
+  const published: [number, string][] = [
     [1, 'Papir'],
     [2, 'Komunalni odpad'],
     [10, 'Barevne sklo'],
@@ -580,6 +581,8 @@ if (scenario === 'history') {
     [44, 'Komunalni odpad'],
     [46, 'Elektro odpad'],
   ];
+  const future = scenario === 'horizon' ? published.filter(([days]) => days <= 16) : published;
+  const lastDays = Math.max(...future.map(([days]) => days));
   const past: [number, string][] = [
     [-84, 'Plasty'],
     [-83, 'Papir'],
@@ -621,6 +624,14 @@ if (scenario === 'history') {
     'homebrain/waste/history': {
       events: past.map(([days, label]) => ({ date: dateAfter(days), label })),
       since: dateAfter(past[0]![0]),
+      horizon: {
+        status: lastDays < 30 ? 'ending' : 'ok',
+        last_date: dateAfter(lastDays),
+        days_left: lastDays,
+        warn_days: 30,
+        warning: lastDays < 30,
+        types: [],
+      },
     },
   });
   demoHass.states['sensor.demo_waste_wcs'] = {
