@@ -25,7 +25,8 @@
           "robots_3": "Robot 3",
           "recipes": "Recipes",
           "modules": "Modules (on/off)",
-          "network_unifi": "Network – UniFi (optional)"
+          "network_unifi": "Network – UniFi (optional)",
+          "meals": "Show meal plan (Mealie)"
         }
       },
       "waste": {
@@ -260,6 +261,13 @@
           "password": "Password",
           "verify_ssl": "Verify certificate (off for self-signed)"
         }
+      },
+      "meals": {
+        "title": "Show meal plan (Mealie)",
+        "description": "„Co se dnes vaří“ on Dnes and the kitchen tablet. Auto shows it only when the Mealie integration is set up and loaded; without Mealie nothing is shown. Off hides it even with Mealie.",
+        "data": {
+          "meals_display": "Show meal plan (Mealie)"
+        }
       }
     },
     "error": {
@@ -289,6 +297,12 @@
         "recipes": "Recipes",
         "access": "Access",
         "network": "Network"
+      }
+    },
+    "meals_display": {
+      "options": {
+        "auto": "Auto (only with Mealie)",
+        "off": "Off"
       }
     }
   },

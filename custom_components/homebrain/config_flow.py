@@ -9,7 +9,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from .bindings import binding_domains, get_bindings, validate_binding
-from .const import BINDING_MODULES, DOMAIN, PANEL_TITLE
+from .const import BINDING_MODULES, DOMAIN, MEALS_DISPLAY, MEALS_DISPLAY_MODES, PANEL_TITLE
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
 from .network.unifi_client import UnifiAuthError, UnifiConfig, UnifiError
@@ -34,6 +34,7 @@ OPTIONS_FLOW_EXTRA = (
     *(f"robots_{slot}" for slot in ROBOT_SLOTS),
     "network_unifi",
     "modules",
+    "meals",
 )
 
 
@@ -190,6 +191,31 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             data_schema=schema,
             errors=errors,
         )
+
+    async def async_step_meals(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """„Zobrazit jídelníček (Mealie)“: auto = only with a loaded Mealie entry, off = never."""
+        if user_input is not None:
+            options = {**self.config_entry.options}
+            if user_input.get(MEALS_DISPLAY) == "off":
+                options[MEALS_DISPLAY] = "off"
+            else:
+                options.pop(MEALS_DISPLAY, None)  # auto is the default: keep entries unchanged
+            return self.async_create_entry(title="", data=options)
+        current = self.config_entry.options.get(MEALS_DISPLAY, "auto")
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    MEALS_DISPLAY, default=current if current in MEALS_DISPLAY_MODES else "auto"
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=list(MEALS_DISPLAY_MODES),
+                        mode=selector.SelectSelectorMode.LIST,
+                        translation_key=MEALS_DISPLAY,
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="meals", data_schema=schema)
 
     async def async_step_modules(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Switch modules on/off; a disabled module registers no WS commands nor panel."""

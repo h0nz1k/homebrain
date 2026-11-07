@@ -8,6 +8,8 @@ const REFRESH_MS = 5 * 60_000;
  * Dnes household strip: „Co se dnes vaří“ (Mealie meal plan) + kids' chores today (Rodina).
  * Everyone incl. the kiosk sees the meals; recipe links open Recepty (not on the wall tablet,
  * which stays on Dnes/Rodina). The chores tile opens Rodina and is hidden without kids.
+ * Mealie is optional: without it (`available: false`) or when the command fails, the meals
+ * tile is not rendered at all; with neither meals nor kids the strip renders nothing.
  */
 export function TodayHome({ api, kiosk }: { api: HomeApi | null; kiosk: boolean }) {
   const [meals, setMeals] = useState<MealsSnapshot | 'error' | undefined>(undefined);
@@ -33,44 +35,47 @@ export function TodayHome({ api, kiosk }: { api: HomeApi | null; kiosk: boolean 
     };
   }, [api]);
   if (!api || meals === undefined) return null;
-  const all = meals === 'error' ? [] : meals.meals;
+  const shown = meals !== 'error' && meals.available ? meals : null;
+  if (!shown && !kids.length) return null;
   // Wall tablet: two compact lines (2 × 2) keep Dnes within 1280×800 without scrolling.
-  const rows = kiosk ? all.slice(0, 4) : all;
-  const hint = meals !== 'error' && meals.can_plan ? ' – naplánujte v Mealie' : '';
+  const rows = shown ? (kiosk ? shown.meals.slice(0, 4) : shown.meals) : [];
+  const hint = shown?.can_plan ? ' – naplánujte v Mealie' : '';
   return (
     <div className="today-home" data-testid="today-home">
-      <section
-        className="today-home-tile today-meals"
-        data-testid="today-meals"
-        aria-label="Co se dnes vaří"
-      >
-        <h3 className="today-home-title">Co se dnes vaří</h3>
-        {rows.length ? (
-          <ul className="today-meal-list">
-            {rows.map((meal) => (
-              <li key={meal.id} data-testid="today-meal" data-meal-type={meal.type}>
-                <span className="today-meal-type">{meal.label}</span>
-                {meal.recipe_id && !kiosk ? (
-                  <button
-                    type="button"
-                    className="today-meal-name today-meal-link"
-                    title="Otevřít v Receptech"
-                    onClick={() => navigatePanel(`/recipes/${meal.recipe_id}`)}
-                  >
-                    {meal.title}
-                  </button>
-                ) : (
-                  <span className="today-meal-name">{meal.title}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="today-home-empty" data-testid="today-meals-empty">
-            Nic naplánováno{hint}
-          </p>
-        )}
-      </section>
+      {shown && (
+        <section
+          className="today-home-tile today-meals"
+          data-testid="today-meals"
+          aria-label="Co se dnes vaří"
+        >
+          <h3 className="today-home-title">Co se dnes vaří</h3>
+          {rows.length ? (
+            <ul className="today-meal-list">
+              {rows.map((meal) => (
+                <li key={meal.id} data-testid="today-meal" data-meal-type={meal.type}>
+                  <span className="today-meal-type">{meal.label}</span>
+                  {meal.recipe_id && !kiosk ? (
+                    <button
+                      type="button"
+                      className="today-meal-name today-meal-link"
+                      title="Otevřít v Receptech"
+                      onClick={() => navigatePanel(`/recipes/${meal.recipe_id}`)}
+                    >
+                      {meal.title}
+                    </button>
+                  ) : (
+                    <span className="today-meal-name">{meal.title}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="today-home-empty" data-testid="today-meals-empty">
+              Nic naplánováno{hint}
+            </p>
+          )}
+        </section>
+      )}
       {!!kids.length && (
         <button
           type="button"
