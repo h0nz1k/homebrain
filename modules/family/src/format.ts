@@ -88,9 +88,14 @@ export function relLabel(ev: FamilyEvent, now: Date): string {
   return m ? `Za ${h} h ${m} min` : `Za ${h} h`;
 }
 
-export function choreNote(chore: FamilyChore, now: Date): { text: string; tone?: 'warn' | 'crit' } {
+export function choreNote(
+  chore: FamilyChore,
+  now: Date,
+  opts: { parentApproves?: boolean } = {},
+): { text: string; tone?: 'warn' | 'crit' } {
   if (chore.state === 'done') return { text: 'Hotovo' };
-  if (chore.state === 'claimed') return { text: 'Čeká na schválení', tone: 'warn' };
+  if (chore.state === 'claimed')
+    return { text: opts.parentApproves ? 'Schválí rodič' : 'Čeká na schválení', tone: 'warn' };
   const due = chore.due ? new Date(chore.due) : null;
   if (chore.state === 'overdue')
     return { text: due ? `Po termínu (${timeLabel(chore.due!)})` : 'Po termínu', tone: 'crit' };
@@ -98,12 +103,85 @@ export function choreNote(chore: FamilyChore, now: Date): { text: string; tone?:
   return { text: 'Dnes' };
 }
 
-export function pointsLabel(points: number | null): string {
-  if (points === null) return '';
-  const n = Number.isInteger(points) ? String(points) : points.toFixed(1).replace('.', ',');
-  return `+${n}\u00a0b.`;
+export function fmtPoints(points: number): string {
+  return Number.isInteger(points) ? String(points) : points.toFixed(1).replace('.', ',');
 }
 
-export function kidProgress(chores: FamilyChore[]): { done: number; total: number } {
-  return { done: chores.filter((c) => c.state === 'done').length, total: chores.length };
+export function pointsLabel(points: number | null): string {
+  if (points === null) return '';
+  return `+${fmtPoints(points)}\u00a0b.`;
+}
+
+export interface ChoreTally {
+  done: number;
+  pending: number;
+  open: number;
+  total: number;
+  /** Points of approved/done chores only. */
+  earned: number;
+  /** Points still waiting for a parent's approval. */
+  waiting: number;
+}
+
+export function choreTally(chores: FamilyChore[]): ChoreTally {
+  const t: ChoreTally = {
+    done: 0,
+    pending: 0,
+    open: 0,
+    total: chores.length,
+    earned: 0,
+    waiting: 0,
+  };
+  for (const c of chores) {
+    if (c.state === 'done') {
+      t.done += 1;
+      t.earned += c.points ?? 0;
+    } else if (c.state === 'claimed') {
+      t.pending += 1;
+      t.waiting += c.points ?? 0;
+    } else t.open += 1;
+  }
+  return t;
+}
+
+const CHORE_RANK: Record<FamilyChore['state'], number> = {
+  overdue: 0,
+  todo: 1,
+  claimed: 2,
+  done: 3,
+};
+
+/** What still needs doing first (overdue, open), then waiting for approval, done last. */
+export function sortChores(chores: FamilyChore[]): FamilyChore[] {
+  return chores
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => CHORE_RANK[a.c.state] - CHORE_RANK[b.c.state] || a.i - b.i)
+    .map(({ c }) => c);
+}
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+}
+
+const norm = (s: string) => s.trim().toLocaleLowerCase('cs');
+
+/**
+ * Who an event belongs to: a per-member calendar (calendar named after the member) or
+ * a summary prefix „Syn: …“ / „Dcera, Syn – …“. Unknown names leave the summary as is.
+ */
+export function eventWho(
+  ev: Pick<FamilyEvent, 'summary' | 'source'>,
+  members: FamilyMember[],
+): { who: string[]; title: string } {
+  const byName = new Map(members.map((m) => [norm(m.name), m.id]));
+  const own = byName.get(norm(ev.source));
+  if (own) return { who: [own], title: ev.summary };
+  const m = /^\s*([^:–—-]{1,60}?)\s*(?::|\s[–—-])\s*(.+)$/u.exec(ev.summary);
+  if (m) {
+    const names = m[1]!.split(/\s*(?:,|&|\+|\sa\s)\s*/u).filter(Boolean);
+    const ids = names.map((n) => byName.get(norm(n)));
+    if (ids.length && ids.every(Boolean)) return { who: ids as string[], title: m[2]!.trim() };
+  }
+  return { who: [], title: ev.summary };
 }

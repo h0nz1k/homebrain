@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   choreNote,
+  choreTally,
+  eventWho,
   isPast,
   nextDays,
   nextEvent,
   pointsLabel,
   relLabel,
+  sortChores,
   todayEvents,
 } from './format.js';
 import type { FamilyChore, FamilyEvent } from './types.js';
@@ -65,5 +68,63 @@ describe('family format', () => {
     });
     expect(pointsLabel(2)).toBe('+2\u00a0b.');
     expect(pointsLabel(1.5)).toBe('+1,5\u00a0b.');
+  });
+
+  const chore = (
+    id: string,
+    state: FamilyChore['state'],
+    points: number | null = 2,
+  ): FamilyChore => ({
+    id,
+    name: id,
+    state,
+    points,
+    due: null,
+    can_claim: false,
+    can_approve: false,
+  });
+
+  it('counts only approved/done chores as today points, pending separately', () => {
+    const t = choreTally([
+      chore('a', 'done', 2),
+      chore('b', 'claimed', 4),
+      chore('c', 'todo', 1),
+      chore('d', 'done', null),
+    ]);
+    expect(t).toEqual({ done: 2, pending: 1, open: 1, total: 4, earned: 2, waiting: 4 });
+  });
+
+  it('orders overdue/open first, then pending approval, done last', () => {
+    const order = sortChores([
+      chore('done1', 'done'),
+      chore('wait', 'claimed'),
+      chore('todo', 'todo'),
+      chore('late', 'overdue'),
+      chore('done2', 'done'),
+    ]).map((c) => c.id);
+    expect(order).toEqual(['late', 'todo', 'wait', 'done1', 'done2']);
+  });
+
+  it('tells a viewer who cannot approve that a parent will approve', () => {
+    const claimed = chore('x', 'claimed');
+    expect(choreNote(claimed, now, { parentApproves: true })).toEqual({
+      text: 'Schválí rodič',
+      tone: 'warn',
+    });
+  });
+
+  it('maps an event to family members by summary prefix or per-member calendar', () => {
+    const members = [
+      { id: 'dcera', name: 'Dcera' },
+      { id: 'syn', name: 'Syn' },
+    ];
+    const prefixed = { ...events[1]!, summary: 'Syn: Trénink florbalu' };
+    expect(eventWho(prefixed, members)).toEqual({ who: ['syn'], title: 'Trénink florbalu' });
+    const both = { ...events[1]!, summary: 'Dcera, Syn – Kino' };
+    expect(eventWho(both, members)).toEqual({ who: ['dcera', 'syn'], title: 'Kino' });
+    const ownCal = { ...events[1]!, source: 'dcera', summary: 'Klavír' };
+    expect(eventWho(ownCal, members)).toEqual({ who: ['dcera'], title: 'Klavír' });
+    const nobody = { ...events[1]!, summary: 'Babička: oběd' };
+    expect(eventWho(nobody, members)).toEqual({ who: [], title: 'Babička: oběd' });
   });
 });

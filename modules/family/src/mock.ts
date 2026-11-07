@@ -16,6 +16,14 @@ const dateOnly = (base: Date, dayOffset: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+/** Shift a day offset off the weekend (back to Friday) — school never happens on Sat/Sun. */
+const schoolDay = (base: Date, dayOffset: number) => {
+  const dow = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset).getDay();
+  const shifted = dayOffset - (dow === 6 ? 1 : dow === 0 ? 2 : 0);
+  return shifted >= 1 ? shifted : dayOffset + (dow === 6 ? 2 : 1);
+};
+const isWeekend = (base: Date) => base.getDay() === 0 || base.getDay() === 6;
+
 function events(now: Date): FamilyEvent[] {
   const fam = { calendar: 'calendar.demo_rodina', source: 'Rodina', kind: 'family' as const };
   const sch = { calendar: 'calendar.demo_skola', source: 'Škola', kind: 'school' as const };
@@ -28,19 +36,41 @@ function events(now: Date): FamilyEvent[] {
     extra = {},
   ) => ({ id, ...src, summary, start, end, all_day: start.length === 10, ...extra }) as FamilyEvent;
   return [
-    e('1', fam, 'Odvoz do školy', at(now, 0, 7, 45), at(now, 0, 8, 15)),
-    e('2', sch, 'Kroužek robotiky', at(now, 0, 14), at(now, 0, 15, 30)),
-    e('3', fam, 'Trénink florbalu', at(now, 0, 16, 30), at(now, 0, 18), {
+    isWeekend(now)
+      ? e('1', fam, 'Snídaně u babičky', at(now, 0, 8, 30), at(now, 0, 9, 30))
+      : e('1', fam, 'Odvoz do školy', at(now, 0, 7, 45), at(now, 0, 8, 15)),
+    e('2', fam, 'Dcera: Kroužek robotiky', at(now, 0, 14), at(now, 0, 15, 30)),
+    e('3', fam, 'Syn: Trénink florbalu', at(now, 0, 16, 30), at(now, 0, 18), {
       location: 'Sportovní hala',
       description: 'Vzít dres',
     }),
     e('4', fam, 'Rodinná večeře', at(now, 0, 19), at(now, 0, 20, 30)),
     e('5', fam, 'Výlet na hrad', dateOnly(now, 1), dateOnly(now, 2)),
-    e('6', sch, 'Písemka z matematiky', at(now, 2, 8), at(now, 2, 8, 45)),
-    e('7', fam, 'Zubař', at(now, 2, 17), at(now, 2, 17, 30)),
-    e('8', fam, 'Trénink florbalu', at(now, 3, 16, 30), at(now, 3, 18)),
-    e('9', sch, 'Třídní schůzky', at(now, 5, 17, 30), at(now, 5, 19)),
-    e('10', sch, 'Ředitelské volno', dateOnly(now, 6), dateOnly(now, 7)),
+    e(
+      '6',
+      sch,
+      'Dcera: Písemka z matematiky',
+      at(now, schoolDay(now, 2), 8),
+      at(now, schoolDay(now, 2), 8, 45),
+    ),
+    e('7', fam, 'Syn: Zubař', at(now, 2, 17), at(now, 2, 17, 30), {
+      description: 'Kartička pojišťovny',
+    }),
+    e('8', fam, 'Syn: Trénink florbalu', at(now, 3, 16, 30), at(now, 3, 18)),
+    e(
+      '9',
+      sch,
+      'Třídní schůzky',
+      at(now, schoolDay(now, 5), 17, 30),
+      at(now, schoolDay(now, 5), 19),
+    ),
+    e(
+      '10',
+      sch,
+      'Ředitelské volno',
+      dateOnly(now, schoolDay(now, 6)),
+      dateOnly(now, schoolDay(now, 6) + 1),
+    ),
     e('11', fam, 'Narozeninová oslava', at(now, 7, 10), at(now, 7, 13)),
   ];
 }
@@ -116,13 +146,20 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
           ],
       events: empty
         ? []
-        : events(now()).map((e) => {
-            if (detail) return e;
-            const rest = { ...e };
-            delete rest.location;
-            delete rest.description;
-            return rest;
-          }),
+        : events(now())
+            .sort(
+              (a, b) =>
+                a.start.slice(0, 10).localeCompare(b.start.slice(0, 10)) ||
+                Number(b.all_day) - Number(a.all_day) ||
+                a.start.localeCompare(b.start),
+            )
+            .map((e) => {
+              if (detail) return e;
+              const rest = { ...e };
+              delete rest.location;
+              delete rest.description;
+              return rest;
+            }),
       kids: state.kids
         .filter((k) => role !== 'child' || k.id === own)
         .map((k) => ({

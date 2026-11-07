@@ -4,13 +4,16 @@ import { Card, EmptyState, czCount } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
 import {
   choreNote,
+  choreTally,
+  eventWho,
+  fmtPoints,
   isPast,
-  kidProgress,
   longDate,
   nextDays,
   nextEvent,
   pointsLabel,
   relLabel,
+  sortChores,
   timeLabel,
   todayEvents,
 } from '../format.js';
@@ -41,10 +44,71 @@ function srcStyle(ev: FamilyEvent) {
   return { '--fam-src': SRC_COLOR[ev.kind] ?? SRC_COLOR.family } as React.CSSProperties;
 }
 
-function TodayCard({ snap, now, admin }: { snap: FamilySnapshot; now: Date; admin: boolean }) {
+interface Member {
+  id: string;
+  name: string;
+  color: string;
+}
+
+const membersOf = (snap: FamilySnapshot): Member[] =>
+  snap.kids.map((k, i) => ({ id: k.id, name: k.name, color: KID_COLORS[i % KID_COLORS.length]! }));
+
+function Who({ ids, members }: { ids: string[]; members: Member[] }) {
+  if (!ids.length) return null;
+  const names = ids.map((id) => members.find((m) => m.id === id)).filter(Boolean) as Member[];
+  return (
+    <span
+      className="fam-who"
+      data-testid="family-who"
+      aria-label={names.map((m) => m.name).join(', ')}
+    >
+      {names.map((m) => (
+        <span
+          key={m.id}
+          className="fam-avatar fam-avatar-sm"
+          style={{ '--fam-kid': m.color } as React.CSSProperties}
+          title={m.name}
+          aria-hidden="true"
+        >
+          {m.name.slice(0, 1)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function Legend({ snap }: { snap: FamilySnapshot }) {
+  const kinds = (['family', 'school'] as const).filter((k) =>
+    snap.calendars.some((c) => c.kind === k),
+  );
+  if (kinds.length < 2) return null;
+  return (
+    <span className="fam-legend" data-testid="family-legend">
+      {kinds.map((k) => (
+        <span key={k} style={{ '--fam-src': SRC_COLOR[k] } as React.CSSProperties}>
+          {k === 'school' ? 'Škola' : 'Rodina'}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function TodayCard({
+  snap,
+  now,
+  admin,
+  members,
+}: {
+  snap: FamilySnapshot;
+  now: Date;
+  admin: boolean;
+  members: Member[];
+}) {
   const today = todayEvents(snap.events, now);
   const next = nextEvent(snap.events, now);
-  const detail = snap.role === 'owner' || snap.role === 'adult';
+  const rest = today.filter((ev) => ev.id !== next?.id);
+  const nextWho = next ? eventWho(next, members) : null;
+  const nextDetail = next ? [next.location, next.description].filter(Boolean).join(' · ') : '';
   return (
     <Card className="fam-card" data-testid="family-today">
       <div className="fam-card-h">
@@ -63,45 +127,55 @@ function TodayCard({ snap, now, admin }: { snap: FamilySnapshot; now: Date; admi
         </p>
       ) : (
         <>
-          {next && (
+          {next && nextWho && (
             <div className="fam-next" style={srcStyle(next)} data-testid="family-next">
               <small>{relLabel(next, now)}</small>
-              <strong>{next.summary}</strong>
+              <div className="fam-next-t">
+                <Who ids={nextWho.who} members={members} />
+                <strong>{nextWho.title}</strong>
+              </div>
               <span>
                 {timeLabel(next.start)} – {timeLabel(next.end)}
-                {detail && next.location ? ` · ${next.location}` : ''}
+                {nextDetail ? ` · ${nextDetail}` : ''}
               </span>
             </div>
           )}
           {today.length === 0 ? (
             <p className="fam-empty">Dnes nic v kalendáři.</p>
-          ) : (
+          ) : rest.length === 0 ? null : (
             <ul className="fam-events">
-              {today.map((ev) => (
-                <li
-                  key={ev.id}
-                  className="fam-ev"
-                  style={srcStyle(ev)}
-                  data-testid="family-event"
-                  data-past={isPast(ev, now) || undefined}
-                  data-next={ev.id === next?.id || undefined}
-                >
-                  <time>
-                    {ev.all_day ? 'Celý den' : timeLabel(ev.start)}
-                    {!ev.all_day && <small>– {timeLabel(ev.end)}</small>}
-                  </time>
-                  <i />
-                  <div>
-                    <b>{ev.summary}</b>
-                    {detail && (ev.location || ev.description) && (
-                      <p className="fam-detail" data-testid="family-event-detail">
-                        {[ev.location, ev.description].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </div>
-                  {ev.kind === 'school' ? <span className="fam-src">{ev.source}</span> : <span />}
-                </li>
-              ))}
+              {rest.map((ev) => {
+                const { who, title } = eventWho(ev, members);
+                const past = isPast(ev, now);
+                return (
+                  <li
+                    key={ev.id}
+                    className="fam-ev"
+                    style={srcStyle(ev)}
+                    data-testid="family-event"
+                    data-past={past || undefined}
+                  >
+                    <time>
+                      {ev.all_day ? 'Celý den' : timeLabel(ev.start)}
+                      {!ev.all_day && <small>– {timeLabel(ev.end)}</small>}
+                    </time>
+                    <i />
+                    <div className="fam-ev-t">
+                      <Who ids={who} members={members} />
+                      <div>
+                        <b>{title}</b>
+                        {(ev.location || ev.description) && (
+                          <p className="fam-detail" data-testid="family-event-detail">
+                            {[ev.location, ev.description].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                        {past && <p className="fam-detail fam-ev-past-note">Proběhlo</p>}
+                      </div>
+                    </div>
+                    {ev.kind === 'school' ? <span className="fam-src">{ev.source}</span> : <span />}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>
@@ -113,45 +187,13 @@ function TodayCard({ snap, now, admin }: { snap: FamilySnapshot; now: Date; admi
   );
 }
 
-const KIOSK_WEEK_LINES = 6;
-
-function WeekCard({ snap, now, compact }: { snap: FamilySnapshot; now: Date; compact?: boolean }) {
+function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; members: Member[] }) {
   if (snap.calendars.length === 0) return null;
-  if (compact) {
-    // Kitchen tablet: one line per event, empty days skipped, so the page fits 800 px.
-    const lines = nextDays(snap.events, now).flatMap((day) =>
-      day.events.map((ev) => ({ day, ev })),
-    );
-    return (
-      <Card className="fam-card" data-testid="family-week">
-        <div className="fam-card-h">
-          <h2>Příštích 7 dní</h2>
-          {lines.length > KIOSK_WEEK_LINES && (
-            <span className="fam-meta">+{lines.length - KIOSK_WEEK_LINES} další</span>
-          )}
-        </div>
-        {lines.length === 0 ? (
-          <p className="fam-free">Nic v kalendáři</p>
-        ) : (
-          <ul className="fam-week-lines">
-            {lines.slice(0, KIOSK_WEEK_LINES).map(({ day, ev }) => (
-              <li key={ev.id} style={srcStyle(ev)} data-testid="family-week-line">
-                <b>
-                  {day.day} {day.date}
-                </b>
-                <span>{ev.all_day ? 'celý den' : timeLabel(ev.start)}</span>
-                <em>{ev.summary}</em>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-    );
-  }
   return (
     <Card className="fam-card" data-testid="family-week">
       <div className="fam-card-h">
         <h2>Příštích 7 dní</h2>
+        <Legend snap={snap} />
       </div>
       <div className="fam-days">
         {nextDays(snap.events, now).map((day) => (
@@ -162,15 +204,19 @@ function WeekCard({ snap, now, compact }: { snap: FamilySnapshot; now: Date; com
             </div>
             {day.events.length ? (
               <ul>
-                {day.events.map((ev) => (
-                  <li key={ev.id} style={srcStyle(ev)} data-allday={ev.all_day || undefined}>
-                    {!ev.all_day && <span>{timeLabel(ev.start)}</span>}
-                    {ev.summary}
-                  </li>
-                ))}
+                {day.events.map((ev) => {
+                  const { who, title } = eventWho(ev, members);
+                  return (
+                    <li key={ev.id} style={srcStyle(ev)} data-allday={ev.all_day || undefined}>
+                      {!ev.all_day && <span>{timeLabel(ev.start)}</span>}
+                      <Who ids={who} members={members} />
+                      <em>{title}</em>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
-              <p className="fam-free">Nic v kalendáři</p>
+              <p className="fam-free">Volno</p>
             )}
           </div>
         ))}
@@ -196,7 +242,7 @@ function KidCard({
   now: Date;
   act: Actions;
 }) {
-  const { done, total } = kidProgress(kid.chores);
+  const t = choreTally(kid.chores);
   return (
     <article
       className="fam-kid"
@@ -210,30 +256,41 @@ function KidCard({
         </span>
         <div>
           <b>{kid.name}</b>
-          <small>{total ? `${done} z ${total} hotovo` : 'Dnes nic'}</small>
+          <small>
+            {t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic'}
+            {kid.points !== null && (
+              <span data-testid="family-total"> · celkem {Math.round(kid.points)} b.</span>
+            )}
+          </small>
         </div>
         {kid.points !== null && (
           <div className="fam-points" data-testid="family-points">
-            <strong>{Math.round(kid.points)}</strong>
-            <small>{kid.points_today ? `+${Math.round(kid.points_today)} dnes` : 'bodů'}</small>
+            <strong data-testid="family-today-points">{pointsLabel(t.earned)}</strong>
+            <small>
+              dnes
+              {t.waiting > 0 && (
+                <em data-testid="family-pending-points">+{fmtPoints(t.waiting)} čeká</em>
+              )}
+            </small>
           </div>
         )}
       </div>
-      {total > 0 && (
+      {t.total > 0 && (
         <div
           className="fam-bar"
           role="progressbar"
           aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={done}
-          aria-label={`${kid.name}: hotovo ${done} z ${total}`}
+          aria-valuemax={t.total}
+          aria-valuenow={t.done}
+          aria-label={`${kid.name}: hotovo ${t.done} z ${t.total}`}
         >
-          <i style={{ width: `${(done / total) * 100}%` }} />
+          <i style={{ width: `${(t.done / t.total) * 100}%` }} />
+          <i data-pending style={{ width: `${(t.pending / t.total) * 100}%` }} />
         </div>
       )}
       <ul className="fam-chores">
-        {kid.chores.map((c) => {
-          const note = choreNote(c, now);
+        {sortChores(kid.chores).map((c) => {
+          const note = choreNote(c, now, { parentApproves: !c.can_approve });
           const ui = c.state === 'overdue' ? 'todo' : c.state;
           const key = `${kid.id}/${c.id}`;
           return (
@@ -274,10 +331,21 @@ function KidCard({
   );
 }
 
-function ChoresCard({ snap, now, act }: { snap: FamilySnapshot; now: Date; act: Actions }) {
+function ChoresCard({
+  snap,
+  now,
+  act,
+  members,
+}: {
+  snap: FamilySnapshot;
+  now: Date;
+  act: Actions;
+  members: Member[];
+}) {
   if (snap.kids.length === 0) return null;
+  // Only parents (who can approve) get the counter; others see „Schválí rodič“ per chore.
   const waiting = snap.kids.reduce(
-    (n, k) => n + k.chores.filter((c) => c.state === 'claimed').length,
+    (n, k) => n + k.chores.filter((c) => c.state === 'claimed' && c.can_approve).length,
     0,
   );
   return (
@@ -285,7 +353,7 @@ function ChoresCard({ snap, now, act }: { snap: FamilySnapshot; now: Date; act: 
       <div className="fam-card-h">
         <h2>{snap.role === 'child' ? 'Moje povinnosti' : 'Povinnosti dětí'}</h2>
         {waiting > 0 && (
-          <span className="fam-meta">
+          <span className="fam-meta" data-tone="warn">
             {czCount(waiting, 'čeká na schválení', 'čekají na schválení', 'čeká na schválení')}
           </span>
         )}
@@ -295,7 +363,7 @@ function ChoresCard({ snap, now, act }: { snap: FamilySnapshot; now: Date; act: 
           <KidCard
             key={kid.id}
             kid={kid}
-            color={KID_COLORS[i % KID_COLORS.length]!}
+            color={members[i]?.color ?? KID_COLORS[0]!}
             now={now}
             act={act}
           />
@@ -389,6 +457,13 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [clock, setClock] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!kiosk) return;
+    const t = window.setInterval(() => setClock(new Date()), 10_000);
+    return () => window.clearInterval(t);
+  }, [kiosk]);
 
   const load = useCallback(async () => {
     if (!api) return;
@@ -437,23 +512,35 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     claim: (kid, chore) => void run(`${kid}/${chore}`, () => api.claim(kid, chore)),
     approve: (kid, chore) => void run(`${kid}/${chore}`, () => api.approve(kid, chore)),
   };
-  const today = <TodayCard snap={snap} now={now} admin={admin} />;
-  const week = <WeekCard snap={snap} now={now} compact={kiosk} />;
-  const chores = <ChoresCard snap={snap} now={now} act={act} />;
-  const shop = (
+  const members = membersOf(snap);
+  const slot = (name: string, node: React.ReactNode) => (
+    <div className="fam-slot" data-slot={name}>
+      {node}
+    </div>
+  );
+  const today = slot('today', <TodayCard snap={snap} now={now} admin={admin} members={members} />);
+  const week = slot('week', <WeekCard snap={snap} now={now} members={members} />);
+  const chores = slot('chores', <ChoresCard snap={snap} now={now} act={act} members={members} />);
+  const shop = slot(
+    'shop',
     <ShoppingCard
       snap={snap}
       busy={busy}
       onAdd={(s) => run('add', () => api.addItem(s))}
       onToggle={(uid, done) => void run(uid, () => api.setItemDone(uid, done))}
-    />
+    />,
   );
   return (
     <div className="fam" data-kiosk={kiosk || undefined} data-testid="family" data-role={snap.role}>
       <style>{familyStyles}</style>
       <header className="fam-head">
         <h1 className="hb-sr-only">Rodina</h1>
-        <p>{longDate(now)}</p>
+        {kiosk && (
+          <time className="fam-clock" data-testid="family-clock">
+            {timeLabel(clock.toISOString())}
+          </time>
+        )}
+        <p>{longDate(kiosk ? clock : now)}</p>
       </header>
       {error && (
         <p className="fam-err" role="alert">
@@ -473,11 +560,11 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         <div className="fam-grid" data-testid="family-grid">
           <div className="fam-col">
             {today}
-            {chores}
+            {week}
           </div>
           <div className="fam-col">
+            {chores}
             {shop}
-            {week}
           </div>
         </div>
       )}

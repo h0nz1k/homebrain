@@ -51,4 +51,38 @@ describe('FamilyView', () => {
     expect(screen.queryByTestId('family-chores')).toBeNull();
     expect(screen.queryByTestId('family-shopping')).toBeNull();
   });
+
+  it('owner: today points count only done chores, pending shown separately, done last', async () => {
+    await mount('owner');
+    const dcera = screen.getAllByTestId('family-kid').find((k) => k.dataset.kid === 'dcera')!;
+    expect(dcera.querySelector('[data-testid="family-today-points"]')!.textContent).toContain('+2');
+    expect(dcera.querySelector('[data-testid="family-pending-points"]')!.textContent).toBe(
+      '+4 čeká',
+    );
+    expect(dcera.querySelector('[data-testid="family-total"]')!.textContent).toContain('128');
+    const states = Array.from(
+      dcera.querySelectorAll<HTMLElement>('[data-testid="family-chore"]'),
+    ).map((li) => li.dataset.state);
+    expect(states).toEqual(['todo', 'claimed', 'done']);
+  });
+
+  it('calendar: next event is highlighted once and events show who they belong to', async () => {
+    await mount('owner');
+    const next = screen.queryByTestId('family-next');
+    const listed = screen.getAllByTestId('family-event').map((li) => li.textContent);
+    if (next)
+      expect(listed.some((t) => t?.includes(next.querySelector('strong')!.textContent!))).toBe(
+        false,
+      );
+    expect(document.querySelectorAll('[data-testid="family-who"]').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('family-legend').textContent).toContain('Škola');
+  });
+
+  it('kiosk: clock, full 7-day list, parent approves instead of a dangling counter', async () => {
+    await mount('kiosk', 'full', true);
+    expect(screen.getByTestId('family-clock')).toBeTruthy();
+    expect(screen.getAllByTestId('family-day')).toHaveLength(7);
+    expect(screen.getByTestId('family-chores').textContent).toContain('Schválí rodič');
+    expect(screen.getByTestId('family-chores').textContent).not.toContain('čeká na schválení');
+  });
 });

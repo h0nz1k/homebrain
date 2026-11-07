@@ -18,10 +18,15 @@ test.describe('Rodina', () => {
   test('rodič: dnešek, 7 dní, povinnosti obou dětí a nákup', async ({ page }) => {
     await open(page);
     await expect(page.getByTestId('family-today')).toContainText('Dnes v rodině');
-    await expect(page.getByTestId('family-event')).toHaveCount(4);
+    // The running/next event is highlighted once, not repeated in the list.
+    const listed =
+      (await page.getByTestId('family-event').count()) +
+      (await page.getByTestId('family-next').count());
+    expect(listed).toBe(4);
     await expect(page.getByTestId('family-day')).toHaveCount(7);
     await expect(page.getByTestId('family-kid')).toHaveCount(2);
-    await expect(page.getByTestId('family-points').first()).toContainText('128');
+    await expect(page.getByTestId('family-total').first()).toContainText('128');
+    await expect(page.getByTestId('family-pending-points')).toHaveText('+4 čeká');
     await expect(page.getByTestId('family-shop-item')).toHaveCount(6);
     await noSidewaysScroll(page);
   });
@@ -57,7 +62,22 @@ test.describe('Rodina', () => {
     await open(page, '?role=kiosk&kiosk=1');
     await expect(page.getByTestId('family')).toHaveAttribute('data-kiosk', 'true');
     await expect(page.getByTestId('family-approve')).toHaveCount(0);
-    await expect(page.getByTestId('family-chore-check').first()).toBeVisible();
+    await expect(page.getByTestId('family-clock')).toBeVisible();
+    await expect(page.getByTestId('family-day')).toHaveCount(7);
+    await expect(page.getByTestId('family-chores')).toContainText('Schválí rodič');
+    const check = await page.getByTestId('family-chore-check').first().boundingBox();
+    expect(check!.width).toBeGreaterThanOrEqual(48);
+    const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(48);
+    await noSidewaysScroll(page);
+  });
+
+  test('mobil: nákup hned pod dneškem, před povinnostmi', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await open(page);
+    const top = async (id: string) => (await page.getByTestId(id).boundingBox())!.y;
+    expect(await top('family-shopping')).toBeLessThan(await top('family-chores'));
+    expect(await top('family-today')).toBeLessThan(await top('family-shopping'));
     await noSidewaysScroll(page);
   });
 
