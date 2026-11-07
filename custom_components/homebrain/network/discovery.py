@@ -199,9 +199,14 @@ def build_snapshot(
     all_entities = list(ents.entities.values())
     unifi = [e for e in all_entities if e.platform == UNIFI]
     by_device: dict[str, list[er.RegistryEntry]] = defaultdict(list)
+    # Client trackers that HA creates disabled-by-default (and the user enables later) have no
+    # device entry; they are still clients and must be listed (e.g. robots, locks, tablets).
+    loose_trackers: list[er.RegistryEntry] = []
     for e in unifi:
         if e.device_id:
             by_device[e.device_id].append(e)
+        elif e.domain == "device_tracker":
+            loose_trackers.append(e)
 
     important_cfg = {
         item["id"]: item for item in options.get("important", []) if isinstance(item, Mapping)
@@ -212,7 +217,7 @@ def build_snapshot(
     ssids: list[dict[str, Any]] = []
     mac_owner: dict[str, dict[str, Any]] = {}
     uplink_macs: dict[str, str] = {}
-    trackers: list[er.RegistryEntry] = []
+    trackers: list[er.RegistryEntry] = list(loose_trackers)
 
     for device_id, entities in by_device.items():
         keys = {e.translation_key for e in entities}
