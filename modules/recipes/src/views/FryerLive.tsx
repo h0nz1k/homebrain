@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useBackClosable, type EntityStore } from '@homebrain/ha-client';
-import { Button, ProgressRing, Sheet, Stepper, toast, useAssetManifest } from '@homebrain/ui';
+import {
+  Button,
+  ConfirmDialog,
+  ProgressRing,
+  Stepper,
+  toast,
+  useAssetManifest,
+} from '@homebrain/ui';
 import { RecipesApiError, type RecipesApi } from '../api.js';
 import {
   detectFryerEntities,
@@ -50,24 +57,17 @@ function useNow(ticking: boolean) {
 function StopConfirm({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
   useBackClosable(onClose);
   return (
-    <Sheet
+    <ConfirmDialog
       title="Zastavit fritézu?"
+      confirmLabel="Zastavit"
+      cancelLabel="Nechat péct"
+      onConfirm={onConfirm}
       onClose={onClose}
-      dismissOnScrim
       data-testid="recipes-fryer-stop-dialog"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Nechat péct
-          </Button>
-          <Button variant="primary" data-testid="recipes-fryer-stop-confirm" onClick={onConfirm}>
-            Zastavit
-          </Button>
-        </>
-      }
+      confirmTestId="recipes-fryer-stop-confirm"
     >
-      <p>Pečení se ukončí a zbývající čas se zahodí. Znovu spustit jde jen na fritéze.</p>
-    </Sheet>
+      Pečení se ukončí a zbývající čas se zahodí. Znovu spustit jde jen na fritéze.
+    </ConfirmDialog>
   );
 }
 

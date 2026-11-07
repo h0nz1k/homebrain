@@ -5,6 +5,8 @@
  * `hass` assigned across realms, exactly like `ha-panel-custom` does.
  *
  * `window.__hbHarness.disconnect()` / `.reconnect()` simulate a WS drop and HA's reconnect.
+ * `?kiosk=1` mounts the kiosk panel (`config.kiosk`), `&admin=0` signs in a non-admin kiosk user;
+ * `.reconnectCalls()` counts the panel's own `connection.reconnect()` retries.
  * All data are synthetic (fixed day of MOCK_NOW, 2026-10-31 Europe/Prague).
  */
 import type { EntityStateLike, HassLike } from '@homebrain/ha-client';
@@ -49,11 +51,14 @@ const calendars: Record<string, unknown[]> = {
   ],
 };
 
+const kioskPanel = params.get('kiosk') === '1';
+const isAdmin = params.get('admin') !== '0';
 const connection = createMockConnection({
   'homebrain/session/get': {
-    role: 'owner',
+    role: isAdmin ? 'owner' : 'kiosk',
     visible_modules: ['today', 'weather', 'energy', 'waste', 'family'],
-    is_admin: true,
+    is_admin: isAdmin,
+    kiosk: !isAdmin,
   },
   'homebrain/bindings/get': {
     energy: { energy_spot_price_electricity: 'sensor.harness_spot_price' },
@@ -74,10 +79,15 @@ connection.subscribeMessage = async <T>(
   return () => {};
 };
 
+let reconnectCalls = 0;
+(connection as { reconnect?: (force?: boolean) => void }).reconnect = () => {
+  reconnectCalls += 1;
+};
+
 let hass: HassLike & { connected: boolean } = {
   connection,
   states,
-  user: { id: 'harness', name: 'Harness', is_admin: true },
+  user: { id: 'harness', name: 'Harness', is_admin: isAdmin },
   language: 'cs',
   themes: { darkMode: params.get('theme') !== 'light' },
   connected: true,
@@ -86,7 +96,7 @@ type PanelElement = HTMLElement & {
   hass: HassLike;
   narrow: boolean;
   route: { path: string };
-  panel: { config: { module: string } };
+  panel: { config: { module?: string; kiosk?: boolean } };
 };
 let panel: PanelElement | undefined;
 const push = (next: Partial<typeof hass>) => {
@@ -102,7 +112,7 @@ iframe.addEventListener('load', async () => {
   await child.customElements.whenDefined('homebrain-panel');
   // Created in the iframe realm, `hass` comes from this (parent) realm – as in HA.
   panel = child.document.createElement('homebrain-panel') as PanelElement;
-  panel.panel = { config: { module: 'today' } };
+  panel.panel = kioskPanel ? { config: { kiosk: true } } : { config: { module: 'today' } };
   panel.route = { path: '' };
   panel.narrow = window.matchMedia('(max-width: 600px)').matches;
   panel.hass = hass;
@@ -118,10 +128,11 @@ setInterval(() => {
 
 declare global {
   interface Window {
-    __hbHarness?: { disconnect: () => void; reconnect: () => void };
+    __hbHarness?: { disconnect: () => void; reconnect: () => void; reconnectCalls: () => number };
   }
 }
 window.__hbHarness = {
+  reconnectCalls: () => reconnectCalls,
   disconnect: () => {
     connection.emit('disconnected');
     push({ connected: false });

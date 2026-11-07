@@ -15,6 +15,8 @@ export interface ConnectionLike {
     options?: { resubscribe?: boolean },
   ): Promise<() => Promise<void> | void>;
   connected?: boolean;
+  /** home-assistant-js-websocket `Connection.reconnect(force)` – used by the kiosk overlay. */
+  reconnect?: (force?: boolean) => void;
   addEventListener?: (event: 'ready' | 'disconnected', listener: () => void) => void;
   removeEventListener?: (event: 'ready' | 'disconnected', listener: () => void) => void;
 }

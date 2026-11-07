@@ -117,6 +117,127 @@
   color: var(--hb-t2);
   text-wrap: pretty;
 }
+/* ── ErrorState / Skeleton (review §11.4) ─────────────────────────────── */
+.hb-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hb-sp-2);
+  padding: var(--hb-sp-8) var(--hb-sp-6);
+  text-align: center;
+  animation: hb-fade-up var(--hb-dur-slow) var(--hb-ease-out);
+}
+.hb-error-state::before {
+  /* Same tile language as EmptyState, amber dot = 'something went wrong' (red stays for alerts). */
+  content: '';
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--hb-sp-3);
+  border-radius: 22px;
+  background:
+    linear-gradient(var(--hb-warn), var(--hb-warn)) 34px 20px / 4px 22px no-repeat,
+    radial-gradient(circle at 36px 50px, var(--hb-warn) 0 2.5px, transparent 3.5px),
+    radial-gradient(
+      120% 120% at 20% 0%,
+      color-mix(in srgb, var(--hb-warn) 22%, transparent),
+      transparent 70%
+    ),
+    var(--hb-s1);
+  box-shadow:
+    inset 0 0 0 1px var(--hb-edge-strong),
+    var(--hb-elev-2);
+}
+.hb-error-state h2 {
+  margin: 0;
+  font-size: var(--hb-type-title);
+  font-weight: 600;
+  letter-spacing: var(--hb-tracking-title);
+  text-wrap: balance;
+}
+.hb-error-state p {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--hb-type-body);
+  line-height: var(--hb-leading-body);
+  color: var(--hb-t2);
+  text-wrap: pretty;
+}
+.hb-error-state .hb-btn {
+  margin-top: var(--hb-sp-2);
+}
+.hb-error-state[data-compact] {
+  align-items: flex-start;
+  padding: var(--hb-sp-4);
+  text-align: left;
+  border-radius: var(--hb-radius-md);
+  background: color-mix(in srgb, var(--hb-warn) 10%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-warn) 35%, transparent);
+}
+.hb-error-state[data-compact]::before {
+  display: none;
+}
+.hb-error-state[data-compact] h2 {
+  font-size: var(--hb-type-body);
+}
+.hb-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hb-sp-3);
+  padding: var(--hb-sp-4) 0;
+}
+.hb-skeleton-line,
+.hb-skeleton-block {
+  display: block;
+  height: 14px;
+  border-radius: var(--hb-radius-xs);
+  background: color-mix(in srgb, var(--hb-t1) 8%, var(--hb-s1));
+}
+.hb-skeleton-block {
+  height: 160px;
+  border-radius: var(--hb-radius-md);
+}
+.hb-skeleton-line:nth-child(3n + 2) {
+  width: 92%;
+}
+.hb-skeleton-line:nth-child(3n) {
+  width: 64%;
+}
+.hb-skeleton-line:last-child:not(:nth-child(2)) {
+  width: 42%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hb-skeleton-line,
+  .hb-skeleton-block {
+    background:
+      linear-gradient(
+          100deg,
+          transparent 30%,
+          color-mix(in srgb, var(--hb-t1) 6%, transparent) 50%,
+          transparent 70%
+        )
+        0 0 / 300% 100%,
+      color-mix(in srgb, var(--hb-t1) 8%, var(--hb-s1));
+    /* Finite: a skeleton that shows longer than ~6 s has become an error state anyway. */
+    animation: hb-skeleton-sheen 1.6s var(--hb-ease-out) 4;
+  }
+}
+@keyframes hb-skeleton-sheen {
+  from {
+    background-position:
+      100% 0,
+      0 0;
+  }
+  to {
+    background-position:
+      0 0,
+      0 0;
+  }
+}
+.hb-confirm-error {
+  margin: var(--hb-sp-3) 0 0;
+  color: var(--hb-crit);
+  font-weight: 550;
+}
 .hb-pill {
   --hb-tone: var(--hb-t2);
   --hb-on-tone: var(--hb-on-ac);

@@ -58,7 +58,27 @@ describe('WeatherView', () => {
 
   it('bez připojení nezobrazí fixture, ale stav nedostupnosti', async () => {
     render(<WeatherView />);
-    expect((await screen.findByRole('status')).textContent).toContain('není připojena');
+    const alert = await screen.findByTestId('weather-error');
+    expect(alert.getAttribute('role')).toBe('alert');
+    expect(alert.textContent).toContain('Počasí není k dispozici');
+    expect(alert.textContent).toContain('není připojena');
+    // Without an adapter there is nothing to retry.
+    expect(screen.queryByRole('button', { name: 'Zkusit znovu' })).toBeNull();
+  });
+
+  it('chyba načtení: ErrorState se „Zkusit znovu“, další pokus načte data', async () => {
+    const ok = createMockWeatherAdapter('default');
+    let calls = 0;
+    setWeatherAdapterFactory(() => ({
+      ...ok,
+      pollMs: 0,
+      fetch: () => (++calls === 1 ? Promise.reject(new Error('timeout')) : ok.fetch()),
+    }));
+    render(<WeatherView />);
+    expect((await screen.findByTestId('weather-error')).textContent).toContain('timeout');
+    fireEvent.click(screen.getByRole('button', { name: 'Zkusit znovu' }));
+    expect(await screen.findByTestId('weather-now-temp')).toBeTruthy();
+    expect(calls).toBe(2);
   });
 
   it('nedostupná data: pomlčky, ne vymyšlená čísla', async () => {

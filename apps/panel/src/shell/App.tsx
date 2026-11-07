@@ -21,6 +21,7 @@ import { Toaster } from '@homebrain/ui';
 import { modules } from '../modules';
 import { injectPanelFonts } from './injectFonts';
 import { t } from './i18n/cs';
+import { ConnectionLostOverlay, KioskAdminWarning } from './Reconnect';
 import tokens from '@homebrain/ui/tokens.css?inline';
 import components from '@homebrain/ui/components.css?inline';
 import shellStyles from './shell.css?inline';
@@ -224,7 +225,8 @@ export const App = memo(function App({
           </header>
         )}
         <main>
-          {!connected && (
+          {kiosk && session?.isAdmin ? <KioskAdminWarning /> : null}
+          {!connected && !kiosk && (
             <p className="hb-disconnected" role="status">
               {t('disconnected')}
             </p>
@@ -246,6 +248,12 @@ export const App = memo(function App({
           )}
         </main>
       </div>
+      {kiosk ? (
+        <ConnectionLostOverlay
+          connected={connected}
+          reconnect={connection?.reconnect ? () => connection.reconnect?.(true) : undefined}
+        />
+      ) : null}
       <Toaster />
     </div>
   );

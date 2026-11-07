@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties, PointerEvent as RPointerEvent, ReactNode } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
-import { Pill } from '@homebrain/ui';
+import { ErrorState, Pill, Skeleton } from '@homebrain/ui';
 import type { Tone } from '@homebrain/ui';
 import { getWeatherAdapter, type WeatherState } from '../adapter.js';
 import type {
@@ -1336,6 +1336,7 @@ function SourcesCard({ d }: { d: WeatherSnapshot }) {
 export default function WeatherView({ connection }: Partial<ModuleViewProps>) {
   const adapter = useMemo(() => getWeatherAdapter(connection), [connection]);
   const [state, setState] = useState<WeatherState>({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!adapter) return;
     let alive = true;
@@ -1352,7 +1353,11 @@ export default function WeatherView({ connection }: Partial<ModuleViewProps>) {
       alive = false;
       if (timer) clearInterval(timer);
     };
-  }, [adapter]);
+  }, [adapter, attempt]);
+  const retry = () => {
+    setState({ kind: 'loading' });
+    setAttempt((n) => n + 1);
+  };
   const view: WeatherState = adapter
     ? state
     : { kind: 'error', message: 'Integrace HomeBrain není připojena.' };
@@ -1362,9 +1367,22 @@ export default function WeatherView({ connection }: Partial<ModuleViewProps>) {
       <div className="wx" data-testid="weather">
         <style>{weatherStyles}</style>
         <h1 className="wx-h1">Počasí</h1>
-        <p className="wx-empty" role="status">
-          {view.kind === 'loading' ? 'Načítám počasí…' : `Počasí není k dispozici: ${view.message}`}
-        </p>
+        {view.kind === 'loading' ? (
+          <Skeleton
+            variant="card"
+            lines={3}
+            label="Načítám počasí…"
+            data-testid="weather-loading"
+          />
+        ) : (
+          <ErrorState
+            title="Počasí není k dispozici"
+            onRetry={adapter ? retry : undefined}
+            data-testid="weather-error"
+          >
+            {view.message}
+          </ErrorState>
+        )}
       </div>
     );
   const d = view.data;
