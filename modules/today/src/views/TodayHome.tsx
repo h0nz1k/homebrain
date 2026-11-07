@@ -33,7 +33,9 @@ export function TodayHome({ api, kiosk }: { api: HomeApi | null; kiosk: boolean 
     };
   }, [api]);
   if (!api || meals === undefined) return null;
-  const rows = meals === 'error' ? [] : meals.meals;
+  const all = meals === 'error' ? [] : meals.meals;
+  // Wall tablet: two compact lines (2 × 2) keep Dnes within 1280×800 without scrolling.
+  const rows = kiosk ? all.slice(0, 4) : all;
   const hint = meals !== 'error' && meals.can_plan ? ' – naplánujte v Mealie' : '';
   return (
     <div className="today-home" data-testid="today-home">
@@ -79,7 +81,12 @@ export function TodayHome({ api, kiosk }: { api: HomeApi | null; kiosk: boolean 
           <span className="today-home-title">Povinnosti dětí dnes</span>
           <span className="today-chore-list">
             {kids.map((kid) => (
-              <span key={kid.id} className="today-chore-kid" data-testid="today-chore-kid">
+              <span
+                key={kid.id}
+                className="today-chore-kid"
+                data-testid="today-chore-kid"
+                data-late={kid.overdue > 0 ? '' : undefined}
+              >
                 <span className="today-chore-name">{kid.name}</span>
                 <b className="today-chore-count">
                   {kid.done}/{kid.total}
