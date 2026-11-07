@@ -89,7 +89,7 @@ afterEach(() => {
 it('admin vidí klidné upozornění na konec svozových dat s radou Co s tím', async () => {
   await setup([dated('2030-07-30', 'paper')]);
   const notice = screen.getByRole('region', { name: 'Konec svozových dat' });
-  expect(notice.textContent).toContain('Svozový kalendář končí 30. 7. – doplňte rozpis na 2031');
+  expect(notice.textContent).toContain('Svozový kalendář končí 30. 7. – doplňte rozpis na 2030');
   expect(within(notice).getByText('Co s tím')).toBeDefined();
   expect(notice.getAttribute('data-severity')).toBe('info');
 });
@@ -130,6 +130,6 @@ it('po konci dat hero neukazuje vymyšlený termín, jen že další svozy nejso
   expect(hero.textContent).not.toContain('Žádné naplánované svozy');
   expect(hero.querySelector('time')).toBeNull();
   expect(screen.getByRole('region', { name: 'Konec svozových dat' }).textContent).toContain(
-    'Svozový kalendář skončil 4. 7. – doplňte rozpis na 2031',
+    'Svozový kalendář skončil 4. 7. – doplňte rozpis na 2030',
   );
 });

@@ -112,7 +112,7 @@ async def test_repair_issue_only_below_14_days(hass: HomeAssistant):
     last = today + timedelta(days=10)
     assert issue.translation_placeholders == {
         "last_date": f"{last.day}. {last.month}. {last.year}",
-        "next_year": str(last.year + 1),
+        "next_year": str(last.year + 1 if last.month == 12 else last.year),
     }
 
     # New schedule published -> the issue disappears by itself.
@@ -123,6 +123,13 @@ async def test_repair_issue_only_below_14_days(hass: HomeAssistant):
     async_update_horizon_issue(hass, horizon_in(5))
     async_update_horizon_issue(hass, compute_horizon([], dt_util.now()))
     assert registry.async_get_issue(DOMAIN, REPAIR_ISSUE_ID) is None
+
+
+async def test_repair_issue_asks_for_next_year_when_december_ends(hass: HomeAssistant):
+    records = [rec("2026-12-30", "Plasty")]
+    async_update_horizon_issue(hass, compute_horizon(records, datetime(2026, 12, 20, tzinfo=UTC)))
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, REPAIR_ISSUE_ID)
+    assert issue.translation_placeholders == {"last_date": "30. 12. 2026", "next_year": "2027"}
 
 
 def test_date_only_records_keep_iso_dates():

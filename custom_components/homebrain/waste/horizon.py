@@ -85,6 +85,7 @@ def async_update_horizon_issue(hass: HomeAssistant, horizon: Mapping[str, Any]) 
         translation_key=REPAIR_ISSUE_ID,
         translation_placeholders={
             "last_date": f"{last.day}. {last.month}. {last.year}",
-            "next_year": str(last.year + 1),
+            # Schedules are published per calendar year: ending in December = next year missing.
+            "next_year": str(last.year + 1 if last.month == 12 else last.year),
         },
     )

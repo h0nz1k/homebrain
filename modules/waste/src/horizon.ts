@@ -37,13 +37,14 @@ export function horizonNotice(horizon: WasteHorizon | null | undefined): Horizon
   if (!horizon?.warning || !horizon.last_date) return null;
   if (horizon.status !== 'ending' && horizon.status !== 'ended') return null;
   const [year, month, day] = horizon.last_date.split('-').map(Number) as [number, number, number];
-  const next = year + 1;
+  // Rozpis obvykle platí na kalendářní rok: konec v prosinci = chybí příští rok.
+  const next = month === 12 ? year + 1 : year;
   const verb = horizon.status === 'ended' ? 'skončil' : 'končí';
   return {
     title: `Svozový kalendář ${verb} ${day}. ${month}. – doplňte rozpis na ${next}`,
     help: [
       `Ověřte na webu obce nebo svozové firmy, že už je rozpis svozů na ${next} zveřejněný.`,
-      'Obnovte zdroj kalendáře (např. akcí waste_collection_schedule.fetch_data nebo vlastní obnovou dat) – panel se pak aktualizuje sám.',
+      'Obnovte zdroj kalendáře v Home Assistantu (akce waste_collection_schedule.fetch_data nebo vlastní obnova dat) – panel se pak aktualizuje sám.',
       'Upozornění zmizí samo, jakmile budou známé pozdější termíny.',
     ],
   };

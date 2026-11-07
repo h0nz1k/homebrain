@@ -28,6 +28,11 @@ describe('horizonNotice', () => {
     expect(notice.help.length).toBeGreaterThanOrEqual(2);
     expect(notice.help.join(' ')).toContain('2027');
   });
+  it('konec před prosincem žádá doplnit rozpis letošního roku', () => {
+    expect(horizonNotice({ ...ending, last_date: '2026-11-23' })!.title).toBe(
+      'Svozový kalendář končí 23. 11. – doplňte rozpis na 2026',
+    );
+  });
   it('po konci dat mluví v minulém čase', () => {
     expect(horizonNotice({ ...ending, status: 'ended', days_left: -3 })!.title).toBe(
       'Svozový kalendář skončil 30. 12. – doplňte rozpis na 2027',

@@ -370,6 +370,7 @@ export const wasteStyles = `
 .wb-history-next { grid-column: 2 / -1; margin-top: -6px; color: var(--hb-t2); font-size: 13px; }
 /* Konec svozových dat: klidná informace pro admina (žádná výstražná barva). */
 .wb-horizon { display: grid; gap: 6px; padding: 14px 18px; border-radius: var(--hb-radius-md, 14px); background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); }
+.wb-horizon-title, .wb-horizon-help { max-width: 72ch; }
 .wb-horizon-title { display: flex; align-items: flex-start; gap: 10px; margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--hb-t1); }
 .wb-horizon-title i { flex: 0 0 18px; height: 18px; margin-top: 1px; background: var(--hb-t2); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='2.5' y='3.5' width='13' height='12' rx='2.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3Cpath d='M2.5 7.5h13M6 2v3M12 2v3M7 11h4' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .wb-horizon-help { margin-left: 28px; font-size: 14px; color: var(--hb-t2); }
