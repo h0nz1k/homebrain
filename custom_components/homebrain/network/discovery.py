@@ -133,21 +133,23 @@ def _private_host(host: str) -> bool:
         return False
 
 
-def _internet(hass: HomeAssistant, entities: Iterable[er.RegistryEntry]) -> dict[str, Any] | None:
-    """Pick the ping config entry that pings a public host; fallback = the first one."""
+def _ping_entries(
+    hass: HomeAssistant, entities: Iterable[er.RegistryEntry]
+) -> dict[str, tuple[bool, list[er.RegistryEntry]]]:
+    """ping config entries -> (pings a private LAN host, its entities)."""
     by_entry: dict[str, list[er.RegistryEntry]] = defaultdict(list)
     for e in entities:
         if e.platform == PING and e.config_entry_id and not e.disabled_by:
             by_entry[e.config_entry_id].append(e)
-    if not by_entry:
-        return None
-
-    def rank(entry_id: str) -> int:
+    out = {}
+    for entry_id, items in by_entry.items():
         cfg = hass.config_entries.async_get_entry(entry_id)
         host = str((cfg.options.get("host") or cfg.data.get("host")) if cfg else "")
-        return 1 if not host or _private_host(host) else 0
+        out[entry_id] = (bool(host) and _private_host(host), items)
+    return out
 
-    chosen = by_entry[min(by_entry, key=rank)]
+
+def _ping_status(hass: HomeAssistant, chosen: Iterable[er.RegistryEntry]) -> dict[str, Any]:
     out: dict[str, Any] = {
         "online": None,
         "since": None,
@@ -167,6 +169,21 @@ def _internet(hass: HomeAssistant, entities: Iterable[er.RegistryEntry]) -> dict
         elif e.translation_key == "round_trip_time_mdev":
             out["jitter_ms"] = _num(state.state)
     return out
+
+
+def _internet(hass: HomeAssistant, entities: Iterable[er.RegistryEntry]) -> dict[str, Any] | None:
+    """Pick the ping config entry that pings a public host; fallback = the first one."""
+    pings = _ping_entries(hass, entities)
+    if not pings:
+        return None
+    chosen = min(pings, key=lambda k: 1 if pings[k][0] else 0)
+    return _ping_status(hass, pings[chosen][1])
+
+
+def _gateway(hass: HomeAssistant, entities: Iterable[er.RegistryEntry]) -> dict[str, Any] | None:
+    """The router = a ping config entry with a private (LAN) host, if there is one."""
+    lan = [items for private, items in _ping_entries(hass, entities).values() if private]
+    return _ping_status(hass, lan[0]) if lan else None
 
 
 def build_snapshot(
@@ -339,6 +356,7 @@ def build_snapshot(
         "updated_at": now,
         "source": "ha",
         "internet": _internet(hass, all_entities),
+        "gateway": _gateway(hass, all_entities),
         "floors": floors,
         "aps": sorted(aps, key=lambda a: (-(a["clients"] or 0), a["name"])),
         "switches": sorted(switches, key=lambda s: s["name"]),
