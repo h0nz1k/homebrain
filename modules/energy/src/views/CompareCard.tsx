@@ -4,11 +4,14 @@ import {
   COMPARE_SERIES,
   barScale,
   compareDelta,
+  compareHeadline,
   deltaTone,
   formatCompareValue,
   formatDelta,
   monthName,
+  niceTicks,
   partialRangeLabel,
+  scopeLabel,
   ytdRangeLabel,
   type Comparison,
   type ComparePeriod,
@@ -33,6 +36,8 @@ function Tile(props: {
   testId: string;
   main?: boolean;
   sub?: string | null;
+  /** Context value without a delta (e.g. the whole previous month). */
+  context?: string | null;
 }) {
   const delta = props.against === undefined ? null : compareDelta(props.against, props.value);
   const tone = deltaTone(props.seriesKey, delta);
@@ -61,6 +66,11 @@ function Tile(props: {
       ) : (
         props.sub && <span className="en-cmp-sub">{props.sub}</span>
       )}
+      {props.context && (
+        <span className="en-cmp-context" data-testid={`${props.testId}-context`}>
+          {props.context}
+        </span>
+      )}
     </div>
   );
 }
@@ -78,79 +88,136 @@ function MonthChart({
   month: number;
   partialLabel: string | null;
 }) {
+  const [active, setActive] = useState<number>(month - 1);
   const { this_year: thisYear, last_year: lastYear } = series.monthly;
-  const max = barScale([thisYear, lastYear]) * 1.08;
+  const ticks = niceTicks(barScale([thisYear, lastYear]));
+  const top = ticks[ticks.length - 1]!;
+  const pct = (v: number) => `${(v / top) * 100}%`;
   const noLastYear = lastYear.every((v) => v === null);
+  const unit = meta.key === 'cost' ? 'Kč' : 'kWh';
+  const tick = (v: number) => formatCompareValue(v, meta.key).replace(/\s?(kWh|Kč)$/, '');
+  // Bars of the running month = the tile values (like-for-like); other months = whole months.
+  const values = (i: number) => {
+    const current = i + 1 === month;
+    return {
+      current,
+      thisValue: i + 1 > month ? null : (thisYear[i] ?? null),
+      lastValue: current ? series.month.last_year : (lastYear[i] ?? null),
+      fullLast: current ? (lastYear[i] ?? null) : null,
+    };
+  };
+  const readout = (i: number) => {
+    const v = values(i);
+    const name = cap(monthName(i + 1));
+    const parts = [
+      `${name} ${year}${v.current && partialLabel ? ` (${partialLabel})` : ''}: ${formatCompareValue(v.thisValue, meta.key)}`,
+      `${year - 1}${v.current ? ' stejné dny' : ''}: ${formatCompareValue(v.lastValue, meta.key)}`,
+    ];
+    if (v.current && v.fullLast !== null)
+      parts.push(
+        `celý ${monthName(i + 1)} ${year - 1}: ${formatCompareValue(v.fullLast, meta.key)}`,
+      );
+    return parts.join(' · ');
+  };
   return (
     <div className="en-cmp-chart-wrap">
-      <div
-        className="en-cmp-chart"
-        data-testid="energy-compare-chart"
-        role="img"
-        aria-label={`${meta.label} po měsících, ${year} proti ${year - 1}`}
-      >
-        {thisYear.map((value, i) => {
-          const current = i + 1 === month;
-          const fullLast = lastYear[i] ?? null;
-          // Running month: last year's bar is the like-for-like range, the full month a ghost.
-          const last = current ? series.month.last_year : fullLast;
-          const future = i + 1 > month;
-          const pct = (v: number) => `${(v / max) * 100}%`;
-          return (
-            <div
-              key={i}
-              className="en-cmp-col"
-              data-current={current || undefined}
-              data-testid="energy-compare-month"
+      <p className="en-cmp-readout" data-testid="energy-compare-readout" aria-live="polite">
+        {readout(active)}
+      </p>
+      <div className="en-cmp-plot">
+        <div className="en-cmp-yaxis" data-testid="energy-compare-yaxis" aria-hidden="true">
+          <span className="en-cmp-unit">{unit}</span>
+          {ticks.map((t) => (
+            <span
+              key={t}
+              className="en-cmp-tick"
+              data-testid="energy-compare-tick"
+              style={{ bottom: pct(t) }}
             >
-              <div className="en-cmp-pair">
-                <span className="en-cmp-slot">
-                  {current && fullLast !== null && (
-                    <span
-                      className="en-cmp-ghost"
-                      style={{ height: pct(fullLast) }}
-                      title={`${cap(monthName(i + 1))} ${year - 1} celý: ${formatCompareValue(fullLast, meta.key)}`}
-                    />
-                  )}
-                  {last !== null && (
-                    <span
-                      className="en-cmp-bar en-cmp-bar--last"
-                      style={{ height: pct(last) }}
-                      title={`${cap(monthName(i + 1))} ${year - 1}${current ? ' (stejné dny)' : ''}: ${formatCompareValue(last, meta.key)}`}
-                    />
-                  )}
+              {tick(t)}
+            </span>
+          ))}
+        </div>
+        <div
+          className="en-cmp-chart"
+          data-testid="energy-compare-chart"
+          role="group"
+          aria-label={`${meta.label} po měsících, ${year} proti ${year - 1}`}
+        >
+          <div className="en-cmp-grid" aria-hidden="true">
+            {ticks.map((t) => (
+              <i key={t} style={{ bottom: pct(t) }} />
+            ))}
+          </div>
+          {thisYear.map((_, i) => {
+            const { current, thisValue, lastValue, fullLast } = values(i);
+            return (
+              <button
+                type="button"
+                key={i}
+                className="en-cmp-col"
+                data-current={current || undefined}
+                data-active={i === active || undefined}
+                data-testid="energy-compare-month"
+                aria-pressed={i === active}
+                aria-label={readout(i)}
+                onClick={() => setActive(i)}
+              >
+                <span className="en-cmp-pair">
+                  <span className="en-cmp-slot">
+                    {fullLast !== null && (
+                      <span
+                        className="en-cmp-ghost"
+                        data-value={fullLast}
+                        style={{ height: pct(fullLast) }}
+                      />
+                    )}
+                    {lastValue !== null && (
+                      <span
+                        className="en-cmp-bar en-cmp-bar--last"
+                        data-value={lastValue}
+                        style={{ height: pct(lastValue) }}
+                      />
+                    )}
+                  </span>
+                  <span className="en-cmp-slot">
+                    {thisValue !== null && (
+                      <span
+                        className="en-cmp-bar en-cmp-bar--this"
+                        data-value={thisValue}
+                        style={{ height: pct(thisValue), background: meta.color }}
+                      />
+                    )}
+                  </span>
                 </span>
-                <span className="en-cmp-slot">
-                  {!future && value !== null && (
-                    <span
-                      className="en-cmp-bar en-cmp-bar--this"
-                      style={{ height: pct(value), background: meta.color }}
-                      title={`${cap(monthName(i + 1))} ${year}: ${formatCompareValue(value, meta.key)}`}
-                    />
-                  )}
-                </span>
-              </div>
-              <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
-            </div>
-          );
-        })}
+                <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="en-legend">
+      <div className="en-legend" data-testid="energy-compare-legend">
         <span>
           <i className="en-cmp-sw en-cmp-legend-last" />
           {year - 1}
+          {partialLabel && !noLastYear ? ` (${monthName(month, 'short')}: stejné dny)` : ''}
         </span>
         <span>
           <i className="en-cmp-sw" style={{ background: meta.color }} />
           {year}
+          {partialLabel ? ` (${monthName(month, 'short')}: rozpracovaný)` : ''}
         </span>
-        <span className="en-legend-note" data-testid="energy-compare-note">
-          {noLastYear
-            ? `Za rok ${year - 1} nemáme data.`
-            : partialLabel
-              ? `${monthName(month, 'short')}: stejné dny jako letos, obrys = celý ${monthName(month)} ${year - 1}`
-              : ''}
-        </span>
+        {partialLabel && !noLastYear && (
+          <span>
+            <i className="en-cmp-sw en-cmp-legend-ghost" />
+            obrys = celý {monthName(month)} {year - 1}
+          </span>
+        )}
+        {noLastYear && (
+          <span className="en-legend-note" data-testid="energy-compare-note">
+            Za rok {year - 1} nemáme data.
+          </span>
+        )}
       </div>
     </div>
   );
@@ -203,12 +270,15 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
     period === 'month'
       ? compareDelta(series.month.current, series.month.last_year)
       : compareDelta(series.ytd.current, series.ytd.last_year);
-  const headline =
-    yoy && yoy.pct !== null
-      ? Math.round(yoy.pct) === 0
-        ? `${meta.short} stejně jako loni`
-        : `${meta.short} o ${Math.abs(Math.round(yoy.pct))}\u00a0% ${yoy.pct < 0 ? 'nižší' : 'vyšší'} než loni`
-      : null;
+  const headline = compareHeadline(meta.short, yoy, scopeLabel(comparison.partial, month, period));
+  const prevFull =
+    month === 1
+      ? (series.monthly.last_year[11] ?? null)
+      : (series.monthly.this_year[prevMonth - 1] ?? null);
+  const lastYearFull = series.monthly.last_year.every((v) => v !== null)
+    ? series.monthly.last_year.reduce<number>((a, v) => a + (v ?? 0), 0)
+    : null;
+  const fmt = (v: number | null) => formatCompareValue(v, meta.key);
   return (
     <section className="en-card en-cmp" aria-label="Srovnání období" data-testid="energy-compare">
       {head(
@@ -244,24 +314,34 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
               value={series.month.current}
               seriesKey={meta.key}
               testId="energy-compare-current"
-              sub={partialLabel ? 'rozpracovaný měsíc' : null}
+              sub={partialLabel ? `${partialLabel} · rozpracovaný měsíc` : null}
               missing="zatím bez dat"
             />
             <Tile
-              label={`Loni · ${monthName(month)} ${year - 1}`}
+              label={`Loni · ${partialRangeLabel(comparison.partial, month, year - 1) ?? `${monthName(month)} ${year - 1}`}`}
               value={series.month.last_year}
               against={series.month.current}
               seriesKey={meta.key}
               testId="energy-compare-last-year"
               missing={missingLastYear}
+              context={
+                partialLabel && series.monthly.last_year[month - 1] != null
+                  ? `celý ${monthName(month)} ${year - 1}: ${fmt(series.monthly.last_year[month - 1]!)}`
+                  : null
+              }
             />
             <Tile
-              label={`Minulý měsíc · ${monthName(prevMonth)} ${prevYear}`}
+              label={`Minulý měsíc · ${partialRangeLabel(comparison.partial, prevMonth, prevYear === year ? undefined : prevYear) ?? `${monthName(prevMonth)} ${prevYear}`}`}
               value={series.month.previous}
               against={series.month.current}
               seriesKey={meta.key}
               testId="energy-compare-previous"
               missing="nemáme data za minulý měsíc"
+              context={
+                prevFull !== null
+                  ? `celý ${monthName(prevMonth)} ${prevYear}: ${fmt(prevFull)}`
+                  : null
+              }
             />
           </>
         ) : (
@@ -272,16 +352,17 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
               value={series.ytd.current}
               seriesKey={meta.key}
               testId="energy-compare-current"
-              sub="od 1. ledna"
+              sub={ytdLabel}
               missing="nemáme data od ledna"
             />
             <Tile
-              label={`Loni ve stejném období · ${year - 1}`}
+              label={`Loni · ${ytdRangeLabel(comparison.partial, month, year - 1) ?? year - 1}`}
               value={series.ytd.last_year}
               against={series.ytd.current}
               seriesKey={meta.key}
               testId="energy-compare-last-year"
               missing={missingLastYear}
+              context={lastYearFull !== null ? `celý rok ${year - 1}: ${fmt(lastYearFull)}` : null}
             />
           </>
         )}

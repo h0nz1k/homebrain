@@ -162,26 +162,73 @@ export function formatCompareValue(value: number | null, key: CompareSeriesKey):
   return `${group(value, Math.abs(value) >= 1000 ? 0 : 1)}${NBSP}kWh`;
 }
 
+/** Last complete day of the compared range (hour 0 = the previous day is the last one). */
+const lastDayOf = ({ day, hour }: ComparePartial) => (hour === 0 ? day - 1 : day);
+const withHour = (range: string, hour: number) => (hour === 0 ? range : `${range} do ${hour}:00`);
+const withYear = (date: string, year?: number) => (year === undefined ? date : `${date} ${year}`);
+
 /**
- * The compared range of a running month: '1.–7. 11. do 16:00'. At a full hour 0 the range ends
- * with the previous day ('1.–6. 11.'); null when nothing of the month has elapsed yet.
+ * The compared range of a running month: '1.–7. 11. do 16:00' ('1.–7. 11. 2025 do 16:00' with a
+ * year). At a full hour 0 the range ends with the previous day ('1.–6. 11.'); null when nothing
+ * of the month has elapsed yet.
  */
-export function partialRangeLabel(partial: ComparePartial, month: number): string | null {
-  const { day, hour } = partial;
-  const lastDay = hour === 0 ? day - 1 : day;
+export function partialRangeLabel(
+  partial: ComparePartial,
+  month: number,
+  year?: number,
+): string | null {
+  const lastDay = lastDayOf(partial);
   if (lastDay < 1) return null;
   const range = lastDay === 1 ? `1.${NBSP}${month}.` : `1.–${lastDay}.${NBSP}${month}.`;
-  return hour === 0 ? range : `${range} do ${hour}:00`;
+  return withHour(withYear(range, year), partial.hour);
 }
 
 /** Year-to-date range: '1. 1.–7. 11. do 16:00'; null before the first complete hour. */
-export function ytdRangeLabel(partial: ComparePartial, month: number): string | null {
-  const { day, hour } = partial;
-  const lastDay = hour === 0 ? day - 1 : day;
+export function ytdRangeLabel(
+  partial: ComparePartial,
+  month: number,
+  year?: number,
+): string | null {
+  const lastDay = lastDayOf(partial);
   if (lastDay < 1 && month === 1) return null;
   const end = lastDay < 1 ? `konce ${month - 1}.` : `${lastDay}.${NBSP}${month}.`;
-  const range = `1.${NBSP}1.–${end}`;
-  return hour === 0 ? range : `${range} do ${hour}:00`;
+  return withHour(withYear(`1.${NBSP}1.–${end}`, year), partial.hour);
+}
+
+/** Days-only scope for headlines: '1.–7. 11.' (month) or '1. 1.–7. 11.' (year to date). */
+export function scopeLabel(
+  partial: ComparePartial,
+  month: number,
+  period: ComparePeriod,
+): string | null {
+  const days = { ...partial, hour: 0, day: lastDayOf(partial) + 1 };
+  return period === 'month' ? partialRangeLabel(days, month) : ytdRangeLabel(days, month);
+}
+
+/** 'Spotřeba o 8 % nižší než loni za 1.–7. 11.'; null without a percentage. */
+export function compareHeadline(
+  short: string,
+  delta: CompareDelta | null,
+  scope: string | null,
+): string | null {
+  if (!delta || delta.pct === null) return null;
+  const whole = Math.round(delta.pct);
+  const text =
+    whole === 0
+      ? `${short} stejně jako loni`
+      : `${short} o ${Math.abs(whole)}${NBSP}% ${whole < 0 ? 'nižší' : 'vyšší'} než loni`;
+  return scope ? `${text} za ${scope}` : text;
+}
+
+/** Round axis ticks from 0 covering `max` (steps 1/2/2,5/5 × 10ⁿ, 3–5 gridlines). */
+export function niceTicks(max: number): number[] {
+  if (!(max > 0)) return [0, 1];
+  const raw = max / 4;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw)!;
+  const ticks = [0];
+  while (ticks[ticks.length - 1]! < max) ticks.push(Math.round(ticks.length * step * 1000) / 1000);
+  return ticks;
 }
 
 /** Common bar scale (max) of both years; 1 when there is no data at all. */

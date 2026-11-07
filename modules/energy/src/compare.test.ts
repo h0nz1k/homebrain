@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   barScale,
   compareDelta,
+  compareHeadline,
+  niceTicks,
+  scopeLabel,
   deltaTone,
   fetchComparison,
   formatCompareValue,
@@ -89,5 +92,60 @@ describe('period comparison formatting', () => {
     const missing = createCompareDemo('nodata', Date.now());
     expect(missing.series.house?.month.last_year).toBeNull();
     expect(missing.series.house?.monthly.last_year.every((v) => v === null)).toBe(true);
+  });
+});
+
+describe('period comparison scope + axis', () => {
+  it('range label can carry the year; days-only scope for headlines', () => {
+    const p = { day: 7, hour: 16, days_in_month: 30 };
+    expect(partialRangeLabel(p, 11, 2025)).toBe(`1.–7.${NBSP}11. 2025 do 16:00`);
+    expect(ytdRangeLabel(p, 11, 2025)).toBe(`1.${NBSP}1.–7.${NBSP}11. 2025 do 16:00`);
+    expect(scopeLabel(p, 11, 'month')).toBe(`1.–7.${NBSP}11.`);
+    expect(scopeLabel({ ...p, hour: 0 }, 11, 'month')).toBe(`1.–6.${NBSP}11.`);
+    expect(scopeLabel(p, 11, 'ytd')).toBe(`1.${NBSP}1.–7.${NBSP}11.`);
+  });
+
+  it('headline names the scope', () => {
+    expect(compareHeadline('Spotřeba', compareDelta(92, 100), `1.–7.${NBSP}11.`)).toBe(
+      `Spotřeba o 8${NBSP}% nižší než loni za 1.–7.${NBSP}11.`,
+    );
+    expect(compareHeadline('Výroba', compareDelta(100.2, 100), null)).toBe(
+      'Výroba stejně jako loni',
+    );
+    expect(compareHeadline('Výroba', null, null)).toBeNull();
+  });
+
+  it('nice axis ticks cover the maximum with round steps', () => {
+    expect(niceTicks(1371)).toEqual([0, 500, 1000, 1500]);
+    expect(niceTicks(283)).toEqual([0, 100, 200, 300]);
+    expect(niceTicks(9120)).toEqual([0, 2500, 5000, 7500, 10000]);
+    expect(niceTicks(0)).toEqual([0, 1]);
+  });
+});
+
+describe('synthetic comparison mock is internally consistent and realistic', () => {
+  const demo = createCompareDemo('full', new Date('2026-11-07T15:23:00Z').getTime());
+  const sum = (a: Array<number | null>) => a.reduce<number>((s, v) => s + (v ?? 0), 0);
+  for (const [key, s] of Object.entries(demo.series)) {
+    it(`${key}: card values == chart months, YTD == sum of months, like-for-like previous`, () => {
+      const tol = key === 'cost' ? 12 : 1.2;
+      expect(s.month.current).toBe(s.monthly.this_year[10]);
+      expect(Math.abs(s.ytd.current! - sum(s.monthly.this_year.slice(0, 11)))).toBeLessThan(tol);
+      expect(
+        Math.abs(s.ytd.last_year! - sum(s.monthly.last_year.slice(0, 10)) - s.month.last_year!),
+      ).toBeLessThan(tol);
+      // 1.–7. 10. do 16:00 is a fraction of the whole October, never more
+      expect(s.month.previous!).toBeLessThan(s.monthly.this_year[9]!);
+      expect(s.month.last_year!).toBeLessThan(s.monthly.last_year[10]!);
+    });
+  }
+  it('daily rates are plausible: running month ≈ the same days last year, house 25–60 kWh/day', () => {
+    const h = demo.series.house!;
+    const days = 6 + 16 / 24;
+    expect(h.month.current! / days).toBeGreaterThan(25);
+    expect(h.month.current! / days).toBeLessThan(60);
+    expect(h.month.current! / h.month.last_year!).toBeGreaterThan(0.8);
+    expect(h.month.current! / h.month.last_year!).toBeLessThan(1.1);
+    expect(h.month.previous! / days).toBeGreaterThan(20);
   });
 });

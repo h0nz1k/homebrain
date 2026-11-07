@@ -1,5 +1,6 @@
 """Energie period comparison: aggregation of hourly recorder statistics (synthetic data only)."""
 
+import math
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -143,3 +144,42 @@ async def test_ws_without_bindings_or_recorder(hass: HomeAssistant, hass_ws_clie
     await client.send_json_auto_id({"type": "homebrain/energy/compare"})
     reply = await client.receive_json()
     assert reply["success"] and reply["result"]["status"] == "unsupported"
+
+
+def realistic(start: datetime, end: datetime) -> list[tuple[float, float]]:
+    """House-like hourly kWh: winter ~50 kWh/day, summer ~32, evening peak, weekday noise."""
+    out = []
+    t = start.astimezone(UTC)
+    while t < end.astimezone(UTC):
+        wall = t.astimezone(PRAGUE)
+        doy = wall.timetuple().tm_yday
+        day = 41 + 9 * math.cos(2 * math.pi * (doy - 15) / 365) + 3 * math.sin(doy * 1.7)
+        shape = 0.6 + (0.9 if 17 <= wall.hour < 22 else 0.4 if 6 <= wall.hour < 9 else 0)
+        out.append((t.timestamp(), round(day * shape / 22.2, 3)))
+        t += timedelta(hours=1)
+    return out
+
+
+def test_card_values_equal_chart_months_on_real_shaped_data():
+    now = local(2026, 11, 7, 16, 23)
+    data = realistic(local(2025, 1, 1), now)
+    res = compare_periods({"house": data}, now, PRAGUE)
+    house = res["series"]["house"]
+
+    def window(a: datetime, b: datetime) -> float:
+        return round(sum(v for t, v in data if a.timestamp() <= t < b.timestamp()), 1)
+
+    # the running-month card == the running-month bar
+    assert house["month"]["current"] == house["monthly"]["this_year"][10]
+    assert house["month"]["current"] == window(local(2026, 11, 1), local(2026, 11, 7, 16))
+    # previous month = the same days and hours (1.–7. 10. do 16:00), not the whole October
+    assert house["month"]["previous"] == window(local(2026, 10, 1), local(2026, 10, 7, 16))
+    assert house["month"]["previous"] < house["monthly"]["this_year"][9] / 4
+    assert house["month"]["last_year"] == window(local(2025, 11, 1), local(2025, 11, 7, 16))
+    # YTD = the bars summed (bar rounding only)
+    assert house["ytd"]["current"] == pytest.approx(sum(house["monthly"]["this_year"][:11]), abs=1)
+    assert house["ytd"]["last_year"] == pytest.approx(
+        sum(house["monthly"]["last_year"][:10]) + house["month"]["last_year"], abs=1
+    )
+    # plausible daily rate of a running November
+    assert 30 < house["month"]["current"] / (6 + 16 / 24) < 60
