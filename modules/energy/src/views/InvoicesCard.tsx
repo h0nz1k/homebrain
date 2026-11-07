@@ -322,7 +322,7 @@ function ComparisonView({ cmp, invoice }: { cmp: InvoiceComparison | null; invoi
         measured={formatKwh(cmp.house)}
         testId="energy-invoice-house"
       />
-      <Row label="Výroba FVE" invoice="" measured={formatKwh(cmp.pv)} testId="energy-invoice-pv" />
+      <Row label="Výroba FVE" invoice="–" measured={formatKwh(cmp.pv)} testId="energy-invoice-pv" />
       {self && (
         <p className="en-inv-explain" data-testid="energy-invoice-self">
           Z FVE a baterie dům pokryl přibližně <b>{formatKwh(self.kwh)}</b>
@@ -362,15 +362,16 @@ function TariffView({
       {(['vt', 'nt', 'fixed_monthly'] as TariffKey[]).map((key) => {
         const item = check.items[key];
         if (!item) return null;
-        const digits = key === 'fixed_monthly' ? 2 : 2;
+        const unit = TARIFF_LABELS[key].unit;
+        const fmt = (v: number) => `${formatKc(v, 2).replace(/Kč$/, unit)}`;
         return (
           <div className="en-inv-trow" key={key} data-differs={item.differs || undefined}>
             <span>{TARIFF_LABELS[key].label}</span>
             <span>
-              faktura <b>{formatKc(item.invoice, digits)}</b>
+              faktura <b>{fmt(item.invoice)}</b>
             </span>
             <span>
-              HomeBrain <b>{item.current === null ? '–' : formatKc(item.current, digits)}</b>
+              HomeBrain <b>{item.current === null ? '–' : fmt(item.current)}</b>
             </span>
           </div>
         );
@@ -559,7 +560,7 @@ export function InvoicesCard({
                     >
                       Upravit údaje
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirm('delete')}>
+                    <Button size="sm" variant="danger" onClick={() => setConfirm('delete')}>
                       Smazat
                     </Button>
                   </div>

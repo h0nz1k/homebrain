@@ -494,7 +494,8 @@ export const energyStyles = `
 .en-inv-tariff{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:var(--hb-radius-md,12px);background:color-mix(in srgb,var(--hb-t1) 4%,var(--hb-s1))}
 .en-inv-tariff h3{margin:0 0 2px}
 .en-inv-tariff > button{align-self:flex-start}
-.en-inv-trow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:8px;font-size:13px;color:var(--hb-t2)}
+.en-inv-trow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;font-size:13px;color:var(--hb-t2);padding:6px 0;border-top:1px solid var(--hb-b1)}
+.en-inv-trow span:not(:first-child){white-space:nowrap;text-align:right}
 .en-inv-trow b{color:var(--hb-t1);font-weight:600;font-variant-numeric:tabular-nums}
 .en-inv-trow[data-differs] span:last-child b{color:var(--hb-warn)}
 .en-inv-actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -510,5 +511,8 @@ export const energyStyles = `
   .en-inv-body{grid-template-columns:minmax(0,1fr)}
   .en-inv-sum b{font-size:22px}
   .en-inv-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .en-inv-trow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .en-inv-trow span:first-child{grid-column:1/-1;color:var(--hb-t1)}
+  .en-inv-trow span:not(:first-child){text-align:left}
 }
 `;
