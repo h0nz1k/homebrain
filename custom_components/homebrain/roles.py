@@ -133,6 +133,10 @@ NETWORK_SUMMARY_ROLES: Final = frozenset({"adult", "kiosk"})
 NETWORK_QR_ROLES: Final = frozenset({"adult", "child", "kiosk"})
 
 
+# Energie details (period comparison): HA admins and adults; the kiosk keeps the summary only.
+ENERGY_DETAIL_ROLES: Final = frozenset({"adult"})
+
+
 def role_ws_commands(role: str) -> frozenset[str]:
     """Every ``homebrain/*`` WS command a mapped non-admin role may call."""
     if role == "guest":
@@ -142,6 +146,8 @@ def role_ws_commands(role: str) -> frozenset[str]:
         extra |= {"homebrain/network/summary"}
     if role in NETWORK_QR_ROLES:
         extra |= {"homebrain/network/guest_qr"}
+    if role in ENERGY_DETAIL_ROLES:
+        extra |= {"homebrain/energy/compare"}
     return KIOSK_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
 
 

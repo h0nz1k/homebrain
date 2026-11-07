@@ -34,7 +34,7 @@ from .const import (
     WEB_COMPONENT,
 )
 from .energy.pv_forecast import PvForecastManager
-from .energy.ws import websocket_pv_forecast
+from .energy.ws import websocket_compare, websocket_pv_forecast
 from .modules import (
     STATE_DISABLED,
     Registrar,
@@ -120,7 +120,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass,
         {
             "weather": weather_reg,
-            "energy": _commands(websocket_pv_forecast)(hass),
+            "energy": _commands(websocket_pv_forecast, websocket_compare)(hass),
             "waste": _commands(websocket_waste_history)(hass),
             "robots": robots_reg,
             "wine": lambda reg: wine_ws.async_register(hass, reg),

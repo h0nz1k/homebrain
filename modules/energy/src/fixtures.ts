@@ -1,5 +1,6 @@
 import type { EntityStateLike } from '@homebrain/ha-client';
 import { localDayStarter, localParts, startOfLocalDay } from './adapter.js';
+import type { ComparisonResult } from './compare.js';
 import type { EnergyBindingKey } from './contract.js';
 
 /*
@@ -803,4 +804,110 @@ export function applyFlowScenario(
     if (s.entity_id in inv) return { ...s, state: inv[s.entity_id]! };
     return s;
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Period comparison mock (`homebrain/energy/compare`), synthetic numbers only.
+
+export type CompareScenario = 'full' | 'nodata' | 'unconfigured';
+
+const DEMO_HOUSE_MONTH = [1580, 1260, 1050, 980, 1010, 1090, 1120, 1100, 960, 1040, 1230, 1460];
+const DEMO_PV_MONTH = [170, 270, 700, 960, 1090, 1080, 1120, 1020, 760, 560, 250, 130];
+
+/** Synthetic reply of the integration for dev and e2e (`?srovnani=full|nodata|unconfigured`). */
+export function createCompareDemo(scenario: CompareScenario, now: number): ComparisonResult {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Prague',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(now))
+      .map((p) => [p.type, Number(p.value)]),
+  ) as Record<string, number>;
+  const year = parts.year!;
+  const month = parts.month!;
+  const day = parts.day!;
+  const hour = parts.hour!;
+  const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const frac = ((day - 1) * 24 + hour) / (daysIn(year, month) * 24);
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  const firstMonth = scenario === 'nodata' ? 4 : 1; // 'nodata': recorder since April this year
+  const build = (base: number[], lastYearFactor: number, thisYearFactor: number, digits = 1) => {
+    const round = (v: number) => (digits ? r1(v) : Math.round(v));
+    const lastYear = base.map((v, i) =>
+      scenario === 'nodata' ? null : round(v * lastYearFactor * (1 + 0.04 * Math.sin(i))),
+    );
+    const thisYear = base.map((v, i) => {
+      if (i + 1 > month || i + 1 < firstMonth) return null;
+      const full = v * thisYearFactor * (1 + 0.05 * Math.cos(i));
+      return round(i + 1 === month ? full * frac : full);
+    });
+    const prevIndex = (month + 10) % 12;
+    const prevYearArr = month === 1 ? lastYear : thisYear;
+    const prevFull = prevYearArr[prevIndex] ?? null;
+    const sum = (arr: Array<number | null>, upto: number, partial: number | null) => {
+      const head = arr.slice(0, upto);
+      if (head.some((v) => v === null) || partial === null) return null;
+      return round(head.reduce<number>((a, v) => a + (v ?? 0), 0) + partial);
+    };
+    const lastYearPartial =
+      lastYear[month - 1] === null ? null : round(lastYear[month - 1]! * frac);
+    return {
+      month: {
+        current: thisYear[month - 1] ?? null,
+        last_year: lastYearPartial,
+        previous:
+          prevFull === null
+            ? null
+            : round(prevFull * Math.min(1, (day - 1 + hour / 24) / daysIn(year, prevIndex + 1))),
+      },
+      ytd: {
+        current: sum(thisYear, month - 1, thisYear[month - 1] ?? null),
+        last_year: sum(lastYear, month - 1, lastYearPartial),
+      },
+      monthly: { this_year: thisYear, last_year: lastYear },
+      first:
+        scenario === 'nodata' ? `${year}-04-01T00:00:00+02:00` : `${year - 1}-01-01T00:00:00+01:00`,
+    };
+  };
+  const house = build(DEMO_HOUSE_MONTH, 1.06, 1);
+  const pv = build(DEMO_PV_MONTH, 0.92, 1);
+  const imp = build(
+    DEMO_HOUSE_MONTH.map((v, i) => Math.max(60, v - DEMO_PV_MONTH[i]! * 0.55)),
+    1.1,
+    1,
+  );
+  const cost = build(
+    DEMO_HOUSE_MONTH.map((v, i) => 300 + Math.max(60, v - DEMO_PV_MONTH[i]! * 0.55) * 5.4),
+    1.1,
+    1,
+    0,
+  );
+  const iso = (y: number, m: number, d = 1, h = 0) =>
+    `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:00:00+01:00`;
+  return {
+    status: 'ok',
+    time_zone: 'Europe/Prague',
+    now: new Date(now).toISOString(),
+    year,
+    month,
+    partial: { day, hour, days_in_month: daysIn(year, month) },
+    windows: {
+      month: {
+        current: [iso(year, month), iso(year, month, day, hour)],
+        last_year: [iso(year - 1, month), iso(year - 1, month, day, hour)],
+        previous: [iso(year, month - 1 || 12), iso(year, month - 1 || 12, day, hour)],
+      },
+      ytd: {
+        current: [iso(year, 1), iso(year, month, day, hour)],
+        last_year: [iso(year - 1, 1), iso(year - 1, month, day, hour)],
+      },
+    },
+    series: { house, pv, import: imp, cost },
+    cost_basis: { vt: 6.2, nt: 4.1, fixed_monthly: 300, hdo: true },
+  };
 }
