@@ -6,6 +6,7 @@ fixture); no real names, MACs or addresses.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -38,6 +39,7 @@ from custom_components.homebrain.network.unifi_poller import (
     ISSUE_AUTH,
     PortHistory,
     UnifiPoller,
+    async_validate_unifi,
 )
 
 SECRET = "s3cret-Pa55-for-tests"
@@ -474,3 +476,22 @@ async def test_options_flow_unifi_step(hass: HomeAssistant):
         result["flow_id"], {"url": "", "site": "default", "verify_ssl": False}
     )
     assert "network_unifi" not in entry.options
+
+
+async def test_validate_and_poller_with_ha_session(hass: HomeAssistant, socket_enabled):
+    """Real HA client session + own cookie jar against both flavours; start → poll → stop."""
+    server = TestServer(_controller(True, role="admin"))
+    await server.start_server()
+    try:
+        cfg = UnifiConfig(str(server.make_url("")).rstrip("/"), "default", "homebrain", SECRET)
+        assert await async_validate_unifi(hass, cfg) == {"readonly": False, "devices": 4}
+        poller = UnifiPoller(hass, cfg)
+        await poller.async_start()
+        for _ in range(50):
+            if poller.status()["status"] != "pending":
+                break
+            await asyncio.sleep(0.05)
+        assert poller.status()["status"] == "ok" and poller.status()["readonly"] is False
+        await poller.async_stop()
+    finally:
+        await server.close()
