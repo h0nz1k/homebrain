@@ -200,9 +200,7 @@ export const App = memo(function App({
   // and modules outside the role get a calm „Nemáte přístup“ before any module data loads.
   const sessionPending = session === undefined && Boolean(connection) && connected;
   const noAccess =
-    !!session &&
-    !session.isAdmin &&
-    (id === 'settings' || !session.visibleModules.includes(id));
+    !!session && !session.isAdmin && (id === 'settings' || !session.visibleModules.includes(id));
 
   useEffect(() => {
     let active = true;

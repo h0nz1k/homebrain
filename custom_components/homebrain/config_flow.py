@@ -14,7 +14,6 @@ from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
 from .network.unifi_client import UnifiAuthError, UnifiConfig, UnifiError
 from .network.unifi_poller import async_validate_unifi
-from .roles import ASSIGNABLE_ROLES, CONF_ROLES
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
@@ -26,6 +25,7 @@ from .robots.config import (
     valid_image,
 )
 from .robots.discovery import discover_bindings, discover_floor, missing_bindings
+from .roles import ASSIGNABLE_ROLES, CONF_ROLES
 
 UNIFI_OPTION_KEY = "network_unifi"
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
