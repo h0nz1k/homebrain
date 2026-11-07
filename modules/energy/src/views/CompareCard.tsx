@@ -115,7 +115,9 @@ function MonthChart({
       `${year - 1}${v.current ? ' stejné dny' : ''}: ${formatCompareValue(v.lastValue, meta.key)}`,
     ];
     if (v.current && v.fullLast !== null)
-      parts.push(`celý ${year - 1}: ${formatCompareValue(v.fullLast, meta.key)}`);
+      parts.push(
+        `celý ${monthName(i + 1)} ${year - 1}: ${formatCompareValue(v.fullLast, meta.key)}`,
+      );
     return parts.join(' · ');
   };
   return (
