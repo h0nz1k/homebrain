@@ -270,6 +270,9 @@ export const networkStyles = `
 .net-tree .net-tree > li > .net-tree-row::before { content: ''; position: absolute; left: -12px; top: -4px; width: 12px; height: calc(50% + 4px); border-left: 1.5px solid var(--topo-line); border-bottom: 1.5px solid var(--topo-line); border-bottom-left-radius: 8px; box-sizing: border-box; }
 .net-tree .net-tree > li::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--topo-line); }
 .net-tree .net-tree > li:last-child::after { display: none; }
+/* One vertical per x: where the spine continues, it draws the line and the elbow only the corner. */
+.net-tree .net-tree > li:first-child::after { top: -4px; }
+.net-tree .net-tree > li:not(:last-child) > .net-tree-row::before { border-left-color: transparent; }
 /* The spine down to an assumed sibling is assumed too: same long dashes as its elbow. */
 .net-tree .net-tree > li:has(+ li[data-assumed])::after { border-left-style: dashed; border-color: var(--topo-soft); }
 .net-tree .net-tree > li[data-assumed] > .net-tree-row::before { border-style: dashed; border-color: var(--topo-soft); }
