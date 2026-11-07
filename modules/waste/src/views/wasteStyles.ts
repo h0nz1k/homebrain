@@ -367,6 +367,16 @@ export const wasteStyles = `
 .wb-history-when { display: flex; align-items: baseline; gap: 8px; color: var(--hb-t1); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wb-history-when { display: grid !important; grid-template-columns: 84px 44px; gap: 8px !important; text-align: right; }
 .wb-history-when time { color: var(--hb-t2); font-size: 13px; text-align: right; }
+.wb-history-next { grid-column: 2 / -1; margin-top: -6px; color: var(--hb-t2); font-size: 13px; }
+/* Konec svozových dat: klidná informace pro admina (žádná výstražná barva). */
+.wb-horizon { display: grid; gap: 6px; padding: 14px 18px; border-radius: var(--hb-radius-md, 14px); background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); }
+.wb-horizon-title, .wb-horizon-help { max-width: 72ch; }
+.wb-horizon-title { display: flex; align-items: flex-start; gap: 10px; margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--hb-t1); }
+.wb-horizon-title i { flex: 0 0 18px; height: 18px; margin-top: 1px; background: var(--hb-t2); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='2.5' y='3.5' width='13' height='12' rx='2.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3Cpath d='M2.5 7.5h13M6 2v3M12 2v3M7 11h4' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+.wb-horizon-help { margin-left: 28px; font-size: 14px; color: var(--hb-t2); }
+.wb-horizon-help summary { cursor: pointer; width: fit-content; font-weight: 600; color: var(--hb-t1); min-height: 32px; display: flex; align-items: center; }
+.wb-horizon-help summary:focus-visible { outline: 2px solid var(--hb-t1); outline-offset: 2px; border-radius: 6px; }
+.wb-horizon-help ol { margin: 4px 0 2px; padding-left: 20px; line-height: 1.55; }
 .wb-done-chip { display: inline-flex; align-items: center; gap: 8px; background: color-mix(in srgb, var(--hb-color-success, #34c759) 16%, transparent) !important; font-weight: 600; }
 .wb-done-chip i { width: 14px; height: 14px; background: var(--hb-color-success, #34c759); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.3 6 9.6l4.6-5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .wb-cycle.is-empty { background: repeating-linear-gradient(90deg, var(--hb-b2) 0 6px, transparent 6px 10px); opacity: .7; }

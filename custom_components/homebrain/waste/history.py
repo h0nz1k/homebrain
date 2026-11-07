@@ -231,6 +231,13 @@ class WasteHistory:
             self._save()
         return changed
 
+    def records(self) -> list[dict[str, str]]:
+        """Every remembered pickup (past and future), oldest first."""
+        return [
+            {"date": r["date"], "label": r["label"]}
+            for r in sorted(self._records.values(), key=lambda r: (r["date"], r["label"]))
+        ]
+
     def history(self, today: date) -> list[dict[str, str]]:
         """Collections up to and including today, oldest first."""
         today_key = today.isoformat()
@@ -309,6 +316,14 @@ class WasteHistoryManager:
                     entity_id, observations_from_state(key, self.hass.states.get(entity_id)), today
                 )
         self.last_refresh = dt_util.utcnow()
+        self._update_horizon_issue()
+
+    def _update_horizon_issue(self) -> None:
+        # Imported here: horizon.py reuses this module's label helpers.
+        from .horizon import async_update_horizon_issue, compute_horizon
+
+        records = self.store.records() if self._bound else []
+        async_update_horizon_issue(self.hass, compute_horizon(records, dt_util.now()))
 
     async def _refresh_calendar(self, entity_id: str, today: date) -> None:
         if not self.hass.services.has_service("calendar", "get_events"):

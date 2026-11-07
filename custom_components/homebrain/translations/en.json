@@ -299,6 +299,10 @@
     "network_unifi_auth": {
       "title": "HomeBrain Network: UniFi login failed",
       "description": "HomeBrain's own UniFi account could not log in (changed password or deleted account). The Network module keeps running on HA data only. Fix the password in Settings → Devices & services → HomeBrain → Configure → Network – UniFi; this issue clears after the next successful read."
+    },
+    "waste_data_horizon": {
+      "title": "HomeBrain Waste: the collection schedule ends on {last_date}",
+      "description": "The last known waste collection is on **{last_date}**; no later dates are published yet. After that day the Waste panel shows no next collection. Add the {next_year} schedule: check that the source of your waste calendar (municipal website, ICS file or the waste_collection_schedule source) already publishes {next_year}, then refresh it (for example the action `waste_collection_schedule.fetch_data`). This issue clears automatically once later dates appear."
     }
   }
 }

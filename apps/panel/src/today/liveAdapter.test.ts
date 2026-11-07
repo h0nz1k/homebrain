@@ -10,6 +10,7 @@ import {
   rainRibbon,
   sunToday,
   WEATHER_POLL_MS,
+  wasteRibbon,
 } from './liveAdapter';
 
 const NOW = Date.parse(MOCK_NOW); // 2026-10-31 10:40 Europe/Prague
@@ -385,5 +386,23 @@ describe('createLiveTodayAdapter', () => {
     const items = rainRibbon(snapshot, NOW);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ to: '2026-10-31T12:00:00.000Z', label: 'Prší do 13:00' });
+  });
+});
+
+describe('wasteRibbon after the published schedule ends', () => {
+  it('shows no next pickup when only past dates are known (no invented date)', () => {
+    // WCS type-state sensor whose last published pickup was yesterday (data horizon passed).
+    const ended = state('sensor.synthetic_waste_wcs', 'Plasty', {
+      '2026-10-28': 'Plasty',
+      '2026-10-30': 'Papir',
+    });
+    const result = wasteRibbon(
+      { waste_next: 'sensor.synthetic_waste_wcs' },
+      (id) => (id === ended.entity_id ? ended : undefined),
+      NOW,
+      undefined,
+    );
+    expect(result.items).toEqual([]);
+    expect(result.tomorrow).toBeUndefined();
   });
 });

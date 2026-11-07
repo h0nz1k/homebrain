@@ -359,3 +359,37 @@ test('desktop grid fits every card at its responsive breakpoints', async ({ page
     ).toBeLessThan(1);
   }
 });
+
+test('konec svozových dat: klidné upozornění s „Co s tím“ a typy bez dalšího termínu', async ({
+  page,
+}) => {
+  await page.goto('/homebrain-odpady?waste=horizon');
+  const notice = page.getByRole('region', { name: 'Konec svozových dat' });
+  await expect(notice).toBeVisible({ timeout: 20_000 });
+  await expect(notice).toContainText(
+    /Svozový kalendář končí \d{1,2}\. \d{1,2}\. – doplňte rozpis na \d{4}/,
+  );
+  await expect(notice.getByRole('listitem').first()).toBeHidden();
+  await notice.getByText('Co s tím').click();
+  await expect(notice.getByRole('listitem')).toHaveCount(3);
+  const history = page.getByRole('region', { name: 'Naposledy vyvezeno' });
+  await expect(history.locator('li', { hasText: 'Elektro' })).toContainText(
+    'Další termín zatím neznámý',
+  );
+  // Notice fits the viewport (no horizontal overflow on phones).
+  const box = await notice.boundingBox();
+  const width = page.viewportSize()!.width;
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(width + 0.5);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    width,
+  );
+});
+
+test('bez konce dat žádné upozornění', async ({ page }) => {
+  await page.goto('/homebrain-odpady?waste=history');
+  await expect(page.getByRole('region', { name: 'Naposledy vyvezeno' })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByRole('region', { name: 'Konec svozových dat' })).toHaveCount(0);
+});
