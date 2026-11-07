@@ -505,7 +505,12 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         {error}
       </ErrorState>
     ) : (
-      <Skeleton variant="card" lines={4} label="Načítám rodinný přehled…" data-testid="family-loading" />
+      <Skeleton
+        variant="card"
+        lines={4}
+        label="Načítám rodinný přehled…"
+        data-testid="family-loading"
+      />
     );
 
   const admin = snap.role === 'owner' && !kiosk;

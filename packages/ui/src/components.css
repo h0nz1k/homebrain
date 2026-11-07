@@ -208,13 +208,14 @@
 @media (prefers-reduced-motion: no-preference) {
   .hb-skeleton-line,
   .hb-skeleton-block {
-    background: linear-gradient(
-        100deg,
-        transparent 30%,
-        color-mix(in srgb, var(--hb-t1) 6%, transparent) 50%,
-        transparent 70%
-      )
-      0 0 / 300% 100%,
+    background:
+      linear-gradient(
+          100deg,
+          transparent 30%,
+          color-mix(in srgb, var(--hb-t1) 6%, transparent) 50%,
+          transparent 70%
+        )
+        0 0 / 300% 100%,
       color-mix(in srgb, var(--hb-t1) 8%, var(--hb-s1));
     /* Finite: a skeleton that shows longer than ~6 s has become an error state anyway. */
     animation: hb-skeleton-sheen 1.6s var(--hb-ease-out) 4;
@@ -222,10 +223,14 @@
 }
 @keyframes hb-skeleton-sheen {
   from {
-    background-position: 100% 0, 0 0;
+    background-position:
+      100% 0,
+      0 0;
   }
   to {
-    background-position: 0 0, 0 0;
+    background-position:
+      0 0,
+      0 0;
   }
 }
 .hb-confirm-error {

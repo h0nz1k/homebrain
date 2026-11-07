@@ -231,7 +231,9 @@ it('kiosk panel opened by an admin shows the ADR-0002 warning; a non-admin kiosk
   expect(screen.queryByTestId('kiosk-admin-warning')).toBeNull();
   kiosk.unmount();
   // Admin on the normal (non-kiosk) panel: no warning.
-  const normal = render(<App store={createEntityStore()} connection={session(true)} moduleId="family" />);
+  const normal = render(
+    <App store={createEntityStore()} connection={session(true)} moduleId="family" />,
+  );
   await new Promise((r) => setTimeout(r, 50));
   expect(screen.queryByTestId('kiosk-admin-warning')).toBeNull();
   normal.unmount();

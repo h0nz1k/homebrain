@@ -10,6 +10,31 @@ test('detail na tabletu má dostupné CTA bez oříznutí', async ({ page }) => 
   expect(rect!.y + rect!.height).toBeLessThanOrEqual(800);
   await expect(start).toBeInViewport({ ratio: 1 });
 });
+test('smazání receptu: přístupný ConfirmDialog (fokus na Zpět, Tab zůstává uvnitř, Esc)', async ({
+  page,
+}) => {
+  await page.goto('/homebrain-recepty/' + 'a1'.padEnd(32, '0'));
+  const title = await page.locator('h1').first().innerText();
+  await page.getByTestId('recipes-remove').click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Smazat recept');
+  // Destructive confirm: the safe button has the focus and Tab never leaves the dialog.
+  await expect(dialog.getByRole('button', { name: 'Zpět' })).toBeFocused();
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Tab');
+    expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('recipes-remove')).toBeVisible();
+  await page.getByTestId('recipes-remove').click();
+  await page.getByTestId('recipes-remove-confirm').click();
+  await expect(page.getByText('Recept smazán')).toBeVisible();
+  await expect(page).toHaveURL(/\/homebrain-recepty\/?(\?.*)?$/);
+  await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+});
+
 test('import z URL → detail → režim vaření → časovač doběhne', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-04T17:00:00+01:00') });
   await page.goto('/homebrain-recepty?music=1');

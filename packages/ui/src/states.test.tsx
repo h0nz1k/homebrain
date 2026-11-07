@@ -69,7 +69,12 @@ describe('Sheet focus trap', () => {
 describe('ConfirmDialog', () => {
   it('is an alertdialog labelled by its title and described by its body', () => {
     render(
-      <ConfirmDialog title="Smazat recept?" confirmLabel="Smazat" onConfirm={() => {}} onClose={() => {}}>
+      <ConfirmDialog
+        title="Smazat recept?"
+        confirmLabel="Smazat"
+        onConfirm={() => {}}
+        onClose={() => {}}
+      >
         Recept nejde obnovit.
       </ConfirmDialog>,
     );
@@ -84,7 +89,13 @@ describe('ConfirmDialog', () => {
   it('danger dialogs focus the safe cancel button first; Esc closes', () => {
     const onClose = vi.fn();
     render(
-      <ConfirmDialog title="Smazat?" confirmLabel="Smazat" danger onConfirm={() => {}} onClose={onClose} />,
+      <ConfirmDialog
+        title="Smazat?"
+        confirmLabel="Smazat"
+        danger
+        onConfirm={() => {}}
+        onClose={onClose}
+      />,
     );
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Zpět' }));
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -95,7 +106,14 @@ describe('ConfirmDialog', () => {
     let resolve!: () => void;
     const onConfirm = vi.fn(() => new Promise<void>((r) => (resolve = r)));
     const onClose = vi.fn();
-    render(<ConfirmDialog title="Smazat?" confirmLabel="Smazat" onConfirm={onConfirm} onClose={onClose} />);
+    render(
+      <ConfirmDialog
+        title="Smazat?"
+        confirmLabel="Smazat"
+        onConfirm={onConfirm}
+        onClose={onClose}
+      />,
+    );
     const ok = screen.getByRole('button', { name: 'Smazat' });
     fireEvent.click(ok);
     fireEvent.click(ok);
@@ -111,7 +129,14 @@ describe('ConfirmDialog', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(undefined);
     const onClose = vi.fn();
-    render(<ConfirmDialog title="Smazat?" confirmLabel="Smazat" onConfirm={onConfirm} onClose={onClose} />);
+    render(
+      <ConfirmDialog
+        title="Smazat?"
+        confirmLabel="Smazat"
+        onConfirm={onConfirm}
+        onClose={onClose}
+      />,
+    );
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Smazat' })));
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toContain('Nepodařilo se');

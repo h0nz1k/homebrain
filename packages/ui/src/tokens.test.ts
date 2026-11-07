@@ -75,7 +75,10 @@ it('has one name per token: --hb-sp-* for spacing, --hb-radius-<size> for radii 
   // Retired aliases must be neither defined nor used anywhere in the panel sources.
   const retired = /--hb-space-\d|--hb-r-[a-z]|--hb-radius(?![-\w])/;
   const root = join(import.meta.dirname, '../../..');
-  const files = execFileSync('git', ['ls-files', '*.css', '*.ts', '*.tsx'], { cwd: root, encoding: 'utf8' })
+  const files = execFileSync('git', ['ls-files', '*.css', '*.ts', '*.tsx'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
     .split('\n')
     .filter((f) => f && !f.endsWith('tokens.test.ts'));
   const offenders = files.filter((f) => retired.test(readFileSync(join(root, f), 'utf8')));

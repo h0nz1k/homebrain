@@ -1,26 +1,14 @@
 {
   "domain": "homebrain",
   "name": "HomeBrain",
-  "after_dependencies": [
-    "ai_task",
-    "media_source",
-    "recorder"
-  ],
-  "codeowners": [
-    "@h0nz1k"
-  ],
+  "after_dependencies": ["ai_task", "media_source", "recorder"],
+  "codeowners": ["@h0nz1k"],
   "config_flow": true,
-  "dependencies": [
-    "http",
-    "frontend",
-    "panel_custom"
-  ],
+  "dependencies": ["http", "frontend", "panel_custom"],
   "documentation": "https://github.com/h0nz1k/homebrain",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/h0nz1k/homebrain/issues",
-  "requirements": [
-    "pypdf==6.21.4"
-  ],
+  "requirements": ["pypdf==6.21.4"],
   "version": "0.1.0-rc.32"
 }

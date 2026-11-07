@@ -173,7 +173,9 @@ function RecipeLoader({
       </EmptyState>
     );
   if (!recipe || recipe.id !== id)
-    return <Skeleton variant="card" lines={4} label="Načítám recept…" data-testid="recipes-loading" />;
+    return (
+      <Skeleton variant="card" lines={4} label="Načítám recept…" data-testid="recipes-loading" />
+    );
   return <>{children(recipe, setRecipe)}</>;
 }
 

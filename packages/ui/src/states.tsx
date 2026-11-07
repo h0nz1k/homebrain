@@ -153,7 +153,12 @@ export function ConfirmDialog({
       data-testid={rest['data-testid']}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy} data-autofocus={danger ? '' : undefined}>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={busy}
+            data-autofocus={danger ? '' : undefined}
+          >
             {cancelLabel}
           </Button>
           <Button

@@ -43,14 +43,17 @@ export function runMutation<T>(
     try {
       const value = await fn();
       if (options.success) {
-        const text = typeof options.success === 'function' ? options.success(value) : options.success;
+        const text =
+          typeof options.success === 'function' ? options.success(value) : options.success;
         store.show('success', text, { id: toastId });
       } else if (options.pending) store.dismiss(toastId);
       options.onSuccess?.(value);
       return { ok: true, value };
     } catch (error) {
       const text =
-        typeof options.error === 'function' ? options.error(error) : (options.error ?? DEFAULT_ERROR);
+        typeof options.error === 'function'
+          ? options.error(error)
+          : (options.error ?? DEFAULT_ERROR);
       store.show('error', text, {
         id: toastId,
         action:

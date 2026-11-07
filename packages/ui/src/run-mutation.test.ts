@@ -49,7 +49,8 @@ describe('runMutation', () => {
   it('error text may be derived from the thrown error; retry can be disabled', async () => {
     const { store } = setup();
     await runMutation(() => Promise.reject(new Error('DRAWER_OPEN')), {
-      error: (err) => (err instanceof Error && err.message === 'DRAWER_OPEN' ? 'Zavřete zásuvku' : 'Chyba'),
+      error: (err) =>
+        err instanceof Error && err.message === 'DRAWER_OPEN' ? 'Zavřete zásuvku' : 'Chyba',
       retry: false,
       store,
     });

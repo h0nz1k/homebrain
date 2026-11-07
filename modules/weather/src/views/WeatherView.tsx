@@ -1368,7 +1368,12 @@ export default function WeatherView({ connection }: Partial<ModuleViewProps>) {
         <style>{weatherStyles}</style>
         <h1 className="wx-h1">Počasí</h1>
         {view.kind === 'loading' ? (
-          <Skeleton variant="card" lines={3} label="Načítám počasí…" data-testid="weather-loading" />
+          <Skeleton
+            variant="card"
+            lines={3}
+            label="Načítám počasí…"
+            data-testid="weather-loading"
+          />
         ) : (
           <ErrorState
             title="Počasí není k dispozici"
