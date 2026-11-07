@@ -378,7 +378,7 @@ function TariffView({
       })}
       <p className="en-inv-explain">
         {check.mismatch
-          ? 'Ceny v HomeBrainu se liší od faktury (ceny s DPH vč. distribuce, bez stálých plateb).'
+          ? 'Ceny v HomeBrainu se liší od faktury. Ceny za kWh jsou s DPH vč. distribuce, bez stálých plateb.'
           : 'Ceny v HomeBrainu odpovídají faktuře.'}
       </p>
       {check.mismatch && canEdit && updatable && (
@@ -396,6 +396,17 @@ function TariffView({
 }
 
 /* ---------- card ---------- */
+
+/** „1. 10.–31. 10. 2026 · “ from ISO period; empty when unknown. */
+function billingRange(period: readonly (string | null | undefined)[] | null | undefined): string {
+  const [a, b] = period ?? [];
+  const parse = (d?: string | null) =>
+    d && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10).split('-').map(Number) : null;
+  const s = parse(a);
+  const e = parse(b);
+  if (!s || !e) return '';
+  return `${s[2]}. ${s[1]}.–${e[2]}. ${e[1]}. ${e[0]} · `;
+}
 
 export function InvoicesCard({
   connection,
@@ -541,6 +552,7 @@ export function InvoicesCard({
                 <p className="en-inv-sum" data-testid="energy-invoice-summary">
                   <b>{formatKc(current.fields.total_incl_vat, 2)}</b>
                   <span>
+                    {billingRange(current.fields.period)}
                     {formatKwh(current.fields.kwh?.total)} ·{' '}
                     {current.fields.supplier ?? 'dodavatel neznámý'}
                     {current.fields.rate ? ` · ${current.fields.rate}` : ''}
