@@ -162,7 +162,11 @@ def role_ws_commands(role: str) -> frozenset[str]:
     if role in FAMILY_APPROVE_ROLES:
         extra |= {"homebrain/family/chore/approve"}
     if role in ENERGY_DETAIL_ROLES:
-        extra |= {"homebrain/energy/compare"}
+        extra |= {
+            "homebrain/energy/compare",
+            "homebrain/energy/invoices/list",
+            "homebrain/energy/invoices/compare",
+        }
     return KIOSK_WS_COMMANDS | FAMILY_WS_COMMANDS | RECIPES_USER_WS_COMMANDS | extra
 
 
