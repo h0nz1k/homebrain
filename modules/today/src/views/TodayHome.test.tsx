@@ -136,7 +136,8 @@ describe('TodayHome', () => {
   });
 
   it('a Mealie error keeps the tile calm', async () => {
-    render(<TodayHome api={api(new Error('down'))} kiosk={false} />);
+    // Mealie installed but down: the server reports it in `errors`, the tile stays calm.
+    render(<TodayHome api={api(snapshot({ errors: ['mealie'] }))} kiosk={false} />);
     expect((await screen.findByTestId('today-meals-empty')).textContent).toContain(
       'Nic naplánováno',
     );
