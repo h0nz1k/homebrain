@@ -491,7 +491,30 @@ demoHass.fetchWithAuth = async (path: string, init?: RequestInit) => {
 const invoiceGate = () => {
   if (invoiceRole !== 'owner' && invoiceRole !== 'adult') throw new Error('unauthorized');
 };
+// `?session=adult|child|kiosk|guest`: answer `homebrain/session/get` like the integration does for
+// a non-admin HA user with that role (guest = unmapped -> „Nemáte přístup“). Absent = no session.
+const DEV_VISIBLE: Record<string, string[]> = {
+  adult: ['energy', 'family', 'network', 'recipes', 'today', 'waste', 'weather'],
+  child: ['family', 'recipes', 'today', 'waste', 'weather'],
+  kiosk: ['energy', 'family', 'recipes', 'today', 'waste', 'weather'],
+  guest: ['about'],
+};
+const devSessionRole = new URLSearchParams(location.search).get('session');
+const devSession =
+  devSessionRole && DEV_VISIBLE[devSessionRole]
+    ? {
+        'homebrain/session/get': {
+          role: devSessionRole,
+          visible_modules: DEV_VISIBLE[devSessionRole],
+          unavailable_modules: [],
+          disabled_modules: [],
+          is_admin: false,
+          kiosk: devSessionRole === 'kiosk',
+        },
+      }
+    : {};
 demoHass.connection = createMockConnection({
+  ...devSession,
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).
   'homebrain/weather/get': () => buildMockSnapshot(scenarioFromUrl(location.search)),
   'energy/solar_forecast': pvDemo.ha,

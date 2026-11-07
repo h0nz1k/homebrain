@@ -130,6 +130,15 @@ const ModuleContent = memo(function ModuleContent({
   );
 });
 
+function NoAccess() {
+  return (
+    <section className="hb-no-access" role="status" data-testid="hb-no-access">
+      <h2>{t('noAccessTitle')}</h2>
+      <p>{t('noAccessBody')}</p>
+    </section>
+  );
+}
+
 export const App = memo(function App({
   store,
   connection,
@@ -145,7 +154,8 @@ export const App = memo(function App({
   const layoutMobile = useMatchMedia('(max-width: 760px)');
   const path = route?.path ?? '/today';
   const search = typeof window !== 'undefined' ? window.location.search : '';
-  const [session, setSession] = useState<HomeBrainSession | null>(null);
+  // undefined = not answered yet; null = no session (older backend) -> server-side checks only.
+  const [session, setSession] = useState<HomeBrainSession | null | undefined>(undefined);
   // ADR-0002: the kiosk role always gets the kiosk shell on Dnes; `?kiosk=1` alone is layout only.
   // The kiosk panel always shows only Dnes, whatever the route or role.
   const kiosk = kioskPanel || isKioskRoute(path, search) || session?.kiosk === true;
@@ -185,6 +195,14 @@ export const App = memo(function App({
       active = false;
     };
   }, [connection, connected]);
+
+  // ADR-0002 Fáze 4: a non-admin only gets the modules its role sees; unmapped users (guest)
+  // and modules outside the role get a calm „Nemáte přístup“ before any module data loads.
+  const sessionPending = session === undefined && Boolean(connection) && connected;
+  const noAccess =
+    !!session &&
+    !session.isAdmin &&
+    (id === 'settings' || !session.visibleModules.includes(id));
 
   useEffect(() => {
     let active = true;
@@ -231,7 +249,11 @@ export const App = memo(function App({
               {t('disconnected')}
             </p>
           )}
-          {session?.unavailableModules.includes(id) ? (
+          {sessionPending ? (
+            <p>{t('loading')}</p>
+          ) : noAccess ? (
+            <NoAccess />
+          ) : session?.unavailableModules.includes(id) ? (
             <p className="hb-module-unavailable" role="alert">
               {t('moduleUnavailable')}
             </p>

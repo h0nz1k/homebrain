@@ -111,6 +111,25 @@ homebrain-panel {
   background: var(--hb-warn-s);
 }
 
+.hb-no-access {
+  max-width: 36rem;
+  margin: var(--hb-sp-6) auto;
+  padding: var(--hb-sp-4);
+  border: 1px solid var(--hb-edge);
+  border-radius: var(--hb-radius-card);
+  text-align: center;
+}
+
+.hb-no-access h2 {
+  margin: 0 0 var(--hb-sp-2);
+  font-size: 1.25rem;
+}
+
+.hb-no-access p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .hb-disconnected {
   margin-bottom: var(--hb-sp-4);
   padding: var(--hb-sp-3) var(--hb-sp-4);
