@@ -253,7 +253,15 @@
       },
       "network_unifi": {
         "title": "UniFi – přímé čtení (volitelné)",
-        "description": "Volitelné rozšíření modulu Síť: HomeBrain čte řadič UniFi Network vlastním účtem a doplní porty, rychlosti linek, sílu signálu a vytížení kanálů. Doporučeno: v UniFi vytvořte lokální účet „homebrain“ s rolí **View Only** (jen čtení). HomeBrain nikdy nečte přihlašovací údaje integrace UniFi v HA. Adresa: klasická aplikace `https://<řadič>:8443`, UniFi OS `https://<řadič>`. Heslo se nikdy nezobrazuje; prázdné pole ponechá uložené. Vymazáním adresy přímé čtení vypnete.",
+        "description": "Volitelné rozšíření modulu Síť: HomeBrain čte řadič UniFi Network (jen požadavky GET) a doplní porty, rychlosti linek, sílu signálu a vytížení kanálů. Doporučeno: **Použít účet z integrace UniFi v HA** – žádný druhý účet ani heslo; HomeBrain si adresu, port, site a přihlášení přečte z té integrace při každém připojení a heslo nikam neukládá. Při více integracích UniFi vyberte, kterou použít. „Vlastní účet“ umožní zadat samostatné přihlašovací údaje (doporučeno View Only).",
+        "data": {
+          "source": "Účet UniFi",
+          "entry_id": "Integrace UniFi v HA"
+        }
+      },
+      "network_unifi_manual": {
+        "title": "UniFi – vlastní účet",
+        "description": "Vlastní účet HomeBrainu pro čtení UniFi. Doporučeno: v UniFi lokální účet „homebrain“ s rolí **View Only** (jen čtení). Adresa: klasická aplikace `https://<řadič>:8443`, UniFi OS `https://<řadič>`. Heslo se nikdy nezobrazuje; prázdné pole ponechá uložené. Vymazáním adresy přímé čtení vypnete.",
         "data": {
           "url": "Adresa řadiče (URL)",
           "site": "Site (výchozí „default“)",
@@ -275,7 +283,8 @@
       "invalid_image": "Zadejte cestu /local/… nebo https URL.",
       "invalid_auth": "Přihlášení k UniFi selhalo – zkontrolujte uživatele a heslo.",
       "cannot_connect": "Řadič UniFi není dostupný – zkontrolujte adresu a certifikát.",
-      "invalid_url": "Zadejte adresu začínající https:// (nebo http://)."
+      "invalid_url": "Zadejte adresu začínající https:// (nebo http://).",
+      "unifi_source_missing": "Vybraná integrace UniFi teď v Home Assistantu neběží (odebraná nebo s chybou). Zkontrolujte ji v Nastavení → Zařízení a služby → UniFi Network, nebo zvolte jiný účet."
     }
   },
   "selector": {
@@ -304,6 +313,13 @@
         "auto": "Automaticky (jen s Mealie)",
         "off": "Vypnuto"
       }
+    },
+    "network_unifi_source": {
+      "options": {
+        "ha_integration": "Použít účet z integrace UniFi v HA",
+        "manual": "Vlastní účet (zadat údaje)",
+        "off": "Vypnuto (jen data z HA)"
+      }
     }
   },
   "issues": {
@@ -313,7 +329,7 @@
     },
     "network_unifi_auth": {
       "title": "HomeBrain Síť: přihlášení k UniFi selhalo",
-      "description": "Účet HomeBrainu pro přímé čtení UniFi se nedokázal přihlásit (změněné heslo nebo smazaný účet). Modul Síť dál běží jen z dat HA. Opravte heslo v Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Síť – UniFi; hlášení zmizí po prvním úspěšném čtení."
+      "description": "Účet UniFi, kterým HomeBrain čte síť, se nedokázal přihlásit (změněné heslo nebo smazaný účet). Modul Síť dál běží jen z dat HA. U účtu z integrace UniFi v HA opravte přihlášení v té integraci; u vlastního účtu opravte heslo v Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Síť – UniFi. Hlášení zmizí po prvním úspěšném čtení."
     },
     "waste_data_horizon": {
       "title": "HomeBrain Odpady: svozový kalendář končí {last_date}",

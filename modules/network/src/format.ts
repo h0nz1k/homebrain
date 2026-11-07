@@ -6,6 +6,7 @@ import type {
   NetSeverity,
   NetSnapshot,
   NetSummary,
+  NetUnifiStatus,
 } from './types.js';
 
 export const SERIOUS: ReadonlySet<NetSeverity> = new Set(['critical', 'warning']);
@@ -260,6 +261,14 @@ export interface SourceModel {
   note: string | null;
 }
 
+/** Settings line: „Účet: ha (z integrace UniFi)“ / „Účet: homebrain (vlastní účet)“. */
+export function unifiAccountLabel(u?: NetUnifiStatus | null): string | null {
+  if (!u?.configured || !u.source) return null;
+  if (u.source === 'ha_integration')
+    return u.account ? `Účet: ${u.account} (z integrace UniFi)` : 'Účet: z integrace UniFi';
+  return u.account ? `Účet: ${u.account} (vlastní účet)` : null;
+}
+
 /** „Zdroj: HA“ / „Zdroj: HA + UniFi“ + a short note for problems or the setup hint. */
 export function sourceModel(snap: Pick<NetSnapshot, 'source' | 'unifi'>): SourceModel {
   const u = snap.unifi;
@@ -269,11 +278,20 @@ export function sourceModel(snap: Pick<NetSnapshot, 'source' | 'unifi'>): Source
       tone: 'neutral',
       note: 'Porty, signál a kanály doplní volitelné přímé čtení UniFi: Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Síť – UniFi.',
     };
+  if (u.status === 'unifi_source_missing')
+    return {
+      label: 'Zdroj: HA',
+      tone: 'neutral',
+      note: 'Integrace UniFi v HA teď neběží – porty a signál doplním, jakmile se znovu načte.',
+    };
   if (u.status === 'auth_failed')
     return {
       label: 'Zdroj: HA',
       tone: 'warn',
-      note: 'Přihlášení k UniFi selhalo – opravte heslo v možnostech HomeBrainu (Síť – UniFi).',
+      note:
+        u.source === 'ha_integration'
+          ? 'Účet z integrace UniFi se nepřihlásil – zkontrolujte integraci UniFi v HA.'
+          : 'Přihlášení k UniFi selhalo – opravte heslo v možnostech HomeBrainu (Síť – UniFi).',
     };
   if (u.status === 'unreachable')
     return {

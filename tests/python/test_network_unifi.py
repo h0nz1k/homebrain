@@ -416,13 +416,21 @@ async def test_ws_never_sends_credentials_and_reports_source(hass: HomeAssistant
         assert msg["success"], msg
         seen.append(json.dumps(msg["result"]))
     blob = "\n".join(seen)
-    assert SECRET not in blob and 'homebrain"' not in blob and "unifi.example" not in blob
+    assert SECRET not in blob and "unifi.example" not in blob
+    # the username is shown only in the admin settings answer
+    assert 'homebrain"' not in "\n".join(seen[:3] + seen[4:])
     assert not MAC_RE.search(blob)
     result = json.loads(seen[0])
     assert result["source"] == "ha+unifi"
     assert result["unifi"]["status"] == "ok" and result["unifi"]["readonly"] is True
     settings = json.loads(seen[3])
-    assert settings["unifi"] == {"configured": True, "status": "ok", "readonly": True}
+    assert settings["unifi"] == {
+        "configured": True,
+        "status": "ok",
+        "readonly": True,
+        "source": "manual",
+        "account": "homebrain",
+    }
 
 
 # ---------------------------------------------------------------- options flow
@@ -439,6 +447,11 @@ async def test_options_flow_unifi_step(hass: HomeAssistant):
         result["flow_id"], {"next_step_id": "network_unifi"}
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
+    # no HA UniFi entry → manual is the default; it opens the credentials form
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"source": "manual"}
+    )
+    assert result["step_id"] == "network_unifi_manual"
     user = {
         "url": "https://unifi.example:8443",
         "site": "default",
@@ -462,6 +475,9 @@ async def test_options_flow_unifi_step(hass: HomeAssistant):
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "network_unifi"}
     )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"source": "manual"}
+    )
     with patch(target, return_value={"readonly": False}) as validate:
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], {**user, "password": ""}
@@ -473,9 +489,13 @@ async def test_options_flow_unifi_step(hass: HomeAssistant):
         result["flow_id"], {"next_step_id": "network_unifi"}
     )
     result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"source": "manual"}
+    )
+    result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"url": "", "site": "default", "verify_ssl": False}
     )
-    assert "network_unifi" not in entry.options
+    # an explicit „off“ (not just a missing key: that would re-enable the HA-account default)
+    assert entry.options["network_unifi"] == {"source": "off"}
 
 
 async def test_validate_and_poller_with_ha_session(hass: HomeAssistant, socket_enabled):

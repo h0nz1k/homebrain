@@ -44,12 +44,18 @@ export interface NetLink {
   signal_dbm: number | null;
 }
 
-/** Direct UniFi connection state – never the URL or the account. */
+/** Where the UniFi account comes from: HA's own UniFi integration or an own manual account. */
+export type NetUnifiSource = 'ha_integration' | 'manual';
+
+/** Direct UniFi connection state – never the URL or the password. */
 export interface NetUnifiStatus {
   configured: boolean;
-  status?: 'pending' | 'ok' | 'auth_failed' | 'unreachable';
+  status?: 'pending' | 'ok' | 'auth_failed' | 'unreachable' | 'unifi_source_missing';
   updated_at?: number | null;
   readonly?: boolean | null;
+  source?: NetUnifiSource;
+  /** Username only, in the admin settings answer (`settings/get`). */
+  account?: string | null;
 }
 
 export interface NetDevice {

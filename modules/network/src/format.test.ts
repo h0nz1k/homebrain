@@ -12,6 +12,7 @@ import {
   speedLabel,
   splitProblems,
   statTiles,
+  unifiAccountLabel,
 } from './format.js';
 import { createMockNetworkApi } from './mock.js';
 import { networkSignals } from './signal.js';
@@ -162,6 +163,36 @@ describe('Síť V2 (vlastní účet UniFi)', () => {
     expect(
       sourceModel({ ...s, unifi: { configured: true, status: 'auth_failed' } }).note,
     ).toContain('heslo');
+  });
+
+  it('settings label names the UniFi account and where it comes from', () => {
+    expect(
+      unifiAccountLabel({ configured: true, source: 'ha_integration', account: 'ha' }),
+    ).toBe('Účet: ha (z integrace UniFi)');
+    expect(unifiAccountLabel({ configured: true, source: 'manual', account: 'homebrain' })).toBe(
+      'Účet: homebrain (vlastní účet)',
+    );
+    expect(unifiAccountLabel({ configured: false })).toBeNull();
+    expect(unifiAccountLabel({ configured: true, source: 'ha_integration', account: null })).toBe(
+      'Účet: z integrace UniFi',
+    );
+  });
+
+  it('missing HA UniFi integration is a calm hint, not a warning', async () => {
+    const s = await unifiSnap();
+    const m = sourceModel({
+      ...s,
+      source: 'ha',
+      unifi: { configured: true, status: 'unifi_source_missing', source: 'ha_integration' },
+    });
+    expect(m).toMatchObject({ label: 'Zdroj: HA', tone: 'neutral' });
+    expect(m.note).toContain('Integrace UniFi v HA');
+    expect(
+      sourceModel({
+        ...s,
+        unifi: { configured: true, status: 'auth_failed', source: 'ha_integration' },
+      }).note,
+    ).toContain('integraci UniFi v HA');
   });
 
   it('mock V2 data fills AP radios, client signal and the new rules', async () => {

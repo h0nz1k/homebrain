@@ -23,6 +23,7 @@ import {
   radioText,
   signalBars,
   sourceModel,
+  unifiAccountLabel,
   poeShare,
   sinceLabel,
   speedLabel,
@@ -714,6 +715,16 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
   // A shared wall screen never gets more than the summary, even when signed in as admin.
   const admin = role === 'owner' && !kiosk;
   const { snap, error, reload } = useNetwork(api, admin);
+  // „Účet: ha (z integrace UniFi)“ – username only, from the admin settings answer.
+  const [account, setAccount] = useState<string | null>(null);
+  const unifiStatus = snap?.unifi?.status;
+  useEffect(() => {
+    if (!api || !admin) return;
+    api.settings().then(
+      (s) => setAccount(unifiAccountLabel(s.unifi)),
+      () => setAccount(null),
+    );
+  }, [api, admin, unifiStatus]);
   const [reveal, setReveal] = useState<string[] | null>(null);
   useEffect(() => {
     if (!reveal) return;
@@ -815,6 +826,11 @@ export default function NetworkView({ connection, route, kiosk }: ModuleViewProp
       {sourceNote && (
         <p className="net-note net-source-note" data-testid="network-source-note">
           {glue(sourceNote)}
+        </p>
+      )}
+      {admin && account && (tab === 'mapa' || tab === 'hoste') && (
+        <p className="net-note net-source-note" data-testid="network-unifi-account">
+          {account}
         </p>
       )}
       {body}
