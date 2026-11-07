@@ -99,4 +99,44 @@ export interface ImportantItem {
 export interface NetSettings {
   important: ImportantItem[];
   guest: { ssid: string; password?: string | null; security?: 'WPA' | 'WEP' | 'nopass' } | null;
+  gateway_label?: string | null;
+}
+
+/** Topology graph (`homebrain/network/topology`, admin only). V1 = HA data; V2 fills port/speed/dBm. */
+export type TopoKind = 'internet' | 'gateway' | 'switch' | 'ap' | 'client' | 'more';
+export type TopoEdgeType = 'wired' | 'mesh' | 'wireless';
+
+export interface TopoNode {
+  id: string;
+  kind: TopoKind;
+  label: string;
+  parent: string | null;
+  status: 'ok' | 'offline' | 'unknown';
+  severity: NetSeverity | null;
+  problem_ids: string[];
+  model_label?: string | null;
+  clients?: number | null;
+  count?: number;
+  wired?: boolean;
+  latency_ms?: number | null;
+  ref?: { kind: 'ap' | 'switch' | 'client'; id: string };
+}
+
+export interface TopoEdge {
+  from: string;
+  to: string;
+  type: TopoEdgeType;
+  assumed: boolean;
+  port: number | null;
+  speed_mbps: number | null;
+  max_mbps: number | null;
+  poe_w: number | null;
+  signal_dbm: number | null;
+  slow: boolean;
+}
+
+export interface TopoGraph {
+  nodes: TopoNode[];
+  edges: TopoEdge[];
+  meta: { source: 'ha' | 'unifi'; slow_links: number; mesh: number; assumed: number };
 }

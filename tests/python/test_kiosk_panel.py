@@ -103,6 +103,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/recipes/airfryer_control": {"action": "stop"},
     "homebrain/recipes/airfryer_program": {"program": 1},
     "homebrain/network/get": {},
+    "homebrain/network/topology": {},
     "homebrain/network/summary": {},
     "homebrain/network/guest_qr": {},
     "homebrain/network/settings/get": {},

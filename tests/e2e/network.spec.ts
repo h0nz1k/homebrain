@@ -99,3 +99,92 @@ test('Síť – nenastavená hostovská Wi-Fi ukáže nápovědu', async ({ page
   await expect(page.getByTestId('network-guest-hint')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('network-headline')).toHaveText('Síť v pořádku');
 });
+
+test.describe('Síť – mapa', () => {
+  test('desktop: vodorovný strom, mesh, pomalá linka, předpoklad a klik na detail', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop layout');
+    await page.goto('/homebrain-sit/mapa');
+    const map = page.getByTestId('network-topo-desktop');
+    await expect(map).toBeVisible({ timeout: 20_000 });
+    const node = (id: string) =>
+      page.locator(`[data-testid="network-topo-node"][data-node-id="${id}"]`);
+    await expect(page.locator('[data-testid="network-topo-node"][data-kind="ap"]')).toHaveCount(5);
+    await expect(page.locator('[data-testid="network-topo-node"][data-kind="switch"]')).toHaveCount(
+      3,
+    );
+    await expect(node('gateway')).toContainText('Router');
+    const link = (to: string) => page.locator(`[data-testid="network-topo-link"][data-to="${to}"]`);
+    await expect(link('ap-podkrovi')).toHaveAttribute('data-type', 'mesh');
+    await expect(link('ap-pracovna')).toHaveAttribute('data-tone', 'slow');
+    await expect(link('sw-lite')).toHaveAttribute('data-assumed', 'true');
+    await expect(
+      page.getByTestId('network-topo-chip').filter({ hasText: 'p1 · 1G' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('network-topo-summary')).toContainText('Linky 100 Mb/s 1');
+    // A problem from the existing rules highlights its node.
+    await expect(node('ap-terasa')).toHaveAttribute('data-severity', 'warning');
+    // Mesh AP hangs below its parent in the same column.
+    const parent = await node('ap-kuchyn').boundingBox();
+    const mesh = await node('ap-podkrovi').boundingBox();
+    expect(mesh && parent && Math.abs(mesh.x - parent.x) < 1 && mesh.y > parent.y).toBe(true);
+    // The tree fills the card and no key text (e.g. router „mimo UniFi“) ends in an ellipsis.
+    const fit = await page.evaluate(() => {
+      const sc = document.querySelector('.net-topo-scroll') as HTMLElement;
+      const r = sc.getBoundingClientRect();
+      const nodes = Array.from(sc.querySelectorAll('.net-topo-node')).map((n) =>
+        n.getBoundingClientRect(),
+      );
+      const span = Math.max(...nodes.map((n) => n.right)) - Math.min(...nodes.map((n) => n.left));
+      const clipped = Array.from(sc.querySelectorAll('.net-topo-copy strong, .net-topo-copy small'))
+        .filter((el) => el.scrollWidth > el.clientWidth + 1)
+        .map((el) => el.textContent);
+      return { fill: span / r.width, clipped };
+    });
+    expect(fit.clipped).toEqual([]);
+    expect(fit.fill).toBeGreaterThan(0.85);
+    await node('sw-flex').click();
+    await expect(page.getByRole('radio', { name: 'Switche' })).toBeChecked();
+    await expect(page.locator('#network-switch-sw-flex')).toBeFocused();
+    await page.getByRole('radio', { name: 'Mapa' }).click();
+    await node('ap-terasa').click();
+    await expect(page.getByRole('radio', { name: 'Přehled' })).toBeChecked();
+    await expect(page.locator('[data-testid="network-problem"]:focus')).toContainText('Co s tím');
+    await noSidewaysScroll(page);
+  });
+
+  test('telefon: svislý sbalitelný strom bez ořezu', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-s21', 'phone layout');
+    await page.goto('/homebrain-sit/mapa');
+    const tree = page.getByTestId('network-topo-phone');
+    await expect(tree).toBeVisible({ timeout: 20_000 });
+    await expect(tree.locator('[data-kind="ap"]')).toHaveCount(5);
+    const robot = tree.locator('[data-node-id="client:c-robot"]');
+    await expect(robot).toHaveCount(0);
+    await page.getByRole('button', { name: 'Ukázat zařízení u Obývák' }).click();
+    await expect(robot).toBeVisible();
+    await expect(tree.locator('[data-node-id="more:ap-obyvak"]')).toContainText('další');
+    await expect(tree.locator('li[data-type="mesh"] [data-node-id="ap-podkrovi"]')).toBeVisible();
+    // Child APs come before client chips; the link meta wraps instead of being cut.
+    // Kuchyň is open from the start (its problem client).
+    await expect(page.getByRole('button', { name: 'Skrýt zařízení u Kuchyň' })).toBeVisible();
+    const kuchyn = tree.locator('li:has(> .net-tree-row [data-node-id="ap-kuchyn"]) > ul > li');
+    await expect(kuchyn.first()).toHaveAttribute('data-type', 'mesh');
+    const clipped = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll(
+          '.net-tree .net-topo-copy strong, .net-tree .net-topo-copy small',
+        ),
+      )
+        .filter((el) => el.scrollWidth > el.clientWidth + 1)
+        .map((el) => el.textContent),
+    );
+    expect(clipped).toEqual([]);
+    await noSidewaysScroll(page);
+    await robot.click();
+    await expect(
+      page.getByRole('radio', { name: /Zařízení|Přehled/, checked: true }),
+    ).toBeVisible();
+  });
+});

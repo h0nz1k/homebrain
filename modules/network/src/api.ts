@@ -1,9 +1,10 @@
 import { getSession, type ConnectionLike } from '@homebrain/ha-client';
-import type { GuestQr, NetRole, NetSettings, NetSnapshot, NetSummary } from './types.js';
+import type { GuestQr, NetRole, NetSettings, NetSnapshot, NetSummary, TopoGraph } from './types.js';
 
 export interface NetworkApi {
   role(): Promise<NetRole>;
   get(): Promise<NetSnapshot>;
+  topology(): Promise<TopoGraph>;
   summary(): Promise<NetSummary>;
   guestQr(): Promise<GuestQr>;
   settings(): Promise<NetSettings>;
@@ -20,6 +21,7 @@ export function createWsNetworkApi(connection: ConnectionLike): NetworkApi {
       return session ? (session.isAdmin ? 'owner' : session.role) : 'guest';
     },
     get: () => call<NetSnapshot>('homebrain/network/get'),
+    topology: () => call<TopoGraph>('homebrain/network/topology'),
     summary: () => call<NetSummary>('homebrain/network/summary'),
     guestQr: () => call<GuestQr>('homebrain/network/guest_qr'),
     settings: () => call<NetSettings>('homebrain/network/settings/get'),

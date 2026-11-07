@@ -1,6 +1,6 @@
 """WebSocket API of the Síť module (``homebrain/network/*``).
 
-* ``get`` / ``settings/*`` – admin only (device list, important devices, guest Wi-Fi password);
+* ``get`` / ``topology`` / ``settings/*`` – admin only (devices, LAN map, guest password);
 * ``summary`` – adults and the kitchen kiosk: status + headline, never a device list;
 * ``guest_qr`` – every mapped role: SSID + QR payload (the password only travels inside it).
 """
@@ -21,6 +21,7 @@ from ..const import DOMAIN
 from ..roles import NETWORK_QR_ROLES, NETWORK_SUMMARY_ROLES, entry_roles, resolve_role
 from . import rules
 from .discovery import FlapTracker, build_snapshot
+from .topology import build_topology
 
 CONF_NETWORK: Final = "network"
 FLAPS_KEY: Final = "network_flaps"
@@ -83,6 +84,15 @@ def websocket_network_get(hass: HomeAssistant, connection: Any, msg: dict[str, A
     )
 
 
+@websocket_api.websocket_command({vol.Required("type"): "homebrain/network/topology"})
+@websocket_api.require_admin
+@callback
+def websocket_network_topology(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    """Topology graph for the „Mapa“ tab – admin only (device names, structure of the LAN)."""
+    snap, problems = _snapshot(hass)
+    connection.send_result(msg["id"], build_topology(snap, problems, network_options(hass)))
+
+
 @websocket_api.websocket_command({vol.Required("type"): "homebrain/network/summary"})
 @_require(NETWORK_SUMMARY_ROLES)
 @callback
@@ -121,7 +131,11 @@ def websocket_network_settings_get(
     opts = network_options(hass)
     connection.send_result(
         msg["id"],
-        {"important": opts.get("important", []), "guest": opts.get("guest") or None},
+        {
+            "important": opts.get("important", []),
+            "guest": opts.get("guest") or None,
+            "gateway_label": opts.get("gateway_label"),
+        },
     )
 
 
@@ -154,6 +168,7 @@ GUEST_SCHEMA = vol.Any(
         vol.Required("type"): "homebrain/network/settings/set",
         vol.Optional("important"): IMPORTANT_SCHEMA,
         vol.Optional("guest"): GUEST_SCHEMA,
+        vol.Optional("gateway_label"): vol.Any(None, vol.All(str, vol.Length(max=40))),
     }
 )
 @websocket_api.require_admin
@@ -170,6 +185,11 @@ def websocket_network_settings_set(
         opts["important"] = [
             {k: v for k, v in item.items() if v not in (None, "")} for item in msg["important"]
         ]
+    if "gateway_label" in msg:
+        if msg["gateway_label"]:
+            opts["gateway_label"] = msg["gateway_label"].strip()
+        else:
+            opts.pop("gateway_label", None)
     if "guest" in msg:
         if msg["guest"] is None:
             opts.pop("guest", None)
@@ -177,12 +197,18 @@ def websocket_network_settings_set(
             opts["guest"] = dict(msg["guest"])
     hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_NETWORK: opts})
     connection.send_result(
-        msg["id"], {"important": opts.get("important", []), "guest": opts.get("guest") or None}
+        msg["id"],
+        {
+            "important": opts.get("important", []),
+            "guest": opts.get("guest") or None,
+            "gateway_label": opts.get("gateway_label"),
+        },
     )
 
 
 COMMANDS: Final = (
     websocket_network_get,
+    websocket_network_topology,
     websocket_network_summary,
     websocket_network_guest_qr,
     websocket_network_settings_get,

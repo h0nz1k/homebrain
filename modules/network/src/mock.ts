@@ -7,6 +7,9 @@ import type {
   NetRole,
   NetSettings,
   NetSnapshot,
+  TopoEdge,
+  TopoGraph,
+  TopoNode,
 } from './types.js';
 
 /** Dev/e2e scenarios (`?sit=`): synthetic house, 7 APs, 3 switches – no real data. */
@@ -346,6 +349,7 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
     calls,
     role: async () => role,
     get: () => admin() ?? Promise.resolve(snapshot()),
+    topology: () => admin() ?? Promise.resolve(mockTopology(opts.scenario ?? 'problems', now())),
     summary: async () => snapshot().summary,
     guestQr: async (): Promise<GuestQr> => {
       const g = settings.guest;
@@ -371,6 +375,145 @@ export function createMockNetworkApi(opts: MockNetworkOptions = {}): NetworkApi 
           }),
         )
       );
+    },
+  };
+}
+
+/**
+ * Synthetic map for `?sit=` (same shape as the real HA-only graph): gateway outside UniFi,
+ * 3 switches (uplink assumed), 5 APs incl. one mesh AP, important devices, `+N` per AP.
+ */
+export function mockTopology(scenario: NetworkScenario, now = Date.now() / 1000): TopoGraph {
+  if (scenario === 'empty')
+    return { nodes: [], edges: [], meta: { source: 'ha', slow_links: 0, mesh: 0, assumed: 0 } };
+  const snap = snapshotFor(scenario, now);
+  const nodes: TopoNode[] = [];
+  const edges: TopoEdge[] = [];
+  const add = (
+    id: string,
+    kind: TopoNode['kind'],
+    label: string,
+    parent: string | null,
+    over: Partial<TopoNode> = {},
+    link: Partial<TopoEdge> = {},
+  ) => {
+    nodes.push({ id, kind, label, parent, status: 'ok', severity: null, problem_ids: [], ...over });
+    if (parent)
+      edges.push({
+        from: parent,
+        to: id,
+        type: 'wired',
+        assumed: false,
+        port: null,
+        speed_mbps: null,
+        max_mbps: null,
+        poe_w: null,
+        signal_dbm: null,
+        slow: false,
+        ...link,
+      });
+  };
+  const net = snap.internet;
+  add('internet', 'internet', 'Internet', null, {
+    status: net?.online === false ? 'offline' : 'ok',
+    latency_ms: net?.latency_ms ?? null,
+  });
+  add('gateway', 'gateway', 'Router', 'internet', { latency_ms: 0.6 });
+  const sw = (id: string, label: string, model: string) =>
+    add(
+      id,
+      'switch',
+      label,
+      'gateway',
+      { model_label: model, ref: { kind: 'switch', id } },
+      { assumed: true },
+    );
+  sw('sw-flex', 'USW Flex', 'USW Flex 2.5G 5');
+  sw('sw-lite', 'USW Lite 16', 'USW Lite 16 PoE');
+  sw('sw-ultra', 'USW Ultra', 'USW Ultra');
+  const apDev = new Map(snap.aps.map((a) => [a.id, a]));
+  const ap = (id: string, parent: string, link: Partial<TopoEdge>) => {
+    const a = apDev.get(id);
+    add(
+      id,
+      'ap',
+      a?.name ?? id,
+      parent,
+      {
+        model_label: a?.model_label ?? null,
+        clients: a?.clients ?? null,
+        status: a?.state === 'connected' ? 'ok' : 'offline',
+        ref: { kind: 'ap', id },
+      },
+      { max_mbps: a?.max_link_mbps ?? 1000, ...link },
+    );
+  };
+  ap('ap-terasa', 'sw-flex', { max_mbps: 2500 });
+  ap('ap-obyvak', 'sw-lite', {});
+  ap('ap-pracovna', 'sw-lite', { speed_mbps: 100, max_mbps: 2500, slow: true });
+  ap('ap-kuchyn', 'sw-ultra', { port: 1, speed_mbps: 1000, poe_w: 7.5 });
+  ap('ap-podkrovi', 'ap-kuchyn', { type: 'mesh', max_mbps: null });
+  const where: Record<string, string> = {
+    'c-tablet': 'ap-kuchyn',
+    'c-robot': 'ap-obyvak',
+    'c-tv': 'ap-obyvak',
+    'c-printer': 'ap-pracovna',
+    'c-camera': 'ap-terasa',
+    'c-heatpump': 'ap-podkrovi',
+  };
+  const extra: Array<[string, string]> = [
+    ['c-tv', 'Televize'],
+    ['c-printer', 'Tiskárna'],
+    ['c-camera', 'Kamera zahrada'],
+    ['c-heatpump', 'Tepelné čerpadlo'],
+  ];
+  const important = [
+    ...snap.clients
+      .filter((c) => c.id === 'c-tablet' || c.id === 'c-robot' || c.id === 'c-server')
+      .map((c) => ({ id: c.id, label: c.label, wired: c.wired, online: c.online })),
+    ...extra.map(([id, label]) => ({ id, label, wired: false, online: true })),
+  ];
+  const drawn = new Map<string, number>();
+  for (const c of important) {
+    const parent = c.wired ? 'gateway' : (where[c.id] ?? 'gateway');
+    add(
+      `client:${c.id}`,
+      'client',
+      c.label,
+      parent,
+      { status: c.online ? 'ok' : 'offline', wired: c.wired, ref: { kind: 'client', id: c.id } },
+      { type: c.wired ? 'wired' : 'wireless', assumed: parent === 'gateway' },
+    );
+    if (c.online) drawn.set(parent, (drawn.get(parent) ?? 0) + 1);
+  }
+  for (const id of ['ap-terasa', 'ap-obyvak', 'ap-pracovna', 'ap-kuchyn', 'ap-podkrovi']) {
+    const rest = (apDev.get(id)?.clients ?? 0) - (drawn.get(id) ?? 0);
+    if (rest > 0) add(`more:${id}`, 'more', `+${rest}`, id, { count: rest }, { type: 'wireless' });
+  }
+  const rank = { critical: 0, warning: 1, notice: 2, info: 3 } as const;
+  for (const p of snap.problems) {
+    const t = p.target;
+    const id =
+      t.kind === 'internet'
+        ? 'internet'
+        : t.kind === 'port'
+          ? t.id.split(':')[0]
+          : t.kind === 'client'
+            ? `client:${t.id}`
+            : t.id;
+    const n = nodes.find((x) => x.id === id);
+    if (!n) continue;
+    n.problem_ids.push(p.id);
+    if (!n.severity || rank[p.severity] < rank[n.severity]) n.severity = p.severity;
+  }
+  return {
+    nodes,
+    edges,
+    meta: {
+      source: 'ha',
+      slow_links: edges.filter((e) => e.slow).length,
+      mesh: edges.filter((e) => e.type === 'mesh').length,
+      assumed: edges.filter((e) => e.assumed).length,
     },
   };
 }
