@@ -29,6 +29,33 @@ export const todayStyles = `
 /* auto-fill (#64): a lone chip keeps its own column instead of stretching into a full-width strip. */
 .today-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;width:100%;flex:none}
 .today-chips .hb-chip{max-width:100%;white-space:normal;width:max-content;justify-self:start}
+.today-home{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;flex:none;min-height:0}
+.today-home-tile{display:flex;flex-direction:column;gap:8px;min-width:0;margin:0;padding:14px 20px;text-align:left;font:inherit;color:inherit;background:var(--hb-glass,var(--hb-s1));border:1px solid var(--hb-glass-edge,var(--hb-b1));border-radius:var(--hb-r-lg,18px)}
+.today-home-title{margin:0;font-size:14px;font-weight:500;color:var(--hb-t2)}
+.today-meal-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 28px}
+.today-meal-list li{display:flex;flex-direction:column;gap:2px;min-width:0}
+.today-meal-type{font-size:13px;color:var(--hb-t3)}
+.today-meal-name{font-size:18px;font-weight:500;color:var(--hb-t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.today-meal-link{all:unset;cursor:pointer;font-size:18px;font-weight:500;color:var(--hb-ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;border-radius:6px}
+.today-meal-link:hover{text-decoration:underline}
+.today-meal-link:focus-visible,.today-chores:focus-visible{outline:2px solid var(--hb-ac);outline-offset:2px}
+.today-home-empty{margin:0;font-size:16px;color:var(--hb-t2)}
+.today-chores{cursor:pointer}
+.today-chores:hover{border-color:var(--hb-b2)}
+.today-chore-list{display:flex;flex-direction:column;gap:8px}
+.today-chore-kid{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:2px 10px}
+.today-chore-name{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today-chore-count{font-size:16px;font-weight:600}
+.today-chore-late{grid-column:1/-1;font-size:13px;color:var(--hb-warn,#d99a3a)}
+.today-chore-bar{grid-column:1/-1;height:4px;border-radius:2px;background:color-mix(in srgb,var(--hb-t1) 12%,transparent);overflow:hidden}
+.today-chore-bar>span{display:block;height:100%;border-radius:inherit;background:var(--hb-ok,#3fb27f)}
+.today-mobile .today-home{grid-template-columns:1fr}
+.today-mobile .today-home-tile{padding:12px 16px}
+.today-kiosk .today-home-tile{padding:12px 20px;gap:6px}
+.today-kiosk .today-home-title,.today-kiosk .today-meal-type,.today-kiosk .today-chore-late,.today-kiosk .today-home-empty{font-size:16px}
+.today-kiosk .today-meal-name{font-size:20px}
+.today-kiosk .today-chore-list{flex-direction:row;flex-wrap:wrap;gap:6px 24px}
+.today-kiosk .today-chore-kid{min-width:150px}
 .today-footer{display:flex;flex-wrap:wrap;gap:16px;font-size:14px;color:var(--hb-t3);flex:none}
 .today-footer a{color:var(--hb-ac)}
 .today-desktop{height:calc(100dvh - 56px);min-height:0}

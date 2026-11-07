@@ -23,3 +23,10 @@ export {
   withSignalFeeds,
 } from './data/signalSources.js';
 export type { TodaySignalFeed, TodaySignalSource } from './data/signalSources.js';
+export {
+  createMockHomeApi,
+  createWsHomeApi,
+  setTodayHomeApiFactory,
+  summarizeChores,
+} from './data/home.js';
+export type { HomeApi, HomeRole, HomeScenario, Meal, MealsSnapshot } from './data/home.js';
