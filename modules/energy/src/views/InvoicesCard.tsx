@@ -318,7 +318,7 @@ function ComparisonView({ cmp, invoice }: { cmp: InvoiceComparison | null; invoi
       />
       <Row
         label="Spotřeba domu"
-        invoice=""
+        invoice="–"
         measured={formatKwh(cmp.house)}
         testId="energy-invoice-house"
       />

@@ -514,5 +514,7 @@ export const energyStyles = `
   .en-inv-trow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .en-inv-trow span:first-child{grid-column:1/-1;color:var(--hb-t1)}
   .en-inv-trow span:not(:first-child){text-align:left}
+  .en-inv-trow span:not(:first-child){white-space:normal;min-width:0}
+  .en-inv-trow span:not(:first-child) b{display:block;white-space:nowrap}
 }
 `;
