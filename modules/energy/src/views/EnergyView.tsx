@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { EntityStateLike, EntityStore, ModuleViewProps } from '@homebrain/ha-client';
 import { Breakdown, EmptyState, SegmentedControl, StatusBadge } from '@homebrain/ui';
+import { fetchComparison, type Comparison } from '../compare.js';
+import { CompareCard } from './CompareCard.js';
 import {
   adaptEnergyEntities,
   fetchEnergyHistory,
@@ -790,9 +792,11 @@ export function EnergyScreen({
   phaseHistory = PHASE_HISTORY_NONE,
   thermalHistory = THERMAL_HISTORY_NONE,
   cost = null,
+  comparison = { status: 'unconfigured' },
 }: {
   model: EnergyModel;
   cost?: CostView | null;
+  comparison?: Comparison;
   history: EnergyHistory;
   appliances?: ApplianceReading[];
   pv?: PvForecast;
@@ -936,6 +940,7 @@ export function EnergyScreen({
           }
         />
         <CostCard cost={cost} model={model} />
+        <CompareCard comparison={comparison} />
         <PriceCard model={model} />
         <DayChart model={model} history={history} />
         <WeekChart model={model} history={history} />
@@ -1060,6 +1065,14 @@ export default function EnergyView({ store, bindings, connection }: ModuleViewPr
       : null;
     return { costs, settings, hdo, status: connection ? costHours.status : 'unsupported' };
   }, [bindings, entities, now, model, costHours, connection]);
+  const [comparison, setComparison] = useState<Comparison>({ status: 'loading' });
+  useEffect(() => {
+    let cancelled = false;
+    void fetchComparison(connection ?? null).then((next) => !cancelled && setComparison(next));
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, bindingsKey, historySlot]);
   const [pv, setPv] = useState<PvForecast>(PV_FORECAST_NONE);
   const pvSlot = Math.floor(now / PV_REFRESH_MS);
   useEffect(() => {
@@ -1092,6 +1105,7 @@ export default function EnergyView({ store, bindings, connection }: ModuleViewPr
           phaseHistory={phaseHistory}
           thermalHistory={thermalHistory}
           cost={cost}
+          comparison={comparison}
         />
       ) : (
         <div className="en-root">
