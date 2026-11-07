@@ -80,7 +80,7 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
         return self._bindings_step("energy", user_input)
 
     async def async_step_family(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Select the family and school calendars (read only; Dnes shows today's events)."""
+        """Select the family/school calendars and the shared shopping list (todo)."""
         return self._bindings_step("family", user_input)
 
     async def async_step_recipes(self, user_input: dict[str, Any] | None = None) -> FlowResult:

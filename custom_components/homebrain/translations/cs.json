@@ -118,7 +118,8 @@
         "description": "Vyberte rodinný a školní kalendář. HomeBrain je jen čte; dnešní události (název a čas) ukáže Dnes na časové ose. Vymazáním pole vazbu odstraníte.",
         "data": {
           "family_calendar_family": "Rodinný kalendář",
-          "family_calendar_school": "Školní kalendář"
+          "family_calendar_school": "Školní kalendář",
+          "family_todo_shared": "Nákupní seznam (todo)"
         }
       },
       "energy_pv": {

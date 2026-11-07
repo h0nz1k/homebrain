@@ -118,7 +118,8 @@
         "description": "Select the family and school calendars. HomeBrain only reads them; Today shows today's events (title and time) on the timeline. Clear a field to remove the binding.",
         "data": {
           "family_calendar_family": "Family calendar",
-          "family_calendar_school": "School calendar"
+          "family_calendar_school": "School calendar",
+          "family_todo_shared": "Shopping list (todo)"
         }
       },
       "energy_pv": {

@@ -35,6 +35,7 @@ from .const import (
 )
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_pv_forecast
+from .family import ws as family_ws
 from .modules import (
     STATE_DISABLED,
     Registrar,
@@ -127,6 +128,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "recipes": lambda reg: recipes_ws.async_register(hass, reg),
             "access": lambda reg: access_ws.async_register(hass, reg),
             "network": _commands(*network_ws.COMMANDS)(hass),
+            "family": _commands(*family_ws.COMMANDS)(hass),
         },
     )
     if module_states(hass).get("wine") is None:
