@@ -128,6 +128,31 @@ async def test_clients_have_hash_ids_and_ap_mapping(hass: HomeAssistant):
     assert "02:00:00" not in blob  # no MAC ever leaves the integration
 
 
+async def test_tracker_without_device_is_a_client(hass: HomeAssistant):
+    """UniFi creates some client trackers disabled and without a device entry; once the user
+    enables them they must show up (and be markable as important)."""
+    ids = install(hass)
+    entry = hass.config_entries.async_entries("unifi")[0]
+    er.async_get(hass).async_get_or_create(
+        "device_tracker",
+        "unifi",
+        "loose-lock",
+        suggested_object_id="zamek_demo",
+        config_entry=entry,
+    )
+    hass.states.async_set(
+        "device_tracker.zamek_demo",
+        "home",
+        {"friendly_name": "Zámek demo", "essid": "demo", "ap_mac": "02:00:00:00:00:12"},
+    )
+    lock = client_id("loose-lock")
+    snap = build_snapshot(hass, {"important": [{"id": lock, "label": "Zámek"}]}, now=NOW)
+    clients = {c["id"]: c for c in snap["clients"]}
+    assert clients[lock]["label"] == "Zámek" and clients[lock]["important"] is True
+    assert clients[lock]["online"] is True and clients[lock]["wired"] is False
+    assert len(snap["clients"]) > 1 and ids  # devices with a registry entry still listed
+
+
 async def test_rules_on_discovered_snapshot(hass: HomeAssistant):
     install(hass)
     snap = build_snapshot(hass, {}, now=time.time())
