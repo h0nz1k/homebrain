@@ -14,7 +14,10 @@ import {
   clearTodaySignalSources,
   registerTodaySignalSource,
   createMockAdapter,
+  createMockHomeApi,
   setTodayAdapterFactory,
+  setTodayHomeApiFactory,
+  type HomeRole,
   stateFromUrl,
 } from '@homebrain/module-today';
 import {
@@ -114,6 +117,12 @@ const familyApi = createMockFamilyApi({
 });
 (window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;
 setFamilyApiFactory(() => familyApi);
+// Dnes „Co se dnes vaří“ + kids' chores: `?jidlo=empty` = nothing planned, no kids.
+const homeApi = createMockHomeApi(
+  recipesQuery.get('jidlo') === 'empty' ? 'empty' : 'full',
+  (recipesQuery.get('role') as HomeRole | null) ?? 'owner',
+);
+setTodayHomeApiFactory(() => homeApi);
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
 if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
 // `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).

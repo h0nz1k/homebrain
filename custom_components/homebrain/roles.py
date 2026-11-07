@@ -94,6 +94,8 @@ KIOSK_WS_COMMANDS: Final = frozenset(
         "homebrain/weather/alerts",
         # Dnes „energy.advice“ feed (PV forecast fallback for the advice cards).
         "homebrain/energy/pv_forecast",
+        # Dnes „Co se dnes vaří“ (Mealie meal plan; names only).
+        "homebrain/today/meals",
     }
 )
 

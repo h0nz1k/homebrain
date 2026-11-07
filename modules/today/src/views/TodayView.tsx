@@ -24,6 +24,8 @@ import { hasSunTimes } from '../data/time.js';
 import { AmbientSky } from './AmbientSky.js';
 import { SunArc } from './SunArc.js';
 import { WeatherIcon } from './WeatherIcon.js';
+import { TodayHome } from './TodayHome.js';
+import { getTodayHomeApi } from '../data/home.js';
 import { todayStyles } from './todayStyles.js';
 
 function useMedia(query: string) {
@@ -110,6 +112,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
       }),
     );
   }, [factory, context.store, context.bindings, context.connection]);
+  const homeApi = useMemo(() => getTodayHomeApi(context.connection), [context.connection]);
   // Role comes only from the server (ADR-0002); until it answers, nothing extra is unlocked.
   const [role, setRole] = useState<HomeBrainRole | undefined>(undefined);
   useEffect(() => {
@@ -386,6 +389,9 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                   />
                 ))}
               </div>
+            )}
+            {!(kiosk && highestSeverity === 'critical') && (
+              <TodayHome api={homeApi} kiosk={kiosk} />
             )}
             {!!chips.length && (
               <div className="today-chips" data-testid="status-chips">
