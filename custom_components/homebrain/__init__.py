@@ -36,6 +36,7 @@ from .const import (
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_compare, websocket_pv_forecast
 from .family import ws as family_ws
+from .meals import ws as meals_ws
 from .modules import (
     STATE_DISABLED,
     Registrar,
@@ -106,6 +107,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_get_session)
     websocket_api.async_register_command(hass, websocket_get_roles)
     websocket_api.async_register_command(hass, websocket_set_roles)
+    # Dnes „Co se dnes vaří“ (Mealie is an optional external integration, not a module).
+    for command in meals_ws.COMMANDS:
+        websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:
         _commands(websocket_weather_get, websocket_weather_alerts)(hass)(reg)
