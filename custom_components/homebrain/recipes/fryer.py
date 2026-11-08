@@ -353,9 +353,7 @@ async def ws_start(hass, connection, msg, role):
     calls.append(
         ("number", "set_value", {"entity_id": entities["temperature"], "value": msg["temperature"]})
     )
-    calls.append(
-        ("number", "set_value", {"entity_id": entities["cook_time"], "value": minutes})
-    )
+    calls.append(("number", "set_value", {"entity_id": entities["cook_time"], "value": minutes}))
     if msg.get("air_speed") is not None and "air_speed" in entities:
         calls.append(
             ("number", "set_value", {"entity_id": entities["air_speed"], "value": msg["air_speed"]})
@@ -368,9 +366,7 @@ async def ws_start(hass, connection, msg, role):
     for domain, service, data in calls:
         await _service(hass, domain, service, data)
     verified = await _wait_status(hass, entities["status"], STARTED)
-    connection.send_result(
-        msg["id"], {"started": True, "verified": verified, "minutes": minutes}
-    )
+    connection.send_result(msg["id"], {"started": True, "verified": verified, "minutes": minutes})
 
 
 @websocket_api.websocket_command(
