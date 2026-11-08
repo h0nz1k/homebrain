@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useBackClosable, type EntityStore } from '@homebrain/ha-client';
-import {
-  Button,
-  ConfirmDialog,
-  ProgressRing,
-  Stepper,
-  toast,
-  useAssetManifest,
-} from '@homebrain/ui';
+import { Button, ConfirmDialog, ProgressRing, Stepper, toast } from '@homebrain/ui';
 import { RecipesApiError, type RecipesApi } from '../api.js';
 import {
   detectFryerEntities,
@@ -24,9 +17,7 @@ import {
 } from '../domain/fryerLive.js';
 import { FRYER_HINT, fryerHeld, readFryerStates } from '../fryerSignal.js';
 import { cachedProgramName, resolveProgramName } from '../fryerProgram.js';
-import { FRYER_PHOTO_ROOT, parseFryerPhotoManifest } from '../fryerPhoto.js';
-import { FryerArt } from './FryerArt.js';
-import { FryerPhoto } from './FryerPhoto.js';
+import { FryerVisual } from './FryerPhoto.js';
 import { Icon } from './parts.js';
 
 const CONTROL_LABEL: Record<FryerControl, string> = {
@@ -77,11 +68,14 @@ export function FryerLiveCard({
   store,
   statusEntity,
   allowed = true,
+  extra,
 }: {
   api: RecipesApi;
   store: EntityStore;
   statusEntity?: string;
   allowed?: boolean;
+  /** Page-specific controls (Fritéza: Přidat čas) shown inside the card above Pause/Stop. */
+  extra?: ReactNode;
 }) {
   const version = useStoreVersion(store);
   const entities = useMemo(
@@ -110,9 +104,6 @@ export function FryerLiveCard({
   }, [api, programId]);
   const [confirmStop, setConfirmStop] = useState(false);
   const [busy, setBusy] = useState<FryerControl | null>(null);
-  // Owner's product photos (HA /local/homebrain/airfryer/); the SVG stays as the fallback.
-  const photo = useAssetManifest(FRYER_PHOTO_ROOT, parseFryerPhotoManifest);
-  const [photoFailed, setPhotoFailed] = useState(false);
   if (!entities) return null;
   const m = fryerModel(states, now);
   if (!fryerVisible(m.phase)) return null;
@@ -180,18 +171,8 @@ export function FryerLiveCard({
       ) : null}
     </span>
   );
-  const art = (className: string) =>
-    photo && !photoFailed ? (
-      <FryerPhoto
-        base={FRYER_PHOTO_ROOT}
-        manifest={photo}
-        phase={m.phase}
-        className={className}
-        onFail={() => setPhotoFailed(true)}
-      />
-    ) : (
-      <FryerArt phase={m.phase} className={className} />
-    );
+  // Owner's product photo (HA /local/homebrain/airfryer/) with the SVG as the fallback.
+  const art = (className: string) => <FryerVisual phase={m.phase} className={className} />;
   const visual = isError ? null : instruction ? art('rc-fl-hero-art') : ring;
   // Labelled stats: temperature, ETA or the stopped countdown (plain text, never pill/button-like).
   const facts: ReactNode[] = [];
@@ -241,6 +222,7 @@ export function FryerLiveCard({
           : FRYER_HINT[m.phase];
   const primary = controls.filter((c) => c !== 'stop');
   const hasStop = controls.includes('stop');
+  const extraRow = extra && !finished && !isError ? extra : null;
   return (
     <>
       <section
@@ -303,8 +285,9 @@ export function FryerLiveCard({
               </div>
             ) : null}
           </div>
-          {controls.length || guidance ? (
+          {controls.length || guidance || extraRow ? (
             <div className="rc-fl-actions" data-testid="recipes-fryer-actions">
+              {extraRow ? <div className="rc-fl-extra">{extraRow}</div> : null}
               {guidance ? (
                 <p className="rc-fl-guide" data-testid="recipes-fryer-guide">
                   <Icon name="fryer" />
@@ -333,6 +316,7 @@ export function FryerLiveCard({
                   variant="secondary"
                   className="rc-fl-stop"
                   data-tone={finished ? undefined : 'danger'}
+                  icon={finished ? undefined : <Icon name="stop" />}
                   loading={busy === 'stop'}
                   disabled={busy !== null}
                   data-testid="recipes-fryer-stop"

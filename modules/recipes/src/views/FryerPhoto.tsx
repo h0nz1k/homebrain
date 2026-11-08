@@ -1,6 +1,14 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
+import { useAssetManifest } from '@homebrain/ui';
 import type { FryerPhase } from '../domain/fryerLive.js';
-import { fryerPhotoView, type FryerPhotoManifest, type PhotoRect } from '../fryerPhoto.js';
+import {
+  FRYER_PHOTO_ROOT,
+  fryerPhotoView,
+  parseFryerPhotoManifest,
+  type FryerPhotoManifest,
+  type PhotoRect,
+} from '../fryerPhoto.js';
+import { FryerArt } from './FryerArt.js';
 
 const box = ([x0, y0, x1, y1]: PhotoRect): CSSProperties => ({
   left: `${x0}%`,
@@ -52,5 +60,27 @@ export function FryerPhoto({
         {front && display ? <span className="rc-fp-display" style={box(display)} /> : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * The one fryer picture used everywhere (live card, Fritéza page hero): the owner's product photo
+ * from HA `/local/homebrain/airfryer/` when a manifest exists, else the generic SVG. Nothing is
+ * drawn while the manifest is still loading, so the SVG never flashes before the photo.
+ */
+export function FryerVisual({ phase, className }: { phase: FryerPhase; className?: string }) {
+  const manifest = useAssetManifest(FRYER_PHOTO_ROOT, parseFryerPhotoManifest);
+  const [failed, setFailed] = useState(false);
+  if (manifest === undefined) return <span className={className} aria-hidden="true" />;
+  return manifest && !failed ? (
+    <FryerPhoto
+      base={FRYER_PHOTO_ROOT}
+      manifest={manifest}
+      phase={phase}
+      className={className}
+      onFail={() => setFailed(true)}
+    />
+  ) : (
+    <FryerArt phase={phase} className={className} />
   );
 }

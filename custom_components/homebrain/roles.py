@@ -133,6 +133,18 @@ RECIPES_DEVICE_WS_COMMANDS: Final = frozenset(
     }
 )
 RECIPES_DEVICE_ROLES: Final = frozenset({"owner", "adult", "kiosk"})
+# Fritéza (manual start independent of recipes): every mapped role sees the status; only
+# adults start, pause, stop and edit the quick presets (kitchen kiosk and children watch).
+FRYER_VIEW_WS_COMMANDS: Final = frozenset({"homebrain/fryer/get"})
+FRYER_CONTROL_WS_COMMANDS: Final = frozenset(
+    {
+        "homebrain/fryer/start",
+        "homebrain/fryer/control",
+        "homebrain/fryer/favourites/save",
+        "homebrain/fryer/favourites/delete",
+    }
+)
+FRYER_CONTROL_ROLES: Final = frozenset({"owner", "adult"})
 
 
 # Síť: adults and the kitchen kiosk get the summary (status + headline, no device list); the
@@ -172,6 +184,8 @@ def role_ws_commands(role: str) -> frozenset[str]:
         extra |= {"homebrain/network/guest_qr"}
     if role in FAMILY_APPROVE_ROLES:
         extra |= {"homebrain/family/chore/approve"}
+    if role in FRYER_CONTROL_ROLES:
+        extra |= FRYER_CONTROL_WS_COMMANDS
     if role in ENERGY_DETAIL_ROLES:
         extra |= {
             "homebrain/energy/compare",
@@ -185,6 +199,7 @@ def role_ws_commands(role: str) -> frozenset[str]:
         | WASTE_WS_COMMANDS
         | FAMILY_WS_COMMANDS
         | RECIPES_USER_WS_COMMANDS
+        | FRYER_VIEW_WS_COMMANDS
         | extra
     )
 

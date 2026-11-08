@@ -27,6 +27,7 @@ const PATHS: Record<string, ReactNode> = {
   ),
   play: <path d="M8 5.5v13l11-6.5z" />,
   pause: <path d="M8 5h3v14H8zM13 5h3v14h-3z" />,
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />,
   next: <path d="M6 6v12l8.5-6zM17 6v12" />,
   prev: <path d="M18 6v12L9.5 12zM7 6v12" />,
   right: <path d="M5 12h14M13 6l6 6-6 6" />,

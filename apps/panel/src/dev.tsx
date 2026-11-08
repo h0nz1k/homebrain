@@ -140,6 +140,33 @@ setPeopleSourceFactory(() => ({
 const recipesApi = createMockRecipesApi(undefined, {
   music: recipesQuery.get('music') === '1',
   airfryer: recipesQuery.get('fryer') === '1',
+  // `?friteza=1`: Fritéza page (manual start, favourites); `&role=child|kiosk` = status only.
+  fryer: recipesQuery.get('friteza')
+    ? {
+        canControl: !['child', 'kiosk'].includes(recipesQuery.get('role') ?? ''),
+        favourites:
+          recipesQuery.get('friteza') === 'prazdne'
+            ? []
+            : [
+                {
+                  id: 'demo-fries',
+                  name: 'Hranolky',
+                  temperature: 200,
+                  minutes: 18,
+                  air_speed: 2,
+                  probe_temperature: null,
+                },
+                {
+                  id: 'demo-chicken',
+                  name: 'Kuřecí stehna',
+                  temperature: 180,
+                  minutes: 25,
+                  air_speed: 2,
+                  probe_temperature: 75,
+                },
+              ],
+      }
+    : undefined,
   // Mock "server" timers shared across tabs (two tabs = two devices).
   timerStorage: localStorage,
   log: ((window as unknown as { __hbRecipesLog?: unknown[] }).__hbRecipesLog = []) as Array<{
@@ -343,6 +370,10 @@ demoHass.states['binary_sensor.demo_fryer_drawer'] = {
   attributes: { device_class: 'door' },
 };
 if (fryerLive) Object.assign(demoHass.states, fryerDemoStates(fryerLive, new Date()));
+else if (recipesQuery.get('friteza')) {
+  Object.assign(demoHass.states, fryerDemoStates('off', new Date()));
+  demoHass.states['binary_sensor.demo_fryer_drawer']!.state = recipesQuery.get('drawer') ?? 'off';
+}
 demoHass.states['sensor.demo_wine_cellar_temperature'] = {
   entity_id: 'sensor.demo_wine_cellar_temperature',
   state: cellarTemp,

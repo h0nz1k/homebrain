@@ -3,6 +3,28 @@ import type { ImportPreview, Recipe, RecipeDraft, RecipeSummary, RecipesConfig }
 import { createSyntheticRecipes, syntheticPreview } from './mock.js';
 import type { Timer, TimerBackend, TimerSnapshot } from './domain/timers.js';
 import type { FryerControl } from './domain/fryerLive.js';
+import type {
+  FryerAction,
+  FryerFavourite,
+  FryerFavouriteDraft,
+  FryerInfo,
+  FryerStartRequest,
+} from './domain/fryerManual.js';
+import { DEFAULT_LIMITS } from './domain/fryerManual.js';
+
+/** Fritéza independent of recipes (`homebrain/fryer/*`); the server re-checks everything. */
+export interface FryerApi {
+  get(): Promise<FryerInfo>;
+  start(
+    request: FryerStartRequest,
+  ): Promise<{ started: boolean; verified: boolean; minutes: number }>;
+  control(
+    action: FryerAction,
+    options?: { minutes?: number; confirmed?: boolean },
+  ): Promise<{ minutes?: number }>;
+  saveFavourite(favourite: FryerFavouriteDraft): Promise<FryerFavourite[]>;
+  deleteFavourite(id: string): Promise<FryerFavourite[]>;
+}
 
 export class RecipesApiError extends Error {
   constructor(readonly code: string) {
@@ -47,6 +69,104 @@ export interface RecipesApi {
   airfryerControl(action: FryerControl, confirmed?: boolean): Promise<void>;
   /** AutoCook program name from the fryer integration; null when unknown. */
   airfryerProgram?(program: number): Promise<string | null>;
+  fryer?: FryerApi;
+}
+
+function fryerCall<T>(
+  connection: ConnectionLike,
+  type: string,
+  payload: Record<string, unknown> = {},
+) {
+  return connection
+    .sendMessagePromise<T>({ type: `homebrain/fryer/${type}`, ...payload })
+    .catch((err: { code?: string }) => {
+      throw new RecipesApiError(err?.code ?? 'UNKNOWN');
+    });
+}
+
+export function createWsFryerApi(connection: ConnectionLike): FryerApi {
+  return {
+    get: () => fryerCall<FryerInfo>(connection, 'get'),
+    start: (request) => fryerCall(connection, 'start', { ...request }),
+    control: (action, options = {}) => fryerCall(connection, 'control', { action, ...options }),
+    saveFavourite: async (favourite) =>
+      (
+        await fryerCall<{ favourites: FryerFavourite[] }>(connection, 'favourites/save', {
+          favourite,
+        })
+      ).favourites,
+    deleteFavourite: async (id) =>
+      (
+        await fryerCall<{ favourites: FryerFavourite[] }>(connection, 'favourites/delete', {
+          favourite_id: id,
+        })
+      ).favourites,
+  };
+}
+
+export interface MockFryerOptions {
+  /** false = the kitchen kiosk / a child: status only. */
+  canControl?: boolean;
+  favourites?: FryerFavourite[];
+}
+
+/** Dev/tests: synthetic `demo_fryer` entities; commands are logged, never sent anywhere. */
+export function createMockFryerApi(
+  options: MockFryerOptions = {},
+  log: Array<{ kind: string; payload: unknown }> = [],
+): FryerApi {
+  let favourites = (options.favourites ?? []).map((f) => ({ ...f }));
+  let next = 1;
+  const guard = () => {
+    if (options.canControl === false) throw new RecipesApiError('unauthorized');
+  };
+  return {
+    async get() {
+      return {
+        configured: true,
+        canControl: options.canControl !== false,
+        entities: {
+          status: 'sensor.demo_fryer_cooking_status',
+          drawer: 'binary_sensor.demo_fryer_drawer',
+          error: 'sensor.demo_fryer_error_code',
+          remaining: 'sensor.demo_fryer_time_remaining',
+        },
+        capabilities: { airSpeed: true, probe: true, addTime: true },
+        limits: DEFAULT_LIMITS,
+        blockers: [],
+        presets: { supported: false, programs: [] },
+        favourites: favourites.map((f) => ({ ...f })),
+      };
+    },
+    async start(request) {
+      guard();
+      if (!request.confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
+      log.push({ kind: 'fryer_start', payload: request });
+      // Probe mode sends no time; the server answers with its safety cap (max minutes).
+      return { started: true, verified: true, minutes: request.minutes ?? 60 };
+    },
+    async control(action, opts = {}) {
+      guard();
+      if (action === 'stop' && !opts.confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
+      log.push({ kind: 'fryer_control', payload: { action, ...opts } });
+      return action === 'add_time' ? { minutes: 19 + (opts.minutes ?? 1) } : {};
+    },
+    async saveFavourite(draft) {
+      guard();
+      const item = { ...draft, name: draft.name.trim(), id: draft.id ?? `demo-${next++}` };
+      favourites = favourites.some((f) => f.id === item.id)
+        ? favourites.map((f) => (f.id === item.id ? item : f))
+        : [...favourites, item];
+      log.push({ kind: 'fryer_favourite_save', payload: item });
+      return favourites.map((f) => ({ ...f }));
+    },
+    async deleteFavourite(id) {
+      guard();
+      favourites = favourites.filter((f) => f.id !== id);
+      log.push({ kind: 'fryer_favourite_delete', payload: { id } });
+      return favourites.map((f) => ({ ...f }));
+    },
+  };
 }
 
 function wsCall<T>(
@@ -127,6 +247,7 @@ export function createWsRecipesApi(connection: ConnectionLike): RecipesApi {
     airfryerControl: async (action, confirmed = false) => {
       await wsCall(connection, 'airfryer_control', { action, confirmed });
     },
+    fryer: createWsFryerApi(connection),
     airfryerProgram: async (program) =>
       (await wsCall<{ name: string | null }>(connection, 'airfryer_program', { program })).name ??
       null,
@@ -143,6 +264,8 @@ export interface MockRecipesOptions {
    * so two tabs behave like two devices sharing the integration's timers.
    */
   timerStorage?: Storage | null;
+  /** Fritéza page (`homebrain/fryer/*`) mock. */
+  fryer?: MockFryerOptions;
 }
 
 /** In-memory stand-in for the integration's timer WS API (same semantics). */
@@ -328,12 +451,15 @@ export function createMockRecipesApi(
         airfryer: {
           configured: Boolean(options.airfryer),
           allowed: true,
-          entities: options.airfryer
-            ? {
-                drawer: 'binary_sensor.demo_fryer_drawer',
-                remaining: 'sensor.demo_fryer_remaining',
-              }
-            : {},
+          entities: {
+            ...(options.airfryer
+              ? {
+                  drawer: 'binary_sensor.demo_fryer_drawer',
+                  remaining: 'sensor.demo_fryer_remaining',
+                }
+              : {}),
+            ...(options.fryer ? { status: 'sensor.demo_fryer_cooking_status' } : {}),
+          },
           methods: options.airfryer ? ['Ruční', 'Hranolky', 'Maso', 'Ryba'] : [],
         },
         canEdit: true,
@@ -368,6 +494,7 @@ export function createMockRecipesApi(
       if (action === 'stop' && !confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
       log.push({ kind: 'airfryer_control', payload: { action } });
     },
+    fryer: options.fryer ? createMockFryerApi(options.fryer, log) : undefined,
     async airfryerProgram(program) {
       // Synthetic dev names only – the vendor catalogue is never part of the repo.
       return program === 14 ? 'Hranolky' : null;

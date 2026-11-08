@@ -72,6 +72,39 @@ confirmation dialog, and only after *Spustit* does the server set the values and
 The server refuses without `confirmed: true`, with the drawer open (`on`) or unknown.
 Tests use mocked services only.
 
+### Fritéza without a recipe (`/recipes/friteza`)
+Entry: the *Fritéza* button in the Recepty header (shown when a `sensor.*_cooking_status`
+exists). Three tabs:
+- **Ručně** – temperature (5 °C steps), time, air flow (slabé/silné = 1/2), optional probe
+  target (food core temperature; needs the probe plugged in). With *Pečení podle sondy* on, the
+  probe target replaces the time stepper and no time is sent: the server sets the cook time to
+  its maximum as a safety cap and the fryer ends on the core temperature. *Spustit* opens a
+  confirmation.
+- **Oblíbené** – user quick presets (name, °C, min, air, probe) in HA storage
+  `.storage/homebrain.fryer_favourites`; adults add, edit, delete and start them.
+- **Předvolby** – the fryer's built-in AutoCook programs (fries, chicken, fish …) **cannot be
+  started from Home Assistant** with a cloud-connected (MQTT/Fusion) Philips fryer: the
+  Philips HomeID integration only creates the program select + *send* button for local-HTTP
+  models and refuses the AutoCook send on cloud models. The tab says so and points to
+  Oblíbené. The integration also drops the preheat flag on cloud models, so there is no
+  preheat switch.
+
+While the fryer runs, the page shows the live card (countdown, temperatures, stage, pause /
+stop) and *+1 / +5 min* (raises the set total time `number.*_set_cook_time`, max 60 min).
+
+WS `homebrain/fryer/*` (`recipes/fryer.py`): `get` (every mapped role; `canControl` only for
+owner/adult), `start`, `control` (pause/resume/stop/add_time), `favourites/save|delete`
+(owner/adult only; kitchen kiosk and children see the status only). Entities are found next to
+the status sensor (`<prefix>_set_temperature`, `_set_cook_time`, `_set_air_speed`,
+`_set_probe_temperature`, `_cooking_method`, `_start_cooking`, `_pause`, `_stop`, `_drawer`,
+`_error_code`, `_probe_unplugged`); Recepty bindings win where set. Start order: method
+`manual` (wakes the fryer) → temperature → time → air → probe → start button, then the server
+waits up to 15 s for the status sensor to report cooking (`verified`). Start is refused
+without `confirmed: true`, with the drawer open or unknown, on `error_code ≠ 0`, while it
+already cooks/pauses/finishes (stop it first) and with a probe target but the probe unplugged.
+Ranges are validated on the server (40–200 °C, 1–60 min, air 1–2, probe 40–100 °C, narrowed
+by the number entities' own min/max).
+
 ### Video
 YouTube IFrame Player API (`playsinline`, `seekTo(step.videoTs)`), floating mini player in
 cooking mode: https://developers.google.com/youtube/iframe_api_reference
