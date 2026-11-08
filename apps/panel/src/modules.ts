@@ -10,6 +10,7 @@ import * as robots from '@homebrain/module-robots';
 import * as recipes from '@homebrain/module-recipes';
 import * as access from '@homebrain/module-access';
 import * as network from '@homebrain/module-network';
+import * as server from '@homebrain/module-server';
 import { createLiveTodayAdapter } from './today/liveAdapter';
 // Dnes: live HA data (connection state, station, sun, hourly blend, day ribbon). dev.tsx may
 // replace it with fixtures; production never does.
@@ -37,6 +38,7 @@ export const modules = [
   family,
   access,
   network,
+  server,
 ].map((module) => ({
   ...module.moduleManifest,
   View: lazy(module.loadView),

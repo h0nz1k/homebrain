@@ -86,6 +86,13 @@
       "icon": "mdi:wifi",
       "module": "network",
       "require_admin": false
+    },
+    {
+      "url_path": "homebrain-server",
+      "title": "Server",
+      "icon": "mdi:server",
+      "module": "server",
+      "require_admin": true
     }
   ]
 }

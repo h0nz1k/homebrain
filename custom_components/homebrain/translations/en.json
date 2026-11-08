@@ -314,7 +314,8 @@
         "wine": "Wine cellar",
         "recipes": "Recipes",
         "access": "Access",
-        "network": "Network"
+        "network": "Network",
+        "server": "Server"
       }
     },
     "meals_display": {

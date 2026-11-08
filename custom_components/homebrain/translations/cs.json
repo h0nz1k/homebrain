@@ -314,7 +314,8 @@
         "wine": "Vinotéka",
         "recipes": "Recepty",
         "access": "Přístup",
-        "network": "Síť"
+        "network": "Síť",
+        "server": "Server"
       }
     },
     "meals_display": {
