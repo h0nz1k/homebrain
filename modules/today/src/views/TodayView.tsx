@@ -40,6 +40,8 @@ import { SunArc } from './SunArc.js';
 import { WeatherIcon } from './WeatherIcon.js';
 import { TodayHome } from './TodayHome.js';
 import { getTodayHomeApi } from '../data/home.js';
+import { needsRemoval, useCooking } from '../data/cooking.js';
+import { CookingCard } from './CookingCard.js';
 import { todayStyles } from './todayStyles.js';
 
 function useMedia(query: string) {
@@ -129,6 +131,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const homeApi = useMemo(() => getTodayHomeApi(context.connection), [context.connection]);
   // „Kdo je doma“: live doma/pryč per person (renders nothing without configured persons).
   const people = usePeople(context.connection);
+  // „Maso v troubě“: active MEATER probes (empty = no card at all).
+  const cooking = useCooking(context.connection);
   // Role comes only from the server (ADR-0002); until it answers, nothing extra is unlocked.
   const [role, setRole] = useState<HomeBrainRole | undefined>(undefined);
   useEffect(() => {
@@ -213,7 +217,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const freshnessState = dataFreshness(data);
   const kioskPortrait = kiosk && portrait;
   const night = kiosk && scene.nightDim;
-  const summary = buildSummary(data, ranked);
+  // Meat waiting to come off the heat is not a „Klidný den“.
+  const summary = buildSummary(data, ranked, { suppressCalm: needsRemoval(cooking) });
   const model = buildDayRibbonModel(data);
   // Events already shown as a hero/card stay on the ribbon only as a marker (no duplicate label).
   const shownSignals = new Set([ranked.hero, ...ranked.cards].map((signal) => signal?.id));
@@ -286,10 +291,17 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
     ) : null;
   // Landscape kiosk (1280×800) has no spare row: the chips sit under the clock, inside the hero.
   const presenceInHero = kiosk && !kioskPortrait;
+  // Kiosk critical takeover keeps the alert alone; otherwise an active cook leads the screen
+  // (on the wall tablet it replaces the household strip and chips to stay within 1280×800).
+  const cookingCard =
+    cooking.length && !(kiosk && highestSeverity === 'critical') ? (
+      <CookingCard probes={cooking} kiosk={kiosk} />
+    ) : null;
+  const kioskCooking = kiosk && !!cookingCard;
   const position = pixelShift(shift);
   return (
     <section
-      className={`hb-today today-${layout}${ranked.hero ? ' today-busy' : ' today-calm'}${night ? ' today-night' : ''}${reducedMotion ? ' today-reduced-motion' : ''}${hidden ? ' today-paused' : ''}${kioskPortrait ? ' today-portrait' : ''}${kiosk && freshnessState.state !== 'fresh' ? ' today-stale' : ''}`}
+      className={`hb-today today-${layout}${ranked.hero ? ' today-busy' : ' today-calm'}${night ? ' today-night' : ''}${reducedMotion ? ' today-reduced-motion' : ''}${hidden ? ' today-paused' : ''}${kioskPortrait ? ' today-portrait' : ''}${kiosk && freshnessState.state !== 'fresh' ? ' today-stale' : ''}${kioskCooking ? ' today-cooking-on' : ''}`}
       data-testid="today"
       data-layout={layout}
       data-state-severity={highestSeverity}
@@ -311,6 +323,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           </header>
         )}
         {!presenceInHero && presence}
+        {!kiosk && cookingCard}
         <div className="today-hero" data-testid="today-hero">
           {!night && !mobile && !kioskPortrait && (
             <SunArc
@@ -347,6 +360,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
         </div>
         {night ? (
           <>
+            {cookingCard}
             <p className="today-tomorrow">
               {data.tomorrow ?? 'Zítra zatím nic nevyžaduje pozornost'}
             </p>
@@ -354,9 +368,12 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           </>
         ) : (
           <>
-            <p className="today-summary" data-testid="today-summary">
-              {summary.sentence}
-            </p>
+            {kiosk && cookingCard}
+            {!kioskCooking && !!summary.sentence && (
+              <p className="today-summary" data-testid="today-summary">
+                {summary.sentence}
+              </p>
+            )}
             {heroFirst && hero}
             <div className="today-ribbon-card" data-testid="ribbon-card">
               <div className="today-ribbon-heading">
@@ -374,7 +391,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 )}
               </div>
               <DayRibbon
-                slim={kiosk && highestSeverity === 'critical'}
+                slim={kiosk && (highestSeverity === 'critical' || kioskCooking)}
                 start={model.startHour}
                 end={model.endHour}
                 now={model.nowHour}
@@ -403,7 +420,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
               )}
             </div>
             {!heroFirst && hero}
-            {!!ranked.cards.length && (
+            {!!ranked.cards.length && !kioskCooking && (
               <div className="today-cards">
                 {ranked.cards.map((signal) => (
                   <SignalCard
@@ -414,10 +431,10 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 ))}
               </div>
             )}
-            {!(kiosk && highestSeverity === 'critical') && (
+            {!(kiosk && highestSeverity === 'critical') && !kioskCooking && (
               <TodayHome api={homeApi} kiosk={kiosk} />
             )}
-            {!!chips.length && (
+            {!!chips.length && !kioskCooking && (
               <div className="today-chips" data-testid="status-chips">
                 {chips.map((signal) => (
                   <Chip

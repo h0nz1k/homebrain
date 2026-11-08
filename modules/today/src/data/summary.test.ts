@@ -25,6 +25,18 @@ describe('buildSummary', () => {
     expect(summary.sentence).not.toContain(data.station.condition);
     expect(summary.sentence).not.toContain('°C');
   });
+
+  it('drops the calm mood while meat waits to come off the heat (suppressCalm)', () => {
+    const data = FIXTURES.a;
+    const ranked = rank(data.signals, parseInstant(data.now), { layout: 'desktop' });
+    const summary = buildSummary(data, ranked, { suppressCalm: true });
+    expect(summary.sentence).toBe('Přebytek FVE 1,6 kW');
+    expect(summary.sentence).not.toMatch(/Klidn/);
+    // A real warning mood stays.
+    const busy = FIXTURES.b;
+    const rankedBusy = rank(busy.signals, parseInstant(busy.now), { layout: 'desktop' });
+    expect(buildSummary(busy, rankedBusy, { suppressCalm: true }).sentence).toMatch(/^Rušné ráno/);
+  });
 });
 
 it.each([
