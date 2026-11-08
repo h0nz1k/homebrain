@@ -160,3 +160,58 @@ test('Fritéza: dítě a kiosk jen sledují stav', async ({ page }) => {
   await expect(page.getByTestId('fryer-add-1')).toHaveCount(0);
   await expect(page.getByTestId('recipes-fryer-pause')).toHaveCount(0);
 });
+
+// Owner photo set (HA /local/homebrain/airfryer/, never in the repo): SYNTHETIC manifest + SVG here.
+const photoManifest = {
+  schema: 1,
+  model: 'Synthetic fryer',
+  finish: 'light',
+  images: { front: 'demo/front.svg', drawerOpen: 'demo/open.svg' },
+  hotspots: { display: [40, 10, 60, 26], drawer: [4, 40, 96, 96] },
+};
+const photoSvg = (fill: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 210" width="200" height="210"><rect x="10" y="4" width="180" height="200" rx="24" fill="${fill}"/></svg>`;
+async function servePhotos(page: Page, available = true) {
+  await page.route('**/local/homebrain/airfryer/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (!available) return route.fulfill({ status: 404, body: '' });
+    if (path.endsWith('/manifest.json')) return route.fulfill({ json: photoManifest });
+    if (path.endsWith('/demo/front.svg'))
+      return route.fulfill({ body: photoSvg('#e8e8ea'), contentType: 'image/svg+xml' });
+    if (path.endsWith('/demo/open.svg'))
+      return route.fulfill({ body: photoSvg('#d8d2c8'), contentType: 'image/svg+xml' });
+    return route.fulfill({ status: 404, body: '' });
+  });
+}
+
+test('Fritéza: reálná fotka místo SVG – klidný hero při nastavení, stav v běžící kartě', async ({
+  page,
+}) => {
+  await servePhotos(page);
+  await page.goto(`${PAGE}?friteza=1`);
+  const hero = page.getByTestId('fryer-hero');
+  const heroPhoto = hero.getByTestId('recipes-fryer-photo');
+  await expect(heroPhoto).toBeVisible({ timeout: 20_000 });
+  await expect(heroPhoto).toHaveAttribute('data-phase', 'idle');
+  await expect(heroPhoto.locator('img')).toHaveAttribute('src', /airfryer\/demo\/front\.svg$/);
+  await expect(page.locator('[data-testid=fryer-view] .rc-fa')).toHaveCount(0);
+  // Compact hero: the start button stays above the fold (phone included).
+  await expect(page.getByTestId('fryer-start')).toBeInViewport({ ratio: 1 });
+
+  await page.goto(`${PAGE}?friteza=1&fryerlive=manual`);
+  const live = page.getByTestId('recipes-fryer-live');
+  await expect(live).toBeVisible({ timeout: 20_000 });
+  const livePhoto = live.getByTestId('recipes-fryer-photo');
+  await expect(livePhoto).toHaveAttribute('data-phase', 'cooking');
+  await expect(livePhoto.locator('img')).toHaveAttribute('src', /demo\/front\.svg$/);
+  // One fryer picture per screen: the idle hero steps aside while the live card shows the fryer.
+  await expect(page.getByTestId('fryer-hero')).toHaveCount(0);
+  await expect(page.locator('[data-testid=fryer-view] .rc-fa')).toHaveCount(0);
+});
+
+test('Fritéza: bez fotek zůstává SVG ilustrace', async ({ page }) => {
+  await servePhotos(page, false);
+  await page.goto(`${PAGE}?friteza=1`);
+  await expect(page.getByTestId('fryer-hero').locator('.rc-fa')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('recipes-fryer-photo')).toHaveCount(0);
+});

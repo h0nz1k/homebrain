@@ -27,7 +27,10 @@ import {
   type ManualSettings,
   type SettingKey,
 } from '../domain/fryerManual.js';
+import { detectFryerEntities, fryerPhase, fryerVisible } from '../domain/fryerLive.js';
+import { readFryerStates } from '../fryerSignal.js';
 import { FryerLiveCard } from './FryerLive.js';
+import { FryerVisual } from './FryerPhoto.js';
 import { Icon } from './parts.js';
 
 type Tab = 'manual' | 'favourites' | 'presets';
@@ -373,6 +376,13 @@ export function FryerRoute({ api, store }: { api: RecipesApi; store: EntityStore
   const can = info.canControl;
   const status = read(info.entities.status ?? '');
   const runningNow = status === 'cooking' || status === 'pause' || status === 'user_action';
+  // Same detection as the live card: while it shows the fryer, the page hero steps aside.
+  const liveEntities = detectFryerEntities(
+    store.entityIds(),
+    info.entities.status ? { recipes_airfryer_status: info.entities.status } : {},
+  );
+  const liveShown =
+    liveEntities !== null && fryerVisible(fryerPhase(readFryerStates(store, liveEntities)));
   const control = (action: 'add_time', minutes: number) =>
     fryer
       .control(action, { minutes })
@@ -388,6 +398,12 @@ export function FryerRoute({ api, store }: { api: RecipesApi; store: EntityStore
           <h1>Fritéza</h1>
           <p>Spuštění bez receptu</p>
         </div>
+        {liveShown ? null : (
+          // Calm idle hero: the owner's product photo (or the SVG fallback), no state effects.
+          <div className="rcf-hero" data-testid="fryer-hero">
+            <FryerVisual phase="idle" className="rcf-hero-art" />
+          </div>
+        )}
       </header>
       <FryerLiveCard
         api={api}
@@ -637,6 +653,11 @@ export const fryerControlStyles = `
 .rcf { display:flex; flex-direction:column; gap:16px; padding:8px 32px 32px; max-width:760px; }
 .rcf-top { display:flex; align-items:center; gap:12px; padding-top:14px; }
 .rcf-top .rc-ibtn { flex:none; }
+.rcf-ttl { min-width:0; }
+.rcf-hero { margin-left:auto; flex:none; display:grid; place-items:center; height:168px; padding-right:8px; }
+.rcf-hero-art.rc-fp { --rc-fp-h:156px; }
+.rcf-hero-art.rc-fa { height:156px; width:auto; }
+.rcf-hero .rc-fp[data-phase='idle'] .rc-fp-img { opacity:1; filter:drop-shadow(0 0 1px color-mix(in srgb, var(--hb-t1) 26%, transparent)) drop-shadow(0 10px 16px rgb(0 0 0 / .22)); }
 .rcf-ttl h1 { margin:0; font-size:28px; font-weight:680; letter-spacing:-.02em; }
 .rcf-ttl p { margin:2px 0 0; color:var(--hb-t2); font-size:14px; }
 .rcf-tabs { align-self:stretch; }
@@ -669,6 +690,10 @@ export const fryerControlStyles = `
 @media (max-width: 700px) {
   .rcf { padding:4px 16px 24px; gap:14px; }
   .rcf-ttl h1 { font-size:24px; }
+  .rcf-top { padding-top:6px; }
+  .rcf-hero { height:112px; padding-right:4px; }
+  .rcf-hero-art.rc-fp { --rc-fp-h:104px; }
+  .rcf-hero-art.rc-fa { height:104px; }
   .rcf-panel { padding:14px; }
   .rcf .rc-stepper .v { min-width:76px; }
 }
