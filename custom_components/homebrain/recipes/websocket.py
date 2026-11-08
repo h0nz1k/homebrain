@@ -37,7 +37,7 @@ from ..bindings import get_bindings
 from ..const import DOMAIN
 from ..roles import RECIPES_DEVICE_ROLES, entry_roles, resolve_role
 from ..wine.domain import WineError
-from . import media
+from . import fryer, media
 from .parser import RecipeParseError, parse_recipe_page
 from .store import RecipeError, RecipeStore, is_recipe_id
 from .timers import (
@@ -835,6 +835,7 @@ COMMANDS = (
     ws_timers_start,
     ws_timers_update,
     ws_timers_cancel,
+    *fryer.COMMANDS,
 )
 
 

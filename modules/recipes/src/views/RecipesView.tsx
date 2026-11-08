@@ -8,7 +8,7 @@ import {
   type EntityStore,
   type ModuleViewProps,
 } from '@homebrain/ha-client';
-import { ConfirmDialog, EmptyState, runMutation, Skeleton, toast } from '@homebrain/ui';
+import { Button, ConfirmDialog, EmptyState, runMutation, Skeleton, toast } from '@homebrain/ui';
 import { getRecipesApi, RecipesApiError, type RecipesApi } from '../api.js';
 import { createTimerStore, type TimerStore } from '../domain/timers.js';
 import { formatDuration, krokyWord, porce, scaleIngredients } from '../domain/scale.js';
@@ -25,6 +25,7 @@ import {
   useWakeLock,
 } from './parts.js';
 import { FryerLiveCard } from './FryerLive.js';
+import { FryerRoute, fryerControlStyles } from './FryerControl.js';
 import { recipesStyles } from './styles.js';
 
 const BASE = '/recipes';
@@ -32,6 +33,7 @@ type Route =
   | { view: 'list' }
   | { view: 'add' }
   | { view: 'timers' }
+  | { view: 'fryer' }
   | { view: 'detail'; id: string }
   | { view: 'cook'; id: string; step: number }
   | { view: 'edit'; id: string };
@@ -41,6 +43,7 @@ export function parseRoute(path = ''): Route {
   if (!a) return { view: 'list' };
   if (a === 'pridat') return { view: 'add' };
   if (a === 'minutky') return { view: 'timers' };
+  if (a === 'friteza') return { view: 'fryer' };
   if (b === 'varit') return { view: 'cook', id: a, step: Math.max(0, Number(c ?? 1) - 1) || 0 };
   if (b === 'upravit') return { view: 'edit', id: a };
   return { view: 'detail', id: a };
@@ -113,6 +116,12 @@ export default function RecipesView({ store, route, connection }: ModuleViewProp
       {parsed.view === 'list' ? <RecipeList api={api} config={config} store={store} /> : null}
       {parsed.view === 'add' ? <AddRecipe api={api} config={config} /> : null}
       {parsed.view === 'timers' ? <TimersRoute api={api} connection={connection} /> : null}
+      {parsed.view === 'fryer' ? (
+        <>
+          <style>{fryerControlStyles}</style>
+          <FryerRoute api={api} store={store} />
+        </>
+      ) : null}
       {parsed.view === 'edit' ? <AddRecipe api={api} config={config} editId={parsed.id} /> : null}
       {parsed.view === 'detail' || parsed.view === 'cook' ? (
         <RecipeLoader api={api} id={parsed.id}>
@@ -256,6 +265,15 @@ function RecipeList({
           />
         </label>
         <KitchenTimersLink api={api} />
+        {api.fryer && config?.airfryer.entities.status ? (
+          <Button
+            icon={<Icon name="fryer" />}
+            data-testid="recipes-fryer-open"
+            onClick={() => navigatePanel(`${BASE}/friteza`)}
+          >
+            Fritéza
+          </Button>
+        ) : null}
         {config?.canEdit ? (
           <button
             type="button"

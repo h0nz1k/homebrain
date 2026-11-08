@@ -196,6 +196,7 @@ describe('form helpers + routes', () => {
   it('parses sub-routes', () => {
     expect(parseRoute('')).toEqual({ view: 'list' });
     expect(parseRoute('/pridat')).toEqual({ view: 'add' });
+    expect(parseRoute('/friteza')).toEqual({ view: 'fryer' });
     expect(parseRoute('/abc')).toEqual({ view: 'detail', id: 'abc' });
     expect(parseRoute('/abc/varit/3')).toEqual({ view: 'cook', id: 'abc', step: 2 });
     expect(parseRoute('/abc/upravit')).toEqual({ view: 'edit', id: 'abc' });
