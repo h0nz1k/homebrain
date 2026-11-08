@@ -116,12 +116,16 @@ export function vmRows(snap: ServerSnapshot): VmRow[] {
   const items = [...(snap.vms?.items ?? [])].sort((a, b) => b.mem_bytes - a.mem_bytes);
   const total = snap.memory?.total_bytes ?? 0;
   const cores = snap.cpu?.cores ?? 1;
-  return items.map((vm) => ({
-    vmid: vm.vmid,
-    name: vm.name,
-    cpu: fmtPct(vm.cpu_percent),
-    cpuShare: Math.min(1, vm.cpu_percent / 100 / cores),
-    memLabel: fmtBytes(vm.mem_bytes),
-    memShare: total ? Math.min(1, vm.mem_bytes / total) : 0,
-  }));
+  return items.map((vm) => {
+    // Glances reports per-process CPU as % of ONE core; label and bar both use share of the whole host.
+    const cpuShare = Math.min(1, vm.cpu_percent / 100 / cores);
+    return {
+      vmid: vm.vmid,
+      name: vm.name,
+      cpu: fmtPct(cpuShare * 100),
+      cpuShare,
+      memLabel: fmtBytes(vm.mem_bytes),
+      memShare: total ? Math.min(1, vm.mem_bytes / total) : 0,
+    };
+  });
 }

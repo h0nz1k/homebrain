@@ -48,6 +48,7 @@ export const serverStyles = `
 .srv-trend[data-empty] { justify-content: flex-end; }
 
 .srv-bar { display: block; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--hb-t1) 11%, transparent); overflow: hidden; }
+.srv-bar i[style*='width: 0%'] { display: none; }
 .srv-bar i { display: block; height: 100%; border-radius: inherit; background: var(--hb-ac); transition: width var(--hb-dur-2, 240ms) var(--hb-ease-out, ease-out); }
 .srv-bar[data-tone='ok'] i { background: var(--hb-ac); }
 .srv-bar[data-tone='warn'] i { background: var(--hb-warn); }
