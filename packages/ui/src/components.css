@@ -2216,8 +2216,10 @@ button.hb-tile[data-empty] .hb-tile-status {
 /* „Kdo je doma“ (PresenceStrip): status ring on the avatar (green doma / red pryč / dashed
    grey nevím) + status word; away chips recede (outline only, dimmed) so it reads in greyscale. */
 .hb-presence {
-  --hb-presence-avatar: 30px;
-  --hb-presence-ring: 2px;
+  --hb-presence-avatar: 28px;
+  --hb-presence-ring: 2.5px;
+  /* Ring sits 2 px off the avatar; padding keeps 4 px of chip between ring and chip edge. */
+  --hb-presence-pad: calc(var(--hb-presence-ring) + 6px);
   min-width: 0;
 }
 .hb-presence-list {
@@ -2234,7 +2236,7 @@ button.hb-tile[data-empty] .hb-tile-status {
   align-items: center;
   gap: 9px;
   min-width: 0;
-  padding: 4px 14px 4px 4px;
+  padding: var(--hb-presence-pad) 14px var(--hb-presence-pad) var(--hb-presence-pad);
   border-radius: var(--hb-radius-pill, 999px);
   background: color-mix(in srgb, var(--hb-t1) 7%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent);
@@ -2243,13 +2245,11 @@ button.hb-tile[data-empty] .hb-tile-status {
 }
 .hb-presence-person[data-status='away'] {
   --hb-presence-status: var(--hb-crit);
-  background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
 }
 .hb-presence-person[data-status='unknown'] {
-  --hb-presence-status: var(--hb-t3);
-  background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent);
+  --hb-presence-status: color-mix(in srgb, var(--hb-t1) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
 }
 .hb-presence-person[data-color='blue'] {
   --hb-presence-c: #3b82f6;
@@ -2261,7 +2261,8 @@ button.hb-tile[data-empty] .hb-tile-status {
   --hb-presence-c: #8b5cf6;
 }
 .hb-presence-person[data-color='pink'] {
-  --hb-presence-c: #db2777;
+  /* Fuchsia, not rose: avatar hues must not read as the red 'pryč' ring. */
+  --hb-presence-c: #c026d3;
 }
 .hb-presence-person[data-color='amber'] {
   --hb-presence-c: #d97706;
@@ -2298,10 +2299,15 @@ button.hb-tile[data-empty] .hb-tile-status {
 .hb-presence-person[data-status='unknown'] .hb-presence-avatar {
   outline-style: dashed;
 }
+/* Muted avatar via colour mixing, not filter/opacity: those would also wash out the status ring. */
 .hb-presence-person[data-status='away'] .hb-presence-avatar,
 .hb-presence-person[data-status='unknown'] .hb-presence-avatar {
-  filter: saturate(0.35);
-  opacity: 0.6;
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklch, var(--hb-presence-c, #64748b) 28%, #6b7280),
+    color-mix(in oklch, var(--hb-presence-c, #64748b) 22%, #374151)
+  );
+  color: rgb(255 255 255 / 0.82);
 }
 .hb-presence-text {
   display: inline-flex;
@@ -2335,7 +2341,7 @@ button.hb-tile[data-empty] .hb-tile-status {
   vertical-align: 0.08em;
 }
 .hb-presence[data-size='lg'] {
-  --hb-presence-avatar: 50px;
+  --hb-presence-avatar: 44px;
   --hb-presence-ring: 3px;
 }
 .hb-presence[data-size='lg'] .hb-presence-list {
@@ -2343,7 +2349,7 @@ button.hb-tile[data-empty] .hb-tile-status {
 }
 .hb-presence[data-size='lg'] .hb-presence-person {
   gap: 14px;
-  padding: 7px 20px 7px 7px;
+  padding-right: 20px;
 }
 .hb-presence[data-size='lg'] .hb-presence-text {
   flex-direction: column;

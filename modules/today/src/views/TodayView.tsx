@@ -280,6 +280,12 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const daylightMinutes = sunKnown
     ? Math.round((Date.parse(data.sun.sunset) - Date.parse(data.sun.sunrise)) / 60000)
     : 0;
+  const presence =
+    !night && !(kiosk && highestSeverity === 'critical') ? (
+      <PresenceStrip people={people} size={kiosk ? 'lg' : 'md'} className="today-presence" />
+    ) : null;
+  // Landscape kiosk (1280×800) has no spare row: the chips sit under the clock, inside the hero.
+  const presenceInHero = kiosk && !kioskPortrait;
   const position = pixelShift(shift);
   return (
     <section
@@ -304,9 +310,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
             {kiosk || !slot ? freshness : createPortal(freshness, slot)}
           </header>
         )}
-        {!night && !(kiosk && highestSeverity === 'critical') && (
-          <PresenceStrip people={people} size={kiosk ? 'lg' : 'md'} className="today-presence" />
-        )}
+        {!presenceInHero && presence}
         <div className="today-hero" data-testid="today-hero">
           {!night && !mobile && !kioskPortrait && (
             <SunArc
@@ -339,6 +343,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
               </>
             )}
           </div>
+          {presenceInHero && presence}
         </div>
         {night ? (
           <>

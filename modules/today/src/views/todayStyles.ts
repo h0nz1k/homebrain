@@ -7,11 +7,21 @@ export const todayStyles = `
 .today-header{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--hb-t2);text-transform:none;font-size:20px}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}
-.today-kiosk .hb-presence-person{background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
-.today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:46px}
-.today-kiosk .hb-presence[data-size='lg'] .hb-presence-person{padding:6px 18px 6px 6px;gap:12px}
-.today-kiosk .hb-presence-person[data-status='home']{background:rgba(255,255,255,.1)}
-.today-kiosk .hb-presence-person:not([data-status='home']){background:transparent}
+.today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:36px}
+.today-kiosk .hb-presence-avatar{font-size:max(16px,calc(var(--hb-presence-avatar) * .42))}
+.today-kiosk .hb-presence[data-size='lg'] .hb-presence-list{flex-wrap:nowrap;gap:10px}
+.today-kiosk .hb-presence[data-size='lg'] .hb-presence-person{gap:10px;padding-right:16px;background:rgba(17,25,35,.86);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 2px 10px rgba(4,8,16,.25)}
+.today-kiosk .hb-presence[data-size='lg'] .hb-presence-person[data-status='home']{background:rgba(32,43,58,.9);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 2px 10px rgba(4,8,16,.25)}
+.today-kiosk .hb-presence[data-size='lg'] .hb-presence-name{font-size:20px}
+.today-kiosk:not(.today-portrait) .today-hero{padding-bottom:72px}
+.today-kiosk:not(.today-portrait) .today-hero>.today-presence{position:absolute;left:0;bottom:4px;z-index:1;max-width:calc(100% - 270px)}
+.today-kiosk.today-busy:not(.today-portrait) .today-hero{padding-bottom:46px}
+.today-kiosk.today-busy:not(.today-portrait) .today-hero>.today-presence{bottom:2px}
+.today-kiosk.today-busy .hb-presence[data-size='lg']{--hb-presence-avatar:24px;--hb-presence-ring:2px}
+.today-kiosk.today-busy .hb-presence[data-size='lg'] .hb-presence-text{flex-direction:row;align-items:baseline;gap:6px}
+.today-kiosk.today-busy .hb-presence[data-size='lg'] .hb-presence-name{font-size:17px}
+.today-kiosk.today-busy .hb-presence[data-size='lg'] .hb-presence-state{font-size:16px}
+.today-kiosk.today-busy .hb-presence[data-size='lg'] .hb-presence-state::before{width:8px;height:8px}
 .today-hero{position:relative;display:flex;justify-content:space-between;align-items:baseline;flex:none;min-height:200px;padding-bottom:60px}
 .today-clock{font-size:clamp(96px,12vw,168px);font-weight:var(--hb-display-w,200);letter-spacing:-.055em;line-height:1.1;position:relative}
 .today-weather{text-align:right;align-self:baseline;position:relative;--temp-size:clamp(70px,9vw,128px)}
@@ -92,7 +102,7 @@ export const todayStyles = `
 .today-busy .hb-signal-severity,.today-busy .hb-signal-also{font-size:13px}
 .today-kiosk{--hb-s1:#111923;--hb-s2:#161e2c;--hb-s3:#1c2532;--hb-b1:#293443;--hb-b2:#344252;height:100dvh;min-height:0;--hb-t1:#E6EAF0;--hb-t2:#B8C1CE;--hb-t3:#97A2B3;color:var(--hb-t1);font-size:16px;--hb-glass:linear-gradient(180deg,rgba(20,28,44,.78),rgba(10,15,25,.82))}
 .today-kiosk .today-content{padding:26px 44px 24px}
-.today-kiosk.today-busy .today-content{gap:8px;padding:20px 44px}
+.today-kiosk.today-busy .today-content{gap:8px;padding:16px 44px 14px}
 
 .today-kiosk.today-busy .today-hero{min-height:110px}
 .today-kiosk .hb-signal-compact .hb-signal-severity{display:block}

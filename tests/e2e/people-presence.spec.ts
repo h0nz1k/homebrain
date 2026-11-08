@@ -100,6 +100,19 @@ test.describe('Kdo je doma', () => {
       .locator('.hb-presence-name, .hb-presence-state')
       .evaluateAll((els) => els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(16);
+    // Landscape kiosk: the row sits under the clock (no extra header row) without touching it.
+    const stripBox = (await strip.boundingBox())!;
+    const clockBox = (await page.getByTestId('today-clock').boundingBox())!;
+    expect(stripBox.y).toBeGreaterThanOrEqual(clockBox.y + clockBox.height);
+    // The red 'pryč' ring stays at full strength (no filter/opacity on the avatar).
+    const away = await page
+      .locator('.hb-presence-person[data-status="away"] .hb-presence-avatar')
+      .first()
+      .evaluate((el) => ({
+        filter: getComputedStyle(el).filter,
+        opacity: getComputedStyle(el).opacity,
+      }));
+    expect(away).toEqual({ filter: 'none', opacity: '1' });
     const fit = await page.evaluate(() => ({
       scrollH: document.documentElement.scrollHeight,
       h: innerHeight,
