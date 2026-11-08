@@ -548,7 +548,7 @@ export function OffersCard({
                   za období
                   {hero.perMonth !== null && ` · ≈ ${formatDiff(hero.perMonth)} měsíčně`}
                   {hero.percent !== null &&
-                    ` · ${new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 1 }).format(hero.percent)}\u00a0%`}
+                    ` · ${new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 1 }).format(hero.percent).replace('-', '\u2212')}\u00a0%`}
                 </span>
               </p>
             )}
