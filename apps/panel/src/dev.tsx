@@ -6,6 +6,11 @@ import {
   type NetworkScenario,
 } from '@homebrain/module-network';
 import {
+  createMockServerApi,
+  setServerApiFactory,
+  type ServerScenario,
+} from '@homebrain/module-server';
+import {
   createMockFamilyApi,
   setFamilyApiFactory,
   type FamilyRole,
@@ -111,6 +116,11 @@ const networkApi = createMockNetworkApi({
   unifi: recipesQuery.get('unifi') === '1',
 });
 setNetworkApiFactory(() => networkApi);
+// Server: synthetic Proxmox host with 4 VMs. `?server=ok|warn|crit|down|unconfigured|noapi|apidown`.
+const serverApi = createMockServerApi({
+  scenario: (recipesQuery.get('server') as ServerScenario | null) ?? 'ok',
+});
+setServerApiFactory(() => serverApi);
 // Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
