@@ -212,3 +212,4 @@ export {
   PANEL_PATHS_BY_MODULE,
   SETTINGS_PANEL_PATH,
 } from './panels.generated.js';
+export * from './people.js';

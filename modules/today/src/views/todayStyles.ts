@@ -6,6 +6,12 @@ export const todayStyles = `
 .today-content{position:relative;z-index:1;display:flex;flex-direction:column;gap:16px;width:100%;height:100%;min-height:0;padding:28px 48px 22px}
 .today-header{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--hb-t2);text-transform:none;font-size:20px}
 .today-header time::first-letter{text-transform:uppercase}
+.today-presence{flex:none}
+.today-kiosk .hb-presence-person{background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:46px}
+.today-kiosk .hb-presence[data-size='lg'] .hb-presence-person{padding:6px 18px 6px 6px;gap:12px}
+.today-kiosk .hb-presence-person[data-status='home']{background:rgba(255,255,255,.1)}
+.today-kiosk .hb-presence-person:not([data-status='home']){background:transparent}
 .today-hero{position:relative;display:flex;justify-content:space-between;align-items:baseline;flex:none;min-height:200px;padding-bottom:60px}
 .today-clock{font-size:clamp(96px,12vw,168px);font-weight:var(--hb-display-w,200);letter-spacing:-.055em;line-height:1.1;position:relative}
 .today-weather{text-align:right;align-self:baseline;position:relative;--temp-size:clamp(70px,9vw,128px)}

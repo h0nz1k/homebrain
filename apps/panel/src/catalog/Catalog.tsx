@@ -6,6 +6,7 @@ import {
   Card,
   Chip,
   LiveStatus,
+  PresenceStrip,
   ProgressRing,
   SegmentedControl,
   Sheet,
@@ -635,6 +636,35 @@ const specs: Spec[] = [
           { key: 'done', title: 'Hotovo', state: 'todo' },
         ]}
       />
+    ),
+  },
+  {
+    id: 'presence-strip',
+    name: 'PresenceStrip',
+    summary:
+      'Kdo je doma: čip na osobu se zelenou (doma) / červenou (pryč) tečkou – Dnes, kiosk, Rodina.',
+    importName: 'PresenceStrip',
+    states: ['doma', 'pryč', 'nevím (šedá, menší)', 'md', 'lg (kiosk)'],
+    doText: 'Jen doma / pryč / nevím + jméno + barva avataru; stav vždy i textem a v aria-label.',
+    dontText: 'Zóny, poloha, ETA, baterie, časová osa – vlastník chce jen jednoduchý indikátor.',
+    notes: 'Bez osob nevykreslí nic. Data: usePeople(connection) z @homebrain/ha-client (živě).',
+    render: () => (
+      <div className="cat-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+        <PresenceStrip
+          people={[
+            { id: 'a', name: 'Jan', color: 'blue', status: 'home' },
+            { id: 'b', name: 'Adámek', color: 'teal', status: 'away' },
+            { id: 'c', name: 'Děda', color: 'indigo', status: 'unknown' },
+          ]}
+        />
+        <PresenceStrip
+          size="lg"
+          people={[
+            { id: 'd', name: 'Mamínka', color: 'pink', status: 'home' },
+            { id: 'e', name: 'Babi', color: 'amber', status: 'away' },
+          ]}
+        />
+      </div>
     ),
   },
   {

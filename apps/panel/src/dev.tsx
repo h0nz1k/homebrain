@@ -49,6 +49,8 @@ import {
   LEGACY_PANEL_PATH,
   PANEL_PATHS_BY_MODULE,
   SETTINGS_PANEL_PATH,
+  setPeopleSourceFactory,
+  type PersonPresence,
 } from '@homebrain/ha-client';
 import { createFakeHass, createMockConnection } from '@homebrain/testing';
 import {
@@ -95,6 +97,42 @@ setWineApiFactory(() => wineApi);
 // Recepty: synthetic recipes; `?music=1` / `?fryer=1` pretend the kitchen tablet + airfryer are
 // configured (device calls are only logged by the mock, nothing is sent anywhere).
 const recipesQuery = new URLSearchParams(location.search);
+// Kdo je doma: synthetic household (dev mock only). `?lide=none|home` (default mixed);
+// `window.__hbPeople.set(id, status)` flips one person live (e2e: push without reload).
+const lide = recipesQuery.get('lide');
+const peopleNow: PersonPresence[] =
+  lide === 'none'
+    ? []
+    : (
+        [
+          ['jan', 'Jan', 'blue', 'home'],
+          ['maminka', 'Mamínka', 'pink', 'home'],
+          ['adamek', 'Adámek', 'teal', 'away'],
+          ['valinka', 'Valinka', 'purple', 'home'],
+          ['babi', 'Babi', 'amber', 'away'],
+          ['deda', 'Děda', 'indigo', 'unknown'],
+        ] as const
+      ).map(([id, name, color, status]) => ({
+        id: `person.${id}`,
+        name,
+        color,
+        status: lide === 'home' ? 'home' : status,
+      }));
+const peopleListeners = new Set<(people: PersonPresence[]) => void>();
+let peopleState = peopleNow;
+(window as unknown as { __hbPeople?: unknown }).__hbPeople = {
+  set(id: string, status: PersonPresence['status']) {
+    peopleState = peopleState.map((p) => (p.id === id ? { ...p, status } : p));
+    peopleListeners.forEach((fn) => fn(peopleState));
+  },
+};
+setPeopleSourceFactory(() => ({
+  subscribe(onPeople) {
+    peopleListeners.add(onPeople);
+    onPeople(peopleState);
+    return () => peopleListeners.delete(onPeople);
+  },
+}));
 const recipesApi = createMockRecipesApi(undefined, {
   music: recipesQuery.get('music') === '1',
   airfryer: recipesQuery.get('fryer') === '1',
