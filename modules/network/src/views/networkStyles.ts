@@ -23,9 +23,6 @@ export const networkStyles = `
 .net-source[data-tone='ok'] { color: var(--hb-ok); background: color-mix(in srgb, var(--hb-ok) 12%, transparent); }
 .net-source[data-tone='warn'] { color: var(--hb-warn); background: color-mix(in srgb, var(--hb-warn) 14%, transparent); }
 .net-source-note { margin: -4px 0 12px; }
-.net-radios { grid-column: 1 / -1; grid-area: auto; display: flex; flex-wrap: wrap; gap: 2px 12px; padding-left: 98px; }
-.net-load .net-radios small { grid-area: auto; }
-.net-radios small[data-busy] { color: var(--hb-warn); font-weight: 600; }
 .net-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex-shrink: 0; }
 .net-signal i { width: 4px; border-radius: 1px; background: var(--hb-fill-strong); }
 .net-signal i:nth-child(1) { height: 25%; } .net-signal i:nth-child(2) { height: 50%; }
@@ -94,15 +91,47 @@ export const networkStyles = `
 .net-ap-n { color: var(--hb-t2); font-variant-numeric: tabular-nums; }
 .net-ap-n::before { content: '· '; }
 .net-ap-dot.net-sw-glyph { border-radius: 3px; background: var(--hb-t3); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hb-t3) 18%, transparent); }
-.net-load { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.net-load li { display: grid; grid-template-columns: 88px minmax(0, 1fr) 28px; grid-template-areas: 'n b c' '. s s'; gap: 2px 10px; align-items: center; }
-.net-load-name { grid-area: n; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.net-load-bar { grid-area: b; height: 8px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
+/* Zátěž Wi-Fi bodů: one stacked block per AP (name + flags + count / bar / band chips / why). */
+.net-apl-card { container: netload / inline-size; }
+.net-apl-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 32px; }
+.net-apl { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-top: 14px; border-top: 1px solid var(--hb-edge, var(--hb-fill-strong)); }
+.net-apl:first-child { padding-top: 0; border-top: 0; }
+.net-apl-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
+.net-apl-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.net-apl-name { font-size: 16px; font-weight: 600; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.net-apl-flag { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+.net-apl-count { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.net-apl-count strong { font-size: 24px; font-weight: 650; line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.net-apl-count small { color: var(--hb-t2); font-size: 13px; }
+.net-apl[data-offline] .net-apl-name, .net-apl[data-offline] .net-apl-count { color: var(--hb-t2); }
+.net-load-bar { display: block; height: 4px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
 .net-load-bar span { display: block; height: 100%; border-radius: inherit; background: var(--hb-ac); }
-.net-load li[data-problem] .net-load-bar span { background: var(--hb-warn); }
-.net-load strong { grid-area: c; text-align: right; font-variant-numeric: tabular-nums; }
-.net-load small { grid-area: s; color: var(--hb-t2); font-size: 13px; }
-.net-note { color: var(--hb-t2); font-size: 14px; line-height: 1.45; }
+.net-apl-bands { display: grid; grid-template-columns: repeat(auto-fill, minmax(0, 196px)); gap: 6px; min-width: 0; }
+.net-band { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 4px 10px; border-radius: 99px; background: var(--hb-fill); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.net-band-label { flex: 1 1 auto; color: var(--hb-t2); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.net-band-meter { flex: 0 0 auto; position: relative; display: inline-block; width: 40px; height: 4px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
+.net-band-meter i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--hb-ok); }
+.net-band-pct { font-weight: 600; }
+.net-band[data-tone='warn'] { background: color-mix(in srgb, var(--hb-warn) 13%, transparent); }
+.net-band[data-tone='warn'] .net-band-meter i { background: var(--hb-warn); }
+.net-band[data-tone='warn'] .net-band-pct { color: var(--hb-warn); }
+.net-band[data-tone='crit'] { background: color-mix(in srgb, var(--hb-crit) 14%, transparent); }
+.net-band[data-tone='crit'] .net-band-meter i { background: var(--hb-crit); }
+.net-band[data-tone='crit'] .net-band-pct { color: var(--hb-crit); }
+.net-apl-why { margin: 0; color: var(--hb-t2); font-size: 13px; line-height: 1.45; }
+.net-apl-meta { color: var(--hb-t2); font-size: 13px; }
+.net-apl-legend { display: flex; align-items: baseline; gap: 8px; font-size: 13px; padding-top: 4px; }
+.net-apl-legend .net-band-meter { width: 24px; transform: translateY(-2px); }
+.net-apl-card .net-note { margin: 0; }
+.net-apl-card .net-card-head span[data-flagged] { color: var(--hb-warn); font-weight: 600; }
+@container netload (min-width: 680px) {
+  .net-apl-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .net-apl:nth-child(2) { padding-top: 0; border-top: 0; }
+}
+@container netload (max-width: 340px) {
+  .net-apl-count strong { font-size: 21px; }
+  .net-apl-name { font-size: 15px; }
+}.net-note { color: var(--hb-t2); font-size: 14px; line-height: 1.45; }
 /* Severity hierarchy: problem (red) > warning (amber) > tip (neutral, no accent). */
 .net-problem { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 18px 20px 18px 24px; scroll-margin: 96px; }
 .net-problem::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--hb-signal-tone); }

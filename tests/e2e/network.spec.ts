@@ -207,7 +207,7 @@ test.describe('Síť V2 – přímé čtení UniFi (?unifi=1)', () => {
     ).toBeVisible();
     // Dev harness: a query string breaks SPA tab switching, so open each tab directly.
     await page.goto('/homebrain-sit?unifi=1');
-    await expect(page.getByTestId('network-ap-radios').first()).toContainText('kanál', {
+    await expect(page.getByTestId('network-ap-radios').first()).toContainText('GHz', {
       timeout: 20_000,
     });
     await expect(
@@ -246,7 +246,7 @@ test.describe('Síť V2 – přímé čtení UniFi (?unifi=1)', () => {
     await expect(page.getByTestId('network-ap-radios').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('network-source')).toHaveText('Zdroj: HA + UniFi');
     const clipped = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.net-radios small, .net-source'))
+      Array.from(document.querySelectorAll('.net-band-label, .net-apl-flag, .net-source'))
         .filter((el) => el.scrollWidth > el.clientWidth + 1)
         .map((el) => el.textContent),
     );
@@ -258,4 +258,65 @@ test.describe('Síť V2 – přímé čtení UniFi (?unifi=1)', () => {
     await expect(tree.locator('li[data-type="mesh"]').first()).toContainText('dBm');
     await noSidewaysScroll(page);
   });
+});
+
+test.describe('Síť – Zátěž Wi-Fi bodů (?unifi=1)', () => {
+  for (const project of ['desktop', 'mobile-s21']) {
+    test(`${project}: stav AP, pásma s vytížením a žádné úzké sloupce ani překryvy`, async ({
+      page,
+    }, testInfo) => {
+      test.skip(testInfo.project.name !== project, `${project} layout`);
+      await page.goto('/homebrain-sit?unifi=1');
+      const card = page.getByTestId('network-load');
+      await expect(card.getByTestId('network-ap-band').first()).toBeVisible({ timeout: 20_000 });
+      // Struggling APs first, with the reason as a chip and a sentence.
+      const first = card.getByTestId('network-ap-load').first();
+      await expect(first).toHaveAttribute('data-ap', 'ap-obyvak');
+      await expect(first.getByTestId('network-ap-flag')).toContainText('Přetížený kanál');
+      const mesh = card.locator('[data-ap="ap-podkrovi"]');
+      await expect(mesh.getByTestId('network-ap-flag')).toContainText(
+        /Mesh: slabý signál\s\u221269/,
+      );
+      await expect(mesh.getByTestId('network-ap-why')).toContainText('bezdrátově');
+      await expect(card.getByTestId('network-load-summary')).toHaveText(
+        '3 body potřebují pozornost',
+      );
+      await expect(card.getByTestId('network-load-legend')).toContainText('vytížení kanálu');
+      await expect(
+        card.locator('[data-ap="ap-dilna"] [data-testid="network-ap-band"]'),
+      ).toHaveCount(1);
+      // Layout: band chips never collapse into a narrow column and nothing overlaps.
+      const report = await card.evaluate((root) => {
+        const rect = (el: Element) => el.getBoundingClientRect();
+        const bands = Array.from(root.querySelectorAll('[data-testid="network-ap-band"]'));
+        const narrow = bands.filter((b) => rect(b).width < 80).map((b) => b.textContent);
+        const multiLine = bands.filter((b) => rect(b).height > 40).map((b) => b.textContent);
+        const els = Array.from(
+          root.querySelectorAll(
+            '.net-apl-name, .net-apl-flag, .net-apl-count, .net-load-bar, .net-band, .net-apl-why, .net-apl-meta',
+          ),
+        );
+        const hits: string[] = [];
+        for (let i = 0; i < els.length; i++)
+          for (let j = i + 1; j < els.length; j++) {
+            const a = rect(els[i]!);
+            const b = rect(els[j]!);
+            if (
+              a.left < b.right - 1 &&
+              b.left < a.right - 1 &&
+              a.top < b.bottom - 1 &&
+              b.top < a.bottom - 1
+            )
+              hits.push(`${els[i]!.textContent} × ${els[j]!.textContent}`);
+          }
+        const card = rect(root);
+        const spill = els
+          .filter((el) => rect(el).right > card.right + 0.5 || rect(el).left < card.left - 0.5)
+          .map((el) => el.textContent);
+        return { narrow, multiLine, hits, spill };
+      });
+      expect(report).toEqual({ narrow: [], multiLine: [], hits: [], spill: [] });
+      await noSidewaysScroll(page);
+    });
+  }
 });
