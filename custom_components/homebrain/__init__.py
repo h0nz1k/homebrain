@@ -33,6 +33,7 @@ from .const import (
     STATIC_URL_BASE,
     WEB_COMPONENT,
 )
+from .cooking import ws as cooking_ws
 from .energy.invoices import api as invoices_api
 from .energy.offers import ws as offers_ws
 from .energy.pv_forecast import PvForecastManager
@@ -112,7 +113,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_get_roles)
     websocket_api.async_register_command(hass, websocket_set_roles)
     # Dnes „Co se dnes vaří“ (Mealie is an optional external integration, not a module).
-    for command in (*meals_ws.COMMANDS, *people_ws.COMMANDS):
+    for command in (*meals_ws.COMMANDS, *people_ws.COMMANDS, *cooking_ws.COMMANDS):
         websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:

@@ -100,6 +100,8 @@ KIOSK_WS_COMMANDS: Final = frozenset(
         # Kdo je doma (home/away/unknown + display name only, never zones or GPS).
         "homebrain/people/get",
         "homebrain/people/subscribe",
+        # Maso v troubě (MEATER probes: temperatures, state, times; read only).
+        "homebrain/cooking/subscribe",
     }
 )
 

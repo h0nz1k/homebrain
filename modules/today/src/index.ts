@@ -30,3 +30,10 @@ export {
   summarizeChores,
 } from './data/home.js';
 export type { HomeApi, HomeRole, HomeScenario, Meal, MealsSnapshot } from './data/home.js';
+export {
+  createMockCookingProbes,
+  createMockCookingSource,
+  createWsCookingSource,
+  setCookingSourceFactory,
+} from './data/cooking.js';
+export type { CookingProbe, CookingScenario, CookingSource, CookState } from './data/cooking.js';
