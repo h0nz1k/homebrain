@@ -21,6 +21,9 @@ from .network.unifi_source import (
     UnifiSource,
     ha_unifi_entries,
 )
+from .people.model import AUTO as PEOPLE_AUTO
+from .people.model import COLORS as PEOPLE_COLORS
+from .people.model import CONF_PEOPLE
 from .robots.config import (
     CONF_ROBOTS,
     ROBOT_SLOTS,
@@ -43,6 +46,7 @@ OPTIONS_FLOW_EXTRA = (
     "network_unifi",
     "modules",
     "meals",
+    "people",
     "roles",
 )
 # „none“ in the roles step removes the mapping (the user falls back to guest = no access).
@@ -77,6 +81,8 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
     def __init__(self) -> None:
         """Remember per robot slot which vacuum was already offered its discovered entities."""
         self._prefilled: dict[int, str] = {}
+        self._people: dict[str, Any] = {}
+        self._people_entities: list[str] = []
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Choose which module bindings to edit."""
@@ -302,6 +308,75 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="meals", data_schema=schema)
+
+    async def async_step_people(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """„Kdo je doma“: show it at all + which persons (in this order; empty = all by name)."""
+        current = self.config_entry.options.get(CONF_PEOPLE) or {}
+        if user_input is not None:
+            persons = [e for e in user_input.get("people_persons") or [] if e.startswith("person.")]
+            self._people = {"display": bool(user_input.get("people_display", True)), "persons": []}
+            if not persons or not self._people["display"]:
+                return self._save_people()
+            self._people_entities = list(dict.fromkeys(persons))
+            return await self.async_step_people_style()
+        chosen = [p.get("entity_id") for p in current.get("persons") or [] if isinstance(p, dict)]
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    "people_display", default=current.get("display", True) is not False
+                ): selector.BooleanSelector(),
+                vol.Optional(
+                    "people_persons", description={"suggested_value": chosen or None}
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="person", multiple=True)
+                ),
+            }
+        )
+        return self.async_show_form(step_id="people", data_schema=schema)
+
+    async def async_step_people_style(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Optional display name + avatar colour per chosen person (fields keyed by object id)."""
+        slugs = [(eid, eid.split(".", 1)[1]) for eid in self._people_entities]
+        if user_input is not None:
+            for eid, slug in slugs:
+                row: dict[str, str] = {"entity_id": eid}
+                name = str(user_input.get(f"name_{slug}") or "").strip()[:40]
+                color = user_input.get(f"color_{slug}")
+                if name:
+                    row["name"] = name
+                if color in PEOPLE_COLORS:
+                    row["color"] = color
+                self._people["persons"].append(row)
+            return self._save_people()
+        old = {
+            p.get("entity_id"): p
+            for p in (self.config_entry.options.get(CONF_PEOPLE) or {}).get("persons") or []
+            if isinstance(p, dict)
+        }
+        colors = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=[PEOPLE_AUTO, *PEOPLE_COLORS],
+                mode=selector.SelectSelectorMode.DROPDOWN,
+                translation_key="people_color",
+            )
+        )
+        fields: dict[Any, Any] = {}
+        for eid, slug in slugs:
+            prev = old.get(eid, {})
+            state = self.hass.states.get(eid)
+            fields[
+                vol.Optional(
+                    f"name_{slug}",
+                    description={"suggested_value": prev.get("name") or (state and state.name)},
+                )
+            ] = selector.TextSelector()
+            fields[vol.Optional(f"color_{slug}", default=prev.get("color", PEOPLE_AUTO))] = colors
+        return self.async_show_form(step_id="people_style", data_schema=vol.Schema(fields))
+
+    def _save_people(self) -> FlowResult:
+        return self.async_create_entry(
+            title="", data={**self.config_entry.options, CONF_PEOPLE: self._people}
+        )
 
     async def async_step_roles(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Map a non-admin HA user to a HomeBrain role (ADR-0002 §6 step 4).

@@ -27,7 +27,8 @@
           "modules": "Modules (on/off)",
           "network_unifi": "Network – UniFi (optional)",
           "meals": "Show meal plan (Mealie)",
-          "roles": "Users and roles"
+          "roles": "Users and roles",
+          "people": "Who is home"
         }
       },
       "waste": {
@@ -285,6 +286,18 @@
           "user": "User",
           "role": "Role"
         }
+      },
+      "people": {
+        "title": "Who is home",
+        "description": "Green/red dot per household member on Dnes, the kiosk and Rodina – only home / away, never zones or location. Select nobody to show every person entity sorted by name. Selection order = order on screen.",
+        "data": {
+          "people_display": "Show who is home",
+          "people_persons": "Persons (in order)"
+        }
+      },
+      "people_style": {
+        "title": "Who is home – names and colours",
+        "description": "Optional display name and avatar colour. Fields are named after the person ID (name_… / color_…)."
       }
     },
     "error": {
@@ -338,6 +351,19 @@
         "ha_integration": "Use the account of the HA UniFi integration",
         "manual": "Own account (enter credentials)",
         "off": "Off (HA data only)"
+      }
+    },
+    "people_color": {
+      "options": {
+        "auto": "Automatic",
+        "blue": "Blue",
+        "teal": "Teal",
+        "purple": "Purple",
+        "pink": "Pink",
+        "amber": "Amber",
+        "orange": "Orange",
+        "indigo": "Indigo",
+        "slate": "Slate"
       }
     }
   },
