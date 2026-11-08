@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeHistory } from './api.js';
 import {
+  HEATING_BREAK_TS,
   activityModel,
   curveAt,
   downsample,
@@ -100,9 +102,27 @@ describe('schematicState', () => {
     expect(st.brine).toBeCloseTo(0.35);
     expect(st.backup).toBe('hidden');
   });
-  it('shows the backup heater only on a fault', () => {
-    expect(schematicState(snap('fault')).backup).toBe('on');
-    expect(schematicState(snap('heating')).backup).toBe('hidden');
+  it('never draws a backup heater the regulation does not have (available = false)', () => {
+    const s = snap('fault');
+    s.backup_heater.on = true;
+    expect(schematicState(s).backup).toBe('hidden');
+    expect(text(activityModel(s, NOW))).not.toMatch(/záložní/i);
+  });
+  it('hides the circulation pump while its state is not mapped (null)', () => {
+    const s = snap('heating');
+    expect(s.pumps.circulation).toBeNull();
+    expect(schematicState(s).circulationKnown).toBe(false);
+    s.pumps.circulation = true;
+    expect(schematicState(s).circulationKnown).toBe(true);
+    expect(schematicState(s).circulation).toBeGreaterThan(0);
+  });
+  it('shows an available backup heater only on a fault', () => {
+    const f = snap('fault');
+    f.backup_heater = { on: true, available: true };
+    expect(schematicState(f).backup).toBe('on');
+    const h = snap('heating');
+    h.backup_heater = { on: false, available: true };
+    expect(schematicState(h).backup).toBe('hidden');
   });
   it('stale data stops every animation', () => {
     const st = schematicState(snap('stale'));
@@ -147,13 +167,51 @@ describe('charts', () => {
     expect(niceTicks(-4.6, 2.9, 4)).toEqual([-6, -4, -2, 0, 2, 4]);
     expect(niceTicks(38, 48, 3)).toEqual([35, 40, 45, 50]);
   });
-  it('mock history: day has runs, 10 years has daily runtime and the annotation', () => {
+  it('mock history: day has runs, 10 years has daily runtime, no annotations (like backend)', () => {
     const day = buildMockHistory('day', ['tank_bottom'], NOW);
     expect(day.resolution).toBe('5min');
     expect(day.runs.length).toBeGreaterThan(1);
-    const all = buildMockHistory('all', ['outdoor', 'compressor_runtime_h'], NOW);
+    expect(buildMockHistory('month', ['tank_bottom'], NOW).runs).toEqual([]);
+    const all = buildMockHistory('all', ['outdoor_temp', 'compressor_runtime_h'], NOW);
     expect(all.series[1]!.points.length).toBeGreaterThan(3600);
-    expect(all.annotations[0]!.text).toContain('2018/19');
+    expect(all.annotations).toEqual([]);
+  });
+  it('normalizeHistory: counters keep the change, null means are gaps, unknown keys dropped', () => {
+    const h = normalizeHistory(
+      {
+        range: 'week',
+        resolution: 'hour',
+        series: [
+          {
+            key: 'compressor_runtime_h',
+            unit: 'h',
+            points: [
+              [1, 0.5, null, null],
+              [2, null, null, null],
+            ],
+          },
+          {
+            key: 'tank_bottom',
+            unit: '°C',
+            points: [
+              [1, 41.2, 40.1, 42],
+              [2, null, null, null],
+              [3, 40, null, null],
+            ],
+          },
+          { key: 'heat_pump_discharge_temp', unit: '°C', points: [[1, 70, 69, 71]] },
+        ],
+        runs: [[1, 2]],
+        annotations: [],
+      },
+      ['compressor_runtime_h', 'tank_bottom'],
+    );
+    expect(h.series.map((s) => s.key)).toEqual(['compressor_runtime_h', 'tank_bottom']);
+    expect(h.series[0]!.points).toEqual([[1, 0.5, 0.5, 0.5]]);
+    expect(h.series[1]!.points).toEqual([
+      [1, 41.2, 40.1, 42],
+      [3, 40, 40, 40],
+    ]);
   });
 });
 
@@ -196,7 +254,7 @@ describe('rooms', () => {
 });
 
 describe('seasons', () => {
-  it('newest first, change vs previous, approximate energy marker', () => {
+  it('newest first, change vs previous, approximate energy marker, frontend 2018/19 note', () => {
     const { cards } = seasonsModel(buildMockSeasons(NOW));
     expect(cards).toHaveLength(10);
     expect(cards[0]!.season).toBe('2025/26');
@@ -210,18 +268,16 @@ describe('seasons', () => {
 
 describe('efficiency scatter', () => {
   it('groups heating days around the break and explains the drop', () => {
-    const h = buildMockHistory('all', ['outdoor', 'compressor_runtime_h'], NOW);
-    const m = efficiencyModel(
-      h.series[0]!.points,
-      h.series[1]!.points,
-      NOW,
-      h.annotations[0]!.ts,
-      500,
-    );
+    const h = buildMockHistory('all', ['outdoor_temp', 'compressor_runtime_h'], NOW);
+    const m = efficiencyModel(h.series[0]!.points, h.series[1]!.points, NOW, HEATING_BREAK_TS, 500);
     expect(m.points.length).toBeLessThanOrEqual(520);
     expect(new Set(m.points.map((p) => p.group))).toEqual(new Set(['before', 'after', 'current']));
     expect(m.at0.before!).toBeGreaterThan(m.at0.after! * 2);
     expect(m.insight).toMatch(/^Od sezóny 2018\/19 běží kompresor .* o \d+\u00a0% kratší dobu/);
+    expect(m.legend.map((l) => l.group)).toEqual(['before', 'after', 'current']);
+    expect(m.legend[1]!.label).toMatch(/^2018\/19\u2009–\u2009\d{4}\/\d{2}$/);
+    expect(m.legend[2]!.label).toBe('letos 2025/26');
+    expect(m.fits.before!.y0).toBeGreaterThan(m.fits.after!.y0);
   });
   it('no data = no insight', () => {
     expect(efficiencyModel([], [], NOW, null).insight).toBeNull();

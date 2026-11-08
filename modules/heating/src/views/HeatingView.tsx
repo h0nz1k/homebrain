@@ -13,6 +13,7 @@ import {
 } from '@homebrain/ui';
 import { getHeatingApi, type HeatingApi } from '../api.js';
 import {
+  HEATING_BREAK_TS,
   RANGE_LABELS,
   activityModel,
   curveAt,
@@ -35,7 +36,6 @@ import type {
 } from '../types.js';
 import {
   CurveChart,
-  RunStrip,
   Scatter,
   ScheduleRibbon,
   SeasonBars,
@@ -63,13 +63,15 @@ const POLL_MS = 30_000;
 const SERIES: Record<HistoryKey, { label: string; color: string }> = {
   tank_bottom: { label: 'Nádrž dole', color: 'var(--ht-c-tank)' },
   tank_top: { label: 'Nádrž nahoře', color: 'var(--ht-c-top)' },
-  dhw: { label: 'Teplá voda', color: 'var(--ht-c-dhw)' },
-  house_supply: { label: 'Do domu', color: 'var(--ht-c-supply)' },
-  outdoor: { label: 'Venku', color: 'var(--ht-c-out)' },
-  ref_temp: { label: 'Doma', color: 'var(--ht-c-home)' },
+  dhw_temp: { label: 'Teplá voda', color: 'var(--ht-c-dhw)' },
+  house_supply_temp: { label: 'Do domu', color: 'var(--ht-c-supply)' },
+  outdoor_temp: { label: 'Venku', color: 'var(--ht-c-out)' },
+  house_ref_temp: { label: 'Doma', color: 'var(--ht-c-home)' },
   compressor_runtime_h: { label: 'Běh kompresoru', color: 'var(--ht-c-tank)' },
 };
-const OVERLAYS: HistoryKey[] = ['tank_bottom', 'dhw', 'house_supply', 'outdoor'];
+const OVERLAYS: HistoryKey[] = ['tank_bottom', 'dhw_temp', 'house_supply_temp', 'outdoor_temp'];
+const DAY_KEYS: HistoryKey[] = ['tank_bottom', 'dhw_temp', 'outdoor_temp'];
+const EFF_KEYS: HistoryKey[] = ['outdoor_temp', 'compressor_runtime_h'];
 
 function useHeating(api: HeatingApi | null) {
   const [snap, setSnap] = useState<HeatingSnapshot | null>(null);
@@ -118,7 +120,8 @@ function useHistory(api: HeatingApi | null, range: HistoryRange, keys: HistoryKe
 }
 
 const nowMs = () => Date.now();
-function ago(iso: string): string {
+function ago(iso: string | null): string {
+  if (!iso) return 'neznámo kdy';
   const s = Math.max(0, (nowMs() - Date.parse(iso)) / 1000);
   if (s < 60) return `před ${Math.round(s)}\u00a0s`;
   return `před ${fmtDuration(s / 60)}`;
@@ -162,7 +165,7 @@ function NowTab({
 }) {
   const act = activityModel(snap, nowMs());
   const st = schematicState(snap);
-  const day = useHistory(api, 'day', ['tank_bottom', 'dhw', 'outdoor']);
+  const day = useHistory(api, 'day', DAY_KEYS);
   const rooms = roomsModel(snap);
   const hp = snap.heat_pump;
   const dhwShare = snap.dhw.temp !== null ? Math.max(0, Math.min(1, (snap.dhw.temp - 30) / 30)) : 0;
@@ -189,7 +192,9 @@ function NowTab({
             <Pill tone={act.tone} dot data-testid="heating-pill">
               {act.pill}
             </Pill>
-            <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
+            {snap.mode.season && (
+              <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
+            )}
             {snap.mode.hdo_low_tariff !== null && (
               <Pill tone={snap.mode.hdo_low_tariff ? 'ok' : 'warn'} data-testid="heating-hdo">
                 {snap.mode.hdo_low_tariff ? 'Nízký tarif' : 'Vysoký tarif'}
@@ -249,7 +254,7 @@ function NowTab({
         <Card className="ht-card ht-grow" data-testid="heating-day">
           <header className="ht-ch">
             <h3>Posledních 24 hodin</h3>
-            <Legend keys={['dhw', 'tank_bottom', 'outdoor']} runs />
+            <Legend keys={['dhw_temp', 'tank_bottom', 'outdoor_temp']} runs />
           </header>
           {day === undefined || !domain ? (
             <Skeleton variant="block" height="200px" />
@@ -265,8 +270,8 @@ function NowTab({
                   points: s.points,
                   band: s.key === 'tank_bottom',
                 }))}
+                runs={day!.runs}
               />
-              <RunStrip runs={day!.runs} domain={domain} />
             </>
           )}
         </Card>
@@ -471,10 +476,10 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
 
 function TrendsTab({ api }: { api: HeatingApi }) {
   const [range, setRange] = useState<HistoryRange>('week');
-  const [on, setOn] = useState<HistoryKey[]>(['tank_bottom', 'dhw', 'outdoor']);
+  const [on, setOn] = useState<HistoryKey[]>(['tank_bottom', 'dhw_temp', 'outdoor_temp']);
   const [zoom, setZoom] = useState<[number, number] | null>(null);
   const h = useHistory(api, range, OVERLAYS);
-  const all = useHistory(api, 'all', ['outdoor', 'compressor_runtime_h']);
+  const all = useHistory(api, 'all', EFF_KEYS);
   const pts = h?.series.find((s) => s.points.length)?.points;
   const full: [number, number] | null = pts ? [pts[0]![0], pts.at(-1)![0]] : null;
   const domain = zoom ?? full;
@@ -491,9 +496,9 @@ function TrendsTab({ api }: { api: HeatingApi }) {
   const runMin = inDomain.map(([a, b]) => (b - a) / 60_000).sort((a, b) => a - b);
   const eff = useMemo(() => {
     if (!all) return null;
-    const out = all.series.find((s) => s.key === 'outdoor')?.points ?? [];
+    const out = all.series.find((s) => s.key === 'outdoor_temp')?.points ?? [];
     const rt = all.series.find((s) => s.key === 'compressor_runtime_h')?.points ?? [];
-    return efficiencyModel(out, rt, nowMs(), all.annotations[0]?.ts ?? null);
+    return efficiencyModel(out, rt, nowMs(), HEATING_BREAK_TS);
   }, [all]);
   return (
     <>
@@ -550,10 +555,10 @@ function TrendsTab({ api }: { api: HeatingApi }) {
               height={260}
               onZoom={(a, b) => setZoom([a, b])}
               testid="heating-trend-chart"
+              runs={runs.length > 0 ? runs : undefined}
             />
             {runs.length > 0 ? (
               <>
-                <RunStrip runs={runs} domain={domain} />
                 <p className="ht-muted ht-runs-note" data-testid="heating-runs-summary">
                   {czCount(inDomain.length, 'běh', 'běhy', 'běhů')} kompresoru
                   {runMin.length
@@ -564,7 +569,8 @@ function TrendsTab({ api }: { api: HeatingApi }) {
               </>
             ) : (
               <p className="ht-muted ht-runs-note">
-                Denní průměry · jednotlivé běhy kompresoru jsou vidět do měsíce zpět.
+                {range === 'month' ? 'Hodinové' : 'Denní'} průměry · jednotlivé běhy kompresoru jsou
+                vidět za poslední týden.
               </p>
             )}
           </>
@@ -573,26 +579,20 @@ function TrendsTab({ api }: { api: HeatingApi }) {
       <Card className="ht-card" data-testid="heating-efficiency">
         <header className="ht-ch ht-ch-wrap">
           <h3>Běh kompresoru podle venkovní teploty</h3>
-          <span className="ht-legend">
-            <span>
-              <i className="ht-dot-l" data-group="before" />
-              do 2018
-            </span>
-            <span>
-              <i className="ht-dot-l" data-group="after" />
-              2018–loni
-            </span>
-            <span>
-              <i className="ht-dot-l" data-group="current" />
-              letos
-            </span>
-            <span className="ht-muted">1 tečka = 1 den</span>
+          <span className="ht-legend" data-testid="heating-scatter-legend">
+            {eff?.legend.map((l) => (
+              <span key={l.group} data-group={l.group}>
+                <i className="ht-dot-l" data-group={l.group} />
+                {l.label}
+              </span>
+            ))}
+            <span className="ht-muted">1 tečka = 1 den · čára = trend</span>
           </span>
         </header>
         {!eff ? (
           <Skeleton variant="block" height="220px" />
         ) : eff.points.length ? (
-          <Scatter points={eff.points} />
+          <Scatter points={eff.points} fits={eff.fits} />
         ) : (
           <p className="ht-muted">Zatím málo dní s topením.</p>
         )}
@@ -705,12 +705,24 @@ function ModesTab({ snap }: { snap: HeatingSnapshot }) {
   const rows: Array<[string, string, boolean | null]> = [
     [
       'Sezóna',
-      `${mode.season === 'winter' ? 'zima (topení)' : 'léto (jen teplá voda)'}${mode.auto_season ? ' · přepíná se samo' : ''}`,
+      `${mode.season === 'winter' ? 'zima (topení)' : mode.season === 'summer' ? 'léto (jen teplá voda)' : 'neznámá'}${mode.auto_season ? ' · přepíná se samo' : ''}`,
       null,
     ],
-    ['Hlavní vypínač', mode.main_switch ? 'zapnuto' : 'vypnuto', mode.main_switch],
-    ['Útlum', mode.setback_active ? 'právě běží' : 'teď ne', mode.setback_active],
-    ['Chlazení', mode.cooling ? 'zapnuto' : 'vypnuto', mode.cooling],
+    [
+      'Hlavní vypínač',
+      mode.main_switch === null ? 'neznámo' : mode.main_switch ? 'zapnuto' : 'vypnuto',
+      mode.main_switch,
+    ],
+    [
+      'Útlum',
+      mode.setback_active === null ? 'neznámo' : mode.setback_active ? 'právě běží' : 'teď ne',
+      mode.setback_active,
+    ],
+    [
+      'Chlazení',
+      mode.cooling === null ? 'neznámo' : mode.cooling ? 'zapnuto' : 'vypnuto',
+      mode.cooling,
+    ],
     [
       'Tarif (HDO)',
       mode.hdo_low_tariff === null ? 'neznámý' : mode.hdo_low_tariff ? 'nízký' : 'vysoký',
@@ -830,11 +842,11 @@ function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
                 {f.compressor_block
                   ? 'Kompresor je zablokovaný, aby se nepoškodil. '
                   : 'Regulace kompresor hlídá a podle potřeby ho sama zastaví. '}
-                {snap.backup_heater.on
-                  ? 'Dům teď hřeje záložní elektrické topení – je to dražší, ale doma bude teplo. '
-                  : snap.backup_heater.available
-                    ? 'Kdyby kompresor stál dlouho, zapne se záložní elektrické topení. '
-                    : ''}
+                {!snap.backup_heater.available
+                  ? ''
+                  : snap.backup_heater.on
+                    ? 'Dům teď hřeje záložní elektrické topení – je to dražší, ale doma bude teplo. '
+                    : 'Kdyby kompresor stál dlouho, zapne se záložní elektrické topení. '}
               </p>
               <p>
                 <b>Co dělat:</b> nic neresetujte. Pokud porucha nezmizí do hodiny nebo se opakuje,
@@ -857,10 +869,12 @@ function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
             <span>Blokace kompresoru</span>
             <b data-on={f.compressor_block ? '' : undefined}>{f.compressor_block ? 'ano' : 'ne'}</b>
           </li>
-          <li>
-            <span>Záložní elektrické topení</span>
-            <b>{snap.backup_heater.on ? 'hřeje' : 'vypnuto (zapne se jen při poruše)'}</b>
-          </li>
+          {snap.backup_heater.available && (
+            <li>
+              <span>Záložní elektrické topení</span>
+              <b>{snap.backup_heater.on ? 'hřeje' : 'vypnuto (zapne se jen při poruše)'}</b>
+            </li>
+          )}
           <li>
             <span>Motohodiny kompresoru</span>
             <b>{fmtNum(snap.heat_pump.motohours, 0)}&nbsp;h</b>

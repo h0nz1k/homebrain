@@ -24,17 +24,17 @@ describe('HeatingView', () => {
     const sch = screen.getByTestId('heating-schematic');
     expect(sch.dataset.compressor).toBe('on');
     expect(sch.querySelector('[data-pump="primary"]')?.hasAttribute('data-on')).toBe(true);
-    expect(sch.querySelector('[data-pump="circulation"]')?.hasAttribute('data-on')).toBe(false);
+    expect(sch.querySelector('[data-pump="circulation"]')).toBeNull(); // not mapped (null)
     expect(sch.querySelector('[data-pipe="brine"]')).not.toBeNull();
     expect(screen.queryByTestId('heating-backup')).toBeNull();
   });
 
-  it('fault shows the backup heater and the critical pill', async () => {
+  it('fault shows the critical pill and no backup heater (regulation has none)', async () => {
     mount('fault');
     await waitFor(() =>
       expect(screen.getByTestId('heating-pill').textContent).toContain('Porucha'),
     );
-    expect(screen.getByTestId('heating-backup')).not.toBeNull();
+    expect(screen.queryByTestId('heating-backup')).toBeNull();
     expect(screen.getByTestId('heating-schematic').querySelector('[data-pipe]')).toBeNull();
   });
 

@@ -66,7 +66,7 @@ export const LAYOUTS: Record<'wide' | 'tall', SchematicLayout> = {
     ],
     hp: { x: 300, y: 150, w: 150, h: 142 },
     comp: [352, 226],
-    pumps: { primary: [350, 305], charge: [478, 222], house: [690, 132], circulation: [560, 28] },
+    pumps: { primary: [350, 305], charge: [478, 222], house: [690, 136], circulation: [700, 92] },
     charge: [
       [450, 222],
       [516, 222],
@@ -87,62 +87,63 @@ export const LAYOUTS: Record<'wide' | 'tall', SchematicLayout> = {
     ],
     tank: { x: 566, y: 48, w: 84, h: 264 },
     house: {
+      // the hot-water tap sits INSIDE the house, above the radiator loop
       outline: [
         [728, 214],
-        [728, 82],
-        [848, 18],
-        [968, 82],
+        [728, 70],
+        [848, 8],
+        [968, 70],
         [968, 214],
       ],
       radiators: [
-        { x: 762, y: 146, w: 66, h: 40 },
-        { x: 856, y: 146, w: 66, h: 40 },
+        { x: 762, y: 150, w: 66, h: 40 },
+        { x: 856, y: 150, w: 66, h: 40 },
       ],
     },
     houseLoop: [
-      [650, 132],
-      [944, 132],
-      [944, 200],
-      [650, 200],
+      [650, 136],
+      [944, 136],
+      [944, 202],
+      [650, 202],
     ],
     dhw: [
-      [608, 48],
-      [608, 28],
-      [420, 28],
-      [420, 60],
+      [646, 92],
+      [752, 92],
     ],
-    tap: [420, 60],
+    tap: [752, 92],
     labels: {
       outdoor: { at: [28, 6], align: 'l' },
-      collector: { at: [40, 300], align: 'l' },
+      // above the terrain line (soil starts at y 318)
+      collector: { at: [40, 258], align: 'l' },
       hp: { at: [375, 94], align: 'c' },
       tank: { at: [608, 322], align: 'c' },
       house: { at: [848, 224], align: 'c' },
-      dhw: { at: [300, 50], align: 'l' },
+      dhw: { at: [772, 80], align: 'l' },
       valve: { at: [516, 240], align: 'c' },
     },
   },
   tall: {
     w: 360,
-    h: 612,
-    soil: { x: 8, y: 474, w: 344, h: 130 },
+    h: 636,
+    // terrain line at y 494; the collector label sits ABOVE it (right), pipes stay below
+    soil: { x: 8, y: 494, w: 344, h: 134 },
     brine: [
       [86, 440],
-      [86, 500],
-      [26, 500],
-      [26, 518],
-      [306, 518],
-      [306, 536],
-      [26, 536],
-      [26, 554],
-      [334, 554],
-      [334, 462],
-      [140, 462],
-      [140, 440],
+      [86, 532],
+      [26, 532],
+      [26, 552],
+      [306, 552],
+      [306, 572],
+      [26, 572],
+      [26, 592],
+      [334, 592],
+      [334, 514],
+      [150, 514],
+      [150, 440],
     ],
     hp: { x: 52, y: 336, w: 132, h: 104 },
     comp: [96, 392],
-    pumps: { primary: [86, 456], charge: [26, 340], house: [168, 120], circulation: [80, 24] },
+    pumps: { primary: [86, 466], charge: [26, 340], house: [168, 140], circulation: [182, 104] },
     charge: [
       [52, 380],
       [26, 380],
@@ -164,38 +165,38 @@ export const LAYOUTS: Record<'wide' | 'tall', SchematicLayout> = {
     ],
     tank: { x: 92, y: 74, w: 62, h: 226 },
     house: {
+      // taller house: the hot-water tap now sits INSIDE it, above the radiator loop
       outline: [
-        [196, 230],
-        [196, 110],
-        [272, 64],
-        [348, 110],
-        [348, 230],
+        [196, 236],
+        [196, 88],
+        [272, 44],
+        [348, 88],
+        [348, 236],
       ],
       radiators: [
-        { x: 210, y: 158, w: 52, h: 34 },
-        { x: 280, y: 158, w: 52, h: 34 },
+        { x: 210, y: 172, w: 52, h: 34 },
+        { x: 280, y: 172, w: 52, h: 34 },
       ],
     },
     houseLoop: [
-      [154, 120],
-      [338, 120],
-      [338, 214],
-      [154, 214],
+      [154, 140],
+      [338, 140],
+      [338, 222],
+      [154, 222],
     ],
+    // DHW leaves the top of the tank and runs into the house to the tap
     dhw: [
-      [123, 74],
-      [123, 24],
-      [52, 24],
-      [52, 50],
+      [148, 104],
+      [236, 104],
     ],
-    tap: [52, 50],
+    tap: [236, 104],
     labels: {
-      outdoor: { at: [352, 6], align: 'r' },
-      collector: { at: [346, 564], align: 'r' },
-      hp: { at: [194, 360], align: 'l' },
+      outdoor: { at: [8, 6], align: 'l' },
+      collector: { at: [346, 448], align: 'r' },
+      hp: { at: [194, 356], align: 'l' },
       tank: { at: [160, 304], align: 'l' },
-      house: { at: [272, 240], align: 'c' },
-      dhw: { at: [70, 46], align: 'l' },
+      house: { at: [272, 244], align: 'c' },
+      dhw: { at: [258, 94], align: 'l' },
       valve: { at: [36, 254], align: 'l' },
     },
   },
@@ -535,12 +536,14 @@ export function HeatingSchematic({
           active={state.circulation > 0}
           speed={state.circulation}
         />
-        <Pump
-          at={L.pumps.circulation}
-          on={state.pumps.circulation}
-          id="circulation"
-          label="Cirkulace teplé vody"
-        />
+        {state.circulationKnown && (
+          <Pump
+            at={L.pumps.circulation}
+            on={state.pumps.circulation}
+            id="circulation"
+            label="Cirkulace teplé vody"
+          />
+        )}
         <g className="ht-tap" transform={`translate(${L.tap[0]} ${L.tap[1]})`}>
           <path d="M-14 0 H14 M0 0 V12 M-6 12 H6" />
           <path d="M0 18 c-4 6 -4 10 0 10 c4 0 4 -4 0 -10Z" className="ht-drop" />

@@ -196,10 +196,10 @@ const serverApi = createMockServerApi({
 });
 setServerApiFactory(() => serverApi);
 // Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|unconfigured|stale`,
-// `&rooms=0|4` (bound room sensors/TRVs).
+// `&rooms=0|4` (bound room sensors/TRVs; default 0 like the current backend).
 const heatingApi = createMockHeatingApi({
   scenario: (recipesQuery.get('topeni') as HeatingScenario | null) ?? 'heating',
-  rooms: recipesQuery.get('rooms') === '0' ? 0 : 4,
+  rooms: recipesQuery.get('rooms') === '4' ? 4 : 0,
 });
 setHeatingApiFactory(() => heatingApi);
 // Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.

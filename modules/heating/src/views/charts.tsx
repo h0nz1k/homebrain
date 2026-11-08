@@ -30,6 +30,7 @@ export function TimeChart({
   height = 220,
   onZoom,
   testid,
+  runs,
 }: {
   series: ChartSeries[];
   range: HistoryRange;
@@ -37,6 +38,8 @@ export function TimeChart({
   height?: number;
   onZoom?: (from: number, to: number) => void;
   testid?: string;
+  /** Compressor runs drawn as a lane directly under the plot, above the time labels. */
+  runs?: Array<[number, number]>;
 }) {
   const [from, to] = domain;
   const shown = useMemo(
@@ -184,6 +187,7 @@ export function TimeChart({
           </>
         )}
       </div>
+      {runs && <RunStrip runs={runs} domain={domain} ticks={xTicks.map((t) => x(t) / VW)} />}
       <div className="ht-xlabs" aria-hidden="true">
         {xTicks.map((t) => (
           <span key={t} style={{ left: pct((x(t) / VW) * 100) }}>
@@ -199,9 +203,12 @@ export function TimeChart({
 export function RunStrip({
   runs,
   domain,
+  ticks = [],
 }: {
   runs: Array<[number, number]>;
   domain: [number, number];
+  /** Time-axis tick positions (0…1) continued through the lane. */
+  ticks?: number[];
 }) {
   const [from, to] = domain;
   const span = Math.max(1, to - from);
@@ -210,8 +217,15 @@ export function RunStrip({
     <div
       className="ht-runs"
       data-testid="heating-runs"
+      role="img"
       aria-label={`Běhy kompresoru: ${visible.length}`}
     >
+      <span className="ht-runs-lbl" aria-hidden="true">
+        TČ
+      </span>
+      {ticks.map((t) => (
+        <b key={t} className="ht-runs-tick" style={{ left: pct(t * 100) }} />
+      ))}
       {visible.map(([a, b]) => (
         <i
           key={a}
@@ -231,11 +245,19 @@ export interface ScatterPoint {
   group: 'before' | 'after' | 'current';
 }
 
-/** Daily run hours vs. mean outdoor temperature (1 dot = 1 day). */
-export function Scatter({ points }: { points: ScatterPoint[] }) {
+type Fit = { x0: number; y0: number; x1: number; y1: number } | null;
+
+/** Daily run hours vs. mean outdoor temperature (1 dot = 1 day) + a trend line per group. */
+export function Scatter({
+  points,
+  fits,
+}: {
+  points: ScatterPoint[];
+  fits?: Record<ScatterPoint['group'], Fit>;
+}) {
   const xs = niceTicks(Math.min(...points.map((p) => p.x)), Math.max(...points.map((p) => p.x)), 4);
   const maxY = Math.max(6, ...points.map((p) => p.y));
-  const ys = maxY > 12 ? [0, 6, 12, 18, 24] : niceTicks(0, maxY, 4);
+  const ys = niceTicks(0, maxY, 4);
   const X0 = xs[0] ?? -10;
   const X1 = xs[xs.length - 1] ?? 20;
   const Y1 = ys[ys.length - 1] ?? 24;
@@ -257,6 +279,29 @@ export function Scatter({ points }: { points: ScatterPoint[] }) {
             style={{ left: pct((fx(p.x) / VW) * 100), top: pct(fy(p.y)) }}
           />
         ))}
+        {fits && (
+          <svg
+            viewBox={`0 0 ${VW} 100`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            className="ht-fits"
+          >
+            {(['before', 'after', 'current'] as const).map((g) => {
+              const f = fits[g];
+              return f ? (
+                <line
+                  key={g}
+                  data-group={g}
+                  className="ht-fit"
+                  x1={fx(f.x0)}
+                  y1={fy(f.y0)}
+                  x2={fx(f.x1)}
+                  y2={fy(f.y1)}
+                />
+              ) : null;
+            })}
+          </svg>
+        )}
         {ys.map((t) => (
           <span key={t} className="ht-ylab" style={{ top: pct(fy(t)) }}>
             {fmtNum(t, 0)}

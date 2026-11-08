@@ -119,7 +119,7 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
           first ? `: ${first.label.charAt(0).toLowerCase()}${first.label.slice(1)}.` : '.',
         ],
         detail: snap.faults.compressor_block
-          ? `Kompresor je zablokovaný.${snap.backup_heater.on ? ' Dům teď hřeje záložní elektrické topení.' : ''} Neresetujte – zavolejte servis.`
+          ? `Kompresor je zablokovaný.${snap.backup_heater.available && snap.backup_heater.on ? ' Dům teď hřeje záložní elektrické topení.' : ''} Neresetujte – zavolejte servis.`
           : 'Regulace si s tím zatím poradí sama. Pokud porucha nezmizí do hodiny, zavolejte servis.',
       };
     }
@@ -201,6 +201,8 @@ export interface SchematicState {
   circulation: number;
   valve: 'tank' | 'dhw';
   pumps: { primary: boolean; charge: boolean; house: boolean; circulation: boolean };
+  /** The circulation pump state is not mapped (null) → the pump is not drawn at all. */
+  circulationKnown: boolean;
   /** Backup heater is drawn only on a fault/compressor block (never for primary_prerun). */
   backup: 'hidden' | 'standby' | 'on';
   hdo: 'low' | 'high' | null;
@@ -212,8 +214,8 @@ export interface SchematicState {
 export function schematicState(snap: HeatingSnapshot): SchematicState {
   const hp = snap.heat_pump;
   const live = snap.source === 'ok' && !snap.stale;
-  const running = live && hp.compressor_on;
-  const prerun = live && !running && hp.primary_prerun;
+  const running = live && hp.compressor_on === true;
+  const prerun = live && !running && hp.primary_prerun === true;
   // Compressor load 2–6 kW → 0.55…1; unknown power = medium.
   const load =
     hp.power_w === null ? 0.75 : Math.max(0.55, Math.min(1, 0.4 + (hp.power_w / 6000) * 0.6));
@@ -225,22 +227,28 @@ export function schematicState(snap: HeatingSnapshot): SchematicState {
     compressor: running ? 'on' : prerun ? 'prerun' : 'off',
     brine: running ? load : prerun ? 0.35 : 0,
     charge: running ? load : 0,
-    house: live && snap.house.circuit_on ? Math.max(0.4, Math.min(0.85, (supply - 20) / 30)) : 0,
-    circulation: live && snap.pumps.circulation ? 0.35 : 0,
+    house:
+      live && snap.house.circuit_on === true
+        ? Math.max(0.4, Math.min(0.85, (supply - 20) / 30))
+        : 0,
+    circulation: live && snap.pumps.circulation === true ? 0.35 : 0,
     valve,
     pumps: {
       primary: running || prerun,
-      charge: running || (live && snap.pumps.secondary),
-      house: live && snap.pumps.heating,
-      circulation: live && snap.pumps.circulation,
+      charge: running || (live && snap.pumps.secondary === true),
+      house: live && snap.pumps.heating === true,
+      circulation: live && snap.pumps.circulation === true,
     },
-    backup: fault
-      ? snap.backup_heater.on
-        ? 'on'
-        : 'standby'
-      : live && snap.backup_heater.on && !hp.primary_prerun
-        ? 'on'
-        : 'hidden',
+    circulationKnown: snap.pumps.circulation !== null,
+    backup: !snap.backup_heater.available
+      ? 'hidden'
+      : fault
+        ? snap.backup_heater.on
+          ? 'on'
+          : 'standby'
+        : live && snap.backup_heater.on === true && hp.primary_prerun !== true
+          ? 'on'
+          : 'hidden',
     hdo: snap.mode.hdo_low_tariff === null ? null : snap.mode.hdo_low_tariff ? 'low' : 'high',
     fault,
     tankTop: snap.tank.top,
@@ -419,7 +427,7 @@ export function roomsModel(snap: HeatingSnapshot): RoomsModel {
   const trvs = rows.filter((r) => r.valve_pct !== null);
   const closed = trvs.filter((r) => (r.valve_pct ?? 100) < 20);
   const throttle =
-    trvs.length >= 2 && closed.length / trvs.length >= 0.6 && snap.heat_pump.compressor_on
+    trvs.length >= 2 && closed.length / trvs.length >= 0.6 && snap.heat_pump.compressor_on === true
       ? `${closed.length} z ${czCount(trvs.length, 'hlavice', 'hlavic', 'hlavic')} je otevřeno pod 20 % – přiškrcují průtok a kompresor pak častěji startuje. Na chodbě nechte hlavici naplno.`
       : null;
   return { rows, coldest, insight, throttle };
@@ -427,7 +435,26 @@ export function roomsModel(snap: HeatingSnapshot): RoomsModel {
 
 /* ---------- Seasons ---------- */
 
+/**
+ * Owner annotations shown by the frontend (the backend sends none yet): the heated area
+ * shrank from the 2018/19 season on, which explains the step change in run hours.
+ */
+export const SEASON_NOTES: Readonly<Record<string, string>> = {
+  '2018/19': 'Druhá budova se přestala vytápět',
+};
+/** Start of the 2018/19 season (local) = the efficiency break between `before` and `after`. */
+export const HEATING_BREAK_TS = new Date(2018, 6, 1).getTime();
+
+/** Heating season (July–June) of a timestamp, e.g. `2025/26`. */
+export function seasonOf(ts: number): string {
+  const d = new Date(ts);
+  const y = d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1;
+  return `${y}/${String((y + 1) % 100).padStart(2, '0')}`;
+}
+
 export interface SeasonCard extends HeatingSeason {
+  /** Owner annotation for this season (`SEASON_NOTES`). */
+  note: string | null;
   /** h per 100 degree-days vs. previous season (fraction, −0.1 = 10 % less), null if unknown. */
   vsPrev: number | null;
   share: number;
@@ -443,7 +470,7 @@ export function seasonsModel(rows: HeatingSeason[]): { cards: SeasonCard[]; maxH
         ? // from the DISPLAYED (rounded) values so the card arithmetic adds up
           +(Math.round(r.h_per_100dd) / Math.max(1, Math.round(prev.h_per_100dd)) - 1).toFixed(3)
         : null;
-    return { ...r, vsPrev, share: r.compressor_h / maxH };
+    return { ...r, vsPrev, share: r.compressor_h / maxH, note: SEASON_NOTES[r.season] ?? null };
   });
   return { cards, maxH };
 }
@@ -458,21 +485,44 @@ export const fmtPctChange = (f: number) =>
 
 /* ---------- Efficiency (run hours vs. outdoor) ---------- */
 
+export type EfficiencyGroup = 'before' | 'after' | 'current';
+export const EFFICIENCY_GROUPS: readonly EfficiencyGroup[] = ['before', 'after', 'current'];
+
 export interface EfficiencyModel {
-  points: Array<{ x: number; y: number; group: 'before' | 'after' | 'current' }>;
+  points: Array<{ x: number; y: number; group: EfficiencyGroup }>;
   /** Run hours a day at 0 °C outside, per group (linear fit), null when too few days. */
-  at0: { before: number | null; after: number | null; current: number | null };
+  at0: Record<EfficiencyGroup, number | null>;
+  /** Fitted trend line per group over its own outdoor range (null when too few days). */
+  fits: Record<EfficiencyGroup, { x0: number; y0: number; x1: number; y1: number } | null>;
+  /** Legend rows: season range covered by each group, days in it. */
+  legend: Array<{ group: EfficiencyGroup; label: string; days: number }>;
   insight: string | null;
 }
 
-function fitAt0(pts: Array<{ x: number; y: number }>): number | null {
+function fit(pts: Array<{ x: number; y: number }>): { a: number; b: number } | null {
   if (pts.length < 10) return null;
   const n = pts.length;
   const mx = pts.reduce((s, p) => s + p.x, 0) / n;
   const my = pts.reduce((s, p) => s + p.y, 0) / n;
   const sxx = pts.reduce((s, p) => s + (p.x - mx) ** 2, 0);
   const b = sxx ? pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0) / sxx : 0;
-  return Math.max(0, my - b * mx);
+  return { a: my - b * mx, b };
+}
+
+function fitAt0(pts: Array<{ x: number; y: number }>): number | null {
+  const f = fit(pts);
+  return f ? Math.max(0, f.a) : null;
+}
+
+function fitLine(pts: Array<{ x: number; y: number }>) {
+  const f = fit(pts);
+  if (!f) return null;
+  // 5th–95th percentile of x so one odd day does not stretch the line
+  const xs = pts.map((p) => p.x).sort((a, b) => a - b);
+  const x0 = xs[Math.floor(xs.length * 0.05)]!;
+  const x1 = xs[Math.min(xs.length - 1, Math.floor(xs.length * 0.95))]!;
+  const at = (x: number) => Math.max(0, f.a + f.b * x);
+  return { x0, y0: at(x0), x1, y1: at(x1) };
 }
 
 /** Heating days (outdoor < 16 °C) grouped before/after a break and the running season. */
@@ -486,17 +536,19 @@ export function efficiencyModel(
   const byTs = new Map(outdoor.map((p) => [p[0], p[1]]));
   const now = new Date(nowMs);
   const seasonStart = new Date(now.getFullYear() - (now.getMonth() < 6 ? 1 : 0), 6, 1).getTime();
+  const seasons: Record<EfficiencyGroup, Set<string>> = {
+    before: new Set(),
+    after: new Set(),
+    current: new Set(),
+  };
   const all = runtime
-    .filter((p) => byTs.has(p[0]) && (byTs.get(p[0]) ?? 99) < 16)
-    .map((p) => ({
-      x: byTs.get(p[0])!,
-      y: p[1],
-      group: (p[0] >= seasonStart
-        ? 'current'
-        : breakTs !== null && p[0] < breakTs
-          ? 'before'
-          : 'after') as 'before' | 'after' | 'current',
-    }));
+    .filter((p) => byTs.has(p[0]) && (byTs.get(p[0]) ?? 99) < 16 && Number.isFinite(p[1]))
+    .map((p) => {
+      const group: EfficiencyGroup =
+        p[0] >= seasonStart ? 'current' : breakTs !== null && p[0] < breakTs ? 'before' : 'after';
+      seasons[group].add(seasonOf(p[0]));
+      return { x: byTs.get(p[0])!, y: p[1], group };
+    });
   const pick = (g: string) => all.filter((p) => p.group === g);
   const at0 = {
     before: fitAt0(pick('before')),
@@ -509,6 +561,21 @@ export function efficiencyModel(
     Math.ceil(older.length / Math.max(1, maxPoints - pick('current').length)),
   );
   const points = [...older.filter((_, i) => i % step === 0), ...pick('current')];
+  const fits = {
+    before: fitLine(pick('before')),
+    after: fitLine(pick('after')),
+    current: fitLine(pick('current')),
+  };
+  const range = (g: EfficiencyGroup) => {
+    const list = [...seasons[g]].sort();
+    if (!list.length) return '';
+    return list.length === 1 ? list[0]! : `${list[0]}\u2009–\u2009${list.at(-1)}`;
+  };
+  const legend = EFFICIENCY_GROUPS.filter((g) => seasons[g].size > 0).map((g) => ({
+    group: g,
+    label: g === 'current' ? `letos ${range(g)}` : range(g),
+    days: pick(g).length,
+  }));
   let insight: string | null = null;
   const ref = at0.after;
   if (at0.current !== null && ref) {
@@ -526,7 +593,7 @@ export function efficiencyModel(
       insight =
         `Od sezóny 2018/19 běží kompresor při stejné venkovní teplotě o ${fmtNum(drop * 100, 0)}\u00a0% kratší dobu. ${insight ?? ''}`.trim();
   }
-  return { points, at0, insight };
+  return { points, at0, fits, legend, insight };
 }
 
 /* ---------- Ekviterm ---------- */

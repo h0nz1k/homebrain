@@ -152,15 +152,25 @@ export const heatingStyles = `
 .ht-tip[data-side='l'] { transform: translateX(calc(-100% - 20px)); }
 .ht-tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .ht-zoomsel { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--hb-ac) 18%, transparent); box-shadow: inset 0 0 0 1px var(--hb-ac); pointer-events: none; }
-.ht-runs { position: relative; height: 10px; margin-left: 34px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.12)); overflow: hidden; }
-.ht-runs i { position: absolute; top: 0; bottom: 0; background: var(--hb-ac); opacity: .8; border-radius: 2px; min-width: 2px; }
+.ht-runs { position: relative; height: 12px; margin-top: 8px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.12)); }
+.ht-runs i { position: absolute; top: 0; bottom: 0; background: var(--hb-ac); opacity: .85; border-radius: 2px; min-width: 2px; }
+.ht-runs-tick { position: absolute; top: -3px; bottom: -3px; width: 1px; background: color-mix(in srgb, var(--hb-t1) 14%, transparent); }
+.ht-runs-lbl { position: absolute; left: -34px; top: 50%; transform: translateY(-50%); font-size: 11px; font-weight: 600; color: var(--hb-t3, var(--hb-t2)); }
 .ht-runs-note { margin-left: 34px; }
+.ht-legend span[data-group] { font-variant-numeric: tabular-nums; }
 .ht-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ht-chip-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 .ht-dot { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--ht-c-out); opacity: .55; }
-.ht-dot[data-group='before'], .ht-dot-l[data-group='before'] { background: color-mix(in srgb, var(--hb-t1) 22%, transparent); opacity: 1; }
-.ht-dot[data-group='after'], .ht-dot-l[data-group='after'] { background: color-mix(in srgb, var(--hb-t1) 50%, transparent); opacity: .7; }
-.ht-dot[data-group='current'], .ht-dot-l[data-group='current'] { background: var(--hb-ac); opacity: 1; box-shadow: 0 0 0 1.5px var(--hb-s1); }
+.ht { --ht-g-before: color-mix(in srgb, var(--hb-t1) 55%, transparent); --ht-g-after: var(--ht-c-out); --ht-g-current: var(--ht-c-supply); }
+.ht-dot[data-group='before'], .ht-dot-l[data-group='before'] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ht-g-before); opacity: .8; }
+.ht-dot[data-group='after'], .ht-dot-l[data-group='after'] { background: var(--ht-g-after); opacity: .45; }
+.ht-dot[data-group='current'], .ht-dot-l[data-group='current'] { background: var(--ht-g-current); opacity: 1; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; box-shadow: 0 0 0 1.5px var(--hb-s1); z-index: 1; }
+.ht-dot-l[data-group='after'] { opacity: .8; }
+.ht-chart > svg.ht-fits { z-index: 2; pointer-events: none; }
+.ht-fit { stroke-width: 2.5px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.ht-fit[data-group='before'] { stroke: var(--ht-g-before); stroke-dasharray: 6 5; }
+.ht-fit[data-group='after'] { stroke: var(--ht-g-after); }
+.ht-fit[data-group='current'] { stroke: var(--ht-g-current); filter: drop-shadow(0 0 1.5px var(--hb-s1)); }
 .ht-dot-l { width: 8px !important; height: 8px !important; border-radius: 50% !important; }
 .ht-curve-line { stroke: var(--ht-c-tank); stroke-width: 2.5; }
 .ht-curve-pt { background: var(--ht-c-tank); opacity: 1; width: 8px; height: 8px; margin: -4px 0 0 -4px; }

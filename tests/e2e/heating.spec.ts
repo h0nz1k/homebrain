@@ -26,7 +26,8 @@ test.describe('Topení', () => {
     await expect(sch).toHaveAttribute('data-compressor', 'on');
     await expect(sch.locator('[data-pipe="brine"]')).toHaveCount(1);
     await expect(sch.locator('[data-pump="primary"]')).toHaveAttribute('data-on', '');
-    await expect(sch.locator('[data-pump="circulation"]')).not.toHaveAttribute('data-on', '');
+    // circulation pump state is not mapped by the backend (null) → not drawn
+    await expect(sch.locator('[data-pump="circulation"]')).toHaveCount(0);
     await expect(page.getByTestId('heating-backup')).toHaveCount(0);
     await expect(page.getByTestId('heating-hdo')).toHaveText('Nízký tarif');
     await expect(page.getByText(/elektrick/i)).toHaveCount(0);
@@ -34,13 +35,18 @@ test.describe('Topení', () => {
     await noSidewaysScroll(page);
   });
 
-  test('porucha ukáže záložní topnou tyč a zastaví proudění', async ({ page }) => {
+  test('porucha zastaví proudění; záložní topení regulace nemá, takže se nezmiňuje', async ({
+    page,
+  }) => {
     await page.goto('/homebrain-topeni?topeni=fault');
     await expect(page.getByTestId('heating-pill')).toContainText('Porucha', { timeout: 20_000 });
-    await expect(page.getByTestId('heating-backup')).toBeVisible();
+    await expect(page.getByTestId('heating-schematic')).toHaveAttribute('data-compressor', 'off');
+    await expect(page.getByTestId('heating-backup')).toHaveCount(0);
+    await expect(page.getByText(/záložní/i)).toHaveCount(0);
     await page.getByRole('radio', { name: /Poruchy/ }).click();
     await expect(page).toHaveURL(/\/homebrain-topeni\/poruchy/);
     await expect(page.getByTestId('heating-fault').first()).toBeVisible();
+    await expect(page.getByText(/záložní/i)).toHaveCount(0);
     await noSidewaysScroll(page);
   });
 
@@ -58,11 +64,22 @@ test.describe('Topení', () => {
   test('Trendy: rozsahy, překryvy, běhy kompresoru a účinnost', async ({ page }) => {
     await page.goto('/homebrain-topeni/trendy?topeni=heating');
     await expect(page.getByTestId('heating-trend')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('heating-runs')).toBeVisible();
+    // run lane sits between the plot and the time labels of the same chart
+    const lane = await page.getByTestId('heating-trend-chart').evaluate((el) => {
+      const r = (s: string) => el.querySelector(s)!.getBoundingClientRect();
+      return { plot: r('.ht-chart').bottom, runs: r('.ht-runs').top, labels: r('.ht-xlabs').top };
+    });
+    expect(lane.runs).toBeGreaterThanOrEqual(lane.plot - 1);
+    expect(lane.labels).toBeGreaterThan(lane.runs);
     await page.getByRole('radio', { name: '10 let' }).click();
     await expect(page.getByTestId('heating-trend')).toHaveAttribute('data-range', 'all');
     await expect(page.getByTestId('heating-scatter')).toBeVisible();
     await expect(page.getByTestId('heating-efficiency')).toContainText('2018/19');
+    // three point groups, each with its own legend entry and trend line
+    await expect(
+      page.getByTestId('heating-scatter-legend').locator('span[data-group]'),
+    ).toHaveCount(3);
+    await expect(page.locator('.ht-fit')).toHaveCount(3);
     await noSidewaysScroll(page);
   });
 
@@ -101,6 +118,29 @@ test.describe('Topení', () => {
       }
     });
   }
+
+  test('telefon: kohoutek teplé vody je v domě, popisek kolektoru nad terénem', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=heating');
+    const sch = page.getByTestId('heating-schematic');
+    await expect(sch).toHaveAttribute('data-variant', 'tall', { timeout: 20_000 });
+    const g = await sch.evaluate((el) => {
+      const r = (s: string) => el.querySelector(s)!.getBoundingClientRect();
+      return {
+        tap: r('.ht-tap'),
+        house: r('.ht-house-outline'),
+        grass: r('.ht-grass'),
+        label: r('[data-testid="heating-sch-collector"]'),
+      };
+    });
+    expect(g.tap.left).toBeGreaterThan(g.house.left);
+    expect(g.tap.right).toBeLessThan(g.house.right);
+    expect(g.tap.top).toBeGreaterThan(g.house.top);
+    expect(g.tap.bottom).toBeLessThan(g.house.bottom);
+    expect(g.label.bottom).toBeLessThanOrEqual(g.grass.top);
+  });
 
   test.describe('omezený pohyb', () => {
     test.use({ reducedMotion: 'reduce' });

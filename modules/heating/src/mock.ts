@@ -1,12 +1,13 @@
-import type { HeatingApi } from './api.js';
+import { normalizeHistory, type HeatingApi } from './api.js';
 import type {
   HeatingHistory,
   HeatingRoom,
   HeatingSeason,
   HeatingSnapshot,
   HistoryKey,
-  HistoryPoint,
   HistoryRange,
+  WireHeatingHistory,
+  WireHistoryPoint,
 } from './types.js';
 
 /** Dev/e2e scenarios (`?topeni=`). All numbers are SYNTHETIC, only shaped like a real system. */
@@ -127,7 +128,7 @@ export function buildMockSnapshot(
       return_temp: running ? 38.9 : 30.4,
       brine_in: running ? 5.1 : 7.2,
       brine_out: running ? 2.4 : 7.0,
-      primary_prerun: false,
+      primary_prerun: null,
       discharge_temp: null,
       discharge_bar: null,
       suction_temp: null,
@@ -135,7 +136,7 @@ export function buildMockSnapshot(
       runtime_today_h: 3.4,
       starts_today: 5,
       energy_today_kwh: 14.2,
-      motohours: 18_430,
+      motohours: 18_430.4,
     },
     tank: {
       top: scenario === 'dhw' ? 42.6 : 48.4,
@@ -154,9 +155,9 @@ export function buildMockSnapshot(
     pumps: {
       heating: scenario === 'heating' || scenario === 'idle',
       secondary: running,
-      circulation: scenario === 'idle',
+      circulation: null,
     },
-    backup_heater: { on: scenario === 'fault', available: true },
+    backup_heater: { on: null, available: false },
     faults: {
       active:
         scenario === 'fault'
@@ -170,7 +171,7 @@ export function buildMockSnapshot(
           : [],
       fatal: false,
       compressor_block: scenario === 'fault',
-      monitored: 22,
+      monitored: 19,
     },
     curve: {
       points: [
@@ -237,16 +238,25 @@ function runtimeFor(outdoorMean: number, ts: number, rnd: () => number) {
   return Math.min(22, Math.max(0, (dd * 0.24 * before + (rnd() - 0.5) * 1.4) * (dd > 0 ? 1 : 0)));
 }
 
-export function buildMockHistory(
+/** Wire-format history exactly like `homebrain/heating/history` (counters = `[ts, change, null, null]`). */
+export interface MockHistoryPin {
+  /** The compressor has been running this many minutes (open run until now). */
+  runningMin?: number;
+  /** Last values (= the snapshot), blended in over the final hour so chart ends match the hero. */
+  last?: Partial<Record<HistoryKey, number | null>>;
+}
+
+export function buildMockWireHistory(
   range: HistoryRange,
   keys: HistoryKey[],
   now = Date.now(),
-): HeatingHistory {
+  pin: MockHistoryPin = {},
+): WireHeatingHistory {
   const { span, step, res } = RANGE_SPEC[range];
   const end = Math.floor(now / step) * step;
   const start = end - span;
   const rnd = seeded(range.length * 97 + 11);
-  const series = new Map<HistoryKey, HistoryPoint[]>(keys.map((k) => [k, []]));
+  const series = new Map<HistoryKey, WireHistoryPoint[]>(keys.map((k) => [k, []]));
   const runs: Array<[number, number]> = [];
   // Tank sawtooth simulated every 5 min: cools while the house draws, the compressor runs from
   // 41 °C until 46 °C (target + hysteresis). Hourly ranges report the mean of 12 sub-steps.
@@ -283,23 +293,53 @@ export function buildMockHistory(
     const values: Record<HistoryKey, number> = {
       tank_bottom: bottom,
       tank_top: top,
-      dhw: top,
-      outdoor: out,
-      house_supply: supply,
-      ref_temp: 22.3 + Math.sin(ts / (5 * HOUR)) * 0.25 + (rnd() - 0.5) * 0.15,
+      dhw_temp: top,
+      outdoor_temp: out,
+      house_supply_temp: supply,
+      house_ref_temp: 22.3 + Math.sin(ts / (5 * HOUR)) * 0.25 + (rnd() - 0.5) * 0.15,
       compressor_runtime_h: runtime,
     };
     for (const k of keys) {
       const v = +values[k].toFixed(2);
-      const spread =
-        res === 'day' ? (k === 'outdoor' ? 4 : k === 'compressor_runtime_h' ? 0 : 2.5) : 0.4;
+      if (k === 'compressor_runtime_h') {
+        // counter: change in the bucket (daily hours; per-hour share on finer ranges)
+        series
+          .get(k)!
+          .push([ts, res === 'day' ? v : +(on ? step / HOUR : 0).toFixed(2), null, null]);
+        continue;
+      }
+      const spread = res === 'day' ? (k === 'outdoor_temp' ? 4 : 2.5) : 0.4;
       series.get(k)!.push([ts, v, +(v - spread).toFixed(2), +(v + spread).toFixed(2)]);
     }
   }
-  const annotations =
-    range === 'all'
-      ? [{ ts: Date.UTC(2018, 8, 1), text: '2018/19: druhá budova se přestala vytápět' }]
-      : [];
+  if (res !== 'day') {
+    // like the backend: a run still in progress ends at `now`; match the snapshot's run
+    if (on) runs.push([runStart, end]);
+    if (pin.runningMin) {
+      const from = end - pin.runningMin * MIN;
+      while (runs.length && runs.at(-1)![1] > from - 20 * MIN) runs.pop();
+      runs.push([from, end]);
+    }
+    const blend = Math.max(1, Math.round(HOUR / step));
+    for (const k of keys) {
+      const target = pin.last?.[k];
+      if (target === null || target === undefined) continue;
+      const pts = series.get(k)!;
+      const n = Math.min(blend, pts.length);
+      const delta = target - (pts.at(-1)![1] ?? target);
+      for (let i = 0; i < n; i++) {
+        const p = pts[pts.length - n + i]!;
+        const f = (i + 1) / n;
+        const shift = +(delta * f).toFixed(2);
+        pts[pts.length - n + i] = [
+          p[0],
+          +((p[1] ?? 0) + shift).toFixed(2),
+          p[2] === null ? null : +(p[2] + shift).toFixed(2),
+          p[3] === null ? null : +(p[3] + shift).toFixed(2),
+        ];
+      }
+    }
+  }
   return {
     range,
     resolution: res,
@@ -308,9 +348,20 @@ export function buildMockHistory(
       unit: key === 'compressor_runtime_h' ? 'h' : '°C',
       points: series.get(key)!,
     })),
-    runs: res === 'day' ? [] : runs,
-    annotations,
+    // like the backend: runs only for day/week, annotations not sent yet
+    runs: range === 'day' || range === 'week' ? runs : [],
+    annotations: [],
   };
+}
+
+/** Normalised mock history (what the views get from `HeatingApi.history`). */
+export function buildMockHistory(
+  range: HistoryRange,
+  keys: HistoryKey[],
+  now = Date.now(),
+  pin: MockHistoryPin = {},
+): HeatingHistory {
+  return normalizeHistory(buildMockWireHistory(range, keys, now, pin), keys);
 }
 
 /* ---------- Seasons ---------- */
@@ -341,8 +392,7 @@ export function buildMockSeasons(now = Date.now()): HeatingSeason[] {
       energy_measured: partial,
       coverage: +(i === 9 ? 0.91 : 0.985 + rnd() * 0.015).toFixed(3),
       outdoor_mean: +(partial ? 5.8 : 9.6 + rnd() * 2).toFixed(1),
-      backup_heater_h: 0,
-      note: y === 2018 ? 'Druhá budova se přestala vytápět' : null,
+      backup_heater_h: null,
     });
   }
   return out;
@@ -358,12 +408,24 @@ export function createMockHeatingApi(
   const delay = <R>(v: R) => new Promise<R>((resolve) => setTimeout(() => resolve(v), 60));
   return {
     get: () => delay(buildMockSnapshot(scenario, rooms, now())),
-    history: (range, keys) =>
-      delay(
-        scenario === 'unconfigured'
-          ? buildMockHistory(range, [], now())
-          : buildMockHistory(range, keys, now()),
-      ),
+    history: (range, keys) => {
+      if (scenario === 'unconfigured') return delay(buildMockHistory(range, [], now()));
+      const snap = buildMockSnapshot(scenario, rooms, now());
+      const since = snap.heat_pump.running_since;
+      return delay(
+        buildMockHistory(range, keys, now(), {
+          runningMin: since ? Math.round((now() - Date.parse(since)) / MIN) : undefined,
+          last: {
+            tank_bottom: snap.tank.bottom,
+            tank_top: snap.tank.top,
+            dhw_temp: snap.dhw.temp,
+            outdoor_temp: snap.outdoor.temp,
+            house_supply_temp: snap.house.supply_temp,
+            house_ref_temp: snap.house.ref_temp,
+          },
+        }),
+      );
+    },
     seasons: () => delay(scenario === 'unconfigured' ? [] : buildMockSeasons(now())),
   };
 }
