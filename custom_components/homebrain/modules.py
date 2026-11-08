@@ -41,6 +41,7 @@ MODULES: Final = (
     "access",
     "network",
     "family",
+    "server",
 )
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 

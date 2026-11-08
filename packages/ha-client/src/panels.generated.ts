@@ -13,6 +13,7 @@ export const PANEL_PATHS_BY_MODULE: Readonly<Record<string, string>> = {
   access: 'homebrain-pristup',
   recipes: 'homebrain-recepty',
   network: 'homebrain-sit',
+  server: 'homebrain-server',
 };
 export const SETTINGS_PANEL_PATH = 'homebrain-nastaveni';
 export const KIOSK_PANEL_PATH = 'homebrain-kiosk';

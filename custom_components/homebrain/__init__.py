@@ -60,6 +60,7 @@ from .robots.ws import (
     websocket_robots_get,
     websocket_robots_map,
 )
+from .server import ws as server_ws
 from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
@@ -138,6 +139,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "recipes": lambda reg: recipes_ws.async_register(hass, reg),
             "access": lambda reg: access_ws.async_register(hass, reg),
             "network": _commands(*network_ws.COMMANDS)(hass),
+            "server": _commands(*server_ws.COMMANDS)(hass),
             "family": _commands(*family_ws.COMMANDS)(hass),
         },
     )
@@ -367,6 +369,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("robots", _unload_robots),
             ("waste", _unload_waste),
             ("network", network_ws.async_unload),
+            ("server", server_ws.async_unload),
         ),
     )
     return True

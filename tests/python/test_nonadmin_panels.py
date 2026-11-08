@@ -18,7 +18,7 @@ from custom_components.homebrain.const import DOMAIN
 PANELS_JSON = Path(__file__).parents[2] / "custom_components" / "homebrain" / "panels.json"
 
 NON_ADMIN_MODULES = {"today", "weather", "waste", "family", "energy", "recipes", "network"}
-ADMIN_ONLY_MODULES = {"wine", "health", "robots", "access"}
+ADMIN_ONLY_MODULES = {"wine", "health", "robots", "access", "server"}
 
 
 def _panels() -> dict:
