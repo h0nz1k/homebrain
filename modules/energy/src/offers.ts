@@ -179,15 +179,20 @@ export function monthLabel(key: string, long = false): string {
 
 const perMwh = (v: number | null) => `${fmt(v ?? 0)}${NBSP}Kč/MWh`;
 
-export function offerSummary(offer: Offer): string {
+/** Price parts of an offer (the kind is shown separately as a badge). */
+export function offerParts(offer: Offer): string[] {
   const parts =
     offer.kind === 'fixed'
-      ? [`Pevná cena`, `VT ${perMwh(offer.price_vt)}`, `NT ${perMwh(offer.price_nt)}`]
-      : [`Spot ${(offer.margin ?? 0) < 0 ? '\u2212' : '+'} ${perMwh(Math.abs(offer.margin ?? 0))}`];
+      ? [`VT ${perMwh(offer.price_vt)}`, `NT ${perMwh(offer.price_nt)}`]
+      : [`spot ${(offer.margin ?? 0) < 0 ? '\u2212' : '+'} ${perMwh(Math.abs(offer.margin ?? 0))}`];
   if (offer.monthly_fee) parts.push(`${fmt(offer.monthly_fee)}${NBSP}Kč/měs.`);
   if (offer.export.mode === 'fixed') parts.push(`výkup ${perMwh(offer.export.price)}`);
-  if (offer.export.mode === 'spot') parts.push(`výkup spot \u2212 ${perMwh(offer.export.fee)}`);
-  return parts.join(' · ');
+  if (offer.export.mode === 'spot') parts.push(`výkup: spot \u2212 ${perMwh(offer.export.fee)}`);
+  return parts;
+}
+
+export function offerSummary(offer: Offer): string {
+  return offerParts(offer).join(' · ');
 }
 
 export function emptyForm(): OfferForm {
@@ -251,6 +256,29 @@ export function rankedPlans(cmp: OffersComparison | null): Plan[] {
   return order.map((id) => cmp.plans!.find((p) => p.id === id)).filter((p): p is Plan => !!p);
 }
 
+export interface OffersHero {
+  /** Saving (negative) or extra cost (positive) of the best offer vs the current contract. */
+  diff: number | null;
+  best: Plan;
+  perMonth: number | null;
+  percent: number | null;
+}
+
+export function offersHero(cmp: OffersComparison | null): OffersHero | null {
+  const ranked = rankedPlans(cmp);
+  const current = ranked.find((p) => p.kind === 'current');
+  const best = ranked.find((p) => p.kind !== 'current' && p.total !== null);
+  if (!best) return null;
+  const months = cmp?.months_compared ?? 0;
+  const diff = best.diff;
+  return {
+    best,
+    diff,
+    perMonth: diff !== null && months ? diff / months : null,
+    percent: diff !== null && current?.total ? (diff / current.total) * 100 : null,
+  };
+}
+
 export function offersHeadline(cmp: OffersComparison | null): string | null {
   const ranked = rankedPlans(cmp);
   const current = ranked.find((p) => p.kind === 'current');
@@ -259,8 +287,8 @@ export function offersHeadline(cmp: OffersComparison | null): string | null {
   if (!current || current.total === null || best.diff === null)
     return `Nejlevnější nabídka: „${best.name}“ za ${formatKc(best.total)}.`;
   if (best.diff < 0)
-    return `Nejlevnější by byla „${best.name}“: o ${formatKc(-best.diff)} méně než současná smlouva.`;
-  return `Současná smlouva vychází nejlépe – nejbližší „${best.name}“ by stála o ${formatKc(best.diff)} více.`;
+    return `Nejvýhodnější by byla „${best.name}“ – ušetřili byste ${formatKc(-best.diff)}.`;
+  return `Současná smlouva vychází nejlépe – „${best.name}“ by vyšla o ${formatKc(best.diff)} dráž.`;
 }
 
 export function spotStatusText(spot: SpotInfo | undefined): string | null {

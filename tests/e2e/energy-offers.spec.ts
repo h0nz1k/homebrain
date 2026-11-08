@@ -12,7 +12,7 @@ test('správce vidí pořadí nabídek, měsíční srovnání a přidá nabídk
     els.map((el) => Number(el.getAttribute('data-total'))),
   );
   expect([...totals].sort((a, b) => a - b)).toEqual(totals);
-  await expect(card.getByTestId('energy-offers-headline')).toContainText('Nejlevnější');
+  await expect(card.getByTestId('energy-offers-headline')).toContainText('Nejvýhodnější');
   await expect(card.getByTestId('energy-offer-bar-month')).toHaveCount(12);
   await card.getByTestId('energy-offer-bar-month').first().click();
   await expect(card.getByTestId('energy-offer-readout')).toContainText('Kč');
@@ -35,7 +35,7 @@ test('správce vidí pořadí nabídek, měsíční srovnání a přidá nabídk
   await sheet.getByTestId('energy-offer-field-margin').fill('450');
   await sheet.getByTestId('energy-offer-save').click();
   await expect(sheet).toBeHidden();
-  await expect(card.getByText(/Spot \+ 450\sKč\/MWh/)).toBeVisible();
+  await expect(card.getByText(/spot \+ 450\sKč\/MWh/)).toBeVisible();
 
   await card.getByText('Jak počítáme a předpoklady').click();
   await expect(card.getByTestId('energy-offers-assumptions')).toContainText(

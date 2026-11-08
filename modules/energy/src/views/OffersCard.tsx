@@ -13,8 +13,9 @@ import {
   formatKc,
   monthLabel,
   offerPayload,
-  offerSummary,
+  offerParts,
   offersHeadline,
+  offersHero,
   parseNum,
   periodText,
   rankedPlans,
@@ -31,7 +32,7 @@ import {
 } from '../offers.js';
 
 const KIND_LABEL: Record<Plan['kind'], string> = {
-  current: 'Teď',
+  current: 'Aktuální',
   fixed: 'Pevná cena',
   spot: 'Spot',
 };
@@ -321,7 +322,8 @@ function RegulatedSheet({
 
 /* ---------- chart ---------- */
 
-function MonthBars({
+/** Monthly difference of the chosen offer vs the current contract (up = saving). */
+function MonthDiff({
   cmp,
   current,
   other,
@@ -331,64 +333,94 @@ function MonthBars({
   other: Plan | undefined;
 }) {
   const months = cmp.months ?? [];
-  const [active, setActive] = useState(months.length - 1);
-  if (!months.length || (!current && !other)) return null;
-  const values = (p: Plan | undefined, i: number) => p?.months[i]?.total ?? null;
-  const max = Math.max(
-    1,
-    ...months.flatMap((_, i) => [values(current, i) ?? 0, values(other, i) ?? 0]),
-  );
-  const pct = (v: number | null) => `${Math.max(0, ((v ?? 0) / max) * 100)}%`;
-  const i = Math.min(active, months.length - 1);
-  const a = values(current, i);
-  const b = values(other, i);
+  const [active, setActive] = useState<number | null>(null);
+  if (!months.length || !current || !other) return null;
+  const diffs = months.map((_, i) => {
+    const a = current.months[i]?.total ?? null;
+    const b = other.months[i]?.total ?? null;
+    return a === null || b === null ? null : a - b; // + = saving with the offer
+  });
+  const max = Math.max(1, ...diffs.map((d) => Math.abs(d ?? 0)));
+  const pct = (v: number) => `${(Math.abs(v) / max) * 100}%`;
+  const saved = other.diff === null ? null : -other.diff;
+  const readout =
+    active === null ? (
+      <>
+        <b>Celkem za období</b>
+        <span data-tone={saved === null ? undefined : saved >= 0 ? 'ok' : 'warn'}>
+          {saved === null
+            ? '–'
+            : saved >= 0
+              ? `ušetříte ${formatKc(saved)}`
+              : `dráž o ${formatKc(-saved)}`}
+        </span>
+      </>
+    ) : (
+      <>
+        <b>{monthLabel(months[active]!.month, true)}</b>
+        <span>současná {formatKc(current.months[active]?.total)}</span>
+        <span>
+          {other.name} {formatKc(other.months[active]?.total)}
+        </span>
+        {diffs[active] !== null && (
+          <span data-tone={diffs[active]! >= 0 ? 'ok' : 'warn'}>
+            {diffs[active]! >= 0
+              ? `ušetříte ${formatKc(diffs[active])}`
+              : `dráž o ${formatKc(-diffs[active]!)}`}
+          </span>
+        )}
+      </>
+    );
   return (
     <div className="en-off-chart">
-      <div className="en-off-legend" aria-hidden="true">
-        {current && <span data-k="current">Současná smlouva</span>}
-        {other && <span data-k="offer">{other.name}</span>}
-      </div>
+      <h3 className="en-off-chart-title">
+        Rozdíl po měsících: „{other.name}“ oproti současné smlouvě
+      </h3>
       <p className="en-off-readout" aria-live="polite" data-testid="energy-offer-readout">
-        <b>{monthLabel(months[i]!.month, true)}</b>
-        {current && <span>teď {formatKc(a)}</span>}
-        {other && (
-          <span>
-            {other.name} {formatKc(b)}
-          </span>
-        )}
-        {a !== null && b !== null && current && other && (
-          <span data-tone={b - a < 0 ? 'ok' : b - a > 0 ? 'warn' : undefined}>
-            {formatDiff(b - a)}
-          </span>
-        )}
+        {readout}
       </p>
-      <div className="en-off-bars" role="group" aria-label="Náklady po měsících">
-        {months.map((m, idx) => (
-          <button
-            key={m.month}
-            type="button"
-            className="en-off-month"
-            aria-pressed={idx === i}
-            data-partial={m.partial ? '' : undefined}
-            data-testid="energy-offer-bar-month"
-            aria-label={`${monthLabel(m.month, true)}: současná ${formatKc(values(current, idx))}${other ? `, ${other.name} ${formatKc(values(other, idx))}` : ''}`}
-            onClick={() => setActive(idx)}
-            onMouseEnter={() => setActive(idx)}
-            onFocus={() => setActive(idx)}
-          >
-            <span className="en-off-pair">
-              {current && <i data-k="current" style={{ height: pct(values(current, idx)) }} />}
-              {other && (
-                <i
-                  data-k="offer"
-                  data-missing={values(other, idx) === null ? '' : undefined}
-                  style={{ height: pct(values(other, idx)) }}
-                />
-              )}
-            </span>
-            <span className="en-off-mlabel">{monthLabel(m.month)}</span>
-          </button>
-        ))}
+      <div
+        className="en-off-bars"
+        role="group"
+        aria-label="Úspora po měsících"
+        onMouseLeave={() => setActive(null)}
+      >
+        {months.map((m, idx) => {
+          const d = diffs[idx] ?? null;
+          return (
+            <button
+              key={m.month}
+              type="button"
+              className="en-off-month"
+              aria-pressed={idx === active}
+              data-partial={m.partial ? '' : undefined}
+              data-testid="energy-offer-bar-month"
+              aria-label={`${monthLabel(m.month, true)}: ${
+                d === null
+                  ? 'bez srovnání'
+                  : d >= 0
+                    ? `ušetříte ${formatKc(d)}`
+                    : `dráž o ${formatKc(-d)}`
+              }`}
+              onClick={() => setActive(idx === active ? null : idx)}
+              onMouseEnter={() => setActive(idx)}
+              onFocus={() => setActive(idx)}
+            >
+              <span className="en-off-up">
+                {d !== null && d > 0 && <i data-k="save" style={{ height: pct(d) }} />}
+              </span>
+              <span className="en-off-down">
+                {d !== null && d < 0 && <i data-k="extra" style={{ height: pct(d) }} />}
+                {d === null && <i data-missing="" />}
+              </span>
+              <span className="en-off-mlabel">{monthLabel(m.month)}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="en-off-legend" aria-hidden="true">
+        <span data-k="save">úspora</span>
+        <span data-k="extra">dráž</span>
       </div>
     </div>
   );
@@ -447,6 +479,7 @@ export function OffersCard({
   const bestOffer = ranked.find((p) => p.kind !== 'current' && p.total !== null);
   const chosen = ranked.find((p) => p.id === selected && p.kind !== 'current') ?? bestOffer;
   const headline = offersHeadline(cmp);
+  const hero = offersHero(cmp);
   const spotText = spotStatusText(cmp?.spot);
   const reg = state.regulated;
   const offerById = (id: string) => state.offers.find((o) => o.id === id);
@@ -503,14 +536,29 @@ export function OffersCard({
 
       {cmp?.status === 'ok' && ranked.length > 0 && (
         <>
-          <div className="en-off-hero">
+          <div
+            className="en-off-hero"
+            data-testid="energy-offers-hero"
+            data-tone={hero?.diff == null ? undefined : hero.diff < 0 ? 'ok' : 'warn'}
+          >
+            {hero?.diff != null && (
+              <p className="en-off-big">
+                <b>{formatDiff(hero.diff)}</b>
+                <span>
+                  za období
+                  {hero.perMonth !== null && ` · ≈ ${formatDiff(hero.perMonth)} měsíčně`}
+                  {hero.percent !== null &&
+                    ` · ${new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 1 }).format(hero.percent)}\u00a0%`}
+                </span>
+              </p>
+            )}
             {headline && (
               <p className="en-off-headline" data-testid="energy-offers-headline">
                 {headline}
               </p>
             )}
             <p className="en-inv-muted" data-testid="energy-offers-period">
-              {periodText(cmp)}
+              {periodText(cmp)} · všechny částky s DPH
             </p>
           </div>
           <div className="en-off-body">
@@ -551,7 +599,13 @@ export function OffersCard({
                           <em className="en-off-kind" data-kind={plan.kind}>
                             {KIND_LABEL[plan.kind]}
                           </em>
-                          {offer ? offerSummary(offer) : 'ceny z tarifu v HomeBrainu (s DPH)'}
+                          {(offer ? offerParts(offer) : ['ceny z tarifu v HomeBrainu']).map(
+                            (part) => (
+                              <span key={part} className="en-off-part">
+                                {part}
+                              </span>
+                            ),
+                          )}
                         </span>
                         {plan.missing_spot_hours > 0 && (
                           <span className="en-off-warn">
@@ -573,6 +627,7 @@ export function OffersCard({
                         )}
                       </span>
                     </button>
+                    {canEdit && !offer && <span className="en-off-edit-slot" aria-hidden="true" />}
                     {canEdit && offer && (
                       <Button
                         size="sm"
@@ -589,7 +644,7 @@ export function OffersCard({
                 );
               })}
             </ol>
-            <MonthBars cmp={cmp} current={current} other={chosen} />
+            <MonthDiff cmp={cmp} current={current} other={chosen} />
           </div>
         </>
       )}

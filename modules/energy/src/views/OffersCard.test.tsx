@@ -63,9 +63,7 @@ describe('offer helpers', () => {
       monthly_fee: 99,
       export: { mode: 'none', price: null, fee: null },
     };
-    expect(plain(offerSummary(fixed))).toBe(
-      'Pevná cena · VT 2 990 Kč/MWh · NT 2 500 Kč/MWh · 99 Kč/měs.',
-    );
+    expect(plain(offerSummary(fixed))).toBe('VT 2 990 Kč/MWh · NT 2 500 Kč/MWh · 99 Kč/měs.');
     const spot: Offer = {
       ...fixed,
       kind: 'spot',
@@ -75,7 +73,7 @@ describe('offer helpers', () => {
       export: { mode: 'spot', price: null, fee: 400 },
     };
     expect(plain(offerSummary(spot))).toBe(
-      'Spot + 350 Kč/MWh · 99 Kč/měs. · výkup spot − 400 Kč/MWh',
+      'spot + 350 Kč/MWh · 99 Kč/měs. · výkup: spot − 400 Kč/MWh',
     );
   });
 
@@ -106,7 +104,9 @@ describe('offer helpers', () => {
     const cmp = createOffersDemo(NOW, 'full').compare();
     const ranked = rankedPlans(cmp);
     expect(ranked[0]!.total).toBeLessThanOrEqual(ranked[1]!.total!);
-    expect(plain(offersHeadline(cmp))).toMatch(/^Nejlevnější by byla „.+“: o .+ Kč méně/);
+    expect(plain(offersHeadline(cmp))).toMatch(
+      /^Nejvýhodnější by byla „.+“ – ušetřili byste .+ Kč\.$/,
+    );
   });
 
   it('describes the spot backfill', () => {
@@ -127,6 +127,7 @@ describe('OffersCard', () => {
     expect([...totals].sort((a, b) => a - b)).toEqual(totals);
     expect(screen.getByTestId('energy-offers').textContent).toContain('Současná smlouva');
     expect(screen.getAllByTestId('energy-offer-bar-month').length).toBe(12);
+    expect(plain(screen.getByTestId('energy-offers-hero').textContent)).toMatch(/−\d[\d ]* Kč/);
     expect(screen.getByTestId('energy-offers-assumptions').textContent).toContain(
       'regulované ceny 2026',
     );
