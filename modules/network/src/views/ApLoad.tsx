@@ -84,12 +84,14 @@ function ApRow({ r }: { r: ApLoadRow }) {
 
 /** „Zátěž Wi-Fi bodů“: which AP is loaded or struggling, and why. */
 export function ApLoad({ snap }: { snap: NetSnapshot }) {
-  const { rows, note, hasBands } = apLoadModel(snap);
+  const { rows, note, hasBands, summary, flagged } = apLoadModel(snap);
   return (
     <Card className="net-card net-apl-card" data-testid="network-load">
       <header className="net-card-head">
         <h3>Zátěž Wi-Fi bodů</h3>
-        <span>{hasBands ? 'klienti a vytížení kanálů' : 'klienti teď'}</span>
+        <span data-testid="network-load-summary" data-flagged={flagged || undefined}>
+          {summary}
+        </span>
       </header>
       <ul className="net-apl-list">
         {rows.map((r) => (
@@ -102,7 +104,7 @@ export function ApLoad({ snap }: { snap: NetSnapshot }) {
             <i style={{ width: '40%' }} />
           </span>
           {glue(
-            `% u pásma = vytížení kanálu: jak velkou část času je vzduch obsazený (vaši klienti i sousední sítě). Do ${UTIL_WARN} % v pohodě, nad ${UTIL_CRIT} % se Wi-Fi zpomaluje.`,
+            `% u pásma = vytížení kanálu: jak velkou část času je vzduch obsazený (vaši klienti i sousední sítě). Do ${UTIL_WARN} % v pohodě, ${UTIL_WARN}–${UTIL_CRIT} % zvýšené, nad ${UTIL_CRIT} % se Wi-Fi zpomaluje.`,
           )}
         </p>
       )}

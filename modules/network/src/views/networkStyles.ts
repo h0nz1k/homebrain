@@ -104,14 +104,12 @@ export const networkStyles = `
 .net-apl-count strong { font-size: 24px; font-weight: 650; line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .net-apl-count small { color: var(--hb-t2); font-size: 13px; }
 .net-apl[data-offline] .net-apl-name, .net-apl[data-offline] .net-apl-count { color: var(--hb-t2); }
-.net-load-bar { display: block; height: 6px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
+.net-load-bar { display: block; height: 4px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
 .net-load-bar span { display: block; height: 100%; border-radius: inherit; background: var(--hb-ac); }
-.net-apl[data-tone='warn'] .net-load-bar span { background: var(--hb-warn); }
-.net-apl[data-tone='crit'] .net-load-bar span { background: var(--hb-crit); }
-.net-apl-bands { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
-.net-band { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 4px 10px; border-radius: 99px; background: var(--hb-fill); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.net-band-label { color: var(--hb-t2); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.net-band-meter { flex: 0 0 auto; position: relative; display: inline-block; width: 36px; height: 4px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
+.net-apl-bands { display: grid; grid-template-columns: repeat(auto-fill, minmax(0, 196px)); gap: 6px; min-width: 0; }
+.net-band { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 4px 10px; border-radius: 99px; background: var(--hb-fill); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.net-band-label { flex: 1 1 auto; color: var(--hb-t2); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.net-band-meter { flex: 0 0 auto; position: relative; display: inline-block; width: 40px; height: 4px; border-radius: 99px; background: var(--hb-fill-strong); overflow: hidden; }
 .net-band-meter i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--hb-ok); }
 .net-band-pct { font-weight: 600; }
 .net-band[data-tone='warn'] { background: color-mix(in srgb, var(--hb-warn) 13%, transparent); }
@@ -125,6 +123,7 @@ export const networkStyles = `
 .net-apl-legend { display: flex; align-items: baseline; gap: 8px; font-size: 13px; padding-top: 4px; }
 .net-apl-legend .net-band-meter { width: 24px; transform: translateY(-2px); }
 .net-apl-card .net-note { margin: 0; }
+.net-apl-card .net-card-head span[data-flagged] { color: var(--hb-warn); font-weight: 600; }
 @container netload (min-width: 680px) {
   .net-apl-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .net-apl:nth-child(2) { padding-top: 0; border-top: 0; }

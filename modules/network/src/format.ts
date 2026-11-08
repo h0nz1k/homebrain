@@ -416,7 +416,7 @@ function apFlags(a: NetDevice): ApLoadFlag[] {
       tone: 'crit',
       label: `Přetížený kanál ${bandName(busy.band)}`,
       why: foreign
-        ? `Kanál je obsazený ${pct(busy.utilization_pct!)} času, vlastní provoz jen ${pct(busy.self_pct!)} – zbytek jsou sousední sítě. Klienti čekají na volný vzduch.`
+        ? `Kanál je obsazený ${pct(busy.utilization_pct!)} času, vlastní provoz jen ${pct(busy.self_pct!)} – zbytek jsou sousední sítě. Klienti čekají, až se kanál uvolní.`
         : `Kanál je obsazený ${pct(busy.utilization_pct!)} času – klienti se střídají o vysílání a zpomalují se.`,
     });
   }
@@ -452,6 +452,8 @@ export function apLoadModel(snap: NetSnapshot): {
   rows: ApLoadRow[];
   note: string;
   hasBands: boolean;
+  summary: string;
+  flagged: number;
 } {
   const { note } = loadRows(snap);
   const max = Math.max(1, ...snap.aps.filter(isOnline).map((a) => a.clients ?? 0));
@@ -483,5 +485,26 @@ export function apLoadModel(snap: NetSnapshot): {
     };
   });
   rows.sort((x, y) => TONE_RANK[x.tone] - TONE_RANK[y.tone] || y.clients - x.clients);
-  return { rows, note, hasBands: rows.some((r) => r.bands.some((b) => b.util != null)) };
+  const flagged = rows.filter((r) => r.tone !== 'ok').length;
+  const total = rows.reduce((n, r) => n + r.clients, 0);
+  const top = [...rows].sort((x, y) => y.clients - x.clients)[0];
+  // Client share as a count, so it never reads like the channel-utilisation percentages.
+  const share =
+    top && total && !snap.problems.some((p) => p.rule === 'client_imbalance')
+      ? `Rozložení klientů je v normě – nejvíc jich má ${top.name} (${top.clients} z ${total}).`
+      : note;
+  return {
+    rows,
+    note: share,
+    hasBands: rows.some((r) => r.bands.some((b) => b.util != null)),
+    summary: flagged
+      ? czCount(
+          flagged,
+          'bod potřebuje pozornost',
+          'body potřebují pozornost',
+          'bodů potřebuje pozornost',
+        )
+      : 'všechny v pořádku',
+    flagged,
+  };
 }

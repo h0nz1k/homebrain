@@ -44,12 +44,12 @@ const dev = (over: Partial<NetDevice> & Pick<NetDevice, 'id' | 'name'>): NetDevi
 const RADIOS: Record<string, [number, number | null, number, number, number?]> = {
   // id: [2.4 GHz channel, 5 GHz channel (null = 2.4 GHz only), 5 GHz utilisation %,
   //      own airtime %, 2.4 GHz utilisation % (default 24)]
-  'ap-pracovna': [1, 36, 34, 22],
-  'ap-obyvak': [6, 44, 78, 9],
+  'ap-pracovna': [1, 36, 34, 22, 28],
+  'ap-obyvak': [6, 44, 78, 9, 33],
   'ap-kuchyn': [11, 149, 21, 14, 56],
-  'ap-terasa': [1, 52, 12, 6],
-  'ap-podkrovi': [6, 149, 18, 11],
-  'ap-loznice': [1, 40, 15, 10],
+  'ap-terasa': [1, 52, 12, 6, 14],
+  'ap-podkrovi': [6, 149, 18, 11, 19],
+  'ap-loznice': [1, 40, 15, 10, 22],
   'ap-dilna': [11, null, 0, 0, 31],
 };
 

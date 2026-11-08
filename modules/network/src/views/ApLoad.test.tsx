@@ -25,7 +25,7 @@ describe('ApLoad (Zátěž Wi-Fi bodů)', () => {
     expect(pracovna.dataset.tone).toBe('ok');
     const bands = within(pracovna).getAllByTestId('network-ap-band');
     expect(bands.map((b) => b.textContent)).toEqual([
-      '2,4\u00a0GHz · k.\u00a01' + '24\u00a0%',
+      '2,4\u00a0GHz · k.\u00a01' + '28\u00a0%',
       '5\u00a0GHz · k.\u00a036' + '34\u00a0%',
     ]);
     expect(bands[1]!.title).toContain('obsazený 34\u00a0% času');
@@ -50,6 +50,9 @@ describe('ApLoad (Zátěž Wi-Fi bodů)', () => {
     render(<ApLoad snap={await snap('problems')} />);
     const rows = screen.getAllByTestId('network-ap-load');
     expect(rows[0]!.dataset.ap).toBe('ap-obyvak');
+    expect(screen.getByTestId('network-load-summary').textContent).toBe(
+      '3 body potřebují pozornost',
+    );
     const rank = rows.map((r) => ['crit', 'warn', 'ok'].indexOf(r.dataset.tone!));
     expect(rank).toEqual([...rank].sort((a, b) => a - b));
     expect(flags('ap-obyvak')).toEqual(['channel_busy']);
@@ -87,6 +90,9 @@ describe('ApLoad (Zátěž Wi-Fi bodů)', () => {
     expect(within(loznice).getByTestId('network-ap-clients').textContent).toBe('–klientů');
     expect(within(loznice).queryAllByTestId('network-ap-band')).toHaveLength(0);
     expect(screen.getAllByTestId('network-ap-load')[0]).toBe(loznice);
+    expect(screen.getByTestId('network-load-summary').textContent).toBe(
+      '2 body potřebují pozornost',
+    );
     expect(flags('ap-kuchyn')).toEqual(['mem']);
   });
 
@@ -94,6 +100,6 @@ describe('ApLoad (Zátěž Wi-Fi bodů)', () => {
     render(<ApLoad snap={await snap('ok', false)} />);
     expect(screen.queryAllByTestId('network-ap-band')).toHaveLength(0);
     expect(screen.queryByTestId('network-load-legend')).toBeNull();
-    expect(screen.getByText('klienti teď')).toBeTruthy();
+    expect(screen.getByTestId('network-load-summary').textContent).toBe('všechny v pořádku');
   });
 });
