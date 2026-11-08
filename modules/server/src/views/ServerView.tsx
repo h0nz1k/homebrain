@@ -20,6 +20,7 @@ import {
   fmtRate,
   fmtTemp,
   heroModel,
+  smoothSeries,
   levelTone,
   uptimeLabel,
   vmRows,
@@ -66,7 +67,7 @@ function useServer(api: ServerApi | null) {
   return { snap, error, history, reload: load };
 }
 
-const ringTone = (t: BarTone) => (t === 'neutral' ? 'muted' : t);
+const ringTone = (t: BarTone) => (t === 'neutral' ? 'muted' : t === 'ok' ? 'accent' : t);
 const cardTone = (t: BarTone) =>
   t === 'crit' ? 'critical' : t === 'warn' ? 'warning' : t === 'ok' ? 'calm' : 'notice';
 const worst = (levels: Level[]): Level =>
@@ -104,7 +105,7 @@ function Trend({
   series: SeriesKey;
   format: (v: number) => string;
 }) {
-  const values = (history?.series[series] ?? []).map(([, v]) => v);
+  const values = smoothSeries((history?.series[series] ?? []).map(([, v]) => v));
   if (!history) return <span className="srv-trend" data-empty="" aria-hidden="true" />;
   if (values.length < 2)
     return (
@@ -167,7 +168,7 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
           },
           {
             id: 'disk',
-            label: 'Disk',
+            label: 'Systém',
             v: root?.percent ?? null,
             tone: barTone(root?.percent, limits.disk),
           },
@@ -192,7 +193,16 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
           {hero.badge}
         </Pill>
         <h2 data-testid="server-headline">{hero.headline}</h2>
-        {meta.length > 0 && <p>{meta.join(' · ')}</p>}
+        {meta.length > 0 && (
+          <p className="srv-meta">
+            {meta.map((m, i) => (
+              <span key={i}>
+                {i ? '· ' : ''}
+                {m}
+              </span>
+            ))}
+          </p>
+        )}
         {hero.more.length > 0 && <p className="srv-more">Dále: {hero.more.join(', ')}</p>}
         {snap.state === 'down' && (
           <p>
@@ -207,8 +217,8 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
             <div key={r.id} className="srv-ring" data-testid={`server-ring-${r.id}`}>
               <ProgressRing
                 value={(r.v ?? 0) / 100}
-                size={76}
-                thickness={7}
+                size={64}
+                thickness={6}
                 tone={ringTone(r.v == null ? 'neutral' : r.tone)}
                 label={`${r.label} ${fmtPct(r.v)}`}
               >
@@ -220,8 +230,8 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
           <div className="srv-ring" data-testid="server-ring-temp">
             <ProgressRing
               value={Math.min(1, (snap.temperatures?.cpu_max ?? 0) / 100)}
-              size={76}
-              thickness={7}
+              size={64}
+              thickness={6}
               tone={ringTone(tempTone)}
               label={`Teplota ${fmtTemp(snap.temperatures?.cpu_max)}`}
             >
@@ -325,7 +335,6 @@ function Disks({ snap }: { snap: ServerSnapshot }) {
             <li key={d.mount} data-testid="server-disk" data-tone={tone}>
               <div className="srv-row-head">
                 <b>{diskName(d.mount)}</b>
-                {d.mount === '/' ? null : <span className="srv-micro">{d.mount}</span>}
                 <span className="srv-row-val">{fmtPct(d.percent)}</span>
               </div>
               <Bar value={d.percent ?? 0} tone={tone} label={`Zaplnění ${diskName(d.mount)}`} />
@@ -343,7 +352,8 @@ function Disks({ snap }: { snap: ServerSnapshot }) {
             </div>
             <Bar value={swap.percent ?? 0} tone="neutral" label="Využití swapu" />
             <small>
-              {fmtBytes(swap.used_bytes)} z {fmtBytes(swap.total_bytes)}
+              volno {fmtBytes(swap.total_bytes - (swap.used_bytes ?? 0))} z{' '}
+              {fmtBytes(swap.total_bytes)}
             </small>
           </li>
         ) : null}
@@ -366,7 +376,11 @@ function Vms({ snap }: { snap: ServerSnapshot }) {
     <Card className="srv-panel" data-testid="server-vms">
       <div className="srv-panel-head">
         <h3>Virtuální stroje</h3>
-        {rows.length > 0 && <span className="srv-micro">podle paměti</span>}
+        {rows.length > 0 && (
+          <span className="srv-micro">
+            podle paměti · pruh = podíl z {fmtBytes(snap.memory?.total_bytes)}
+          </span>
+        )}
       </div>
       {note && (
         <p className="srv-note" data-testid="server-vms-note">

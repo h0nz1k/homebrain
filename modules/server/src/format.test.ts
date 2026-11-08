@@ -6,6 +6,7 @@ import {
   fmtPct,
   fmtRate,
   heroModel,
+  smoothSeries,
   uptimeLabel,
   vmRows,
 } from './format.js';
@@ -39,6 +40,16 @@ describe('formáty', () => {
     expect(barTone(84, [85, 95])).toBe('ok');
     expect(barTone(85, [85, 95])).toBe('warn');
     expect(barTone(97, [85, 95])).toBe('crit');
+  });
+});
+
+describe('trend', () => {
+  it('zhladí 288 bodů do průměrů po skupinách', () => {
+    const raw = Array.from({ length: 288 }, (_, i) => (i % 2 ? 10 : 20));
+    const out = smoothSeries(raw, 72);
+    expect(out).toHaveLength(72);
+    expect(out.every((v) => v === 15)).toBe(true);
+    expect(smoothSeries([1, 2, 3], 72)).toEqual([1, 2, 3]);
   });
 });
 

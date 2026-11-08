@@ -25,6 +25,8 @@ export const serverStyles = `
 .srv-hero h2 { font-size: var(--hb-type-display, 34px); line-height: 1.15; letter-spacing: -0.02em; font-weight: 650; }
 .srv-hero p { color: var(--hb-t2); font-size: 15px; }
 .srv-hero .srv-more { color: var(--hb-t1); }
+.srv-meta { display: flex; flex-wrap: wrap; column-gap: 0.35em; }
+.srv-meta > span { white-space: nowrap; }
 .srv-rings { display: flex; gap: 20px; flex-wrap: wrap; }
 .srv-ring { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .srv-ring b { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -45,14 +47,14 @@ export const serverStyles = `
 .srv-trend small { display: flex; justify-content: space-between; color: var(--hb-t2); font-size: 12px; }
 .srv-trend[data-empty] { justify-content: flex-end; }
 
-.srv-bar { display: block; height: 8px; border-radius: 99px; background: var(--hb-fill, color-mix(in srgb, var(--hb-t1) 8%, transparent)); overflow: hidden; }
+.srv-bar { display: block; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--hb-t1) 11%, transparent); overflow: hidden; }
 .srv-bar i { display: block; height: 100%; border-radius: inherit; background: var(--hb-ac); transition: width var(--hb-dur-2, 240ms) var(--hb-ease-out, ease-out); }
-.srv-bar[data-tone='ok'] i { background: var(--hb-ok); }
+.srv-bar[data-tone='ok'] i { background: var(--hb-ac); }
 .srv-bar[data-tone='warn'] i { background: var(--hb-warn); }
 .srv-bar[data-tone='crit'] i { background: var(--hb-crit); }
 .srv-bar[data-tone='neutral'] i { background: var(--hb-ac); }
 
-.srv-columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.srv-columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: stretch; }
 .srv-panel { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px; min-width: 0; }
 .srv-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .srv-list { display: flex; flex-direction: column; gap: 16px; }
@@ -77,7 +79,8 @@ export const serverStyles = `
 @media (max-width: 560px) {
   .srv-hero { padding: 22px 20px; gap: 20px; }
   .srv-hero h2 { font-size: 26px; }
-  .srv-rings { width: 100%; justify-content: space-between; gap: 8px; }
+  .srv-rings { width: 100%; justify-content: space-between; gap: 4px; flex-wrap: nowrap; }
+  .srv-ring b { font-size: 14px; }
   .srv-tiles { gap: 12px; }
   .srv-tile { padding: 16px 14px; }
   .srv-value { font-size: 26px; }

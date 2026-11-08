@@ -49,6 +49,16 @@ export function uptimeLabel(since: string | null | undefined, now = Date.now()):
   return `běží ${mins}${NB}min`;
 }
 
+/** Bucket means: 288 five-minute points → `buckets` calm points (no seismograph look). */
+export function smoothSeries(values: number[], buckets = 72): number[] {
+  if (values.length <= buckets) return values;
+  const size = values.length / buckets;
+  return Array.from({ length: buckets }, (_, b) => {
+    const part = values.slice(Math.floor(b * size), Math.floor((b + 1) * size));
+    return part.reduce((s, v) => s + v, 0) / part.length;
+  });
+}
+
 export const diskName = (mount: string) => (mount === '/' ? 'Systémový disk' : mount);
 
 export function barTone(v: number | null | undefined, [warn, crit]: [number, number]): BarTone {
@@ -82,11 +92,11 @@ export function heroModel(snap: ServerSnapshot): HeroModel {
       more: [],
     };
   const [top, ...rest] = snap.verdict.reasons;
-  if (!top) return { tone: 'ok', badge: 'Vše v normě', headline: 'V pořádku', more: [] };
+  if (!top) return { tone: 'ok', badge: 'Živě', headline: 'V pořádku', more: [] };
   const crit = top.level === 'critical';
   return {
     tone: crit ? 'crit' : 'warn',
-    badge: crit ? 'Kritické' : 'Pozor',
+    badge: 'Živě',
     headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top)}`,
     more: rest.map(reasonText),
   };

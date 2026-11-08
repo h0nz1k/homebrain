@@ -26,6 +26,12 @@ test.describe('Server', () => {
     await expect(vms.first()).toContainText('home-assistant');
     await expect(vms.first()).toHaveAttribute('data-vmid', '101');
     await expect(page.getByRole('heading', { level: 1, name: 'Server' })).toHaveClass(/hb-sr-only/);
+    // All four hero rings sit on one row (phone too) – no orphaned ring.
+    const tops = await page
+      .locator('.srv-ring')
+      .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+    expect(tops).toHaveLength(4);
+    expect(new Set(tops).size).toBe(1);
     await noSidewaysScroll(page);
   });
 

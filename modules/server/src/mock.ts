@@ -135,8 +135,8 @@ export function createMockHistory(scenario: ServerScenario = 'ok'): ServerHistor
   const wave = (i: number, base: number, amp: number, phase = 0, noise = 0.08) =>
     base +
     amp * Math.sin((i / n) * Math.PI * 2 + phase) +
-    amp * noise * Math.sin(i * 1.7) +
-    amp * noise * Math.cos(i * 0.61);
+    amp * noise * Math.sin(i * 0.37) +
+    amp * noise * 0.6 * Math.cos(i * 0.13);
   const series = (fn: (i: number) => number): Array<[number, number]> =>
     Array.from({ length: n }, (_, i) => [end - (n - 1 - i) * 300_000, Math.round(fn(i) * 10) / 10]);
   const memBase = scenario === 'ok' ? 63 : 84;
@@ -144,7 +144,7 @@ export function createMockHistory(scenario: ServerScenario = 'ok'): ServerHistor
     hours: 24,
     series: {
       cpu: series((i) => Math.max(2, wave(i, 18, 9, 1.2, 0.4))),
-      memory: series((i) => wave(i, memBase, 2.4, 0.4, 0.1)),
+      memory: series((i) => wave(i, memBase, 2.4, 0.4, 0.35)),
       temperature: series((i) => wave(i, 50, 4, 1.2, 0.25)),
       rx: series((i) => Math.max(0, wave(i, 900_000, 600_000, 2, 0.5))),
       tx: series((i) => Math.max(0, wave(i, 180_000, 90_000, 2, 0.5))),
