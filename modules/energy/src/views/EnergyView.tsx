@@ -4,6 +4,7 @@ import { Breakdown, EmptyState, SegmentedControl, StatusBadge } from '@homebrain
 import { fetchComparison, type Comparison } from '../compare.js';
 import { CompareCard } from './CompareCard.js';
 import { InvoicesCard } from './InvoicesCard.js';
+import { OffersCard } from './OffersCard.js';
 import {
   adaptEnergyEntities,
   fetchEnergyHistory,
@@ -795,10 +796,13 @@ export function EnergyScreen({
   cost = null,
   comparison = { status: 'unconfigured' },
   invoices = null,
+  offers = null,
 }: {
   model: EnergyModel;
   /** Energie „Faktury“ card (needs the connection; absent in pure screen tests). */
   invoices?: ReactNode;
+  /** Energie „Srovnání nabídek“ card (needs the connection). */
+  offers?: ReactNode;
   cost?: CostView | null;
   comparison?: Comparison;
   history: EnergyHistory;
@@ -946,6 +950,7 @@ export function EnergyScreen({
         <CostCard cost={cost} model={model} />
         <CompareCard comparison={comparison} />
         {invoices}
+        {offers}
         <PriceCard model={model} />
         <DayChart model={model} history={history} />
         <WeekChart model={model} history={history} />
@@ -1125,6 +1130,7 @@ export default function EnergyView({
               now={now}
             />
           }
+          offers={<OffersCard connection={connection} kiosk={kiosk} />}
         />
       ) : (
         <div className="en-root">

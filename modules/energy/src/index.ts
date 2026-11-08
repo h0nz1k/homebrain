@@ -19,3 +19,4 @@ export * from './phases.js';
 export * from './compare.js';
 export * from './invoices.js';
 export * from './invoicesDemo.js';
+export * from './offersDemo.js';

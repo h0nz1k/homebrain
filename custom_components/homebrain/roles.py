@@ -175,6 +175,8 @@ def role_ws_commands(role: str) -> frozenset[str]:
             "homebrain/energy/compare",
             "homebrain/energy/invoices/list",
             "homebrain/energy/invoices/compare",
+            "homebrain/energy/offers/get",
+            "homebrain/energy/offers/compare",
         }
     return (
         KIOSK_WS_COMMANDS

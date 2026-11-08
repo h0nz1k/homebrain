@@ -34,6 +34,7 @@ from .const import (
     WEB_COMPONENT,
 )
 from .energy.invoices import api as invoices_api
+from .energy.offers import ws as offers_ws
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_compare, websocket_pv_forecast
 from .family import ws as family_ws
@@ -125,7 +126,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _http_view(hass, RobotMapImageView())
 
     def energy_reg(reg: Registrar) -> None:
-        _commands(websocket_pv_forecast, websocket_compare, *invoices_api.COMMANDS)(hass)(reg)
+        _commands(
+            websocket_pv_forecast,
+            websocket_compare,
+            *invoices_api.COMMANDS,
+            *offers_ws.COMMANDS,
+        )(hass)(reg)
         for view in invoices_api.VIEWS:
             _http_view(hass, view())
 

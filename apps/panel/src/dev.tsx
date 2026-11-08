@@ -37,6 +37,7 @@ import {
   type FlowScenario,
   createCompareDemo,
   createInvoicesDemo,
+  createOffersDemo,
   createEnergyDemo,
   type CompareScenario,
   createPvForecastDemo,
@@ -536,6 +537,11 @@ demoHass.fetchWithAuth = async (path: string, init?: RequestInit) => {
   }
   return new Response('{}', { status: 404 });
 };
+// Energie „Srovnání nabídek“: `?nabidky=empty|loading`, roles as for invoices.
+const offersDemo = createOffersDemo(
+  Date.now(),
+  (['empty', 'loading'] as const).find((s) => s === recipesQuery.get('nabidky')) ?? 'full',
+);
 const invoiceGate = () => {
   if (invoiceRole !== 'owner' && invoiceRole !== 'adult') throw new Error('unauthorized');
 };
@@ -618,6 +624,18 @@ demoHass.connection = createMockConnection({
     invoicesDemo.save(m.invoice_id, m.fields),
   'homebrain/energy/invoices/delete': (m: { invoice_id: string }) =>
     invoicesDemo.remove(m.invoice_id),
+  'homebrain/energy/offers/get': (m: { type: string }) => {
+    invoiceGate();
+    return offersDemo.handle(m, invoiceRole === 'owner');
+  },
+  'homebrain/energy/offers/compare': (m: { type: string }) => {
+    invoiceGate();
+    return offersDemo.handle(m, invoiceRole === 'owner');
+  },
+  'homebrain/energy/offers/save': (m: { type: string }) =>
+    offersDemo.handle(m, invoiceRole === 'owner'),
+  'homebrain/energy/offers/delete': (m: { type: string }) =>
+    offersDemo.handle(m, invoiceRole === 'owner'),
   call_service: (message: unknown) => {
     const call = message as {
       domain?: string;
