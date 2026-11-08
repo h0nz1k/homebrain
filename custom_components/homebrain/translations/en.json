@@ -28,7 +28,8 @@
           "network_unifi": "Network – UniFi (optional)",
           "meals": "Show meal plan (Mealie)",
           "roles": "Users and roles",
-          "people": "Who is home"
+          "people": "Who is home",
+          "heating": "Heating – Tecomat PLC"
         }
       },
       "waste": {
@@ -298,6 +299,17 @@
       "people_style": {
         "title": "Who is home – names and colours",
         "description": "Optional display name and avatar colour. Fields are named after the person ID (name_… / color_…)."
+      },
+      "heating": {
+        "title": "Heating – Tecomat PLC (read-only)",
+        "description": "HomeBrain reads the heat pump's Tecomat Foxtrot web pages (WebMaker XML) and never writes to the PLC. URL: the PLC web server, e.g. `http://<plc>`. Use a web user with the lowest access level that can see the pages. The variable map is a private YAML file on your Home Assistant (see docs/modules/heating-map.example.yaml). The password is never shown; leave it empty to keep the stored one. Clear the URL to switch PLC reading off.",
+        "data": {
+          "url": "PLC web URL",
+          "username": "Username",
+          "password": "Password",
+          "map_path": "Variable map (YAML path)",
+          "poll_interval": "Poll interval"
+        }
       }
     },
     "error": {
@@ -379,6 +391,14 @@
     "waste_data_horizon": {
       "title": "HomeBrain Waste: the collection schedule ends on {last_date}",
       "description": "The last known waste collection is on **{last_date}**; no later dates are published yet. After that day the Waste panel shows no next collection. Add the {next_year} schedule: check that the source of your waste calendar (municipal website, ICS file or the waste_collection_schedule source) already publishes {next_year}, then refresh it (for example the action `waste_collection_schedule.fetch_data`). This issue clears automatically once later dates appear."
+    },
+    "heating_auth": {
+      "title": "HomeBrain Heating: PLC login failed",
+      "description": "The Tecomat PLC rejected HomeBrain's login (changed password or user). Heating values are not updated. Fix the credentials in Settings → Devices & services → HomeBrain → Configure → Heating. This issue clears after the next successful read."
+    },
+    "heating_project_changed": {
+      "title": "HomeBrain Heating: PLC project changed",
+      "description": "The compile ID of {pages} differs from the one in your heating map: the PLC project was probably re-uploaded and the variable addresses may have moved. Those pages are ignored until you check the map and update its `ucid` section."
     }
   }
 }

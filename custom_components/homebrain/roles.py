@@ -32,6 +32,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "access",
             "network",
             "server",
+            "heating",
             "settings",
             "about",
         }
@@ -48,6 +49,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "robots",
             "recipes",
             "network",
+            "heating",
             "about",
         }
     ),
@@ -169,6 +171,10 @@ FAMILY_WS_COMMANDS: Final = frozenset(
     }
 )
 FAMILY_APPROVE_ROLES: Final = frozenset({"adult"})
+# Topení: adults read everything (get/subscribe/history/seasons); the kiosk tablet only gets
+# the reduced ``get`` payload for Dnes signals. ``import_history`` stays admin-only.
+HEATING_GET_ROLES: Final = frozenset({"adult", "kiosk"})
+HEATING_DETAIL_ROLES: Final = frozenset({"adult"})
 # Energie details (period comparison): HA admins and adults; the kiosk keeps the summary only.
 ENERGY_DETAIL_ROLES: Final = frozenset({"adult"})
 
@@ -186,6 +192,14 @@ def role_ws_commands(role: str) -> frozenset[str]:
         extra |= {"homebrain/family/chore/approve"}
     if role in FRYER_CONTROL_ROLES:
         extra |= FRYER_CONTROL_WS_COMMANDS
+    if role in HEATING_GET_ROLES:
+        extra |= {"homebrain/heating/get"}
+    if role in HEATING_DETAIL_ROLES:
+        extra |= {
+            "homebrain/heating/subscribe",
+            "homebrain/heating/history",
+            "homebrain/heating/seasons",
+        }
     if role in ENERGY_DETAIL_ROLES:
         extra |= {
             "homebrain/energy/compare",

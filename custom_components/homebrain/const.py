@@ -140,6 +140,8 @@ BINDING_MODULES = {
     "robots": ROBOT_BINDING_KEYS,
     # Shared family / school calendars (calendar.*); Dnes shows today's events on the ribbon.
     "family": ("family_calendar_family", "family_calendar_school", "family_todo_shared"),
+    # Topení: optional HA meter of the heat pump (e.g. a Shelly): energy total (kWh) + power.
+    "heating": ("heating_energy", "heating_power"),
     # Station entities (e.g. Ecowitt) + the met.no weather entity; see weather/station.py.
     "weather": (
         "weather_temperature",
