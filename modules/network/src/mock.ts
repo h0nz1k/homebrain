@@ -41,13 +41,16 @@ const dev = (over: Partial<NetDevice> & Pick<NetDevice, 'id' | 'name'>): NetDevi
   ...over,
 });
 
-const RADIOS: Record<string, [number, number, number, number]> = {
-  // id: [2.4 GHz channel, 5 GHz channel, 5 GHz utilisation %, own airtime %]
+const RADIOS: Record<string, [number, number | null, number, number, number?]> = {
+  // id: [2.4 GHz channel, 5 GHz channel (null = 2.4 GHz only), 5 GHz utilisation %,
+  //      own airtime %, 2.4 GHz utilisation % (default 24)]
   'ap-pracovna': [1, 36, 34, 22],
-  'ap-obyvak': [6, 44, 68, 9],
-  'ap-kuchyn': [11, 149, 21, 14],
+  'ap-obyvak': [6, 44, 78, 9],
+  'ap-kuchyn': [11, 149, 21, 14, 56],
   'ap-terasa': [1, 52, 12, 6],
   'ap-podkrovi': [6, 149, 18, 11],
+  'ap-loznice': [1, 40, 15, 10],
+  'ap-dilna': [11, null, 0, 0, 31],
 };
 
 /** V2 dev data (`?unifi=1`): what the own read-only UniFi account adds to the HA snapshot. */
@@ -69,7 +72,7 @@ function withUnifi(snap: NetSnapshot, scenario: NetworkScenario, now: number): N
   snap.aps = snap.aps.map((a) => {
     const r = RADIOS[a.id];
     if (!r) return a;
-    const [ch24, ch5, util, own] = r;
+    const [ch24, ch5, util, own, util24 = 24] = r;
     const util5 = bad || a.id !== 'ap-obyvak' ? util : 32;
     return {
       ...a,
@@ -78,21 +81,25 @@ function withUnifi(snap: NetSnapshot, scenario: NetworkScenario, now: number): N
         {
           band: '2.4',
           channel: ch24,
-          utilization_pct: 24,
+          utilization_pct: util24,
           self_pct: 12,
           interference_pct: 12,
           clients: Math.ceil((a.clients ?? 0) / 3),
           satisfaction: 96,
         },
-        {
-          band: '5',
-          channel: ch5,
-          utilization_pct: util5,
-          self_pct: own,
-          interference_pct: util5 - own,
-          clients: Math.floor(((a.clients ?? 0) * 2) / 3),
-          satisfaction: 94,
-        },
+        ...(ch5 == null
+          ? []
+          : [
+              {
+                band: '5' as const,
+                channel: ch5,
+                utilization_pct: util5,
+                self_pct: own,
+                interference_pct: util5 - own,
+                clients: Math.floor(((a.clients ?? 0) * 2) / 3),
+                satisfaction: 94,
+              },
+            ]),
       ],
     };
   });
@@ -139,7 +146,7 @@ function withUnifi(snap: NetSnapshot, scenario: NetworkScenario, now: number): N
         target: { kind: 'radio', id: 'ap-obyvak:5' },
         title: 'Obývák: rušený kanál 44 (5 GHz)',
         context:
-          'Kanál je vytížený na 68 %, vlastní provoz z toho jen 9 % – zbytek jsou sousední sítě nebo rušení.',
+          'Kanál je vytížený na 78 %, vlastní provoz z toho jen 9 % – zbytek jsou sousední sítě nebo rušení.',
         fix: 'V UniFi zvolte pro toto rádio jiný kanál (5 GHz: 36–48 nebo 149+, ve 2,4 GHz jen 1, 6 nebo 11).',
         since: null,
         important: false,

@@ -19,8 +19,6 @@ import {
   heroModel,
   dbmText,
   isOnline,
-  loadRows,
-  radioText,
   signalBars,
   sourceModel,
   unifiAccountLabel,
@@ -40,6 +38,7 @@ import type {
 } from '../types.js';
 import { networkStyles } from './networkStyles.js';
 import { TopologyMap } from './TopologyMap.js';
+import { ApLoad } from './ApLoad.js';
 import type { TopoNode } from '../types.js';
 
 type TabId = 'prehled' | 'mapa' | 'zarizeni' | 'switche' | 'hoste';
@@ -215,53 +214,6 @@ function SignalBars({ dbm }: { dbm: number | null | undefined }) {
   );
 }
 
-function Load({ snap }: { snap: NetSnapshot }) {
-  const { rows, note } = loadRows(snap);
-  return (
-    <Card className="net-card" data-testid="network-load">
-      <header className="net-card-head">
-        <h3>Zátěž Wi-Fi bodů</h3>
-        <span>klienti teď</span>
-      </header>
-      <ul className="net-load">
-        {rows.map((r) => (
-          <li key={r.id} data-problem={r.problem || undefined}>
-            <span className="net-load-name">{r.name}</span>
-            <span className="net-load-bar">
-              <span style={{ width: `${Math.max(4, r.frac * 100)}%` }} />
-            </span>
-            <strong>{r.clients}</strong>
-            <small>
-              CPU {r.cpu != null ? Math.round(r.cpu) : '–'} % · RAM{' '}
-              {r.mem != null ? Math.round(r.mem) : '–'} %
-            </small>
-            {(r.radios.length > 0 || r.link?.type === 'mesh') && (
-              <span className="net-radios" data-testid="network-ap-radios">
-                {r.radios.map((x) => (
-                  <small
-                    key={x.band}
-                    data-busy={
-                      ((x.utilization_pct ?? 0) >= 60 && (x.self_pct ?? 100) < 20) || undefined
-                    }
-                  >
-                    {glue(radioText(x))}
-                  </small>
-                ))}
-                {r.link?.type === 'mesh' && r.link.signal_dbm != null && (
-                  <small data-busy={r.link.signal_dbm < -65 || undefined}>
-                    mesh {glue(dbmText(r.link.signal_dbm))}
-                  </small>
-                )}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-      {note && <p className="net-note">{glue(note)}</p>}
-    </Card>
-  );
-}
-
 function ProblemCard({ p, now, inHero }: { p: NetProblem; now: number; inHero: boolean }) {
   const since = p.since != null ? sinceLabel(p.since, now) : '';
   // „41 min“ once: skip the chip when the context sentence already says it.
@@ -318,7 +270,7 @@ function Overview({ snap }: { snap: NetSnapshot }) {
       <div className="net-grid">
         <div className="net-col">
           <House snap={snap} />
-          <Load snap={snap} />
+          <ApLoad snap={snap} />
         </div>
         <div className="net-col">
           <header className="net-section-head">

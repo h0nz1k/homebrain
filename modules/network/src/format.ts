@@ -315,3 +315,173 @@ export function sourceModel(snap: Pick<NetSnapshot, 'source' | 'unifi'>): Source
         : null,
   };
 }
+
+/* ---------- Zátěž Wi-Fi bodů (per-AP load card) ---------- */
+
+export type LoadTone = 'ok' | 'warn' | 'crit';
+
+/** Channel utilisation (airtime) thresholds of the band meters. */
+export const UTIL_WARN = 50;
+export const UTIL_CRIT = 75;
+/** Mesh uplinks below this are slow for every client of the AP. */
+export const MESH_WEAK_DBM = -65;
+/** UniFi APs normally sit at 40–75 % RAM, so only real outliers are flagged. */
+export const CPU_HIGH = 80;
+export const MEM_HIGH = 90;
+
+export interface ApLoadFlag {
+  id: 'offline' | 'mesh_weak' | 'channel_busy' | 'flapping' | 'cpu' | 'mem';
+  tone: Exclude<LoadTone, 'ok'>;
+  label: string;
+  /** Plain-language reason, shown under the AP (touch has no tooltips). */
+  why: string;
+}
+
+export interface ApLoadBand {
+  band: NetRadio['band'];
+  label: string;
+  util: number | null;
+  tone: LoadTone;
+  title: string;
+}
+
+export interface ApLoadRow {
+  id: string;
+  name: string;
+  online: boolean;
+  clients: number;
+  frac: number;
+  tone: LoadTone;
+  flags: ApLoadFlag[];
+  bands: ApLoadBand[];
+  /** Muted secondary line (healthy mesh link) – null when there is nothing worth saying. */
+  meta: string | null;
+  /** CPU/RAM for the name tooltip; shown in the row only as a flag when high. */
+  stats: string;
+}
+
+const TONE_RANK: Record<LoadTone, number> = { crit: 0, warn: 1, ok: 2 };
+const bandName = (b: NetRadio['band']) => `${b.replace('.', ',')}${NBSP}GHz`;
+const pct = (n: number) => `${Math.round(n)}${NBSP}%`;
+
+export function utilTone(util: number | null | undefined): LoadTone {
+  if (util == null) return 'ok';
+  return util >= UTIL_CRIT ? 'crit' : util >= UTIL_WARN ? 'warn' : 'ok';
+}
+
+function bandModel(r: NetRadio): ApLoadBand {
+  const ch = r.channel != null ? ` · k.${NBSP}${r.channel}` : '';
+  const parts = [`${bandName(r.band)}${r.channel != null ? `, kanál ${r.channel}` : ''}`];
+  if (r.utilization_pct != null) {
+    parts.push(`kanál je obsazený ${pct(r.utilization_pct)} času`);
+    if (r.self_pct != null) parts.push(`vlastní klienti ${pct(r.self_pct)}`);
+    if ((r.interference_pct ?? 0) >= 10)
+      parts.push(`sousední sítě a rušení ${pct(r.interference_pct!)}`);
+  }
+  return {
+    band: r.band,
+    label: `${bandName(r.band)}${ch}`,
+    util: r.utilization_pct,
+    tone: utilTone(r.utilization_pct),
+    title: parts.join(' – '),
+  };
+}
+
+function apFlags(a: NetDevice): ApLoadFlag[] {
+  if (!isOnline(a))
+    return [
+      {
+        id: 'offline',
+        tone: 'crit',
+        label: 'Offline',
+        why: 'Wi-Fi bod neodpovídá; jeho klienti se přepojili jinam nebo jsou bez sítě.',
+      },
+    ];
+  const flags: ApLoadFlag[] = [];
+  const mesh = a.link?.type === 'mesh' ? a.link.signal_dbm : null;
+  if (mesh != null && mesh < MESH_WEAK_DBM)
+    flags.push({
+      id: 'mesh_weak',
+      tone: 'warn',
+      label: `Mesh: slabý signál ${dbmText(mesh)}`,
+      why: 'AP je připojený bezdrátově k hlavnímu AP; slabé spojení zpomaluje všechny jeho klienty.',
+    });
+  const busy = [...(a.radios ?? [])]
+    .filter((r) => (r.utilization_pct ?? 0) >= UTIL_CRIT)
+    .sort((x, y) => (y.utilization_pct ?? 0) - (x.utilization_pct ?? 0))[0];
+  if (busy) {
+    const foreign = (busy.self_pct ?? 100) < 20;
+    flags.push({
+      id: 'channel_busy',
+      tone: 'crit',
+      label: `Přetížený kanál ${bandName(busy.band)}`,
+      why: foreign
+        ? `Kanál je obsazený ${pct(busy.utilization_pct!)} času, vlastní provoz jen ${pct(busy.self_pct!)} – zbytek jsou sousední sítě. Klienti čekají na volný vzduch.`
+        : `Kanál je obsazený ${pct(busy.utilization_pct!)} času – klienti se střídají o vysílání a zpomalují se.`,
+    });
+  }
+  if (a.flaps_24h >= 2)
+    flags.push({
+      id: 'flapping',
+      tone: 'warn',
+      label: `Vypadává · ${a.flaps_24h}× za 24${NBSP}h`,
+      why: 'AP se za poslední den několikrát odpojil; klienti se mezitím přepojují jinam.',
+    });
+  if ((a.cpu_pct ?? 0) >= CPU_HIGH)
+    flags.push({
+      id: 'cpu',
+      tone: 'warn',
+      label: `Procesor ${pct(a.cpu_pct!)}`,
+      why: 'Procesor AP je skoro naplno; odezva pro klienty může kolísat.',
+    });
+  if ((a.mem_pct ?? 0) >= MEM_HIGH)
+    flags.push({
+      id: 'mem',
+      tone: 'warn',
+      label: `Paměť ${pct(a.mem_pct!)}`,
+      why: 'Paměť AP je téměř plná; pomůže restart nebo aktualizace firmwaru.',
+    });
+  return flags;
+}
+
+/**
+ * One row per AP for „Zátěž Wi-Fi bodů“: struggling APs first (crit, warn), then by clients.
+ * The bar is the AP's client count relative to the busiest online AP.
+ */
+export function apLoadModel(snap: NetSnapshot): {
+  rows: ApLoadRow[];
+  note: string;
+  hasBands: boolean;
+} {
+  const { note } = loadRows(snap);
+  const max = Math.max(1, ...snap.aps.filter(isOnline).map((a) => a.clients ?? 0));
+  const rows = snap.aps.map((a): ApLoadRow => {
+    const online = isOnline(a);
+    const flags = apFlags(a);
+    const tone = flags.reduce<LoadTone>(
+      (t, f) => (TONE_RANK[f.tone] < TONE_RANK[t] ? f.tone : t),
+      'ok',
+    );
+    const mesh = a.link?.type === 'mesh' ? a.link.signal_dbm : null;
+    const order: Record<string, number> = { '2.4': 0, '5': 1, '6': 2 };
+    return {
+      id: a.id,
+      name: a.name,
+      online,
+      clients: online ? (a.clients ?? 0) : 0,
+      frac: online ? (a.clients ?? 0) / max : 0,
+      tone,
+      flags,
+      bands: online
+        ? [...(a.radios ?? [])].sort((x, y) => order[x.band]! - order[y.band]!).map(bandModel)
+        : [],
+      meta:
+        online && mesh != null && mesh >= MESH_WEAK_DBM
+          ? `Bezdrátově přes mesh · signál ${dbmText(mesh)}`
+          : null,
+      stats: `CPU ${a.cpu_pct != null ? pct(a.cpu_pct) : '–'} · RAM ${a.mem_pct != null ? pct(a.mem_pct) : '–'}`,
+    };
+  });
+  rows.sort((x, y) => TONE_RANK[x.tone] - TONE_RANK[y.tone] || y.clients - x.clients);
+  return { rows, note, hasBands: rows.some((r) => r.bands.some((b) => b.util != null)) };
+}
