@@ -42,6 +42,7 @@ MODULES: Final = (
     "network",
     "family",
     "server",
+    "heating",
 )
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 

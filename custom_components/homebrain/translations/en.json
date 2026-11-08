@@ -328,7 +328,8 @@
         "recipes": "Recipes",
         "access": "Access",
         "network": "Network",
-        "server": "Server"
+        "server": "Server",
+        "heating": "Heating"
       }
     },
     "meals_display": {

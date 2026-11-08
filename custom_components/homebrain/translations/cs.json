@@ -328,7 +328,8 @@
         "recipes": "Recepty",
         "access": "Přístup",
         "network": "Síť",
-        "server": "Server"
+        "server": "Server",
+        "heating": "Topení"
       }
     },
     "meals_display": {

@@ -5,6 +5,7 @@ export const PANEL_PATHS_BY_MODULE: Readonly<Record<string, string>> = {
   today: 'homebrain-dnes',
   weather: 'homebrain-pocasi',
   energy: 'homebrain-energie',
+  heating: 'homebrain-topeni',
   waste: 'homebrain-odpady',
   wine: 'homebrain-vinoteka',
   health: 'homebrain-zdravi',
