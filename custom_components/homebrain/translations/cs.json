@@ -27,7 +27,8 @@
           "modules": "Moduly (zapnout/vypnout)",
           "network_unifi": "Síť – UniFi (volitelné)",
           "meals": "Zobrazit jídelníček (Mealie)",
-          "roles": "Uživatelé a role"
+          "roles": "Uživatelé a role",
+          "people": "Kdo je doma"
         }
       },
       "waste": {
@@ -285,6 +286,18 @@
           "user": "Uživatel",
           "role": "Role"
         }
+      },
+      "people": {
+        "title": "Kdo je doma",
+        "description": "Zelená/červená tečka u každého člena domácnosti na Dnes, kiosku a v Rodině – jen doma / pryč, nikdy zóny ani poloha. Nevyberete-li nikoho, zobrazí se všechny osoby (person) seřazené podle jména. Pořadí výběru = pořadí na obrazovce.",
+        "data": {
+          "people_display": "Zobrazit Kdo je doma",
+          "people_persons": "Osoby (pořadí)"
+        }
+      },
+      "people_style": {
+        "title": "Kdo je doma – jména a barvy",
+        "description": "Volitelné zobrazované jméno a barva avataru. Pole jsou pojmenovaná podle ID osoby (name_… / color_…)."
       }
     },
     "error": {
@@ -338,6 +351,19 @@
         "ha_integration": "Použít účet z integrace UniFi v HA",
         "manual": "Vlastní účet (zadat údaje)",
         "off": "Vypnuto (jen data z HA)"
+      }
+    },
+    "people_color": {
+      "options": {
+        "auto": "Automaticky",
+        "blue": "Modrá",
+        "teal": "Tyrkysová",
+        "purple": "Fialová",
+        "pink": "Růžová",
+        "amber": "Jantarová",
+        "orange": "Oranžová",
+        "indigo": "Indigová",
+        "slate": "Šedomodrá"
       }
     }
   },

@@ -5,6 +5,7 @@ export const familyStyles = `
 .fam ul { list-style: none; }
 .fam :where(button) { color: inherit; font: inherit; }
 .fam-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.fam-presence { flex-basis: 100%; margin-top: 6px; }
 .fam-head h1 { font-size: var(--hb-type-headline); letter-spacing: -0.01em; font-weight: 650; }
 .fam-head p { color: var(--hb-t2); font-size: var(--hb-type-body); }
 .fam-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--hb-sp-4); align-items: start; }

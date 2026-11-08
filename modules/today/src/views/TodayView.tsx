@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { getSession, navigatePanel, panelUrl, type ModuleViewProps } from '@homebrain/ha-client';
+import {
+  getSession,
+  navigatePanel,
+  panelUrl,
+  usePeople,
+  type ModuleViewProps,
+} from '@homebrain/ha-client';
 import { rank, type PreviousLayout, type RankedSignal } from '@homebrain/signals';
-import { Chip, DayRibbon, HeroSignal, Pill, SignalCard, type RibbonItem } from '@homebrain/ui';
+import {
+  Chip,
+  DayRibbon,
+  HeroSignal,
+  Pill,
+  PresenceStrip,
+  SignalCard,
+  type RibbonItem,
+} from '@homebrain/ui';
 import { buildDayRibbonModel } from '../data/ribbonModel.js';
 import { computeScene } from '../data/scene.js';
 import { buildSummary, summaryCandidates } from '../data/summary.js';
@@ -113,6 +127,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
     );
   }, [factory, context.store, context.bindings, context.connection]);
   const homeApi = useMemo(() => getTodayHomeApi(context.connection), [context.connection]);
+  // „Kdo je doma“: live doma/pryč per person (renders nothing without configured persons).
+  const people = usePeople(context.connection);
   // Role comes only from the server (ADR-0002); until it answers, nothing extra is unlocked.
   const [role, setRole] = useState<HomeBrainRole | undefined>(undefined);
   useEffect(() => {
@@ -264,6 +280,12 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const daylightMinutes = sunKnown
     ? Math.round((Date.parse(data.sun.sunset) - Date.parse(data.sun.sunrise)) / 60000)
     : 0;
+  const presence =
+    !night && !(kiosk && highestSeverity === 'critical') ? (
+      <PresenceStrip people={people} size={kiosk ? 'lg' : 'md'} className="today-presence" />
+    ) : null;
+  // Landscape kiosk (1280×800) has no spare row: the chips sit under the clock, inside the hero.
+  const presenceInHero = kiosk && !kioskPortrait;
   const position = pixelShift(shift);
   return (
     <section
@@ -288,6 +310,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
             {kiosk || !slot ? freshness : createPortal(freshness, slot)}
           </header>
         )}
+        {!presenceInHero && presence}
         <div className="today-hero" data-testid="today-hero">
           {!night && !mobile && !kioskPortrait && (
             <SunArc
@@ -320,6 +343,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
               </>
             )}
           </div>
+          {presenceInHero && presence}
         </div>
         {night ? (
           <>

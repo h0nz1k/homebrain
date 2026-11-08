@@ -11,3 +11,4 @@ export * from './qr.js';
 export * from './qr-code.js';
 export * from './states.js';
 export * from './run-mutation.js';
+export * from './presence.js';

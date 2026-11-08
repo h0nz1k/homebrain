@@ -49,6 +49,7 @@ from .modules import (
     register_modules,
 )
 from .network import ws as network_ws
+from .people import ws as people_ws
 from .recipes import websocket as recipes_ws
 from .robots.schedules import RobotScheduler
 from .robots.schedules_ws import SCHEDULE_COMMANDS
@@ -110,7 +111,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_get_roles)
     websocket_api.async_register_command(hass, websocket_set_roles)
     # Dnes „Co se dnes vaří“ (Mealie is an optional external integration, not a module).
-    for command in meals_ws.COMMANDS:
+    for command in (*meals_ws.COMMANDS, *people_ws.COMMANDS):
         websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:

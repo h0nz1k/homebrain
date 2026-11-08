@@ -117,6 +117,8 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/server/get": {"api": False},
     "homebrain/server/history": {},
     "homebrain/today/meals": {},
+    "homebrain/people/get": {},
+    "homebrain/people/subscribe": {},
     "homebrain/family/chore/claim": {"kid": "nobody", "chore": "sensor.nothing"},
     "homebrain/family/chore/approve": {"kid": "nobody", "chore": "sensor.nothing"},
     "homebrain/family/shopping/add": {"summary": "Mléko"},

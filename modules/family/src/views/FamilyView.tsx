@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import type { ModuleViewProps } from '@homebrain/ha-client';
-import { Card, EmptyState, ErrorState, Skeleton, czCount } from '@homebrain/ui';
+import { usePeople, type ModuleViewProps } from '@homebrain/ha-client';
+import { Card, EmptyState, ErrorState, PresenceStrip, Skeleton, czCount } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
 import {
   choreNote,
@@ -453,6 +453,7 @@ function ShoppingCard({
 
 export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const api = useMemo(() => getFamilyApi(connection), [connection]);
+  const people = usePeople(connection);
   const [snap, setSnap] = useState<FamilySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -548,6 +549,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </time>
         )}
         <p>{longDate(kiosk ? clock : now)}</p>
+        <PresenceStrip people={people} className="fam-presence" />
       </header>
       {error && (
         <p className="fam-err" role="alert">
