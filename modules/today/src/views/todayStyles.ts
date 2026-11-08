@@ -291,4 +291,54 @@ export const todayStyles = `
 .today-busy .today-agenda{margin-top:10px;padding-top:10px}
 .today-mobile .today-agenda{margin:12px 8px 0;gap:6px}
 .today-mobile .today-agenda li{font-size:13px;padding:5px 12px 5px 10px}
+.today-cooking{position:relative;z-index:2;display:flex;flex-direction:column;gap:10px;flex:none;min-width:0;margin:0;padding:14px 20px 16px;background:var(--hb-glass,var(--hb-s1));border:1px solid var(--hb-glass-edge,var(--hb-b1));border-radius:var(--hb-radius-hero,18px)}
+.today-cooking-title{margin:0;font-size:15px;font-weight:600;color:var(--hb-t1)}
+.today-cooking-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px}
+.today-cooking-probe{position:relative;display:flex;align-items:center;gap:14px;min-width:0;padding:10px 14px 10px 10px;border-radius:var(--hb-radius-lg,14px);background:color-mix(in srgb,var(--hb-t1) 5%,transparent)}
+.today-cooking-probe[data-alert]{background:color-mix(in oklch,var(--hb-warn) 18%,var(--hb-s1));box-shadow:inset 0 0 0 2px var(--hb-warn)}
+.today-cooking-probe[data-alert] .today-cooking-state{font-size:18px}
+.today-cooking-probe:is([data-tone='warn'],[data-tone='crit'],[data-tone='ok']) .today-cooking-ring .hb-ring-c{font-size:22px;font-weight:700;color:var(--hb-t1)}
+.today-cooking-probe[data-alert]::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:0 0 0 3px var(--hb-warn);opacity:0;pointer-events:none;animation:today-cooking-pulse 1.8s var(--hb-ease-out,ease-out) infinite}
+@keyframes today-cooking-pulse{0%{opacity:.85}70%,100%{opacity:0}}
+.today-night .today-cooking-probe[data-alert]::after,.today-paused .today-cooking-probe[data-alert]::after{animation:none}
+.today-cooking-ring{flex:none}
+.today-cooking-ring .hb-ring-c{font-size:13px;font-weight:600;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.today-cooking-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.today-cooking-name{font-size:15px;font-weight:600;color:var(--hb-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.today-cooking-temps{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}
+.today-cooking-internal{font-size:34px;line-height:1.15;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--hb-t1)}
+.today-cooking-target{font-size:14px;color:var(--hb-t2);white-space:nowrap}
+.today-cooking-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:14px;color:var(--hb-t2)}
+.today-cooking-meta>span{white-space:nowrap}
+.today-cooking-state{font-weight:600;color:var(--hb-t1)}
+.today-cooking-probe[data-tone='warn'] .today-cooking-state{color:var(--hb-warn)}
+.today-cooking-probe[data-tone='ok'] .today-cooking-state{color:var(--hb-ok)}
+.today-cooking-probe[data-tone='crit'] .today-cooking-state{color:var(--hb-crit)}
+.today-mobile .today-cooking{padding:12px 14px 14px}
+.today-kiosk .today-cooking{padding:14px 22px 16px;gap:10px}
+.today-kiosk .today-cooking-title{font-size:18px}
+.today-kiosk .today-cooking-list{grid-template-columns:repeat(var(--cook-cols,2),minmax(0,1fr));gap:14px}
+.today-kiosk .today-cooking[data-count='1'] .today-cooking-list{--cook-cols:1}
+.today-kiosk .today-cooking[data-count='3'] .today-cooking-list{--cook-cols:3}
+.today-kiosk .today-cooking[data-count='4'] .today-cooking-list{--cook-cols:4}
+.today-kiosk .today-cooking-probe{gap:18px;padding:14px 18px 14px 14px}
+.today-kiosk .today-cooking-name{font-size:22px}
+.today-kiosk .today-cooking-internal{font-size:64px;line-height:1.15}
+.today-kiosk .today-cooking-target,.today-kiosk .today-cooking-meta{font-size:18px}
+.today-kiosk .today-cooking-meta{gap:2px 14px}
+.today-kiosk .today-cooking-state{font-size:22px}
+.today-kiosk .today-cooking-probe[data-alert] .today-cooking-state{font-size:28px;line-height:1.15}
+.today-kiosk .today-cooking-probe:is([data-tone='warn'],[data-tone='crit'],[data-tone='ok']) .today-cooking-ring .hb-ring-c{font-size:34px}
+.today-kiosk .today-cooking-ring .hb-ring-c{font-size:18px}
+.today-kiosk .today-cooking[data-count='3'] .today-cooking-internal,.today-kiosk .today-cooking[data-count='4'] .today-cooking-internal{font-size:48px;line-height:1.1}
+.today-kiosk .today-cooking[data-count='3'],.today-kiosk .today-cooking[data-count='4']{padding:12px 22px 14px;gap:8px}
+.today-kiosk .today-cooking[data-count='3'] .today-cooking-probe,.today-kiosk .today-cooking[data-count='4'] .today-cooking-probe{flex-direction:column;align-items:flex-start;gap:6px;padding:12px 16px}
+.today-kiosk .today-cooking[data-count='4'] .today-cooking-name{font-size:19px}
+.today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-state{font-size:18px}
+.today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-probe[data-alert] .today-cooking-state{font-size:22px}
+.today-kiosk .today-cooking[data-count='4'] .today-cooking-target,.today-kiosk .today-cooking[data-count='4'] .today-cooking-meta{font-size:16px}
+.today-kiosk.today-cooking-on .today-clock{font-size:96px}
+.today-kiosk.today-cooking-on .today-hero{min-height:110px}
+.today-kiosk.today-cooking-on .today-content{gap:8px;padding-top:16px;padding-bottom:14px}
+.today-night .today-cooking{width:min(100%,960px);--hb-glass:rgba(10,12,16,.6)}
 `;

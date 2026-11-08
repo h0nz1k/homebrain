@@ -20,6 +20,9 @@ import {
   registerTodaySignalSource,
   createMockAdapter,
   createMockHomeApi,
+  createMockCookingSource,
+  setCookingSourceFactory,
+  type CookingScenario,
   setTodayAdapterFactory,
   setTodayHomeApiFactory,
   type HomeRole,
@@ -170,6 +173,13 @@ setFamilyApiFactory(() => familyApi);
 // Dnes „Co se dnes vaří“ + kids' chores: `?jidlo=empty` = nothing planned, no kids;
 // `?jidlo=none` = Mealie not installed (no meals tile at all).
 const jidlo = recipesQuery.get('jidlo');
+// Dnes „Maso v troubě“ (MEATER): `?maso=1|2|4` active probes (2 = one „Sundat z tepla“).
+const maso = recipesQuery.get('maso');
+setCookingSourceFactory(() =>
+  createMockCookingSource(
+    maso === '1' || maso === '2' || maso === '4' ? (maso as CookingScenario) : 'none',
+  ),
+);
 const homeApi = createMockHomeApi(
   jidlo === 'empty' || jidlo === 'none' ? jidlo : 'full',
   (recipesQuery.get('role') as HomeRole | null) ?? 'owner',
