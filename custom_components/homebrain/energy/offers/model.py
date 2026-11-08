@@ -124,3 +124,63 @@ def regulated_defaults(values: Mapping[str, float | None]) -> dict[str, Any]:
             out[key] = round(value * scale / 1.21, 2)
             out["source"] = "bindings"
     return out
+
+
+def _part(group: Any, key: str) -> float | None:
+    value = group.get(key) if isinstance(group, Mapping) else None
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def latest_confirmed_invoice(records: list[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    """Newest user-confirmed invoice (by billing period end) with distribution prices."""
+    best: Mapping[str, Any] | None = None
+    best_end = ""
+    for record in records:
+        fields = record.get("fields")
+        if record.get("status") != "confirmed" or not isinstance(fields, Mapping):
+            continue
+        period = fields.get("period")
+        dist = fields.get("distribution_czk_per_mwh_excl_vat")
+        if not (isinstance(period, list) and len(period) == 2 and isinstance(period[1], str)):
+            continue
+        if _part(dist, "vt") is None and _part(dist, "nt") is None:
+            continue
+        if period[1] > best_end:
+            best, best_end = record, period[1]
+    return best
+
+
+def regulated_from_invoice(fields: Mapping[str, Any], base: Mapping[str, Any]) -> dict[str, Any]:
+    """Regulated components prefilled from a confirmed invoice (all Kč without VAT).
+
+    Distribution VT/NT, system services and the electricity tax come per MWh; the regulated
+    monthly items are the breaker fee + OTE non-network infrastructure (the supplier's own fixed
+    fee belongs to the offer). POZE: when the invoice charges it per month it is added to the
+    monthly items; when the state waived it (2026), POZE stays 0 and ``poze_waived`` is set.
+    """
+    out = dict(base)
+    dist = fields.get("distribution_czk_per_mwh_excl_vat")
+    for src, key in (
+        ("vt", "distribution_vt"),
+        ("nt", "distribution_nt"),
+        ("systemove_sluzby", "system_services"),
+        ("dan", "tax"),
+    ):
+        value = _part(dist, src)
+        if value is not None:
+            out[key] = round(value, 2)
+    fixed = fields.get("fixed_monthly_excl_vat")
+    monthly = [_part(fixed, k) for k in ("jistic", "nesitova_infrastruktura")]
+    poze_month = _part(fields, "poze_czk_per_month_excl_vat")
+    waived = _part(fields, "poze_waived_czk")
+    if any(v is not None for v in monthly):
+        out["monthly_fixed"] = round(sum(v or 0.0 for v in monthly) + (poze_month or 0.0), 2)
+    out["poze"] = 0.0
+    out["poze_waived"] = bool(waived and waived > 0 and not poze_month)
+    vat = _part(fields, "vat_rate")
+    if vat is not None and 0 <= vat <= 50:
+        out["vat_percent"] = vat
+    out["source"] = "invoice"
+    period = fields.get("period")
+    out["source_period"] = list(period) if isinstance(period, list) else None
+    return out

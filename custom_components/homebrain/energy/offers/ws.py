@@ -22,7 +22,9 @@ from .calc import compare_offers, month_windows
 from .model import (
     MAX_OFFERS,
     OfferError,
+    latest_confirmed_invoice,
     regulated_defaults,
+    regulated_from_invoice,
     sanitize_offer,
     sanitize_regulated,
 )
@@ -66,20 +68,23 @@ def spot_manager(hass: HomeAssistant) -> SpotManager:
     return data[SPOT_KEY]
 
 
-def _regulated(hass: HomeAssistant, stored: dict[str, Any] | None) -> dict[str, Any]:
+async def _regulated(hass: HomeAssistant, stored: dict[str, Any] | None) -> dict[str, Any]:
+    """Saved regulated prices, else the latest confirmed invoice, else the Energie helpers."""
     if stored:
         return stored
-    from ..invoices.api import _bindings  # noqa: PLC0415 - shared helpers, avoid import cycle
+    from ..invoices.api import _bindings, get_store  # noqa: PLC0415 - avoid import cycle
     from ..ws import _number  # noqa: PLC0415
 
     b = _bindings(hass)
-    return regulated_defaults(
+    base = regulated_defaults(
         {
             "dist_vt": _number(hass, b.get("energy_spot_distribution_vt")),
             "dist_nt": _number(hass, b.get("energy_spot_distribution_nt")),
             "fixed": _number(hass, b.get("energy_spot_fixed_monthly")),
         }
     )
+    invoice = latest_confirmed_invoice(await get_store(hass).async_list())
+    return regulated_from_invoice(invoice["fields"], base) if invoice else base
 
 
 async def _payload(hass: HomeAssistant, connection: Any) -> dict[str, Any]:
@@ -88,7 +93,7 @@ async def _payload(hass: HomeAssistant, connection: Any) -> dict[str, Any]:
     data = await _offer_store(hass).async_get()
     return {
         "offers": data["offers"],
-        "regulated": _regulated(hass, data["regulated"]),
+        "regulated": await _regulated(hass, data["regulated"]),
         "can_edit": bool(connection.user and connection.user.is_admin),
         "tariff": current_tariff(hass, _bindings(hass)),
     }
@@ -236,7 +241,7 @@ async def ws_compare(
         exports=rows.get("export", []),
         spot=spot,
         current=_tariff(hass, bindings),
-        regulated=_regulated(hass, data["regulated"]),
+        regulated=await _regulated(hass, data["regulated"]),
         offers=data["offers"],
         now=now,
         tz=tz,

@@ -15,10 +15,14 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homebrain.const import DOMAIN
 from custom_components.homebrain.energy.compare import Tariff
+from custom_components.homebrain.energy.invoices.api import get_store as invoice_store
+from custom_components.homebrain.energy.invoices.parser import parse_invoice_text
 from custom_components.homebrain.energy.offers.calc import compare_offers, month_windows
 from custom_components.homebrain.energy.offers.model import (
     OfferError,
+    latest_confirmed_invoice,
     regulated_defaults,
+    regulated_from_invoice,
     sanitize_offer,
     sanitize_regulated,
 )
@@ -199,6 +203,64 @@ def test_regulated_defaults_from_the_spot_distribution_bindings():
     assert reg["year"] == 2026
     assert reg["source"] == "bindings"
     assert regulated_defaults({})["source"] == "empty"
+
+
+INVOICE_FIELDS = parse_invoice_text(
+    (Path(__file__).parent / "fixtures" / "energy_invoices" / "cez_synthetic.txt").read_text(
+        encoding="utf-8"
+    )
+)["fields"]
+
+
+def _invoice(status: str, end: str, vt: float = 800.0) -> dict:
+    fields = {
+        **INVOICE_FIELDS,
+        "period": [end[:8] + "01", end],
+        "distribution_czk_per_mwh_excl_vat": {
+            **INVOICE_FIELDS["distribution_czk_per_mwh_excl_vat"],
+            "vt": vt,
+        },
+    }
+    return {"id": f"{status}{end}", "status": status, "fields": fields}
+
+
+def test_latest_confirmed_invoice_skips_drafts_and_older_periods():
+    records = [
+        _invoice("confirmed", "2026-08-31", vt=700),
+        _invoice("draft", "2026-10-31", vt=999),
+        _invoice("confirmed", "2026-09-30"),
+        {"id": "x", "status": "confirmed", "fields": {"period": None}},
+    ]
+    best = latest_confirmed_invoice(records)
+    assert best is not None and best["fields"]["period"] == ["2026-09-01", "2026-09-30"]
+    assert latest_confirmed_invoice([_invoice("draft", "2026-09-30")]) is None
+    assert latest_confirmed_invoice([]) is None
+
+
+def test_regulated_prefill_from_synthetic_invoice():
+    base = regulated_defaults({"dist_vt": 2.42})
+    reg = regulated_from_invoice(INVOICE_FIELDS, base)
+    assert reg["source"] == "invoice"
+    assert reg["source_period"] == ["2026-09-01", "2026-09-30"]
+    assert reg["distribution_vt"] == pytest.approx(800.0)
+    assert reg["distribution_nt"] == pytest.approx(250.0)
+    assert reg["system_services"] == pytest.approx(164.24)
+    assert reg["tax"] == pytest.approx(28.3)
+    # breaker + OTE infrastructure; the supplier's own fixed fee (150) belongs to the offer
+    assert reg["monthly_fixed"] == pytest.approx(512.87)
+    assert reg["vat_percent"] == 21
+    # 2026: POZE waived by the state on the invoice -> 0 and flagged
+    assert reg["poze"] == 0
+    assert reg["poze_waived"] is True
+    # values the invoice does not carry keep the base
+    assert reg["current_export_price"] == base["current_export_price"]
+
+
+def test_regulated_prefill_adds_monthly_poze_when_charged():
+    fields = {**INVOICE_FIELDS, "poze_czk_per_month_excl_vat": 120.0, "poze_waived_czk": None}
+    reg = regulated_from_invoice(fields, regulated_defaults({}))
+    assert reg["monthly_fixed"] == pytest.approx(632.87)
+    assert reg["poze"] == 0 and reg["poze_waived"] is False
 
 
 def test_sanitize_regulated_keeps_vat_in_range():
@@ -384,6 +446,19 @@ async def test_ws_offer_crud_and_compare_unconfigured(hass: HomeAssistant, setup
     assert got["offers"] == []
     assert got["can_edit"] is True
     assert got["regulated"]["distribution_vt"] == pytest.approx(2000.0)
+    assert got["regulated"]["source"] == "bindings"
+
+    # a confirmed invoice beats the helpers until the user saves own regulated prices
+    store = invoice_store(hass)
+    store._data = {
+        "invoices": [_invoice("draft", "2026-10-31"), _invoice("confirmed", "2026-09-30")]
+    }
+    await client.send_json_auto_id({"type": "homebrain/energy/offers/get"})
+    got = (await client.receive_json())["result"]
+    assert got["regulated"]["source"] == "invoice"
+    assert got["regulated"]["source_period"] == ["2026-09-01", "2026-09-30"]
+    assert got["regulated"]["distribution_vt"] == pytest.approx(800.0)
+    assert got["regulated"]["poze_waived"] is True
 
     await client.send_json_auto_id(
         {

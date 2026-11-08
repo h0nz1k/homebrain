@@ -16,7 +16,9 @@ const REGULATED: Regulated = {
   current_export_price: 800,
   vat_percent: 21,
   year: 2026,
-  source: 'saved',
+  source: 'invoice',
+  source_period: ['2026-09-01', '2026-09-30'],
+  poze_waived: true,
 };
 
 const OFFERS: Offer[] = [

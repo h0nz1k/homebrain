@@ -33,7 +33,11 @@ export interface Regulated {
   current_export_price: number;
   vat_percent: number;
   year: number;
-  source: 'saved' | 'bindings' | 'empty';
+  source: 'saved' | 'invoice' | 'bindings' | 'empty';
+  /** Billing period `[from, to]` (ISO dates) of the invoice the values came from. */
+  source_period?: [string, string] | null;
+  /** The invoice shows POZE waived by the state (charged 0 Kč). */
+  poze_waived?: boolean;
 }
 
 export interface OffersState {
@@ -120,10 +124,11 @@ export const ASSUMPTION_TEXT: Record<string, string> = {
   same_profile:
     'Stejná spotřeba a přetoky hodinu po hodině jako ve skutečnosti – bez změny chování (např. přesunu spotřeby do levných hodin u spotu).',
   hourly_metering:
-    'Počítáme z hodinových statistik Home Assistantu (střídač/elektroměr). Čtvrthodinové spotové ceny (od 1. 10. 2025) průměrujeme na hodinu.',
-  hdo_schedule: 'Rozdělení VT/NT podle současného rozvrhu HDO – stejné hodiny NT každý den.',
+    'Počítáme z hodinových statistik Home Assistantu (střídač/elektroměr). Spotové ceny jsou od 1. 10. 2025 čtvrthodinové a průměrujeme je na hodinu, takže skutečné vyúčtování po čtvrthodinách se může mírně lišit.',
+  hdo_schedule:
+    'VT = vysoký tarif, NT = nízký tarif (HDO). Rozdělení VT/NT podle současného rozvrhu HDO – stejné hodiny NT každý den.',
   regulated_user:
-    'Distribuci a regulované složky bereme z hodnot zadaných v nastavení (regulované ceny 2026) a stejné pro všechny nabídky.',
+    'Distribuci a regulované složky bereme z uloženého nastavení, jinak z poslední potvrzené faktury; ceny 2026 používáme pro všechny měsíce období a všechny nabídky stejně.',
   export_no_vat: 'Výkup přetoků je bez DPH (domácnost není plátce DPH).',
 };
 
@@ -141,6 +146,47 @@ export function formatDiff(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '–';
   const r = Math.round(value);
   return `${r < 0 ? '\u2212' : r > 0 ? '+' : ''}${fmt(Math.abs(r))}${NBSP}Kč`;
+}
+
+/** `1,8 %` (absolute value, Czech decimal comma, NBSP before %). */
+export function formatPercent(value: number): string {
+  return `${fmt(Math.abs(value), 1)}${NBSP}%`;
+}
+
+/** Card wording of a difference vs the current contract: never a bare minus sign. */
+export function diffWords(value: number | null | undefined): {
+  text: string;
+  tone: 'ok' | 'warn' | undefined;
+} {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return { text: 'bez srovnání', tone: undefined };
+  const r = Math.round(value);
+  if (r < 0) return { text: `O${NBSP}${formatKc(-r)} méně`, tone: 'ok' };
+  if (r > 0) return { text: `O${NBSP}${formatKc(r)} víc`, tone: 'warn' };
+  return { text: 'Stejně jako teď', tone: undefined };
+}
+
+/** Round values so their sum equals the rounded total (largest remainder). */
+export function roundToTotal(values: Array<number | null>): Array<number | null> {
+  const out = values.map((v) => (v === null ? null : Math.round(v)));
+  const exact = values.reduce<number>((a, v) => a + (v ?? 0), 0);
+  let delta = Math.round(exact) - out.reduce<number>((a, v) => a + (v ?? 0), 0);
+  const order = values
+    .map((v, i) => ({ i, err: v === null ? 0 : v - Math.round(v) }))
+    .filter((x) => values[x.i] !== null)
+    .sort((a, b) => (delta > 0 ? b.err - a.err : a.err - b.err));
+  for (const { i } of order) {
+    if (delta === 0) break;
+    out[i] = (out[i] ?? 0) + Math.sign(delta);
+    delta -= Math.sign(delta);
+  }
+  return out;
+}
+
+/** Compact bar label (Kč, absolute): `184`, `1,2k`. */
+export function barValue(value: number): string {
+  const a = Math.abs(Math.round(value));
+  return a >= 1000 ? `${fmt(a / 1000, 1)}k` : fmt(a);
 }
 
 export function parseNum(text: string): number | null {
@@ -178,21 +224,59 @@ export function monthLabel(key: string, long = false): string {
 }
 
 const perMwh = (v: number | null) => `${fmt(v ?? 0)}${NBSP}Kč/MWh`;
+const spotPlus = (v: number | null) =>
+  `spot ${(v ?? 0) < 0 ? 'mínus' : 'plus'} ${perMwh(Math.abs(v ?? 0))}`;
 
-/** Price parts of an offer (the kind is shown separately as a badge). */
-export function offerParts(offer: Offer): string[] {
-  const parts =
-    offer.kind === 'fixed'
-      ? [`VT ${perMwh(offer.price_vt)}`, `NT ${perMwh(offer.price_nt)}`]
-      : [`spot ${(offer.margin ?? 0) < 0 ? '\u2212' : '+'} ${perMwh(Math.abs(offer.margin ?? 0))}`];
-  if (offer.monthly_fee) parts.push(`${fmt(offer.monthly_fee)}${NBSP}Kč/měs.`);
-  if (offer.export.mode === 'fixed') parts.push(`výkup ${perMwh(offer.export.price)}`);
-  if (offer.export.mode === 'spot') parts.push(`výkup: spot \u2212 ${perMwh(offer.export.fee)}`);
-  return parts;
+/** One labelled price row of an offer; `parts` never break inside (wrap only between them). */
+export interface PriceRow {
+  label: string;
+  parts: string[];
 }
 
+/** Price rows of an offer (the kind is shown separately as a badge). */
+export function offerPrices(offer: Offer): PriceRow[] {
+  const rows: PriceRow[] = [
+    offer.kind === 'fixed'
+      ? { label: 'Cena', parts: [`VT ${perMwh(offer.price_vt)}`, `NT ${perMwh(offer.price_nt)}`] }
+      : { label: 'Cena', parts: [spotPlus(offer.margin)] },
+  ];
+  if (offer.monthly_fee)
+    rows.push({ label: 'Stálá platba', parts: [`${fmt(offer.monthly_fee)}${NBSP}Kč/měs.`] });
+  if (offer.export.mode === 'fixed')
+    rows.push({ label: 'Výkup', parts: [perMwh(offer.export.price)] });
+  if (offer.export.mode === 'spot')
+    rows.push({ label: 'Výkup', parts: [spotPlus(-(offer.export.fee ?? 0))] });
+  return rows;
+}
+
+/** Plain-text summary (aria, tests): `Cena: spot plus 350 Kč/MWh; Výkup: spot mínus 400 Kč/MWh`. */
 export function offerSummary(offer: Offer): string {
-  return offerParts(offer).join(' · ');
+  return offerPrices(offer)
+    .map((r) => `${r.label}: ${r.parts.join(', ')}`)
+    .join('; ');
+}
+
+/** `září 2026`, `červenec – září 2026` (accusative = nominative for Czech month names). */
+export function invoicePeriodText(period: [string, string] | null | undefined): string | null {
+  if (!period) return null;
+  const [a, b] = period.map((d) => d.split('-').map(Number));
+  if (!a || !b || !a[0] || !b[0]) return null;
+  const name = (p: number[]) => MONTHS[(p[1] ?? 1) - 1] ?? '';
+  if (a[0] === b[0] && a[1] === b[1]) return `${name(a)} ${a[0]}`;
+  return a[0] === b[0]
+    ? `${name(a)} – ${name(b)} ${b[0]}`
+    : `${name(a)} ${a[0]} – ${name(b)} ${b[0]}`;
+}
+
+/** Where the regulated prices come from (shown next to the heading). */
+export function regulatedSourceText(reg: Regulated): string {
+  if (reg.source === 'saved') return 'zadané v nastavení';
+  if (reg.source === 'invoice') {
+    const period = invoicePeriodText(reg.source_period);
+    return period ? `z faktury za ${period}` : 'z poslední faktury';
+  }
+  if (reg.source === 'bindings') return 'předvyplněno z pomocníků Energie – zkontrolujte';
+  return 'zatím nezadané';
 }
 
 export function emptyForm(): OfferForm {
@@ -279,6 +363,31 @@ export function offersHero(cmp: OffersComparison | null): OffersHero | null {
   };
 }
 
+/** Hero wording: `Ušetřili byste 478 Kč` / `Připlatili byste 120 Kč`, `1,8 % levněji`. */
+export function heroWords(hero: OffersHero): {
+  big: string;
+  percent: string | null;
+  perMonth: string | null;
+} | null {
+  if (hero.diff === null) return null;
+  const r = Math.round(hero.diff);
+  const big =
+    r < 0
+      ? `Ušetřili byste ${formatKc(-r)}`
+      : r > 0
+        ? `Připlatili byste ${formatKc(r)}`
+        : 'Vyšlo by to nastejno';
+  const percent =
+    hero.percent === null || r === 0
+      ? null
+      : `${formatPercent(hero.percent)} ${hero.percent < 0 ? 'levněji' : 'dráž'}`;
+  const perMonth =
+    hero.perMonth === null || r === 0
+      ? null
+      : `≈${NBSP}${formatKc(Math.abs(hero.perMonth))} ${hero.perMonth < 0 ? 'méně' : 'víc'} měsíčně`;
+  return { big, percent, perMonth };
+}
+
 export function offersHeadline(cmp: OffersComparison | null): string | null {
   const ranked = rankedPlans(cmp);
   const current = ranked.find((p) => p.kind === 'current');
@@ -286,9 +395,8 @@ export function offersHeadline(cmp: OffersComparison | null): string | null {
   if (!best) return null;
   if (!current || current.total === null || best.diff === null)
     return `Nejlevnější nabídka: „${best.name}“ za ${formatKc(best.total)}.`;
-  if (best.diff < 0)
-    return `Nejvýhodnější by byla „${best.name}“ – ušetřili byste ${formatKc(-best.diff)}.`;
-  return `Současná smlouva vychází nejlépe – „${best.name}“ by vyšla o ${formatKc(best.diff)} dráž.`;
+  if (best.diff < 0) return `Nejvýhodnější je „${best.name}“ oproti současné smlouvě.`;
+  return `Současná smlouva vychází nejlépe – nejbližší je „${best.name}“.`;
 }
 
 export function spotStatusText(spot: SpotInfo | undefined): string | null {
@@ -305,7 +413,9 @@ export function periodText(cmp: OffersComparison | null): string {
   const { from, to } = cmp.period;
   const n = cmp.months_compared ?? 0;
   const span =
-    from === to ? monthLabel(from, true) : `${monthLabel(from, true)} – ${monthLabel(to, true)}`;
+    from === to
+      ? monthLabel(from, true)
+      : `${monthLabel(from, true)} – ${monthLabel(to, true).toLowerCase()}`;
   const label = n === 1 ? 'měsíc' : n >= 2 && n <= 4 ? 'měsíce' : 'měsíců';
   return `${span} · ${n}${NBSP}${label}`;
 }

@@ -13,6 +13,15 @@ test('správce vidí pořadí nabídek, měsíční srovnání a přidá nabídk
   );
   expect([...totals].sort((a, b) => a - b)).toEqual(totals);
   await expect(card.getByTestId('energy-offers-headline')).toContainText('Nejvýhodnější');
+  await expect(card.getByTestId('energy-offers-big')).toHaveText(/^Ušetřili byste/);
+  await expect(card.getByTestId('energy-offer-export-hint')).toBeVisible();
+  // value labels stay inside the chart card
+  const chart = await card.locator('.en-off-chart').boundingBox();
+  for (const label of await card.getByTestId('energy-offer-bar-value').all()) {
+    const b = (await label.boundingBox())!;
+    expect(b.y).toBeGreaterThanOrEqual(chart!.y);
+    expect(b.y + b.height).toBeLessThanOrEqual(chart!.y + chart!.height);
+  }
   await expect(card.getByTestId('energy-offer-bar-month')).toHaveCount(12);
   await card.getByTestId('energy-offer-bar-month').first().click();
   await expect(card.getByTestId('energy-offer-readout')).toContainText('Kč');
@@ -35,7 +44,7 @@ test('správce vidí pořadí nabídek, měsíční srovnání a přidá nabídk
   await sheet.getByTestId('energy-offer-field-margin').fill('450');
   await sheet.getByTestId('energy-offer-save').click();
   await expect(sheet).toBeHidden();
-  await expect(card.getByText(/spot \+ 450\sKč\/MWh/)).toBeVisible();
+  await expect(card.getByText(/spot plus 450\sKč\/MWh/)).toBeVisible();
 
   await card.getByText('Jak počítáme a předpoklady').click();
   await expect(card.getByTestId('energy-offers-assumptions')).toContainText(

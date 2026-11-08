@@ -47,10 +47,23 @@ Pro každý měsíc a plán:
 ### Předpoklady (ukazuje je i karta)
 
 - stejný hodinový profil spotřeby a přetoků, bez změny chování;
-- hodinové statistiky; čtvrthodinové spotové ceny zprůměrované na hodinu;
-- VT/NT podle současného rozvrhu HDO (stejné hodiny každý den);
-- regulované ceny jsou hodnoty **2026 zadané uživatelem** a pro všechny nabídky stejné;
+- hodinové statistiky; čtvrthodinové spotové ceny zprůměrované na hodinu (skutečné vyúčtování
+  po čtvrthodinách se může mírně lišit);
+- VT = vysoký tarif, NT = nízký tarif (HDO), podle současného rozvrhu HDO (stejné hodiny každý den);
+- regulované ceny 2026 jsou pro všechny nabídky stejné (zdroj viz níže);
 - výkup bez DPH (domácnost není plátce DPH).
+
+### Regulované ceny – odkud se berou
+
+1. hodnoty uložené správcem (`…/save` s `regulated`), jinak
+2. poslední **potvrzená** faktura z modulu faktur (Store `homebrain.energy_invoices`, podle konce
+   zúčtovacího období): distribuce VT/NT, systémové služby a daň z
+   `distribution_czk_per_mwh_excl_vat`, stálé regulované platby = jistič + provoz nesíťové
+   infrastruktury z `fixed_monthly_excl_vat` (stálá platba obchodníka patří k nabídce), DPH z
+   `vat_rate`; karta píše „z faktury za <období>“. POZE: pokud ji faktura účtuje měsíčně, přičte
+   se ke stálým platbám; pokud ji uvádí jako odpuštěnou (`poze_waived_czk`), je POZE 0 a karta
+   píše „v roce 2026 hradí stát (podle faktury)“;
+3. jinak předvyplnění z pomocníků Energie (`energy_spot_distribution_*`, `energy_spot_fixed_monthly`).
 
 ## Role
 
