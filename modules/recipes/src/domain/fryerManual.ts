@@ -53,7 +53,8 @@ export interface ManualSettings {
 }
 export interface FryerStartRequest {
   temperature: number;
-  minutes: number;
+  /** Omitted in probe mode: the fryer stops on the core temperature (server sets a safety cap). */
+  minutes?: number;
   air_speed: number;
   probe_temperature: number | null;
   confirmed: boolean;
@@ -130,13 +131,27 @@ export function blockerText(code: string) {
 }
 
 export function startRequest(s: ManualSettings): FryerStartRequest {
+  if (s.probe) {
+    return {
+      temperature: s.temperature,
+      air_speed: s.air_speed,
+      probe_temperature: s.probe_temperature,
+      confirmed: true,
+    };
+  }
   return {
     temperature: s.temperature,
     minutes: s.minutes,
     air_speed: s.air_speed,
-    probe_temperature: s.probe ? s.probe_temperature : null,
+    probe_temperature: null,
     confirmed: true,
   };
+}
+
+/** Start button text: probe mode names the core target instead of a (non-binding) time. */
+export function startLabel(s: ManualSettings) {
+  const end = s.probe ? `sonda ${s.probe_temperature} °C` : `${s.minutes} min`;
+  return `Spustit · ${s.temperature} °C · ${end}`;
 }
 
 export function airLabel(speed: number) {
@@ -144,9 +159,9 @@ export function airLabel(speed: number) {
 }
 
 export function favouriteLine(f: Omit<FryerFavourite, 'id' | 'name'>) {
-  const parts = [`${f.temperature} °C`, `${f.minutes} min`, airLabel(f.air_speed)];
-  if (f.probe_temperature != null) parts.push(`sonda ${f.probe_temperature} °C`);
-  return parts.join(' · ');
+  // With a probe the core temperature ends the cooking, so no minutes are shown.
+  const end = f.probe_temperature != null ? `sonda ${f.probe_temperature} °C` : `${f.minutes} min`;
+  return [`${f.temperature} °C`, end, airLabel(f.air_speed)].join(' · ');
 }
 
 export function favouriteToManual(f: FryerFavourite): ManualSettings {

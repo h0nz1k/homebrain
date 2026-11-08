@@ -142,7 +142,8 @@ export function createMockFryerApi(
       guard();
       if (!request.confirmed) throw new RecipesApiError('CONFIRMATION_REQUIRED');
       log.push({ kind: 'fryer_start', payload: request });
-      return { started: true, verified: true, minutes: request.minutes };
+      // Probe mode sends no time; the server answers with its safety cap (max minutes).
+      return { started: true, verified: true, minutes: request.minutes ?? 60 };
     },
     async control(action, opts = {}) {
       guard();

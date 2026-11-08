@@ -154,6 +154,21 @@ async def test_probe_target_needs_plugged_probe(hass, setup, hass_ws_client):
     ) in [(d, s, {"entity_id": c["entity_id"], "value": c.get("value")}) for d, s, c in dev.calls]
 
 
+async def test_probe_start_without_minutes_uses_time_as_safety_cap(hass, setup, hass_ws_client):
+    dev = FakeFryer(hass)
+    hass.states.async_set(f"binary_sensor.{P}_probe_unplugged", "off")
+    ws = await hass_ws_client(hass)
+    base = {"type": "homebrain/fryer/start", "temperature": 180, "air_speed": 2, "confirmed": True}
+    # No time and no probe: nothing to stop on → refused before any device call.
+    res = await _call(ws, **base)
+    assert res["error"]["code"] == "INVALID_FIELD" and dev.calls == []
+    res = await _call(ws, **base, probe_temperature=63)
+    assert res["success"] and res["result"]["minutes"] == 60
+    sent = [(d, s, c.get("entity_id"), c.get("value")) for d, s, c in dev.calls]
+    assert ("number", "set_value", f"number.{P}_set_cook_time", 60) in sent
+    assert ("number", "set_value", f"number.{P}_set_probe_temperature", 63) in sent
+
+
 async def test_start_requires_confirmation_and_valid_ranges(hass, setup, hass_ws_client):
     dev = FakeFryer(hass)
     ws = await hass_ws_client(hass)

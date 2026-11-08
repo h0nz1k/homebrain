@@ -5,6 +5,7 @@ import {
   clampSetting,
   favouriteLine,
   liveBlockers,
+  startLabel,
   startRequest,
   stepSetting,
   validateFavourite,
@@ -61,7 +62,19 @@ describe('fryer manual domain', () => {
       probe_temperature: null,
       confirmed: true,
     });
-    expect(startRequest({ ...s, probe: true }).probe_temperature).toBe(70);
+    // Probe mode: the core temperature ends the cooking, so no time is sent at all.
+    expect(startRequest({ ...s, probe: true })).toEqual({
+      temperature: 200,
+      air_speed: 2,
+      probe_temperature: 70,
+      confirmed: true,
+    });
+  });
+
+  it('labels the start button with time or the probe target, never both', () => {
+    const s = { temperature: 180, minutes: 15, air_speed: 2, probe: false, probe_temperature: 63 };
+    expect(startLabel(s)).toBe('Spustit · 180 °C · 15 min');
+    expect(startLabel({ ...s, probe: true })).toBe('Spustit · 180 °C · sonda 63 °C');
   });
 
   it('formats and validates favourites', () => {
@@ -75,7 +88,7 @@ describe('fryer manual domain', () => {
     };
     expect(favouriteLine(f)).toBe('200 °C · 18 min · silný vzduch');
     expect(favouriteLine({ ...f, air_speed: 1, probe_temperature: 65 })).toBe(
-      '200 °C · 18 min · slabý vzduch · sonda 65 °C',
+      '200 °C · sonda 65 °C · slabý vzduch',
     );
     expect(validateFavourite({ ...f, name: '  ' }, DEFAULT_LIMITS)).toBe('Zadejte název');
     expect(validateFavourite({ ...f, name: 'x'.repeat(41) }, DEFAULT_LIMITS)).toMatch(/40/);

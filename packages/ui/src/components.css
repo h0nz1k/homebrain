@@ -1379,8 +1379,8 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   border: 0;
   border-radius: var(--hb-radius-pill);
   /* Off track readable in both themes (light fill-strong was near-invisible on white cards). */
-  background: color-mix(in srgb, var(--hb-t1) 20%, transparent);
-  box-shadow: inset 0 0 0 1px var(--hb-edge);
+  background: color-mix(in srgb, var(--hb-t1) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 22%, transparent);
   cursor: pointer;
   transition: background-color var(--hb-dur-base) var(--hb-ease-out);
 }

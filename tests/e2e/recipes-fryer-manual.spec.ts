@@ -35,15 +35,47 @@ test('Fritéza: vstup ze seznamu receptů a ruční spuštění s potvrzením', 
   ]);
 });
 
-test('Fritéza: sonda přidá cílovou teplotu uvnitř jídla', async ({ page }) => {
+test('Fritéza: sonda nahradí čas cílovou teplotou jídla', async ({ page }) => {
   await page.goto(`${PAGE}?friteza=1`);
+  await expect(page.getByTestId('fryer-row-minutes')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('fryer-probe').click();
-  await expect(page.getByTestId('fryer-probe_temperature')).toHaveText('65 °C');
+  // The probe target takes the time's place: no fixed time is shown or sent.
+  await expect(page.getByTestId('fryer-row-minutes')).toHaveCount(0);
+  await expect(page.getByTestId('fryer-row-probe_temperature')).toContainText(
+    'Teplota jídla (sonda)',
+  );
+  await page.getByRole('button', { name: 'Teplota jídla (sonda) méně' }).click();
+  await page.getByRole('button', { name: 'Teplota jídla (sonda) méně' }).click();
+  await expect(page.getByTestId('fryer-probe_temperature')).toHaveText('63 °C');
+  await expect(page.getByTestId('fryer-start')).toHaveText('Spustit · 180 °C · sonda 63 °C');
   await page.getByTestId('fryer-start').click();
+  await expect(page.getByTestId('fryer-start-dialog')).not.toContainText('min');
   await page.getByTestId('fryer-start-confirm').click();
   await expect(page.getByTestId('hb-toast')).toBeVisible();
   const sent = (await log(page)).filter((l) => l.kind === 'fryer_start');
-  expect(sent[0]?.payload.probe_temperature).toBe(65);
+  expect(sent[0]?.payload).toEqual({
+    temperature: 180,
+    air_speed: 2,
+    probe_temperature: 63,
+    confirmed: true,
+  });
+});
+
+test('Fritéza: ruční pečení – přidání času v kartě, bez zaplnění', async ({ page }) => {
+  await page.goto(`${PAGE}?friteza=1&fryerlive=manual`);
+  const card = page.getByTestId('recipes-fryer-live');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('recipes-fryer-title')).toHaveText('Ruční pečení');
+  await expect(card).not.toContainText('Zaplnění');
+  // Přidat čas lives inside the card, above Pause/Stop, left-aligned with them.
+  const add = card.getByTestId('fryer-add-1');
+  await expect(add).toBeVisible();
+  const addBox = (await card.locator('.rcf-add').boundingBox())!;
+  const stopBox = (await page.getByTestId('recipes-fryer-stop').boundingBox())!;
+  const pauseBox = (await page.getByTestId('recipes-fryer-pause').boundingBox())!;
+  expect(addBox.y + addBox.height).toBeLessThanOrEqual(Math.min(stopBox.y, pauseBox.y));
+  expect(Math.abs(addBox.x - Math.min(stopBox.x, pauseBox.x))).toBeLessThan(2);
+  await expect(page.getByTestId('recipes-fryer-stop').locator('svg')).toHaveCount(1);
 });
 
 test('Fritéza: otevřený šuplík blokuje start', async ({ page }) => {

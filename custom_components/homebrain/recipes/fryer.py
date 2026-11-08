@@ -310,7 +310,8 @@ async def ws_get(hass, connection, msg, role):
     {
         vol.Required("type"): "homebrain/fryer/start",
         vol.Required("temperature"): _range("temperature"),
-        vol.Required("minutes"): _range("minutes"),
+        # Probe cooking ends on the food core temperature: time is optional there.
+        vol.Optional("minutes"): vol.Any(None, _range("minutes")),
         vol.Optional("air_speed"): vol.Any(None, _range("air_speed")),
         vol.Optional("probe_temperature"): vol.Any(None, _range("probe_temperature")),
         vol.Optional("confirmed", default=False): bool,
@@ -327,11 +328,17 @@ async def ws_start(hass, connection, msg, role):
     if blockers := start_blockers(hass, entities):
         raise FryerError(blockers[0])
     bounds = limits(hass, entities)
-    for key in ("temperature", "minutes"):
-        low, high = bounds[key]
-        if not low <= msg[key] <= high:
-            raise FryerError("INVALID_FIELD", key)
     probe = msg.get("probe_temperature")
+    minutes = msg.get("minutes")
+    if minutes is None:
+        if probe is None:
+            raise FryerError("INVALID_FIELD", "minutes")
+        # Probe mode: the fryer stops at the core temperature; the time is only a safety cap.
+        minutes = bounds["minutes"][1]
+    for key, value in (("temperature", msg["temperature"]), ("minutes", minutes)):
+        low, high = bounds[key]
+        if not low <= value <= high:
+            raise FryerError("INVALID_FIELD", key)
     if probe is not None:
         if "probe_temperature" not in entities:
             raise FryerError("INVALID_FIELD", "probe_temperature")
@@ -347,7 +354,7 @@ async def ws_start(hass, connection, msg, role):
         ("number", "set_value", {"entity_id": entities["temperature"], "value": msg["temperature"]})
     )
     calls.append(
-        ("number", "set_value", {"entity_id": entities["cook_time"], "value": msg["minutes"]})
+        ("number", "set_value", {"entity_id": entities["cook_time"], "value": minutes})
     )
     if msg.get("air_speed") is not None and "air_speed" in entities:
         calls.append(
@@ -362,7 +369,7 @@ async def ws_start(hass, connection, msg, role):
         await _service(hass, domain, service, data)
     verified = await _wait_status(hass, entities["status"], STARTED)
     connection.send_result(
-        msg["id"], {"started": True, "verified": verified, "minutes": msg["minutes"]}
+        msg["id"], {"started": True, "verified": verified, "minutes": minutes}
     )
 
 

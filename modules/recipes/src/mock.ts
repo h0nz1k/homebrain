@@ -210,7 +210,16 @@ export function syntheticPreview(url: string): RecipeDraft {
 
 /** Dev/e2e scenarios for the live fryer card (synthetic `demo_fryer` entities only). */
 export type FryerDemoScenario =
-  'preheat' | 'cooking' | 'action' | 'drawer' | 'paused' | 'done' | 'warm' | 'error' | 'off';
+  | 'preheat'
+  | 'cooking'
+  | 'manual'
+  | 'action'
+  | 'drawer'
+  | 'paused'
+  | 'done'
+  | 'warm'
+  | 'error'
+  | 'off';
 
 export function fryerDemoStates(
   scenario: FryerDemoScenario,
@@ -228,6 +237,7 @@ export function fryerDemoStates(
   const status: Record<FryerDemoScenario, string> = {
     preheat: 'cooking',
     cooking: 'cooking',
+    manual: 'cooking',
     action: 'user_action',
     drawer: 'user_action',
     paused: 'pause',
@@ -250,9 +260,13 @@ export function fryerDemoStates(
     ],
     ['sensor.demo_fryer_target_temperature', running ? (scenario === 'warm' ? '65' : '200') : '0'],
     ['sensor.demo_fryer_current_stage', running ? '2' : '0'],
-    ['sensor.demo_fryer_autocook_program', running ? '14' : '0'],
-    ['sensor.demo_fryer_autocook_amount', running ? '3' : '0'],
-    ['select.demo_fryer_cooking_method', running ? 'auto_cook' : 'no_selection'],
+    // `manual` = started from the Fritéza page: no AutoCook program, no amount.
+    ['sensor.demo_fryer_autocook_program', running && scenario !== 'manual' ? '14' : '0'],
+    ['sensor.demo_fryer_autocook_amount', running && scenario !== 'manual' ? '3' : '0'],
+    [
+      'select.demo_fryer_cooking_method',
+      scenario === 'manual' ? 'manual' : running ? 'auto_cook' : 'no_selection',
+    ],
     ['sensor.demo_fryer_preheat_status', scenario === 'preheat' ? 'True' : 'False'],
     ['binary_sensor.demo_fryer_drawer', scenario === 'drawer' ? 'on' : 'off'],
     ['sensor.demo_fryer_error_code', scenario === 'error' ? '3' : '0'],

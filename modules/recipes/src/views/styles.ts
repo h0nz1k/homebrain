@@ -262,9 +262,9 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl h2 { margin:0; font-size:30px; font-weight:650; letter-spacing:-.022em; line-height:1.15; color:var(--hb-t1); }
 .rc-fl[data-instruction] h2 { color:var(--rc-fl-ink); font-size:28px; }
 .rc-fl-pill { display:inline-flex; align-items:center; gap:8px; padding:5px 12px 5px 10px; border-radius:var(--hb-radius-pill); font-size:14px; font-weight:650; color:var(--hb-t1); background:var(--hb-fill-strong); }
-.rc-fl-pill::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--rc-fl-tone); box-shadow:0 0 0 3px color-mix(in srgb, var(--rc-fl-tone) 28%, transparent), 0 0 10px var(--rc-fl-tone); }
+.rc-fl-pill::before { content:''; width:9px; height:9px; border-radius:50%; background:var(--rc-fl-tone); box-shadow:0 0 0 3px color-mix(in srgb, var(--rc-fl-tone) 38%, transparent), 0 0 12px 1px var(--rc-fl-tone); }
 .rc-fl[data-phase='cooking'] .rc-fl-pill::before, .rc-fl[data-phase='preheat'] .rc-fl-pill::before { animation:rc-fl-live 2s ease-in-out infinite; }
-@keyframes rc-fl-live { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+@keyframes rc-fl-live { 0%, 100% { opacity:1; } 50% { opacity:.7; } }
 .rc-fl-meta { margin:0; max-width:100%; font-size:15px; font-weight:500; color:var(--hb-t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rc-fl-body { align-self:stretch; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:16px; }
 .rc-fl-hint { margin:0; font-size:16px; color:var(--hb-t2); line-height:1.45; max-width:60ch; }
@@ -298,6 +298,7 @@ textarea.rc-inp { min-height:140px; line-height:1.5; resize:vertical; }
 .rc-fl .hb-btn svg.rc-i path { fill:currentColor; stroke:none; }
 .rc-fl-badge svg.rc-i path { fill:currentColor; stroke:none; }
 .rc-fl-actions { --hb-ac:var(--rc-fl-tone); --hb-on-ac:var(--rc-fl-on); align-self:stretch; display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; }
+.rc-fl-extra { flex:1 0 100%; min-width:0; }
 .rc-fl-guide { margin:0; flex:1 1 220px; display:flex; align-items:center; gap:8px; font-size:15px; font-weight:550; color:var(--hb-t1); }
 .rc-fl-guide svg.rc-i { width:18px; height:18px; flex:none; color:var(--rc-fl-ink); }
 .rc-fl[data-phase='paused'] .rc-fl-guide svg.rc-i { color:var(--hb-warn); }

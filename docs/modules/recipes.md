@@ -76,7 +76,10 @@ Tests use mocked services only.
 Entry: the *Fritéza* button in the Recepty header (shown when a `sensor.*_cooking_status`
 exists). Three tabs:
 - **Ručně** – temperature (5 °C steps), time, air flow (slabé/silné = 1/2), optional probe
-  target (food core temperature; needs the probe plugged in). *Spustit* opens a confirmation.
+  target (food core temperature; needs the probe plugged in). With *Pečení podle sondy* on, the
+  probe target replaces the time stepper and no time is sent: the server sets the cook time to
+  its maximum as a safety cap and the fryer ends on the core temperature. *Spustit* opens a
+  confirmation.
 - **Oblíbené** – user quick presets (name, °C, min, air, probe) in HA storage
   `.storage/homebrain.fryer_favourites`; adults add, edit, delete and start them.
 - **Předvolby** – the fryer's built-in AutoCook programs (fries, chicken, fish …) **cannot be

@@ -16,6 +16,7 @@ import {
   favouriteLine,
   favouriteToManual,
   liveBlockers,
+  startLabel,
   startRequest,
   stepSetting,
   validateFavourite,
@@ -50,6 +51,7 @@ function useStoreVersion(store: EntityStore) {
 function SettingRow({
   k,
   label,
+  hint,
   value,
   unit,
   limits,
@@ -58,6 +60,7 @@ function SettingRow({
 }: {
   k: SettingKey;
   label: string;
+  hint?: string;
   value: number;
   unit: string;
   limits: FryerLimits;
@@ -67,7 +70,10 @@ function SettingRow({
   const [low, high] = limits[k];
   return (
     <div className="rcf-row" data-testid={`fryer-row-${k}`}>
-      <span className="rcf-row-l">{label}</span>
+      <span className="rcf-row-l">
+        {label}
+        {hint ? <small>{hint}</small> : null}
+      </span>
       <div className="rc-stepper" role="group" aria-label={label}>
         <button
           type="button"
@@ -116,15 +122,44 @@ function SettingsForm({
         disabled={disabled}
         onChange={(temperature) => set({ temperature })}
       />
-      <SettingRow
-        k="minutes"
-        label="Čas"
-        unit="min"
-        value={value.minutes}
-        limits={info.limits}
-        disabled={disabled}
-        onChange={(minutes) => set({ minutes })}
-      />
+      {info.capabilities.probe ? (
+        <div className="rcf-row">
+          <span className="rcf-row-l">
+            Pečení podle sondy
+            <small>Fritéza skončí, až jídlo uvnitř dosáhne teploty.</small>
+          </span>
+          <Switch
+            label="Pečení podle sondy"
+            checked={value.probe}
+            disabled={disabled}
+            data-testid="fryer-probe"
+            onChange={(probe) => set({ probe })}
+          />
+        </div>
+      ) : null}
+      {/* Probe mode replaces the time: the core temperature ends the cooking, not a clock. */}
+      {info.capabilities.probe && value.probe ? (
+        <SettingRow
+          k="probe_temperature"
+          label="Teplota jídla (sonda)"
+          hint="Čas určí sonda"
+          unit="°C"
+          value={value.probe_temperature}
+          limits={info.limits}
+          disabled={disabled}
+          onChange={(probe_temperature) => set({ probe_temperature })}
+        />
+      ) : (
+        <SettingRow
+          k="minutes"
+          label="Čas"
+          unit="min"
+          value={value.minutes}
+          limits={info.limits}
+          disabled={disabled}
+          onChange={(minutes) => set({ minutes })}
+        />
+      )}
       {info.capabilities.airSpeed ? (
         <div className="rcf-row">
           <span className="rcf-row-l">
@@ -144,34 +179,6 @@ function SettingsForm({
             onChange={(v) => set({ air_speed: Number(v) })}
           />
         </div>
-      ) : null}
-      {info.capabilities.probe ? (
-        <>
-          <div className="rcf-row">
-            <span className="rcf-row-l">
-              Pečení podle sondy
-              <small>Fritéza skončí, až jídlo uvnitř dosáhne teploty.</small>
-            </span>
-            <Switch
-              label="Pečení podle sondy"
-              checked={value.probe}
-              disabled={disabled}
-              data-testid="fryer-probe"
-              onChange={(probe) => set({ probe })}
-            />
-          </div>
-          {value.probe ? (
-            <SettingRow
-              k="probe_temperature"
-              label="Teplota uvnitř"
-              unit="°C"
-              value={value.probe_temperature}
-              limits={info.limits}
-              disabled={disabled}
-              onChange={(probe_temperature) => set({ probe_temperature })}
-            />
-          ) : null}
-        </>
       ) : null}
     </div>
   );
@@ -208,8 +215,13 @@ function StartConfirm({
       onConfirm={async () => {
         try {
           const res = await fryer.start(startRequest(settings));
-          if (res.verified) toast.success(`Fritéza peče · ${settings.minutes} min`);
-          else toast.info('Příkaz odeslán, fritéza zatím start nepotvrdila');
+          if (res.verified) {
+            toast.success(
+              settings.probe
+                ? `Fritéza peče · sonda ${settings.probe_temperature} °C`
+                : `Fritéza peče · ${settings.minutes} min`,
+            );
+          } else toast.info('Příkaz odeslán, fritéza zatím start nepotvrdila');
           return true;
         } catch (err) {
           toast.error(blockerText(errorCode(err)));
@@ -330,10 +342,17 @@ export function FryerRoute({ api, store }: { api: RecipesApi; store: EntityStore
   }, [fryer]);
   useEffect(load, [load]);
 
+  // Same sub-page header as Přidat recept: icon-only back (the app bar already says Recepty).
   const back = (
-    <Button variant="ghost" icon={<Icon name="back" />} onClick={() => navigateUp('/recipes')}>
-      Recepty
-    </Button>
+    <button
+      type="button"
+      className="rc-ibtn"
+      aria-label="Zpět na recepty"
+      data-testid="fryer-back"
+      onClick={() => navigateUp('/recipes')}
+    >
+      <Icon name="back" />
+    </button>
   );
   if (!fryer || failed || (info && !info.configured)) {
     return (
@@ -370,18 +389,33 @@ export function FryerRoute({ api, store }: { api: RecipesApi; store: EntityStore
           <p>Spuštění bez receptu</p>
         </div>
       </header>
-      <FryerLiveCard api={api} store={store} statusEntity={info.entities.status} allowed={can} />
-      {can && runningNow && info.capabilities.addTime ? (
-        <div className="rcf-add" role="group" aria-label="Přidat čas">
-          <span>Přidat čas</span>
-          <Button size="sm" data-testid="fryer-add-1" onClick={() => void control('add_time', 1)}>
-            +1 min
-          </Button>
-          <Button size="sm" data-testid="fryer-add-5" onClick={() => void control('add_time', 5)}>
-            +5 min
-          </Button>
-        </div>
-      ) : null}
+      <FryerLiveCard
+        api={api}
+        store={store}
+        statusEntity={info.entities.status}
+        allowed={can}
+        extra={
+          can && runningNow && info.capabilities.addTime ? (
+            <div className="rcf-add" role="group" aria-label="Přidat čas">
+              <span>Přidat čas</span>
+              <Button
+                size="sm"
+                data-testid="fryer-add-1"
+                onClick={() => void control('add_time', 1)}
+              >
+                +1 min
+              </Button>
+              <Button
+                size="sm"
+                data-testid="fryer-add-5"
+                onClick={() => void control('add_time', 5)}
+              >
+                +5 min
+              </Button>
+            </div>
+          ) : null
+        }
+      />
       {!can ? (
         <p className="rcf-note" data-testid="fryer-readonly">
           <Icon name="alert" />
@@ -416,7 +450,7 @@ export function FryerRoute({ api, store }: { api: RecipesApi; store: EntityStore
                 data-testid="fryer-start"
                 onClick={() => setConfirm({ settings })}
               >
-                Spustit · {settings.temperature} °C · {settings.minutes} min
+                {startLabel(settings)}
               </Button>
               <Button
                 variant="ghost"
@@ -601,24 +635,27 @@ function StopFryer({ fryer, onClose }: { fryer: FryerApi; onClose: () => void })
 
 export const fryerControlStyles = `
 .rcf { display:flex; flex-direction:column; gap:16px; padding:8px 32px 32px; max-width:760px; }
-.rcf-top { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-top:14px; }
+.rcf-top { display:flex; align-items:center; gap:12px; padding-top:14px; }
+.rcf-top .rc-ibtn { flex:none; }
 .rcf-ttl h1 { margin:0; font-size:28px; font-weight:680; letter-spacing:-.02em; }
 .rcf-ttl p { margin:2px 0 0; color:var(--hb-t2); font-size:14px; }
 .rcf-tabs { align-self:stretch; }
 .rcf-panel { display:flex; flex-direction:column; gap:14px; padding:18px; border-radius:var(--hb-radius-lg, 20px); background:var(--hb-s1); box-shadow:var(--hb-elev-1); }
 .rcf-form { display:flex; flex-direction:column; gap:4px; }
-.rcf-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:60px; border-bottom:1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
+.rcf-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:68px; padding:12px 0; box-sizing:border-box; border-bottom:1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
 .rcf-row:last-child { border-bottom:0; }
 .rcf-row-l { display:flex; flex-direction:column; font-size:16px; font-weight:600; }
 .rcf-row-l small { font-size:13px; font-weight:400; color:var(--hb-t2); margin-top:2px; }
 .rcf .rc-stepper button:disabled { opacity:.4; cursor:not-allowed; }
+.rcf .rc-stepper { height:44px; padding:3px; }
+.rcf .rc-stepper button { width:38px; height:38px; }
 .rcf .rc-stepper .v { min-width:88px; }
 .rcf-cta { display:flex; flex-direction:column; gap:6px; }
 .rcf-note { display:flex; align-items:center; gap:10px; margin:0; padding:12px 14px; border-radius:14px; font-size:14px; line-height:1.4; background:color-mix(in srgb, var(--hb-warn, #d97706) 14%, var(--hb-s1)); }
 .rcf-note > span { flex:1; }
 .rcf-note .rc-i { width:20px; height:20px; flex:none; }
-.rcf-add { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:14px; color:var(--hb-t2); }
-.rcf-add > span { margin-right:4px; }
+.rcf-add { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:14px; font-weight:550; color:var(--hb-t2); }
+.rcf-add > span { flex:1 1 auto; }
 .rcf-favs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
 .rcf-fav { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px; background:color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); flex-wrap:wrap; }
 .rcf-fav-t { flex:1; min-width:160px; display:flex; flex-direction:column; gap:2px; }

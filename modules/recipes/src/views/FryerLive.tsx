@@ -77,11 +77,14 @@ export function FryerLiveCard({
   store,
   statusEntity,
   allowed = true,
+  extra,
 }: {
   api: RecipesApi;
   store: EntityStore;
   statusEntity?: string;
   allowed?: boolean;
+  /** Page-specific controls (Fritéza: Přidat čas) shown inside the card above Pause/Stop. */
+  extra?: ReactNode;
 }) {
   const version = useStoreVersion(store);
   const entities = useMemo(
@@ -241,6 +244,7 @@ export function FryerLiveCard({
           : FRYER_HINT[m.phase];
   const primary = controls.filter((c) => c !== 'stop');
   const hasStop = controls.includes('stop');
+  const extraRow = extra && !finished && !isError ? extra : null;
   return (
     <>
       <section
@@ -303,8 +307,9 @@ export function FryerLiveCard({
               </div>
             ) : null}
           </div>
-          {controls.length || guidance ? (
+          {controls.length || guidance || extraRow ? (
             <div className="rc-fl-actions" data-testid="recipes-fryer-actions">
+              {extraRow ? <div className="rc-fl-extra">{extraRow}</div> : null}
               {guidance ? (
                 <p className="rc-fl-guide" data-testid="recipes-fryer-guide">
                   <Icon name="fryer" />
@@ -333,6 +338,7 @@ export function FryerLiveCard({
                   variant="secondary"
                   className="rc-fl-stop"
                   data-tone={finished ? undefined : 'danger'}
+                  icon={finished ? undefined : <Icon name="stop" />}
                   loading={busy === 'stop'}
                   disabled={busy !== null}
                   data-testid="recipes-fryer-stop"
