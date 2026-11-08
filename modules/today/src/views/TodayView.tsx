@@ -40,7 +40,7 @@ import { SunArc } from './SunArc.js';
 import { WeatherIcon } from './WeatherIcon.js';
 import { TodayHome } from './TodayHome.js';
 import { getTodayHomeApi } from '../data/home.js';
-import { useCooking } from '../data/cooking.js';
+import { needsRemoval, useCooking } from '../data/cooking.js';
 import { CookingCard } from './CookingCard.js';
 import { todayStyles } from './todayStyles.js';
 
@@ -217,7 +217,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const freshnessState = dataFreshness(data);
   const kioskPortrait = kiosk && portrait;
   const night = kiosk && scene.nightDim;
-  const summary = buildSummary(data, ranked);
+  // Meat waiting to come off the heat is not a „Klidný den“.
+  const summary = buildSummary(data, ranked, { suppressCalm: needsRemoval(cooking) });
   const model = buildDayRibbonModel(data);
   // Events already shown as a hero/card stay on the ribbon only as a marker (no duplicate label).
   const shownSignals = new Set([ranked.hero, ...ranked.cards].map((signal) => signal?.id));
@@ -368,7 +369,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
         ) : (
           <>
             {kiosk && cookingCard}
-            {!kioskCooking && (
+            {!kioskCooking && !!summary.sentence && (
               <p className="today-summary" data-testid="today-summary">
                 {summary.sentence}
               </p>

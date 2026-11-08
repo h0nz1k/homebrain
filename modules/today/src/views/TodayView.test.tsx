@@ -8,6 +8,7 @@ import { fixtureFor } from '../data/fixtures.js';
 import type { StateKey, TodayData } from '../data/types.js';
 import { createTodayAdapter, isKioskRoute, setTodayAdapterFactory } from './runtime.js';
 import TodayView from './TodayView.js';
+import { createMockCookingProbes, setCookingSourceFactory } from '../data/cooking.js';
 
 let width = 1440;
 let reduced = false;
@@ -40,6 +41,23 @@ afterEach(() => {
   document.getElementById('hb-topbar-slot')?.remove();
 });
 describe('TodayView', () => {
+  it('no „Klidný den“ while a probe waits to come off the heat', () => {
+    setCookingSourceFactory(() => ({
+      subscribe(on) {
+        on(createMockCookingProbes('2'));
+        return () => undefined;
+      },
+    }));
+    try {
+      const { container } = show('a');
+      expect(screen.getByTestId('today-cooking')).toBeTruthy();
+      expect(container.querySelector('.today-summary')?.textContent).toBe('Přebytek FVE 1,6 kW');
+      expect(container.textContent).not.toContain('Klidný den');
+    } finally {
+      setCookingSourceFactory(() => null);
+    }
+  });
+
   it('shows a calm hero and ribbon without an alert hero; station temperature appears once', () => {
     const { container } = show('a');
     expect(screen.getByTestId('today-clock')).toBeTruthy();

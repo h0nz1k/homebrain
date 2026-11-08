@@ -48,8 +48,10 @@ test.describe('Dnes – Maso v troubě', () => {
     await expect(probes.first()).toContainText('Sundat z tepla');
     await expect(probes.nth(1)).toContainText('Vepřová plec');
     await expect(probes.nth(1)).toContainText('Peče se');
-    await expect(probes.nth(1)).toContainText('za 12 min');
-    await expect(probes.nth(1)).toContainText(/Trouba 162\s°C/);
+    await expect(probes.nth(1).getByTestId('cooking-remaining')).toHaveText('Hotovo za 12 min');
+    await expect(probes.nth(1)).toContainText(/Trouba u sondy 162\s°C/);
+    // Meat waiting to come off the heat: no calm „Klidný den“ mood.
+    await expect(page.getByTestId('today-summary')).not.toContainText('Klidný');
     // Top of Dnes: above the clock/weather hero.
     const cardBox = (await card.boundingBox())!;
     const heroBox = (await page.getByTestId('today-hero').boundingBox())!;

@@ -43,9 +43,9 @@ describe('cooking copy', () => {
   });
 
   it('remaining time: minutes, hours, estimating, none after target', () => {
-    expect(remainingLabel(probe({ remaining_s: 740 }))).toBe('za 13 min');
-    expect(remainingLabel(probe({ remaining_s: 30 }))).toBe('za chvíli');
-    expect(remainingLabel(probe({ remaining_s: 3900 }))).toBe('za 1 h 05 min');
+    expect(remainingLabel(probe({ remaining_s: 740 }))).toBe('Hotovo za 13 min');
+    expect(remainingLabel(probe({ remaining_s: 30 }))).toBe('Hotovo za chvíli');
+    expect(remainingLabel(probe({ remaining_s: 3900 }))).toBe('Hotovo za 1 h 05 min');
     expect(remainingLabel(probe({ remaining_s: null }))).toBe('odhaduje se…');
     expect(remainingLabel(probe({ state: 'resting', remaining_s: 0 }))).toBeNull();
     expect(remainingLabel(probe({ state: 'ready', remaining_s: null }))).toBeNull();
@@ -72,8 +72,9 @@ describe('CookingCard', () => {
     expect(row.textContent).toContain('48');
     expect(row.textContent).toContain('cíl 63\u00a0°C');
     expect(row.textContent).toContain('Trouba 181\u00a0°C');
-    expect(row.textContent).toContain('za 13 min');
     expect(screen.getByTestId('cooking-state').textContent).toBe('Peče se');
+    // The countdown is its own prominent item, not glued to the state.
+    expect(screen.getByTestId('cooking-remaining').textContent).toBe('Hotovo za 13 min');
     expect(screen.getByRole('img', { name: /Propečení 77\s%/ })).toBeTruthy();
   });
 
@@ -93,6 +94,10 @@ describe('CookingCard', () => {
     expect(rows[0]!.textContent).toContain('!');
     expect(screen.getAllByTestId('cooking-state')[0]!.getAttribute('aria-live')).toBe('polite');
     expect(screen.getByTestId('today-cooking').getAttribute('data-count')).toBe('2');
+    // Several probes: the oven temperature is the one measured at that probe.
+    expect(screen.getAllByTestId('cooking-ambient')[1]!.textContent).toBe(
+      'Trouba u sondy 181\u00a0°C',
+    );
   });
 
   it('four probes fit as four columns (data-count drives the grid)', () => {

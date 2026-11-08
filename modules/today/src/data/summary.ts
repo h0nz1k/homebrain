@@ -25,7 +25,15 @@ export function summaryCandidates(data: TodayData, ranked: RankResult): RankedSi
     return !kind || !data.ribbon.some((item) => item.kind === kind);
   });
 }
-export function buildSummary(data: TodayData, ranked: RankResult) {
+/**
+ * `suppressCalm`: something needs action outside the signals (meat to take off the heat) —
+ * the calm mood („Klidný den/večer“) is dropped; an empty sentence hides the summary.
+ */
+export function buildSummary(
+  data: TodayData,
+  ranked: RankResult,
+  { suppressCalm = false }: { suppressCalm?: boolean } = {},
+) {
   const hour = localHourFraction(data.now, TIME_ZONE);
   const critical = ranked.all.some((s) => s.severity === 'critical');
   const warning = ranked.all.some((s) => s.severity === 'warning');
@@ -39,6 +47,13 @@ export function buildSummary(data: TodayData, ranked: RankResult) {
         ? 'Klidný večer'
         : 'Klidný den';
   const signal = summaryCandidates(data, ranked).find((s) => s.severity === 'info');
+  const calm = !critical && !warning;
+  if (calm && suppressCalm)
+    return {
+      sentence: signal?.title ?? '',
+      signalId: signal?.id,
+      footer: { hiddenCount: ranked.more },
+    };
   return {
     sentence: signal ? `${mood} · ${signal.title}` : mood,
     signalId: signal?.id,

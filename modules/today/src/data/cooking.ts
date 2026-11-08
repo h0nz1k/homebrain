@@ -58,15 +58,25 @@ export function cookTone(state: string): 'accent' | 'warn' | 'ok' | 'crit' {
   return 'accent';
 }
 
-/** „za 13 min“, „za 1 h 05 min“, „odhaduje se…“; `null` = nothing to count down. */
+/** „Hotovo za 13 min“, „Hotovo za 1 h 05 min“, „odhaduje se…“; `null` = nothing to count down. */
 export function remainingLabel(probe: Pick<CookingProbe, 'state' | 'remaining_s'>): string | null {
   if (AFTER_TARGET.has(probe.state) || probe.state === 'ready') return null;
   const s = probe.remaining_s;
   if (s === null || !Number.isFinite(s)) return 'odhaduje se…';
-  if (s < 60) return 'za chvíli';
+  if (s < 60) return 'Hotovo za chvíli';
   const min = Math.ceil(s / 60);
-  if (min < 60) return `za ${min} min`;
-  return `za ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+  if (min < 60) return `Hotovo za ${min} min`;
+  return `Hotovo za ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+}
+
+/** Oven temperature label; with several probes it is the oven „u sondy“ (each probe measures its own spot). */
+export function ambientLabel(value: number | null, probeCount: number): string {
+  return `${probeCount > 1 ? 'Trouba u sondy' : 'Trouba'} ${formatTemp(value)}`;
+}
+
+/** Any probe waiting to be taken off the heat (the calm „Klidný den“ mood must not show then). */
+export function needsRemoval(probes: Pick<CookingProbe, 'state'>[]): boolean {
+  return probes.some((probe) => probe.state === 'remove');
 }
 
 export function formatTemp(value: number | null): string {

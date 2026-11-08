@@ -307,10 +307,12 @@ export const todayStyles = `
 .today-cooking-name{font-size:15px;font-weight:600;color:var(--hb-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .today-cooking-temps{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}
 .today-cooking-internal{font-size:34px;line-height:1.15;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--hb-t1)}
-.today-cooking-target{font-size:14px;color:var(--hb-t2);white-space:nowrap}
+.today-cooking-target{font-size:16px;font-weight:500;color:var(--hb-t1);opacity:.9;white-space:nowrap}
 .today-cooking-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:14px;color:var(--hb-t2)}
 .today-cooking-meta>span{white-space:nowrap}
-.today-cooking-state{font-weight:600;color:var(--hb-t1)}
+.today-cooking-status{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;font-size:16px}
+.today-cooking-status>span{white-space:nowrap}
+.today-cooking-state,.today-cooking-remaining{font-weight:600;color:var(--hb-t1)}
 .today-cooking-probe[data-tone='warn'] .today-cooking-state{color:var(--hb-warn)}
 .today-cooking-probe[data-tone='ok'] .today-cooking-state{color:var(--hb-ok)}
 .today-cooking-probe[data-tone='crit'] .today-cooking-state{color:var(--hb-crit)}
@@ -324,9 +326,11 @@ export const todayStyles = `
 .today-kiosk .today-cooking-probe{gap:18px;padding:14px 18px 14px 14px}
 .today-kiosk .today-cooking-name{font-size:22px}
 .today-kiosk .today-cooking-internal{font-size:64px;line-height:1.15}
-.today-kiosk .today-cooking-target,.today-kiosk .today-cooking-meta{font-size:18px}
+.today-kiosk .today-cooking-meta{font-size:18px}
+.today-kiosk .today-cooking-target{font-size:24px}
 .today-kiosk .today-cooking-meta{gap:2px 14px}
-.today-kiosk .today-cooking-state{font-size:22px}
+.today-kiosk .today-cooking-status{font-size:22px;gap:2px 16px}
+.today-kiosk .today-cooking:is([data-count='1'],[data-count='2']) .today-cooking-state+.today-cooking-remaining::before{content:'·';margin-right:16px;color:var(--hb-t2)}
 .today-kiosk .today-cooking-probe[data-alert] .today-cooking-state{font-size:28px;line-height:1.15}
 .today-kiosk .today-cooking-probe:is([data-tone='warn'],[data-tone='crit'],[data-tone='ok']) .today-cooking-ring .hb-ring-c{font-size:34px}
 .today-kiosk .today-cooking-ring .hb-ring-c{font-size:18px}
@@ -334,9 +338,10 @@ export const todayStyles = `
 .today-kiosk .today-cooking[data-count='3'],.today-kiosk .today-cooking[data-count='4']{padding:12px 22px 14px;gap:8px}
 .today-kiosk .today-cooking[data-count='3'] .today-cooking-probe,.today-kiosk .today-cooking[data-count='4'] .today-cooking-probe{flex-direction:column;align-items:flex-start;gap:6px;padding:12px 16px}
 .today-kiosk .today-cooking[data-count='4'] .today-cooking-name{font-size:19px}
-.today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-state{font-size:18px}
+.today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-status{font-size:18px;gap:0 12px}
 .today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-probe[data-alert] .today-cooking-state{font-size:22px}
-.today-kiosk .today-cooking[data-count='4'] .today-cooking-target,.today-kiosk .today-cooking[data-count='4'] .today-cooking-meta{font-size:16px}
+.today-kiosk .today-cooking[data-count='4'] .today-cooking-meta{font-size:16px}
+.today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-target{font-size:19px}
 .today-kiosk.today-cooking-on .today-clock{font-size:96px}
 .today-kiosk.today-cooking-on .today-hero{min-height:110px}
 .today-kiosk.today-cooking-on .today-content{gap:8px;padding-top:16px;padding-bottom:14px}

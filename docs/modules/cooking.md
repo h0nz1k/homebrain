@@ -10,10 +10,13 @@ Pro každou **aktivní** sondu (běží v ní pečení nastavené v aplikaci MEA
 
 - název kusu masa z aplikace (jinak „Sonda N“),
 - velkou teplotu uvnitř → cílovou teplotu a prstenec propečení (vnitřní / cílová),
-- teplotu v troubě (okolní teplota sondy),
-- zbývající čas („za 12 min“, „za 1 h 05 min“, „odhaduje se…“ dokud ho aplikace počítá),
+- teplotu v troubě (okolní teplota sondy; při více sondách „Trouba u sondy 171 °C“),
+- zbývající čas samostatně a stejně výrazně jako stav („Hotovo za 12 min“, „Hotovo za 1 h 05 min“,
+  „odhaduje se…“ dokud ho aplikace počítá),
 - stav česky: Čeká na start · Peče se · **Sundat z tepla** · Odpočívá · Hotovo ·
   Mírně nedodělané · Mírně přepečené · Přepečené.
+
+Dokud některá sonda čeká na „Sundat z tepla“, Dnes nepíše klidnou náladu („Klidný den“).
 
 „Sundat z tepla“ je zvýrazněné (jantarový rámeček, jemný pulz; při omezeném pohybu
 a v noci bez pulzu) a řadí se jako první. Bez aktivního pečení se karta nezobrazí vůbec.

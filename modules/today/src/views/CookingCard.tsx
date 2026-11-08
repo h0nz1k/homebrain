@@ -1,5 +1,6 @@
 import { ProgressRing } from '@homebrain/ui';
 import {
+  ambientLabel,
   cookStateLabel,
   cookTone,
   formatTemp,
@@ -76,7 +77,7 @@ export function CookingCard({ probes, kiosk }: { probes: CookingProbe[]; kiosk: 
                   </strong>
                   <span className="today-cooking-target">cíl {formatTemp(probe.target)}</span>
                 </div>
-                <div className="today-cooking-meta">
+                <div className="today-cooking-status">
                   <span
                     className="today-cooking-state"
                     data-testid="cooking-state"
@@ -89,7 +90,11 @@ export function CookingCard({ probes, kiosk }: { probes: CookingProbe[]; kiosk: 
                       {remaining}
                     </span>
                   )}
-                  <span className="today-cooking-ambient">Trouba {formatTemp(probe.ambient)}</span>
+                </div>
+                <div className="today-cooking-meta">
+                  <span className="today-cooking-ambient" data-testid="cooking-ambient">
+                    {ambientLabel(probe.ambient, probes.length)}
+                  </span>
                 </div>
               </div>
             </li>
