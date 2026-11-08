@@ -129,6 +129,8 @@ jobs:
         with:
           fetch-depth: 0
       - run: bash scripts/ci/gitleaks.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # PR CI runs only touched specs on desktop + mobile; here: every spec on every project (incl. tablet).
   e2e-full:

@@ -50,6 +50,7 @@ jobs:
         run: bash scripts/ci/gitleaks.sh "$SCAN_RANGE"
         env:
           SCAN_RANGE: ${{ steps.gate.outputs.scan_range }}
+          GH_TOKEN: ${{ github.token }}
       - name: Reuse verified PR result
         if: steps.gate.outputs.reused == 'true'
         run: echo "Identical tree on identical base already passed CI on the PR; suite skipped."
