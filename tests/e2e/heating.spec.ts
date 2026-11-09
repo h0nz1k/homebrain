@@ -449,6 +449,14 @@ test.describe('Topení', () => {
       await page.setViewportSize({ width: w, height: h });
       await page.goto('/homebrain-topeni?topeni=heating&rooms=4');
       await expect(page.getByTestId('heating-land-dash')).toBeVisible({ timeout: 20_000 });
+      if (w >= 844 && h <= 450) {
+        await expect(page.getByTestId('heating-side-fish')).toBeVisible();
+        await expect(page.getByTestId('heating-side-fish')).toContainText('vzduch');
+      }
+      if (w >= 1100) {
+        await expect(page.getByTestId('heating-side-fish')).toBeVisible();
+        await expect(page.getByTestId('heating-side-pool')).toContainText('zpátečka');
+      }
       await expect(page.getByTestId('heating-land-house')).toBeVisible();
       await expect(page.getByTestId('heating-land-day-chart')).toBeVisible();
       await expect(page.getByTestId('heating-stat-outdoor')).toBeHidden();
@@ -483,6 +491,17 @@ test.describe('Topení', () => {
       await noSidewaysScroll(page);
     });
   }
+
+  test('Další okruhy: panely v kraji na šířku, skryté bez mapování', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=heating');
+    await expect(page.getByTestId('heating-side-fish')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('heating-side-fish')).toContainText('topí');
+    await page.goto('/homebrain-topeni?topeni=heating&extras=none');
+    await expect(page.getByTestId('heating-side-fish')).toHaveCount(0);
+    await expect(page.getByTestId('heating-side-solar')).toHaveCount(0);
+    await expect(page.getByTestId('heating-side-pool')).toHaveCount(0);
+  });
 
   test('Teď na šířku house: ΔT jen při běhu, půda viditelná', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });

@@ -92,10 +92,17 @@ KEYS: Final[dict[str, KeySpec]] = {
         for i in range(1, 5)
         for part, name in (("outdoor", "venku"), ("water", "voda"))
     },
-    # extras
+    # extras (side circuits – mapping lives outside the repo)
     "extras.solar_temp": _t("Solární kolektor"),
-    "extras.pool_temp": _t("Bazén"),
-    "extras.fish_temp": _t("Rybárna"),
+    "extras.solar_pump": _b("running", "Solár – čerpadlo"),
+    "extras.pool_temp": _t("Bazén – zpátečka"),
+    "extras.pool_heating_pump": _b("running", "Bazén – čerpadlo natápění"),
+    "extras.pool_filter_pump": _b("running", "Bazén – filtrace"),
+    "extras.fish_temp": _t("Rybárna – teplota vzduchu"),
+    "extras.fish_target": _t("Rybárna – žádaná teplota vzduchu"),
+    "extras.fish_hysteresis": _n("°C", None, "Rybárna – hystereze"),
+    "extras.fish_heating_on": _b(None, "Rybárna – vytápění zapnuto"),
+    "extras.fish_valve_open": _b("opening", "Rybárna – ventil topení otevřen"),
 }
 
 # Derived entities that are not read from the PLC (always present when Topení is set up).

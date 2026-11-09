@@ -42,6 +42,7 @@ import {
   type ChartSeries,
 } from './charts.js';
 import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js';
+import { SideCircuitsPortrait } from './SideCircuits.js';
 import { HeatingSchematic } from './Schematic.js';
 import { heatingStyles } from './styles.js';
 
@@ -187,10 +188,6 @@ function NowTab({
   const dhwMark =
     snap.dhw.target !== null ? Math.max(0, Math.min(1, (snap.dhw.target - 30) / 30)) : null;
   const faults = snap.faults.active.length;
-  const extras: Array<[string, number | null]> = [];
-  if (snap.extras.solar) extras.push(['Solár', snap.extras.solar.temp]);
-  if (snap.extras.pool) extras.push(['Bazén', snap.extras.pool.temp]);
-  if (snap.extras.fish) extras.push(['Rybárna', snap.extras.fish.temp]);
   const domain: [number, number] | null = day?.series[0]?.points.length
     ? [day.series[0].points[0]![0], day.series[0].points.at(-1)![0]]
     : null;
@@ -389,16 +386,7 @@ function NowTab({
           )}
         </Card>
       </div>
-      {extras.length > 0 && (
-        <div className="ht-extras ht-portrait-only" data-testid="heating-extras">
-          <span>Další okruhy · jen měření</span>
-          {extras.map(([name, temp]) => (
-            <Pill key={name}>
-              {name} {fmtT(temp)}
-            </Pill>
-          ))}
-        </div>
-      )}
+      <SideCircuitsPortrait snap={snap} />
     </div>
   );
 }

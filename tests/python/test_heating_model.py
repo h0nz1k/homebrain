@@ -11,6 +11,7 @@ from custom_components.homebrain.heating.client import parse_name, parse_page, p
 from custom_components.homebrain.heating.mapfile import MapError, parse_map
 from custom_components.homebrain.heating.model import (
     DayCounters,
+    Resolved,
     build_payload,
     compute_seasons,
     derive_activity,
@@ -278,6 +279,72 @@ def test_mixing_valve_contract(opening, expected):
                             stale=False, power_w=None)
     assert payload["house"]["mixing_valve_pct"] == expected
     assert expected is None or type(payload["house"]["mixing_valve_pct"]) is int
+
+
+def test_extras_side_circuits_null_when_unmapped():
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
+    payload = build_payload(
+        Resolved(), DayCounters(), source="ok", updated_at=now, now=now, stale=False
+    )
+    assert payload["extras"] == {"solar": None, "pool": None, "fish": None}
+
+
+def test_extras_side_circuits_mapped_and_partial():
+    res = Resolved()
+    res.mapped.add("extras.fish_temp")
+    res.mapped.add("extras.fish_target")
+    res.mapped.add("extras.fish_hysteresis")
+    res.mapped.add("extras.fish_heating_on")
+    res.mapped.add("extras.fish_valve_open")
+    res.mapped.add("extras.solar_temp")
+    res.mapped.add("extras.solar_pump")
+    res.mapped.add("extras.pool_temp")
+    res.values.update(
+        {
+            "extras.fish_temp": 7.94,
+            "extras.fish_target": 8.0,
+            "extras.fish_hysteresis": 0.2,
+            "extras.fish_heating_on": True,
+            "extras.fish_valve_open": True,
+            "extras.solar_temp": 12.1,
+            "extras.solar_pump": False,
+            "extras.pool_temp": 27.88,
+        }
+    )
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
+    payload = build_payload(
+        res, DayCounters(), source="ok", updated_at=now, now=now, stale=False
+    )
+    assert payload["extras"]["fish"] == {
+        "temp": 7.9,
+        "target": 8.0,
+        "hysteresis": 0.2,
+        "heating_on": True,
+        "valve_open": True,
+    }
+    assert payload["extras"]["solar"] == {"temp": 12.1, "pump": False}
+    assert payload["extras"]["pool"] == {
+        "temp": 27.9,
+        "heating_pump": None,
+        "filter_pump": None,
+    }
+
+
+def test_extras_fish_temp_only_backward_compatible():
+    res = Resolved()
+    res.mapped.add("extras.fish_temp")
+    res.values["extras.fish_temp"] = 11.2
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
+    payload = build_payload(
+        res, DayCounters(), source="ok", updated_at=now, now=now, stale=False
+    )
+    assert payload["extras"]["fish"] == {
+        "temp": 11.2,
+        "target": None,
+        "hysteresis": None,
+        "heating_on": None,
+        "valve_open": None,
+    }
 
 
 def test_mixing_valve_resolves_a_mapped_numeric_sensor():

@@ -11,6 +11,7 @@ import {
 import { curveAt, fmtDuration, fmtNum, fmtT, roomsModel } from '../model.js';
 import type { HeatingHistory, HeatingSnapshot, HistoryKey } from '../types.js';
 import { CurveChart, TimeChart } from './charts.js';
+import { SideCircuitsLandscape } from './SideCircuits.js';
 
 const SERIES: Record<HistoryKey, { label: string; color: string }> = {
   tank_bottom: { label: 'Nádrž dole', color: 'var(--ht-c-tank)' },
@@ -154,6 +155,7 @@ export function LandscapeDashboard({
 
   return (
     <aside className="ht-land-dash-inner">
+      <SideCircuitsLandscape snap={snap} />
       <Panel id="house" title="Dům">
         <ul className="ht-kv">
           <KvRow k="Referenční místnost" v={fmtT(h.ref_temp)} hide={h.ref_temp === null} />

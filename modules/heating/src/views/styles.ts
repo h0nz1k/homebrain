@@ -78,7 +78,21 @@ export const heatingStyles = `
 .ht-meter { position: relative; overflow: visible; }
 .ht-meter i { display: block; height: 100%; background: var(--ht-c-dhw); transform-origin: left; border-radius: 4px; }
 .ht-meter em { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--hb-t1); border-radius: 1px; }
-.ht-extras { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--hb-t2); }
+.ht-extras-compact { padding: 14px 16px; gap: 8px; }
+.ht-extras-compact .ht-ch h3 { font-size: 14px; }
+.ht-extras-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.ht-extras-lines li { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr); gap: 8px 12px; align-items: baseline; }
+.ht-extras-lines span { color: var(--hb-t2); }
+.ht-extras-lines b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ht-extras-lines em { color: var(--hb-t2); font-size: 12px; text-align: right; font-style: normal; }
+.ht-side-circuit .ht-side-sub { display: block; font-size: 12px; margin-top: 2px; }
+.ht-side-hero { display: flex; align-items: baseline; gap: 6px; }
+.ht-side-temp { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.ht-side-hold { font-size: 13px; margin: 0; }
+.ht-side-warn { font-size: 12px; color: var(--hb-warn); margin: 0; }
+.ht-fish-band { position: relative; height: 8px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.16)); margin-top: 6px; }
+.ht-fish-band-zone { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: color-mix(in srgb, var(--hb-ok) 35%, transparent); }
+.ht-fish-band-cursor { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--hb-t1); }
 
 /* Charts */
 .ht-legend { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--hb-t2); align-items: center; }

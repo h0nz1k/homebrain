@@ -86,10 +86,59 @@ const DEMO_ROOMS: HeatingRoom[] = [
   },
 ];
 
+export type HeatingExtrasMode = 'default' | 'none';
+
+function mockExtras(
+  scenario: HeatingScenario,
+  mode: HeatingExtrasMode,
+): HeatingSnapshot['extras'] {
+  if (mode === 'none' || scenario === 'unconfigured') {
+    return { solar: null, pool: null, fish: null };
+  }
+  const winterPool = {
+    temp: 27.9,
+    heating_pump: false,
+    filter_pump: false,
+  };
+  const solarWinter = { temp: 18.2, pump: scenario === 'heating' };
+  if (scenario === 'heating') {
+    return {
+      fish: {
+        temp: 7.9,
+        target: 8.0,
+        hysteresis: 0.2,
+        heating_on: true,
+        valve_open: true,
+      },
+      solar: solarWinter,
+      pool: winterPool,
+    };
+  }
+  if (scenario === 'idle') {
+    return {
+      fish: {
+        temp: 11.4,
+        target: 8.0,
+        hysteresis: 0.2,
+        heating_on: true,
+        valve_open: false,
+      },
+      solar: { temp: 12.6, pump: false },
+      pool: winterPool,
+    };
+  }
+  return {
+    fish: { temp: 9.8, target: 10.0, hysteresis: 0.2, heating_on: true, valve_open: true },
+    solar: solarWinter,
+    pool: winterPool,
+  };
+}
+
 export function buildMockSnapshot(
   scenario: HeatingScenario,
   rooms: number,
   now = Date.now(),
+  extrasMode: HeatingExtrasMode = 'default',
 ): HeatingSnapshot {
   const iso = (ms: number) => new Date(ms).toISOString();
   const running = scenario === 'heating' || scenario === 'dhw';
@@ -213,7 +262,7 @@ export function buildMockSnapshot(
         ],
       },
     ],
-    extras: { solar: { temp: 4.1 }, pool: null, fish: { temp: 13.4 } },
+    extras: mockExtras(scenario, extrasMode),
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
   };
   const tune: Record<
@@ -540,18 +589,24 @@ export function buildMockSeasons(now = Date.now()): HeatingSeason[] {
 }
 
 export function createMockHeatingApi(
-  opts: { scenario?: HeatingScenario; rooms?: number; now?: () => number } = {},
+  opts: {
+    scenario?: HeatingScenario;
+    rooms?: number;
+    now?: () => number;
+    extrasMode?: HeatingExtrasMode;
+  } = {},
 ): HeatingApi {
   const scenario =
     opts.scenario && HEATING_SCENARIOS.includes(opts.scenario) ? opts.scenario : 'heating';
   const now = opts.now ?? (() => Date.now());
   const rooms = opts.rooms ?? 4;
+  const extrasMode = opts.extrasMode ?? 'default';
   const delay = <R>(v: R) => new Promise<R>((resolve) => setTimeout(() => resolve(v), 60));
   return {
-    get: () => delay(buildMockSnapshot(scenario, rooms, now())),
+    get: () => delay(buildMockSnapshot(scenario, rooms, now(), extrasMode)),
     history: (range, keys) => {
       if (scenario === 'unconfigured') return delay(buildMockHistory(range, [], now()));
-      const snap = buildMockSnapshot(scenario, rooms, now());
+      const snap = buildMockSnapshot(scenario, rooms, now(), extrasMode);
       const since = snap.heat_pump.running_since;
       return delay(
         buildMockHistory(range, keys, now(), {
