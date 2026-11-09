@@ -141,9 +141,74 @@ async def _stats(hass: HomeAssistant, statistic_id: str) -> list[dict]:
         {statistic_id},
         "hour",
         None,
-        {"mean", "min", "max", "sum", "state"},
+        {"mean", "min", "max", "sum", "state", "change"},
     )
     return raw.get(statistic_id, [])
+
+
+COUNTER_AMOUNTS = {
+    "compressor_runtime_h": [0.25, 0.5, 0.0, 0.75, 0.25, 0.5],
+    "compressor_starts": [1, 2, 0, 3, 1, 2],
+    "energy_kwh": [1.5, 3.0, 0.0, 4.5, 1.5, 3.0],
+}
+
+
+def _counter_batches() -> list[list[dict]]:
+    return [
+        [
+            {
+                "key": key,
+                "start": int((HOUR0 + timedelta(hours=h)).timestamp() * 1000),
+                "sum": amounts[h],
+            }
+            for key, amounts in COUNTER_AMOUNTS.items()
+            for h in range(offset, offset + 2)
+        ]
+        for offset in (0, 2, 4)
+    ]
+
+
+async def test_import_history_consecutive_counter_batches(
+    recorder_mock, hass: HomeAssistant, tmp_path, hass_ws_client
+):
+    await _setup(hass, tmp_path)
+    client = await hass_ws_client(hass)
+    # No test-side recorder flushes or sleeps between requests or before reading.
+    for batch in _counter_batches():
+        msg = await _call(client, {"type": "homebrain/heating/import_history", "rows": batch})
+        assert msg["success"], msg
+        assert msg["result"]["imported"] == len(batch)
+
+    for key, amounts in COUNTER_AMOUNTS.items():
+        stats = await _stats(hass, f"sensor.heating_{key}")
+        assert len(stats) == len(amounts)
+        assert stats[-1]["sum"] == pytest.approx(sum(amounts))
+        previous = 0.0
+        for row, amount in zip(stats, amounts, strict=True):
+            assert row["change"] >= 0
+            change = row["sum"] - previous
+            assert change >= 0
+            assert change == pytest.approx(amount)
+            previous = row["sum"]
+
+
+async def test_import_history_counter_batch_reimport_idempotent(
+    recorder_mock, hass: HomeAssistant, tmp_path, hass_ws_client
+):
+    await _setup(hass, tmp_path)
+    client = await hass_ws_client(hass)
+    batches = _counter_batches()
+    for batch in batches:
+        msg = await _call(client, {"type": "homebrain/heating/import_history", "rows": batch})
+        assert msg["success"], msg
+    before = {key: await _stats(hass, f"sensor.heating_{key}") for key in COUNTER_AMOUNTS}
+
+    # Replay both the first batch (zero seed) and a middle batch with later rows present.
+    for batch in batches[:2]:
+        msg = await _call(client, {"type": "homebrain/heating/import_history", "rows": batch})
+        assert msg["success"], msg
+        for key in COUNTER_AMOUNTS:
+            assert await _stats(hass, f"sensor.heating_{key}") == before[key]
 
 
 async def test_import_history_idempotent_and_seasons(
