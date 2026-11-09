@@ -219,7 +219,7 @@ function Particles({
   if (speed <= 0) return null;
   const len = polylineLength(pts);
   const dur = particleDuration(len, speed);
-  const n = Math.max(2, Math.round(len / 70));
+  const n = Math.max(2, Math.round(len / 150));
   const name = `ht-k-${id}`;
   return (
     <g className="ht-particles" data-pipe={id} aria-hidden="true">
@@ -227,7 +227,7 @@ function Particles({
       {Array.from({ length: n }, (_, i) => (
         <circle
           key={i}
-          r={3.4}
+          r={2.3}
           fill={color}
           className="ht-p"
           style={{
@@ -355,7 +355,8 @@ export function HeatingSchematic({
   }, []);
   const L = LAYOUTS[variant];
   const hp = snap.heat_pump;
-  const brineColor = tempColor(hp.brine_out ?? hp.brine_in ?? 4);
+  // Collector colour indicates the circuit, never an unmeasured temperature.
+  const brineColor = 'var(--ht-c-out)';
   const hot = tempColor(hp.condenser_out ?? 45);
   const warm = tempColor(snap.house.supply_temp ?? 35);
   const dhwColor = 'var(--ht-c-dhw)';
@@ -445,20 +446,13 @@ export function HeatingSchematic({
           )}
           <g className="ht-comp" data-on={running ? '' : undefined}>
             <g transform={`translate(${L.comp[0]} ${L.comp[1]})`}>
-              <rect x={-22} y={-30} width={44} height={60} rx={20} className="ht-comp-shell" />
+              <rect x={-22} y={-30} width={44} height={60} rx={14} className="ht-comp-shell" />
               <path
                 d="M-10 -12 a10 10 0 1 1 0 12 M-6 -4 a5 5 0 1 1 0 8"
                 className="ht-comp-scroll"
               />
             </g>
           </g>
-          <path
-            className="ht-hx"
-            d={`M${L.hp.x + L.hp.w - 44} ${L.hp.y + 30} ${[0, 1, 2, 3]
-              .map(() => `h24 a6 6 0 0 1 0 12 h-24 a6 6 0 0 0 0 12`)
-              .slice(0, 3)
-              .join(' ')}`}
-          />
         </g>
         <Pipe
           id="charge"
@@ -551,9 +545,6 @@ export function HeatingSchematic({
       </svg>
       <Label layout={L} pos={L.labels.collector} testid="heating-sch-collector">
         <span className="ht-lbl-k">Zemní kolektor</span>
-        <b>
-          {fmtNum(hp.brine_in)} → {fmtNum(hp.brine_out)}&nbsp;°C
-        </b>
       </Label>
       <Label layout={L} pos={L.labels.hp} testid="heating-sch-hp">
         <span className="ht-lbl-k">Tepelné čerpadlo</span>
@@ -564,9 +555,6 @@ export function HeatingSchematic({
               ? 'předběh primáru'
               : 'stojí'}
         </b>
-        {state.compressor === 'on' && (
-          <span className="ht-lbl-s">výstup {fmtT(hp.condenser_out)}</span>
-        )}
       </Label>
       <Label layout={L} pos={L.labels.tank} testid="heating-sch-tank">
         <span className="ht-lbl-k">Nádrž</span>
