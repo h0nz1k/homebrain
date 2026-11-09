@@ -303,12 +303,15 @@ export const heatingStyles = `
 [data-theme='light'] .ht-c3-label.ht-c3-muted, [data-theme='light'] .ht-c3-muted { fill:#606b77; }
 .ht-run-meta b.ht-muted { color:var(--hb-t2); }
 .ht-c3-cabinet { fill:color-mix(in srgb, var(--hb-s2) 70%, #7b858f); stroke:#78828c; }
-.ht-c3-display, .ht-c3-cutaway { fill:#202a30; stroke:#77828c; }
-.ht-c3-display + .ht-c3-label { fill:#edf1f3; }
+.ht-c3-cutaway { fill:#202a30; stroke:#77828c; }
 .ht-c3-compressor { fill:#74808b; stroke:#a2abb3; }
-.ht-c3-running { fill:#f2a655; stroke:#ffd18b; filter:drop-shadow(0 0 4px #f78a41); }
 .ht-c3-led { fill:#879099; }
 .ht-c3-led-on { fill:#6aefac; filter:drop-shadow(0 0 2px #6aefac); }
+@keyframes ht-c3-comp-led { 0%,100%{opacity:1} 50%{opacity:.42} }
+.ht-c3-comp-led-on { fill:var(--hb-ok); filter:drop-shadow(0 0 3px color-mix(in srgb,var(--hb-ok) 55%,transparent)); }
+.ht-c3-comp-led-on[data-pulse] { animation:ht-c3-comp-led 2s ease-in-out infinite; }
+@media (prefers-reduced-motion:reduce){.ht-c3-comp-led-on[data-pulse]{animation:none}}
+.ht-c3-comp-led-off, .ht-c3-comp-led-unknown { fill:#879099; }
 .ht-c3-plates { stroke:#b7aa82; stroke-width:4; }
 .ht-c3-metal { fill:#89979d; stroke:#b4bec3; stroke-width:1; }
 .ht-c3-motor { fill:#586775; stroke:#a8b4be; }

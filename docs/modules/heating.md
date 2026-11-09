@@ -101,6 +101,32 @@ oldest-first and before live data for that period exists. The command waits for 
 writes before reading that seed and before acknowledging the import, so batches are safe
 back-to-back after each response, without sleeps or extra recorder flushes.
 
+## Vlastní logo TČ
+
+Na schématu v záložce **Teď** lze na přední panel jednotky TČ zobrazit logo výrobce (nikdy se
+neskládá do panelu ani do integrace).
+
+1. V Home Assistantu vytvořte složku `www/homebrain/heating/` (v konfiguraci typicky
+   `/config/www/homebrain/heating/`).
+2. Nahrajte soubory loga (SVG, PNG nebo WebP) – pouze **prosté názvy souborů** bez cest.
+3. Přidejte `manifest.json`:
+
+```json
+{
+  "schema": 1,
+  "logo": "hp-logo.svg",
+  "logoDark": "hp-logo-dark.svg"
+}
+```
+
+- `logo` – výchozí logo (světlý motiv nebo univerzální).
+- `logoDark` – volitelné logo pro tmavý motiv panelu; chybí-li, použije se `logo`.
+
+Panel načte manifest z URL `/local/homebrain/heating/manifest.json` (stejný mechanismus jako
+fotky robotů). Logo je vycentrované na přední straně TČ, max. cca 72 % šířky jednotky.
+Bez manifestu nebo při neplatném souboru zůstane popisek **TČ**. Stav kompresoru je jen
+malá LED na panelu (zelená pulzující při běhu, šedá při klidu).
+
 ## Not in phase 0
 
 Writes of any kind, rooms (`rooms: []` until room bindings exist), annotations (`[]`),

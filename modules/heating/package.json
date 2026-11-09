@@ -25,7 +25,8 @@
   },
   "dependencies": {
     "@homebrain/ha-client": "workspace:*",
-    "@homebrain/ui": "workspace:*"
+    "@homebrain/ui": "workspace:*",
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "react": "^19.0.0"

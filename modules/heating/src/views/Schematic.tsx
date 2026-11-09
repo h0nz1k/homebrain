@@ -1,7 +1,56 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { heatPumpDeltaT } from '../landscape.js';
-import { fmtNum, fmtT as formatTemperature, heroScene } from '../model.js';
+import {
+  HEATING_LOGO_ROOT,
+  useHeatingLogoManifest,
+  type HeatingLogoManifest,
+} from '../logo.js';
+import { fmtDuration, fmtNum, fmtT as formatTemperature, heroScene } from '../model.js';
 import type { HeatingSnapshot } from '../types.js';
+
+const HP_W = 66;
+const LOGO_W = HP_W * 0.72;
+
+function usePageTheme(): 'light' | 'dark' {
+  const read = (): 'light' | 'dark' => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    if (theme === 'light') return 'light';
+    if (theme === 'dark') return 'dark';
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
+  };
+  const [theme, setTheme] = useState(read);
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => setTheme(read());
+    const mo = new MutationObserver(update);
+    mo.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    if (typeof matchMedia !== 'undefined') {
+      const mq = matchMedia('(prefers-color-scheme: light)');
+      mq.addEventListener('change', update);
+      return () => {
+        mo.disconnect();
+        mq.removeEventListener('change', update);
+      };
+    }
+    return () => mo.disconnect();
+  }, []);
+  return theme;
+}
+
+function logoFile(manifest: HeatingLogoManifest, theme: 'light' | 'dark'): string {
+  return theme === 'dark' && manifest.logoDark ? manifest.logoDark : manifest.logo;
+}
+
+function compressorLabel(hp: HeatingSnapshot['heat_pump']): string {
+  if (hp.compressor_on === null) return 'Kompresor —';
+  const base = hp.compressor_on ? 'Kompresor běží' : 'Kompresor stojí';
+  if (hp.compressor_on && hp.running_since && Number.isFinite(Date.parse(hp.running_since))) {
+    return `${base} ${fmtDuration(Math.max(0, (Date.now() - Date.parse(hp.running_since)) / 60_000))}`;
+  }
+  return base;
+}
 
 const fmtT = (value: number | null, digits = 1) =>
   value === null ? '' : formatTemperature(value, digits);
@@ -165,6 +214,11 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const scene = heroScene(snap);
   const hp = snap.heat_pump;
   const dT = heatPumpDeltaT(snap);
+  const logoManifest = useHeatingLogoManifest();
+  const [logoFailed, setLogoFailed] = useState(false);
+  const pageTheme = usePageTheme();
+  const showLogo = logoManifest != null && !logoFailed;
+  const compHint = compressorLabel(hp);
   return (
     <div
       ref={root}
@@ -173,6 +227,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
       data-compressor={
         hp.compressor_on === true ? 'on' : hp.compressor_on === false ? 'off' : 'unknown'
       }
+      data-hp-logo={showLogo ? '' : undefined}
       data-scenario={scene.scenario}
     >
       <svg
@@ -200,11 +255,6 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           <linearGradient id={`${uid}-rim`} x1="0" y1="0" x2="0" y2="1">
             <stop stopColor="#858d99" />
             <stop offset="1" stopColor="#6b7280" />
-          </linearGradient>
-          <linearGradient id={`${uid}-compressor`}>
-            <stop stopColor="#b54428" />
-            <stop offset=".46" stopColor="#ffbf65" />
-            <stop offset="1" stopColor="#e56b32" />
           </linearGradient>
           <linearGradient id={`${uid}-chrome`}>
             <stop stopColor="#7b8991" />
@@ -350,12 +400,30 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               </Label>
             </g>
           )}
-          <g className="ht-c3-hp" data-floor="hp">
-            <rect x="8" y="243" width="66" height="118" rx="9" className="ht-c3-cabinet" />
+          <g
+            className="ht-c3-hp"
+            data-floor="hp"
+            role="img"
+            aria-label="Tepelné čerpadlo"
+          >
+            <rect x="8" y="243" width={HP_W} height="118" rx="9" className="ht-c3-cabinet" />
             <path d="M17 361V365M63 361V365" className="ht-c3-metal-pipe" />
-            <Label x={16} y={261}>
-              TČ
-            </Label>
+            {showLogo && logoManifest ? (
+              <image
+                data-testid="heating-sch-hp-logo"
+                href={`${HEATING_LOGO_ROOT}${logoFile(logoManifest, pageTheme)}`}
+                x={8 + (HP_W - LOGO_W) / 2}
+                y={258}
+                width={LOGO_W}
+                height={52}
+                preserveAspectRatio="xMidYMid meet"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <Label x={16} y={261} id="hp-mark">
+                TČ
+              </Label>
+            )}
             {hp.power_w !== null && hp.compressor_on === true && (
               <g className="ht-c3-land-only">
                 <Label x={48} y={261} id="hp-power">
@@ -370,30 +438,27 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 </Label>
               </g>
             )}
-            <rect x="12" y="271" width="57" height="41" rx="2" className="ht-c3-display" />
-            <Label x={21} y={288} id="compressor">
-              Komp.
-              <tspan x="27" dy="15">
-                {hp.compressor_on === null ? '' : hp.compressor_on ? 'běží' : 'stojí'}
-              </tspan>
-            </Label>
             <circle
-              cx="21"
-              cy="299"
-              r="3"
-              className={hp.compressor_on === true ? 'ht-c3-led-on' : 'ht-c3-led'}
-            />
+              data-testid="heating-sch-compressor-led"
+              cx={20}
+              cy={252}
+              r={4.5}
+              className={
+                hp.compressor_on === true
+                  ? 'ht-c3-comp-led-on'
+                  : hp.compressor_on === false
+                    ? 'ht-c3-comp-led-off'
+                    : 'ht-c3-comp-led-unknown'
+              }
+              data-pulse={hp.compressor_on === true ? '' : undefined}
+              role="img"
+              aria-label={compHint}
+            >
+              <title>{compHint}</title>
+            </circle>
             <rect x="16" y="320" width="49" height="29" rx="4" className="ht-c3-cutaway" />
             <path d="M22 326V345M57 326V345" className="ht-c3-plates" />
-            <rect
-              x="31"
-              y="324"
-              width="21"
-              height="24"
-              rx="8"
-              style={hp.compressor_on === true ? { fill: `url(#${uid}-compressor)` } : undefined}
-              className={`ht-c3-compressor${hp.compressor_on === true ? ' ht-c3-running' : ''}`}
-            />
+            <rect x="31" y="324" width="21" height="24" rx="8" className="ht-c3-compressor" />
           </g>
           <Valve x={88} y={174} diverter port={scene.port} />
           <Label x={10} y={122} id="valve">

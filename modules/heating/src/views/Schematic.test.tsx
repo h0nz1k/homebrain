@@ -85,4 +85,17 @@ describe('C3 measured state and routes', () => {
       expect(heroScene(snap).activePipes).toEqual([]);
     });
   }
+  it('compressor LED replaces the old status panel', () => {
+    const snap = buildMockSnapshot('heating', 0);
+    const { rerender } = render(<HeatingSchematic snap={snap} />);
+    const led = document.querySelector('[data-testid="heating-sch-compressor-led"]')!;
+    expect(led.classList.contains('ht-c3-comp-led-on')).toBe(true);
+    expect(document.querySelector('[data-label="compressor"]')).toBeNull();
+    expect(document.querySelector('.ht-c3-display')).toBeNull();
+    snap.heat_pump.compressor_on = false;
+    rerender(<HeatingSchematic snap={snap} />);
+    expect(document.querySelector('[data-testid="heating-sch-compressor-led"]')!.classList).toContain(
+      'ht-c3-comp-led-off',
+    );
+  });
 });

@@ -17,6 +17,37 @@ async function infiniteAnimations(page: Page) {
 }
 
 test.describe('Topení', () => {
+  test('Teď: logo z manifestu (dev), LED kompresoru a bez manifestu popisek TČ', async ({ page }) => {
+    await page.goto('/homebrain-topeni?topeni=heating');
+    const sch = page.getByTestId('heating-schematic');
+    await expect(sch).toHaveAttribute('data-hp-logo', '', { timeout: 20_000 });
+    await expect(sch.getByTestId('heating-sch-hp-logo')).toBeVisible();
+    const led = sch.getByTestId('heating-sch-compressor-led');
+    await expect(led).toHaveClass(/ht-c3-comp-led-on/);
+    const logoInside = await sch.evaluate((el) => {
+      const hp = el.querySelector('[data-floor="hp"]')!.getBoundingClientRect();
+      const img = el.querySelector('[data-testid="heating-sch-hp-logo"]')!.getBoundingClientRect();
+      return (
+        img.left >= hp.left - 1 &&
+        img.right <= hp.right + 1 &&
+        img.top >= hp.top - 1 &&
+        img.bottom <= hp.bottom + 1
+      );
+    });
+    expect(logoInside).toBe(true);
+
+    await page.route('**/local/homebrain/heating/manifest.json', (route) =>
+      route.fulfill({ status: 404, body: '' }),
+    );
+    await page.reload();
+    await expect(sch).not.toHaveAttribute('data-hp-logo', '', { timeout: 20_000 });
+    await expect(sch.getByTestId('heating-sch-hp-logo')).toHaveCount(0);
+    await expect(sch.getByTestId('heating-sch-hp-mark')).toHaveText('TČ');
+
+    await page.goto('/homebrain-topeni?topeni=idle');
+    await expect(sch.getByTestId('heating-sch-compressor-led')).toHaveClass(/ht-c3-comp-led-off/);
+  });
+
   test('Teď: věta, animované schéma se zemním kolektorem a čísla', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=heating');
@@ -325,11 +356,9 @@ test.describe('Topení', () => {
               if (!id || ['dhw', 'tank'].includes(id)) continue;
               const foreground = luminance(getComputedStyle(label).fill);
               const background = luminance(
-                id === 'compressor'
-                  ? '#202a30'
-                  : getComputedStyle(el).getPropertyValue(
-                      id === 'collector' ? '--ht-c3-soil' : '--ht-c3-room',
-                    ),
+                getComputedStyle(el).getPropertyValue(
+                  id === 'collector' ? '--ht-c3-soil' : '--ht-c3-room',
+                ),
               );
               if (
                 (Math.max(foreground, background) + 0.05) /
@@ -517,8 +546,9 @@ test.describe('Topení', () => {
                   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
                   let n: Node | null;
                   while ((n = walker.nextNode())) {
-                    if (!n.textContent?.trim()) continue;
-                    const owner = n.parentElement?.closest('svg') ? null : n.parentElement;
+                    const textNode = n;
+                    if (!textNode.textContent?.trim()) continue;
+                    const owner = textNode.parentElement?.closest('svg') ? null : textNode.parentElement;
                     if (!owner || !(owner as HTMLElement).getClientRects().length) continue;
                     if (
                       (owner as HTMLElement).closest(
@@ -534,13 +564,13 @@ test.describe('Topení', () => {
                       if (
                         rects.some(({ box: q, owner: o, text: t }) => {
                           if (owner === o || area(q, box) <= 24 || !overlap(q, box)) return false;
-                          overlapNote = `${t} ⨯ ${n.textContent?.trim().slice(0, 40)}`;
+                          overlapNote = `${t} ⨯ ${textNode.textContent?.trim().slice(0, 40)}`;
                           return true;
                         })
                       ) {
                         return { hit: true, note: overlapNote };
                       }
-                      rects.push({ box, owner, text: n.textContent?.trim().slice(0, 40) ?? '' });
+                      rects.push({ box, owner, text: textNode.textContent?.trim().slice(0, 40) ?? '' });
                     }
                   }
                   return { hit: false, note: overlapNote };
