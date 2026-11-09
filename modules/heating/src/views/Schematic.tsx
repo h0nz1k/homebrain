@@ -13,12 +13,16 @@ const ROUTES = [
   ['tank-return', 'M120 261H104Q96 261 96 269V311Q96 319 88 319H68', 'cold'],
   ['mixing-hot', 'M242 145H262Q270 145 270 153V177Q270 193 280 193H290', 'hot'],
   ['radiator-supply', 'M290 193H322Q330 193 330 201V289Q330 297 322 297H280', 'hot'],
-  ['radiator-return', 'M308 343V345Q308 353 300 353H262Q254 353 254 345V220', 'cold'],
+  [
+    'radiator-return',
+    'M308 343V345Q308 353 300 353H260Q252 353 252 345V228Q252 220 254 220',
+    'cold',
+  ],
   ['house-tank-return', 'M254 220V197Q254 189 246 189H242', 'cold'],
   ['mixing-bypass', 'M254 220H282Q290 220 290 212V193', 'cold'],
   [
     'collector',
-    'M54 358V433Q54 440 61 440H328A7 7 0 0 1 328 454H61A7 7 0 0 0 61 468H328A7 7 0 0 1 328 482H40Q33 482 33 475V358',
+    'M54 358V429Q54 436 61 436H324A7 7 0 0 1 324 450H61A7 7 0 0 0 61 464H324A7 7 0 0 1 324 478H40Q33 478 33 471V358',
     'ground',
   ],
 ] as const;
@@ -313,13 +317,19 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               className="ht-c3-rim"
             />
           </g>
-          {/* Potable cold water enters from the main below the tank, with a dip tube at the vessel bottom. */}
+          {/* A short back-wall floor main feeds the vessel dip tube, left of the lower tank card. */}
           <path
-            d="M228 386V232Q228 224 220 224H212Q205 224 205 217V200"
+            d="M220 364V355H138Q130 355 130 347V232Q130 224 138 224H158Q165 224 165 217V210"
             className="ht-c3-cold-inlet"
             data-pipe-id="cold-water"
           />
-          <Label x={150} y={388} id="cold-water">
+          <path
+            d="M210 352L216 358V352L210 358ZM213 352V348M210 348H216"
+            className="ht-c3-water-valve"
+          />
+          <path d="M216 364H224" className="ht-c3-water-valve" />
+          <rect x="137" y="331" width="78" height="16" rx="3" className="ht-c3-main-label-bg" />
+          <Label x={140} y={343} id="cold-water">
             studená voda
           </Label>
           {/* Standing hot water: deliberately static, not a simulated draw. */}
@@ -378,7 +388,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             → teplá voda
           </Label>
           <Pump x={96} y={293} on={snap.pumps.secondary} id="charge" />
-          <Label x={96} y={340} anchor="middle" id="charge" muted={snap.pumps.secondary !== true}>
+          <Label x={96} y={349} anchor="middle" id="charge" muted={snap.pumps.secondary !== true}>
             nabíjení
           </Label>
           <Label x={10} y={211} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
@@ -416,11 +426,11 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               <rect key={x} x={x} y="309" width="4" height="17" rx="1" className="ht-c3-fin" />
             ))}
           </g>
-          <Label x={312} y={338} id="house-pump" muted={snap.pumps.heating !== true}>
+          <Label x={250} y={382} anchor="end" id="house-pump" muted={snap.pumps.heating !== true}>
             topení
           </Label>
-          <Pump x={299} y={353} on={snap.pumps.heating} id="house" horizontal />
-          <path d="M299 362V365" className="ht-c3-pump-foot" data-floor="pump" />
+          <Pump x={252} y={350} on={snap.pumps.heating} id="house" />
+          <path d="M252 362V365" className="ht-c3-pump-foot" data-floor="pump" />
           <Label x={266} y={382} id="radiators">
             Radiátory
           </Label>

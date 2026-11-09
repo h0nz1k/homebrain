@@ -275,7 +275,6 @@ export const heatingStyles = `
 [data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; }
 [data-theme='light'] .ht-c3-vessel { stroke:#35434e; }
 .ht-c3-label[data-label='charge'], .ht-c3-label[data-label='hp-in'], .ht-c3-label[data-label='cold-water'], .ht-c3-label[data-label='house-pump'] { font-size:10px; }
-.ht-c3-label[data-label='house-pump'] { font-size:9px; }
 .ht-c3-dhw-value { font-size:15px; font-weight:500; }
 .ht-c3-unit { font-size:13px; }
 .ht-c3-dhw-unit { font-size:11px; }
@@ -301,6 +300,8 @@ export const heatingStyles = `
 .ht-c3-servo-mark { stroke:#b8d4ca; stroke-width:1.5; }
 .ht-c3-leader { fill:none; stroke:var(--hb-t2); stroke-width:.7; }
 .ht-c3-cold-inlet { fill:none; stroke:var(--ht-c3-cold); stroke-width:1.5; opacity:.7; }
+.ht-c3-main-label-bg { fill:var(--ht-c3-room); }
+.ht-c3-water-valve { fill:none; stroke:var(--ht-c3-cold); stroke-width:1; }
 .ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:.5; }
 [data-theme='light'] .ht-c3-draw { stroke:#ab3037; opacity:1; }
 .ht-c3-ceramic { fill:#d0d1c8; stroke:#858f8c; }

@@ -281,18 +281,30 @@ test.describe('Topení', () => {
           const cold = el.querySelector<SVGPathElement>('[data-pipe-id="cold-water"]')!;
           const end = cold.getPointAtLength(cold.getTotalLength());
           const screenEnd = new DOMPoint(end.x, end.y).matrixTransform(cold.getScreenCTM()!);
+          const vessel = el.querySelector<SVGGeometryElement>('[data-vessel]')!;
+          const vesselEnd = new DOMPoint(end.x, end.y).matrixTransform(
+            vessel.getCTM()!.inverse().multiply(cold.getCTM()!),
+          );
+          if (!vessel.isPointInFill(vesselEnd)) errors.push('dip tube outside rounded vessel');
           const tankCard = box('[data-tank-card]');
           for (let n = 0; n <= cold.getTotalLength(); n++) {
             const at = cold.getPointAtLength(n);
             const pt = new DOMPoint(at.x, at.y).matrixTransform(cold.getScreenCTM()!);
-            if (
-              pt.x >= tankCard.left - scale &&
-              pt.x <= tankCard.right + scale &&
-              pt.y >= tankCard.top - scale &&
-              pt.y <= tankCard.bottom + scale
-            )
-              errors.push('cold inlet crosses tank card');
+            const stroke = (Number.parseFloat(getComputedStyle(cold).strokeWidth) * scale) / 2;
+            const distance =
+              Math.hypot(
+                Math.max(tankCard.left - pt.x, 0, pt.x - tankCard.right),
+                Math.max(tankCard.top - pt.y, 0, pt.y - tankCard.bottom),
+              ) - stroke;
+            if (distance < 12 * scale) errors.push('cold inlet near tank card');
+            const scenePoint = local(cold, at.x, at.y);
+            if (!inside(scenePoint.x, scenePoint.y) || scenePoint.y > 415 - stroke / scale)
+              errors.push('cold main outside house or below floor');
           }
+          const main = cold.getPointAtLength(0);
+          const mainPoint = local(cold, main.x, main.y);
+          if (!inside(mainPoint.x, mainPoint.y) || mainPoint.y > 415)
+            errors.push('cold main end outside house or below floor');
           if (el.closest('[data-theme="light"]')) {
             const luminance = (color: string) => {
               const canvas = document.createElement('canvas').getContext('2d')!;
@@ -331,11 +343,23 @@ test.describe('Topení', () => {
             screenEnd.y >= inner.bottom
           )
             errors.push('cold inlet outside vessel');
-          const overlaps = (a: DOMRect, b: DOMRect) =>
-            Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
-            Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
-          if (overlaps(box('[data-pump="house"]'), box('.ht-c3-radiator rect')))
-            errors.push('pump over radiator');
+          const housePump = box('[data-pump="house"]');
+          const rectangleGap = (a: DOMRect, b: DOMRect) =>
+            Math.hypot(
+              Math.max(a.left - b.right, b.left - a.right, 0),
+              Math.max(a.top - b.bottom, b.top - a.bottom, 0),
+            );
+          for (const part of Array.from(el.querySelectorAll('.ht-c3-radiator > *'))) {
+            if (rectangleGap(housePump, part.getBoundingClientRect()) < 10 * scale)
+              errors.push('pump near radiator or leg');
+          }
+          if (
+            housePump.right >= box('.ht-c3-radiator').left ||
+            housePump.top <= box('.ht-c3-radiator rect').bottom
+          )
+            errors.push('pump must be below-left of radiator');
+          if (rectangleGap(housePump, box('[data-pipe-id="radiator-supply"]')) < 10 * scale)
+            errors.push('pump near red riser');
           // Sample actual strokes, including bent routes, rather than their empty bounding corners.
           for (const path of Array.from(
             el.querySelectorAll<SVGPathElement>(
@@ -360,8 +384,35 @@ test.describe('Topení', () => {
               }
             }
           }
+          // Small-label clearance includes the pipe stroke, in scene coordinates.
+          for (const id of ['charge', 'house-pump', 'cold-water']) {
+            const label = box(`[data-label="${id}"]`);
+            for (const path of Array.from(
+              el.querySelectorAll<SVGPathElement>('[data-pipe-id] path, path[data-pipe-id]'),
+            )) {
+              const stroke = (Number.parseFloat(getComputedStyle(path).strokeWidth) * scale) / 2;
+              for (let n = 0; n <= path.getTotalLength(); n++) {
+                const at = path.getPointAtLength(n);
+                const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
+                const gap =
+                  Math.hypot(
+                    Math.max(label.left - pt.x, 0, pt.x - label.right),
+                    Math.max(label.top - pt.y, 0, pt.y - label.bottom),
+                  ) - stroke;
+                if (gap < 6 * scale) errors.push(`small label near pipe: ${id}`);
+              }
+            }
+          }
           const grass = box('.ht-c3-grass');
           const collector = el.querySelector<SVGPathElement>('[data-pipe-id="collector"] path')!;
+          const collectorStroke = Number.parseFloat(getComputedStyle(collector).strokeWidth) / 2;
+          const collectorBounds = collector.getBBox();
+          const collectorBottom = local(collector, 0, collectorBounds.y + collectorBounds.height).y;
+          if (
+            344 - collectorBounds.x - collectorBounds.width - collectorStroke < 10 ||
+            542 - collectorBottom - collectorStroke < 10
+          )
+            errors.push('collector near scene edge');
           // First/last risers pass through the foundation; horizontal loops stay under grass.
           for (let n = 0; n <= 100; n++) {
             const at = collector.getPointAtLength((collector.getTotalLength() * n) / 100);
@@ -375,7 +426,7 @@ test.describe('Topení', () => {
             errors.push('tap/mixer gap');
           const floor = box('.ht-c3-floor');
           if (box('[data-label="hp-in"]').top - floor.bottom < 6) errors.push('floor label hp-in');
-          for (const id of ['charge'])
+          for (const id of ['charge', 'cold-water'])
             if (floor.top - box(`[data-label="${id}"]`).bottom < 6)
               errors.push(`floor label ${id}`);
           return [...new Set(errors)];
