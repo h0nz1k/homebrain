@@ -24,7 +24,6 @@ import {
   fmtSeasonEnergy,
   fmtT,
   roomsModel,
-  schematicState,
   seasonsModel,
 } from '../model.js';
 import type {
@@ -164,7 +163,22 @@ function NowTab({
   go: (t: TabId) => void;
 }) {
   const act = activityModel(snap, nowMs());
-  const st = schematicState(snap);
+  const copies: Partial<Record<HeatingSnapshot['activity'], readonly [string, string, string]>> = {
+    heating_tank: ['Právě nahříváme nádrž.', 'Teplo ze země ukládáme na později.', 'Ohřev nádrže'],
+    heating_dhw: [
+      'Dohříváme teplou vodu.',
+      'Ohříváme horní část zásoby pro TUV.',
+      'Ohřev teplé vody',
+    ],
+    house_circuit: [
+      'Dům čerpá teplo z nádrže.',
+      'Zásoba tepla právě zahřívá radiátory.',
+      'Vytápění domu',
+    ],
+    idle: ['Teplo je připravené.', 'Zásoba čeká na další potřebu tepla.', 'Klidový režim'],
+  };
+  const copy = copies[snap.activity];
+  const sceneCopy = snap.source === 'ok' && !snap.stale ? copy : undefined;
   const day = useHistory(api, 'day', DAY_KEYS);
   const rooms = roomsModel(snap);
   const hp = snap.heat_pump;
@@ -188,35 +202,56 @@ function NowTab({
         data-state={act.state}
       >
         <div className="ht-hero-copy">
+          <span className="ht-k">Zásoba tepla</span>
+          <Pill tone={act.tone} dot data-testid="heating-pill">
+            {sceneCopy?.[2] ?? act.pill}
+          </Pill>
           <h2 data-testid="heating-headline">
-            {act.headline[0]}
-            <b>{act.headline[1]}</b>
-            {act.headline[2]}
+            {sceneCopy?.[0] ?? (
+              <>
+                {act.headline[0]}
+                <b>{act.headline[1]}</b>
+                {act.headline[2]}
+              </>
+            )}
           </h2>
-          <p className="ht-hero-detail">{act.detail}</p>
-          <div className="ht-pills">
-            <Pill tone={act.tone} dot data-testid="heating-pill">
-              {act.pill}
-            </Pill>
-            {snap.mode.season && (
-              <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
-            )}
-            {snap.mode.hdo_low_tariff !== null && (
-              <Pill tone={snap.mode.hdo_low_tariff ? 'ok' : 'warn'} data-testid="heating-hdo">
-                {snap.mode.hdo_low_tariff ? 'Nízký tarif' : 'Vysoký tarif'}
-              </Pill>
-            )}
-          </div>
-          <p className="ht-big">
-            {fmtNum(snap.house.ref_temp)}
-            <small>°C</small>
-          </p>
-          <p className="ht-hero-sub">
-            doma (chodba – referenční místnost) · cíl{' '}
-            {fmtT(snap.house.ref_target_effective ?? snap.house.ref_target)}
+          <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+          <p className="ht-run-meta">
+            <span>
+              {hp.compressor_on === null
+                ? 'Kompresor —'
+                : hp.compressor_on
+                  ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (nowMs() - Date.parse(hp.running_since)) / 60_000))}` : ''}`
+                  : 'Kompresor stojí'}
+            </span>
+            <b className={hp.power_w === null ? 'ht-muted' : undefined}>
+              {hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`}
+            </b>
           </p>
         </div>
-        <HeatingSchematic snap={snap} state={st} />
+        <HeatingSchematic snap={snap} />
+        <div className="ht-c3-chips">
+          <Chip>
+            {snap.pumps.secondary === null
+              ? 'Nádrž · —'
+              : snap.pumps.secondary
+                ? snap.activity === 'heating_dhw'
+                  ? 'Teplá voda · ohřev'
+                  : 'Nádrž · běží'
+                : 'Nádrž · stojí'}
+          </Chip>
+          <Chip>
+            Topení · {snap.pumps.heating === null ? '—' : snap.pumps.heating ? 'běží' : 'stojí'}
+          </Chip>
+          {snap.mode.season && (
+            <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
+          )}
+          {snap.mode.hdo_low_tariff !== null && (
+            <Pill tone={snap.mode.hdo_low_tariff ? 'ok' : 'warn'} data-testid="heating-hdo">
+              {snap.mode.hdo_low_tariff ? 'Nízký tarif' : 'Vysoký tarif'}
+            </Pill>
+          )}
+        </div>
       </Card>
       <div className="ht-stats">
         <Stat

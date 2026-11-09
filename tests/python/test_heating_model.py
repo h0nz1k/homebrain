@@ -258,3 +258,36 @@ def test_compute_seasons_math():
     assert m["energy_kwh"] == pytest.approx(365.0) and m["energy_measured"] is True
     partial = compute_seasons(days[:100], today=start + timedelta(days=99), kwh_per_run_hour=None)
     assert partial[0]["partial"] is True and partial[0]["coverage"] == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("opening, expected", [(None, None), (72.4, 72), (99.8, 100), (0, 0)])
+def test_mixing_valve_contract(opening, expected):
+    from custom_components.homebrain.heating.keys import KEYS
+
+    spec = KEYS["house.mixing_valve_pct"]
+    assert spec.kind == "num"
+    assert spec.unit == "%"
+    assert spec.device_class is None
+    assert spec.label == "Směšovací ventil – otevření"
+    res = resolve(parse_map(EXAMPLE_MAP), _pages())
+    assert res.values.get("house.mixing_valve_pct") is None
+    if opening is not None:
+        res.values["house.mixing_valve_pct"] = opening
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
+    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now,
+                            stale=False, power_w=None)
+    assert payload["house"]["mixing_valve_pct"] == expected
+    assert expected is None or type(payload["house"]["mixing_valve_pct"]) is int
+
+
+def test_mixing_valve_resolves_a_mapped_numeric_sensor():
+    hmap = parse_map(EXAMPLE_MAP)
+    # Reuse a synthetic numeric fixture binding; no household mapping is stored here.
+    hmap.keys["house.mixing_valve_pct"] = hmap.keys["house.ref_temp"]
+    res = resolve(hmap, _pages())
+    assert res.values["house.mixing_valve_pct"] == pytest.approx(21.4)
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
+    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now,
+                            stale=False, power_w=None)
+    assert payload["house"]["mixing_valve_pct"] == 21
+    assert type(payload["house"]["mixing_valve_pct"]) is int

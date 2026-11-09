@@ -121,15 +121,16 @@ export function buildMockSnapshot(
       ref_target_effective: 22.5,
       hysteresis: 0.1,
       attic_temp: 19.6,
-      circuit_on: scenario === 'heating' || scenario === 'house',
-      supply_temp: scenario === 'heating' || scenario === 'house' ? 37.8 : 18.2,
+      circuit_on: scenario === 'house',
+      supply_temp: 37.8,
+      mixing_valve_pct: scenario === 'house' ? 72 : 100,
     },
     heat_pump: {
       compressor_on: running,
       running_since: running ? iso(now - (scenario === 'dhw' ? 14 : 27) * MIN) : null,
       power_w: running ? (scenario === 'dhw' ? 4900 : 4200) : 6,
-      condenser_out: running ? (scenario === 'dhw' ? 51.3 : 45.8) : 31.2,
-      return_temp: running ? 38.9 : 30.4,
+      condenser_out: running ? (scenario === 'dhw' ? 52.5 : 46.0) : 32.4,
+      return_temp: running ? (scenario === 'dhw' ? 43.2 : 41.8) : 29.7,
       brine_in: null,
       brine_out: null,
       primary_prerun: null,
@@ -144,20 +145,27 @@ export function buildMockSnapshot(
     },
     tank: {
       top: scenario === 'dhw' ? 42.6 : 48.4,
-      bottom: scenario === 'heating' ? 41.7 : scenario === 'idle' ? 44.9 : 39.8,
+      bottom:
+        scenario === 'heating'
+          ? 41.7
+          : scenario === 'dhw'
+            ? 42.4
+            : scenario === 'house'
+              ? 36.9
+              : 39.5,
       target: 41,
       hysteresis: 5,
       curve_target: 41,
     },
     dhw: {
-      temp: scenario === 'dhw' ? 42.6 : 48.4,
+      temp: scenario === 'dhw' ? 44.6 : scenario === 'heating' ? 46.2 : 48.4,
       target: 47,
       reheat_below: 43,
       valve_to_dhw: scenario === 'dhw',
     },
     outdoor: { temp: -1.8, min_today: -4.6, max_today: 2.9 },
     pumps: {
-      heating: scenario === 'heating' || scenario === 'house',
+      heating: scenario === 'house',
       secondary: running,
       circulation: null,
     },

@@ -51,7 +51,7 @@ new start. Gaps longer than 20 min (HA or PLC down) are not credited.
 ## Map keys
 
 `mode.{winter, auto_season, setback_active, main_switch, cooling, hdo_low_tariff}`,
-`house.{ref_temp, ref_target, ref_target_effective, hysteresis, attic_temp, circuit_on, supply_temp}`,
+`house.{ref_temp, ref_target, ref_target_effective, hysteresis, attic_temp, circuit_on, supply_temp, mixing_valve_pct}`,
 `heat_pump.{compressor_on, condenser_out, return_temp, brine_in, brine_out, primary_prerun,
 discharge_temp, discharge_bar, suction_temp, suction_bar, motohours, motominutes}`,
 `tank.{top, bottom, target, hysteresis, curve_target}`, `dhw.{temp, target, hysteresis, valve_to_dhw}`,
@@ -59,6 +59,8 @@ discharge_temp, discharge_bar, suction_temp, suction_bar, motohours, motominutes
 `faults.{fatal, compressor_block}`, `curve.p1_outdoor … curve.p4_water`,
 `extras.{solar_temp, pool_temp, fish_temp}`; plus the lists `faults:` (single fault lamps
 with a label) and `schedules:` (time programs). See the example file for the syntax.
+
+`house.mixing_valve_pct` is numeric percent (no device class), rounded to an integer in the payload; unmapped or unavailable → `null`. The private mapping is configured outside this repository.
 
 Derived payload values: `dhw.reheat_below = dhw.target − dhw.hysteresis`;
 `heat_pump.motohours = motohours + motominutes / 60`; `outdoor.min_today/max_today` from

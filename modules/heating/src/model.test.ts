@@ -48,7 +48,7 @@ describe('activityModel – plain Czech sentence', () => {
     expect(m.headline[1]).toBe('nahřívá nádrž');
     expect(text(m)).toContain('dole má 41,7\u00a0°C');
     expect(m.pill).toBe('Kompresor běží 27\u00a0min');
-    expect(text(m)).toContain('Do radiátorů teče 37,8\u00a0°C');
+    expect(text(m)).toContain('Okruh domu stojí');
   });
   it('DHW heating explains the 3-way valve', () => {
     const m = activityModel(snap('dhw'), NOW);
@@ -84,9 +84,9 @@ describe('schematicState', () => {
     expect(st.compressor).toBe('on');
     expect(st.brine).toBeGreaterThan(0.5);
     expect(st.charge).toBe(st.brine);
-    expect(st.house).toBeGreaterThan(0);
+    expect(st.house).toBe(0);
     expect(st.valve).toBe('tank');
-    expect(st.pumps).toMatchObject({ primary: true, charge: true, house: true });
+    expect(st.pumps).toMatchObject({ primary: true, charge: true, house: false });
     expect(st.backup).toBe('hidden');
     expect(st.hdo).toBe('low');
   });

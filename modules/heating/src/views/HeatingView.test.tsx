@@ -19,13 +19,13 @@ describe('HeatingView', () => {
   it('Teď: plain sentence + schematic with spinning pumps only while they run', async () => {
     mount('heating');
     await waitFor(() =>
-      expect(screen.getByTestId('heating-headline').textContent).toContain('nahřívá nádrž'),
+      expect(screen.getByTestId('heating-headline').textContent).toContain('nahříváme nádrž'),
     );
     const sch = screen.getByTestId('heating-schematic');
     expect(sch.dataset.compressor).toBe('on');
-    expect(sch.querySelector('[data-pump="primary"]')?.hasAttribute('data-on')).toBe(true);
+    expect(sch.querySelector('[data-pump="charge"]')?.hasAttribute('data-on')).toBe(true);
     expect(sch.querySelector('[data-pump="circulation"]')).toBeNull(); // not mapped (null)
-    expect(sch.querySelector('[data-pipe="brine"]')).not.toBeNull();
+    expect(sch.querySelector('[data-pipe-id="collector"]')).not.toBeNull();
     expect(screen.queryByTestId('heating-backup')).toBeNull();
     expect(screen.getByTestId('heating-sch-collector').textContent).toBe('Zemní kolektor');
     expect(screen.queryByText(/Chlazení/)).toBeNull();
@@ -37,7 +37,7 @@ describe('HeatingView', () => {
       expect(screen.getByTestId('heating-pill').textContent).toContain('Porucha'),
     );
     expect(screen.queryByTestId('heating-backup')).toBeNull();
-    expect(screen.getByTestId('heating-schematic').querySelector('[data-pipe]')).toBeNull();
+    expect(screen.getByTestId('heating-schematic').querySelector('[data-active]')).toBeNull();
   });
 
   it('Místnosti without bound sensors explains how to add them', async () => {

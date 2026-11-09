@@ -49,6 +49,7 @@ KEYS: Final[dict[str, KeySpec]] = {
     "house.hysteresis": _n("°C", None, "Hystereze místnosti"),
     "house.attic_temp": _t("Podkroví"),
     "house.circuit_on": _b("running", "Topný okruh domu"),
+    "house.mixing_valve_pct": _n("%", None, "Směšovací ventil – otevření"),
     "house.supply_temp": _t("Teplota do topného okruhu"),
     # heat pump
     "heat_pump.compressor_on": _b("running", "Kompresor"),

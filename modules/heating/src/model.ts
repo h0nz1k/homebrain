@@ -617,3 +617,42 @@ export const minutesOf = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 };
+
+/** C3 routing follows activity; device indicators always follow their own measured bits. */
+export function heroScene(snap: HeatingSnapshot) {
+  const scenario = ['heating_tank', 'heating_dhw', 'house_circuit'].includes(snap.activity)
+    ? snap.activity
+    : 'idle';
+  const charge = scenario === 'heating_tank' || scenario === 'heating_dhw';
+  const house = scenario === 'house_circuit';
+  const activePipes: string[] = [];
+  if (charge)
+    activePipes.push(
+      'compressor-outlet',
+      scenario === 'heating_dhw' ? 'dhw-inlet' : 'tank-inlet',
+      'tank-return',
+    );
+  if (house)
+    activePipes.push('mixing-hot', 'radiator-supply', 'radiator-return', 'house-tank-return');
+  if (
+    house &&
+    snap.pumps.heating === true &&
+    snap.house.mixing_valve_pct !== null &&
+    snap.house.mixing_valve_pct < 100
+  )
+    activePipes.push('mixing-bypass');
+  if (snap.heat_pump.compressor_on === true) activePipes.push('collector');
+  return {
+    scenario,
+    activePipes,
+    port:
+      snap.dhw.valve_to_dhw === null
+        ? null
+        : snap.dhw.valve_to_dhw
+          ? ('dhw' as const)
+          : ('tank' as const),
+    hpMuted: snap.heat_pump.compressor_on !== true,
+    supplyMuted: snap.pumps.heating !== true || snap.house.supply_temp === null,
+    mixingPct: snap.pumps.heating === true ? snap.house.mixing_valve_pct : null,
+  };
+}

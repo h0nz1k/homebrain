@@ -54,6 +54,7 @@ export interface HeatingSnapshot {
     attic_temp: T;
     circuit_on: B;
     supply_temp: T;
+    mixing_valve_pct: T;
   };
   heat_pump: {
     compressor_on: B;
