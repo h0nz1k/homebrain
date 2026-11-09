@@ -13,8 +13,10 @@ from heating_fake_plc import PASSWORD, USER, FakePlc, write_map
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from yarl import URL
 
 from custom_components.homebrain.const import DOMAIN
 from custom_components.homebrain.heating import poller as poller_mod
@@ -238,3 +240,23 @@ async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"url": ""})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert "heating" not in entry.options
+
+
+async def test_entry_unload_keeps_shared_session_open(hass: HomeAssistant, plc, tmp_path, caplog):
+    session = async_get_clientsession(hass)
+    connector = session.connector
+    entry = _entry(plc, write_map(tmp_path / "map.yaml"))
+    poller = await _setup(hass, entry)
+    await poller.async_poll_once()
+    owned_session = poller._session  # noqa: SLF001 - verify session ownership
+    assert owned_session is not session
+    assert owned_session.cookie_jar.filter_cookies(URL(plc.url))
+    assert not session.cookie_jar.filter_cookies(URL(plc.url))
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert not session.closed
+    assert connector is not None and not connector.closed
+    assert owned_session.closed
+    assert not plc.sessions
+    assert "closes the Home Assistant aiohttp session" not in caplog.text
+    await poller.async_stop()  # repeated cleanup is harmless

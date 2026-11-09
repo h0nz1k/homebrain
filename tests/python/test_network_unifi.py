@@ -20,9 +20,11 @@ from aiohttp.test_utils import TestServer
 from homeassistant import data_entry_flow
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from test_network import NOW, install
+from yarl import URL
 
 from custom_components.homebrain.const import DOMAIN
 from custom_components.homebrain.network import rules
@@ -504,7 +506,9 @@ async def test_validate_and_poller_with_ha_session(hass: HomeAssistant, socket_e
     await server.start_server()
     try:
         cfg = UnifiConfig(str(server.make_url("")).rstrip("/"), "default", "homebrain", SECRET)
+        session = async_get_clientsession(hass)
         assert await async_validate_unifi(hass, cfg) == {"readonly": False, "devices": 4}
+        assert not session.closed
         poller = UnifiPoller(hass, cfg)
         await poller.async_start()
         for _ in range(50):
@@ -513,5 +517,46 @@ async def test_validate_and_poller_with_ha_session(hass: HomeAssistant, socket_e
             await asyncio.sleep(0.05)
         assert poller.status()["status"] == "ok" and poller.status()["readonly"] is False
         await poller.async_stop()
+    finally:
+        await server.close()
+
+
+async def test_entry_unload_keeps_shared_session_open(hass: HomeAssistant, socket_enabled, caplog):
+    session = async_get_clientsession(hass)
+    connector = session.connector
+    server = TestServer(_controller(True, role="admin"))
+    await server.start_server()
+    try:
+        url = str(server.make_url("")).rstrip("/")
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            options={
+                "network_unifi": {
+                    "source": "manual",
+                    "url": url,
+                    "username": "homebrain",
+                    "password": SECRET,
+                    "site": "default",
+                }
+            },
+        )
+        entry.add_to_hass(hass)
+        with patch.object(UnifiPoller, "_run"):
+            assert await async_setup_component(hass, DOMAIN, {})
+            await hass.async_block_till_done()
+        poller = hass.data[DOMAIN]["network_unifi"]
+        await poller.async_poll_once()
+        assert poller.status()["status"] == "ok"
+        owned_session = poller._session  # noqa: SLF001 - verify session ownership
+        assert owned_session is not session
+        assert owned_session.cookie_jar.filter_cookies(URL(url))
+        assert not session.cookie_jar.filter_cookies(URL(url))
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert not session.closed
+        assert connector is not None and not connector.closed
+        assert owned_session.closed
+        assert "closes the Home Assistant aiohttp session" not in caplog.text
+        await poller.async_stop()  # repeated cleanup is harmless
     finally:
         await server.close()
