@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { demoVectorMap } from '../map/demo.js';
+import { demoVectorMap, narrowRoomMap } from '../map/demo.js';
 import { rasterRect, frameFor, type VectorMap } from '../map/geometry.js';
 import { VectorFloorPlan, dockPose } from './VectorMap.js';
 
@@ -187,4 +187,19 @@ it('dockPose snaps the charger to the nearest wall and faces into the room', () 
   expect(pose.angle).toBeCloseTo(0);
   expect(pose.robot[0]).toBeGreaterThan(pose.station[0]);
   expect(pose.robot[1]).toBeCloseTo(30);
+});
+
+it('keeps every narrow-room fill and label, with a neutral fallback for unknown names', async () => {
+  const result = narrowRoomMap();
+  if (!result.available) throw new Error('fixture');
+  await mount(result.map, 'dark', { tone: 'idle', selected: [2] });
+  for (const room of result.map.rooms) {
+    expect(screen.getByTestId(`robots-map-room-${room.id}`)).toBeTruthy();
+    const label = document.querySelector(`[data-rv-label="${room.id}"]`)!;
+    expect(label.textContent).toContain(rooms.find((r) => r.id === room.id)!.name);
+    expect(label.hasAttribute('data-hidden')).toBe(false);
+  }
+  cleanup();
+  await mount({ ...result.map, rooms: [{ ...result.map.rooms[1]!, id: 99 }] });
+  expect(document.querySelector('[data-rv-label="99"]')!.textContent).toBe('Místnost');
 });

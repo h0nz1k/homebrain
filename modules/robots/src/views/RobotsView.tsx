@@ -118,6 +118,8 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
   );
   useEffect(() => {
     load(false);
+    const timer = setInterval(() => load(false), 30 * 60_000);
+    return () => clearInterval(timer);
   }, [load]);
   // Defaults + named presets per robot (HA storage); empty until loaded or on old backends.
   const [presets, setPresets] = useState<PresetsBySlot>({});
@@ -302,7 +304,7 @@ function RobotPanel({
       ? guide
       : { ...guide, reset: findResetButton(part, robot.vacuum, hasEntity) };
   };
-  const selected = pruneOrder(order, robot.rooms);
+
   const [vectorOn] = useState(vectorMapEnabled);
   const [fullTrail, setFullTrail] = useState(readTrailPref);
   const vector = useVectorMap(
@@ -314,6 +316,29 @@ function RobotPanel({
   );
   const canAct = !!connection && robot.available;
   const vmap = vector?.available ? vector.map : null;
+  const rooms = useMemo(() => {
+    if (!vmap) return robot.rooms;
+    const names = new Map(robot.rooms.map((room) => [room.id, room.name]));
+    return vmap.rooms.map((room) => ({ id: room.id, name: names.get(room.id) || 'Místnost' }));
+  }, [vmap, robot.rooms]);
+  const selected = pruneOrder(order, rooms);
+  const roomRefresh = useRef('');
+  useEffect(() => {
+    if (!vmap) return;
+    const ids = vmap.rooms
+      .map((room) => room.id)
+      .sort((a, b) => a - b)
+      .join(',');
+    const cached = robot.rooms
+      .map((room) => room.id)
+      .sort((a, b) => a - b)
+      .join(',');
+    // One refresh per observed partition, even if the vendor still returns stale names.
+    if (ids !== cached && roomRefresh.current !== ids) {
+      roomRefresh.current = ids;
+      onReloadRooms();
+    }
+  }, [vmap, robot.rooms, onReloadRooms]);
   const areas = new Map((vmap?.rooms ?? []).map((room) => [room.id, Math.round(room.area_m2)]));
   const roomsLabel = czCount(selected.length, 'místnost', 'místnosti', 'místností');
   const selectedArea = selected.reduce((sum, id) => sum + (areas.get(id) ?? 0), 0);
@@ -325,7 +350,7 @@ function RobotPanel({
   // the hero and the marker never disagree (the HA room sensor lags behind).
   const poseRoom = vmap?.robot ? roomAt(vmap, vmap.robot.x, vmap.robot.y) : null;
   const liveRoom = vmap?.robot
-    ? (robot.rooms.find((room) => room.id === poseRoom)?.name ?? null)
+    ? (rooms.find((room) => room.id === poseRoom)?.name ?? null)
     : robot.room;
   const chipsRef = useRef<HTMLDivElement>(null);
   const lastPicked = selected[selected.length - 1];
@@ -366,7 +391,7 @@ function RobotPanel({
       row.removeEventListener('scroll', update);
       observer?.disconnect();
     };
-  }, [robot.slot, robot.rooms.length]);
+  }, [robot.slot, rooms.length]);
   // A quarter-turn rotation swaps the drawn width and height (portrait ↔ landscape).
   const quarter = robot.rotation === 90 || robot.rotation === 270;
   const mapW = vmap ? vmap.bounds[2] - vmap.bounds[0] : 0;
@@ -727,8 +752,8 @@ function RobotPanel({
                     <>
                       {' · '}
                       {statusWithBattery(robot.status.label, robot.battery)}
-                      {robot.rooms.length
-                        ? ` · ${czCount(robot.rooms.length, 'místnost', 'místnosti', 'místností')}`
+                      {rooms.length
+                        ? ` · ${czCount(rooms.length, 'místnost', 'místnosti', 'místností')}`
                         : ''}
                     </>
                   )}
@@ -832,7 +857,7 @@ function RobotPanel({
                   <VectorMapBoundary resetKey={vector.map.digest} fallback={imageMap}>
                     <VectorFloorPlan
                       map={vector.map}
-                      rooms={robot.rooms}
+                      rooms={rooms}
                       selected={selected}
                       onToggle={(id) => setOrder(toggleRoom(selected, id))}
                       tone={markerTone(robot.status.tone)}
@@ -854,14 +879,14 @@ function RobotPanel({
                 )}
               </div>
               <div className="rb-clean-side">
-                {robot.rooms.length ? (
+                {rooms.length ? (
                   <div
                     ref={chipsRef}
                     className="rb-chips"
                     role="group"
                     aria-label="Místnosti v pořadí úklidu"
                   >
-                    {robot.rooms.map((room) => {
+                    {rooms.map((room) => {
                       const badge = orderBadge(selected, room.id);
                       return (
                         <Chip
@@ -1017,7 +1042,7 @@ function RobotPanel({
                         },
                         plan: planCleanRooms({
                           vacuum: robot.vacuum,
-                          rooms: selected.map((id) => robot.rooms.find((room) => room.id === id)!),
+                          rooms: selected.map((id) => rooms.find((room) => room.id === id)!),
                           mode,
                           currentMode: robot.mode,
                           modeSelect: robot.modeSelect,

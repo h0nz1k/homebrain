@@ -665,3 +665,26 @@ async def test_private_map_api_missing_degrades_gracefully(hass, component, reas
     with patch.object(map_source, "lib_version", return_value="7.12.0"):
         result = await VectorMapCache(hass).async_get("image.map")
     assert result == {"available": False, "reason": reason}
+
+
+def test_narrow_room_survives_vectorization():
+    """Synthetic 1.1 × 2 m room between a 34 m² hall and a 15 m² room."""
+    grid = []
+    for y in range(100):
+        middle = "B" * 22 if 30 <= y < 70 else "." * 22
+        grid.append("A" * 136 + middle + "C" * 60)
+    vector = build_vector_map(make_blob(grid, LEGEND))
+    rooms = {room["id"]: room for room in vector["rooms"]}
+    assert set(rooms) == {16, 17, 18}
+    assert rooms[17]["area_m2"] == 2.2
+    assert rooms[17]["polygons"]
+    assert (
+        abs(
+            ring_area(
+                list(
+                    zip(rooms[17]["polygons"][0][0::2], rooms[17]["polygons"][0][1::2], strict=True)
+                )
+            )
+        )
+        > 1_500_000
+    )

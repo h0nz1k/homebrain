@@ -18,4 +18,4 @@ export * from './model.js';
 export * from './demo.js';
 export * from './map/geometry.js';
 export * from './map/motion.js';
-export { demoVectorMap, type DemoScene } from './map/demo.js';
+export { demoVectorMap, narrowRoomMap, type DemoScene } from './map/demo.js';

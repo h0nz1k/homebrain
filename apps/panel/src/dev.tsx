@@ -68,6 +68,7 @@ import {
   createSchedulesDemo,
   createRobotsDemo,
   demoVectorMap,
+  narrowRoomMap,
   type DemoScene,
   type RobotsScenario,
 } from '@homebrain/module-robots';
@@ -635,19 +636,24 @@ demoHass.connection = createMockConnection({
   // Invented vector plans; robot 1 advances one step per `?mapapoll` tick, robot 3 = PNG fallback.
   // `window.__HB_ROBOT_MAP__` (set by a local shot script) renders a locally parsed plan.
   'homebrain/robots/map': (message: unknown) =>
-    new URLSearchParams(location.search).get('vektor') === 'chyba'
-      ? { available: false, reason: 'parse_failed' }
-      : (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__
-        ? { available: true, map: (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__ }
-        : demoVectorMap(
-            Number((message as { slot?: number }).slot),
-            // `?drahaod=<0–1>`: start there at page load (wrap-free e2e, #38), else wall clock.
-            routeStart === null ? Date.now() : Date.now() - pageLoadedAt,
-            Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
-            // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
-            new URLSearchParams(location.search).get('scena') as DemoScene | null,
-            routeStart,
-          ),
+    new URLSearchParams(location.search).get('mistnost') === 'uzka'
+      ? narrowRoomMap()
+      : new URLSearchParams(location.search).get('vektor') === 'chyba'
+        ? { available: false, reason: 'parse_failed' }
+        : (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__
+          ? {
+              available: true,
+              map: (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__,
+            }
+          : demoVectorMap(
+              Number((message as { slot?: number }).slot),
+              // `?drahaod=<0–1>`: start there at page load (wrap-free e2e, #38), else wall clock.
+              routeStart === null ? Date.now() : Date.now() - pageLoadedAt,
+              Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
+              // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
+              new URLSearchParams(location.search).get('scena') as DemoScene | null,
+              routeStart,
+            ),
   // Raster base layers of the demo plans (scripts/build_robot_demo_rasters.py); a local shot
   // script may inject its own via `window.__HB_ROBOT_RASTER__ = { light, dark }` (data URLs).
   'auth/sign_path': (message: unknown) => {
