@@ -204,7 +204,7 @@ export function LandscapeDashboard({
         )}
       </Panel>
 
-      <Panel id="store" title="Zásoba tepla">
+      <Panel id="store" title="Nádrž">
         <TankGauge snap={snap} />
       </Panel>
 

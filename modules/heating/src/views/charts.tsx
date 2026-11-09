@@ -435,22 +435,19 @@ export function CurveChart({
             </b>
           </span>
         )}
-        {!compact &&
-          ys.map((t) => (
-            <span key={t} className="ht-ylab" style={{ top: pct(fy(t)) }}>
-              {fmtNum(t, 0)}°
-            </span>
-          ))}
+        {ys.map((t) => (
+          <span key={t} className="ht-ylab" style={{ top: pct(fy(t)) }}>
+            {fmtNum(t, 0)}°
+          </span>
+        ))}
       </div>
-      {!compact && (
-        <div className="ht-xlabs" aria-hidden="true">
-          {xs.map((t) => (
-            <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
-              {fmtNum(t, 0)}&nbsp;°C
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="ht-xlabs" aria-hidden="true">
+        {xs.map((t) => (
+          <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
+            {fmtNum(t, 0)}&nbsp;°C
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

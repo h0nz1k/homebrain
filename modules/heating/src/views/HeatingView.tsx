@@ -192,6 +192,16 @@ function NowTab({
     ? [day.series[0].points[0]![0], day.series[0].points.at(-1)![0]]
     : null;
   const tick = nowMs();
+  const compressorLine =
+    hp.compressor_on === null
+      ? 'Kompresor —'
+      : hp.compressor_on
+        ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (tick - Date.parse(hp.running_since)) / 60_000))}` : ''}`
+        : 'Kompresor stojí';
+  const powerLine = hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`;
+  const landHeadline =
+    sceneCopy?.[0] ??
+    `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
   return (
     <div className="ht-now">
       <Card
@@ -201,39 +211,42 @@ function NowTab({
         data-state={act.state}
       >
         <div className="ht-now-hero-grid">
-          <div className="ht-now-scene">
-            <div className="ht-hero-copy">
-              <span className="ht-k">Zásoba tepla</span>
-              <Pill tone={act.tone} dot data-testid="heating-pill">
-                {sceneCopy?.[2] ?? act.pill}
-              </Pill>
-              <h2 data-testid="heating-headline">
-                {sceneCopy?.[0] ?? (
-                  <>
-                    {act.headline[0]}
-                    <b>{act.headline[1]}</b>
-                    {act.headline[2]}
-                  </>
-                )}
-              </h2>
-              <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
-              <p className="ht-run-meta">
-                <span>
-                  {hp.compressor_on === null
-                    ? 'Kompresor —'
-                    : hp.compressor_on
-                      ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (tick - Date.parse(hp.running_since)) / 60_000))}` : ''}`
-                      : 'Kompresor stojí'}
-                </span>
-                <b className={hp.power_w === null ? 'ht-muted' : undefined}>
-                  {hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`}
-                </b>
-              </p>
-            </div>
-            <div className="ht-now-schematic">
-              <HeatingSchematic snap={snap} />
-              <LandscapePumpChips snap={snap} />
-            </div>
+          <header className="ht-land-strip ht-land-only" data-testid="heating-land-strip">
+            <Pill tone={act.tone} dot>
+              {sceneCopy?.[2] ?? act.pill}
+            </Pill>
+            <p className="ht-land-strip-head">{landHeadline}</p>
+            <p className="ht-land-strip-meta">
+              <span>{compressorLine}</span>
+              <span className="ht-land-strip-sep" aria-hidden="true">
+                ·
+              </span>
+              <b className={hp.power_w === null ? 'ht-muted' : undefined}>příkon {powerLine}</b>
+            </p>
+          </header>
+          <div className="ht-hero-copy ht-portrait-hero-copy">
+            <span className="ht-k">Zásoba tepla</span>
+            <Pill tone={act.tone} dot data-testid="heating-pill">
+              {sceneCopy?.[2] ?? act.pill}
+            </Pill>
+            <h2 data-testid="heating-headline">
+              {sceneCopy?.[0] ?? (
+                <>
+                  {act.headline[0]}
+                  <b>{act.headline[1]}</b>
+                  {act.headline[2]}
+                </>
+              )}
+            </h2>
+            <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+            <p className="ht-run-meta">
+              <span>{compressorLine}</span>
+              <b className={hp.power_w === null ? 'ht-muted' : undefined}>{powerLine}</b>
+            </p>
+          </div>
+          <div className="ht-now-schematic">
+            <HeatingSchematic snap={snap} />
+            <LandscapePumpChips snap={snap} />
           </div>
           <aside className="ht-land-dash" data-testid="heating-land-dash">
             <LandscapeDashboard

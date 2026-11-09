@@ -18,6 +18,7 @@ async function infiniteAnimations(page: Page) {
 
 test.describe('Topení', () => {
   test('Teď: věta, animované schéma se zemním kolektorem a čísla', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=heating');
     await expect(page.getByTestId('heating-headline')).toContainText('nahříváme nádrž', {
       timeout: 20_000,
@@ -444,11 +445,13 @@ test.describe('Topení', () => {
     [844, 390, 'telefon na šířku 844×390'],
     [1280, 800, 'tablet 1280×800'],
     [1440, 900, 'desktop 1440×900'],
+    [1920, 1080, 'wide 1920×1080'],
   ] as const) {
     test(`Teď ${label}: bohatý dashboard bez přesahu`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await page.goto('/homebrain-topeni?topeni=heating&rooms=4');
       await expect(page.getByTestId('heating-land-dash')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('heating-land-strip')).toBeVisible();
       if (w >= 844 && h <= 450) {
         await expect(page.getByTestId('heating-side-fish')).toBeVisible();
         await expect(page.getByTestId('heating-side-fish')).toContainText('vzduch');
@@ -461,32 +464,128 @@ test.describe('Topení', () => {
       await expect(page.getByTestId('heating-land-day-chart')).toBeVisible();
       await expect(page.getByTestId('heating-stat-outdoor')).toBeHidden();
       await expect(page.getByTestId('heating-day')).toBeHidden();
-      const layout = await page.evaluate(() => {
-        const doc = document.documentElement;
-        const sch = document.querySelector('[data-testid="heating-schematic"]')!.getBoundingClientRect();
-        const dash = document.querySelector('[data-testid="heating-land-dash"]')!.getBoundingClientRect();
-        const rects: DOMRect[] = [];
-        document.querySelectorAll('.ht-land-panel').forEach((p) => rects.push(p.getBoundingClientRect()));
-        const overlap = (a: DOMRect, b: DOMRect) =>
-          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
-          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
-        const panelOverlap = rects.some((a, i) =>
-          rects.some((b, j) => i < j && overlap(a, b) && Math.abs(a.top - b.top) < Math.min(a.height, b.height) * 0.8),
-        );
-        return {
-          hScroll: doc.scrollWidth - doc.clientWidth,
-          schH: sch.height,
-          schInView: sch.top >= 0 && sch.bottom <= doc.clientHeight + 2,
-          dashInView: dash.right <= doc.clientWidth + 1,
-          panelOverlap,
-        };
-      });
+      await expect(page.getByTestId('heating-land-store')).toContainText('Nádrž');
+
+      const layout = await page.evaluate(
+        ({ vw, vh }) => {
+          const doc = document.documentElement;
+          const main = document.querySelector('[data-testid="heating-view"]')!;
+          const mainBox = main.getBoundingClientRect();
+          const strip = document.querySelector('[data-testid="heating-land-strip"]')!.getBoundingClientRect();
+          const sch = document.querySelector('[data-testid="heating-schematic"]')!.getBoundingClientRect();
+          const dash = document.querySelector('[data-testid="heating-land-dash"]')!.getBoundingClientRect();
+          const panels = Array.from(document.querySelectorAll('.ht-land-panel')).map((p) =>
+            p.getBoundingClientRect(),
+          );
+          const overlap = (a: DOMRect, b: DOMRect) =>
+            Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+            Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+          const panelOverlap = panels.some((a, i) =>
+            panels.some(
+              (b, j) =>
+                i < j && overlap(a, b) && Math.abs(a.top - b.top) < Math.min(a.height, b.height) * 0.8,
+            ),
+          );
+          const panelHitsStrip = panels.some((p) => overlap(p, strip));
+          const panelHitsSchematic = panels.some((p) => overlap(p, sch));
+          const coverLeft = Math.min(sch.left, ...panels.map((p) => p.left));
+          const coverRight = Math.max(sch.right, ...panels.map((p) => p.right));
+          const coverPct = (coverRight - coverLeft) / mainBox.width;
+          const schSvg = document.querySelector('[data-testid="heating-schematic"] svg')!;
+          const svgBox = schSvg.getBoundingClientRect();
+          const textMins =
+            vh <= 450
+              ? Array.from(schSvg.querySelectorAll('text')).map((t) => {
+                  const r = document.createRange();
+                  r.selectNodeContents(t);
+                  return Math.min(...Array.from(r.getClientRects()).map((x) => x.height));
+                })
+              : [];
+          const textOverlapResult =
+            vh <= 450
+              ? { hit: false, note: '' }
+              : (() => {
+                  const root = main.querySelector('.ht-now');
+                  if (!root) return { hit: false, note: '' };
+                  const area = (a: DOMRect, b: DOMRect) => {
+                    const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+                    const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+                    return w > 0 && h > 0 ? w * h : 0;
+                  };
+                  let overlapNote = '';
+                  const rects: { box: DOMRect; owner: ParentNode | null; text: string }[] = [];
+                  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                  let n: Node | null;
+                  while ((n = walker.nextNode())) {
+                    if (!n.textContent?.trim()) continue;
+                    const owner = n.parentElement?.closest('svg') ? null : n.parentElement;
+                    if (!owner || !(owner as HTMLElement).getClientRects().length) continue;
+                    if (
+                      (owner as HTMLElement).closest(
+                        '.ht-portrait-hero-copy, .ht-chart-wrap, [hidden], [aria-hidden="true"]',
+                      )
+                    ) {
+                      continue;
+                    }
+                    const r = document.createRange();
+                    r.selectNodeContents(n);
+                    for (const box of Array.from(r.getClientRects())) {
+                      if (box.width < 1 || box.height < 1) continue;
+                      if (
+                        rects.some(({ box: q, owner: o, text: t }) => {
+                          if (owner === o || area(q, box) <= 24 || !overlap(q, box)) return false;
+                          overlapNote = `${t} ⨯ ${n.textContent?.trim().slice(0, 40)}`;
+                          return true;
+                        })
+                      ) {
+                        return { hit: true, note: overlapNote };
+                      }
+                      rects.push({ box, owner, text: n.textContent?.trim().slice(0, 40) ?? '' });
+                    }
+                  }
+                  return { hit: false, note: overlapNote };
+                })();
+          const allPanelsInView =
+            vh >= 1000 ? panels.every((p) => p.bottom <= vh + 1) : true;
+          return {
+            hScroll: doc.scrollWidth - doc.clientWidth,
+            schW: svgBox.width,
+            schH: svgBox.height,
+            schInView:
+              sch.top >= -1 &&
+              sch.left >= -1 &&
+              sch.right <= vw + 1 &&
+              sch.bottom <= vh + 2,
+            dashInView: dash.right <= vw + 1,
+            panelOverlap,
+            panelHitsStrip,
+            panelHitsSchematic,
+            coverPct,
+            textMins,
+            textOverlaps: textOverlapResult.hit,
+            overlapNote: textOverlapResult.note,
+            allPanelsInView,
+          };
+        },
+        { vw: w, vh: h },
+      );
+
       expect(layout.hScroll).toBeLessThanOrEqual(0);
       expect(layout.dashInView).toBe(true);
       expect(layout.panelOverlap).toBe(false);
-      if (h >= 800) {
+      expect(layout.panelHitsStrip).toBe(false);
+      expect(layout.panelHitsSchematic).toBe(false);
+      expect(layout.textOverlaps, layout.overlapNote || '').toBe(false);
+
+      if (h <= 450) {
+        expect(layout.schW).toBeGreaterThanOrEqual(w * 0.45);
+        expect(Math.min(...layout.textMins)).toBeGreaterThanOrEqual(9);
+      } else {
+        expect(layout.schW).toBeGreaterThanOrEqual(w * 0.3);
+        expect(layout.schH).toBeGreaterThanOrEqual(h * 0.55);
         expect(layout.schInView).toBe(true);
-        expect(layout.schH).toBeGreaterThan(320);
+        expect(layout.coverPct).toBeGreaterThanOrEqual(0.85);
+        if (h >= 1000) expect(layout.allPanelsInView).toBe(true);
       }
       await noSidewaysScroll(page);
     });
@@ -497,6 +596,7 @@ test.describe('Topení', () => {
     await page.goto('/homebrain-topeni?topeni=heating');
     await expect(page.getByTestId('heating-side-fish')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('heating-side-fish')).toContainText('topí');
+    await expect(page.getByTestId('heating-side-solar')).toContainText('stojí');
     await page.goto('/homebrain-topeni?topeni=heating&extras=none');
     await expect(page.getByTestId('heating-side-fish')).toHaveCount(0);
     await expect(page.getByTestId('heating-side-solar')).toHaveCount(0);

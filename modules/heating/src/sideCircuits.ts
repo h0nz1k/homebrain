@@ -24,6 +24,15 @@ export function fishHeatChip(
   if (heating_on === false) {
     return { label: 'vytápění vypnuto', tone: below ? 'warn' : 'neutral', belowTarget: below };
   }
+  if (
+    valve_open !== true &&
+    temp !== null &&
+    target !== null &&
+    hysteresis !== null &&
+    Math.abs(temp - target) <= hysteresis
+  ) {
+    return { label: 'v toleranci', tone: 'ok', belowTarget: below };
+  }
   if (valve_open === true) {
     return { label: 'topí', tone: warn, belowTarget: below };
   }

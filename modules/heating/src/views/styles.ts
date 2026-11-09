@@ -85,10 +85,13 @@ export const heatingStyles = `
 .ht-extras-lines span { color: var(--hb-t2); }
 .ht-extras-lines b { font-variant-numeric: tabular-nums; font-weight: 600; }
 .ht-extras-lines em { color: var(--hb-t2); font-size: 12px; text-align: right; font-style: normal; }
-.ht-side-circuit .ht-side-sub { display: block; font-size: 12px; margin-top: 2px; }
-.ht-side-hero { display: flex; align-items: baseline; gap: 6px; }
-.ht-side-temp { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
-.ht-side-hold { font-size: 13px; margin: 0; }
+.ht-side-circuit .ht-side-sub { display: block; font-size: 12px; margin-top: 2px; line-height: 1.35; }
+.ht-land-panel.ht-side-circuit { gap: 10px; }
+.ht-land-panel.ht-side-circuit .ht-ch { margin-bottom: 4px; align-items: flex-start; }
+.ht-land-panel.ht-side-circuit .ht-side-hero { margin-top: 2px; }
+.ht-side-hero { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; line-height: 1.15; }
+.ht-side-temp { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.ht-side-hold { font-size: 13px; margin: 8px 0 0; line-height: 1.35; }
 .ht-side-warn { font-size: 12px; color: var(--hb-warn); margin: 0; }
 .ht-fish-band { position: relative; height: 8px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.16)); margin-top: 6px; }
 .ht-fish-band-zone { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: color-mix(in srgb, var(--hb-ok) 35%, transparent); }
@@ -342,17 +345,31 @@ export const heatingStyles = `
 }
 
 /* Landscape dashboard – portrait first; enriched layout when wide enough. */
+.ht-land-only { display: none; }
 .ht-c3-land-only { display: none; }
 .ht-land-dash { display: none; }
 .ht-land-pump-chips { display: none; }
 .ht-land-rooms-only { display: none; }
-.ht-land-panel { padding: 12px 14px; gap: 8px; flex: none; }
+.ht-land-panel { padding: 12px 14px; gap: 8px; flex: none; min-width: 0; }
 .ht-land-panel .ht-ch h3 { font-size: 13px; }
 .ht-land-panel .ht-kv { font-size: 13px; }
 .ht-land-panel .ht-kv li { padding: 6px 0; }
-.ht-land-dash-inner { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.ht-chart-compact { padding-left: 0; }
-.ht-chart-compact .ht-chart-wrap { gap: 0; }
+.ht-land-panel .ht-muted,
+.ht-land-panel .ht-side-sub,
+.ht-land-panel .ht-side-hold { font-size: 13px; color: var(--hb-t2); }
+.ht-land-dash-inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px 12px;
+  align-content: start;
+  min-width: 0;
+  width: 100%;
+}
+.ht-chart-compact { padding-left: 28px; }
+.ht-chart-compact .ht-chart-wrap { gap: 2px; }
+.ht-chart-compact .ht-ylab { font-size: 11px; left: -28px; }
+.ht-chart-compact .ht-xlabs { height: 14px; }
+.ht-chart-compact .ht-xlabs span { font-size: 11px; }
 .ht-curve-target { stroke: var(--ht-c-top); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; opacity: .85; }
 .ht-tank-gauge { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: stretch; }
 .ht-tank-gauge-bar { position: relative; width: 100%; min-height: 120px; border-radius: 8px; overflow: hidden; background: var(--hb-fill, rgba(127,127,127,.15)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); }
@@ -364,66 +381,94 @@ export const heatingStyles = `
 .ht-tank-gauge-hint { font-size: 12px; grid-column: 1 / -1; margin: 0; }
 .ht-land-curve { margin-top: 4px; }
 .ht-land-rooms-link { margin-top: 4px; }
-.ht-now-scene { display: contents; }
 .ht-now-schematic { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
 .ht-now-hero-grid { display: contents; }
 .ht-hero-now { align-items: stretch; }
+.ht-land-strip {
+  display: none;
+  align-items: center;
+  gap: 10px 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  padding-bottom: 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent);
+}
+.ht-land-strip-head {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+.ht-land-strip-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--hb-t2);
+  white-space: nowrap;
+  justify-self: end;
+}
+.ht-land-strip-meta b { color: var(--hb-t1); font-weight: 500; }
+.ht-land-strip-sep { color: var(--hb-t2); opacity: .75; }
 
 @media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) {
+  .ht-land-only { display: block; }
+  .ht-land-strip.ht-land-only { display: grid; }
+  .ht-portrait-hero-copy { display: none !important; }
   .ht-land-dash {
-    display: flex;
-    flex-direction: column;
+    display: block;
     min-width: 0;
-    max-height: calc(100vh - 120px);
-    max-height: calc(100dvh - 120px);
-    overflow: hidden;
-  }
-  .ht-land-dash-inner {
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    padding-right: 2px;
+    overflow: visible;
+    max-height: none;
   }
   .ht-land-pump-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
   .ht-c3-land-only { display: block; }
   .ht-portrait-only { display: none !important; }
   .ht-land-rooms-only { display: grid; grid-template-columns: 1fr; }
+  .ht-hero.ht-hero-now {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    max-width: none;
+  }
   .ht-now-hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(240px, 38vw, 420px);
-    gap: 14px 18px;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'strip strip'
+      'schem panels';
+    gap: 12px 16px;
     align-items: stretch;
     width: 100%;
     min-height: 0;
+    flex: 1 1 auto;
   }
-  .ht-now-scene {
-    display: grid;
-    grid-template-columns: minmax(140px, 0.95fr) minmax(0, 1.2fr);
-    grid-template-rows: 1fr;
-    gap: 8px 14px;
-    align-items: stretch;
-    min-width: 0;
-    min-height: min(calc(100dvh - 120px), 720px);
-  }
-  .ht-hero-copy { grid-column: 1; grid-row: 1 / -1; align-self: start; max-height: 100%; overflow: hidden; }
+  .ht-land-strip { grid-area: strip; }
   .ht-now-schematic {
-    grid-column: 2;
-    grid-row: 1;
+    grid-area: schem;
     align-self: stretch;
-    justify-content: center;
-    min-height: 280px;
-    height: 100%;
-    max-height: calc(100dvh - 120px);
+    justify-self: start;
+    justify-content: flex-start;
+    width: min(58vw, 520px);
+    height: min(calc(100dvh - 11rem), calc(100dvh - 168px));
+    min-height: 240px;
   }
+  .ht-land-dash { grid-area: panels; align-self: stretch; }
   .ht-now-schematic .ht-c3 {
     width: 100%;
-    max-width: min(100%, 520px);
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     height: 100%;
-    min-height: 280px;
+    min-height: 0;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
   }
   .ht-now-schematic .ht-c3 > svg {
@@ -433,24 +478,56 @@ export const heatingStyles = `
     max-height: 100%;
     display: block;
   }
-  .ht-hero-now { padding: 14px 16px; gap: 10px; }
-  .ht-hero-now .ht-hero-copy .ht-hero-detail { font-size: 13px; max-width: 36ch; }
-  .ht-hero-now .ht-hero h2 { font-size: clamp(18px, 2.4vw, 26px); }
   .ht-c3-chips { display: none; }
-  .ht { max-width: 1920px; }
+  .ht { max-width: min(100%, 1920px); width: 100%; }
 }
 
-@media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) and (max-height: 480px) {
-  .ht-now-hero-grid { grid-template-columns: minmax(0, 1.05fr) minmax(200px, 44vw); gap: 10px; }
-  .ht-now-scene { grid-template-columns: minmax(120px, 0.85fr) minmax(0, 1.15fr); }
-  .ht-hero-now .ht-hero-copy .ht-hero-detail { display: none; }
-  .ht-hero-now .ht-hero-copy .ht-run-meta { font-size: 12px; }
+@media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) and (max-height: 599px) {
   .ht-land-panel { padding: 10px 12px; }
+  .ht-land-dash-inner { grid-template-columns: 1fr; }
+  .ht-now-schematic {
+    width: min(58vw, 520px);
+    height: auto;
+    min-height: 200px;
+    max-height: none;
+  }
 }
 
-@media (orientation: landscape) and (min-width: 1100px) and (min-height: 700px) {
-  .ht-now-hero-grid { grid-template-columns: minmax(0, 1.15fr) clamp(280px, 32vw, 440px); }
-  .ht-now-scene { grid-template-columns: minmax(200px, 0.75fr) minmax(0, 1.35fr); }
-  .ht-hero-copy { padding-top: 4px; }
+@media (orientation: landscape) and (min-width: 1000px) and (min-height: 600px) {
+  .ht-now-schematic {
+    --ht-scene-h: min(calc(100dvh - 10.5rem), calc(100dvh - 148px));
+    width: min(calc(var(--ht-scene-h) * 344 / 542), calc(100% - 320px));
+    height: var(--ht-scene-h);
+    min-height: 360px;
+  }
+  .ht-land-dash-inner { gap: 10px 14px; }
+}
+
+@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
+  .ht-now-schematic {
+    width: min(calc(var(--ht-scene-h) * 344 / 542), 46vw);
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1800px) and (min-height: 600px) {
+  .ht-now-schematic {
+    width: max(30vw, min(calc(var(--ht-scene-h) * 344 / 542), 50vw));
+    min-width: 30vw;
+  }
+  .ht-now-schematic .ht-c3 > svg {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1000px) and (min-height: 600px) and (max-height: 820px) {
+  .ht-land-panel { padding: 10px 12px; gap: 6px; }
+  .ht-land-panel .ht-kv li { padding: 4px 0; }
+  .ht-tank-gauge-bar { min-height: 96px; }
+}
+
+@media (orientation: landscape) and (min-width: 900px) and (min-height: 340px) {
+  .ht-hero:has(.ht-c3) .ht-c3 { max-width: none; }
 }
 `;

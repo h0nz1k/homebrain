@@ -345,11 +345,8 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           </Label>
           {snap.tank.top !== null && (
             <g className="ht-c3-land-only">
-              <Label x={181} y={68} anchor="middle" id="tank-top" muted={false}>
-                nahoře
-                <tspan x="181" dy="14">
-                  {fmtT(snap.tank.top)}
-                </tspan>
+              <Label x={181} y={60} anchor="middle" id="tank-top" muted={false}>
+                nahoře {fmtT(snap.tank.top)}
               </Label>
             </g>
           )}

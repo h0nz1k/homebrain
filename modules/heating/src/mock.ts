@@ -91,6 +91,7 @@ export type HeatingExtrasMode = 'default' | 'none';
 function mockExtras(
   scenario: HeatingScenario,
   mode: HeatingExtrasMode,
+  tankBottom: number | null = null,
 ): HeatingSnapshot['extras'] {
   if (mode === 'none' || scenario === 'unconfigured') {
     return { solar: null, pool: null, fish: null };
@@ -100,7 +101,14 @@ function mockExtras(
     heating_pump: false,
     filter_pump: false,
   };
-  const solarWinter = { temp: 18.2, pump: scenario === 'heating' };
+  const collectorWinter = 4;
+  const solarWinter = {
+    temp: scenario === 'heating' || scenario === 'house' ? collectorWinter : 12.6,
+    pump:
+      tankBottom !== null && collectorWinter >= tankBottom
+        ? scenario === 'heating' || scenario === 'house'
+        : false,
+  };
   if (scenario === 'heating') {
     return {
       fish: {
@@ -262,7 +270,19 @@ export function buildMockSnapshot(
         ],
       },
     ],
-    extras: mockExtras(scenario, extrasMode),
+    extras: mockExtras(
+      scenario,
+      extrasMode,
+      scenario === 'heating'
+        ? 41.7
+        : scenario === 'dhw'
+          ? 42.4
+          : scenario === 'house'
+            ? 36.9
+            : scenario === 'idle'
+              ? 39.5
+              : null,
+    ),
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
   };
   const tune: Record<

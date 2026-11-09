@@ -30,4 +30,10 @@ describe('fish heat chip', () => {
     const fish = { ...snap.extras.fish!, heating_on: false, valve_open: false };
     expect(fishHeatChip(fish)).toMatchObject({ label: 'vytápění vypnuto', tone: 'neutral' });
   });
+
+  it('v toleranci when inside band and valve closed', () => {
+    const snap = buildMockSnapshot('heating', 0);
+    const fish = { ...snap.extras.fish!, temp: 8.0, valve_open: false, heating_on: true };
+    expect(fishHeatChip(fish)).toMatchObject({ label: 'v toleranci', tone: 'ok' });
+  });
 });
