@@ -340,7 +340,8 @@
         "recipes": "Recipes",
         "access": "Access",
         "network": "Network",
-        "server": "Server"
+        "server": "Server",
+        "heating": "Topení"
       }
     },
     "meals_display": {

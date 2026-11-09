@@ -11,6 +11,11 @@ import {
   type ServerScenario,
 } from '@homebrain/module-server';
 import {
+  createMockHeatingApi,
+  setHeatingApiFactory,
+  type HeatingScenario,
+} from '@homebrain/module-heating';
+import {
   createMockFamilyApi,
   setFamilyApiFactory,
   type FamilyRole,
@@ -190,6 +195,13 @@ const serverApi = createMockServerApi({
   scenario: (recipesQuery.get('server') as ServerScenario | null) ?? 'ok',
 });
 setServerApiFactory(() => serverApi);
+// Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|unconfigured|stale`,
+// `&rooms=0|4` (bound room sensors/TRVs; default 0 like the current backend).
+const heatingApi = createMockHeatingApi({
+  scenario: (recipesQuery.get('topeni') as HeatingScenario | null) ?? 'heating',
+  rooms: recipesQuery.get('rooms') === '4' ? 4 : 0,
+});
+setHeatingApiFactory(() => heatingApi);
 // Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
@@ -589,8 +601,8 @@ const invoiceGate = () => {
 // `?session=adult|child|kiosk|guest`: answer `homebrain/session/get` like the integration does for
 // a non-admin HA user with that role (guest = unmapped -> „Nemáte přístup“). Absent = no session.
 const DEV_VISIBLE: Record<string, string[]> = {
-  adult: ['energy', 'family', 'network', 'recipes', 'today', 'waste', 'weather'],
-  child: ['family', 'recipes', 'today', 'waste', 'weather'],
+  adult: ['energy', 'family', 'heating', 'network', 'recipes', 'today', 'waste', 'weather'],
+  child: ['family', 'heating', 'recipes', 'today', 'waste', 'weather'],
   kiosk: ['energy', 'family', 'recipes', 'today', 'waste', 'weather'],
   guest: ['about'],
 };

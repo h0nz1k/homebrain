@@ -18,6 +18,7 @@
     "@homebrain/module-family": "workspace:*",
     "@homebrain/module-health": "workspace:*",
     "@homebrain/module-network": "workspace:*",
+    "@homebrain/module-heating": "workspace:*",
     "@homebrain/module-server": "workspace:*",
     "@homebrain/module-recipes": "workspace:*",
     "@homebrain/module-robots": "workspace:*",

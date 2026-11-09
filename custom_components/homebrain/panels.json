@@ -36,6 +36,13 @@
       "require_admin": false
     },
     {
+      "url_path": "homebrain-topeni",
+      "title": "Topení",
+      "icon": "mdi:heat-pump",
+      "module": "heating",
+      "require_admin": false
+    },
+    {
       "url_path": "homebrain-odpady",
       "title": "Odpady",
       "icon": "mdi:delete-empty",

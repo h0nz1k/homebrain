@@ -11,6 +11,7 @@ import * as recipes from '@homebrain/module-recipes';
 import * as access from '@homebrain/module-access';
 import * as network from '@homebrain/module-network';
 import * as server from '@homebrain/module-server';
+import * as heating from '@homebrain/module-heating';
 import { createLiveTodayAdapter } from './today/liveAdapter';
 // Dnes: live HA data (connection state, station, sun, hourly blend, day ribbon). dev.tsx may
 // replace it with fixtures; production never does.
@@ -30,6 +31,7 @@ export const modules = [
   today,
   weather,
   energy,
+  heating,
   waste,
   robots,
   health,
