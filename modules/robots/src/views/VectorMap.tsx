@@ -153,7 +153,7 @@ export function VectorFloorPlan({
           id: room.id,
           hue: ROOM_HUES[index % ROOM_HUES.length]!,
           step: ROOM_STEPS[index % ROOM_STEPS.length]!,
-          name: names.get(room.id) ?? '',
+          name: names.get(room.id) || 'Místnost',
           // With a wall layer the fill tucks under square walls: only a hint of rounding.
           d: rings
             .map((ring) =>
@@ -610,6 +610,7 @@ export function VectorFloorPlan({
               key={room.id}
               className="rv-label"
               data-rv-label={room.id}
+              onClick={() => onToggle(room.id)}
               data-selected={badge !== null || undefined}
               style={{
                 ['--rv-hue' as string]: room.hue,
@@ -670,7 +671,7 @@ export function VectorFloorPlan({
         </div>
       )}
       <LabelCollisions
-        deps={`${map.digest}|${routeKey}|${callout?.title ?? ''}|${routeD.length}`}
+        deps={`${map.digest}|${routeKey}|${callout?.title ?? ''}|${routeD.length}|${rooms.map((room) => `${room.id}:${room.name}`).join('|')}`}
       />
     </div>
   );
@@ -947,10 +948,9 @@ const overlaps = (a: DOMRect, b: DOMRect) =>
   a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
 
 /**
- * Real-DOM label layout: fit each label into its room (one line → wrapped → badge only, the
- * font size never changes), move it off the robot and the drawn routes (route preview, trail,
- * swept area) to the nearest free spot inside its room, then hide what still collides
- * (selected labels win).
+ * Real-DOM label layout: fit each label into its room (one line → wrapped → smaller text), move it off the robot and the drawn routes (route preview, trail,
+ * swept area) to the nearest free spot inside its room, then move remaining collisions outside with a leader line
+ * (selected labels win; names are never hidden).
  */
 function LabelCollisions({ deps }: { deps: string }) {
   const probe = useRef<HTMLSpanElement>(null);
@@ -961,6 +961,8 @@ function LabelCollisions({ deps }: { deps: string }) {
       const labels = Array.from(root.querySelectorAll<HTMLElement>('.rv-label'));
       labels.forEach((el) => {
         el.removeAttribute('data-hidden');
+        el.removeAttribute('data-outside');
+        el.style.removeProperty('font-size');
         el.removeAttribute('data-fit');
         el.style.removeProperty('--rv-nudge');
         el.style.removeProperty('--rv-nudge-x');
@@ -1052,11 +1054,8 @@ function LabelCollisions({ deps }: { deps: string }) {
           el.setAttribute('data-fit', 'compact');
           el.style.setProperty('--rv-maxw', `${Math.max(40, room.width - 10).toFixed(0)}px`);
           if (!fits(6)) {
-            if (el.hasAttribute('data-selected')) el.setAttribute('data-fit', 'badge');
-            else {
-              el.setAttribute('data-hidden', '');
-              continue;
-            }
+            el.style.fontSize = '11px';
+            if (!fits(6)) el.setAttribute('data-hidden', '');
           }
         }
         const box = el.getBoundingClientRect();
@@ -1118,21 +1117,88 @@ function LabelCollisions({ deps }: { deps: string }) {
       labels.sort(
         (a, b) => Number(b.hasAttribute('data-selected')) - Number(a.hasAttribute('data-selected')),
       );
+      root.querySelectorAll('.rv-leader').forEach((el) => el.remove());
       const kept: DOMRect[] = [];
+      const bounds = root.getBoundingClientRect();
+      const free = (box: DOMRect) =>
+        box.left >= bounds.left + 3 &&
+        box.right <= bounds.right - 3 &&
+        box.top >= bounds.top + 3 &&
+        box.bottom <= bounds.bottom - 3 &&
+        !kept.some((o) => overlaps(box, o)) &&
+        !obstacles.some((o) => overlaps(box, o)) &&
+        !(bot && overlaps(box, bot));
       for (const el of labels) {
-        if (el.hasAttribute('data-hidden')) continue;
-        const box = el.getBoundingClientRect();
+        let box = el.getBoundingClientRect();
         if (!box.width) continue;
-        const hit = (o: DOMRect) => overlaps(box, o);
-        if (kept.some(hit) || obstacles.some(hit) || (bot && hit(bot)))
-          el.setAttribute('data-hidden', '');
-        else kept.push(box);
+        if (el.hasAttribute('data-hidden') || !free(box)) {
+          el.removeAttribute('data-hidden');
+          el.removeAttribute('data-fit');
+          el.removeAttribute('data-flip');
+          el.setAttribute('data-outside', '');
+          el.style.fontSize = '11px';
+          el.style.setProperty('--rv-nudge-x', '0px');
+          el.style.setProperty('--rv-nudge', '0px');
+          const anchor = el.getBoundingClientRect();
+          const ax = anchor.left + anchor.width / 2;
+          const ay = anchor.top + anchor.height / 2;
+          let found = false;
+          // Search nearest screen-space position; outside labels may cross room boundaries.
+          for (
+            let radius = 12;
+            radius < Math.hypot(bounds.width, bounds.height) && !found;
+            radius += 12
+          ) {
+            for (let step = 0; step < 24; step++) {
+              const angle = (step * Math.PI) / 12;
+              const dx = Math.cos(angle) * radius;
+              const dy = Math.sin(angle) * radius;
+              el.style.setProperty('--rv-nudge-x', `${dx}px`);
+              el.style.setProperty('--rv-nudge', `${dy}px`);
+              box = el.getBoundingClientRect();
+              if (!free(box)) continue;
+              // Leave the anchor outside the pill so the leader has an exposed segment.
+              if (
+                ax >= box.left - 4 &&
+                ax <= box.right + 4 &&
+                ay >= box.top - 4 &&
+                ay <= box.bottom + 4
+              )
+                continue;
+              const cx = box.left + box.width / 2;
+              const cy = box.top + box.height / 2;
+              const line = document.createElement('span');
+              line.className = 'rv-leader';
+              line.dataset.rvLeader = el.dataset.rvLabel;
+              Object.assign(line.style, {
+                left: `${ax - bounds.left}px`,
+                top: `${ay - bounds.top}px`,
+                width: `${Math.hypot(cx - ax, cy - ay)}px`,
+                transform: `rotate(${Math.atan2(cy - ay, cx - ax)}rad)`,
+              });
+              root.querySelector('.rv-labels')?.prepend(line);
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            // Always retain the name, even when a densely packed plan has no free slot.
+            el.style.setProperty('--rv-nudge-x', '0px');
+            el.style.setProperty('--rv-nudge', '0px');
+            box = el.getBoundingClientRect();
+          }
+        }
+        kept.push(box);
       }
     };
     run();
+    document.fonts?.addEventListener('loadingdone', run);
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(run) : null;
     observer?.observe(root);
-    return () => observer?.disconnect();
+    return () => {
+      observer?.disconnect();
+      document.fonts?.removeEventListener('loadingdone', run);
+    };
   }, [deps]);
   return <span ref={probe} hidden />;
 }

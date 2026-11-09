@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { narrowRoomMap } from '../../modules/robots/src/map/demo.js';
 
 // Roboti fáze B (Refs #94): vektorová mapa z vymyšlených půdorysů dev mocku.
 const markerPos = (page: Page) =>
@@ -131,7 +132,7 @@ test('otočení mapy o 90°: rozměry prohozené, popisky rovně, klik vybere sp
   await expect(map).toHaveAttribute('data-rotation', '90');
   await expect(map.locator('.rv-room')).toHaveCount(8);
   expect(await ratio()).toBeCloseTo(1 / r0, 1);
-  // Labels stay upright (no rotation in their transform) and inside their own room.
+  // Labels stay upright, with a leader when they need space outside their room.
   const labels = await page.evaluate(() =>
     Array.from(document.querySelectorAll<HTMLElement>('.rv-label:not([data-hidden])')).map(
       (label) => {
@@ -144,6 +145,7 @@ test('otočení mapy o 90°: rozměry prohozené, popisky rovně, klik vybere sp
           .find((el) => el.classList.contains('rv-room'));
         return {
           id: label.dataset.rvLabel,
+          outside: label.hasAttribute('data-outside'),
           upright: Math.abs(m.b) < 1e-6 && Math.abs(m.c) < 1e-6 && m.a > 0,
           room: hit?.getAttribute('data-testid'),
         };
@@ -153,7 +155,7 @@ test('otočení mapy o 90°: rozměry prohozené, popisky rovně, klik vybere sp
   expect(labels.length).toBeGreaterThan(3);
   for (const label of labels) {
     expect(label.upright).toBe(true);
-    expect(label.room).toBe(`robots-map-room-${label.id}`);
+    if (!label.outside) expect(label.room).toBe(`robots-map-room-${label.id}`);
   }
   // Clicking where the 'Jídelna' label sits selects Jídelna (hit areas rotate with the plan).
   await map.locator('[data-rv-label="3"]').scrollIntoViewIfNeeded();
@@ -242,7 +244,8 @@ test('mapa na cestě panelu: popisky v místnostech, mimo robota, výběr se sou
       const room = document
         .querySelector(`[data-testid='robots-map-room-${el.dataset.rvLabel}']`)!
         .getBoundingClientRect();
-      if (box.left < room.left || box.right > room.right) out.push(`${el.textContent} přetéká`);
+      if (!el.hasAttribute('data-outside') && (box.left < room.left || box.right > room.right))
+        out.push(`${el.textContent} přetéká`);
       if (
         spot &&
         box.left < spot.right - 1 &&
@@ -258,4 +261,58 @@ test('mapa na cestě panelu: popisky v místnostech, mimo robota, výběr se sou
   expect(report.out).toEqual([]);
   expect(report.shown).toBeGreaterThanOrEqual(6);
   expect(report.tail).toBe(true);
+});
+
+test('úzká místnost u doku: každý segment má výplň, viditelný název a položku seznamu (Refs #86)', async ({
+  page,
+}) => {
+  await page.goto('/homebrain-roboti?mistnost=uzka&robots=docked&scena=dok');
+  const map = page.getByTestId('robots-vector-map');
+  for (const id of [1, 2, 3]) {
+    await expect(page.getByTestId(`robots-map-room-${id}`)).toBeVisible();
+    await expect(map.locator(`[data-rv-label="${id}"] .rv-label-text`)).toBeVisible();
+    await expect(page.getByTestId(`robots-room-${id}`)).toBeVisible();
+  }
+  await page.getByTestId('robots-room-2').click();
+  for (const id of [1, 2, 3])
+    await expect(map.locator(`[data-rv-label="${id}"] .rv-label-text`)).toBeVisible();
+  const outside = await map
+    .locator('.rv-label[data-outside]')
+    .evaluateAll((els) => els.map((el) => el.getAttribute('data-rv-label')));
+  expect(outside.length).toBeGreaterThan(0);
+  for (const id of outside) await expect(map.locator(`[data-rv-leader="${id}"]`)).toBeVisible();
+  const boxes = await map.locator('.rv-label').evaluateAll((els) =>
+    els.map((el) => {
+      const b = el.getBoundingClientRect();
+      return {
+        x: b.x,
+        y: b.y,
+        r: b.right,
+        b: b.bottom,
+        font: Number.parseFloat(getComputedStyle(el).fontSize),
+      };
+    }),
+  );
+  for (const a of boxes) {
+    expect(a.font).toBeGreaterThanOrEqual(11);
+    for (const b of boxes) {
+      if (a === b) continue;
+      expect(a.x < b.r && a.r > b.x && a.y < b.b && a.b > b.y).toBe(false);
+    }
+  }
+});
+
+test('nový segment bez názvu zůstane na mapě i v seznamu a vyžádá obnovu (Refs #86)', async ({
+  page,
+}) => {
+  const fixture = narrowRoomMap();
+  if (!fixture.available) throw new Error('fixture');
+  fixture.map.rooms[1]!.id = 99;
+  await page.addInitScript((map) => {
+    Object.assign(window, { __HB_ROBOT_MAP__: map });
+  }, fixture.map);
+  await page.goto('/homebrain-roboti?robots=docked');
+  await expect(page.locator('[data-rv-label="99"] .rv-label-text')).toHaveText('Místnost');
+  await expect(page.locator('[data-rv-label="99"] .rv-label-text')).toBeVisible();
+  await expect(page.getByTestId('robots-room-99')).toContainText('Místnost');
 });

@@ -506,7 +506,9 @@ export const robotsStyles = `
 .rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; }
 /* Knock-out halo in the room's own tone: the route/lanes never run through the letters. */
 .rv[data-walls] .rv-label-text { text-shadow: 0 0 3px var(--rv-tile); }
-.rv-label[data-hidden] { visibility: hidden; }
+.rv-label[data-outside] { pointer-events: auto; cursor: pointer; transform: translate(calc(-50% + var(--rv-nudge-x, 0px)), calc(-50% + var(--rv-nudge, 0px))) !important; background: var(--hb-s1); border-radius: 4px; padding: 2px 4px; }
+.rv-label[data-outside] .rv-label-text { max-width: 140px; white-space: normal; text-align: center; line-height: 1.15; }
+.rv-leader { position: absolute; height: 1px; background: var(--rv-label); transform-origin: left center; opacity: .6; }
 .rv-label[data-fit] { flex-direction: column; gap: 3px; }
 /* Selected: the order badge sits exactly on the room anchor (route waypoint), the name beside
    it – or on the other side (data-flip) when the route runs there. */
@@ -515,7 +517,7 @@ export const robotsStyles = `
 .rv-label[data-selected][data-fit='compact'] { transform: translate(-50%, -11px); }
 /* Narrow rooms: the name wraps (same size everywhere) instead of shrinking. */
 .rv-label[data-fit='compact'] .rv-label-text { white-space: normal; max-width: var(--rv-maxw, 90px); text-align: center; line-height: 1.15; }
-.rv-label[data-fit='badge'] .rv-label-text { display: none; }
+
 .rv-badge {
   display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
   background: var(--hb-ac); color: #fff; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;

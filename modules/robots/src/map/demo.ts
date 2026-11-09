@@ -411,3 +411,42 @@ export function demoVectorMap(
     },
   };
 }
+
+/** Synthetic regression: 34 m² hall, 2.2 m² narrow room and 15 m² neighbour. */
+export function narrowRoomMap(): VectorMapResult {
+  const result = demoVectorMap(1, 0);
+  if (!result.available) return result;
+  const rectangle = (x: number, y: number, w: number, h: number) => [
+    x,
+    y,
+    x + w,
+    y,
+    x + w,
+    y + h,
+    x,
+    y + h,
+  ];
+  return {
+    available: true,
+    map: {
+      ...result.map,
+      digest: 'synthetic-narrow-room',
+      bounds: [0, 0, 12_100, 5000],
+      rooms: [
+        { id: 1, area_m2: 34, polygons: [rectangle(0, 0, 6800, 5000)] },
+        { id: 2, area_m2: 2.2, polygons: [rectangle(6800, 1500, 1100, 2000)] },
+        { id: 3, area_m2: 15, polygons: [rectangle(7900, 0, 3000, 5000)] },
+      ],
+      floor: [rectangle(0, 0, 10_900, 5000)],
+      walls: [[0, 0, 10_900, 0, 10_900, 5000, 0, 5000, 0, 0]],
+      dividers: [],
+      no_go: [],
+      no_mop: [],
+      virtual_walls: [],
+      path: [],
+      dock: { x: 6800, y: 2500, a: 0 },
+      robot: { x: 6800, y: 2500, a: 0 },
+      raster: null,
+    },
+  };
+}

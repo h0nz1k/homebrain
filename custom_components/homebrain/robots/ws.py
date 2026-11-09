@@ -108,6 +108,14 @@ async def websocket_robots_map(
         connection.send_result(msg["id"], {"available": False, "reason": "no_map_entity"})
         return
     result = await _map_cache(hass).async_get(image)
+    if result.get("available") and (vacuum := bindings.get(f"robot{msg['slot']}_vacuum")):
+        selected_entity = bindings.get(f"robot{msg['slot']}_selected_map")
+        selected_state = hass.states.get(selected_entity) if selected_entity else None
+        await _cache(hass).async_match_segments(
+            vacuum,
+            {room["id"] for room in result["map"]["rooms"]},
+            selected_state.state if selected_state else None,
+        )
     if result.get("available") and (raster := result["map"].get("raster")):
         raster["path"] = RASTER_PATH.format(slot=msg["slot"], digest=result["map"]["digest"])
     connection.send_result(msg["id"], result)

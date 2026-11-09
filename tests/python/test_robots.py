@@ -1,6 +1,7 @@
 """Roboti: slot settings, read-only room lists (roborock.get_maps), WS and options flow."""
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.setup import async_setup_component
@@ -135,7 +136,7 @@ async def test_room_cache_caches_and_keeps_last_good(hass: HomeAssistant, freeze
     first = await cache.async_get("vacuum.robot_a")
     assert first["error"] is None and [m["flag"] for m in first["maps"]] == [0, 1]
     assert len(calls) == 1
-    freezer.tick(timedelta(minutes=30))
+    freezer.tick(timedelta(minutes=29))
     assert await cache.async_get("vacuum.robot_a") == first
     assert len(calls) == 1  # still cached within CACHE_TTL
     hass.services.async_remove(*READ_ONLY_SERVICE)
@@ -229,3 +230,120 @@ async def test_options_flow_robot_rotation(hass: HomeAssistant):
     assert entry.options["robots"]["2"]["rotation"] == 270
     assert slot_settings(entry.options, 2)["rotation"] == 270
     assert entry.options["robots"]["2"]["name"] == "Beta"
+
+
+async def test_room_cache_partition_refresh_and_retry_cooldown(hass: HomeAssistant, freezer):
+    """A new segment refreshes names without a user refresh; upstream lag is bounded."""
+    calls: list = []
+    _register_get_maps(hass, calls)
+    cache = RoomCache(hass)
+    await cache.async_get("vacuum.robot_a")
+    await cache.async_match_segments("vacuum.robot_a", {1, 2})
+    assert len(calls) == 1
+    await cache.async_match_segments("vacuum.robot_a", {1, 2, 3})
+    assert len(calls) == 2
+    await cache.async_match_segments("vacuum.robot_a", {1, 2, 3})
+    assert len(calls) == 2
+    freezer.tick(ERROR_TTL + timedelta(seconds=1))
+    await cache.async_match_segments("vacuum.robot_a", {1, 2, 3})
+    assert len(calls) == 3
+    freezer.tick(timedelta(minutes=31))
+    await cache.async_get("vacuum.robot_a")
+    assert len(calls) == 4
+
+
+async def test_room_cache_refreshes_renamed_rooms(hass: HomeAssistant, freezer):
+    calls: list = []
+    _register_get_maps(hass, calls)
+    cache = RoomCache(hass)
+    first = await cache.async_get("vacuum.robot_a")
+    changed = {
+        "maps": [
+            {
+                "flag": 0,
+                "rooms": [
+                    {"id": 1, "name": "Studio A"},
+                    {"id": 2, "name": "Studio B"},
+                    {"id": 3, "name": "Komora"},
+                ],
+            }
+        ]
+    }
+    with patch.object(cache, "_async_fetch", return_value={**first, **changed}):
+        value = await cache.async_match_segments("vacuum.robot_a", {1, 2, 3})
+    assert value["maps"][0]["rooms"][2]["name"] == "Komora"
+
+
+async def test_map_ws_refreshes_room_partition(hass: HomeAssistant, hass_ws_client):
+    """The real map WS handler detects a stale partition, then get returns new names."""
+    from unittest.mock import AsyncMock
+
+    from custom_components.homebrain.robots import ws
+
+    calls: list = []
+    _register_get_maps(hass, calls)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={
+            "bindings": {
+                "robots": {"robot1_vacuum": "vacuum.robot_a", "robot1_map_image": "image.robot_map"}
+            }
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    cache = ws._cache(hass)
+    await cache.async_get("vacuum.robot_a")
+    changed = {
+        "maps": [
+            {
+                "flag": 0,
+                "name": "",
+                "rooms": [
+                    {"id": 1, "name": "Ateliér"},
+                    {"id": 2, "name": "Studio"},
+                    {"id": 3, "name": "Komora"},
+                ],
+            }
+        ],
+        "error": None,
+        "updated_at": None,
+    }
+    client = await hass_ws_client(hass)
+    vector = {"available": True, "map": {"rooms": [{"id": i} for i in (1, 2, 3)]}}
+    with (
+        patch.object(
+            ws, "_map_cache", return_value=AsyncMock(async_get=AsyncMock(return_value=vector))
+        ),
+        patch.object(cache, "_async_fetch", return_value=changed) as fetch,
+    ):
+        await client.send_json({"id": 1, "type": "homebrain/robots/map", "slot": 1})
+        assert (await client.receive_json())["success"]
+        fetch.assert_awaited_once()
+    await client.send_json({"id": 2, "type": "homebrain/robots/get"})
+    response = await client.receive_json()
+    assert response["result"]["robots"][0]["maps"] == changed["maps"]
+
+
+async def test_room_names_refresh_on_ttl_without_segment_change(hass: HomeAssistant, freezer):
+    calls: list = []
+    _register_get_maps(hass, calls)
+    cache = RoomCache(hass)
+    first = await cache.async_get("vacuum.robot_a")
+    renamed = {
+        **first,
+        "maps": [
+            {
+                **first["maps"][0],
+                "rooms": [{"id": 1, "name": "Studio A"}, {"id": 2, "name": "Studio B"}],
+            }
+        ],
+    }
+    with patch.object(cache, "_async_fetch", return_value=renamed) as fetch:
+        assert await cache.async_match_segments("vacuum.robot_a", {1, 2}) == first
+        fetch.assert_not_awaited()
+        freezer.tick(timedelta(minutes=31))
+        value = await cache.async_get("vacuum.robot_a")
+        fetch.assert_awaited_once()
+        assert value["maps"][0]["rooms"][0]["name"] == "Studio A"
