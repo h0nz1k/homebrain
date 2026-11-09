@@ -235,21 +235,24 @@ export const heatingStyles = `
 }
 
 /* C3: one scene scales intact from portrait to desktop. */
-.ht-run-meta { display:flex; justify-content:space-between; gap:16px; width:100%; color:var(--hb-t2); font-size:13px; }
+.ht-run-meta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; width:100%; color:var(--hb-t2); font-size:13px; }
 .ht-run-meta b { color:var(--hb-t1); font-weight:500; white-space:nowrap; }
 .ht-c3-chips { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px; border-top:1px solid var(--hb-edge); padding-top:12px; }
 .ht-c3 {
   --ht-c3-hot:#e5484d; --ht-c3-cold:#3b82f6; --ht-c3-ground:#2f9e8f;
-  --ht-c3-room:var(--hb-s2, var(--hb-s1)); --ht-c3-wall:#7d8895; --ht-c3-inactive:#828890;
-  --ht-c3-jacket:#4a4f57; --ht-c3-jacket-light:#7e8793;
-  width:100%; max-width:460px; margin:0 auto; min-width:0;
+  --ht-c3-room:#1b2026; --ht-c3-wall:#7d8895; --ht-c3-inactive:#828890;
+  --ht-c3-jacket:#4a4f57; --ht-c3-jacket-light:#636a73; --ht-c3-jacket-end:#444a52; --ht-c3-soil:#302e29; --ht-c3-topsoil:#403a30;
+  width:100%; max-width:344px; margin:0 auto; min-width:0;
 }
-[data-theme='light'] .ht-c3 { --ht-c3-hot:#ab3037; --ht-c3-cold:#2f6fdb; --ht-c3-ground:#23877a; --ht-c3-wall:#77838f; --ht-c3-inactive:#737981; --ht-c3-jacket:#8a9099; --ht-c3-jacket-light:#a0a6ad; }
+[data-theme='light'] .ht-c3 { --ht-c3-hot:#d93d42; --ht-c3-cold:#2f6fdb; --ht-c3-ground:#23877a; --ht-c3-wall:#77838f; --ht-c3-inactive:#606770; --ht-c3-jacket:#8a9099; --ht-c3-jacket-light:#a0a6ad; --ht-c3-jacket-end:#7e858e; --ht-c3-room:#eef1f4; --ht-c3-soil:#c7beac; --ht-c3-topsoil:#d6c8af; }
 .ht-c3 > svg { width:100%; height:auto; display:block; overflow:visible; }
 .ht-c3-interior { fill:var(--ht-c3-room); }
+.ht-c3-depth { fill:#38424c; }
+[data-theme='light'] .ht-c3-depth { fill:#d3d9de; }
 .ht-c3-envelope { fill:none; stroke:var(--ht-c3-wall); stroke-width:2.5; stroke-linejoin:round; }
 .ht-c3-floor { stroke:var(--ht-c3-wall); opacity:.35; }
-.ht-c3-soil { fill:color-mix(in srgb, var(--hb-s1) 72%, #8c7958); stroke:var(--ht-c3-wall); stroke-width:.7; }
+.ht-c3-soil { fill:var(--ht-c3-soil); stroke:var(--ht-c3-wall); stroke-width:.7; }
+.ht-c3-topsoil { stroke:var(--ht-c3-topsoil); stroke-width:25; }
 .ht-c3-soil-layer { stroke:var(--ht-c3-wall); opacity:.25; }
 .ht-c3-grass { stroke:#718468; stroke-width:8; }
 .ht-c3-blade { fill:#718468; }
@@ -261,21 +264,31 @@ export const heatingStyles = `
 .ht-c3-route.ht-c3-bypass > path { stroke-width:2.5; }
 .ht-c3-particle { fill:#fff; opacity:0; }
 .ht-c3-shell, .ht-c3-rim { stroke:#939ca8; stroke-width:1.5; }
-.ht-c3-window { stroke:var(--ht-c3-jacket); stroke-width:3; }
-.ht-c3-boundary { stroke:#d5d9df; opacity:.4; }
-.ht-c3-vessel { stroke:var(--hb-t1); stroke-width:1.7; fill:#c57c84; }
-.ht-c3-value-bg { fill:color-mix(in srgb, var(--hb-s1) 70%, transparent); }
+.ht-c3-window { stroke:#171c22; stroke-width:2; filter:drop-shadow(0 0 1px #a0a9ae); }
+[data-theme='light'] .ht-c3-window { stroke:#535d68; }
+.ht-c3-vessel { stroke:#fafcfe; stroke-width:2; fill:#c57c84; }
+.ht-c3-value-bg { fill:rgba(24,32,43,.68); }
 .ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
-.ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:var(--hb-t1); }
-.ht-c3-label[data-label='charge'], .ht-c3-label[data-label='hp-in'], .ht-c3-label[data-label='cold-water'] { font-size:10px; }
-.ht-c3-dhw-value { font-size:16px; font-weight:500; }
-.ht-c3-tank-value { font-size:22px; font-weight:500; }
-.ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:var(--hb-t2); font-weight:400; }
+.ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
+.ht-c3-label[data-label='dhw'] { font-size:11px; letter-spacing:-.5px; }
+[data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
+[data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; }
+[data-theme='light'] .ht-c3-vessel { stroke:#35434e; }
+.ht-c3-label[data-label='charge'], .ht-c3-label[data-label='hp-in'], .ht-c3-label[data-label='cold-water'], .ht-c3-label[data-label='house-pump'] { font-size:10px; }
+.ht-c3-label[data-label='house-pump'] { font-size:9px; }
+.ht-c3-dhw-value { font-size:15px; font-weight:500; }
+.ht-c3-unit { font-size:13px; }
+.ht-c3-dhw-unit { font-size:11px; }
+.ht-c3-tank-value { font-size:24px; font-weight:500; }
+.ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
 .ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
+[data-theme='light'] .ht-c3-label { fill:#48525d; }
+[data-theme='light'] .ht-c3-label[data-label='collector'] { fill:#343d46; }
+[data-theme='light'] .ht-c3-label.ht-c3-muted, [data-theme='light'] .ht-c3-muted { fill:#606b77; }
 .ht-run-meta b.ht-muted { color:var(--hb-t2); }
 .ht-c3-cabinet { fill:color-mix(in srgb, var(--hb-s2) 70%, #7b858f); stroke:#78828c; }
 .ht-c3-display, .ht-c3-cutaway { fill:#202a30; stroke:#77828c; }
-.ht-c3-display + text { fill:#edf1f3; }
+.ht-c3-display + .ht-c3-label { fill:#edf1f3; }
 .ht-c3-compressor { fill:#74808b; stroke:#a2abb3; }
 .ht-c3-running { fill:#f2a655; stroke:#ffd18b; filter:drop-shadow(0 0 4px #f78a41); }
 .ht-c3-led { fill:#879099; }
@@ -287,9 +300,9 @@ export const heatingStyles = `
 .ht-c3-indicator { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; stroke-linecap:round; }
 .ht-c3-servo-mark { stroke:#b8d4ca; stroke-width:1.5; }
 .ht-c3-leader { fill:none; stroke:var(--hb-t2); stroke-width:.7; }
-.ht-c3-probe { fill:var(--ht-c3-room); stroke:var(--ht-c3-inactive); stroke-width:1.5; }
 .ht-c3-cold-inlet { fill:none; stroke:var(--ht-c3-cold); stroke-width:1.5; opacity:.7; }
-.ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:.6; }
+.ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:.5; }
+[data-theme='light'] .ht-c3-draw { stroke:#ab3037; opacity:1; }
 .ht-c3-ceramic { fill:#d0d1c8; stroke:#858f8c; }
 .ht-c3-fin { fill:#bdc2b7; stroke:#8f9d92; stroke-width:.6; }
 .ht-c3-rad-feet, .ht-c3-pump-foot { fill:none; stroke:#858f8c; stroke-width:3; }
@@ -299,8 +312,14 @@ export const heatingStyles = `
   .ht-hero-copy { padding:0 6px; gap:6px; }
   .ht-hero-copy > .ht-hero-detail { margin-bottom:4px; }
   .ht-hero h2 { font-size:24px; }
-  .ht-c3 { max-width:390px; }
+  .ht-c3 { max-width:344px; }
   .ht-c3-chips { margin-top:8px; }
+}
+@media(min-width:900px) {
+  .ht-hero:has(.ht-c3) { align-items:start; padding:20px 24px; gap:12px 24px; }
+  .ht-hero-copy { padding-top:8px; }
+  .ht-run-meta { justify-content:flex-start; }
+  .ht-c3 { max-width:310px; }
 }
 @media(prefers-reduced-motion:reduce) {
   .ht-c3 *, .ht-c3 *::before, .ht-c3 *::after { animation:none!important; transition:none!important; }

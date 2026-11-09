@@ -261,6 +261,105 @@ test.describe('Topení', () => {
             inner.bottom >= tank.bottom
           )
             errors.push('inner vessel');
+          const card = box('[data-vessel-card]');
+          const scale = svg.getBoundingClientRect().width / 344;
+          if (
+            card.left - inner.left < 6 ||
+            inner.right - card.right < 6 ||
+            card.top - inner.top < 6 ||
+            inner.bottom - card.bottom < 6
+          )
+            errors.push('vessel card padding');
+          const vesselText = box('[data-label="dhw"]');
+          if (
+            vesselText.left < card.left ||
+            vesselText.right > card.right ||
+            vesselText.top < card.top ||
+            vesselText.bottom > card.bottom
+          )
+            errors.push('vessel text outside card');
+          const cold = el.querySelector<SVGPathElement>('[data-pipe-id="cold-water"]')!;
+          const end = cold.getPointAtLength(cold.getTotalLength());
+          const screenEnd = new DOMPoint(end.x, end.y).matrixTransform(cold.getScreenCTM()!);
+          const tankCard = box('[data-tank-card]');
+          for (let n = 0; n <= cold.getTotalLength(); n++) {
+            const at = cold.getPointAtLength(n);
+            const pt = new DOMPoint(at.x, at.y).matrixTransform(cold.getScreenCTM()!);
+            if (
+              pt.x >= tankCard.left - scale &&
+              pt.x <= tankCard.right + scale &&
+              pt.y >= tankCard.top - scale &&
+              pt.y <= tankCard.bottom + scale
+            )
+              errors.push('cold inlet crosses tank card');
+          }
+          if (el.closest('[data-theme="light"]')) {
+            const luminance = (color: string) => {
+              const canvas = document.createElement('canvas').getContext('2d')!;
+              canvas.fillStyle = color;
+              canvas.fillRect(0, 0, 1, 1);
+              const rgb = [...canvas.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => {
+                const c = v / 255;
+                return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+              });
+              return rgb[0]! * 0.2126 + rgb[1]! * 0.7152 + rgb[2]! * 0.0722;
+            };
+            for (const label of labels) {
+              const id = label.getAttribute('data-label');
+              if (!id || ['dhw', 'tank'].includes(id)) continue;
+              const foreground = luminance(getComputedStyle(label).fill);
+              const background = luminance(
+                id === 'compressor'
+                  ? '#202a30'
+                  : getComputedStyle(el).getPropertyValue(
+                      id === 'collector' ? '--ht-c3-soil' : '--ht-c3-room',
+                    ),
+              );
+              if (
+                (Math.max(foreground, background) + 0.05) /
+                  (Math.min(foreground, background) + 0.05) <
+                4.5
+              )
+                errors.push(`label contrast: ${id}`);
+            }
+          }
+
+          if (
+            screenEnd.x <= inner.left ||
+            screenEnd.x >= inner.right ||
+            screenEnd.y <= inner.top ||
+            screenEnd.y >= inner.bottom
+          )
+            errors.push('cold inlet outside vessel');
+          const overlaps = (a: DOMRect, b: DOMRect) =>
+            Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
+            Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+          if (overlaps(box('[data-pump="house"]'), box('.ht-c3-radiator rect')))
+            errors.push('pump over radiator');
+          // Sample actual strokes, including bent routes, rather than their empty bounding corners.
+          for (const path of Array.from(
+            el.querySelectorAll<SVGPathElement>(
+              '[data-pipe-id] path, path[data-pipe-id], .ht-c3-metal-pipe',
+            ),
+          )) {
+            const stroke = Number.parseFloat(getComputedStyle(path).strokeWidth) / 2;
+            for (let n = 0; n <= path.getTotalLength(); n += 1) {
+              const at = path.getPointAtLength(n);
+              const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
+              for (const label of labels) {
+                const b = label.getBoundingClientRect();
+                if (
+                  pt.x + stroke * scale > b.left &&
+                  pt.x - stroke * scale < b.right &&
+                  pt.y + stroke * scale > b.top &&
+                  pt.y - stroke * scale < b.bottom
+                )
+                  errors.push(
+                    `pipe/label: ${path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id')} / ${label.getAttribute('data-label')}`,
+                  );
+              }
+            }
+          }
           const grass = box('.ht-c3-grass');
           const collector = el.querySelector<SVGPathElement>('[data-pipe-id="collector"] path')!;
           // First/last risers pass through the foundation; horizontal loops stay under grass.
@@ -275,16 +374,36 @@ test.describe('Topení', () => {
           if (box('[data-label="mixing"]').top - box('[data-label="tap"]').bottom < 10)
             errors.push('tap/mixer gap');
           const floor = box('.ht-c3-floor');
-          for (const id of ['hp-in', 'charge'])
+          if (box('[data-label="hp-in"]').top - floor.bottom < 6) errors.push('floor label hp-in');
+          for (const id of ['charge'])
             if (floor.top - box(`[data-label="${id}"]`).bottom < 6)
               errors.push(`floor label ${id}`);
-          return errors;
+          return [...new Set(errors)];
         });
         expect(issues).toEqual([]);
         await noSidewaysScroll(page);
       });
     }
   }
+
+  test('C3 desktop 1280: kompaktní hero a viditelné další karty', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/homebrain-topeni?topeni=heating');
+    const hero = page.getByTestId('heating-hero');
+    await expect(hero).toBeVisible({ timeout: 20_000 });
+    const bounds = await hero.boundingBox();
+    expect(bounds!.height).toBeLessThanOrEqual(600);
+    expect(bounds!.y + bounds!.height).toBeLessThan(850);
+    await expect(page.locator('.ht-c3-chips')).toBeInViewport({ ratio: 1 });
+    const position = await hero.evaluate((el) => ({
+      copy: el.querySelector('.ht-hero-copy')!.getBoundingClientRect().top,
+      scene: el.querySelector('.ht-c3')!.getBoundingClientRect().top,
+      meta: el.querySelector('.ht-run-meta')!.getBoundingClientRect(),
+      power: el.querySelector('.ht-run-meta b')!.getBoundingClientRect(),
+    }));
+    expect(Math.abs(position.copy - position.scene)).toBeLessThanOrEqual(10);
+    expect(position.power.bottom).toBeLessThanOrEqual(position.meta.bottom);
+  });
 
   test('změna nastavení omezeného pohybu zastaví i rozběhnuté částice', async ({ page }) => {
     await page.goto('/homebrain-topeni?topeni=heating');

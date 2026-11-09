@@ -39,8 +39,8 @@ describe('C3 measured state and routes', () => {
     snap.dhw.target = null;
     snap.tank.bottom = null;
     render(<HeatingSchematic snap={snap} />);
-    for (const id of ['hp-out', 'hp-in', 'supply', 'mixing', 'dhw', 'tank']) {
-      expect(screen.getByTestId(`heating-sch-${id}`).textContent).toContain('—');
+    for (const id of ['hp-out', 'hp-in', 'dhw', 'tank']) {
+      expect(screen.getByTestId(`heating-sch-${id}`).textContent).not.toContain('—');
       expect(screen.getByTestId(`heating-sch-${id}`).classList.contains('ht-c3-muted')).toBe(true);
     }
     expect(document.querySelector('[data-valve]')?.getAttribute('data-valve')).toBe('unknown');
@@ -51,7 +51,8 @@ describe('C3 measured state and routes', () => {
     render(<HeatingSchematic snap={snap} />);
     for (const id of ['hp-out', 'hp-in', 'supply'])
       expect(screen.getByTestId(`heating-sch-${id}`).classList.contains('ht-c3-muted')).toBe(true);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toContain('—');
+    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovacíventil');
+    expect(screen.getByTestId('heating-sch-supply').textContent).toBe('do topení');
     expect(screen.getByTestId('heating-sch-hp-in').textContent).toContain('29,7');
   });
   it('mixing percentage requires a running pump and a mapped value; 100 closes bypass', () => {
@@ -64,7 +65,8 @@ describe('C3 measured state and routes', () => {
     expect(heroScene(snap).activePipes).not.toContain('mixing-bypass');
     snap.house.mixing_valve_pct = null;
     rerender(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toContain('—');
+    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovacíventil');
+    expect(screen.getByTestId('heating-sch-supply').textContent).toContain('37,8');
   });
   it('diverter follows the output even when it disagrees with activity', () => {
     const snap = buildMockSnapshot('dhw', 0);
