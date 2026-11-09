@@ -27,6 +27,8 @@ describe('HeatingView', () => {
     expect(sch.querySelector('[data-pump="circulation"]')).toBeNull(); // not mapped (null)
     expect(sch.querySelector('[data-pipe="brine"]')).not.toBeNull();
     expect(screen.queryByTestId('heating-backup')).toBeNull();
+    expect(screen.getByTestId('heating-sch-collector').textContent).toBe('Zemní kolektor');
+    expect(screen.queryByText(/Chlazení/)).toBeNull();
   });
 
   it('fault shows the critical pill and no backup heater (regulation has none)', async () => {
@@ -43,6 +45,11 @@ describe('HeatingView', () => {
     await waitFor(() =>
       expect(screen.getByTestId('heating-rooms-empty').textContent).toContain('Aqara'),
     );
+    const ref = screen.getByTestId('heating-ref-room');
+    expect(ref.contains(screen.getByTestId('heating-rooms-empty'))).toBe(true);
+    expect(ref.textContent).toContain('řídí topení celého domu');
+    expect(ref.textContent).toContain('cíl 22,5');
+    expect(ref.textContent).toContain('Nastavení HomeBrain → Moduly → Topení');
   });
 
   it('unconfigured hides the tabs', async () => {
@@ -57,4 +64,16 @@ describe('HeatingView', () => {
     render(<HeatingView {...base} kiosk />);
     expect(screen.getByText('Topení je na nástěnce jen ve Dnes')).not.toBeNull();
   });
+});
+
+it('unknown cooling is hidden in Modes', async () => {
+  mount('heating', 0, '/rezimy');
+  await waitFor(() => expect(screen.getByTestId('heating-modes')).not.toBeNull());
+  expect(screen.queryByText('Chlazení')).toBeNull();
+});
+
+it('season run median is explicitly approximate hourly data', async () => {
+  mount('heating', 0, '/sezony');
+  await waitFor(() => expect(screen.getAllByTestId('heating-season')).toHaveLength(10));
+  expect(screen.getAllByText('Medián délky běhu (hodinová data, orientační)')).toHaveLength(10);
 });

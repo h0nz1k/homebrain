@@ -25,6 +25,20 @@ test.describe('Topení', () => {
     const sch = page.getByTestId('heating-schematic');
     await expect(sch).toHaveAttribute('data-compressor', 'on');
     await expect(sch.locator('[data-pipe="brine"]')).toHaveCount(1);
+    await expect(page.getByTestId('heating-sch-collector')).toHaveText('Zemní kolektor');
+    // SVG embeds keyframe CSS containing the internal circuit name; audit rendered copy.
+    expect(await page.getByTestId('heating-view').innerText()).not.toMatch(
+      /Chlazení|solanka|brine|X204|X216/i,
+    );
+    // The activity sentence leads the card, before secondary numbers and badges.
+    const heroOrder = await page.getByTestId('heating-hero').evaluate((el) => {
+      const headline = el.querySelector('[data-testid="heating-headline"]')!;
+      return (
+        headline.getBoundingClientRect().top <
+        el.querySelector('.ht-big')!.getBoundingClientRect().top
+      );
+    });
+    expect(heroOrder).toBe(true);
     await expect(sch.locator('[data-pump="primary"]')).toHaveAttribute('data-on', '');
     // circulation pump state is not mapped by the backend (null) → not drawn
     await expect(sch.locator('[data-pump="circulation"]')).toHaveCount(0);
@@ -34,6 +48,55 @@ test.describe('Topení', () => {
     expect(await infiniteAnimations(page)).toBeGreaterThan(0);
     await noSidewaysScroll(page);
   });
+
+  for (const scenario of ['idle', 'house', 'dhw']) {
+    test(`Teď ${scenario}: neověřené údaje skryté, pohyb podle stavu`, async ({ page }) => {
+      await page.goto(`/homebrain-topeni?topeni=${scenario}`);
+      const sch = page.getByTestId('heating-schematic');
+      await expect(sch).toHaveAttribute('data-compressor', scenario === 'dhw' ? 'on' : 'off', {
+        timeout: 20_000,
+      });
+      await expect(page.getByTestId('heating-sch-collector')).toHaveText('Zemní kolektor');
+      await expect(page.getByText('Chlazení', { exact: true })).toHaveCount(0);
+      await expect(sch.locator('[data-valve]')).toHaveAttribute(
+        'data-valve',
+        scenario === 'dhw' ? 'dhw' : 'tank',
+      );
+      if (scenario !== 'dhw') {
+        await expect(sch.locator('[data-pump="primary"]')).not.toHaveAttribute('data-on', '');
+        await expect(sch.locator('[data-pipe="brine"]')).toHaveCount(0);
+      }
+      const pumps = await sch.locator('[data-pump]').evaluateAll((elements) =>
+        elements.map((pump) => ({
+          on: pump.hasAttribute('data-on'),
+          spinning: getComputedStyle(pump.querySelector('.ht-impeller')!).animationName !== 'none',
+        })),
+      );
+      for (const pump of pumps) expect(pump.spinning).toBe(pump.on);
+      const properties = await sch.evaluate((el) =>
+        Array.from(
+          new Set(
+            el
+              .getAnimations({ subtree: true })
+              .flatMap((a) =>
+                a.effect instanceof KeyframeEffect
+                  ? a.effect.getKeyframes().flatMap((frame) => Object.keys(frame))
+                  : [],
+              ),
+          ),
+        ),
+      );
+      expect(
+        properties.filter(
+          (p) =>
+            !['offset', 'computedOffset', 'easing', 'composite', 'transform', 'opacity'].includes(
+              p,
+            ),
+        ),
+      ).toEqual([]);
+      await noSidewaysScroll(page);
+    });
+  }
 
   test('porucha zastaví proudění; záložní topení regulace nemá, takže se nezmiňuje', async ({
     page,
@@ -50,15 +113,25 @@ test.describe('Topení', () => {
     await noSidewaysScroll(page);
   });
 
-  test('Místnosti: referenční chodba, nejchladnější pokoj a prázdný stav', async ({ page }) => {
+  test('Místnosti: referenční chodba a nejchladnější pokoj', async ({ page }) => {
     await page.goto('/homebrain-topeni/mistnosti?topeni=heating&rooms=4');
     await expect(page.getByTestId('heating-room')).toHaveCount(4, { timeout: 20_000 });
     await expect(page.getByTestId('heating-room').first()).toHaveAttribute('data-coldest', '');
     await noSidewaysScroll(page);
+  });
+
+  test('Místnosti bez čidel: reference a kompaktní návod v jedné kartě', async ({ page }) => {
     await page.goto('/homebrain-topeni/mistnosti?topeni=heating&rooms=0');
     await expect(page.getByTestId('heating-rooms-empty')).toContainText('Aqara', {
       timeout: 20_000,
     });
+    const ref = page.getByTestId('heating-ref-room');
+    await expect(ref).toContainText('řídí topení celého domu');
+    await expect(ref).toContainText('cíl 22,5');
+    await expect(ref.getByTestId('heating-rooms-empty')).toContainText(
+      'Nastavení HomeBrain → Moduly → Topení',
+    );
+    await noSidewaysScroll(page);
   });
 
   test('Trendy: rozsahy, překryvy, běhy kompresoru a účinnost', async ({ page }) => {
@@ -86,6 +159,9 @@ test.describe('Topení', () => {
   test('Sezóny: 10 let a poznámka o druhé budově', async ({ page }) => {
     await page.goto('/homebrain-topeni/sezony?topeni=heating');
     await expect(page.getByTestId('heating-season')).toHaveCount(10, { timeout: 20_000 });
+    await expect(
+      page.getByText('Medián délky běhu (hodinová data, orientační)', { exact: true }),
+    ).toHaveCount(10);
     await expect(page.getByTestId('heating-season-note')).toContainText(
       '2018/19: druhá budova se přestala vytápět',
     );
@@ -96,6 +172,7 @@ test.describe('Topení', () => {
     await page.goto('/homebrain-topeni/rezimy?topeni=heating');
     await expect(page.getByTestId('heating-curve-now')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('heating-readonly')).toContainText('Jen pro čtení');
+    await expect(page.getByText('Chlazení', { exact: true })).toHaveCount(0);
     await expect(page.getByTestId('heating-schedule')).not.toHaveCount(0);
     await noSidewaysScroll(page);
   });
@@ -109,14 +186,21 @@ test.describe('Topení', () => {
   });
 
   for (const width of [360, 390]) {
-    test(`telefon ${width} px: bez vodorovného posunu na všech záložkách`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 800 });
-      for (const tab of ['', '/mistnosti', '/trendy', '/sezony', '/rezimy', '/poruchy']) {
-        await page.goto(`/homebrain-topeni${tab}?topeni=heating`);
-        await expect(page.getByTestId('heating-view')).toBeVisible({ timeout: 20_000 });
+    for (const [tab, ready] of [
+      ['', 'heating-schematic'],
+      ['/mistnosti', 'heating-rooms-empty'],
+      ['/trendy', 'heating-trend-chart'],
+      ['/sezony', 'heating-season'],
+      ['/rezimy', 'heating-curve-now'],
+      ['/poruchy', 'heating-faults-ok'],
+    ] as const) {
+      test(`telefon ${width} px ${tab || 'Teď'}: bez vodorovného posunu`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(`/homebrain-topeni${tab}?topeni=heating&rooms=0`);
+        await expect(page.getByTestId(ready).first()).toBeVisible({ timeout: 20_000 });
         await noSidewaysScroll(page);
-      }
-    });
+      });
+    }
   }
 
   test('telefon: kohoutek teplé vody je v domě, popisek kolektoru nad terénem', async ({

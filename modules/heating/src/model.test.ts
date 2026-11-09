@@ -18,7 +18,12 @@ import {
   tempColor,
   timeTicks,
 } from './model.js';
-import { buildMockHistory, buildMockSeasons, buildMockSnapshot } from './mock.js';
+import {
+  HEATING_SCENARIOS,
+  buildMockHistory,
+  buildMockSeasons,
+  buildMockSnapshot,
+} from './mock.js';
 import type { HistoryPoint } from './types.js';
 
 const NOW = Date.parse('2026-01-14T09:00:00Z');
@@ -296,5 +301,34 @@ describe('curve', () => {
     expect(curveAt(pts, -30)).toBe(50);
     expect(curveAt(pts, 30)).toBe(30);
     expect(curveAt([], 0)).toBeNull();
+  });
+});
+
+describe('unmapped dev measurements', () => {
+  it.each(HEATING_SCENARIOS)('%s never invents collector temperatures or cooling', (scenario) => {
+    const s = snap(scenario);
+    expect(s.heat_pump).toMatchObject({
+      brine_in: null,
+      brine_out: null,
+      primary_prerun: null,
+      discharge_temp: null,
+      discharge_bar: null,
+      suction_temp: null,
+      suction_bar: null,
+    });
+    expect(s.mode.cooling).toBeNull();
+    expect(s.pumps.circulation).toBeNull();
+    expect(s.backup_heater.available).toBe(false);
+    expect(activityModel(s, NOW).state).not.toBe('cooling');
+  });
+  it('house circuit can heat from the tank while the compressor rests', () => {
+    const s = snap('house');
+    expect(s.activity).toBe('house_circuit');
+    expect(activityModel(s, NOW).state).toBe('house');
+    expect(schematicState(s)).toMatchObject({
+      compressor: 'off',
+      brine: 0,
+      pumps: { primary: false, house: true },
+    });
   });
 });

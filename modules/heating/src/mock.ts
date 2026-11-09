@@ -11,10 +11,12 @@ import type {
 } from './types.js';
 
 /** Dev/e2e scenarios (`?topeni=`). All numbers are SYNTHETIC, only shaped like a real system. */
-export type HeatingScenario = 'heating' | 'idle' | 'dhw' | 'fault' | 'unconfigured' | 'stale';
+export type HeatingScenario =
+  'heating' | 'idle' | 'house' | 'dhw' | 'fault' | 'unconfigured' | 'stale';
 export const HEATING_SCENARIOS: readonly HeatingScenario[] = [
   'heating',
   'idle',
+  'house',
   'dhw',
   'fault',
   'unconfigured',
@@ -102,13 +104,15 @@ export function buildMockSnapshot(
           ? 'heating_dhw'
           : scenario === 'fault'
             ? 'fault'
-            : 'idle',
+            : scenario === 'house'
+              ? 'house_circuit'
+              : 'idle',
     mode: {
       season: 'winter',
       auto_season: true,
       setback_active: false,
       main_switch: true,
-      cooling: false,
+      cooling: null,
       hdo_low_tariff: scenario !== 'idle',
     },
     house: {
@@ -117,8 +121,8 @@ export function buildMockSnapshot(
       ref_target_effective: 22.5,
       hysteresis: 0.1,
       attic_temp: 19.6,
-      circuit_on: scenario === 'heating' || scenario === 'idle',
-      supply_temp: scenario === 'heating' || scenario === 'idle' ? 37.8 : 18.2,
+      circuit_on: scenario === 'heating' || scenario === 'house',
+      supply_temp: scenario === 'heating' || scenario === 'house' ? 37.8 : 18.2,
     },
     heat_pump: {
       compressor_on: running,
@@ -126,8 +130,8 @@ export function buildMockSnapshot(
       power_w: running ? (scenario === 'dhw' ? 4900 : 4200) : 6,
       condenser_out: running ? (scenario === 'dhw' ? 51.3 : 45.8) : 31.2,
       return_temp: running ? 38.9 : 30.4,
-      brine_in: running ? 5.1 : 7.2,
-      brine_out: running ? 2.4 : 7.0,
+      brine_in: null,
+      brine_out: null,
       primary_prerun: null,
       discharge_temp: null,
       discharge_bar: null,
@@ -153,7 +157,7 @@ export function buildMockSnapshot(
     },
     outdoor: { temp: -1.8, min_today: -4.6, max_today: 2.9 },
     pumps: {
-      heating: scenario === 'heating' || scenario === 'idle',
+      heating: scenario === 'heating' || scenario === 'house',
       secondary: running,
       circulation: null,
     },

@@ -9,10 +9,10 @@ export const heatingStyles = `
   --ht-c-home: var(--hb-t1);
   --ht-heat: oklch(0.72 0.17 45);
   --ht-particle: #fff;
-  --ht-soil-a: oklch(0.36 0.04 60 / 0.55);
-  --ht-soil-b: oklch(0.26 0.03 55 / 0.35);
-  --ht-steel: color-mix(in srgb, var(--hb-t1) 16%, var(--hb-s1));
-  --ht-steel-edge: color-mix(in srgb, var(--hb-t1) 30%, transparent);
+  --ht-soil-a: color-mix(in srgb, var(--hb-t1) 5%, transparent);
+  --ht-soil-b: transparent;
+  --ht-steel: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1));
+  --ht-steel-edge: color-mix(in srgb, var(--hb-t1) 18%, transparent);
   color: var(--hb-t1);
   max-width: 1440px;
   margin: 0 auto;
@@ -22,8 +22,8 @@ export const heatingStyles = `
 }
 [data-theme='light'] .ht {
   --ht-particle: #fff;
-  --ht-soil-a: oklch(0.78 0.05 70 / 0.7);
-  --ht-soil-b: oklch(0.7 0.05 60 / 0.5);
+  --ht-soil-a: color-mix(in srgb, var(--hb-t1) 5%, transparent);
+  --ht-soil-b: transparent;
   --ht-c-out: oklch(0.6 0.11 235);
   --ht-c-supply: oklch(0.66 0.13 75);
 }
@@ -57,11 +57,12 @@ export const heatingStyles = `
 .ht-hero[data-state='fault'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--hb-crit) 14%, transparent), transparent 60%), var(--hb-s1); }
 .ht-hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .ht-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.ht-big { font-size: clamp(56px, 7vw, 76px); font-weight: 300; letter-spacing: -0.035em; line-height: 1.15; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.ht-big { font-size: clamp(40px, 5vw, 56px); font-weight: 300; letter-spacing: -0.035em; line-height: 1.15; font-variant-numeric: tabular-nums; margin-top: 4px; }
 .ht-big small { font-size: 0.42em; font-weight: 400; letter-spacing: 0; margin-left: 4px; vertical-align: 0.95em; color: var(--hb-t2); }
 .ht-hero-sub { color: var(--hb-t2); font-size: 13px; }
-.ht-hero h2 { font-size: 21px; line-height: 1.3; font-weight: 450; letter-spacing: -0.015em; margin-top: 10px; }
-.ht-hero h2 b { font-weight: 700; }
+.ht-hero h2 { font-size: clamp(24px, 2.2vw, 30px); line-height: 1.3; font-weight: 450; letter-spacing: -0.015em; margin-top: 0; }
+.ht-hero h2 b { font-weight: 600; }
+.ht-hero-copy > .ht-hero-detail { margin-bottom: 12px; }
 .ht-hero-detail { color: var(--hb-t2); font-size: 14px; line-height: 1.5; max-width: 52ch; }
 .ht-ok { grid-template-columns: 1fr; }
 
@@ -69,16 +70,15 @@ export const heatingStyles = `
 .ht-sch { position: relative; width: 100%; min-width: 0; container-type: inline-size; }
 .ht-sch > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .ht-soil { stroke: none; }
-.ht-grass { stroke: color-mix(in srgb, var(--hb-ok) 55%, transparent); stroke-width: 3; stroke-linecap: round; fill: none; }
-.ht-pipe-case { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 9%, transparent); stroke-width: 11; stroke-linejoin: round; stroke-linecap: round; }
-.ht-pipe-core { fill: none; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; opacity: 0.32; transition: opacity var(--hb-dur-slow, 400ms) ease; }
-.ht-pipe[data-active] .ht-pipe-core { opacity: 0.95; }
-.ht-p { opacity: 0.9; filter: drop-shadow(0 0 3px rgba(255,255,255,.6)); }
-[data-theme='light'] .ht-p { filter: drop-shadow(0 0 2px rgba(0,0,0,.35)); }
+.ht-grass { stroke: color-mix(in srgb, var(--hb-t1) 12%, transparent); stroke-width: 1.5; stroke-linecap: round; fill: none; }
+.ht-pipe-case { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 4%, transparent); stroke-width: 8; stroke-linejoin: round; stroke-linecap: round; }
+.ht-pipe-core { fill: none; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.32; transition: opacity var(--hb-dur-slow, 400ms) ease; }
+.ht-pipe[data-active] .ht-pipe-core { opacity: 0.65; }
+.ht-p { opacity: 0.65; }
 .ht-pump-body { fill: var(--hb-s1); stroke: var(--ht-steel-edge); stroke-width: 2; }
-.ht-pump[data-on] .ht-pump-body { stroke: var(--hb-ac); }
+.ht-pump[data-on] .ht-pump-body { stroke: var(--ht-heat); }
 .ht-impeller { fill: color-mix(in srgb, var(--hb-t1) 45%, transparent); transform-box: fill-box; transform-origin: center; }
-.ht-pump[data-on] .ht-impeller { fill: var(--hb-ac); animation: ht-spin 1.6s linear infinite; }
+.ht-pump[data-on] .ht-impeller { fill: var(--ht-heat); animation: ht-spin 3.6s linear infinite; }
 .ht-valve-body { fill: var(--hb-s1); stroke: var(--ht-steel-edge); stroke-width: 2; }
 .ht-valve-flag { transition: transform 700ms var(--hb-ease-out, ease); transform-box: view-box; transform-origin: 0 0; }
 .ht-valve-flag path { fill: none; stroke: var(--hb-t1); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -87,20 +87,17 @@ export const heatingStyles = `
 .ht-comp[data-on] .ht-comp-shell { stroke: var(--ht-heat); }
 .ht-comp-scroll { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 40%, transparent); stroke-width: 2; stroke-linecap: round; }
 .ht-comp[data-on] .ht-comp-scroll { stroke: var(--ht-heat); }
-.ht-comp[data-on] { animation: ht-vib 0.9s ease-in-out infinite; }
-.ht-comp-glow { animation: ht-glow 3.2s ease-in-out infinite alternate; }
-.ht-hx { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 26%, transparent); stroke-width: 3; stroke-linecap: round; }
-.ht-comp[data-on] ~ .ht-hx { stroke: color-mix(in srgb, var(--ht-heat) 60%, transparent); }
+.ht-comp[data-on] { animation: ht-breathe 4s ease-in-out infinite; }
+.ht-comp-glow { animation: ht-glow 6s ease-in-out infinite alternate; }
 .ht-rad-pipe { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 22%, transparent); stroke-width: 4; stroke-linecap: round; }
 .ht-rad[data-on] .ht-rad-pipe { stroke: color-mix(in srgb, var(--ht-c-supply) 70%, transparent); }
 .ht-tank-glass { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 30%, transparent); stroke-width: 1.5; }
-.ht-tank-zone { stroke: rgba(255,255,255,.35); stroke-width: 1; stroke-dasharray: 3 5; }
 .ht-backup path { fill: none; stroke: color-mix(in srgb, var(--hb-crit) 60%, var(--hb-t2)); stroke-width: 3; stroke-linejoin: round; }
 .ht-backup[data-on] path { stroke: var(--hb-crit); }
-.ht-house-outline { fill: color-mix(in srgb, var(--hb-t1) 4%, transparent); stroke: color-mix(in srgb, var(--hb-t1) 22%, transparent); stroke-width: 2; stroke-linejoin: round; }
-.ht-rad rect { fill: color-mix(in srgb, var(--hb-t1) 8%, var(--hb-s1)); stroke: color-mix(in srgb, var(--hb-t1) 28%, transparent); stroke-width: 1.5; transition: fill var(--hb-dur-slow, 400ms) ease; }
+.ht-house-outline { fill: color-mix(in srgb, var(--hb-t1) 4%, transparent); stroke: color-mix(in srgb, var(--hb-t1) 15%, transparent); stroke-width: 1.5; stroke-linejoin: round; }
+.ht-rad rect { fill: color-mix(in srgb, var(--hb-t1) 8%, var(--hb-s1)); stroke: color-mix(in srgb, var(--hb-t1) 28%, transparent); stroke-width: 1.5; }
 .ht-rad path:not(.ht-rad-pipe) { stroke: color-mix(in srgb, var(--hb-t1) 24%, transparent); stroke-width: 2; stroke-linecap: round; }
-.ht-rad[data-on] rect { fill: color-mix(in srgb, var(--ht-c-supply) 30%, var(--hb-s1)); stroke: var(--ht-c-supply); }
+.ht-rad[data-on] rect { fill: color-mix(in srgb, var(--ht-c-supply) 12%, var(--hb-s1)); stroke: color-mix(in srgb, var(--ht-c-supply) 55%, var(--ht-steel-edge)); }
 .ht-tap path { fill: none; stroke: color-mix(in srgb, var(--hb-t1) 55%, transparent); stroke-width: 3; stroke-linecap: round; }
 .ht-tap .ht-drop { fill: var(--ht-c-dhw); stroke: none; }
 .ht-lbl { position: absolute; display: flex; flex-direction: column; gap: 1px; pointer-events: none; white-space: nowrap; font-size: 12px; line-height: 1.3; }
@@ -108,15 +105,14 @@ export const heatingStyles = `
 .ht-lbl[data-align='r'] { transform: translateX(-100%); align-items: flex-end; text-align: right; }
 .ht-lbl { text-shadow: 0 1px 6px var(--hb-s1), 0 0 2px var(--hb-s1); }
 .ht-lbl b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ht-lbl-k { color: var(--hb-t2); font-size: 12.5px; }
-.ht-lbl-s { color: var(--hb-t2); font-size: 12px; }
+.ht-lbl-k { color: var(--hb-t2); font-size: 13px; }
 .ht-lbl-warn { font-size: 12px; font-weight: 600; color: var(--hb-on-crit, #fff); background: var(--hb-crit); padding: 2px 8px; border-radius: 999px; }
 .ht-hdo { margin-top: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--hb-ok) 16%, transparent); color: var(--hb-t1); align-self: flex-start; }
 .ht-lbl[data-align='r'] .ht-hdo { align-self: flex-end; }
 .ht-hdo[data-hdo='high'] { background: color-mix(in srgb, var(--hb-warn) 18%, transparent); }
 
 @keyframes ht-spin { to { transform: rotate(360deg); } }
-@keyframes ht-vib { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(0.5px, -0.4px); } 75% { transform: translate(-0.5px, 0.3px); } }
+@keyframes ht-breathe { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
 @keyframes ht-glow { from { opacity: 0.45; } to { opacity: 1; } }
 
 /* Stats */
@@ -197,8 +193,8 @@ export const heatingStyles = `
 .ht-season header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .ht-share { display: block; height: 4px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.15)); overflow: hidden; }
 .ht-share i { display: block; height: 100%; background: var(--ht-c-tank); transform-origin: left; }
-.ht-season dl { display: grid; grid-template-columns: auto auto; gap: 4px 12px; font-size: 13px; }
-.ht-season dt { color: var(--hb-t2); }
+.ht-season dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; font-size: 13px; }
+.ht-season dt { color: var(--hb-t2); overflow-wrap: anywhere; }
 .ht-season dd { text-align: right; font-variant-numeric: tabular-nums; }
 .ht-season dd em { font-style: normal; font-size: 12px; color: var(--hb-t2); }
 .ht-season dd em[data-tone='down'] { color: var(--hb-ok); }
@@ -206,6 +202,11 @@ export const heatingStyles = `
 .ht-season-note { font-size: 13px; color: var(--hb-ac); }
 
 /* Rooms */
+.ht-bind-help { display: flex; flex-direction: column; gap: 12px; padding-left: 28px; border-left: 1px solid var(--hb-edge); font-size: 14px; line-height: 1.6; }
+.ht-bind-help h3 { font-size: 17px; font-weight: 600; }
+.ht-bind-help p { color: var(--hb-t2); }
+.ht-bind-help ol { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+
 .ht-ref { padding: 24px 26px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px 32px; align-items: start; }
 .ht-ref > div:first-child { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .ht-ref-notes { display: flex; flex-direction: column; gap: 12px; }
@@ -252,6 +253,7 @@ export const heatingStyles = `
   .ht-row { grid-template-columns: 1fr; }
   .ht-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ht-ref { grid-template-columns: 1fr; }
+  .ht-bind-help { padding-left: 0; padding-top: 20px; border-left: 0; border-top: 1px solid var(--hb-edge); }
 }
 @media (max-width: 600px) {
   .ht-tabs .hb-seg, .ht-tabs .hb-seg:has(> button:nth-of-type(4)) { display: grid; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 85%, transparent); }

@@ -188,6 +188,12 @@ function NowTab({
         data-state={act.state}
       >
         <div className="ht-hero-copy">
+          <h2 data-testid="heating-headline">
+            {act.headline[0]}
+            <b>{act.headline[1]}</b>
+            {act.headline[2]}
+          </h2>
+          <p className="ht-hero-detail">{act.detail}</p>
           <div className="ht-pills">
             <Pill tone={act.tone} dot data-testid="heating-pill">
               {act.pill}
@@ -209,12 +215,6 @@ function NowTab({
             doma (chodba – referenční místnost) · cíl{' '}
             {fmtT(snap.house.ref_target_effective ?? snap.house.ref_target)}
           </p>
-          <h2 data-testid="heating-headline">
-            {act.headline[0]}
-            <b>{act.headline[1]}</b>
-            {act.headline[2]}
-          </h2>
-          <p className="ht-hero-detail">{act.detail}</p>
         </div>
         <HeatingSchematic snap={snap} state={st} />
       </Card>
@@ -362,11 +362,25 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
             {fmtNum(h.hysteresis)}&nbsp;°C
           </p>
           <p className="ht-hero-detail">
-            Tahle jedna místnost rozhoduje, jestli teče teplo do celého domu. Když je v ní dost
-            teplo, čerpadlo topení se zastaví – i když je jinde chladněji.
+            Chodba řídí topení celého domu. Když dosáhne cílové teploty, čerpadlo topení se zastaví
+            – i když je v jiném pokoji chladněji.
           </p>
         </div>
         <div className="ht-ref-notes">
+          {m.rows.length === 0 && (
+            <div className="ht-bind-help" data-testid="heating-rooms-empty">
+              <h3>Přidejte přehled o pokojích</h3>
+              <p>Uvidíte, kde je teplo a kde ještě přitopit.</p>
+              <ol>
+                <li>Spárujte teploměry Aqara nebo termostatické hlavice přes Zigbee2MQTT.</li>
+                <li>
+                  V Nastavení HomeBrain → Moduly → Topení vyberte čidla a hlavice pro jednotlivé
+                  pokoje.
+                </li>
+              </ol>
+              <p>Stačí i samotný teploměr. Pokoje se pak seřadí od nejchladnějšího.</p>
+            </div>
+          )}
           {m.insight && (
             <Card tone="notice" className="ht-note" data-testid="heating-rooms-insight">
               <b>Nejchladnější místnost</b>
@@ -384,16 +398,7 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
           )}
         </div>
       </Card>
-      {m.rows.length === 0 ? (
-        <Card className="ht-card" data-testid="heating-rooms-empty">
-          <EmptyState title="Pokoje zatím nejsou připojené">
-            Topení teď zná jen referenční místnost (chodba). Aby tu byly všechny pokoje: spárujte
-            čidla teploty Aqara a termostatické hlavice (Zigbee2MQTT), pak je správce vybere v
-            Nastavení → HomeBrain → Topení → Místnosti (čidla <code>sensor.*</code>, hlavice{' '}
-            <code>climate.*</code>). Pokoje se pak seřadí od nejchladnějšího.
-          </EmptyState>
-        </Card>
-      ) : (
+      {m.rows.length > 0 && (
         <Card className="ht-card" data-testid="heating-rooms">
           <header className="ht-ch">
             <h3>Místnosti</h3>
@@ -673,7 +678,7 @@ function SeasonsTab({ api }: { api: HeatingApi }) {
               <dd>{fmtSeasonEnergy(c)}</dd>
               <dt>Starty</dt>
               <dd>{fmtNum(c.starts, 0)}</dd>
-              <dt>Medián běhu</dt>
+              <dt>Medián délky běhu (hodinová data, orientační)</dt>
               <dd>{c.median_run_min === null ? '–' : `${c.median_run_min}\u00a0min`}</dd>
               <dt>Na 100 denostupňů</dt>
               <dd>
@@ -717,11 +722,6 @@ function ModesTab({ snap }: { snap: HeatingSnapshot }) {
       'Útlum',
       mode.setback_active === null ? 'neznámo' : mode.setback_active ? 'právě běží' : 'teď ne',
       mode.setback_active,
-    ],
-    [
-      'Chlazení',
-      mode.cooling === null ? 'neznámo' : mode.cooling ? 'zapnuto' : 'vypnuto',
-      mode.cooling,
     ],
     [
       'Tarif (HDO)',
