@@ -274,7 +274,8 @@ async def websocket_heating_import_history(
     Measurements: ``mean`` (+ ``min``/``max``). Counters (``compressor_runtime_h``,
     ``compressor_starts``, ``energy_kwh``): ``sum`` = amount in that hour; the running total
     continues from the statistics stored before the batch, so re-importing a batch is a no-op.
-    Import batches oldest first.
+    Send batches oldest first. Recorder writes are committed before acknowledgement, so
+    consecutive batches are safe back-to-back without a client-side delay.
     """
     rejected: list[dict[str, Any]] = []
     grouped: dict[str, dict[int, dict[str, Any]]] = {}
@@ -299,12 +300,15 @@ async def websocket_heating_import_history(
     if grouped and "recorder" not in hass.config.components:
         connection.send_error(msg["id"], "not_supported", "Recorder is not running")
         return
+    from homeassistant.components.recorder import get_instance
     from homeassistant.components.recorder.models import StatisticMeanType
     from homeassistant.components.recorder.statistics import (
         async_import_statistics,
-        statistic_during_period,
+        statistics_during_period,
     )
 
+    if grouped:
+        await get_instance(hass).async_block_till_done()
     counts: dict[str, int] = {}
     for key, by_start in grouped.items():
         sid = _statistic_id(hass, key)
@@ -315,9 +319,19 @@ async def websocket_heating_import_history(
         if counter:
             first = datetime.fromtimestamp(starts[0] / 1000, UTC)
             before = await _recorder_job(
-                hass, statistic_during_period, hass, None, first, sid, {"change"}, None
+                hass,
+                statistics_during_period,
+                hass,
+                datetime.min.replace(tzinfo=UTC),
+                first,
+                {sid},
+                "hour",
+                None,
+                {"sum"},
             )
-            total = float(before.get("change") or 0.0)
+            # The end is exclusive: replaying this batch must not seed from its own rows.
+            previous = before.get(sid, [])
+            total = float(previous[-1]["sum"] or 0.0) if previous else 0.0
             for ms in starts:
                 total += by_start[ms]["sum"]
                 stats.append(
@@ -349,6 +363,8 @@ async def websocket_heating_import_history(
             stats,
         )
         counts[object_id(key)] = len(stats)
+    if grouped:
+        await get_instance(hass).async_block_till_done()
     connection.send_result(
         msg["id"],
         {"imported": sum(counts.values()), "keys": counts, "rejected": rejected},

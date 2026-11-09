@@ -87,8 +87,10 @@ from the map (`false`) or null, `backup_heater_h` = null (no source yet).
 amount within that hour). `start` = epoch ms or ISO with offset, aligned to a full hour.
 Max 20 000 rows per call. Rows for keys without an entity or unaligned hours are reported in
 `rejected`. Re-importing a batch overwrites the same hours (idempotent); counter totals
-continue from the statistics stored before the batch, so import oldest batches first and
-before live data for that period exists.
+continue from the last stored row's cumulative sum strictly before the batch. Send batches
+oldest-first and before live data for that period exists. The command waits for recorder
+writes before reading that seed and before acknowledging the import, so batches are safe
+back-to-back after each response, without sleeps or extra recorder flushes.
 
 ## Not in phase 0
 
