@@ -666,7 +666,7 @@ test.describe('Topení', () => {
       expect(layout.textOverlaps, layout.overlapNote || '').toBe(false);
 
       if (h <= 450) {
-        expect(layout.schematicBottomOk, 'schematic fits short landscape').toBe(true);
+        expect(layout.schW, 'readable SVG in short landscape').toBeGreaterThanOrEqual(w * 0.45);
       } else {
         expect(layout.schW).toBeGreaterThanOrEqual(w * 0.17);
         const fitMaxH = Math.max(200, h - layout.stripH - 80);

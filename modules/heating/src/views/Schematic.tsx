@@ -1,9 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import {
-  HEATING_LOGO_ROOT,
-  useHeatingLogoManifest,
-  type HeatingLogoManifest,
-} from '../logo.js';
+import { HEATING_LOGO_ROOT, useHeatingLogoManifest, type HeatingLogoManifest } from '../logo.js';
 import { fmtDuration, fmtT as formatTemperature, heroScene } from '../model.js';
 import type { HeatingSnapshot } from '../types.js';
 
@@ -393,8 +389,8 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             studená voda
           </Label>
           <g className="ht-c3-land-only">
-            <rect x="248" y="318" width="72" height="16" rx="3" className="ht-c3-main-label-bg" />
-            <Label x={251} y={330} id="cold-water" anchor="start" className="ht-c3-cold-land">
+            <rect x="142" y="240" width="78" height="16" rx="3" className="ht-c3-main-label-bg" />
+            <Label x={146} y={252} id="cold-water" anchor="start" className="ht-c3-cold-land">
               studená voda
             </Label>
           </g>
@@ -404,23 +400,19 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             className="ht-c3-draw"
             data-pipe-id="dhw-draw"
           />
-            <Label x={181} y={22} anchor="middle" id="tank-title">
+          <Label x={181} y={22} anchor="middle" id="tank-title">
             Akumulační nádrž
           </Label>
           {snap.tank.top !== null && (
             <g className="ht-c3-land-only">
-              <rect x="228" y="82" width="90" height="18" rx="4" className="ht-c3-tank-top-bg" />
-              <Label x={230} y={94} anchor="start" id="tank-top" muted={false}>
+              <path d="M118 58H124L134 75" className="ht-c3-leader" data-tank-top-leader="" />
+              <rect x="22" y="48" width="96" height="18" rx="4" className="ht-c3-tank-top-bg" />
+              <Label x={114} y={61} anchor="end" id="tank-top" muted={false}>
                 nahoře {fmtT(snap.tank.top)}
               </Label>
             </g>
           )}
-          <g
-            className="ht-c3-hp"
-            data-floor="hp"
-            role="img"
-            aria-label="Tepelné čerpadlo"
-          >
+          <g className="ht-c3-hp" data-floor="hp" role="img" aria-label="Tepelné čerpadlo">
             <rect x="8" y="243" width={HP_W} height="118" rx="9" className="ht-c3-cabinet" />
             <path d="M17 361V365M63 361V365" className="ht-c3-metal-pipe" />
             {showLogo && logoManifest ? (
@@ -431,6 +423,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 y={258}
                 width={LOGO_W}
                 height={52}
+                className="ht-c3-owner-logo"
                 preserveAspectRatio="xMidYMid meet"
                 onError={() => setLogoFailed(true)}
               />

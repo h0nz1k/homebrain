@@ -357,7 +357,7 @@ export const heatingStyles = `
 .ht-land-dash { display: none; }
 .ht-land-pump-chips { display: none; }
 .ht-land-rooms-only { display: none; }
-.ht-land-panel { padding: 12px 14px; gap: 8px; flex: none; min-width: 0; }
+.ht-land-panel { display: flex; flex-direction: column; padding: 12px 14px; gap: 8px; flex: none; min-width: 0; }
 .ht-land-panel .ht-ch h3 { font-size: 13px; }
 .ht-land-panel .ht-kv { font-size: 13px; }
 .ht-land-panel .ht-kv li { padding: 6px 0; }
@@ -372,15 +372,11 @@ export const heatingStyles = `
   min-width: 0;
   width: 100%;
 }
-.ht-chart-compact { padding-left: 28px; }
+.ht-chart-compact { padding-left: 28px; padding-right: 12px; }
 .ht-chart-compact .ht-chart-wrap { gap: 2px; }
 .ht-chart-compact .ht-ylab { font-size: 11px; left: -28px; }
 .ht-chart-compact .ht-xlabs { height: 14px; }
 .ht-chart-compact .ht-xlabs span { font-size: 11px; }
-.ht-chart-compact .ht-xlabs span:first-child,
-.ht-chart-compact .ht-xlabs span:last-child { transform: translateX(0); }
-.ht-chart-compact .ht-xlabs span:first-child { transform: translateX(4px); }
-.ht-chart-compact .ht-xlabs span:last-child { transform: translateX(-4px); }
 .ht-curve-now-dot { fill: var(--ht-c-tank); stroke: var(--hb-s1); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .ht-extras-land { display: flex; flex-direction: column; gap: 10px; }
 .ht-extras-land-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; }
@@ -399,6 +395,7 @@ export const heatingStyles = `
 .ht-tank-gauge-kv { flex: 1; }
 .ht-tank-gauge-hint { font-size: 12px; grid-column: 1 / -1; margin: 0; }
 .ht-land-curve { margin-top: 4px; }
+.ht-curve-unit { font-size: 11px; color: var(--hb-t2); align-self: end; }
 .ht-land-rooms-link { margin-top: 4px; }
 .ht-now-schematic { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
 .ht-now-hero-grid { display: contents; }
@@ -444,118 +441,76 @@ export const heatingStyles = `
 
 @media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) {
   .ht-c3-cold-portrait, .ht-c3-cold-portrait-bg { display: none; }
-  .ht-land-only { display: block; }
+  .ht-land-only, .ht-c3-land-only { display: block; }
   .ht-land-strip.ht-land-only { display: grid; }
-  .ht-portrait-hero-copy { display: none !important; }
-  .ht-land-dash {
-    display: block;
-    min-width: 0;
-    overflow: visible;
-    max-height: none;
-  }
+  .ht-portrait-hero-copy, .ht-portrait-only { display: none !important; }
   .ht-land-strip .ht-land-pump-chips { display: flex; }
-  .ht-now-schematic > .ht-land-pump-chips { display: none !important; }
-  .ht-c3-land-only { display: block; }
-  .ht-portrait-only { display: none !important; }
   .ht-land-rooms-only { display: grid; grid-template-columns: 1fr; }
   .ht-hero.ht-hero-now {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 14px 16px;
-    max-width: none;
+    display: flex; flex-direction: column; gap: 12px; padding: 14px 16px;
+    max-width: none; overflow: visible;
   }
   .ht-now-hero-grid {
+    --ht-scene-w: min(40vw, 344px);
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      'strip strip'
-      'schem panels';
-    gap: 12px 16px;
-    align-items: stretch;
-    width: 100%;
-    min-height: 0;
-    flex: 1 1 auto;
+    grid-template-rows: auto auto;
+    grid-template-areas: 'strip strip' 'schem panels';
+    gap: 12px 16px; align-items: stretch; width: 100%;
   }
   .ht-land-strip { grid-area: strip; }
   .ht-now-schematic {
-    grid-area: schem;
-    align-self: start;
-    justify-self: start;
-    justify-content: flex-start;
-    --ht-scene-max-h: min(52vh, calc(100dvh - 15.5rem), calc(100dvh - 240px));
-    --ht-scene-w: min(58vw, 520px, calc(var(--ht-scene-max-h) * 344 / 542));
-    width: var(--ht-scene-w);
-    max-width: var(--ht-scene-w);
-    max-height: var(--ht-scene-max-h);
-    min-height: 0;
-    flex: 0 0 auto;
+    grid-area: schem; align-self: start; justify-content: flex-start;
+    width: var(--ht-scene-w); max-width: none;
   }
-  .ht-land-dash { grid-area: panels; align-self: start; min-height: 0; max-height: min(calc(100dvh - 9rem), calc(100dvh - 140px)); overflow-y: auto; }
   .ht-now-schematic .ht-c3 {
-    width: var(--ht-scene-w);
-    max-width: 100%;
-    margin: 0;
-    height: min(calc(var(--ht-scene-w) * 542 / 344), var(--ht-scene-max-h));
-    max-height: var(--ht-scene-max-h);
-    min-height: 0;
-    display: block;
-    overflow: hidden;
+    width: 100%; max-width: none; margin: 0; height: auto; overflow: visible;
   }
-  .ht-now-schematic .ht-c3 > svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
+  .ht-now-schematic .ht-c3 > svg { width: 100%; height: auto; max-height: none; }
+  .ht-land-dash { display: block; grid-area: panels; min-width: 0; overflow: visible; }
   .ht-c3-chips { display: none; }
   .ht { max-width: min(100%, 1920px); width: 100%; }
+  .ht-c3-owner-logo { x: 11px; width: 60px; }
+  .ht-land-panel .hb-chip { align-self: start; justify-self: start; width: fit-content; }
+  .ht-c3-label:is([data-label='charge'],[data-label='hp-in'],[data-label='cold-water'],[data-label='house-pump']) { font-size: 11px; }
+  .ht-c3-label[data-label='tank-top'] { font-size: 11px; }
 }
 
 @media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) and (max-height: 599px) {
+  .ht-now-hero-grid { --ht-scene-w: 48vw; }
+  .ht-land-strip { grid-template-columns: auto minmax(0, 1fr); }
+  .ht-land-strip-meta { grid-column: 1 / -1; justify-self: start; }
+  .ht-land-strip-head { white-space: normal; }
+  .hb-shell main:has(.ht-hero-now) { overflow: visible; }
+  .ht-now-schematic { position: sticky; top: calc(var(--hb-topbar-height, 56px) + 4px); }
   .ht-land-panel { padding: 10px 12px; }
-  .ht-land-dash-inner { grid-template-columns: 1fr; }
-  .ht-now-schematic {
-    position: sticky;
-    top: 4px;
-    width: min(58vw, 520px);
-    height: auto;
-    min-height: 0;
-    max-height: calc(100dvh - 7.5rem);
-    z-index: 1;
-  }
-  .ht-land-dash {
-    max-height: none;
-    overflow-y: visible;
-  }
+  .ht-land-dash-inner { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (orientation: landscape) and (min-width: 1000px) and (min-height: 600px) {
-  .ht-now-schematic {
-    --ht-scene-max-h: min(52vh, calc(100dvh - 15.5rem), calc(100dvh - 240px));
-    width: min(calc(var(--ht-scene-max-h) * 344 / 542), calc(100% - 320px));
-    max-height: var(--ht-scene-max-h);
-  }
-  .ht-now-schematic .ht-c3 {
-    max-height: var(--ht-scene-max-h);
-    width: min(100%, calc(var(--ht-scene-max-h) * 344 / 542));
-    height: auto;
-  }
-  .ht-now-schematic .ht-c3 > svg {
-    width: 100%;
-    height: auto;
-    max-height: var(--ht-scene-max-h);
-  }
+  .ht-now-hero-grid { --ht-scene-w: calc((100dvh - 220px) * 344 / 542); }
+  .ht-land-dash { height: calc(100dvh - 220px); }
   .ht-land-dash-inner {
-    gap: 10px 14px;
+    height: 100%; gap: 10px 14px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
     grid-template-areas:
       "fish house outdoor store"
-      "extras compressor tank status"
+      "extras compressor outdoor status"
       "day day day day";
+    align-content: stretch;
   }
-  .ht-land-dash-inner > [data-land-area="fish"],
-  .ht-land-dash-inner > [data-land-area="fish"] .ht-land-panel { grid-area: fish; }
+  .ht-land-dash-inner:not(:has([data-land-area="fish"])) {
+    grid-template-areas: "house outdoor store extras" "house outdoor compressor status" "day day day day";
+  }
+  .ht-land-dash-inner:not(:has([data-land-area="extras"])) {
+    grid-template-areas: "fish house outdoor store" "fish compressor outdoor status" "day day day day";
+  }
+  .ht-land-dash-inner:not(:has([data-land-area="fish"], [data-land-area="extras"])) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: "house outdoor store" "compressor outdoor status" "day day day";
+  }
+  .ht-land-dash-inner > [data-land-area="fish"] { grid-area: fish; }
   .ht-land-dash-inner > [data-land-area="extras"] { grid-area: extras; }
   .ht-land-dash-inner > [data-land-area="house"] { grid-area: house; }
   .ht-land-dash-inner > [data-land-area="outdoor"] { grid-area: outdoor; }
@@ -563,51 +518,27 @@ export const heatingStyles = `
   .ht-land-dash-inner > [data-land-area="compressor"] { grid-area: compressor; }
   .ht-land-dash-inner > [data-land-area="status"] { grid-area: status; }
   .ht-land-dash-inner > [data-land-area="day"] { grid-area: day; }
-  .ht-land-dash { max-height: none; overflow-y: visible; align-self: stretch; }
-  .ht-land-dash-inner { align-content: stretch; width: 100%; }
-  .ht-land-dash-inner > .ht-land-panel,
-  .ht-land-dash-inner > [data-land-area] > .ht-land-panel,
-  .ht-land-dash-inner > [data-land-area] {
-    align-self: stretch;
-    height: 100%;
-    min-height: 0;
-    width: 100%;
-    min-width: 0;
-  }
+  .ht-land-dash-inner > [data-land-area] { min-width: 0; }
+  .ht-land-curve { flex: 1; display: flex; min-height: 100px; }
+  .ht-land-curve > .ht-chart-wrap { flex: 1; }
+  .ht-land-curve .ht-chart { flex: 1; height: auto !important; min-height: 100px; }
 }
 
-@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
-  .ht-now-schematic {
-    --ht-scene-w: min(46vw, calc(var(--ht-scene-max-h) * 344 / 542));
-    width: var(--ht-scene-w);
-    max-width: var(--ht-scene-w);
-  }
-  .ht-now-schematic .ht-c3 {
-    max-height: min(52vh, calc(100dvh - 15.5rem));
-    width: min(100%, calc(min(52vh, calc(100dvh - 15.5rem)) * 344 / 542));
-    height: auto;
-  }
-  .ht-now-schematic .ht-c3 > svg {
-    width: 100%;
-    height: auto;
-    max-height: min(52vh, calc(100dvh - 15.5rem));
-  }
-}
-
-@media (orientation: landscape) and (min-width: 1800px) and (min-height: 600px) {
-  .ht-now-schematic {
-    width: min(max(30vw, calc(var(--ht-scene-max-h) * 344 / 542)), 50vw);
-  }
-}
-
-@media (orientation: landscape) and (min-width: 1000px) and (min-height: 600px) and (max-height: 820px) {
+@media (orientation: landscape) and (min-width: 1000px) and (min-height: 600px) and (max-height: 950px) {
   .ht-land-panel { padding: 10px 12px; gap: 6px; }
-  .ht-land-panel .ht-kv li { padding: 4px 0; }
+  .ht-land-panel .ht-kv li { padding: 2px 0; font-size: 12px; gap: 6px; }
+  .ht-land-panel .ht-ch h3 { font-size: 12px; }
+  .ht-tank-gauge { grid-template-columns: 16px minmax(0, 1fr); gap: 8px; }
+  .ht-tank-gauge-hint { display: none; }
+  .ht-land-day { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+  .ht-land-day > .ht-chart-wrap { grid-column: 1 / -1; }
+  .ht-land-day .ht-chart { height: 80px !important; }
+  .ht-land-day .ht-legend { margin-bottom: 0; }
+  .ht-side-temp { font-size: 24px; }
+  .ht-land-panel.ht-side-circuit { gap: 6px; }
+  .ht-land-panel.ht-side-circuit .ht-ch { margin-bottom: 0; }
+  .ht-extras-land { gap: 6px; }
+  .ht-extras-land-row { row-gap: 3px; }
   .ht-tank-gauge-bar { min-height: 96px; }
-  .ht-now-schematic { --ht-scene-max-h: min(calc(100dvh - 13.5rem), calc(100dvh - 212px)); }
-}
-
-@media (orientation: landscape) and (min-width: 900px) and (min-height: 340px) {
-  .ht-hero:has(.ht-c3) .ht-c3 { max-width: none; }
 }
 `;

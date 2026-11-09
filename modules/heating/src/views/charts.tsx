@@ -374,11 +374,13 @@ export function CurveChart({
   const insetX = compact ? 36 : 0;
   const plotW = VW - 2 * insetX;
   const sorted = points.slice().sort((a, b) => a[0] - b[0]);
-  const xs = niceTicks(
-    Math.min(-15, ...sorted.map((p) => p[0])),
-    Math.max(15, ...sorted.map((p) => p[0])),
-    4,
-  );
+  const xs = compact
+    ? [-20, 0, 20]
+    : niceTicks(
+        Math.min(-15, ...sorted.map((p) => p[0])),
+        Math.max(15, ...sorted.map((p) => p[0])),
+        4,
+      );
   const ys = niceTicks(
     Math.min(...sorted.map((p) => p[1])) - 2,
     Math.max(...sorted.map((p) => p[1])) + 2,
@@ -452,10 +454,11 @@ export function CurveChart({
           </span>
         ))}
       </div>
+      {compact && <span className="ht-curve-unit">Venku · °C</span>}
       <div className="ht-xlabs" aria-hidden="true">
         {xs.map((t) => (
           <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
-            {fmtNum(t, 0)}&nbsp;°C
+            {compact ? (t > 0 ? `+${t}` : t < 0 ? `−${-t}` : '0') : `${fmtNum(t, 0)} °C`}
           </span>
         ))}
       </div>

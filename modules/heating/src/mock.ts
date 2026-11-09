@@ -352,7 +352,7 @@ export function buildMockSnapshot(
       outdoor: -3.2,
       tankTop: 38.4,
       tankBottom: 36.9,
-      tankTarget: 41,
+      tankTarget: 43,
       curveTarget: 43,
       dhwTemp: 48.4,
       runtime: 2.8,

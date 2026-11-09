@@ -101,7 +101,7 @@ function TankGauge({ snap }: { snap: HeatingSnapshot }) {
         )}
       </div>
       <ul className="ht-kv ht-tank-gauge-kv">
-        <KvRow k="Nahoře" v={fmtT(g.top)} hide={g.top === null} />
+        <KvRow k="Nádrž nahoře" v={fmtT(g.top)} hide={g.top === null} />
         <KvRow k="Dole" v={fmtT(g.bottom)} hide={g.bottom === null} />
         <KvRow
           k="Cíl nádrže"
@@ -189,11 +189,7 @@ export function LandscapeDashboard({
             v={mode.setback_active ? 'běží' : 'ne'}
             hide={mode.setback_active === null}
           />
-          <KvRow
-            k="Okruh domu"
-            v={h.circuit_on ? 'topí' : 'stojí'}
-            hide={h.circuit_on === null}
-          />
+          <KvRow k="Okruh domu" v={h.circuit_on ? 'topí' : 'stojí'} hide={h.circuit_on === null} />
         </ul>
       </Panel>
 
@@ -225,10 +221,16 @@ export function LandscapeDashboard({
 
       <Panel id="compressor" title="Kompresor dnes">
         <ul className="ht-kv">
-          <KvRow k="Běh" v={`${fmtNum(hp.runtime_today_h)}\u00a0h`} hide={hp.runtime_today_h === null} />
+          <KvRow
+            k="Běh"
+            v={`${fmtNum(hp.runtime_today_h)}\u00a0h`}
+            hide={hp.runtime_today_h === null}
+          />
           <KvRow
             k="Starty"
-            v={hp.starts_today !== null ? czCount(hp.starts_today, 'start', 'starty', 'startů') : '–'}
+            v={
+              hp.starts_today !== null ? czCount(hp.starts_today, 'start', 'starty', 'startů') : '–'
+            }
             hide={hp.starts_today === null}
           />
           <KvRow
