@@ -1,0 +1,107 @@
+# HomeBrain Topení – variable map (EXAMPLE, synthetic addresses)
+#
+# Copy to /config/homebrain/heating_map.yaml and replace the addresses with the ones of
+# YOUR Tecomat project (page numbers and INPUT names as served by GET /PAGE<n>.XML with the
+# header `x-tecomat: data`). Every address below is made up.
+#
+# `var`: an address (X300, R7031.3) – any format of that variable on the page matches – or a
+# full WebMaker name (__X300_REAL_04.1f). Optional per key: `invert: true` for flags where
+# 0 means "active", `scale: 0.1` for raw integer values. Unknown keys are ignored with a
+# warning in the HA log. Unmapped keys are simply null in the payload.
+version: 1
+
+# Optional: poll interval per page in seconds (default = the integration's poll interval,
+# 30 s). Settings and schedules change rarely.
+pages:
+  17: 30
+  8: 60
+  3: 900
+  26: 900
+
+# Optional: expected page compile ids (ACCESS UCID). A different UCID means the PLC project
+# was re-uploaded: the page is ignored and a repair issue asks you to check the map.
+ucid:
+  17: 1000001
+
+# Optional: kWh per compressor run hour, used for season energy estimates when no energy
+# meter is bound (energy_measured: false). Leave out to show no estimate.
+# kwh_per_run_hour: 4.0
+
+keys:
+  # mode
+  mode.winter: {page: 17, var: R7030.0}
+  mode.auto_season: {page: 17, var: R7031.3}
+  mode.setback_active: {page: 17, var: R7032.0, invert: true}
+  mode.main_switch: {page: 17, var: R7031.6}
+  mode.cooling: {page: 17, var: R7033.0}
+  mode.hdo_low_tariff: {page: 17, var: X60.5}
+  # house (reference room)
+  house.ref_temp: {page: 17, var: X300}
+  house.ref_target: {page: 17, var: R7000}
+  house.ref_target_effective: {page: 17, var: R7004}
+  house.hysteresis: {page: 17, var: R7008}
+  house.attic_temp: {page: 17, var: X312}
+  house.circuit_on: {page: 17, var: Y50.1}
+  house.supply_temp: {page: 17, var: X324}
+  # heat pump
+  heat_pump.compressor_on: {page: 17, var: Y50.7}
+  heat_pump.condenser_out: {page: 17, var: X336}
+  heat_pump.return_temp: {page: 17, var: X348}
+  heat_pump.brine_in: {page: 17, var: X360}
+  heat_pump.brine_out: {page: 17, var: X372}
+  # heat_pump.primary_prerun: {page: 17, var: Y51.3}
+  # heat_pump.discharge_temp / discharge_bar / suction_temp / suction_bar: often not on any page
+  heat_pump.motohours: {page: 17, var: R7040}
+  heat_pump.motominutes: {page: 17, var: R7042}
+  # buffer tank
+  tank.top: {page: 17, var: X384}
+  tank.bottom: {page: 17, var: X396}
+  tank.target: {page: 17, var: R7012}
+  tank.hysteresis: {page: 17, var: R7016}
+  tank.curve_target: {page: 3, var: R7014}
+  # domestic hot water
+  dhw.temp: {page: 17, var: X384}
+  dhw.target: {page: 17, var: R7020}
+  dhw.hysteresis: {page: 17, var: R7024}
+  dhw.valve_to_dhw: {page: 17, var: Y51.0}
+  # outdoor
+  outdoor.temp: {page: 17, var: X408}
+  # pumps
+  pumps.heating: {page: 17, var: Y50.6}
+  pumps.secondary: {page: 17, var: Y50.5}
+  # pumps.circulation: {page: 17, var: Y50.2}
+  # backup heater: map ONLY a confirmed heater output
+  # backup_heater.on: {page: 17, var: Y51.3}
+  # fault summaries
+  faults.fatal: {page: 17, var: R7051.0}
+  faults.compressor_block: {page: 17, var: R7050.3}
+  # heating curve (outdoor °C → water °C)
+  curve.p1_outdoor: {page: 3, var: R7120}
+  curve.p1_water: {page: 3, var: R7104}
+  curve.p2_outdoor: {page: 3, var: R7124}
+  curve.p2_water: {page: 3, var: R7108}
+  curve.p3_outdoor: {page: 3, var: R7128}
+  curve.p3_water: {page: 3, var: R7112}
+  curve.p4_outdoor: {page: 3, var: R7132}
+  curve.p4_water: {page: 3, var: R7116}
+  # extras (optional)
+  extras.solar_temp: {page: 28, var: X420}
+  # extras.pool_temp: {page: 28, var: X432}
+  # extras.fish_temp: {page: 36, var: X444}
+
+# Single fault lamps (each one: key, label shown in the panel, page + var).
+faults:
+  - {key: f_01, page: 8, var: R7100.0, label: "Vysoký tlak výtlaku"}
+  - {key: f_02, page: 8, var: R7100.1, label: "Nízký tlak sání"}
+  - {key: f_11, page: 8, var: R7102.2, label: "Porucha čidla venkovní teploty"}
+
+# Time programs: `slots` = [[on_var, off_var], …]; optional `days` (1 = Monday … 7 = Sunday)
+# overrides `slots` for that weekday. 00:00–00:00 / equal times are skipped.
+schedules:
+  - key: setback
+    label: Komfortní teplota
+    page: 26
+    slots: [[R7200, R7204], [R7208, R7212]]
+    days:
+      6: [[R7220, R7224]]
+      7: [[R7230, R7234]]
