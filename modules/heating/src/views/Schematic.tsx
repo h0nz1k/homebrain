@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
-import { fmtT as formatTemperature, heroScene } from '../model.js';
+import { heatPumpDeltaT } from '../landscape.js';
+import { fmtNum, fmtT as formatTemperature, heroScene } from '../model.js';
 import type { HeatingSnapshot } from '../types.js';
 
 const fmtT = (value: number | null, digits = 1) =>
@@ -163,6 +164,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const uid = useId().replace(/:/g, '');
   const scene = heroScene(snap);
   const hp = snap.heat_pump;
+  const dT = heatPumpDeltaT(snap);
   return (
     <div
       ref={root}
@@ -338,15 +340,39 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             className="ht-c3-draw"
             data-pipe-id="dhw-draw"
           />
-          <Label x={181} y={22} anchor="middle" id="tank-title">
+            <Label x={181} y={22} anchor="middle" id="tank-title">
             Akumulační nádrž
           </Label>
+          {snap.tank.top !== null && (
+            <g className="ht-c3-land-only">
+              <Label x={181} y={68} anchor="middle" id="tank-top" muted={false}>
+                nahoře
+                <tspan x="181" dy="14">
+                  {fmtT(snap.tank.top)}
+                </tspan>
+              </Label>
+            </g>
+          )}
           <g className="ht-c3-hp" data-floor="hp">
             <rect x="8" y="243" width="66" height="118" rx="9" className="ht-c3-cabinet" />
             <path d="M17 361V365M63 361V365" className="ht-c3-metal-pipe" />
             <Label x={16} y={261}>
               TČ
             </Label>
+            {hp.power_w !== null && hp.compressor_on === true && (
+              <g className="ht-c3-land-only">
+                <Label x={48} y={261} id="hp-power">
+                  {`${fmtNum(hp.power_w / 1000)} kW`}
+                </Label>
+              </g>
+            )}
+            {dT !== null && hp.compressor_on === true && (
+              <g className="ht-c3-land-only">
+                <Label x={48} y={278} id="hp-delta" muted>
+                  ΔT {fmtNum(dT, 1)}
+                </Label>
+              </g>
+            )}
             <rect x="12" y="271" width="57" height="41" rx="2" className="ht-c3-display" />
             <Label x={21} y={288} id="compressor">
               Komp.

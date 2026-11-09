@@ -216,6 +216,135 @@ export function buildMockSnapshot(
     extras: { solar: { temp: 4.1 }, pool: null, fish: { temp: 13.4 } },
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
   };
+  const tune: Record<
+    Exclude<HeatingScenario, 'fault' | 'unconfigured' | 'stale'>,
+    Partial<{
+      ref: number;
+      attic: number;
+      setback: boolean;
+      outdoor: number;
+      tankTop: number;
+      tankBottom: number;
+      tankTarget: number;
+      curveTarget: number;
+      dhwTemp: number;
+      runtime: number;
+      starts: number;
+      kwh: number;
+      moto: number;
+      supply: number;
+      power: number;
+      out: number;
+      ret: number;
+    }>
+  > = {
+    heating: {
+      ref: 22.4,
+      attic: 19.6,
+      setback: false,
+      outdoor: -1.8,
+      tankTop: 49.8,
+      tankBottom: 41.7,
+      tankTarget: 41,
+      curveTarget: 41,
+      dhwTemp: 46.2,
+      runtime: 3.4,
+      starts: 5,
+      kwh: 14.2,
+      moto: 18_430.4,
+      supply: 37.8,
+      power: 4200,
+      out: 46.0,
+      ret: 41.8,
+    },
+    dhw: {
+      ref: 22.3,
+      attic: 24.1,
+      setback: false,
+      outdoor: 0.4,
+      tankTop: 44.8,
+      tankBottom: 42.4,
+      tankTarget: 41,
+      curveTarget: 38,
+      dhwTemp: 44.6,
+      runtime: 1.1,
+      starts: 2,
+      kwh: 5.4,
+      moto: 18_430.4,
+      supply: 35.2,
+      power: 4900,
+      out: 52.5,
+      ret: 43.2,
+    },
+    house: {
+      ref: 22.6,
+      attic: 18.2,
+      setback: false,
+      outdoor: -3.2,
+      tankTop: 38.4,
+      tankBottom: 36.9,
+      tankTarget: 41,
+      curveTarget: 43,
+      dhwTemp: 48.4,
+      runtime: 2.8,
+      starts: 4,
+      kwh: 8.6,
+      moto: 18_430.4,
+      supply: 37.8,
+      power: 6,
+      out: 32.4,
+      ret: 29.7,
+    },
+    idle: {
+      ref: 22.5,
+      attic: 17.8,
+      setback: true,
+      outdoor: 2.1,
+      tankTop: 40.6,
+      tankBottom: 39.5,
+      tankTarget: 41,
+      curveTarget: 37,
+      dhwTemp: 47.9,
+      runtime: 0.9,
+      starts: 2,
+      kwh: 3.1,
+      moto: 18_430.4,
+      supply: 34.1,
+      power: 6,
+      out: 32.4,
+      ret: 29.7,
+    },
+  };
+  if (scenario in tune) {
+    const t = tune[scenario as keyof typeof tune]!;
+    snap.house.ref_temp = t.ref!;
+    snap.house.attic_temp = t.attic!;
+    snap.mode.setback_active = t.setback!;
+    snap.outdoor.temp = t.outdoor!;
+    snap.outdoor.min_today = t.outdoor! - 2.8;
+    snap.outdoor.max_today = t.outdoor! + 4.7;
+    snap.curve.outdoor_now = t.outdoor!;
+    snap.tank.top = t.tankTop!;
+    snap.tank.bottom = t.tankBottom!;
+    snap.tank.target = t.tankTarget!;
+    snap.tank.curve_target = t.curveTarget!;
+    snap.dhw.temp = t.dhwTemp!;
+    snap.heat_pump.runtime_today_h = t.runtime!;
+    snap.heat_pump.starts_today = t.starts!;
+    snap.heat_pump.energy_today_kwh = t.kwh!;
+    snap.heat_pump.motohours = t.moto!;
+    snap.house.supply_temp = t.supply!;
+    snap.heat_pump.power_w = running ? t.power! : 6;
+    snap.heat_pump.condenser_out = running ? t.out! : t.out!;
+    snap.heat_pump.return_temp = running ? t.ret! : t.ret!;
+    snap.tank.top = scenario === 'dhw' ? t.tankTop! : snap.tank.top;
+    snap.tank.bottom =
+      scenario === 'heating'
+        ? t.tankBottom!
+        : scenario === 'house'
+          ? t.tankBottom!
+          : snap.tank.bottom;
+  }
   if (scenario === 'heating') snap.rooms = snap.rooms.map((r) => ({ ...r }));
   return snap;
 }

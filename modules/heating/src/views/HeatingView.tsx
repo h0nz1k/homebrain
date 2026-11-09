@@ -41,6 +41,7 @@ import {
   TimeChart,
   type ChartSeries,
 } from './charts.js';
+import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js';
 import { HeatingSchematic } from './Schematic.js';
 import { heatingStyles } from './styles.js';
 
@@ -193,44 +194,61 @@ function NowTab({
   const domain: [number, number] | null = day?.series[0]?.points.length
     ? [day.series[0].points[0]![0], day.series[0].points.at(-1)![0]]
     : null;
+  const tick = nowMs();
   return (
-    <>
+    <div className="ht-now">
       <Card
-        className="ht-hero"
+        className="ht-hero ht-hero-now"
         tone={act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : 'calm'}
         data-testid="heating-hero"
         data-state={act.state}
       >
-        <div className="ht-hero-copy">
-          <span className="ht-k">Zásoba tepla</span>
-          <Pill tone={act.tone} dot data-testid="heating-pill">
-            {sceneCopy?.[2] ?? act.pill}
-          </Pill>
-          <h2 data-testid="heating-headline">
-            {sceneCopy?.[0] ?? (
-              <>
-                {act.headline[0]}
-                <b>{act.headline[1]}</b>
-                {act.headline[2]}
-              </>
-            )}
-          </h2>
-          <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
-          <p className="ht-run-meta">
-            <span>
-              {hp.compressor_on === null
-                ? 'Kompresor —'
-                : hp.compressor_on
-                  ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (nowMs() - Date.parse(hp.running_since)) / 60_000))}` : ''}`
-                  : 'Kompresor stojí'}
-            </span>
-            <b className={hp.power_w === null ? 'ht-muted' : undefined}>
-              {hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`}
-            </b>
-          </p>
+        <div className="ht-now-hero-grid">
+          <div className="ht-now-scene">
+            <div className="ht-hero-copy">
+              <span className="ht-k">Zásoba tepla</span>
+              <Pill tone={act.tone} dot data-testid="heating-pill">
+                {sceneCopy?.[2] ?? act.pill}
+              </Pill>
+              <h2 data-testid="heating-headline">
+                {sceneCopy?.[0] ?? (
+                  <>
+                    {act.headline[0]}
+                    <b>{act.headline[1]}</b>
+                    {act.headline[2]}
+                  </>
+                )}
+              </h2>
+              <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+              <p className="ht-run-meta">
+                <span>
+                  {hp.compressor_on === null
+                    ? 'Kompresor —'
+                    : hp.compressor_on
+                      ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (tick - Date.parse(hp.running_since)) / 60_000))}` : ''}`
+                      : 'Kompresor stojí'}
+                </span>
+                <b className={hp.power_w === null ? 'ht-muted' : undefined}>
+                  {hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`}
+                </b>
+              </p>
+            </div>
+            <div className="ht-now-schematic">
+              <HeatingSchematic snap={snap} />
+              <LandscapePumpChips snap={snap} />
+            </div>
+          </div>
+          <aside className="ht-land-dash" data-testid="heating-land-dash">
+            <LandscapeDashboard
+              snap={snap}
+              day={day}
+              domain={domain}
+              nowMs={tick}
+              goRooms={() => go('mistnosti')}
+            />
+          </aside>
         </div>
-        <HeatingSchematic snap={snap} />
-        <div className="ht-c3-chips">
+        <div className="ht-c3-chips ht-portrait-only">
           <Chip>
             {snap.pumps.secondary === null
               ? 'Nádrž · —'
@@ -253,7 +271,7 @@ function NowTab({
           )}
         </div>
       </Card>
-      <div className="ht-stats">
+      <div className="ht-stats ht-portrait-only">
         <Stat
           id="outdoor"
           label="Venku"
@@ -285,7 +303,7 @@ function NowTab({
           sub={`hlídá ${czCount(snap.faults.monitored, 'čidlo a ochranu', 'čidla a ochrany', 'čidel a ochran')}`}
         />
       </div>
-      <div className="ht-row">
+      <div className="ht-row ht-portrait-only">
         <Card className="ht-card ht-grow" data-testid="heating-day">
           <header className="ht-ch">
             <h3>Posledních 24 hodin</h3>
@@ -340,8 +358,39 @@ function NowTab({
           )}
         </Card>
       </div>
+      <div className="ht-row ht-land-rooms-only">
+        <Card className="ht-card ht-grow" data-testid="heating-rooms-mini-land">
+          <header className="ht-ch">
+            <h3>Místnosti</h3>
+            <Button size="sm" variant="ghost" onClick={() => go('mistnosti')}>
+              Všechny ›
+            </Button>
+          </header>
+          {rooms.rows.length ? (
+            <>
+              <ul className="ht-mini">
+                {rooms.rows.slice(0, 4).map((r) => (
+                  <li key={r.id}>
+                    <span>{r.name}</span>
+                    <b>{fmtT(r.temp)}</b>
+                    <em data-cold={r.delta !== null && r.delta < -0.5 ? '' : undefined}>
+                      {r.delta === null ? '' : `${r.delta > 0 ? '+' : ''}${fmtNum(r.delta)}`}
+                    </em>
+                  </li>
+                ))}
+              </ul>
+              {rooms.insight && <p className="ht-insight">{rooms.insight}</p>}
+            </>
+          ) : (
+            <p className="ht-muted">
+              Zatím jen referenční místnost (chodba) {fmtT(snap.house.ref_temp)}. Čidla a hlavice v
+              pokojích přidá správce v nastavení.
+            </p>
+          )}
+        </Card>
+      </div>
       {extras.length > 0 && (
-        <div className="ht-extras" data-testid="heating-extras">
+        <div className="ht-extras ht-portrait-only" data-testid="heating-extras">
           <span>Další okruhy · jen měření</span>
           {extras.map(([name, temp]) => (
             <Pill key={name}>
@@ -350,7 +399,7 @@ function NowTab({
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

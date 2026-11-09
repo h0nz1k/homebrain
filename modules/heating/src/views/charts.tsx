@@ -360,10 +360,17 @@ export function SeasonBars({ cards }: { cards: SeasonCard[] }) {
 export function CurveChart({
   points,
   now,
+  compact = false,
+  markTarget = null,
 }: {
   points: Array<[number, number]>;
   now: { x: number; y: number } | null;
+  /** Shorter plot for the landscape dashboard column. */
+  compact?: boolean;
+  /** Horizontal guide at the equithermal target tank temp (°C). */
+  markTarget?: number | null;
 }) {
+  const plotH = compact ? 72 : 220;
   const sorted = points.slice().sort((a, b) => a[0] - b[0]);
   const xs = niceTicks(
     Math.min(-15, ...sorted.map((p) => p[0])),
@@ -381,9 +388,13 @@ export function CurveChart({
   const Y1 = ys[ys.length - 1]!;
   const fx = (v: number) => ((v - X0) / (X1 - X0)) * VW;
   const fy = (v: number) => 100 - ((v - Y0) / (Y1 - Y0)) * 100;
+  const targetY = markTarget !== null ? fy(markTarget) : null;
   return (
-    <div className="ht-chart-wrap" data-testid="heating-curve">
-      <div className="ht-chart" style={{ height: 220 }}>
+    <div
+      className={`ht-chart-wrap${compact ? ' ht-chart-compact' : ''}`}
+      data-testid="heating-curve"
+    >
+      <div className="ht-chart" style={{ height: plotH }}>
         <svg viewBox={`0 0 ${VW} 100`} preserveAspectRatio="none" aria-hidden="true">
           {ys.map((t) => (
             <line key={t} x1={0} x2={VW} y1={fy(t)} y2={fy(t)} className="ht-grid" />
@@ -392,16 +403,27 @@ export function CurveChart({
             d={sorted.map((p, i) => `${i ? 'L' : 'M'}${fx(p[0])} ${fy(p[1])}`).join(' ')}
             className="ht-line ht-curve-line"
           />
+          {targetY !== null && (
+            <line
+              x1={0}
+              x2={VW}
+              y1={targetY}
+              y2={targetY}
+              className="ht-curve-target"
+              data-testid="heating-curve-target"
+            />
+          )}
           {now && <line x1={fx(now.x)} x2={fx(now.x)} y1={0} y2={100} className="ht-now-line" />}
         </svg>
-        {sorted.map((p) => (
-          <i
-            key={p[0]}
-            className="ht-dot ht-curve-pt"
-            style={{ left: pct((fx(p[0]) / VW) * 100), top: pct(fy(p[1])) }}
-          />
-        ))}
-        {now && (
+        {!compact &&
+          sorted.map((p) => (
+            <i
+              key={p[0]}
+              className="ht-dot ht-curve-pt"
+              style={{ left: pct((fx(p[0]) / VW) * 100), top: pct(fy(p[1])) }}
+            />
+          ))}
+        {now && !compact && (
           <span
             className="ht-curve-now"
             data-testid="heating-curve-now"
@@ -413,19 +435,22 @@ export function CurveChart({
             </b>
           </span>
         )}
-        {ys.map((t) => (
-          <span key={t} className="ht-ylab" style={{ top: pct(fy(t)) }}>
-            {fmtNum(t, 0)}°
-          </span>
-        ))}
+        {!compact &&
+          ys.map((t) => (
+            <span key={t} className="ht-ylab" style={{ top: pct(fy(t)) }}>
+              {fmtNum(t, 0)}°
+            </span>
+          ))}
       </div>
-      <div className="ht-xlabs" aria-hidden="true">
-        {xs.map((t) => (
-          <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
-            {fmtNum(t, 0)}&nbsp;°C
-          </span>
-        ))}
-      </div>
+      {!compact && (
+        <div className="ht-xlabs" aria-hidden="true">
+          {xs.map((t) => (
+            <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
+              {fmtNum(t, 0)}&nbsp;°C
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -326,4 +326,117 @@ export const heatingStyles = `
   .ht-c3 *, .ht-c3 *::before, .ht-c3 *::after { animation:none!important; transition:none!important; }
   .ht-c3-particle { display:none; }
 }
+
+/* Landscape dashboard – portrait first; enriched layout when wide enough. */
+.ht-c3-land-only { display: none; }
+.ht-land-dash { display: none; }
+.ht-land-pump-chips { display: none; }
+.ht-land-rooms-only { display: none; }
+.ht-land-panel { padding: 12px 14px; gap: 8px; flex: none; }
+.ht-land-panel .ht-ch h3 { font-size: 13px; }
+.ht-land-panel .ht-kv { font-size: 13px; }
+.ht-land-panel .ht-kv li { padding: 6px 0; }
+.ht-land-dash-inner { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ht-chart-compact { padding-left: 0; }
+.ht-chart-compact .ht-chart-wrap { gap: 0; }
+.ht-curve-target { stroke: var(--ht-c-top); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; opacity: .85; }
+.ht-tank-gauge { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.ht-tank-gauge-bar { position: relative; width: 100%; min-height: 120px; border-radius: 8px; overflow: hidden; background: var(--hb-fill, rgba(127,127,127,.15)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); }
+.ht-tank-gauge-fill { position: absolute; inset: 0; background: linear-gradient(0deg, #4e88b9 0%, #9a9da3 52%, #ba6970 100%); opacity: .9; }
+.ht-tank-gauge-band { position: absolute; left: 0; right: 0; background: color-mix(in srgb, var(--hb-ac) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 45%, transparent); pointer-events: none; }
+.ht-tank-gauge-mark { position: absolute; left: -2px; right: -2px; height: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); pointer-events: none; }
+.ht-tank-gauge-mark.ht-tank-gauge-top { background: #e8a0a4; }
+.ht-tank-gauge-kv { flex: 1; }
+.ht-tank-gauge-hint { font-size: 12px; grid-column: 1 / -1; margin: 0; }
+.ht-land-curve { margin-top: 4px; }
+.ht-land-rooms-link { margin-top: 4px; }
+.ht-now-scene { display: contents; }
+.ht-now-schematic { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.ht-now-hero-grid { display: contents; }
+.ht-hero-now { align-items: stretch; }
+
+@media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) {
+  .ht-land-dash {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-height: calc(100vh - 120px);
+    max-height: calc(100dvh - 120px);
+    overflow: hidden;
+  }
+  .ht-land-dash-inner {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: 2px;
+  }
+  .ht-land-pump-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  .ht-c3-land-only { display: block; }
+  .ht-portrait-only { display: none !important; }
+  .ht-land-rooms-only { display: grid; grid-template-columns: 1fr; }
+  .ht-now-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 38vw, 420px);
+    gap: 14px 18px;
+    align-items: stretch;
+    width: 100%;
+    min-height: 0;
+  }
+  .ht-now-scene {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.95fr) minmax(0, 1.2fr);
+    grid-template-rows: 1fr;
+    gap: 8px 14px;
+    align-items: stretch;
+    min-width: 0;
+    min-height: min(calc(100dvh - 120px), 720px);
+  }
+  .ht-hero-copy { grid-column: 1; grid-row: 1 / -1; align-self: start; max-height: 100%; overflow: hidden; }
+  .ht-now-schematic {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: stretch;
+    justify-content: center;
+    min-height: 280px;
+    height: 100%;
+    max-height: calc(100dvh - 120px);
+  }
+  .ht-now-schematic .ht-c3 {
+    width: 100%;
+    max-width: min(100%, 520px);
+    margin: 0 auto;
+    height: 100%;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ht-now-schematic .ht-c3 > svg {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+  }
+  .ht-hero-now { padding: 14px 16px; gap: 10px; }
+  .ht-hero-now .ht-hero-copy .ht-hero-detail { font-size: 13px; max-width: 36ch; }
+  .ht-hero-now .ht-hero h2 { font-size: clamp(18px, 2.4vw, 26px); }
+  .ht-c3-chips { display: none; }
+  .ht { max-width: 1920px; }
+}
+
+@media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) and (max-height: 480px) {
+  .ht-now-hero-grid { grid-template-columns: minmax(0, 1.05fr) minmax(200px, 44vw); gap: 10px; }
+  .ht-now-scene { grid-template-columns: minmax(120px, 0.85fr) minmax(0, 1.15fr); }
+  .ht-hero-now .ht-hero-copy .ht-hero-detail { display: none; }
+  .ht-hero-now .ht-hero-copy .ht-run-meta { font-size: 12px; }
+  .ht-land-panel { padding: 10px 12px; }
+}
+
+@media (orientation: landscape) and (min-width: 1100px) and (min-height: 700px) {
+  .ht-now-hero-grid { grid-template-columns: minmax(0, 1.15fr) clamp(280px, 32vw, 440px); }
+  .ht-now-scene { grid-template-columns: minmax(200px, 0.75fr) minmax(0, 1.35fr); }
+  .ht-hero-copy { padding-top: 4px; }
+}
 `;

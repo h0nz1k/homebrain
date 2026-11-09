@@ -188,6 +188,7 @@ test.describe('Topení', () => {
       test(`C3 ${theme} ${scenario}: uzavřená hydraulika, prostor pro text a společná podlaha`, async ({
         page,
       }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
         await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=${theme}`);
         const sch = page.getByTestId('heating-schematic');
         await expect(sch).toBeVisible({ timeout: 20_000 });
@@ -234,7 +235,9 @@ test.describe('Topení', () => {
                 if (!inside(pt.x, pt.y)) errors.push(`outside: ${node.textContent}`);
               }
           }
-          const labels = Array.from(el.querySelectorAll('text'));
+          const labels = Array.from(el.querySelectorAll('text')).filter(
+            (node) => !node.closest('.ht-c3-land-only'),
+          );
           for (let i = 0; i < labels.length; i++)
             for (let j = i + 1; j < labels.length; j++) {
               const a = labels[i]!.getBoundingClientRect(),
@@ -437,26 +440,61 @@ test.describe('Topení', () => {
     }
   }
 
-  test('C3 desktop 1280: kompaktní hero a viditelné další karty', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/homebrain-topeni?topeni=heating');
-    const hero = page.getByTestId('heating-hero');
-    await expect(hero).toBeVisible({ timeout: 20_000 });
-    const bounds = await hero.boundingBox();
-    expect(bounds!.height).toBeLessThanOrEqual(600);
-    expect(bounds!.y + bounds!.height).toBeLessThan(850);
-    await expect(page.locator('.ht-c3-chips')).toBeInViewport({ ratio: 1 });
-    const position = await hero.evaluate((el) => ({
-      copy: el.querySelector('.ht-hero-copy')!.getBoundingClientRect().top,
-      scene: el.querySelector('.ht-c3')!.getBoundingClientRect().top,
-      meta: el.querySelector('.ht-run-meta')!.getBoundingClientRect(),
-      power: el.querySelector('.ht-run-meta b')!.getBoundingClientRect(),
-    }));
-    expect(Math.abs(position.copy - position.scene)).toBeLessThanOrEqual(10);
-    expect(position.power.bottom).toBeLessThanOrEqual(position.meta.bottom);
+  for (const [w, h, label] of [
+    [844, 390, 'telefon na šířku 844×390'],
+    [1280, 800, 'tablet 1280×800'],
+    [1440, 900, 'desktop 1440×900'],
+  ] as const) {
+    test(`Teď ${label}: bohatý dashboard bez přesahu`, async ({ page }) => {
+      await page.setViewportSize({ width: w, height: h });
+      await page.goto('/homebrain-topeni?topeni=heating&rooms=4');
+      await expect(page.getByTestId('heating-land-dash')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('heating-land-house')).toBeVisible();
+      await expect(page.getByTestId('heating-land-day-chart')).toBeVisible();
+      await expect(page.getByTestId('heating-stat-outdoor')).toBeHidden();
+      await expect(page.getByTestId('heating-day')).toBeHidden();
+      const layout = await page.evaluate(() => {
+        const doc = document.documentElement;
+        const sch = document.querySelector('[data-testid="heating-schematic"]')!.getBoundingClientRect();
+        const dash = document.querySelector('[data-testid="heating-land-dash"]')!.getBoundingClientRect();
+        const rects: DOMRect[] = [];
+        document.querySelectorAll('.ht-land-panel').forEach((p) => rects.push(p.getBoundingClientRect()));
+        const overlap = (a: DOMRect, b: DOMRect) =>
+          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+        const panelOverlap = rects.some((a, i) =>
+          rects.some((b, j) => i < j && overlap(a, b) && Math.abs(a.top - b.top) < Math.min(a.height, b.height) * 0.8),
+        );
+        return {
+          hScroll: doc.scrollWidth - doc.clientWidth,
+          schH: sch.height,
+          schInView: sch.top >= 0 && sch.bottom <= doc.clientHeight + 2,
+          dashInView: dash.right <= doc.clientWidth + 1,
+          panelOverlap,
+        };
+      });
+      expect(layout.hScroll).toBeLessThanOrEqual(0);
+      expect(layout.dashInView).toBe(true);
+      expect(layout.panelOverlap).toBe(false);
+      if (h >= 800) {
+        expect(layout.schInView).toBe(true);
+        expect(layout.schH).toBeGreaterThan(320);
+      }
+      await noSidewaysScroll(page);
+    });
+  }
+
+  test('Teď na šířku house: ΔT jen při běhu, půda viditelná', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=house');
+    await expect(page.getByTestId('heating-land-dash')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('heating-sch-hp-delta')).toHaveCount(0);
+    await expect(page.getByTestId('heating-land-house')).toContainText('Půda');
+    await noSidewaysScroll(page);
   });
 
   test('změna nastavení omezeného pohybu zastaví i rozběhnuté částice', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=heating');
     await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
     expect(await infiniteAnimations(page)).toBeGreaterThan(0);
@@ -468,6 +506,7 @@ test.describe('Topení', () => {
   test.describe('omezený pohyb', () => {
     test.use({ reducedMotion: 'reduce' });
     test('schéma je statické – žádné nekonečné animace', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
       await page.goto('/homebrain-topeni?topeni=heating');
       await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
       expect(await infiniteAnimations(page)).toBe(0);
