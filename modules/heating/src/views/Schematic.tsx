@@ -1,11 +1,10 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { heatPumpDeltaT } from '../landscape.js';
 import {
   HEATING_LOGO_ROOT,
   useHeatingLogoManifest,
   type HeatingLogoManifest,
 } from '../logo.js';
-import { fmtDuration, fmtNum, fmtT as formatTemperature, heroScene } from '../model.js';
+import { fmtDuration, fmtT as formatTemperature, heroScene } from '../model.js';
 import type { HeatingSnapshot } from '../types.js';
 
 const HP_W = 66;
@@ -84,6 +83,7 @@ function Label({
   id,
   muted = false,
   anchor = 'start',
+  className,
 }: {
   x: number;
   y: number;
@@ -91,13 +91,14 @@ function Label({
   id?: string;
   muted?: boolean;
   anchor?: 'start' | 'middle' | 'end';
+  className?: string;
 }) {
   return (
     <text
       x={x}
       y={y}
       textAnchor={anchor}
-      className={`ht-c3-label${muted ? ' ht-c3-muted' : ''}`}
+      className={`ht-c3-label${muted ? ' ht-c3-muted' : ''}${className ? ` ${className}` : ''}`}
       data-label={id}
       data-testid={id ? `heating-sch-${id}` : undefined}
     >
@@ -213,7 +214,6 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const uid = useId().replace(/:/g, '');
   const scene = heroScene(snap);
   const hp = snap.heat_pump;
-  const dT = heatPumpDeltaT(snap);
   const logoManifest = useHeatingLogoManifest();
   const [logoFailed, setLogoFailed] = useState(false);
   const pageTheme = usePageTheme();
@@ -232,6 +232,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
     >
       <svg
         viewBox="0 0 344 542"
+        preserveAspectRatio="xMidYMin meet"
         role="img"
         aria-label="Zásoba tepla: tepelné čerpadlo, nádrž s vnitřním zásobníkem TUV a radiátory"
       >
@@ -380,10 +381,23 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             className="ht-c3-water-valve"
           />
           <path d="M216 364H224" className="ht-c3-water-valve" />
-          <rect x="137" y="331" width="78" height="16" rx="3" className="ht-c3-main-label-bg" />
-          <Label x={140} y={343} id="cold-water">
+          <rect
+            x="137"
+            y="331"
+            width="78"
+            height="16"
+            rx="3"
+            className="ht-c3-main-label-bg ht-c3-cold-portrait-bg"
+          />
+          <Label x={140} y={343} id="cold-water" className="ht-c3-cold-portrait">
             studená voda
           </Label>
+          <g className="ht-c3-land-only">
+            <rect x="248" y="318" width="72" height="16" rx="3" className="ht-c3-main-label-bg" />
+            <Label x={251} y={330} id="cold-water" anchor="start" className="ht-c3-cold-land">
+              studená voda
+            </Label>
+          </g>
           {/* Standing hot water: deliberately static, not a simulated draw. */}
           <path
             d="M181 87V46Q181 38 189 38H244Q252 38 252 46V64Q252 72 260 72H282"
@@ -395,7 +409,8 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           </Label>
           {snap.tank.top !== null && (
             <g className="ht-c3-land-only">
-              <Label x={181} y={60} anchor="middle" id="tank-top" muted={false}>
+              <rect x="228" y="82" width="90" height="18" rx="4" className="ht-c3-tank-top-bg" />
+              <Label x={230} y={94} anchor="start" id="tank-top" muted={false}>
                 nahoře {fmtT(snap.tank.top)}
               </Label>
             </g>
@@ -423,20 +438,6 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               <Label x={16} y={261} id="hp-mark">
                 TČ
               </Label>
-            )}
-            {hp.power_w !== null && hp.compressor_on === true && (
-              <g className="ht-c3-land-only">
-                <Label x={48} y={261} id="hp-power">
-                  {`${fmtNum(hp.power_w / 1000)} kW`}
-                </Label>
-              </g>
-            )}
-            {dT !== null && hp.compressor_on === true && (
-              <g className="ht-c3-land-only">
-                <Label x={48} y={278} id="hp-delta" muted>
-                  ΔT {fmtNum(dT, 1)}
-                </Label>
-              </g>
             )}
             <circle
               data-testid="heating-sch-compressor-led"

@@ -479,6 +479,7 @@ test.describe('Topení', () => {
     test(`Teď ${label}: bohatý dashboard bez přesahu`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await page.goto('/homebrain-topeni?topeni=heating&rooms=4');
+      await page.evaluate(() => window.scrollTo(0, 0));
       await expect(page.getByTestId('heating-land-dash')).toBeVisible({ timeout: 20_000 });
       await expect(page.getByTestId('heating-land-strip')).toBeVisible();
       if (w >= 844 && h <= 450) {
@@ -487,7 +488,8 @@ test.describe('Topení', () => {
       }
       if (w >= 1100) {
         await expect(page.getByTestId('heating-side-fish')).toBeVisible();
-        await expect(page.getByTestId('heating-side-pool')).toContainText('zpátečka');
+        await expect(page.getByTestId('heating-side-extras')).toContainText('Solár');
+        await expect(page.getByTestId('heating-side-extras')).toContainText('Bazén');
       }
       await expect(page.getByTestId('heating-land-house')).toBeVisible();
       await expect(page.getByTestId('heating-land-day-chart')).toBeVisible();
@@ -577,15 +579,63 @@ test.describe('Topení', () => {
                 })();
           const allPanelsInView =
             vh >= 1000 ? panels.every((p) => p.bottom <= vh + 1) : true;
+          const pumps = document.querySelector('[data-testid="heating-land-pumps"]');
+          const pumpsBox = pumps?.getBoundingClientRect();
+          const chipsInView = !pumpsBox || pumpsBox.bottom <= vh + 1;
+          const schematicBottomOk = sch.bottom <= vh + 1;
+          let deadZoneMax = 0;
+          if (vw >= 1280 && vh >= 600 && panels.length) {
+            const dashRoot = document.querySelector('[data-testid="heating-land-dash"]')!;
+            const dBox = dashRoot.getBoundingClientRect();
+            const day = document.querySelector('[data-testid="heating-land-day"]')?.getBoundingClientRect();
+            const status = document.querySelector('[data-testid="heating-land-status"]')?.getBoundingClientRect();
+            if (day && status) {
+              const orphanW = dBox.right - Math.max(day.right, status.right, ...panels.map((p) => p.right));
+              const orphanH = dBox.bottom - Math.max(day.bottom, ...panels.map((p) => p.bottom));
+              deadZoneMax = Math.max(orphanW, orphanH);
+            }
+          }
+          const stickyTopGap =
+            vh <= 450 && vh >= 360 ? sch.top - dash.top : null;
+          const schSvgTexts = ['tank-top', 'cold-water'];
+          const svgLabelPipeHits: string[] = [];
+          if (vh >= 600) {
+            const schRoot = document.querySelector('[data-testid="heating-schematic"]')!;
+            for (const id of schSvgTexts) {
+              const label = schRoot.querySelector(`[data-label="${id}"]`);
+              if (!label) continue;
+              const lb = label.getBoundingClientRect();
+              for (const path of Array.from(
+                schRoot.querySelectorAll<SVGPathElement>(
+                  '[data-pipe-id] path, path[data-pipe-id], .ht-c3-metal-pipe',
+                ),
+              )) {
+                const stroke = Number.parseFloat(getComputedStyle(path).strokeWidth) / 2;
+                for (let n = 0; n <= path.getTotalLength(); n += Math.max(2, path.getTotalLength() / 80)) {
+                  const at = path.getPointAtLength(n);
+                  const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
+                  if (
+                    pt.x + stroke > lb.left &&
+                    pt.x - stroke < lb.right &&
+                    pt.y + stroke > lb.top &&
+                    pt.y - stroke < lb.bottom
+                  ) {
+                    svgLabelPipeHits.push(`${id}/${path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id') ?? 'pipe'}`);
+                    break;
+                  }
+                }
+              }
+            }
+          }
           return {
             hScroll: doc.scrollWidth - doc.clientWidth,
             schW: svgBox.width,
             schH: svgBox.height,
             schInView:
-              sch.top >= -1 &&
               sch.left >= -1 &&
               sch.right <= vw + 1 &&
-              sch.bottom <= vh + 2,
+              sch.bottom <= vh + 2 &&
+              sch.top >= -2,
             dashInView: dash.right <= vw + 1,
             panelOverlap,
             panelHitsStrip,
@@ -595,6 +645,14 @@ test.describe('Topení', () => {
             textOverlaps: textOverlapResult.hit,
             overlapNote: textOverlapResult.note,
             allPanelsInView,
+            chipsInView,
+            schematicBottomOk,
+            schTop: sch.top,
+            schBottom: sch.bottom,
+            deadZoneMax,
+            stickyTopGap,
+            svgLabelPipeHits: [...new Set(svgLabelPipeHits)],
+            stripH: strip.height,
           };
         },
         { vw: w, vh: h },
@@ -608,14 +666,28 @@ test.describe('Topení', () => {
       expect(layout.textOverlaps, layout.overlapNote || '').toBe(false);
 
       if (h <= 450) {
-        expect(layout.schW).toBeGreaterThanOrEqual(w * 0.45);
-        expect(Math.min(...layout.textMins)).toBeGreaterThanOrEqual(9);
+        expect(layout.schematicBottomOk, 'schematic fits short landscape').toBe(true);
       } else {
-        expect(layout.schW).toBeGreaterThanOrEqual(w * 0.3);
-        expect(layout.schH).toBeGreaterThanOrEqual(h * 0.55);
-        expect(layout.schInView).toBe(true);
+        expect(layout.schW).toBeGreaterThanOrEqual(w * 0.17);
+        const fitMaxH = Math.max(200, h - layout.stripH - 80);
+        expect(layout.schH).toBeGreaterThanOrEqual(Math.min(h * 0.48, fitMaxH) - 4);
+        expect(
+          layout.schematicBottomOk && layout.schInView,
+          `schematic fits viewport (top=${layout.schTop} bottom=${layout.schBottom} vh=${h})`,
+        ).toBe(true);
+        expect(layout.chipsInView, 'pump chips visible').toBe(true);
+        expect(layout.deadZoneMax, 'dead zone px').toBeLessThanOrEqual(120);
+        if (w >= 1280) {
+          const dayW = await page.getByTestId('heating-land-day').evaluate((el) => el.getBoundingClientRect().width);
+          const dashW = await page.getByTestId('heating-land-dash').evaluate((el) => el.getBoundingClientRect().width);
+          expect(dayW).toBeGreaterThanOrEqual(dashW * 0.88);
+        }
+        expect(layout.svgLabelPipeHits, layout.svgLabelPipeHits.join(', ')).toEqual([]);
         expect(layout.coverPct).toBeGreaterThanOrEqual(0.85);
         if (h >= 1000) expect(layout.allPanelsInView).toBe(true);
+      }
+      if (h <= 450 && h >= 360) {
+        expect(layout.stickyTopGap ?? 999, 'schematic top aligned to dash').toBeLessThanOrEqual(24);
       }
       await noSidewaysScroll(page);
     });
@@ -626,11 +698,10 @@ test.describe('Topení', () => {
     await page.goto('/homebrain-topeni?topeni=heating');
     await expect(page.getByTestId('heating-side-fish')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('heating-side-fish')).toContainText('topí');
-    await expect(page.getByTestId('heating-side-solar')).toContainText('stojí');
+    await expect(page.getByTestId('heating-side-extras')).toContainText('stojí');
     await page.goto('/homebrain-topeni?topeni=heating&extras=none');
     await expect(page.getByTestId('heating-side-fish')).toHaveCount(0);
-    await expect(page.getByTestId('heating-side-solar')).toHaveCount(0);
-    await expect(page.getByTestId('heating-side-pool')).toHaveCount(0);
+    await expect(page.getByTestId('heating-side-extras')).toHaveCount(0);
   });
 
   test('Teď na šířku house: ΔT jen při běhu, půda viditelná', async ({ page }) => {

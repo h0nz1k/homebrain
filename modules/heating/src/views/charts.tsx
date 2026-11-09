@@ -371,6 +371,8 @@ export function CurveChart({
   markTarget?: number | null;
 }) {
   const plotH = compact ? 72 : 220;
+  const insetX = compact ? 36 : 0;
+  const plotW = VW - 2 * insetX;
   const sorted = points.slice().sort((a, b) => a[0] - b[0]);
   const xs = niceTicks(
     Math.min(-15, ...sorted.map((p) => p[0])),
@@ -386,7 +388,7 @@ export function CurveChart({
   const X1 = xs[xs.length - 1]!;
   const Y0 = ys[0]!;
   const Y1 = ys[ys.length - 1]!;
-  const fx = (v: number) => ((v - X0) / (X1 - X0)) * VW;
+  const fx = (v: number) => insetX + ((v - X0) / (X1 - X0)) * plotW;
   const fy = (v: number) => 100 - ((v - Y0) / (Y1 - Y0)) * 100;
   const targetY = markTarget !== null ? fy(markTarget) : null;
   return (
@@ -414,6 +416,15 @@ export function CurveChart({
             />
           )}
           {now && <line x1={fx(now.x)} x2={fx(now.x)} y1={0} y2={100} className="ht-now-line" />}
+          {now && compact && (
+            <circle
+              cx={fx(now.x)}
+              cy={fy(now.y)}
+              r={4}
+              className="ht-curve-now-dot"
+              data-testid="heating-curve-now-dot"
+            />
+          )}
         </svg>
         {!compact &&
           sorted.map((p) => (

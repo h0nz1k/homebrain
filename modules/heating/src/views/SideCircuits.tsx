@@ -24,7 +24,11 @@ function Panel({
   aside?: ReactNode;
 }) {
   return (
-    <Card className="ht-land-panel ht-side-circuit" data-testid={`heating-side-${id}`}>
+    <Card
+      className="ht-land-panel ht-side-circuit"
+      data-testid={`heating-side-${id}`}
+      data-land-area={id === 'fish' ? 'fish' : undefined}
+    >
       <header className="ht-ch">
         <div>
           <h3>{title}</h3>
@@ -140,12 +144,61 @@ export function PoolCircuitPanel({ snap }: { snap: HeatingSnapshot }) {
   );
 }
 
+function ExtrasCompactLandscape({ snap }: { snap: HeatingSnapshot }) {
+  const solar = snap.extras.solar;
+  const pool = snap.extras.pool;
+  const showSolar = solarPanelVisible(solar);
+  const showPool = poolPanelVisible(pool);
+  if (!showSolar && !showPool) return null;
+  return (
+    <Card
+      className="ht-land-panel ht-side-circuit ht-side-extras-merge"
+      data-testid="heating-side-extras"
+      data-land-area="extras"
+    >
+      <header className="ht-ch">
+        <h3>Další okruhy</h3>
+      </header>
+      <div className="ht-extras-land">
+        {showSolar && (
+          <div className="ht-extras-land-row" data-testid="heating-side-solar">
+            <span className="ht-extras-land-k">Solár · kolektor</span>
+            <b className="ht-side-temp">{fmtT(solar.temp)}</b>
+            {solar.pump !== null && (
+              <Chip size="sm" look="soft">
+                čerpadlo · {solar.pump ? 'běží' : 'stojí'}
+              </Chip>
+            )}
+          </div>
+        )}
+        {showPool && (
+          <div className="ht-extras-land-row" data-testid="heating-side-pool">
+            <span className="ht-extras-land-k">Bazén · zpátečka</span>
+            <b className="ht-side-temp">{pool!.temp !== null ? fmtT(pool!.temp) : '—'}</b>
+            <div className="ht-chips">
+              {pool!.heating_pump !== null && (
+                <Chip size="sm" look="soft">
+                  natápění · {pool!.heating_pump ? 'běží' : 'stojí'}
+                </Chip>
+              )}
+              {pool!.filter_pump !== null && (
+                <Chip size="sm" look="soft">
+                  filtrace · {pool!.filter_pump ? 'běží' : 'stojí'}
+                </Chip>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function SideCircuitsLandscape({ snap }: { snap: HeatingSnapshot }) {
   return (
-  <>
+    <>
       <FishCircuitPanel snap={snap} />
-      <SolarCircuitPanel snap={snap} />
-      <PoolCircuitPanel snap={snap} />
+      <ExtrasCompactLandscape snap={snap} />
     </>
   );
 }

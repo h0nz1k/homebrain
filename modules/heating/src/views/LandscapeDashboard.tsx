@@ -23,19 +23,34 @@ const SERIES: Record<HistoryKey, { label: string; color: string }> = {
   compressor_runtime_h: { label: 'Běh kompresoru', color: 'var(--ht-c-tank)' },
 };
 
+const LAND_AREAS: Record<string, string> = {
+  house: 'house',
+  outdoor: 'outdoor',
+  store: 'store',
+  compressor: 'compressor',
+  day: 'day',
+  status: 'status',
+};
+
 function Panel({
   id,
   title,
   children,
   aside,
+  className,
 }: {
   id: string;
   title: string;
   children: ReactNode;
   aside?: ReactNode;
+  className?: string;
 }) {
   return (
-    <Card className="ht-land-panel" data-testid={`heating-land-${id}`}>
+    <Card
+      className={`ht-land-panel${className ? ` ${className}` : ''}`}
+      data-testid={`heating-land-${id}`}
+      data-land-area={LAND_AREAS[id]}
+    >
       <header className="ht-ch">
         <h3>{title}</h3>
         {aside}
@@ -237,11 +252,8 @@ export function LandscapeDashboard({
       </Panel>
 
       {domain && day && (
-        <Panel
-          id="day"
-          title="Posledních 24 h"
-          aside={<Legend keys={['dhw_temp', 'tank_bottom', 'outdoor_temp']} runs />}
-        >
+        <Panel id="day" title="Posledních 24 h" className="ht-land-day">
+          <Legend keys={['dhw_temp', 'tank_bottom', 'outdoor_temp']} runs />
           <TimeChart
             range="day"
             domain={domain}

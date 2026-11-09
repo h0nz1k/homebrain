@@ -223,6 +223,7 @@ function NowTab({
               </span>
               <b className={hp.power_w === null ? 'ht-muted' : undefined}>příkon {powerLine}</b>
             </p>
+            <LandscapePumpChips snap={snap} />
           </header>
           <div className="ht-hero-copy ht-portrait-hero-copy">
             <span className="ht-k">Zásoba tepla</span>
@@ -246,7 +247,6 @@ function NowTab({
           </div>
           <div className="ht-now-schematic">
             <HeatingSchematic snap={snap} />
-            <LandscapePumpChips snap={snap} />
           </div>
           <aside className="ht-land-dash" data-testid="heating-land-dash">
             <LandscapeDashboard
