@@ -11,6 +11,13 @@ from homeassistant.helpers import selector
 from .bindings import binding_domains, get_bindings, validate_binding
 from .const import BINDING_MODULES, DOMAIN, MEALS_DISPLAY, MEALS_DISPLAY_MODES, PANEL_TITLE
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
+from .heating.poller import (
+    CONF_HEATING,
+    DEFAULT_INTERVAL,
+    DEFAULT_MAP_PATH,
+    MAX_INTERVAL,
+    MIN_INTERVAL,
+)
 from .modules import CONF_DISABLED_MODULES, MODULES, disabled_modules
 from .network.unifi_client import UnifiAuthError, UnifiConfig, UnifiError
 from .network.unifi_poller import async_validate_unifi
@@ -44,6 +51,7 @@ OPTIONS_FLOW_EXTRA = (
     "energy_pv",
     *(f"robots_{slot}" for slot in ROBOT_SLOTS),
     "network_unifi",
+    "heating",
     "modules",
     "meals",
     "people",
@@ -283,6 +291,67 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             data_schema=schema,
             errors=errors,
         )
+
+    async def async_step_heating(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Topení: Tecomat PLC web (read-only), private variable map, poll interval.
+
+        The password is never shown back; an empty field keeps the stored one. Saving does not
+        contact the PLC (the poller reports auth problems as a repair issue). Clearing the URL
+        switches the module's PLC reading off.
+        """
+        current = self.config_entry.options.get(CONF_HEATING) or {}
+        default_map = self.hass.config.path(DEFAULT_MAP_PATH)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            options = {**self.config_entry.options}
+            url = str(user_input.get("url") or "").strip().rstrip("/")
+            if not url:
+                options.pop(CONF_HEATING, None)
+                return self.async_create_entry(title="", data=options)
+            values = {
+                "url": url,
+                "username": str(user_input.get("username") or "").strip(),
+                "password": user_input.get("password") or current.get("password") or "",
+                "map_path": str(user_input.get("map_path") or default_map).strip(),
+                "poll_interval": int(user_input.get("poll_interval") or DEFAULT_INTERVAL),
+            }
+            if not url.startswith(("http://", "https://")):
+                errors["url"] = "invalid_url"
+            elif not values["username"] or not values["password"]:
+                errors["base"] = "invalid_auth"
+            else:
+                options[CONF_HEATING] = values
+                return self.async_create_entry(title="", data=options)
+            current = {**values, "password": ""}
+
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    "url", description={"suggested_value": current.get("url", "")}
+                ): selector.TextSelector(selector.TextSelectorConfig(type="url")),
+                vol.Optional(
+                    "username", description={"suggested_value": current.get("username", "")}
+                ): selector.TextSelector(),
+                vol.Optional("password"): selector.TextSelector(
+                    selector.TextSelectorConfig(type="password")
+                ),
+                vol.Optional(
+                    "map_path", default=current.get("map_path") or default_map
+                ): selector.TextSelector(),
+                vol.Optional(
+                    "poll_interval", default=int(current.get("poll_interval") or DEFAULT_INTERVAL)
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=MIN_INTERVAL,
+                        max=MAX_INTERVAL,
+                        step=5,
+                        unit_of_measurement="s",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(step_id="heating", data_schema=schema, errors=errors)
 
     async def async_step_meals(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """„Zobrazit jídelníček (Mealie)“: auto = only with a loaded Mealie entry, off = never."""

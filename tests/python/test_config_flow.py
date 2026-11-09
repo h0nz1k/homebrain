@@ -77,6 +77,7 @@ async def test_options_bindings(hass: HomeAssistant, user_input, expected):
         "robots_2",
         "robots_3",
         "network_unifi",
+        "heating",
         "modules",
         "meals",
         "people",

@@ -28,7 +28,8 @@
           "network_unifi": "Síť – UniFi (volitelné)",
           "meals": "Zobrazit jídelníček (Mealie)",
           "roles": "Uživatelé a role",
-          "people": "Kdo je doma"
+          "people": "Kdo je doma",
+          "heating": "Topení – PLC Tecomat"
         }
       },
       "waste": {
@@ -298,6 +299,17 @@
       "people_style": {
         "title": "Kdo je doma – jména a barvy",
         "description": "Volitelné zobrazované jméno a barva avataru. Pole jsou pojmenovaná podle ID osoby (name_… / color_…)."
+      },
+      "heating": {
+        "title": "Topení – PLC Tecomat (jen čtení)",
+        "description": "HomeBrain čte webové stránky PLC Tecomat Foxtrot tepelného čerpadla (WebMaker XML) a do PLC nikdy nezapisuje. URL: webový server PLC, např. `http://<plc>`. Použijte webového uživatele s nejnižší úrovní přístupu, která stránky vidí. Mapa proměnných je soukromý YAML soubor ve vašem Home Assistantu (viz docs/modules/heating-map.example.yaml). Heslo se nikdy nezobrazí; prázdné pole ponechá uložené. Smazáním URL čtení z PLC vypnete.",
+        "data": {
+          "url": "URL webu PLC",
+          "username": "Uživatel",
+          "password": "Heslo",
+          "map_path": "Mapa proměnných (cesta k YAML)",
+          "poll_interval": "Interval čtení"
+        }
       }
     },
     "error": {
@@ -380,6 +392,14 @@
     "waste_data_horizon": {
       "title": "HomeBrain Odpady: svozový kalendář končí {last_date}",
       "description": "Poslední známý svoz je **{last_date}**, pozdější termíny zatím nejsou zveřejněné. Po tomto dni panel Odpady neukáže další svoz. Doplňte rozpis na {next_year}: ověřte, že zdroj kalendáře (web obce, soubor ICS nebo zdroj waste_collection_schedule) už rok {next_year} zveřejňuje, a data obnovte (např. akcí `waste_collection_schedule.fetch_data`). Hlášení zmizí samo, jakmile se objeví pozdější termíny."
+    },
+    "heating_auth": {
+      "title": "HomeBrain Topení: přihlášení do PLC selhalo",
+      "description": "PLC Tecomat odmítlo přihlášení HomeBrainu (změněné heslo nebo uživatel). Hodnoty topení se neaktualizují. Opravte údaje v Nastavení → Zařízení a služby → HomeBrain → Konfigurovat → Topení. Upozornění zmizí po dalším úspěšném čtení."
+    },
+    "heating_project_changed": {
+      "title": "HomeBrain Topení: projekt v PLC se změnil",
+      "description": "Kompilační ID stránek {pages} nesedí s mapou topení: projekt v PLC byl nejspíš znovu nahrán a adresy proměnných se mohly posunout. Tyto stránky se ignorují, dokud mapu nezkontrolujete a neupravíte její sekci `ucid`."
     }
   }
 }

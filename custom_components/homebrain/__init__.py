@@ -39,6 +39,8 @@ from .energy.offers import ws as offers_ws
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_compare, websocket_pv_forecast
 from .family import ws as family_ws
+from .heating import setup as heating_setup
+from .heating import ws as heating_ws
 from .meals import ws as meals_ws
 from .modules import (
     STATE_DISABLED,
@@ -149,6 +151,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "network": _commands(*network_ws.COMMANDS)(hass),
             "server": _commands(*server_ws.COMMANDS)(hass),
             "family": _commands(*family_ws.COMMANDS)(hass),
+            "heating": _commands(*heating_ws.COMMANDS)(hass),
         },
     )
     if module_states(hass).get("wine") is None:
@@ -304,6 +307,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "network": network_ws.async_setup,
         },
     )
+    # Topení (read-only Tecomat poller + entities). Own isolation until it is a MODULES entry.
+    await heating_setup.async_setup_heating(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
 
@@ -380,4 +385,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("server", server_ws.async_unload),
         ),
     )
+    await heating_setup.async_unload_heating(hass, entry)
     return True
