@@ -133,7 +133,7 @@ class HeatingPoller:
         self._source = "ok"
         self._res = Resolved(mapped=set(self.map.keys))
         self._session = async_create_clientsession(
-            self.hass, cookie_jar=aiohttp.CookieJar(unsafe=True)
+            self.hass, cookie_jar=aiohttp.CookieJar(unsafe=True), auto_cleanup=False
         )
         self._client = TecomatClient(self._session, self.opts.cfg)
         if AUTOSTART:
@@ -160,7 +160,10 @@ class HeatingPoller:
                 async with asyncio.timeout(10):
                     await self._client.logout()
         if self._session is not None and not self._session.closed:
-            await self._session.close()
+            # HA owns the connector; release only our cookie session.
+            self._session.detach()
+        self._session = None
+        self._client = None
         await self._store.async_save(self._counters.as_dict())
         self._listeners.clear()
 

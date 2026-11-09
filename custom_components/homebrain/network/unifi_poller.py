@@ -9,6 +9,7 @@ it. Link-down counters are kept in a small Store (hashed port keys, no MAC on di
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import time
@@ -131,7 +132,8 @@ class UnifiPoller:
         if not self._injected:
             self._client = None
         if self._session is not None:
-            await self._session.close()
+            # HA owns the connector; release only our cookie session.
+            self._session.detach()
             self._session = None
 
     async def async_poll_once(self) -> None:
@@ -209,6 +211,8 @@ class UnifiPoller:
     async def async_stop(self) -> None:
         if self._task is not None:
             self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
             self._task = None
         await self._async_close_session()
         if self._polls:
@@ -226,5 +230,6 @@ async def async_validate_unifi(hass: HomeAssistant, cfg: UnifiConfig) -> dict[st
     try:
         data = parse_unifi(await UnifiClient(session, cfg).fetch())
     finally:
-        await session.close()
+        # The dedicated cookie session still uses HA's shared connector.
+        session.detach()
     return {"readonly": data["readonly"], "devices": len(data["devices"])}
