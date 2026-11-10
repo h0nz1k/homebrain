@@ -20,18 +20,18 @@ import {
 } from '../compare.js';
 import {
   formatInvoiceMarkerDetail,
+  formatInvoiceMarkerDiffLine,
   formatKc,
   formatKwh,
-  formatPct,
   invoiceMarkerDiffPct,
+  invoiceMarkerDiffTone,
+  invoiceMarkerMonthTitle,
   invoiceMonthMarkerMap,
   type Invoice,
   type InvoiceMonthMarker,
 } from '../invoices.js';
 
-const INVOICE_BAR_HEADROOM = 0.86;
-
-function ReceiptMarkerIcon({ size = 15 }: { size?: number }) {
+function ReceiptMarkerIcon({ size = 16 }: { size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -62,19 +62,22 @@ function InvoiceMarkerDetail({
   measured,
   seriesKey,
   formatMeasured,
+  monthKey,
 }: {
   marker: InvoiceMonthMarker;
   measured: number | null;
   seriesKey: CompareSeriesKey;
   formatMeasured: (v: number) => string;
+  monthKey: string;
 }) {
-  const pct =
-    measured !== null && (seriesKey === 'house' || seriesKey === 'import' || seriesKey === 'cost')
-      ? invoiceMarkerDiffPct(marker, measured, seriesKey)
-      : null;
-  const tone = pct === null ? undefined : pct > 0 ? 'warn' : pct < 0 ? 'ok' : undefined;
+  const canDiff =
+    measured !== null && (seriesKey === 'house' || seriesKey === 'import' || seriesKey === 'cost');
+  const pct = canDiff ? invoiceMarkerDiffPct(marker, measured, seriesKey) : null;
+  const diffLine = canDiff ? formatInvoiceMarkerDiffLine(marker, measured, seriesKey) : null;
+  const tone = invoiceMarkerDiffTone(pct);
   return (
     <div className="en-cmp-inv-detail" data-testid="energy-compare-invoice-detail">
+      <p className="en-cmp-inv-title">{invoiceMarkerMonthTitle(monthKey)}</p>
       <div className="en-cmp-inv-line">
         <span className="en-cmp-inv-lbl">Faktura</span>
         <span className="en-cmp-inv-val">
@@ -88,10 +91,12 @@ function InvoiceMarkerDetail({
           <span className="en-cmp-inv-val">{formatMeasured(measured)}</span>
         </div>
       )}
-      {pct !== null && (
+      {diffLine && (
         <div className="en-cmp-inv-line" data-tone={tone}>
-          <span className="en-cmp-inv-lbl">Rozdíl</span>
-          <span className="en-cmp-inv-val">{formatPct(pct)}</span>
+          <span className="en-cmp-inv-lbl">Rozdíl (faktura − HA)</span>
+          <span className="en-cmp-inv-val">
+            {diffLine.replace(/^Rozdíl \(faktura − HA\): /, '')}
+          </span>
         </div>
       )}
     </div>
@@ -210,7 +215,7 @@ function MonthChart({
       meta.key === 'cost' ? v.thisValue : meta.key === 'house' || meta.key === 'import' ? v.thisValue : null;
     return formatInvoiceMarkerDetail(marker, measured, meta.key, (val) =>
       formatCompareValue(val, meta.key),
-    );
+    monthKey(i));
   };
   const hasAnyMarker = thisYear.some((_, i) => invoiceMarkers[monthKey(i)]);
   const activeMarker = invoiceMarkers[monthKey(active)];
@@ -233,6 +238,7 @@ function MonthChart({
           measured={activeMeasured}
           seriesKey={meta.key}
           formatMeasured={(val) => formatCompareValue(val, meta.key)}
+          monthKey={monthKey(active)}
         />
       )}
       <div className="en-cmp-plot">
@@ -264,11 +270,6 @@ function MonthChart({
             const { current, thisValue, lastValue, fullLast } = values(i);
             const invoiced = invoiceMarkers[monthKey(i)];
             const invLine = invoiceDetail(i);
-            const barScale = invoiced ? INVOICE_BAR_HEADROOM : 1;
-            const lastSide = Math.max(lastValue ?? 0, fullLast ?? 0);
-            const thisSide = thisValue ?? 0;
-            const markerOnThis = thisSide >= lastSide;
-            const markerLift = Math.max(thisSide, lastSide);
             return (
               <button
                 type="button"
@@ -282,46 +283,41 @@ function MonthChart({
                 aria-label={invLine ? `${readout(i)}. ${invLine}` : readout(i)}
                 onClick={() => setActive(i)}
               >
-                <span className="en-cmp-pair">
-                  <span className="en-cmp-slot">
-                    {fullLast !== null && (
-                      <span
-                        className="en-cmp-ghost"
-                        data-value={fullLast}
-                        style={{ height: pct(fullLast, barScale) }}
-                      />
-                    )}
-                    {lastValue !== null && (
-                      <span
-                        className="en-cmp-bar en-cmp-bar--last"
-                        data-value={lastValue}
-                        style={{ height: pct(lastValue, barScale) }}
-                      />
-                    )}
+                {invoiced && (
+                  <span className="en-cmp-inv-marker" data-testid="energy-compare-invoice-marker">
+                    <ReceiptMarkerIcon />
                   </span>
-                  <span className="en-cmp-slot">
-                    {thisValue !== null && (
-                      <span
-                        className="en-cmp-bar en-cmp-bar--this"
-                        data-value={thisValue}
-                        style={{ height: pct(thisValue, barScale), background: meta.color }}
-                      />
-                    )}
-                  </span>
-                  {invoiced && (
-                    <span
-                      className="en-cmp-inv-marker"
-                      data-testid="energy-compare-invoice-marker"
-                      style={{
-                        bottom: `calc(${pct(markerLift, barScale)} + 8px)`,
-                        left: markerOnThis ? '75%' : '25%',
-                      }}
-                    >
-                      <ReceiptMarkerIcon />
+                )}
+                <span className="en-cmp-body">
+                  <span className="en-cmp-pair">
+                    <span className="en-cmp-slot">
+                      {fullLast !== null && (
+                        <span
+                          className="en-cmp-ghost"
+                          data-value={fullLast}
+                          style={{ height: pct(fullLast) }}
+                        />
+                      )}
+                      {lastValue !== null && (
+                        <span
+                          className="en-cmp-bar en-cmp-bar--last"
+                          data-value={lastValue}
+                          style={{ height: pct(lastValue) }}
+                        />
+                      )}
                     </span>
-                  )}
+                    <span className="en-cmp-slot">
+                      {thisValue !== null && (
+                        <span
+                          className="en-cmp-bar en-cmp-bar--this"
+                          data-value={thisValue}
+                          style={{ height: pct(thisValue), background: meta.color }}
+                        />
+                      )}
+                    </span>
+                  </span>
+                  <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
                 </span>
-                <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
               </button>
             );
           })}
@@ -352,7 +348,7 @@ function MonthChart({
         {hasAnyMarker && (
           <span className="en-cmp-legend-invoice" data-testid="energy-compare-legend-invoice">
             <i className="en-cmp-legend-receipt" aria-hidden="true">
-              <ReceiptMarkerIcon size={14} />
+              <ReceiptMarkerIcon />
             </i>
             <span>Fakturováno</span>
           </span>

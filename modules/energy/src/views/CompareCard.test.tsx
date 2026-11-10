@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { CompareCard } from './CompareCard';
 import { createCompareDemo } from '../fixtures';
 import { createInvoicesDemo } from '../invoicesDemo';
-import { formatCompareValue } from '../compare';
+import { barScale, formatCompareValue, niceTicks } from '../compare';
 
 const NOW = Date.parse('2026-11-07T15:23:00Z'); // 7. 11. 16:23 Prague
 const NBSP = '\u00a0';
@@ -67,8 +67,31 @@ describe('CompareCard data correctness', () => {
     const detail = text('energy-compare-invoice-detail');
     expect(detail).toContain('Faktura');
     expect(detail).toContain('Naměřeno v HA');
-    expect(detail).toContain('Rozdíl');
+    expect(detail).toContain('Rozdíl (faktura − HA)');
+    expect(detail).toContain('Faktura za září 2026');
     expect(screen.getByTestId('energy-compare-invoice-detail').querySelectorAll('.en-cmp-inv-line').length).toBe(3);
+    const diffTone = screen
+      .getByTestId('energy-compare-invoice-detail')
+      .querySelector('.en-cmp-inv-line[data-tone]')
+      ?.getAttribute('data-tone');
+    expect(diffTone).toBe('warn-strong');
+  });
+
+  it('bar pixel height matches value over axis max (demo months)', () => {
+    const demo = createCompareDemo('full', NOW);
+    const invoices = createInvoicesDemo(NOW).list(true).invoices;
+    render(<CompareCard comparison={demo} invoices={invoices} />);
+    const house = demo.series.house!;
+    const ticks = niceTicks(barScale([house.monthly.this_year, house.monthly.last_year]));
+    const top = ticks[ticks.length - 1]!;
+    for (const col of screen.getAllByTestId('energy-compare-month')) {
+      for (const bar of col.querySelectorAll<HTMLElement>('.en-cmp-bar, .en-cmp-ghost')) {
+        const v = Number(bar.getAttribute('data-value'));
+        if (!Number.isFinite(v)) continue;
+        const h = parseFloat(bar.style.height);
+        expect(h / 100).toBeCloseTo(v / top, 2);
+      }
+    }
   });
 
   it('leaves the chart unchanged when there are no invoices', () => {

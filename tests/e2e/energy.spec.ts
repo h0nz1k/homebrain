@@ -631,6 +631,7 @@ test.describe('srovnání období', () => {
     await card.getByRole('radio', { name: 'Náklady' }).click();
     await expect(page.getByTestId('energy-compare-current')).toContainText('Kč');
     await expect(page.getByTestId('energy-compare-range')).toContainText('současného tarifu');
+    await card.getByRole('radio', { name: 'Spotřeba' }).click();
 
     const sept = months.nth(8);
     await expect(sept.locator('[data-testid="energy-compare-invoice-marker"]')).toHaveCount(1);
@@ -638,9 +639,32 @@ test.describe('srovnání období', () => {
     const detail = page.getByTestId('energy-compare-invoice-detail');
     await expect(detail).toContainText('Faktura');
     await expect(detail).toContainText('Naměřeno v HA');
-    await expect(detail).toContainText('Rozdíl');
+    await expect(detail).toContainText('Faktura za září 2026');
+    await expect(detail).toContainText('Rozdíl (faktura − HA)');
     await expect(detail.locator('.en-cmp-inv-line')).toHaveCount(3);
+    await expect(detail.locator('.en-cmp-inv-line[data-tone="warn-strong"]')).toHaveCount(1);
     await expect(page.getByTestId('energy-compare-legend-invoice')).toContainText('Fakturováno');
+
+    const barScaleOk = await card.evaluate((root) => {
+      const ticks = Array.from(root.querySelectorAll('[data-testid="energy-compare-tick"]'));
+      const tops = ticks.map((t) => Number((t.textContent ?? '').replace(/[^\d]/g, '')));
+      const axisMax = Math.max(...tops.filter((n) => Number.isFinite(n) && n > 0));
+      if (!Number.isFinite(axisMax) || axisMax <= 0) return { ok: false, bad: ['no axis'] };
+      const bad: string[] = [];
+      for (const bar of Array.from(root.querySelectorAll('.en-cmp-bar, .en-cmp-ghost'))) {
+        const v = Number(bar.getAttribute('data-value'));
+        if (!Number.isFinite(v) || v <= 0) continue;
+        const slot = bar.closest('.en-cmp-slot') as HTMLElement | null;
+        if (!slot) continue;
+        const plotH = slot.getBoundingClientRect().height;
+        const h = bar.getBoundingClientRect().height;
+        const ratio = h / plotH;
+        const expected = v / axisMax;
+        if (Math.abs(ratio - expected) / expected > 0.02) bad.push(`${v}:${ratio.toFixed(3)} vs ${expected.toFixed(3)}`);
+      }
+      return { ok: bad.length === 0, bad };
+    });
+    expect(barScaleOk.ok, barScaleOk.bad?.join('; ')).toBe(true);
 
     const markerChecks = await card.evaluate((root) => {
       const rgb = (s: string) =>
@@ -671,7 +695,10 @@ test.describe('srovnání období', () => {
         const barRects = bars.map((b) => b.getBoundingClientRect());
         const ticks = Array.from(root.querySelectorAll('[data-testid="energy-compare-tick"]'));
         const tickRects = ticks.map((t) => t.getBoundingClientRect());
-        const sel = col?.matches('[data-active]') ? col.getBoundingClientRect() : null;
+        const body = col?.querySelector('.en-cmp-body');
+        const sel = body && col?.matches('[data-active]') ? body.getBoundingClientRect() : null;
+        const label = col?.querySelector('.en-axis-x');
+        const labelBox = label?.getBoundingClientRect();
         const hitBar = barRects.some((b) =>
           box.x < b.x + b.width && box.x + box.width > b.x && box.y < b.y + b.height && box.y + box.height > b.y,
         );
@@ -679,7 +706,10 @@ test.describe('srovnání období', () => {
           box.x < t.x + t.width && box.x + box.width > t.x && box.y < t.y + t.height && box.y + box.height > t.y,
         );
         const cx = box.x + box.width / 2;
-        const inBand = colBox ? cx >= colBox.x && cx <= colBox.x + colBox.width : false;
+        const colCx = colBox ? colBox.x + colBox.width / 2 : cx;
+        const labelCx = labelBox ? labelBox.x + labelBox.width / 2 : colCx;
+        const centerDelta = Math.abs(cx - labelCx);
+        const svgBox = svg?.getBoundingClientRect();
         return {
           paths,
           contrast: stroke ? contrast(stroke, cardBg) : 0,
@@ -691,7 +721,10 @@ test.describe('srovnání období', () => {
             box.x + box.width > sel.x &&
             box.y < sel.y + sel.height &&
             box.y + box.height > sel.y,
-          inBand,
+          centerDelta,
+          iconW: svgBox?.width ?? 0,
+          iconH: svgBox?.height ?? 0,
+          y: box.y,
         };
       });
       const legend = root.querySelector('[data-testid="energy-compare-legend-invoice"]');
@@ -704,24 +737,29 @@ test.describe('srovnání období', () => {
         const lb = label.getBoundingClientRect();
         return Math.abs(ib.y + ib.height / 2 - (lb.y + lb.height / 2));
       })();
-      return { markerMeta, legendGap };
+      const ys = markerMeta.map((m) => m.y);
+      const sameY = ys.length ? ys.every((y) => Math.abs(y - ys[0]!) <= 1) : true;
+      return { markerMeta, legendGap, sameY };
     });
+    expect(markerChecks.sameY).toBe(true);
     for (const m of markerChecks.markerMeta) {
       expect(m.paths).toBeGreaterThan(0);
       expect(m.contrast).toBeGreaterThanOrEqual(3);
       expect(m.hitBar).toBe(false);
       expect(m.hitTick).toBe(false);
-      expect(m.inBand).toBe(true);
+      expect(m.hitSel).toBe(false);
+      expect(m.centerDelta).toBeLessThanOrEqual(1);
+      expect(m.iconW).toBeGreaterThanOrEqual(16);
+      expect(m.iconH).toBeGreaterThanOrEqual(16);
     }
     expect(markerChecks.legendGap).toBeLessThanOrEqual(2);
 
-    const label = sept.locator('.en-axis-x');
     const marker = sept.locator('[data-testid="energy-compare-invoice-marker"]');
-    const labelBox = await label.boundingBox();
     const markerBox = await marker.boundingBox();
-    expect(labelBox).not.toBeNull();
     expect(markerBox).not.toBeNull();
-    expect(markerBox!.y + markerBox!.height).toBeLessThanOrEqual(labelBox!.y - 1);
+    const chartBox = await card.locator('.en-cmp-chart').boundingBox();
+    expect(chartBox).not.toBeNull();
+    expect(markerBox!.y).toBeGreaterThanOrEqual(chartBox!.y - 1);
     const septBars = await sept.locator('.en-cmp-bar, .en-cmp-ghost').all();
     for (const bar of septBars) {
       const barBox = await bar.boundingBox();
