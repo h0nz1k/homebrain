@@ -365,6 +365,26 @@ export const DOCK_ERRORS: Record<string, Entry> = {
   ],
 };
 
+/** Dock faults that clear only after the robot returns and the dock re-checks tanks / fluid. */
+export const REFILL_DOCK_ERRORS = new Set([
+  'water_empty',
+  'waste_water_tank_full',
+  'dirty_tank_latch_open',
+  'cleaning_tank_full_or_blocked',
+  'clear_water_box_hoare',
+  'dirty_water_box_hoare',
+  'up_water_exception',
+  'drain_water_exception',
+]);
+
+export const DOCK_REFILL_AFTER_HINT =
+  'Po doplnění/vyprázdnění zpráva zmizí, až se robot vrátí do doku a dok nádrž zkontroluje.';
+
+export function isRefillDockError(code: string | null | undefined): boolean {
+  const key = (code ?? '').trim().toLowerCase();
+  return REFILL_DOCK_ERRORS.has(key);
+}
+
 const NO_ERROR = new Set(['none', 'ok', '', 'unknown', 'unavailable']);
 
 function humanize(code: string) {
