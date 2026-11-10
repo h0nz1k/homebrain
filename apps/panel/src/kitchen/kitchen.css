@@ -277,7 +277,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 225px;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 .kn-person-library {
   min-width: 0;
@@ -441,6 +441,18 @@
   border-radius: 999px;
   background: var(--hb-s3);
   color: var(--hb-t1);
+  text-align: left;
+}
+.kn-battery > span {
+  display: grid;
+  justify-items: start;
+  text-align: left;
+}
+.kn-battery > .kn-ico {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
 }
 .kn-battery b {
   font-size: 16px;
@@ -592,7 +604,7 @@
   gap: 8px;
   flex: 1;
   color: var(--hb-t2);
-  font-size: 14px;
+  font-size: 16px;
 }
 .kn-recipe-grid {
   display: grid;
@@ -966,11 +978,21 @@
     gap: 8px;
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
+  .kn-person-library {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
   .kn-playlists .kn-art {
-    height: 72px;
-    width: auto;
+    width: 100%;
     aspect-ratio: 1;
-    max-height: 72px;
+    height: auto;
+    min-height: 84px;
+    max-height: 88px;
+  }
+  .kn-youtube {
+    align-self: stretch;
+    min-height: 100% !important;
   }
   .kn-playlists b {
     -webkit-line-clamp: 1;
@@ -1011,12 +1033,19 @@
 .kn-cooking-active > .kn-cook-slot {
   align-self: start;
 }
+.kn-cooking-active > .kn-cook-slot:not(.kn-slot-recipes) {
+  align-self: stretch;
+}
 .kn-cooking-active .kn-cook-slot:not(.kn-slot-recipes) .kn-card {
   max-height: 360px;
+  overflow: hidden;
 }
 .kn-cooking-active .kn-card {
   padding: 10px;
   gap: 8px;
+}
+.kn-cooking-active .kn-card.kn-meater {
+  padding: 12px;
 }
 .kn-cooking-active .kn-fryer h2,
 .kn-cooking-active .kn-meater h2,
@@ -1045,8 +1074,15 @@
   padding-inline: 8px;
 }
 .kn-cooking-active .kn-fryer .kn-reuse .rc-fl {
-  padding: 8px;
+  padding: 0;
   gap: 6px;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+  min-height: 0;
+}
+.kn-cooking-active .kn-fryer .kn-reuse .rc-fl::before {
+  display: none;
 }
 .kn-cooking-active .kn-meater > .hb-btn {
   margin-top: 0;
@@ -1063,11 +1099,62 @@
 }
 .kn-cooking-active .kn-meater {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 .kn-cooking-active .kn-meater > :not(.kn-probe) {
   grid-column: 1 / -1;
+}
+@container kn-meater (min-width: 720px) {
+  .kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-probe {
+  min-width: 0;
+  gap: 4px;
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-temps {
+  gap: 6px;
+  margin-top: 0;
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-temps strong {
+  font-size: 18px;
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-probe[data-ready='true'] {
+  padding: 6px;
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-probe > p {
+  display: none;
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-probe > b {
+  font-size: 14px;
+  line-height: 1.2;
+}
+.kn-cooking-active .kn-meater:has(.kn-probe + .kn-probe) .kn-temps > span:last-child {
+  display: none;
+}
+.kn-meater-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.kn-meater-head .kn-meater-app {
+  flex: 1 1 100%;
+  max-width: 100%;
+  justify-self: stretch;
+  min-height: 48px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kn-cooking-active .kn-probe .hb-btn {
+  font-size: 14px;
+  padding-inline: 6px;
+  min-height: 56px;
+  max-width: 100%;
+}
+.kn-cooking-active .kn-slot-timers .kn-card {
+  height: 100%;
 }
 .kn-cooking-active .kn-timers > .rc.kn-reuse {
   display: grid;
@@ -1127,10 +1214,15 @@
 }
 .kn-cooking-active .kn-recipe-grid {
   gap: 8px;
+  width: 100%;
 }
 .kn-cooking-active .kn-recipe-grid img,
 .kn-cooking-active .kn-recipe-grid .kn-dish {
-  height: 48px;
+  height: 40px;
+}
+.kn-cooking-active .kn-recipe-grid button b {
+  font-size: 15px;
+  -webkit-line-clamp: 1;
 }
 .kn-scroll-cue {
   font-size: 16px;
@@ -1147,6 +1239,8 @@
 }
 .kn-card.kn-meater {
   border-color: var(--hb-b1);
+  container-type: inline-size;
+  container-name: kn-meater;
 }
 .kn-probe[data-ready='true'] {
   padding: 10px;
@@ -1178,7 +1272,21 @@
   grid-template-areas: 'band' 'vis' 'main';
   justify-content: stretch;
   gap: 14px;
-  padding: 14px;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+}
+.kn .kn-card.kn-fryer .kn-reuse .rc-fl::before {
+  display: none;
+}
+.kn .kn-card.kn-fryer .kn-reuse .rc-fl[data-urgent],
+.kn .kn-card.kn-fryer .kn-reuse .rc-fl[data-phase='action'],
+.kn .kn-card.kn-fryer .kn-reuse .rc-fl[data-phase='drawer'] {
+  box-shadow: none;
+  background: transparent;
 }
 .kn .kn-card.kn-fryer .kn-reuse .rc-fl-side-art {
   display: none;
@@ -1313,7 +1421,7 @@
 }
 .kn .hb-btn[data-size='sm'],
 .kn-sheet .hb-btn[data-size='sm'] {
-  font-size: 14px;
+  font-size: 16px;
 }
 .kn-sheet .kt-field span,
 .kn-sheet .kt-switch small,

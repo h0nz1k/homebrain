@@ -81,10 +81,14 @@ async function geometry(page: Page) {
           'otevře aplikaci',
           'Hlasitost',
           'nabíjení omezeno',
+          'Teploty z MEATERu',
+          'Najít recept',
         ];
         const raw = node.textContent?.trim() ?? '';
         if (raw.length < 4 && el.closest('.kn-timers')) continue;
-        const need16 = label16.some((bit) => raw.includes(bit)) || el.closest('.kn-clock span');
+        const need16 =
+          label16.some((bit) => raw.includes(bit)) ||
+          el.closest('.kn-clock span, .kn-brand span, .kn-output, .kn-battery, .kn-youtube small');
         if (need16 && Number.parseFloat(style.fontSize) < 16)
           problems.push(`small label ${raw}: ${style.fontSize}`);
         if (!need16 && Number.parseFloat(style.fontSize) < 14)
@@ -160,6 +164,23 @@ for (const viewport of [
       await page.getByTestId('kitchen-preset-5').click();
       await page.getByRole('button', { name: 'Zavřít', exact: true }).click();
       await expect(page.getByTestId('kitchen-timers-card')).toContainText('Minutka 5 min');
+      if (viewport.width === 800 && viewport.height === 1280) {
+        const captionOk = await page.evaluate(() => {
+          const problems: string[] = [];
+          for (const btn of Array.from(document.querySelectorAll('.kn-playlists button'))) {
+            const cover = btn.querySelector('.kn-art');
+            const cap = btn.querySelector('b');
+            if (!cover || !cap) continue;
+            const c = cover.getBoundingClientRect();
+            const t = cap.getBoundingClientRect();
+            if (t.width > c.width + 1)
+              problems.push(`caption ${cap.textContent}: ${t.width}>${c.width}`);
+            if (t.right > c.right + 1) problems.push(`overhang ${cap.textContent}`);
+          }
+          return problems;
+        });
+        expect(captionOk).toEqual([]);
+      }
     });
   }
 
@@ -225,8 +246,73 @@ test('active cooking goes above recipes and rest creates a shared timer; fryer s
 
 test.describe('kiosk 1280×800 polish', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
-  test.beforeEach((_, testInfo) => {
+  test.beforeEach(({ page }, testInfo) => {
+    void page;
     test.skip(testInfo.project.name !== 'tablet', 'landscape kiosk');
+  });
+
+  test('cooking active MEATER bbox, fryer shell, timers stretch, recipes', async ({ page }) => {
+    await open(page, '&cooking=active&theme=dark');
+    await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
+    await page.getByRole('button', { name: '♥ Oblíbené', exact: true }).click();
+    await expect(page.locator('.kn-recipe-grid button')).toHaveCount(4);
+    const report = await page.evaluate(() => {
+      const pad = 12;
+      const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
+      const meater = document.querySelector('[data-testid="kitchen-meater"]')!;
+      const card = meater.getBoundingClientRect();
+      const inset: string[] = [];
+      const inside = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        if (r.left < card.left + pad - 0.5) inset.push(`left ${el.textContent?.slice(0, 12)}`);
+        if (r.right > card.right - pad + 0.5) inset.push(`right ${el.textContent?.slice(0, 12)}`);
+        if (r.top < card.top + pad - 0.5) inset.push(`top ${el.textContent?.slice(0, 12)}`);
+        if (r.bottom > card.bottom - pad + 0.5) inset.push(`bottom ${el.textContent?.slice(0, 12)}`);
+      };
+      meater.querySelectorAll('.kn-section-head, .kn-probe, .kn-probe .hb-btn').forEach(inside);
+      const meaterApp = meater.querySelector('.kn-meater-app, :scope > .hb-btn');
+      if (meaterApp) inside(meaterApp);
+      const restBtn = Array.from(meater.querySelectorAll('.hb-btn')).find((b) =>
+        b.textContent?.includes('Spustit odpočinek'),
+      ) as HTMLElement | undefined;
+      const restFit = restBtn ? restBtn.scrollWidth <= restBtn.clientWidth + 1 : false;
+      const probes = Array.from(meater.querySelectorAll('.kn-probe'));
+      const probeTops = probes.map((p) => Math.round(p.getBoundingClientRect().top));
+      const col = getComputedStyle(meater).gridTemplateColumns.split(' ').filter(Boolean).length;
+      const probeW = probes[0] ? probes[0].getBoundingClientRect().width : 0;
+      const stacked = col === 1 || probeW < 360;
+      const topsAligned =
+        probes.length < 2 || stacked || Math.abs(probeTops[0]! - probeTops[1]!) <= 2;
+      const fryerFl = document.querySelector('.kn-fryer .rc-fl');
+      const fryerShell = !fryerFl || getComputedStyle(fryerFl).boxShadow === 'none';
+      const fryer = document.querySelector('.kn-fryer.kn-card')!;
+      const timers = document.querySelector('.kn-timers.kn-card')!;
+      const stretch = timers.getBoundingClientRect().height >= fryer.getBoundingClientRect().height - 2;
+      const recipeButtons = Array.from(document.querySelectorAll('.kn-recipe-grid button'));
+      const grid = document.querySelector('.kn-recipe-grid')!;
+      const last = recipeButtons[recipeButtons.length - 1]!;
+      const rowW = grid.getBoundingClientRect().width;
+      const cardsW = recipeButtons.reduce((s, b) => s + b.getBoundingClientRect().width, 0);
+      return {
+        inset,
+        restFit,
+        topsAligned,
+        fryerShell,
+        stretch,
+        lastRecipeBottom: last.getBoundingClientRect().bottom,
+        barTop: bar.top,
+        rowFill: rowW - cardsW <= 56,
+        recipeCount: recipeButtons.length,
+      };
+    });
+    expect(report.inset).toEqual([]);
+    expect(report.restFit).toBe(true);
+    expect(report.topsAligned).toBe(true);
+    expect(report.fryerShell).toBe(true);
+    expect(report.stretch).toBe(true);
+    expect(report.recipeCount).toBe(4);
+    expect(report.rowFill).toBe(true);
+    expect(report.lastRecipeBottom).toBeLessThan(report.barTop);
   });
 
 test('cooking active compact cards and recipes above player', async ({ page }) => {
@@ -300,7 +386,36 @@ test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
         )
       : false;
     const mamaOk = mamaBottom > 0 && mamaBottom < bar.top && !mamaCovers;
-    return { sizes, dalsiLine, aligned, mamaOk, mamaBottom, barTop: bar.top };
+    const yt = mamaSection?.querySelector('.kn-youtube');
+    const lib = mamaSection?.querySelector('.kn-person-library');
+    const ytAligned =
+      yt && lib
+        ? Math.abs(yt.getBoundingClientRect().top - lib.getBoundingClientRect().top) < 3 &&
+          Math.abs(yt.getBoundingClientRect().bottom - lib.getBoundingClientRect().bottom) < 3
+        : false;
+    const battIcon = document.querySelector('.kn-battery .kn-ico');
+    const battBox = battIcon?.getBoundingClientRect();
+    const battFill = document.querySelector('.kn-battery .kn-ico rect[width]');
+    const pill = document.querySelector('.kn-battery > span');
+    const pillLeft =
+      pill && battIcon
+        ? pill.getBoundingClientRect().left >= battIcon.getBoundingClientRect().right - 1
+        : false;
+    const artH =
+      mamaSection?.querySelector('.kn-playlists .kn-art')?.getBoundingClientRect().height ?? 0;
+    return {
+      sizes,
+      dalsiLine,
+      aligned,
+      mamaOk,
+      mamaBottom,
+      barTop: bar.top,
+      ytAligned,
+      battMin: Math.min(battBox?.width ?? 0, battBox?.height ?? 0),
+      battVisible: Boolean(battFill),
+      pillLeft,
+      artH,
+    };
   });
   for (const bit of ['nabíjení omezeno', 'Hlasitost · 38 %', 'Další rádia', 'YT Music']) {
     expect(report.sizes[bit] ?? 0).toBeGreaterThanOrEqual(16);
@@ -308,6 +423,11 @@ test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
   expect(report.dalsiLine).toBe(true);
   expect(report.aligned).toBe(true);
   expect(report.mamaOk).toBe(true);
+  expect(report.ytAligned).toBe(true);
+  expect(report.battMin).toBeGreaterThanOrEqual(20);
+  expect(report.battVisible).toBe(true);
+  expect(report.pillLeft).toBe(true);
+  expect(report.artH).toBeGreaterThanOrEqual(84);
 });
 
 });

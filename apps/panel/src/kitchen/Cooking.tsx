@@ -230,9 +230,14 @@ function CookingContent({
     ),
     meater: (
       <section className="kn-card kn-meater" data-testid="kitchen-meater">
-        <div className="kn-section-head">
+        <div className="kn-section-head kn-meater-head">
           <h2>MEATER</h2>
           <small>Teploty z MEATERu</small>
+          {cookingActive ? (
+            <Button size="sm" className="kn-meater-app" onClick={() => openApp(props.config.meater_url)}>
+              Nastavit v aplikaci MEATER ↗
+            </Button>
+          ) : null}
         </div>
         {probes.length ? (
           probes.map((p) => (
@@ -274,9 +279,11 @@ function CookingContent({
         ) : (
           <p className="kn-calm">Žádná sonda právě nevaří.</p>
         )}
-        <Button onClick={() => openApp(props.config.meater_url)}>
-          Nastavit v aplikaci MEATER ↗
-        </Button>
+        {cookingActive ? null : (
+          <Button onClick={() => openApp(props.config.meater_url)}>
+            Nastavit v aplikaci MEATER ↗
+          </Button>
+        )}
       </section>
     ),
     timers: (
