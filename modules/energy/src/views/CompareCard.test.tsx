@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { CompareCard } from './CompareCard';
 import { createCompareDemo } from '../fixtures';
+import { createInvoicesDemo } from '../invoicesDemo';
 import { formatCompareValue } from '../compare';
 
 const NOW = Date.parse('2026-11-07T15:23:00Z'); // 7. 11. 16:23 Prague
@@ -53,6 +54,27 @@ describe('CompareCard data correctness', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Od ledna' }));
     expect(text('energy-compare-headline')).toMatch(/než loni za 1\. 1\.–7\. 11\.$/);
     expect(text('energy-compare-last-year')).toContain('1. 1.–7. 11. 2025 do 16:00');
+  });
+
+  it('shows invoice markers, legend and tap detail when invoices are loaded', () => {
+    const demo = createCompareDemo('full', NOW);
+    const invoices = createInvoicesDemo(NOW).list(true).invoices;
+    render(<CompareCard comparison={demo} invoices={invoices} />);
+    const sept = screen.getAllByTestId('energy-compare-month')[8]!;
+    expect(within(sept).getAllByTestId('energy-compare-invoice-marker').length).toBe(1);
+    expect(text('energy-compare-legend')).toContain('Fakturováno');
+    fireEvent.click(sept);
+    const detail = text('energy-compare-invoice-detail');
+    expect(detail).toContain('Faktura:');
+    expect(detail).toContain('Naměřeno v HA:');
+    expect(detail).toContain('Rozdíl:');
+  });
+
+  it('leaves the chart unchanged when there are no invoices', () => {
+    render(<CompareCard comparison={createCompareDemo('full', NOW)} invoices={[]} />);
+    expect(screen.queryAllByTestId('energy-compare-invoice-marker')).toHaveLength(0);
+    expect(text('energy-compare-legend')).not.toContain('Fakturováno');
+    expect(screen.queryByTestId('energy-compare-invoice-detail')).toBeNull();
   });
 
   it('chart has a value axis with units, a legend for the outline and a tap readout', () => {

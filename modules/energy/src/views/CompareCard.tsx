@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { EmptyState, SegmentedControl } from '@homebrain/ui';
 import {
   COMPARE_SERIES,
@@ -18,6 +18,23 @@ import {
   type CompareSeries,
   type CompareSeriesKey,
 } from '../compare.js';
+import {
+  formatInvoiceMarkerDetail,
+  invoiceMonthMarkerMap,
+  type Invoice,
+  type InvoiceMonthMarker,
+} from '../invoices.js';
+
+function ReceiptMarkerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" data-hb-icon="" aria-hidden="true" focusable="false">
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+      <path d="M14 8H8" />
+      <path d="M16 12H8" />
+      <path d="M14 16H8" />
+    </svg>
+  );
+}
 
 const PERIOD_OPTIONS: ReadonlyArray<readonly [ComparePeriod, string]> = [
   ['month', 'Měsíc'],
@@ -81,12 +98,14 @@ function MonthChart({
   year,
   month,
   partialLabel,
+  invoiceMarkers,
 }: {
   series: CompareSeries;
   meta: (typeof COMPARE_SERIES)[number];
   year: number;
   month: number;
   partialLabel: string | null;
+  invoiceMarkers: Record<string, InvoiceMonthMarker>;
 }) {
   const [active, setActive] = useState<number>(month - 1);
   const { this_year: thisYear, last_year: lastYear } = series.monthly;
@@ -107,6 +126,7 @@ function MonthChart({
       fullLast: current ? (lastYear[i] ?? null) : null,
     };
   };
+  const monthKey = (i: number) => `${year}-${String(i + 1).padStart(2, '0')}`;
   const readout = (i: number) => {
     const v = values(i);
     const name = cap(monthName(i + 1));
@@ -120,11 +140,27 @@ function MonthChart({
       );
     return parts.join(' · ');
   };
+  const invoiceDetail = (i: number) => {
+    const marker = invoiceMarkers[monthKey(i)];
+    if (!marker) return null;
+    const v = values(i);
+    const measured =
+      meta.key === 'cost' ? v.thisValue : meta.key === 'house' || meta.key === 'import' ? v.thisValue : null;
+    return formatInvoiceMarkerDetail(marker, measured, meta.key, (val) =>
+      formatCompareValue(val, meta.key),
+    );
+  };
+  const hasAnyMarker = thisYear.some((_, i) => invoiceMarkers[monthKey(i)]);
   return (
-    <div className="en-cmp-chart-wrap">
+    <div className={`en-cmp-chart-wrap${hasAnyMarker ? ' en-cmp-chart-wrap--invoiced' : ''}`}>
       <p className="en-cmp-readout" data-testid="energy-compare-readout" aria-live="polite">
         {readout(active)}
       </p>
+      {invoiceDetail(active) && (
+        <p className="en-cmp-inv-detail" data-testid="energy-compare-invoice-detail">
+          {invoiceDetail(active)}
+        </p>
+      )}
       <div className="en-cmp-plot">
         <div className="en-cmp-yaxis" data-testid="energy-compare-yaxis" aria-hidden="true">
           <span className="en-cmp-unit">{unit}</span>
@@ -152,6 +188,8 @@ function MonthChart({
           </div>
           {thisYear.map((_, i) => {
             const { current, thisValue, lastValue, fullLast } = values(i);
+            const invoiced = invoiceMarkers[monthKey(i)];
+            const invLine = invoiceDetail(i);
             return (
               <button
                 type="button"
@@ -159,11 +197,17 @@ function MonthChart({
                 className="en-cmp-col"
                 data-current={current || undefined}
                 data-active={i === active || undefined}
+                data-invoiced={invoiced ? 'true' : undefined}
                 data-testid="energy-compare-month"
                 aria-pressed={i === active}
-                aria-label={readout(i)}
+                aria-label={invLine ? `${readout(i)}. ${invLine}` : readout(i)}
                 onClick={() => setActive(i)}
               >
+                {invoiced && (
+                  <span className="en-cmp-inv-marker" data-testid="energy-compare-invoice-marker">
+                    <ReceiptMarkerIcon />
+                  </span>
+                )}
                 <span className="en-cmp-pair">
                   <span className="en-cmp-slot">
                     {fullLast !== null && (
@@ -219,12 +263,30 @@ function MonthChart({
             Za rok {year - 1} nemáme data.
           </span>
         )}
+        {hasAnyMarker && (
+          <span data-testid="energy-compare-legend-invoice">
+            <i className="en-cmp-legend-receipt" aria-hidden="true">
+              <ReceiptMarkerIcon />
+            </i>
+            Fakturováno
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-export function CompareCard({ comparison }: { comparison: Comparison }) {
+export function CompareCard({
+  comparison,
+  invoices = null,
+}: {
+  comparison: Comparison;
+  invoices?: Invoice[] | null;
+}) {
+  const invoiceMarkers = useMemo(
+    () => (invoices?.length ? invoiceMonthMarkerMap(invoices) : {}),
+    [invoices],
+  );
   const [period, setPeriod] = useState<ComparePeriod>('month');
   const [picked, setPicked] = useState<CompareSeriesKey>('house');
   if (comparison.status === 'unconfigured') return null;
@@ -393,6 +455,7 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
         year={year}
         month={month}
         partialLabel={partialLabel}
+        invoiceMarkers={invoiceMarkers}
       />
     </section>
   );

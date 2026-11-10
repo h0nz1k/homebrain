@@ -413,13 +413,21 @@ export function InvoicesCard({
   fetchWithAuth,
   kiosk = false,
   now,
+  list: controlledList = undefined,
+  setList: setControlledList = undefined,
+  reload: controlledReload = undefined,
 }: {
   connection?: ConnectionLike;
   fetchWithAuth?: FetchWithAuth;
   kiosk?: boolean;
   now: number;
+  list?: InvoiceList | null;
+  setList?: (list: InvoiceList | null) => void;
+  reload?: () => Promise<InvoiceList | null>;
 }) {
-  const [list, setList] = useState<InvoiceList | null>(null);
+  const [localList, setLocalList] = useState<InvoiceList | null>(null);
+  const list = controlledList !== undefined ? controlledList : localList;
+  const setList = setControlledList ?? setLocalList;
   const [selected, setSelected] = useState<string | null>(null);
   const [cmpState, setCmp] = useState<{ key: string; value: InvoiceComparison } | null>(null);
   const [editing, setEditing] = useState<Invoice | null>(null);
@@ -429,19 +437,23 @@ export function InvoicesCard({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
-    const next = await fetchInvoices(connection);
-    setList(next);
+    const next = controlledReload
+      ? await controlledReload()
+      : await fetchInvoices(connection).then((n) => {
+          setList(n);
+          return n;
+        });
     setVersion((v) => v + 1);
     return next;
-  }, [connection]);
+  }, [connection, controlledReload, setList]);
   useEffect(() => {
-    if (kiosk) return;
+    if (kiosk || controlledList !== undefined) return;
     let alive = true;
     void fetchInvoices(connection).then((next) => alive && setList(next));
     return () => {
       alive = false;
     };
-  }, [connection, kiosk]);
+  }, [connection, kiosk, controlledList, setList]);
   const current = list?.invoices.find((i) => i.id === selected) ?? list?.invoices[0] ?? null;
   const currentId = current?.id ?? null;
   const currentStatus = current?.status;

@@ -427,7 +427,14 @@ export const energyStyles = `
 .en-cmp-delta[data-tone='warn'] b{background:var(--hb-warn-s);color:var(--hb-warn)}
 .en-cmp-range{margin:0;font-size:13px;color:var(--hb-t2)}
 .en-cmp-chart-wrap{display:flex;flex-direction:column;gap:8px}
+.en-cmp-chart-wrap--invoiced .en-cmp-chart{padding-top:30px}
+.en-cmp-chart-wrap--invoiced .en-cmp-grid{top:30px}
 .en-cmp-readout{margin:0;min-height:1.5em;font-size:13px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-cmp-inv-detail{margin:0;font-size:13px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-cmp-inv-marker{position:absolute;top:-20px;left:50%;transform:translateX(-50%);display:flex;color:var(--hb-t2);line-height:0;pointer-events:none}
+.en-cmp-inv-marker svg{display:block}
+.en-cmp-legend-receipt{display:inline-flex;vertical-align:-2px;margin-right:4px;color:var(--hb-t2)}
+.en-cmp-legend-receipt svg{width:14px;height:14px}
 .en-cmp-plot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;height:196px}
 .en-cmp-yaxis{position:relative;margin-top:22px;height:calc(100% - 42px);min-width:34px;font-size:11px;color:var(--hb-t3);font-variant-numeric:tabular-nums;text-align:right}
 .en-cmp-tick{position:absolute;right:0;transform:translateY(50%);white-space:nowrap;line-height:1}

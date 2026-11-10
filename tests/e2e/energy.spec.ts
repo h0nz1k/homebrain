@@ -624,6 +624,29 @@ test.describe('srovnání období', () => {
     await card.getByRole('radio', { name: 'Náklady' }).click();
     await expect(page.getByTestId('energy-compare-current')).toContainText('Kč');
     await expect(page.getByTestId('energy-compare-range')).toContainText('současného tarifu');
+
+    const sept = months.nth(8);
+    await expect(sept.locator('[data-testid="energy-compare-invoice-marker"]')).toHaveCount(1);
+    await sept.click();
+    const detail = page.getByTestId('energy-compare-invoice-detail');
+    await expect(detail).toContainText('Faktura:');
+    await expect(detail).toContainText('Naměřeno v HA:');
+    await expect(detail).toContainText('Rozdíl:');
+    await expect(page.getByTestId('energy-compare-legend-invoice')).toContainText('Fakturováno');
+    const label = sept.locator('.en-axis-x');
+    const marker = sept.locator('[data-testid="energy-compare-invoice-marker"]');
+    const labelBox = await label.boundingBox();
+    const markerBox = await marker.boundingBox();
+    expect(labelBox).not.toBeNull();
+    expect(markerBox).not.toBeNull();
+    expect(markerBox!.y + markerBox!.height).toBeLessThanOrEqual(labelBox!.y - 1);
+  });
+
+  test('bez faktur nejsou ve srovnání značky', async ({ page }) => {
+    await page.goto('/homebrain-energie?faktury=none');
+    await expect(page.getByTestId('energy-compare')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('energy-compare-invoice-marker')).toHaveCount(0);
+    await expect(page.getByTestId('energy-compare-legend-invoice')).toHaveCount(0);
   });
 
   test('chybí loňská data: hláška místo nuly', async ({ page }) => {
