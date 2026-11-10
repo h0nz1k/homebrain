@@ -3,6 +3,7 @@ import {
   detectFryerEntities,
   formatCountdown,
   fryerControls,
+  fryerEta,
   fryerModel,
   fryerNeedsAction,
   fryerPhase,
@@ -178,6 +179,17 @@ describe('fryer timeline', () => {
     expect(fryerTimeline('done').every((s) => s.state === 'done')).toBe(true);
     expect(fryerTimeline('warm').every((s) => s.state === 'done')).toBe(true);
     expect(titles(fryerTimeline('error'))).toEqual(['Ohřev:done', 'Pečení:error', 'Hotovo:todo']);
+  });
+  it('rounds fryer end time up to the next whole minute', () => {
+    const t0 = 1_739_500_000_000;
+    const m = fryerModel(
+      { status: st('cooking'), remaining: st('521', new Date(t0).toISOString()) },
+      t0,
+    );
+    const end = new Date(Math.ceil((t0 + 521_000) / 60_000) * 60_000);
+    expect(fryerEta(m, t0)).toBe(`${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`);
+    expect(end.getTime()).toBeGreaterThan(t0 + 521_000);
+    expect(end.getTime() - (t0 + 521_000)).toBeLessThanOrEqual(60_000);
   });
   it('keeps a stopped countdown secondary on Dnes and names the program', () => {
     const now = Date.parse('2026-06-02T17:07:00Z');

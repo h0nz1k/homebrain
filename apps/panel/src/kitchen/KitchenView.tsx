@@ -4,7 +4,31 @@ import { Button, SegmentedControl, toast } from '@homebrain/ui';
 import { kitchenApi, openApp } from './api';
 import { Artwork, Picker, Settings } from './Settings';
 import { Cooking } from './Cooking';
-import { batteryLabel } from './state';
+import { batteryChip, batteryLabel } from './state';
+
+function TransportIcon({ playing }: { playing: boolean }) {
+  return (
+    <svg className="kn-ico" viewBox="0 0 24 24" aria-hidden="true">
+      {playing ? (
+        <path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" />
+      ) : (
+        <path d="M8 5.5v13l11-6.5z" fill="currentColor" />
+      )}
+    </svg>
+  );
+}
+
+function BatteryIcon({ charging }: { charging: boolean }) {
+  return (
+    <svg className="kn-ico" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="7" width="16" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <rect x="20" y="10" width="2" height="4" rx="0.5" fill="currentColor" />
+      {charging ? (
+        <path d="M12 8.5l-2.5 5h2l-1 4.5 3.5-6h-2.5l2.5-3.5z" fill="currentColor" />
+      ) : null}
+    </svg>
+  );
+}
 import type { KitchenPerson, KitchenSnapshot, MediaItem } from './types';
 import styles from './kitchen.css?inline';
 
@@ -54,8 +78,9 @@ export default function KitchenView(props: ModuleViewProps) {
   };
   const player = snapshot?.player;
   const volume = Math.max(0, Math.min(1, player?.volume ?? 0));
+  const battery = batteryChip(snapshot?.battery.level ?? null, snapshot?.battery.state ?? null);
   return (
-    <div className="kn" data-testid="kitchen-view">
+    <div className="kn" data-testid="kitchen-view" data-tab={tab}>
       <style>{styles}</style>
       <header className="kn-header">
         <div className="kn-brand">
@@ -125,11 +150,15 @@ export default function KitchenView(props: ModuleViewProps) {
                       disabled={!ready}
                       onClick={() => play(r, 'radio')}
                     >
-                      <Artwork item={r} index={i} />
-                      <b>{r.name}</b>
-                      <span className="kn-play-mark" aria-hidden="true">
-                        ▶
+                      <span className="kn-radio-cover">
+                        <Artwork item={r} index={i} />
+                        {player?.state === 'playing' && player.title === r.name ? (
+                          <span className="kn-playing-badge" aria-hidden="true">
+                            Hraje
+                          </span>
+                        ) : null}
                       </span>
+                      <b>{r.name}</b>
                     </button>
                   ))}
                 </div>
@@ -163,7 +192,9 @@ export default function KitchenView(props: ModuleViewProps) {
                       <span className="kn-avatar">{p.name[0]}</span>
                       {p.name} <small>YT Music</small>
                     </h2>
-                    <Button onClick={() => setPicker(p)}>Vše ›</Button>
+                    <Button size="sm" onClick={() => setPicker(p)}>
+                      Vše ›
+                    </Button>
                   </div>
                   <div className="kn-playlists">
                     {p.playlists.map((item, i) => (
@@ -206,9 +237,17 @@ export default function KitchenView(props: ModuleViewProps) {
         <div className="kn-playing">
           <Artwork item={{ name: player?.title ?? '', image: player?.image ?? null }} />
           <div>
-            <span>
+            <span
+              className={
+                player?.state === 'playing'
+                  ? 'kn-live'
+                  : player?.state === 'paused'
+                    ? 'kn-paused'
+                    : undefined
+              }
+            >
               {player?.state === 'playing'
-                ? '● Právě hraje'
+                ? 'Právě hraje'
                 : player?.state === 'paused'
                   ? 'Pozastaveno'
                   : 'Hudba'}
@@ -226,7 +265,7 @@ export default function KitchenView(props: ModuleViewProps) {
             api && void action(api.transport(player?.state === 'playing' ? 'pause' : 'play'))
           }
         >
-          {player?.state === 'playing' ? 'Ⅱ' : '▶'}
+          <TransportIcon playing={player?.state === 'playing'} />
         </Button>
         <div className="kn-volume">
           <Button
@@ -276,8 +315,21 @@ export default function KitchenView(props: ModuleViewProps) {
         </div>
         <div className="kn-device">
           <span className="kn-output">◉ {player?.name ?? 'Výstup nenastaven'}</span>
-          <span>
-            {batteryLabel(snapshot?.battery.level ?? null, snapshot?.battery.state ?? null)}
+          <span
+            className="kn-battery"
+            aria-label={batteryLabel(snapshot?.battery.level ?? null, snapshot?.battery.state ?? null)}
+          >
+            <BatteryIcon charging={battery.charging} />
+            <span>
+              {battery.pct !== null ? (
+                <>
+                  <b>{battery.pct} %</b>
+                  {battery.hint ? <small>{battery.hint}</small> : null}
+                </>
+              ) : (
+                <b>{battery.hint}</b>
+              )}
+            </span>
           </span>
         </div>
       </footer>

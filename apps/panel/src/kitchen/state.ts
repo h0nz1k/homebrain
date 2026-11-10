@@ -1,12 +1,25 @@
 import type { MediaItem } from './types';
 
 export function batteryLabel(level: string | null, state: string | null): string {
+  const chip = batteryChip(level, state);
+  if (chip.pct === null) return 'Tablet · baterie nedostupná';
+  return `Tablet ${chip.pct} %${chip.hint ? ` · ${chip.hint}` : ''}`;
+}
+
+export function batteryChip(
+  level: string | null,
+  state: string | null,
+): { pct: number | null; hint: string; charging: boolean } {
   const n = level === null ? NaN : Number(level);
-  if (!Number.isFinite(n) || n < 0 || n > 100) return 'Tablet · baterie nedostupná';
+  if (!Number.isFinite(n) || n < 0 || n > 100)
+    return { pct: null, hint: 'nedostupná', charging: false };
   const stopped = ['not_charging', 'not charging', 'discharging', 'full'].includes(
     (state ?? '').toLowerCase(),
   );
-  return `Tablet ${Math.round(n)} %${stopped && n >= 80 ? ' · nabíjení omezeno' : state?.toLowerCase() === 'charging' ? ' · nabíjí se' : ''}`;
+  const charging = (state ?? '').toLowerCase() === 'charging';
+  const hint =
+    stopped && n >= 80 ? 'nabíjení omezeno' : charging ? 'nabíjí se' : '';
+  return { pct: Math.round(n), hint, charging };
 }
 export function filterPlaylists(items: MediaItem[], provider: string, query: string): MediaItem[] {
   const q = query.toLocaleLowerCase('cs-CZ').trim();

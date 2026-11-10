@@ -18,6 +18,7 @@ import {
   timerStore,
   useTimers,
   detectFryerEntities,
+  fryerNeedsAction,
   fryerPhase,
   fryerVisible,
   readFryerStates,
@@ -126,22 +127,35 @@ function CookingContent({
   const ids = detectFryerEntities(props.store.entityIds(), props.bindings);
   // FryerLiveCard subscribes to its own bindings; refresh ordering only for the status entity.
   const status = useEntity(props.store, ids?.status ?? '');
-  const fryerActive = Boolean(
-    status && ids && fryerVisible(fryerPhase(readFryerStates(props.store, ids))),
-  );
+  const fryerStates = ids ? readFryerStates(props.store, ids) : {};
+  const fryerPhaseNow = fryerPhase(fryerStates);
+  const fryerActive = Boolean(status && ids && fryerVisible(fryerPhaseNow));
   const activeTimers = views.filter((t) => t.status !== 'done');
   const active = {
     fryer: fryerActive,
     meater: probes.some((p) => p.state !== 'ready' && p.state !== 'done'),
     timers: activeTimers.length > 0,
   };
+  const attention = {
+    fryer: fryerActive && fryerNeedsAction(fryerPhaseNow),
+    meater: probes.some(reachedTarget),
+    timers: activeTimers.some((t) => t.remainingMs < 60_000),
+  };
+  const cookingActive = active.fryer || active.meater || active.timers;
   const order = cookingOrder(active);
   const cards: Record<string, React.ReactNode> = {
     recipes: (
-      <section className="kn-recipes kn-card" data-testid="kitchen-recipes">
+      <section
+        className="kn-recipes kn-card"
+        data-testid="kitchen-recipes"
+        data-scroll-cue={cookingActive ? 'true' : undefined}
+      >
+        {cookingActive ? <p className="kn-scroll-cue">Recepty níže</p> : null}
         <div className="kn-section-head">
           <h2>Recepty</h2>
-          <Button onClick={() => navigatePanel('/recipes')}>Vše ›</Button>
+          <Button size="sm" onClick={() => navigatePanel('/recipes')}>
+            Vše ›
+          </Button>
         </div>
         <div className="kn-search">
           <label>
@@ -185,7 +199,11 @@ function CookingContent({
       </section>
     ),
     fryer: (
-      <section className="kn-card kn-fryer" data-active={active.fryer} data-testid="kitchen-fryer">
+      <section
+        className="kn-card kn-fryer"
+        data-active={attention.fryer}
+        data-testid="kitchen-fryer"
+      >
         <h2>Horkovzdušná fritéza</h2>
         {fryerActive ? (
           <div className="rc kn-reuse">
@@ -206,14 +224,18 @@ function CookingContent({
       </section>
     ),
     meater: (
-      <section className="kn-card" data-active={active.meater} data-testid="kitchen-meater">
+      <section
+        className="kn-card kn-meater"
+        data-active={attention.meater}
+        data-testid="kitchen-meater"
+      >
         <div className="kn-section-head">
           <h2>MEATER</h2>
           <span>Pouze náhled</span>
         </div>
         {probes.length ? (
           probes.map((p) => (
-            <div className="kn-probe" key={p.id}>
+            <div className="kn-probe" key={p.id} data-ready={reachedTarget(p) ? 'true' : undefined}>
               <b>
                 {p.name} · {cookStateLabel(p.state)}
               </b>
@@ -232,16 +254,18 @@ function CookingContent({
               {reachedTarget(p) ? (
                 <Button
                   disabled={activeTimers.some(
-                    (t) => t.label === `Odpočinek masa · ${p.name.slice(0, 40)}`,
+                    (t) =>
+                      t.label ===
+                      `Odpočinek · ${p.name.slice(0, 40)} · ${props.config.rest_minutes} min`,
                   )}
                   onClick={() =>
                     timers.add(
-                      `Odpočinek masa · ${p.name.slice(0, 40)}`,
+                      `Odpočinek · ${p.name.slice(0, 40)} · ${props.config.rest_minutes} min`,
                       props.config.rest_minutes * 60,
                     )
                   }
                 >
-                  Spustit odpočinek masa
+                  Odpočinek · {p.name} · {props.config.rest_minutes} min
                 </Button>
               ) : null}
             </div>
@@ -257,7 +281,7 @@ function CookingContent({
     timers: (
       <section
         className="kn-card kn-timers"
-        data-active={active.timers}
+        data-active={attention.timers}
         data-testid="kitchen-timers-card"
       >
         <div className="kn-section-head">
@@ -284,7 +308,7 @@ function CookingContent({
     ),
   };
   return (
-    <div className="kn-cooking">
+    <div className={`kn-cooking${cookingActive ? ' kn-cooking-active' : ''}`}>
       <style>{recipesStyles + kitchenTimersStyles}</style>
       {order.map((id) => (
         <div key={id} className={`kn-cook-slot kn-slot-${id}`}>

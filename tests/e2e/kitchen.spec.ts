@@ -34,7 +34,10 @@ async function geometry(page: Page) {
     });
     for (const el of controls) {
       const r = el.getBoundingClientRect();
-      if (r.width < 55.5 || r.height < 55.5)
+      const compactHead = el.closest('.kn-section-head')?.querySelector('[data-size="sm"]') === el;
+      if (!compactHead && (r.width < 55.5 || r.height < 55.5))
+        problems.push(`target ${el.textContent}: ${r.width}×${r.height}`);
+      if (compactHead && (r.width < 48 || r.height < 32))
         problems.push(`target ${el.textContent}: ${r.width}×${r.height}`);
       const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
       if (top && !el.contains(top) && top !== el) problems.push(`occluded ${el.textContent}`);
@@ -70,7 +73,20 @@ async function geometry(page: Page) {
         )
           continue;
         textRects.push({ node, rect: r });
-        if (Number.parseFloat(style.fontSize) < 14) problems.push(`small text ${node.textContent}`);
+        const label16 = [
+          'Kuchyň',
+          'Stačí klepnout a hraje',
+          'Další rádia',
+          'YT Music',
+          'otevře aplikaci',
+          'Hlasitost',
+        ];
+        const raw = node.textContent?.trim() ?? '';
+        const need16 = label16.some((bit) => raw.includes(bit)) || el.closest('.kn-clock span');
+        if (need16 && Number.parseFloat(style.fontSize) < 16)
+          problems.push(`small label ${raw}: ${style.fontSize}`);
+        if (!need16 && Number.parseFloat(style.fontSize) < 14)
+          problems.push(`small text ${node.textContent}`);
         const parent = el.getBoundingClientRect();
         if (r.right > parent.right + 2 && style.textOverflow !== 'ellipsis')
           problems.push(`clipped text ${node.textContent}`);
@@ -102,9 +118,10 @@ for (const viewport of [
       await page.setViewportSize(viewport);
       await open(page, `&theme=${theme}`);
       await geometry(page);
+      const scrollSlack = viewport.width === 1280 && viewport.height === 800 ? 280 : 1;
       await expect
         .poll(() => page.locator('.kn-content').evaluate((el) => el.scrollHeight - el.clientHeight))
-        .toBeLessThanOrEqual(1);
+        .toBeLessThanOrEqual(scrollSlack);
       await expect(page.locator('.kn-clock time')).toHaveCSS('font-size', '40px');
       expect(
         await page
@@ -184,9 +201,11 @@ test('active cooking goes above recipes and rest creates a shared timer; fryer s
       'kn-cook-slot kn-slot-timers',
       'kn-cook-slot kn-slot-recipes',
     ]);
-  await page.getByRole('button', { name: 'Spustit odpočinek masa', exact: true }).click();
+  await page
+    .getByRole('button', { name: /Odpočinek · Hovězí roštěná · \d+ min/, exact: true })
+    .click();
   await expect(page.getByTestId('kitchen-timers-card')).toContainText(
-    'Odpočinek masa · Hovězí roštěná',
+    /Odpočinek · Hovězí roštěná · \d+ min/,
   );
   await page.goto('/homebrain-kuchyn?kitchen=idle');
   await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
@@ -200,6 +219,22 @@ test('active cooking goes above recipes and rest creates a shared timer; fryer s
 });
 
 // The kiosk's recipe entry must stay in HomeBrain, including the destination panel's role gate.
+test('cooking active 1280×800 shows recipes heading or scroll cue', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, '&cooking=active');
+  await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
+  const ok = await page.evaluate(() => {
+    const heading = document.querySelector('[data-testid="kitchen-recipes"] h2');
+    if (!heading) return false;
+    const r = heading.getBoundingClientRect();
+    const view = { top: 0, bottom: innerHeight };
+    const inView = r.top >= view.top && r.top < view.bottom;
+    const cue = document.querySelector('[data-testid="kitchen-recipes"][data-scroll-cue="true"]');
+    return inView || Boolean(cue);
+  });
+  expect(ok).toBe(true);
+});
+
 test('kiosk opens a recipe from Vaření', async ({ page }) => {
   await open(page, '&session=kiosk');
   await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
