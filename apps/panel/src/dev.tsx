@@ -65,6 +65,7 @@ import { createFakeHass, createMockConnection } from '@homebrain/testing';
 import {
   buildRobot,
   createPresetsDemo,
+  createRobotsUiMemoryDemo,
   createSchedulesDemo,
   createRobotsDemo,
   demoVectorMap,
@@ -445,6 +446,7 @@ Object.assign(demoHass.states, robotsDemo.states);
 const robotCalls: unknown[] = [];
 (window as unknown as { __hbRobotCalls: unknown[] }).__hbRobotCalls = robotCalls;
 // Presets/defaults backend mock: a start records the service calls the integration would send.
+const robotsUiDemo = createRobotsUiMemoryDemo();
 const presetsDemo = createPresetsDemo(
   (slot) => {
     const meta = robotsGet().robots.find((robot) => robot.slot === slot);
@@ -691,6 +693,7 @@ demoHass.connection = createMockConnection({
     };
   },
   ...presetsDemo.handlers,
+  ...robotsUiDemo.handlers,
   ...schedulesDemo.handlers,
   'homebrain/energy/invoices/list': () => {
     invoiceGate();

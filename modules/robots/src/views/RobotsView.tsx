@@ -5,7 +5,6 @@ import {
   Card,
   Chip,
   ProgressRing,
-  SegmentedControl,
   Stepper,
   Tile,
   czCount,
@@ -80,6 +79,10 @@ import { useVectorMap } from './useVectorMap.js';
 import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 import { CleaningOptionRow } from './CleaningOptionRow.js';
+import { LevelSegmentedControl } from './LevelSegmentedControl.js';
+import { RoomIcon } from './roomIcons.js';
+import { useRobotsUiMemory } from '../useRobotsUiMemory.js';
+import type { SlotUiMemory } from '../uiMemory.js';
 import {
   CheckIcon,
   EditIcon,
@@ -305,6 +308,31 @@ function RobotPanel({
   );
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
+  const [presetIdPick, setPresetIdPick] = useState<string | null>(null);
+  const applyUiMemory = useCallback((slot: SlotUiMemory) => {
+    if (typeof slot.advanced === 'boolean') setAdvanced(slot.advanced);
+    if (slot.mode) setMode(slot.mode);
+    if (slot.fan) setFan(slot.fan);
+    if (slot.water) setWater(slot.water);
+    if (slot.route) setMopRoute(slot.route);
+    if (slot.passes !== undefined) setPasses(slot.passes);
+    if (slot.presetId) setPresetIdPick(slot.presetId);
+  }, []);
+  const { rememberPreset } = useRobotsUiMemory(
+    connection,
+    robot,
+    presetList.map((p) => p.id),
+    {
+      advanced,
+      modePick,
+      fanPick,
+      waterPick,
+      routePick,
+      passesPick,
+      presetIdPick,
+    },
+    applyUiMemory,
+  );
   const [dockPendingRevision, setDockPendingRevision] = useState(0);
   const [dockResolvePendingUiBySlot, setDockResolvePendingUiBySlot] = useState<
     Record<number, boolean>
@@ -470,6 +498,15 @@ function RobotPanel({
   const [managePresets, setManagePresets] = useState(false);
   const launchPreset = (preset: RobotPreset) => {
     if (!connection) return;
+    rememberPreset({
+      presetId: preset.id,
+      mode: preset.mode,
+      fan: preset.fan,
+      water: preset.water,
+      route: preset.route,
+      passes: preset.passes,
+    });
+    setPresetIdPick(preset.id);
     const toastId = `rb-preset-start-${robot.slot}`;
     const cancel = delayedStart(() => {
       notify.dismiss(toastId);
@@ -1000,6 +1037,7 @@ function RobotPanel({
                           data-testid={`robots-room-${room.id}`}
                           onPress={() => setOrder(toggleRoom(selected, room.id))}
                         >
+                          <RoomIcon name={room.name} />
                           <span className="rb-chip-name">{room.name}</span>
                           {areas.get(room.id) ? (
                             <span className="rb-chip-area">{areas.get(room.id)} m²</span>
@@ -1032,15 +1070,10 @@ function RobotPanel({
                   )}
                 </p>
                 <div className="rb-controls" data-testid="robots-controls">
-                  <SegmentedControl
+                  <LevelSegmentedControl
                     label="Nastavení"
-                    tone="accent"
                     className="rb-level"
                     value={advanced ? 'advanced' : 'basic'}
-                    options={[
-                      ['basic', 'Základní'],
-                      ['advanced', 'Pokročilé'],
-                    ]}
                     onChange={(value) => setAdvanced(value === 'advanced')}
                   />
                   {modes.length > 1 && (

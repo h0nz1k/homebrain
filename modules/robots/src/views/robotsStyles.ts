@@ -238,6 +238,8 @@ export const robotsStyles = `
 .rb-map img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 12px; }
 .rb-map-empty { color: var(--hb-t2); font-size: 14px; padding: 24px; text-align: center; max-width: 340px; }
 .rb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rb-chip-ico { width: 19px; height: 19px; flex-shrink: 0; color: inherit; opacity: 0.92; }
+.rb-chip .rb-chip-ico { margin-right: -2px; }
 /* „Základní / Pokročilé“: a small switch above the controls; advanced rows fade in. */
 .rb-controls .rb-level { justify-content: space-between; flex-wrap: nowrap; }
 .rb-controls .rb-level .hb-seg-label { width: auto; flex: 1 1 auto; color: var(--hb-t1); font-size: 15px; font-weight: 600; }

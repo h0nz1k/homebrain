@@ -60,6 +60,45 @@ for (const theme of ['dark', 'light'] as const) {
   }
 }
 
+test('pamatuje pokročilé a průchody po reloadu (localStorage / user-data)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/homebrain-roboti');
+  await expect(page.getByTestId('robots-vector-map')).toBeVisible();
+  await page.getByRole('radio', { name: 'Pokročilé' }).click();
+  await page.getByRole('radio', { name: '2×' }).click();
+  await page.waitForFunction(() => {
+    const raw = localStorage.getItem('homebrain.robots.ui');
+    return raw?.includes('"advanced":true') && raw.includes('"passes":2');
+  });
+  await page.reload();
+  await expect(page.getByTestId('robots-vector-map')).toBeVisible();
+  await expect(page.getByTestId('robots-level-toggle').getByRole('radio', { name: 'Pokročilé' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+    { timeout: 15_000 },
+  );
+  await expect(page.getByRole('radio', { name: '2×' })).toHaveAttribute('aria-checked', 'true', {
+    timeout: 15_000,
+  });
+});
+
+test('ikony místností na chipu mají alespoň 16 px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/homebrain-roboti');
+  await expect(page.getByTestId('robots-vector-map')).toBeVisible();
+  const sizes = await page.locator('.rb-chips .rb-chip-ico').evaluateAll((nodes) =>
+    nodes.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    }),
+  );
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const { w, h } of sizes) {
+    expect(w).toBeGreaterThanOrEqual(16);
+    expect(h).toBeGreaterThanOrEqual(16);
+  }
+});
+
 test('ikony pokročilých voleb mají alespoň 20×20 px (telefon)', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/homebrain-roboti');

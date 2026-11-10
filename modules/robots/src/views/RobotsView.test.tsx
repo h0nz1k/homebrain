@@ -55,6 +55,8 @@ function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
   const sent: Record<string, unknown>[] = [];
   const connection: ConnectionLike = {
     async sendMessagePromise<T>(message: { type: string }) {
+      if (message.type === 'frontend/get_user_data') return { value: null } as T;
+      if (message.type === 'frontend/set_user_data') return { success: true } as T;
       if (message.type === 'homebrain/robots/get') return demo.ws as T;
       if (message.type === 'homebrain/robots/presets/list') return { robots: {} } as T;
       if (message.type === 'homebrain/robots/schedules/list')
