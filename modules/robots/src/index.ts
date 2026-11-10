@@ -19,3 +19,5 @@ export * from './demo.js';
 export * from './map/geometry.js';
 export * from './map/motion.js';
 export { demoVectorMap, narrowRoomMap, type DemoScene } from './map/demo.js';
+export { createRobotsUiMemoryDemo, ROBOTS_UI_STORAGE_KEY } from './uiMemory.js';
+export { roomIconKind, type RoomIconKind } from './roomIcons.js';

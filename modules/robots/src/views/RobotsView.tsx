@@ -5,7 +5,6 @@ import {
   Card,
   Chip,
   ProgressRing,
-  SegmentedControl,
   Stepper,
   Tile,
   czCount,
@@ -80,6 +79,10 @@ import { useVectorMap } from './useVectorMap.js';
 import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 import { CleaningOptionRow } from './CleaningOptionRow.js';
+import { LevelSegmentedControl } from './LevelSegmentedControl.js';
+import { RoomIcon } from './roomIcons.js';
+import { useRobotsUiMemory } from '../useRobotsUiMemory.js';
+import type { SlotUiMemory } from '../uiMemory.js';
 import {
   CheckIcon,
   EditIcon,
@@ -305,6 +308,31 @@ function RobotPanel({
   );
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
+  const [presetIdPick, setPresetIdPick] = useState<string | null>(null);
+  const applyUiMemory = useCallback((slot: SlotUiMemory) => {
+    if (typeof slot.advanced === 'boolean') setAdvanced(slot.advanced);
+    if (slot.mode) setMode(slot.mode);
+    if (slot.fan) setFan(slot.fan);
+    if (slot.water) setWater(slot.water);
+    if (slot.route) setMopRoute(slot.route);
+    if (slot.passes !== undefined) setPasses(slot.passes);
+    if (slot.presetId) setPresetIdPick(slot.presetId);
+  }, []);
+  const { rememberPreset } = useRobotsUiMemory(
+    connection,
+    robot,
+    presetList.map((p) => p.id),
+    {
+      advanced,
+      modePick,
+      fanPick,
+      waterPick,
+      routePick,
+      passesPick,
+      presetIdPick,
+    },
+    applyUiMemory,
+  );
   const [dockPendingRevision, setDockPendingRevision] = useState(0);
   const [dockResolvePendingUiBySlot, setDockResolvePendingUiBySlot] = useState<
     Record<number, boolean>
@@ -391,46 +419,6 @@ function RobotPanel({
   const liveRoom = vmap?.robot
     ? (rooms.find((room) => room.id === poseRoom)?.name ?? null)
     : robot.room;
-  const chipsRef = useRef<HTMLDivElement>(null);
-  const lastPicked = selected[selected.length - 1];
-  // Keep the last picked room's chip in view (the row scrolls sideways on phones).
-  useEffect(() => {
-    const row = chipsRef.current;
-    if (!row || lastPicked === undefined || row.scrollWidth <= row.clientWidth) return;
-    const chip = row.querySelector<HTMLElement>(`[data-testid='robots-room-${lastPicked}']`);
-    if (!chip) return;
-    let left = chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2;
-    // Never stop with a chip cut at the left edge (it read as an empty chip): start flush
-    // with the chip that would be cut.
-    const cut = Array.from(row.querySelectorAll<HTMLElement>('[data-testid^="robots-room-"]')).find(
-      (el) => el.offsetLeft < left && el.offsetLeft + el.offsetWidth > left,
-    );
-    if (cut) left = cut.offsetLeft;
-    row.scrollTo?.({ left: Math.max(0, left) });
-  }, [lastPicked]);
-  // Edge fades only where more chips hide (none at the start position).
-  useEffect(() => {
-    const row = chipsRef.current;
-    if (!row) return;
-    const update = () => {
-      const fade = [
-        row.scrollLeft > 2 ? 'start' : '',
-        row.scrollLeft + row.clientWidth < row.scrollWidth - 2 ? 'end' : '',
-      ]
-        .filter(Boolean)
-        .join(' ');
-      if (fade) row.setAttribute('data-fade', fade);
-      else row.removeAttribute('data-fade');
-    };
-    update();
-    row.addEventListener('scroll', update, { passive: true });
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null;
-    observer?.observe(row);
-    return () => {
-      row.removeEventListener('scroll', update);
-      observer?.disconnect();
-    };
-  }, [robot.slot, rooms.length]);
   // A quarter-turn rotation swaps the drawn width and height (portrait ↔ landscape).
   const quarter = robot.rotation === 90 || robot.rotation === 270;
   const mapW = vmap ? vmap.bounds[2] - vmap.bounds[0] : 0;
@@ -470,6 +458,15 @@ function RobotPanel({
   const [managePresets, setManagePresets] = useState(false);
   const launchPreset = (preset: RobotPreset) => {
     if (!connection) return;
+    rememberPreset({
+      presetId: preset.id,
+      mode: preset.mode,
+      fan: preset.fan,
+      water: preset.water,
+      route: preset.route,
+      passes: preset.passes,
+    });
+    setPresetIdPick(preset.id);
     const toastId = `rb-preset-start-${robot.slot}`;
     const cancel = delayedStart(() => {
       notify.dismiss(toastId);
@@ -982,8 +979,7 @@ function RobotPanel({
               <div className="rb-clean-side">
                 {rooms.length ? (
                   <div
-                    ref={chipsRef}
-                    className="rb-chips"
+                    className="rb-room-grid"
                     role="group"
                     aria-label="Místnosti v pořadí úklidu"
                   >
@@ -992,7 +988,7 @@ function RobotPanel({
                       return (
                         <Chip
                           key={room.id}
-                          className="rb-chip"
+                          className="rb-chip rb-room-tile"
                           look="soft"
                           pressed={badge !== null}
                           badge={badge}
@@ -1000,10 +996,8 @@ function RobotPanel({
                           data-testid={`robots-room-${room.id}`}
                           onPress={() => setOrder(toggleRoom(selected, room.id))}
                         >
-                          <span className="rb-chip-name">{room.name}</span>
-                          {areas.get(room.id) ? (
-                            <span className="rb-chip-area">{areas.get(room.id)} m²</span>
-                          ) : null}
+                          <RoomIcon name={room.name} className="rb-room-tile-ico" />
+                          <span className="rb-room-tile-name">{room.name}</span>
                         </Chip>
                       );
                     })}
@@ -1032,15 +1026,10 @@ function RobotPanel({
                   )}
                 </p>
                 <div className="rb-controls" data-testid="robots-controls">
-                  <SegmentedControl
+                  <LevelSegmentedControl
                     label="Nastavení"
-                    tone="accent"
                     className="rb-level"
                     value={advanced ? 'advanced' : 'basic'}
-                    options={[
-                      ['basic', 'Základní'],
-                      ['advanced', 'Pokročilé'],
-                    ]}
                     onChange={(value) => setAdvanced(value === 'advanced')}
                   />
                   {modes.length > 1 && (

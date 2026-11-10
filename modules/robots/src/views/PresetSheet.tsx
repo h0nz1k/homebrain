@@ -24,6 +24,7 @@ import {
   type RobotPreset,
 } from '../presets.js';
 import { orderBadge, toggleRoom } from '../rooms.js';
+import { RoomIcon } from './roomIcons.js';
 
 export type PresetEditorTarget =
   { kind: 'defaults' } | { kind: 'preset'; preset: RobotPreset | null };
@@ -260,6 +261,7 @@ export function RoomOrderChips({
               data-testid={`${testIdPrefix}-${room.id}`}
               onPress={() => onChange(toggleRoom(rooms, room.id))}
             >
+              <RoomIcon name={room.name} />
               <span className="rb-chip-name">{room.name}</span>
             </Chip>
           );

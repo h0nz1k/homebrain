@@ -238,6 +238,8 @@ export const robotsStyles = `
 .rb-map img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 12px; }
 .rb-map-empty { color: var(--hb-t2); font-size: 14px; padding: 24px; text-align: center; max-width: 340px; }
 .rb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rb-chip-ico { width: 19px; height: 19px; flex-shrink: 0; color: inherit; opacity: 0.92; }
+.rb-chip .rb-chip-ico { margin-right: -2px; }
 /* „Základní / Pokročilé“: a small switch above the controls; advanced rows fade in. */
 .rb-controls .rb-level { justify-content: space-between; flex-wrap: nowrap; }
 .rb-controls .rb-level .hb-seg-label { width: auto; flex: 1 1 auto; color: var(--hb-t1); font-size: 15px; font-weight: 600; }
@@ -610,29 +612,35 @@ export const robotsStyles = `
 /* Phones: the main CTA keeps the full width, „Pozastavit“ wraps below it. */
 .rb-clean-actions > :not(.rb-start) { flex: 1 0 auto; order: 2; }
 @container (min-width: 520px) { .rb-clean-actions > :not(.rb-start) { flex: 0 0 auto; order: 0; } }
-/* Room chips: one scrollable row under the map (the map is the primary selector); the
-   portrait side column keeps its list. */
-.rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips {
-  position: relative; scroll-behavior: smooth; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px 0;
-  /* Fade only the edge that hides more chips (data-fade set from scroll position): at the
-     start the first chip sits flush, never half-masked. */
-  --rb-fade-s: 0px; --rb-fade-e: 0px;
-  mask-image: linear-gradient(90deg, transparent, #000 var(--rb-fade-s), #000 calc(100% - var(--rb-fade-e)), transparent);
+/* Room picker: equal tiles in a responsive grid under (or beside) the map. */
+.rb-room-grid {
+  display: grid; gap: 8px; width: 100%; min-width: 0; align-content: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.rb-clean .rb-chips[data-fade~='start'] { --rb-fade-s: 24px; }
-.rb-clean .rb-chips[data-fade~='end'] { --rb-fade-e: 24px; }
-.rb-clean .rb-chips::-webkit-scrollbar { display: none; }
-/* Wide cards: the row overflowed by only a few px, so revealing the last chip scrolled it
-   a little and cut + faded the first one. Wrap instead; only phones scroll sideways. */
-@container (min-width: 720px) {
-  .rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips { flex-wrap: wrap; overflow-x: visible; mask-image: none; }
+@media (min-width: 481px) {
+  .rb-room-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-.rb-clean .rb-map-row:not([data-rb-portrait]) .rb-chips > * { flex: none; }
-@media (max-width: 600px) {
+@media (min-width: 900px) {
+  .rb-room-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-/* Room list beside portrait plans on wide cards (fills the side strips); chips elsewhere. */
+.rb-room-grid .rb-room-tile.hb-chip[data-toggle] {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; width: 100%; min-width: 0; min-height: 72px; padding: 12px 8px 10px;
+  border-radius: var(--hb-radius-md, 12px); box-sizing: border-box;
+}
+.rb-room-grid .rb-room-tile.hb-chip[data-toggle][aria-pressed='true']:has(.hb-chip-badge) {
+  padding-left: 8px;
+}
+.rb-room-grid .rb-room-tile .hb-chip-badge {
+  position: absolute; top: 5px; right: 5px; left: auto; width: 20px; height: 20px; font-size: 11px;
+}
+.rb-room-tile-ico { width: 28px; height: 28px; flex-shrink: 0; color: inherit; opacity: 0.92; }
+.rb-room-tile-name {
+  font-size: 13px; font-weight: 600; line-height: 1.2; text-align: center; max-width: 100%;
+  overflow-wrap: break-word; hyphens: auto;
+}
+.rb-clean-side .rb-room-grid + .rb-hint { margin-top: 12px; }
 .rb-clean { container-type: inline-size; }
-.rb-chip-area { display: none; }
 @container (min-width: 600px) {
   .rb-map-row[data-rb-portrait] { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(240px, 1fr); gap: 20px; align-items: stretch; }
   .rb-map-row[data-rb-portrait] .rb-map { margin-bottom: 0; }
@@ -640,10 +648,7 @@ export const robotsStyles = `
   .rb-map-row[data-rb-portrait] .rb-clean-side > * { margin: 0; }
   .rb-map-row[data-rb-portrait] .rb-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .rb-map-row[data-rb-portrait] .rb-clean-side > button, .rb-map-row[data-rb-portrait] .rb-clean-actions { width: 100%; margin-top: auto; }
-  .rb-map-row[data-rb-portrait] .rb-chips { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; }
-  .rb-map-row[data-rb-portrait] .rb-chip { width: 100%; min-height: 40px; justify-content: flex-start; }
-  .rb-map-row[data-rb-portrait] .rb-chip-name { flex: 1; text-align: left; }
-  .rb-map-row[data-rb-portrait] .rb-chip-area { display: inline; color: inherit; opacity: .7; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .rb-map-row[data-rb-portrait] .rb-room-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .rv *, .rb-map-loading { animation: none !important; transition: none !important; }
