@@ -1,4 +1,22 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function assertRoomGridLayout(page: Page) {
+  const grid = page.locator('.rb-room-grid').first();
+  await expect(grid).toBeVisible();
+  const result = await grid.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    if (el.scrollWidth > el.clientWidth + 1) return { ok: false as const, reason: 'h-scroll' };
+    const tiles = Array.from(
+      el.querySelectorAll<HTMLElement>('[data-testid^="robots-room-"]'),
+    ).filter((t) => t.getBoundingClientRect().width > 0);
+    for (const t of tiles) {
+      const r = t.getBoundingClientRect();
+      if (r.right > box.right + 1 || r.left < box.left - 1) return { ok: false as const, reason: 'overflow' };
+    }
+    return { ok: true as const };
+  });
+  expect(result.ok, result.ok ? '' : result.reason).toBe(true);
+}
 
 // Roboti (Refs #94): 3 syntetičtí roboti z dev mocku; volání služeb se jen zaznamenají.
 test('patra, stav, chyba s návodem a úklid místností v pořadí', async ({ page }, testInfo) => {
@@ -87,20 +105,12 @@ test('omezený pohyb: žádné běžící animace', async ({ browser }) => {
   await context.close();
 });
 
-test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, průchody), čipy od kraje', async ({
+test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, průchody), mřížka místností', async ({
   page,
 }) => {
   await page.goto('/homebrain-roboti');
   await expect(page.getByTestId('robots-vector-map')).toBeVisible();
-  // Room chips start flush: no fade (and no half chip) at the start edge.
-  const row = page.locator('.rb-map-row .rb-chips');
-  await expect(row).not.toHaveAttribute('data-fade', /start/);
-  const flush = await row.evaluate((el) => {
-    const first = el.querySelector('[data-testid^="robots-room-"]')!.getBoundingClientRect();
-    return Math.round(first.left - el.getBoundingClientRect().left);
-  });
-  expect(flush).toBeGreaterThanOrEqual(0);
-  expect(flush).toBeLessThanOrEqual(2);
+  await assertRoomGridLayout(page);
 
   const widths = (name: string) =>
     page

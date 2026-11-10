@@ -39,16 +39,21 @@ function iconFor(kind: RoomIconKind) {
     case 'pot':
       return (
         <G>
-          <path d="M7.5 9.5h9v7.5a3 3 0 0 1-3 3h-3a3 3 0 0 1-3-3Z" />
-          <path d="M9 6.5h6" />
-          <path d="M10.5 6.5V9M13.5 6.5V9" />
+          <path d="M8 9.5h8v7.5a2.5 2.5 0 0 1-2.5 2.5h-3A2.5 2.5 0 0 1 8 17V9.5Z" />
+          <path d="M7.5 9.5h9" />
+          <path d="M6 11.5h1.8M16.2 11.5H18" />
+          <circle cx="12" cy="7.8" r="0.85" fill="currentColor" stroke="none" />
+          <path d="M11.25 7.8h1.5" />
         </G>
       );
     case 'dining':
       return (
         <G>
-          <ellipse cx="12" cy="10.5" rx="5.5" ry="2.2" />
-          <path d="M7.5 15.5v3M10.5 15.5v3M13.5 15.5v3M16.5 15.5v3" />
+          <path d="M5.5 11h13" />
+          <path d="M7 11V13.5M17 11v2.5" />
+          <path d="M3.5 14.5h3.2v2.8H3.5z" />
+          <path d="M17.3 14.5H20.5v2.8h-3.2z" />
+          <path d="M4.5 14.5V17M19.5 14.5V17" />
         </G>
       );
     case 'door':
@@ -61,9 +66,10 @@ function iconFor(kind: RoomIconKind) {
     case 'toilet':
       return (
         <G>
-          <path d="M10 6h4v3.5a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6h4" />
-          <path d="M12 13.5V17" />
-          <path d="M9.5 17h5" />
+          <path d="M14.5 5.5h4.5v6h-4.5z" />
+          <path d="M6.5 11.5h4.5v1.5c0 2.2 1.5 4 4 4h1c2 0 3.5-1.6 3.5-3.5v-2H6.5z" />
+          <path d="M8 18.5h8" />
+          <path d="M9 17v1.5M15 17v1.5" />
         </G>
       );
     case 'bath':
