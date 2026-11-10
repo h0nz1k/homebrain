@@ -307,8 +307,7 @@ def build_payload(
             "attic_temp": _r(v("house.attic_temp")),
             "circuit_on": v("house.circuit_on"),
             "mixing_valve_pct": (
-                None if v("house.mixing_valve_pct") is None
-                else round(v("house.mixing_valve_pct"))
+                None if v("house.mixing_valve_pct") is None else round(v("house.mixing_valve_pct"))
             ),
             "supply_temp": _r(v("house.supply_temp")),
         },

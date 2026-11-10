@@ -275,8 +275,9 @@ def test_mixing_valve_contract(opening, expected):
     if opening is not None:
         res.values["house.mixing_valve_pct"] = opening
     now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
-    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now,
-                            stale=False, power_w=None)
+    payload = build_payload(
+        res, DayCounters(), source="ok", updated_at=now, now=now, stale=False, power_w=None
+    )
     assert payload["house"]["mixing_valve_pct"] == expected
     assert expected is None or type(payload["house"]["mixing_valve_pct"]) is int
 
@@ -312,9 +313,7 @@ def test_extras_side_circuits_mapped_and_partial():
         }
     )
     now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
-    payload = build_payload(
-        res, DayCounters(), source="ok", updated_at=now, now=now, stale=False
-    )
+    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now, stale=False)
     assert payload["extras"]["fish"] == {
         "temp": 7.9,
         "target": 8.0,
@@ -335,9 +334,7 @@ def test_extras_fish_temp_only_backward_compatible():
     res.mapped.add("extras.fish_temp")
     res.values["extras.fish_temp"] = 11.2
     now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
-    payload = build_payload(
-        res, DayCounters(), source="ok", updated_at=now, now=now, stale=False
-    )
+    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now, stale=False)
     assert payload["extras"]["fish"] == {
         "temp": 11.2,
         "target": None,
@@ -354,7 +351,8 @@ def test_mixing_valve_resolves_a_mapped_numeric_sensor():
     res = resolve(hmap, _pages())
     assert res.values["house.mixing_valve_pct"] == pytest.approx(21.4)
     now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
-    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now,
-                            stale=False, power_w=None)
+    payload = build_payload(
+        res, DayCounters(), source="ok", updated_at=now, now=now, stale=False, power_w=None
+    )
     assert payload["house"]["mixing_valve_pct"] == 21
     assert type(payload["house"]["mixing_valve_pct"]) is int
