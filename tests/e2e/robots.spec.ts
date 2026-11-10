@@ -108,11 +108,9 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
       .evaluate((el) =>
         Array.from(el.querySelectorAll('button')).map((b) => b.getBoundingClientRect().width),
       );
-  for (const name of ['Režim', 'Sání']) {
+  for (const name of ['Režim']) {
     const w = await widths(name);
     expect(Math.max(...w) - Math.min(...w), name).toBeLessThan(1.5);
-    // Equal columns must not clip their labels (phones at 360 px).
-    // Text box vs content box: scrollWidth misses a label that eats into the end padding.
     const clipped = await page.getByRole('radiogroup', { name }).evaluate((el) =>
       Array.from(el.querySelectorAll('button'))
         .filter((b) => {
@@ -126,10 +124,11 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
     );
     expect(clipped, name).toEqual([]);
   }
-
-  // Calm by default: water, mop route and passes only under „Pokročilé“.
-  await expect(page.getByRole('radiogroup', { name: 'Voda' })).toHaveCount(0);
+  await expect(page.getByRole('radiogroup', { name: 'Sání' })).toBeVisible();
   await page.getByRole('radio', { name: 'Pokročilé' }).click();
+
+  // Water, mop route and passes only under „Pokročilé“.
+  await expect(page.getByRole('radiogroup', { name: 'Voda' })).toHaveCount(0);
   await expect(page.getByRole('radiogroup', { name: 'Průchody' })).toBeVisible();
   await page.getByRole('radio', { name: 'Vysát' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Voda' })).toHaveCount(0);
@@ -158,5 +157,5 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
     calls
       .filter((c) => c.service === 'select_option')
       .map((c) => (c.service_data as { option: string }).option),
-  ).toEqual(expect.arrayContaining(['intense', 'deep']));
+  ).toEqual(expect.arrayContaining(['high', 'deep']));
 });

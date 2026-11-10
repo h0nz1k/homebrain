@@ -199,6 +199,19 @@ export const robotsStyles = `
 @keyframes rb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
 .rb-hint { color: var(--hb-t2); font-size: 14px; margin: 16px 0 14px; }
 .rb-controls { display: grid; gap: 14px; margin-bottom: 22px; }
+.rb-opt-wrap { display: grid; gap: 8px; }
+.rb-opt-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0;
+}
+.rb-opt-chip.hb-chip {
+  min-height: 44px; padding: 10px 14px; font-size: 14px; font-weight: 600;
+  flex: 1 1 calc(50% - 4px); max-width: 100%; justify-content: center; box-sizing: border-box;
+}
+@media (min-width: 520px) {
+  .rb-opt-chip.hb-chip { flex: 0 1 auto; min-width: 0; }
+}
+.rb-problem-refill { margin: 12px 0 0; font-size: 14px; color: var(--hb-t2); line-height: 1.45; }
+.rb-dock-ack-chip { margin-top: 12px; }
 
 
 

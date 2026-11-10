@@ -24,7 +24,18 @@ describe('robot model', () => {
     expect(a.progress).toBe(38);
     expect(a.rooms).toHaveLength(8);
     expect(a.mode).toBe('both');
-    expect(a.fanChoices).toEqual(['quiet', 'balanced', 'turbo', 'max', 'max_plus']);
+    expect(a.fanChoices).toEqual([
+      'quiet',
+      'balanced',
+      'turbo',
+      'max',
+      'max_plus',
+      'off',
+      'smart_mode',
+      'custom',
+    ]);
+    expect(a.water?.choices).toHaveLength(7);
+    expect(a.mopRoute?.choices).toHaveLength(6);
     expect(b.error?.title).toBe('Zamotaný hlavní kartáč');
     expect(b.tanks.find((t) => t.key === 'cleaning_fluid')).toMatchObject({
       ok: false,

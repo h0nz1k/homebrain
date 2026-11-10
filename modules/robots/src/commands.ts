@@ -49,15 +49,26 @@ export const FAN_LABELS: Record<string, string> = {
   turbo: 'Turbo',
   max: 'Max',
   max_plus: 'Max+',
+  off: 'Vypnuto',
   smart_mode: 'Chytré',
+  custom: 'Vlastní',
 };
-// Max+ is core too, but the views only offer it in vacuum-only mode (`fansForMode`).
-const CORE_FANS = ['quiet', 'balanced', 'turbo', 'max', 'max_plus'];
-/** Fan speeds shown as segments in power order: the core ones + the current one (Chytré). */
+const FAN_ORDER = [
+  'quiet',
+  'balanced',
+  'turbo',
+  'max',
+  'max_plus',
+  'off',
+  'smart_mode',
+  'custom',
+] as const;
+/** Fan speeds in suction order; every option the vacuum exposes (e.g. 8 on newer Roborock). */
 export function fanChoices(list: string[], current: string | null = null): string[] {
-  return Object.keys(FAN_LABELS).filter(
-    (speed) => list.includes(speed) && (CORE_FANS.includes(speed) || speed === current),
-  );
+  void current;
+  const ordered = FAN_ORDER.filter((speed) => list.includes(speed));
+  const extra = list.filter((speed) => !(FAN_ORDER as readonly string[]).includes(speed));
+  return [...ordered, ...extra];
 }
 
 /**
@@ -65,18 +76,18 @@ export function fanChoices(list: string[], current: string | null = null): strin
  * integration's state keys; models expose different subsets, shown in this power order.
  */
 export const WATER_LABELS: Record<string, string> = {
-  off: 'Bez vody',
-  slight: 'Minimum',
+  off: 'Vypnuto',
+  slight: 'Lehce',
   min: 'Minimum',
   low: 'Nízká',
   mild: 'Nízká',
   medium: 'Střední',
-  moderate: 'Střední',
-  standard: 'Střední',
+  moderate: 'Středně',
+  standard: 'Standardně',
   high: 'Vysoká',
   intense: 'Vysoká',
   max: 'Maximum',
-  extreme: 'Maximum',
+  extreme: 'Extrémní',
   custom: 'Vlastní',
   custom_water_flow: 'Vlastní',
   smart_mode: 'Chytré',
@@ -86,48 +97,43 @@ export const MOP_ROUTE_LABELS: Record<string, string> = {
   fast: 'Rychle',
   standard: 'Standardně',
   deep: 'Důkladně',
-  deep_plus: 'Důkladně+',
+  deep_plus: 'Důkladně plus',
   custom: 'Vlastní',
   smart_mode: 'Chytré',
 };
-const WATER_CORE = [
+const WATER_ORDER = [
   'off',
   'slight',
-  'min',
   'low',
-  'mild',
   'medium',
   'moderate',
-  'standard',
   'high',
+  'extreme',
+  'min',
+  'mild',
+  'standard',
   'intense',
   'max',
-  'extreme',
+  'custom',
+  'custom_water_flow',
+  'smart_mode',
 ];
-const ROUTE_CORE = ['fast', 'standard', 'deep', 'deep_plus'];
-/**
- * Segments for a select: known options in power order (app-only modes like „custom“ only
- * when they are the current value), at most one option per label (mild/low both = „Nízká“).
- */
-export function selectChoices(
-  options: string[],
-  current: string | null,
-  labels: Record<string, string>,
-  core: string[],
-): string[] {
-  const seen = new Set<string>();
-  return Object.keys(labels).filter((key) => {
-    if (!options.includes(key) || !(core.includes(key) || key === current)) return false;
-    const label = labels[key]!;
-    if (seen.has(label) && key !== current) return false;
-    seen.add(label);
-    return true;
-  });
+const ROUTE_ORDER = ['standard', 'deep', 'deep_plus', 'fast', 'smart_mode', 'custom'];
+
+function orderedChoices(options: string[], order: readonly string[]): string[] {
+  const picked = order.filter((key) => options.includes(key));
+  const rest = options.filter((key) => !order.includes(key));
+  return [...picked, ...rest];
 }
-export const waterChoices = (options: string[], current: string | null) =>
-  selectChoices(options, current, WATER_LABELS, WATER_CORE);
-export const mopRouteChoices = (options: string[], current: string | null) =>
-  selectChoices(options, current, MOP_ROUTE_LABELS, ROUTE_CORE);
+
+export const waterChoices = (options: string[], current: string | null) => {
+  void current;
+  return orderedChoices(options, WATER_ORDER);
+};
+export const mopRouteChoices = (options: string[], current: string | null) => {
+  void current;
+  return orderedChoices(options, ROUTE_ORDER);
+};
 export const modeMops = (mode: CleanMode | null) => mode === 'mop' || mode === 'both';
 
 /** One optional select change („Voda: Vysoká“) – only when the value really changes. */

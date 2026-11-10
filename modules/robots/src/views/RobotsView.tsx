@@ -78,6 +78,12 @@ import {
 import { useVectorMap } from './useVectorMap.js';
 import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
+import { CleaningOptionRow } from './CleaningOptionRow.js';
+import {
+  dockErrorBannerCollapsed,
+  writeDockErrorAcknowledged,
+} from '../dockErrorAck.js';
+import { DOCK_REFILL_AFTER_HINT, isRefillDockError } from '../errors.js';
 
 function initialSlot(slots: number[]): number | null {
   const wanted = Number(new URLSearchParams(globalThis.location?.search ?? '').get('robot'));
@@ -282,6 +288,13 @@ function RobotPanel({
   );
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
+  const [dockAckRevision, setDockAckRevision] = useState(0);
+  const dockAck = useMemo(
+    () =>
+      dockErrorBannerCollapsed(robot.dockError, robot.dockErrorStamp, robot.slot),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- localStorage ack reread after „Hotovo, doplněno“
+    [robot.slot, robot.dockError, robot.dockErrorStamp, dockAckRevision],
+  );
   const [confirm, setConfirm] = useState<{
     title: string;
     plan: ServiceCallPlan[];
@@ -571,7 +584,9 @@ function RobotPanel({
   );
   const tone = robot.status.tone;
   const busy = tone === 'cleaning' || tone === 'returning';
-  const problem = robot.error ?? robot.dockError;
+  const dockRefill =
+    !robot.error && robot.dockError && isRefillDockError(robot.dockError.code);
+  const problem = robot.error ?? (dockAck && dockRefill ? null : robot.dockError);
   const manifest = usePhotoManifest(photoDir);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
@@ -678,6 +693,17 @@ function RobotPanel({
             </div>
           </Card>
 
+          {dockAck && dockRefill && (
+            <Chip
+              className="rb-dock-ack-chip"
+              data-testid="robots-dock-ack-chip"
+              tone="neutral"
+              variant="soft"
+            >
+              Čeká na kontrolu v doku
+            </Chip>
+          )}
+
           {problem && (
             <Card
               as="article"
@@ -698,6 +724,11 @@ function RobotPanel({
                   state: 'todo' as const,
                 }))}
               />
+              {problem.source === 'dock' && isRefillDockError(problem.code) && (
+                <p className="rb-problem-refill" data-testid="robots-dock-refill-hint">
+                  {DOCK_REFILL_AFTER_HINT}
+                </p>
+              )}
               {robot.error && robot.dockError && (
                 <p className="rb-problem-more">
                   Dok navíc hlásí: <b>{robot.dockError.title}</b> – {robot.dockError.steps[0]}
@@ -719,6 +750,35 @@ function RobotPanel({
                     Hotovo – pokračovat
                   </Button>
                   <span>Robot pokračuje až po potvrzení.</span>
+                </div>
+              )}
+              {problem.source === 'dock' && isRefillDockError(problem.code) && (
+                <div className="rb-problem-cta">
+                  {tone !== 'charging' && tone !== 'docked' && (
+                    <Button
+                      variant="strong"
+                      data-testid="robots-dock-return-home"
+                      disabled={!canAct}
+                      onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
+                    >
+                      Vrátit do doku
+                    </Button>
+                  )}
+                  <Button
+                    data-testid="robots-dock-ack-refilled"
+                    disabled={!robot.dockErrorStamp}
+                    onClick={() => {
+                      if (!robot.dockError || !robot.dockErrorStamp) return;
+                      writeDockErrorAcknowledged(
+                        robot.slot,
+                        robot.dockError.code,
+                        robot.dockErrorStamp,
+                      );
+                      setDockAckRevision((n) => n + 1);
+                    }}
+                  >
+                    Hotovo, doplněno
+                  </Button>
                 </div>
               )}
               <details>
@@ -952,9 +1012,8 @@ function RobotPanel({
                     />
                   )}
                   {robot.fanChoices.length > 1 && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Sání"
-                      tone="accent"
                       value={fan}
                       options={fansForMode(robot.fanChoices, mode).map((f) => [
                         f,
@@ -972,9 +1031,8 @@ function RobotPanel({
                     </p>
                   )}
                   {advanced && mops && robot.water && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Voda"
-                      tone="accent"
                       className="rb-adv"
                       value={water}
                       options={robot.water.choices.map((w) => [w, WATER_LABELS[w] ?? w])}
@@ -982,9 +1040,8 @@ function RobotPanel({
                     />
                   )}
                   {advanced && mops && robot.mopRoute && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Mopování"
-                      tone="accent"
                       className="rb-adv"
                       value={mopRoute}
                       options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}

@@ -15,7 +15,7 @@ Integrace sama volá jen `roborock.get_maps`, a to read-only s cache přes WS `h
 
 **Obrázek robota:** výchozí je neutrální SVG ilustrace. Fotky výrobce do repa nepatří, každý si nahraje vlastní.
 
-**Dev:** `/homebrain-roboti?robot=2&robots=default|calm|error&theme=light`, 3 syntetičtí roboti (`src/demo.ts`). Volání služeb se v dev jen zaznamenají do `window.__hbRobotCalls`.
+**Dev:** `/homebrain-roboti?robot=2&robots=default|calm|error|water|docked&theme=light`, 3 syntetičtí roboti (`src/demo.ts`; robot 1 = Kraken-like volby). Volání služeb se v dev jen zaznamenají do `window.__hbRobotCalls`.
 
 ## Fotky robota (volitelné, jen lokálně)
 
