@@ -173,6 +173,8 @@ for (const viewport of [
             if (!cover || !cap) continue;
             const c = cover.getBoundingClientRect();
             const t = cap.getBoundingClientRect();
+            if (Math.abs(t.left - c.left) > 1)
+              problems.push(`caption left ${cap.textContent}: ${t.left}≠${c.left}`);
             if (t.width > c.width + 1)
               problems.push(`caption ${cap.textContent}: ${t.width}>${c.width}`);
             if (t.right > c.right + 1) problems.push(`overhang ${cap.textContent}`);
@@ -293,6 +295,14 @@ test.describe('kiosk 1280×800 polish', () => {
       const last = recipeButtons[recipeButtons.length - 1]!;
       const rowW = grid.getBoundingClientRect().width;
       const cardsW = recipeButtons.reduce((s, b) => s + b.getBoundingClientRect().width, 0);
+      const thumbHeights = recipeButtons.map((btn) => {
+        const img = btn.querySelector('img, .kn-dish');
+        return img ? img.getBoundingClientRect().height : 0;
+      });
+      const thumbWidths = recipeButtons.map((btn) => {
+        const img = btn.querySelector('img, .kn-dish');
+        return img ? img.getBoundingClientRect().width : 0;
+      });
       return {
         inset,
         restFit,
@@ -303,6 +313,8 @@ test.describe('kiosk 1280×800 polish', () => {
         barTop: bar.top,
         rowFill: rowW - cardsW <= 56,
         recipeCount: recipeButtons.length,
+        thumbHeights,
+        thumbWidths,
       };
     });
     expect(report.inset).toEqual([]);
@@ -313,6 +325,8 @@ test.describe('kiosk 1280×800 polish', () => {
     expect(report.recipeCount).toBe(4);
     expect(report.rowFill).toBe(true);
     expect(report.lastRecipeBottom).toBeLessThan(report.barTop);
+    for (const h of report.thumbHeights) expect(h).toBeGreaterThanOrEqual(96);
+    for (const w of report.thumbWidths) expect(w).toBeGreaterThanOrEqual(90);
   });
 
 test('cooking active compact cards and recipes above player', async ({ page }) => {
@@ -388,11 +402,17 @@ test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
     const mamaOk = mamaBottom > 0 && mamaBottom < bar.top && !mamaCovers;
     const yt = mamaSection?.querySelector('.kn-youtube');
     const lib = mamaSection?.querySelector('.kn-person-library');
+    const personGap = mamaSection
+      ? Number.parseFloat(getComputedStyle(mamaSection).columnGap || getComputedStyle(mamaSection).gap)
+      : 0;
     const ytAligned =
       yt && lib
         ? Math.abs(yt.getBoundingClientRect().top - lib.getBoundingClientRect().top) < 3 &&
           Math.abs(yt.getBoundingClientRect().bottom - lib.getBoundingClientRect().bottom) < 3
         : false;
+    const ytPlay = mamaSection?.querySelector('.kn-yt-symbol');
+    const ytPlayGlyph = ytPlay ? getComputedStyle(ytPlay).color : '';
+    const ytPlayBg = ytPlay ? getComputedStyle(ytPlay).backgroundColor : '';
     const battIcon = document.querySelector('.kn-battery .kn-ico');
     const battBox = battIcon?.getBoundingClientRect();
     const battFill = document.querySelector('.kn-battery .kn-ico rect[width]');
@@ -411,6 +431,9 @@ test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
       mamaBottom,
       barTop: bar.top,
       ytAligned,
+      personGap,
+      ytPlayGlyph,
+      ytPlayBg,
       battMin: Math.min(battBox?.width ?? 0, battBox?.height ?? 0),
       battVisible: Boolean(battFill),
       pillLeft,
@@ -424,6 +447,10 @@ test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
   expect(report.aligned).toBe(true);
   expect(report.mamaOk).toBe(true);
   expect(report.ytAligned).toBe(true);
+  expect(report.personGap).toBeGreaterThanOrEqual(11.5);
+  expect(report.personGap).toBeLessThanOrEqual(12.5);
+  expect(report.ytPlayGlyph).toMatch(/rgb\(255,\s*255,\s*255\)/);
+  expect(report.ytPlayBg).toMatch(/rgb\(230,\s*33,\s*23\)/);
   expect(report.battMin).toBeGreaterThanOrEqual(20);
   expect(report.battVisible).toBe(true);
   expect(report.pillLeft).toBe(true);

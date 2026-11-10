@@ -343,10 +343,14 @@
   margin-top: 6px;
 }
 .kn-yt-symbol {
-  color: #ff8a96;
-  background: #ff627518;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #e62117;
   padding: 12px;
   border-radius: 10px;
+  line-height: 1;
+  font-size: 18px;
 }
 .kn-player {
   flex: none;
@@ -449,10 +453,10 @@
   text-align: left;
 }
 .kn-battery > .kn-ico {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
 }
 .kn-battery b {
   font-size: 16px;
@@ -972,7 +976,7 @@
     gap: 6px;
   }
   .kn-person {
-    gap: 14px;
+    gap: 12px;
   }
   .kn-playlists {
     gap: 8px;
@@ -1216,11 +1220,34 @@
   gap: 8px;
   width: 100%;
 }
+.kn-cooking-active .kn-recipe-grid button {
+  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 10px;
+}
 .kn-cooking-active .kn-recipe-grid img,
 .kn-cooking-active .kn-recipe-grid .kn-dish {
-  height: 40px;
+  width: 96px;
+  height: 96px;
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  margin: 0;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.kn-cooking-active .kn-recipe-grid .kn-dish {
+  height: 96px;
+}
+.kn-cooking-active .kn-recipe-grid button > span:last-of-type {
+  grid-column: 2;
+  grid-row: 2;
 }
 .kn-cooking-active .kn-recipe-grid button b {
+  grid-column: 2;
+  grid-row: 1;
   font-size: 15px;
   -webkit-line-clamp: 1;
 }
@@ -1393,11 +1420,15 @@
     gap: 10px;
   }
   .kn-person {
-    gap: 8px;
+    gap: 12px;
   }
   .kn-playlists .kn-art {
-    max-width: 120px;
-    align-self: center;
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+    aspect-ratio: 1;
+    max-height: 88px;
+    height: auto;
   }
   .kn:has(.kn-notice) .kn-radio {
     height: 96px;

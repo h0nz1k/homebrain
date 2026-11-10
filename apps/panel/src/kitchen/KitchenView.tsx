@@ -42,7 +42,15 @@ function BatteryIcon({ charging, level }: { charging: boolean; level: number | n
     <svg className="kn-ico" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4" y="7" width="16" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
       {fillW > 0 ? (
-        <rect x="6" y="9" width={fillW} height="6" rx="1" fill="currentColor" opacity="0.88" />
+        <rect
+          x="6"
+          y="9"
+          width={fillW}
+          height="6"
+          rx="1"
+          fill="var(--hb-ok)"
+          opacity="0.95"
+        />
       ) : null}
       <rect x="20" y="10" width="2" height="4" rx="0.5" fill="currentColor" />
       {charging ? (
