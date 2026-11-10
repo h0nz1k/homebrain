@@ -212,7 +212,8 @@ export const robotsStyles = `
   .rb-opt-chip.hb-chip { flex: 0 1 auto; min-width: 0; }
 }
 .rb-problem-refill { margin: 12px 0 0; font-size: 14px; color: var(--hb-t2); line-height: 1.45; }
-.rb-dock-ack-chip { margin-top: 12px; }
+.rb-problem-step { margin: 8px 0 0; font-size: 15px; line-height: 1.45; }
+.rb-maint-head .rb-dock-ack-chip { margin: 0; flex: 0 1 auto; max-width: 100%; }
 
 
 

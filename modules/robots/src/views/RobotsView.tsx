@@ -30,6 +30,7 @@ import {
   findResetButton,
   isRobotResetButton,
   planResetCounter,
+  planResolveDockError,
   planResumeAfterFix,
   planSimple,
   runPlan,
@@ -80,10 +81,16 @@ import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 import { CleaningOptionRow } from './CleaningOptionRow.js';
 import {
-  dockErrorBannerCollapsed,
-  writeDockErrorAcknowledged,
-} from '../dockErrorAck.js';
-import { DOCK_REFILL_AFTER_HINT, isRefillDockError } from '../errors.js';
+  readDockResolvePending,
+  writeDockResolvePending,
+} from '../dockResolvePending.js';
+import {
+  DOCK_REFILL_ACK_NOTE,
+  DOCK_REFILL_AFTER_HINT,
+  canResolveRefillDockError,
+  dockErrorRoborockCode,
+  isRefillDockError,
+} from '../errors.js';
 
 function initialSlot(slots: number[]): number | null {
   const wanted = Number(new URLSearchParams(globalThis.location?.search ?? '').get('robot'));
@@ -288,13 +295,18 @@ function RobotPanel({
   );
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
-  const [dockAckRevision, setDockAckRevision] = useState(0);
-  const dockAck = useMemo(
+  const [dockPendingRevision, setDockPendingRevision] = useState(0);
+  const [dockResolvePendingUi, setDockResolvePendingUi] = useState(false);
+  const dockResolvePending = useMemo(
     () =>
-      dockErrorBannerCollapsed(robot.dockError, robot.dockErrorStamp, robot.slot),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- localStorage ack reread after „Hotovo, doplněno“
-    [robot.slot, robot.dockError, robot.dockErrorStamp, dockAckRevision],
+      dockResolvePendingUi ||
+      readDockResolvePending(robot.slot, robot.dockError?.code, robot.dockErrorStamp),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pending marker reread after resolve_error
+    [robot.slot, robot.dockError, robot.dockErrorStamp, dockPendingRevision, dockResolvePendingUi],
   );
+  useEffect(() => {
+    setDockResolvePendingUi(false);
+  }, [robot.slot]);
   const [confirm, setConfirm] = useState<{
     title: string;
     plan: ServiceCallPlan[];
@@ -308,8 +320,10 @@ function RobotPanel({
   const photoDir = photoBase(robot);
   const guides = useGuides(photoDir);
   const maintItems = maintenanceItems(robot, guides);
-  const maintGroups = maintenanceGroups(maintItems, robot.dockError);
-  const maintSummary = maintenanceSummary(maintItems, robot.dockError);
+  const tone = robot.status.tone;
+  const busy = tone === 'cleaning' || tone === 'returning';
+  const maintGroups = maintenanceGroups(maintItems, robot.dockError, dockResolvePending);
+  const maintSummary = maintenanceSummary(maintItems, robot.dockError, dockResolvePending);
   // Guide's own reset entity wins; else the robot's Roborock reset button found in HA.
   const guideWithReset = (part: GuidePart) => {
     const guide = guideFor(guides, part);
@@ -518,6 +532,25 @@ function RobotPanel({
       setConfirm(null);
     }
   };
+  const confirmDockRefillResolved = async () => {
+    if (!connection || !robot.dockError || dockResolveCode === null) return;
+    const plan = planResolveDockError(robot.vacuum, dockResolveCode, robot.dockError.title);
+    if (!plan.length) return;
+    setSending(true);
+    try {
+      setDockResolvePendingUi(true);
+      if (robot.dockErrorStamp)
+        writeDockResolvePending(robot.slot, robot.dockError.code, robot.dockErrorStamp);
+      setDockPendingRevision((n) => n + 1);
+      await runPlan(connection, plan, [robot.vacuum]);
+      notify.success('Chyba doku potvrzena');
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
+      notify.error(`Chybu doku se nepodařilo potvrdit${detail}. Potvrďte chybu v aplikaci Roborock.`);
+    } finally {
+      setSending(false);
+    }
+  };
   const care = (
     <Card
       as="article"
@@ -541,6 +574,16 @@ function RobotPanel({
           >
             <div className="rb-maint-head">
               <h4>{group.label}</h4>
+              {group.id === 'dock' && dockResolvePending && (
+                <Chip
+                  className="rb-dock-ack-chip"
+                  data-testid="robots-dock-ack-chip"
+                  tone="neutral"
+                  variant="soft"
+                >
+                  {DOCK_REFILL_ACK_NOTE}
+                </Chip>
+              )}
               {group.note && (
                 <span className="rb-maint-note" data-testid={`robots-maint-${group.id}-note`}>
                   {group.note}
@@ -562,6 +605,9 @@ function RobotPanel({
                       icon={<MaintIcon item={item} />}
                       label={item.label}
                       status={item.status}
+                      detail={
+                        dockResolvePending && item.id === 'clean_water' ? DOCK_REFILL_ACK_NOTE : undefined
+                      }
                       onPress={() => setGuidePart(item.part)}
                       aria-label={`${item.label}: ${item.status}${
                         item.percent !== null ? ` (${item.percent} %)` : ''
@@ -582,11 +628,11 @@ function RobotPanel({
       )}
     </Card>
   );
-  const tone = robot.status.tone;
-  const busy = tone === 'cleaning' || tone === 'returning';
-  const dockRefill =
-    !robot.error && robot.dockError && isRefillDockError(robot.dockError.code);
-  const problem = robot.error ?? (dockAck && dockRefill ? null : robot.dockError);
+  const problem = robot.error ?? robot.dockError;
+  const dockResolveCode =
+    robot.dockError && canResolveRefillDockError(robot.dockError.code)
+      ? dockErrorRoborockCode(robot.dockError.code)
+      : null;
   const manifest = usePhotoManifest(photoDir);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
@@ -693,17 +739,6 @@ function RobotPanel({
             </div>
           </Card>
 
-          {dockAck && dockRefill && (
-            <Chip
-              className="rb-dock-ack-chip"
-              data-testid="robots-dock-ack-chip"
-              tone="neutral"
-              variant="soft"
-            >
-              Čeká na kontrolu v doku
-            </Chip>
-          )}
-
           {problem && (
             <Card
               as="article"
@@ -715,15 +750,19 @@ function RobotPanel({
                 {problem.source === 'robot' ? 'Jak to opravit' : 'Dok – jak to opravit'}
               </p>
               <h3>{problem.title}</h3>
-              <Stepper
-                variant="instructions"
-                label="Jak to opravit"
-                steps={problem.steps.map((step, i) => ({
-                  key: `${i}-${step}`,
-                  title: step,
-                  state: 'todo' as const,
-                }))}
-              />
+              {problem.steps.length === 1 ? (
+                <p className="rb-problem-step">{problem.steps[0]}</p>
+              ) : (
+                <Stepper
+                  variant="instructions"
+                  label="Jak to opravit"
+                  steps={problem.steps.map((step, i) => ({
+                    key: `${i}-${step}`,
+                    title: step,
+                    state: 'todo' as const,
+                  }))}
+                />
+              )}
               {problem.source === 'dock' && isRefillDockError(problem.code) && (
                 <p className="rb-problem-refill" data-testid="robots-dock-refill-hint">
                   {DOCK_REFILL_AFTER_HINT}
@@ -752,11 +791,18 @@ function RobotPanel({
                   <span>Robot pokračuje až po potvrzení.</span>
                 </div>
               )}
-              {problem.source === 'dock' && isRefillDockError(problem.code) && (
+              {problem.source === 'dock' && dockResolveCode !== null && (
                 <div className="rb-problem-cta">
-                  {tone !== 'charging' && tone !== 'docked' && (
+                  <Button
+                    variant="strong"
+                    data-testid="robots-dock-ack-refilled"
+                    disabled={!canAct || dockResolvePending || sending}
+                    onClick={() => void confirmDockRefillResolved()}
+                  >
+                    Doplněno, potvrdit
+                  </Button>
+                  {!busy && tone !== 'charging' && tone !== 'docked' && (
                     <Button
-                      variant="strong"
                       data-testid="robots-dock-return-home"
                       disabled={!canAct}
                       onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
@@ -764,21 +810,6 @@ function RobotPanel({
                       Vrátit do doku
                     </Button>
                   )}
-                  <Button
-                    data-testid="robots-dock-ack-refilled"
-                    disabled={!robot.dockErrorStamp}
-                    onClick={() => {
-                      if (!robot.dockError || !robot.dockErrorStamp) return;
-                      writeDockErrorAcknowledged(
-                        robot.slot,
-                        robot.dockError.code,
-                        robot.dockErrorStamp,
-                      );
-                      setDockAckRevision((n) => n + 1);
-                    }}
-                  >
-                    Hotovo, doplněno
-                  </Button>
                 </div>
               )}
               <details>

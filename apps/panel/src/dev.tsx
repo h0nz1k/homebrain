@@ -700,11 +700,41 @@ demoHass.connection = createMockConnection({
   call_service: (message: unknown) => {
     const call = message as {
       domain?: string;
-      service_data?: { value?: number };
+      service?: string;
+      service_data?: { value?: number; command?: string; params?: { error_code?: number } };
       target?: { entity_id?: string };
     };
     if (call.domain === 'input_number' && call.target?.entity_id)
       invoicesDemo.setTariff(call.target.entity_id, Number(call.service_data?.value));
+    if (
+      call.domain === 'vacuum' &&
+      call.service === 'send_command' &&
+      call.service_data?.command === 'resolve_error'
+    ) {
+      const vacuumId = call.target?.entity_id ?? '';
+      const slot = Number(/^vacuum\.demo_robot_(\d+)$/.exec(vacuumId)?.[1] ?? 0);
+      if (slot) {
+        const dockId = robotsDemo.bindings[`robot${slot}_dock_error`];
+        if (dockId && demoHass.states[dockId]) {
+          const stamp = new Date().toISOString();
+          demoHass.states[dockId] = {
+            ...demoHass.states[dockId]!,
+            state: 'ok',
+            last_changed: stamp,
+            last_updated: stamp,
+          };
+        }
+        const cleanWater = robotsDemo.bindings[`robot${slot}_clean_water`];
+        const applyOk = () => {
+          if (cleanWater && demoHass.states[cleanWater]) {
+            demoHass.states[cleanWater] = { ...demoHass.states[cleanWater]!, state: 'off' };
+          }
+          panel.hass = { ...demoHass, states: { ...demoHass.states } };
+        };
+        // One frame of pending UI before the store sees dock_error „ok“ (e2e, dev screenshots).
+        globalThis.setTimeout(applyOk, 120);
+      }
+    }
     robotCalls.push(message);
     return { context: { id: 'demo' } };
   },

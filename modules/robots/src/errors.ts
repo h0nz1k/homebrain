@@ -378,7 +378,47 @@ export const REFILL_DOCK_ERRORS = new Set([
 ]);
 
 export const DOCK_REFILL_AFTER_HINT =
-  'Po doplnění chybu potvrďte v aplikaci Roborock, jinak zmizí po návratu robota do doku.';
+  'Po doplnění klepněte na Doplněno, potvrdit. Chyba jinak zmizí sama, až se robot vrátí do doku.';
+
+export const DOCK_REFILL_ACK_NOTE = 'Voda doplněna · čeká na potvrzení robotem';
+
+/** RoborockDockErrorCode (python-roborock) — HA `dock_error` state is the enum name. */
+export const ROBOCK_DOCK_ERROR_CODE: Record<string, number> = {
+  ok: 0,
+  no_dustbin_or_filter: 32,
+  auto_empty_dock_fan_error: 33,
+  duct_blockage: 34,
+  auto_empty_dock_voltage_error: 35,
+  water_empty: 38,
+  waste_water_tank_full: 39,
+  maintenance_brush_jammed: 42,
+  dirty_tank_latch_open: 44,
+  no_dustbin: 46,
+  cleaning_tank_full_or_blocked: 53,
+};
+
+/** Tank / fluid faults the owner fixes physically; resolvable via `resolve_error` on the vacuum. */
+export const RESOLVABLE_REFILL_DOCK_ERRORS = new Set([
+  'water_empty',
+  'waste_water_tank_full',
+  'dirty_tank_latch_open',
+  'cleaning_tank_full_or_blocked',
+]);
+
+export const RESOLVABLE_DOCK_ERROR_CODES = new Set(
+  [...RESOLVABLE_REFILL_DOCK_ERRORS].map((name) => ROBOCK_DOCK_ERROR_CODE[name]!).filter(Boolean),
+);
+
+export function dockErrorRoborockCode(code: string | null | undefined): number | null {
+  const key = (code ?? '').trim().toLowerCase();
+  const n = ROBOCK_DOCK_ERROR_CODE[key];
+  return n !== undefined && n > 0 ? n : null;
+}
+
+export function canResolveRefillDockError(code: string | null | undefined): boolean {
+  const key = (code ?? '').trim().toLowerCase();
+  return RESOLVABLE_REFILL_DOCK_ERRORS.has(key) && dockErrorRoborockCode(key) !== null;
+}
 
 export function isRefillDockError(code: string | null | undefined): boolean {
   const key = (code ?? '').trim().toLowerCase();

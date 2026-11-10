@@ -135,7 +135,7 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
   await page.getByRole('radio', { name: 'Obojí' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Voda' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Mopování' })).toBeVisible();
-  await page.getByRole('radio', { name: 'Vysoká' }).click();
+  await page.getByRole('radiogroup', { name: 'Voda' }).getByRole('radio', { name: 'Vysoká', exact: true }).click();
   await page.getByRole('radio', { name: 'Důkladně', exact: true }).click();
   await page.getByRole('radio', { name: '2×' }).click();
   await page.getByTestId('robots-room-3').click();
