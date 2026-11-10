@@ -55,6 +55,8 @@ export interface RobotModel {
   progress: number | null;
   error: ErrorAdvice | null;
   dockError: ErrorAdvice | null;
+  /** HA `last_changed` of `dock_error` (acknowledgement key for refill-type dock faults). */
+  dockErrorStamp: string | null;
   consumables: ConsumableInfo[];
   tanks: TankInfo[];
   fan: string | null;
@@ -192,6 +194,11 @@ export function buildRobot(
     progress: status.tone === 'cleaning' ? num(get(b('cleaning_progress'))) : null,
     error: describeError('robot', errorCode),
     dockError: describeError('dock', text(get(b('dock_error')))),
+    dockErrorStamp: (() => {
+      const dockState = get(b('dock_error'));
+      const changed = (dockState as { last_changed?: string } | undefined)?.last_changed;
+      return changed ?? dockState?.last_updated ?? null;
+    })(),
     consumables,
     tanks,
     fan: typeof fan === 'string' ? fan : null,

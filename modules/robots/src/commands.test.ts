@@ -4,8 +4,12 @@ import {
   findResetButton,
   mopRouteChoices,
   planCleanRooms,
+  planResolveDockError,
+  runPlan,
+  WATER_LABELS,
   waterChoices,
 } from './commands.js';
+import { ServiceNotAllowedError, type ConnectionLike } from '@homebrain/ha-client';
 import { statusWithBattery } from './views/RobotsView.js';
 
 const base = {
@@ -63,6 +67,50 @@ describe('clean plan: water, mop route, passes', () => {
       'deep',
       'deep_plus',
     ]);
+  });
+
+  it('Kraken water options: unique Czech labels in the segmented control', () => {
+    const kraken = ['off', 'slight', 'low', 'medium', 'moderate', 'high', 'extreme'];
+    const keys = waterChoices(kraken, 'moderate');
+    const labels = keys.map((key) => WATER_LABELS[key]!);
+    expect(labels.length).toBe(new Set(labels).size);
+    expect(WATER_LABELS.moderate).toBe('Středně vysoká');
+    expect(WATER_LABELS.medium).toBe('Střední');
+  });
+});
+
+describe('dock resolve_error', () => {
+  it('builds vacuum.send_command with error_code', () => {
+    expect(planResolveDockError('vacuum.demo_robot_1', 38, 'Došla čistá voda')).toEqual([
+      {
+        service: 'vacuum.send_command',
+        entityId: 'vacuum.demo_robot_1',
+        data: { command: 'resolve_error', params: { error_code: 38 } },
+        summary: 'Potvrdit chybu doku: Došla čistá voda',
+      },
+    ]);
+    expect(planResolveDockError('vacuum.demo_robot_1', 34, 'Kanálek')).toEqual([]);
+  });
+  it('runPlan refuses unknown resolve_error codes', async () => {
+    const connection = {
+      async sendMessagePromise<T>() {
+        return undefined as T;
+      },
+    } satisfies ConnectionLike;
+    await expect(
+      runPlan(
+        connection,
+        [
+          {
+            service: 'vacuum.send_command',
+            entityId: 'vacuum.demo_robot_1',
+            data: { command: 'resolve_error', params: { error_code: 34 } },
+            summary: 'x',
+          },
+        ],
+        ['vacuum.demo_robot_1'],
+      ),
+    ).rejects.toBeInstanceOf(ServiceNotAllowedError);
   });
 });
 

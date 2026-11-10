@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { describeError, DOCK_ERRORS, ROBOT_ERRORS } from './errors.js';
+import {
+  canResolveRefillDockError,
+  describeError,
+  dockErrorRoborockCode,
+  DOCK_ERRORS,
+  ROBOCK_DOCK_ERROR_CODE,
+  ROBOT_ERRORS,
+} from './errors.js';
 import { describeStatus } from './status.js';
 
 // Enum options published by HA core `roborock` (vacuum_error / dock_error / status sensors).
@@ -114,6 +121,24 @@ const HA_STATUS = [
   'zoned_clean_mop_mopping',
   'back_to_dock_washing_duster',
 ];
+
+describe('dock error resolve', () => {
+  it('maps HA dock_error names to Roborock error_code', () => {
+    expect(dockErrorRoborockCode('water_empty')).toBe(38);
+    expect(dockErrorRoborockCode('waste_water_tank_full')).toBe(39);
+    expect(dockErrorRoborockCode('dirty_tank_latch_open')).toBe(44);
+    expect(dockErrorRoborockCode('cleaning_tank_full_or_blocked')).toBe(53);
+    expect(dockErrorRoborockCode('ok')).toBeNull();
+    expect(dockErrorRoborockCode('duct_blockage')).toBe(34);
+    expect(Object.keys(ROBOCK_DOCK_ERROR_CODE).length).toBeGreaterThan(5);
+  });
+  it('resolve button only for physically fixable tank faults with a known code', () => {
+    expect(canResolveRefillDockError('water_empty')).toBe(true);
+    expect(canResolveRefillDockError('waste_water_tank_full')).toBe(true);
+    expect(canResolveRefillDockError('duct_blockage')).toBe(false);
+    expect(canResolveRefillDockError('clear_water_box_hoare')).toBe(false);
+  });
+});
 
 describe('error advice', () => {
   it('has Czech advice for every HA robot and dock error option', () => {

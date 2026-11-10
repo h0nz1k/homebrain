@@ -126,13 +126,17 @@ export function maintenanceItems(robot: MaintSource, guides: GuideSet | null): M
 }
 
 /** „Robot“ then „Dok“; empty groups are dropped unless the dock reports an error. */
-export function maintenanceGroups(items: MaintItem[], dockError: { title: string } | null) {
+export function maintenanceGroups(
+  items: MaintItem[],
+  dockError: { title: string } | null,
+  dockRefillAck = false,
+) {
   return (['robot', 'dock'] as const)
     .map((id): MaintGroup => ({
       id,
       label: GROUP_LABEL[id],
       items: items.filter((item) => item.group === id),
-      note: id === 'dock' && dockError ? dockError.title : null,
+      note: id === 'dock' && dockError && !dockRefillAck ? dockError.title : null,
     }))
     .filter((group) => group.items.length > 0 || group.note);
 }
@@ -140,14 +144,17 @@ export function maintenanceGroups(items: MaintItem[], dockError: { title: string
 export function maintenanceSummary(
   items: MaintItem[],
   dockError: { title: string } | null,
+  dockRefillAck = false,
 ): MaintSummary {
   // A dock error that a red dock tank already explains is not counted twice.
   const dockUncovered =
-    !!dockError && !items.some((i) => i.group === 'dock' && i.kind === 'tank' && i.tone === 'crit');
+    !!dockError &&
+    !dockRefillAck &&
+    !items.some((i) => i.group === 'dock' && i.kind === 'tank' && i.tone === 'crit');
   // Only red items „wait“; amber ones are merely due soon („Vyměnit za 41 dní“ is not waiting).
   const count = items.filter((item) => item.tone === 'crit').length + (dockUncovered ? 1 : 0);
   const soon = items.filter((item) => item.tone === 'warn').length;
-  const tone = dockError || count ? 'crit' : soon ? 'warn' : 'ok';
+  const tone = (!dockRefillAck && dockError) || count ? 'crit' : soon ? 'warn' : 'ok';
   const parts = [
     count ? `${count} ${czPlural(count, 'věc čeká', 'věci čekají', 'věcí čeká')}` : '',
     soon ? `${soon} brzy` : '',

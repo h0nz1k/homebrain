@@ -2,7 +2,7 @@ import type { EntityStateLike } from '@homebrain/ha-client';
 import type { RobotMeta } from './model.js';
 
 /** Synthetic robots for the dev server, unit tests and e2e (no real house data). */
-export type RobotsScenario = 'default' | 'calm' | 'error' | 'docked';
+export type RobotsScenario = 'default' | 'calm' | 'error' | 'docked' | 'water';
 
 type RoomRect = [id: number, name: string, x: number, y: number, w: number, h: number];
 const PALETTE = [
@@ -87,7 +87,19 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     states[entityId] = { entity_id: entityId, state, last_updated: at, attributes };
     bindings[`robot${slot}_${suffix}`] = entityId;
   };
-  const fan = ['quiet', 'balanced', 'turbo', 'max', 'max_plus', 'off', 'smart_mode', 'custom'];
+  const fanKraken = [
+    'quiet',
+    'balanced',
+    'turbo',
+    'max',
+    'max_plus',
+    'off',
+    'smart_mode',
+    'custom',
+  ];
+  const waterKraken = ['off', 'slight', 'low', 'medium', 'moderate', 'high', 'extreme'];
+  const mopKraken = ['standard', 'deep', 'deep_plus', 'fast', 'smart_mode', 'custom'];
+  const modeKraken = ['vacuum', 'vac_and_mop', 'mop'];
   const robots: {
     slot: number;
     vacuum: string;
@@ -105,6 +117,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     {
       slot: 1,
       // `docked`: robot 1 waits in its dock (plan a clean; pair with the map scene `dok`).
+      // `water`: segment clean with dock_error water_empty (Kraken-like advanced selects).
       vacuum: scenario === 'docked' ? 'docked' : 'cleaning',
       status: scenario === 'docked' ? 'charging_complete' : 'segment_cleaning',
       fan: 'balanced',
@@ -112,9 +125,10 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       room: 'Kuchyně',
       progress: scenario === 'docked' ? null : 38,
       error: 'none',
-      dock: 'ok',
+      dock: scenario === 'water' ? 'water_empty' : 'ok',
       hours: [279, 173, 129, 2.9, 11, null],
-      tanks: ['off', 'off', 'off', 'off'],
+      tanks:
+        scenario === 'water' ? ['on', 'off', 'off', 'off'] : (['off', 'off', 'off', 'off'] as const),
       mode: 'vac_and_mop',
     },
     {
@@ -163,7 +177,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       attributes: {
         friendly_name: layout.name,
         fan_speed: r.fan,
-        fan_speed_list: r.slot === 3 ? fan.filter((f) => f !== 'smart_mode') : fan,
+        fan_speed_list: r.slot === 1 ? fanKraken : r.slot === 3 ? fanKraken.filter((f) => f !== 'smart_mode') : fanKraken,
       },
     };
     bindings[`robot${r.slot}_vacuum`] = vacuumId;
@@ -175,6 +189,12 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     });
     put(r.slot, 'error', 'sensor', r.error);
     put(r.slot, 'dock_error', 'sensor', r.dock);
+    if (scenario === 'water' && r.slot === 1) {
+      const dockId = bindings[`robot${r.slot}_dock_error`]!;
+      const stamp = '2026-11-10T08:15:00.000Z';
+      states[dockId] = { ...states[dockId]!, last_updated: stamp };
+      Object.assign(states[dockId]! as Record<string, unknown>, { last_changed: stamp });
+    }
     (
       ['main_brush', 'side_brush', 'filter', 'sensors', 'dock_strainer', 'dock_brush'] as const
     ).forEach((kind, i) => {
@@ -189,15 +209,14 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       (tank, i) => put(r.slot, tank, 'binary_sensor', r.tanks[i]!),
     );
     put(r.slot, 'cleaning_mode', 'select', r.mode, {
-      options: ['vacuum', 'vac_and_mop', 'mop', 'custom'],
+      options: r.slot === 1 ? modeKraken : ['vacuum', 'vac_and_mop', 'mop', 'custom'],
     });
     if (r.slot !== 3) {
-      // Roborock v1 selects: mop water (water_box_mode) and mop route.
-      put(r.slot, 'mop_intensity', 'select', 'moderate', {
-        options: ['off', 'mild', 'moderate', 'intense', 'custom'],
+      put(r.slot, 'mop_intensity', 'select', r.slot === 1 ? 'moderate' : 'moderate', {
+        options: r.slot === 1 ? waterKraken : ['off', 'mild', 'moderate', 'intense', 'custom'],
       });
       put(r.slot, 'mop_mode', 'select', 'standard', {
-        options: ['standard', 'deep', 'deep_plus', 'custom'],
+        options: r.slot === 1 ? mopKraken : ['standard', 'deep', 'deep_plus', 'custom'],
       });
     }
     put(

@@ -155,7 +155,58 @@ export const robotsStyles = `
 
 
 
-.rb-ico { width: 16px; height: 16px; fill: currentColor; }
+.rb-ico { width: 20px; height: 20px; fill: currentColor; flex-shrink: 0; }
+.rb-ico-opt { width: 22px; height: 22px; flex-shrink: 0; color: inherit; }
+.rb-opt-chip:not([aria-pressed='true']) .rb-ico-opt,
+.rb .hb-seg button:not([aria-checked='true']) .rb-ico-opt {
+  color: var(--hb-t1);
+}
+.rb-opt-chip[aria-pressed='true'] .rb-ico-opt,
+.rb .hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] .rb-ico-opt {
+  color: var(--hb-sel-ink);
+}
+.rb-seg-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  width: 100%;
+  padding: 4px 0;
+}
+.rb-seg-opt-label {
+  font-size: 13px;
+  font-weight: inherit;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.rb .hb-seg button:has(.rb-seg-stack) {
+  min-height: 44px;
+  padding-inline: 4px;
+}
+.rb-opt-tile.hb-chip {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  min-width: 68px;
+}
+.rb-opt-tile .rb-opt-label {
+  font-size: 13px;
+  line-height: 1.15;
+  text-align: center;
+  font-weight: 600;
+}
+.rb-problem details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rb-start .rb-ico { margin-right: 2px; vertical-align: -2px; }
 
 
 
@@ -199,6 +250,21 @@ export const robotsStyles = `
 @keyframes rb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
 .rb-hint { color: var(--hb-t2); font-size: 14px; margin: 16px 0 14px; }
 .rb-controls { display: grid; gap: 14px; margin-bottom: 22px; }
+.rb-controls .hb-seg button { min-height: 44px; }
+.rb-opt-wrap { display: grid; gap: 8px; }
+.rb-opt-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0;
+}
+.rb-opt-chip.hb-chip {
+  min-height: 44px; padding: 10px 14px; font-size: 14px; font-weight: 600;
+  flex: 1 1 calc(50% - 4px); max-width: 100%; justify-content: center; box-sizing: border-box;
+}
+@media (min-width: 520px) {
+  .rb-opt-chip.hb-chip { flex: 0 1 auto; min-width: 0; }
+}
+.rb-problem-refill { margin: 12px 0 0; font-size: 14px; color: var(--hb-t2); line-height: 1.45; }
+.rb-problem-step { margin: 8px 0 0; font-size: 15px; line-height: 1.45; }
+.rb-maint-head .rb-dock-ack-chip { margin: 0; flex: 0 1 auto; max-width: 100%; }
 
 
 

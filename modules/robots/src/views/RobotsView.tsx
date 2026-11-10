@@ -30,6 +30,7 @@ import {
   findResetButton,
   isRobotResetButton,
   planResetCounter,
+  planResolveDockError,
   planResumeAfterFix,
   planSimple,
   runPlan,
@@ -78,6 +79,28 @@ import {
 import { useVectorMap } from './useVectorMap.js';
 import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
+import { CleaningOptionRow } from './CleaningOptionRow.js';
+import {
+  CheckIcon,
+  EditIcon,
+  HomeIcon,
+  InfoIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  RouteIcon,
+} from './robotActionIcons.js';
+import {
+  readDockResolvePending,
+  writeDockResolvePending,
+} from '../dockResolvePending.js';
+import {
+  DOCK_REFILL_ACK_NOTE,
+  DOCK_REFILL_AFTER_HINT,
+  canResolveRefillDockError,
+  dockErrorRoborockCode,
+  isRefillDockError,
+} from '../errors.js';
 
 function initialSlot(slots: number[]): number | null {
   const wanted = Number(new URLSearchParams(globalThis.location?.search ?? '').get('robot'));
@@ -282,6 +305,20 @@ function RobotPanel({
   );
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
+  const [dockPendingRevision, setDockPendingRevision] = useState(0);
+  const [dockResolvePendingUiBySlot, setDockResolvePendingUiBySlot] = useState<
+    Record<number, boolean>
+  >({});
+  const dockResolvePendingUi = dockResolvePendingUiBySlot[robot.slot] ?? false;
+  const setDockResolvePendingUi = (pending: boolean) =>
+    setDockResolvePendingUiBySlot((prev) => ({ ...prev, [robot.slot]: pending }));
+  const dockResolvePending = useMemo(
+    () =>
+      dockResolvePendingUi ||
+      readDockResolvePending(robot.slot, robot.dockError?.code, robot.dockErrorStamp),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pending marker reread after resolve_error
+    [robot.slot, robot.dockError, robot.dockErrorStamp, dockPendingRevision, dockResolvePendingUi],
+  );
   const [confirm, setConfirm] = useState<{
     title: string;
     plan: ServiceCallPlan[];
@@ -295,8 +332,10 @@ function RobotPanel({
   const photoDir = photoBase(robot);
   const guides = useGuides(photoDir);
   const maintItems = maintenanceItems(robot, guides);
-  const maintGroups = maintenanceGroups(maintItems, robot.dockError);
-  const maintSummary = maintenanceSummary(maintItems, robot.dockError);
+  const tone = robot.status.tone;
+  const busy = tone === 'cleaning' || tone === 'returning';
+  const maintGroups = maintenanceGroups(maintItems, robot.dockError, dockResolvePending);
+  const maintSummary = maintenanceSummary(maintItems, robot.dockError, dockResolvePending);
   // Guide's own reset entity wins; else the robot's Roborock reset button found in HA.
   const guideWithReset = (part: GuidePart) => {
     const guide = guideFor(guides, part);
@@ -505,6 +544,25 @@ function RobotPanel({
       setConfirm(null);
     }
   };
+  const confirmDockRefillResolved = async () => {
+    if (!connection || !robot.dockError || dockResolveCode === null) return;
+    const plan = planResolveDockError(robot.vacuum, dockResolveCode, robot.dockError.title);
+    if (!plan.length) return;
+    setSending(true);
+    try {
+      setDockResolvePendingUi(true);
+      if (robot.dockErrorStamp)
+        writeDockResolvePending(robot.slot, robot.dockError.code, robot.dockErrorStamp);
+      setDockPendingRevision((n) => n + 1);
+      await runPlan(connection, plan, [robot.vacuum]);
+      notify.success('Chyba doku potvrzena');
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
+      notify.error(`Chybu doku se nepodařilo potvrdit${detail}. Potvrďte chybu v aplikaci Roborock.`);
+    } finally {
+      setSending(false);
+    }
+  };
   const care = (
     <Card
       as="article"
@@ -528,6 +586,16 @@ function RobotPanel({
           >
             <div className="rb-maint-head">
               <h4>{group.label}</h4>
+              {group.id === 'dock' && dockResolvePending && (
+                <Chip
+                  className="rb-dock-ack-chip"
+                  data-testid="robots-dock-ack-chip"
+                  tone="neutral"
+                  variant="soft"
+                >
+                  {DOCK_REFILL_ACK_NOTE}
+                </Chip>
+              )}
               {group.note && (
                 <span className="rb-maint-note" data-testid={`robots-maint-${group.id}-note`}>
                   {group.note}
@@ -549,6 +617,9 @@ function RobotPanel({
                       icon={<MaintIcon item={item} />}
                       label={item.label}
                       status={item.status}
+                      detail={
+                        dockResolvePending && item.id === 'clean_water' ? DOCK_REFILL_ACK_NOTE : undefined
+                      }
                       onPress={() => setGuidePart(item.part)}
                       aria-label={`${item.label}: ${item.status}${
                         item.percent !== null ? ` (${item.percent} %)` : ''
@@ -569,9 +640,11 @@ function RobotPanel({
       )}
     </Card>
   );
-  const tone = robot.status.tone;
-  const busy = tone === 'cleaning' || tone === 'returning';
   const problem = robot.error ?? robot.dockError;
+  const dockResolveCode =
+    robot.dockError && canResolveRefillDockError(robot.dockError.code)
+      ? dockErrorRoborockCode(robot.dockError.code)
+      : null;
   const manifest = usePhotoManifest(photoDir);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
@@ -651,6 +724,7 @@ function RobotPanel({
                         ask('Pokračovat v úklidu?', planSimple('resume', robot.vacuum))
                       }
                     >
+                      <PlayIcon />
                       Pokračovat
                     </Button>
                   ) : tone === 'cleaning' ? (
@@ -689,15 +763,24 @@ function RobotPanel({
                 {problem.source === 'robot' ? 'Jak to opravit' : 'Dok – jak to opravit'}
               </p>
               <h3>{problem.title}</h3>
-              <Stepper
-                variant="instructions"
-                label="Jak to opravit"
-                steps={problem.steps.map((step, i) => ({
-                  key: `${i}-${step}`,
-                  title: step,
-                  state: 'todo' as const,
-                }))}
-              />
+              {problem.steps.length === 1 ? (
+                <p className="rb-problem-step">{problem.steps[0]}</p>
+              ) : (
+                <Stepper
+                  variant="instructions"
+                  label="Jak to opravit"
+                  steps={problem.steps.map((step, i) => ({
+                    key: `${i}-${step}`,
+                    title: step,
+                    state: 'todo' as const,
+                  }))}
+                />
+              )}
+              {problem.source === 'dock' && isRefillDockError(problem.code) && (
+                <p className="rb-problem-refill" data-testid="robots-dock-refill-hint">
+                  {DOCK_REFILL_AFTER_HINT}
+                </p>
+              )}
               {robot.error && robot.dockError && (
                 <p className="rb-problem-more">
                   Dok navíc hlásí: <b>{robot.dockError.title}</b> – {robot.dockError.steps[0]}
@@ -716,13 +799,40 @@ function RobotPanel({
                       )
                     }
                   >
+                    <PlayIcon />
                     Hotovo – pokračovat
                   </Button>
                   <span>Robot pokračuje až po potvrzení.</span>
                 </div>
               )}
+              {problem.source === 'dock' && dockResolveCode !== null && (
+                <div className="rb-problem-cta">
+                  <Button
+                    variant="strong"
+                    data-testid="robots-dock-ack-refilled"
+                    disabled={!canAct || dockResolvePending || sending}
+                    onClick={() => void confirmDockRefillResolved()}
+                  >
+                    <CheckIcon />
+                    Doplněno, potvrdit
+                  </Button>
+                  {!busy && tone !== 'charging' && tone !== 'docked' && (
+                    <Button
+                      data-testid="robots-dock-return-home"
+                      disabled={!canAct}
+                      onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
+                    >
+                      <HomeIcon />
+                      Vrátit do doku
+                    </Button>
+                  )}
+                </div>
+              )}
               <details>
-                <summary>Podrobnosti</summary>
+                <summary>
+                  <InfoIcon />
+                  Podrobnosti
+                </summary>
                 Kód pro servis: {problem.code}
               </details>
             </Card>
@@ -771,17 +881,7 @@ function RobotPanel({
                     writeTrailPref(!fullTrail);
                   }}
                 >
-                  <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-                    <path
-                      d="M3.5 13.5a2 2 0 1 1 0-4h7a2 2 0 1 0 0-4H5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="12.5" cy="13.5" r="1.6" />
-                    <circle cx="3.5" cy="5.5" r="1.6" />
-                  </svg>
+                  <RouteIcon />
                   Trasa
                 </Chip>
               )}
@@ -834,7 +934,8 @@ function RobotPanel({
                     pressed={false}
                     onPress={() => setEditor({ kind: 'preset', preset: null })}
                   >
-                    + Předvolba
+                    <PlusIcon />
+                    Předvolba
                   </Chip>
                   <Chip
                     className="rb-chip"
@@ -943,19 +1044,19 @@ function RobotPanel({
                     onChange={(value) => setAdvanced(value === 'advanced')}
                   />
                   {modes.length > 1 && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Režim"
-                      tone="accent"
                       value={mode}
+                      iconKind="mode"
                       options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
                       onChange={(value) => chooseMode(value as CleanMode)}
                     />
                   )}
                   {robot.fanChoices.length > 1 && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Sání"
-                      tone="accent"
                       value={fan}
+                      iconKind="fan"
                       options={fansForMode(robot.fanChoices, mode).map((f) => [
                         f,
                         FAN_LABELS[f] ?? f,
@@ -972,30 +1073,30 @@ function RobotPanel({
                     </p>
                   )}
                   {advanced && mops && robot.water && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Voda"
-                      tone="accent"
                       className="rb-adv"
+                      iconKind="water"
                       value={water}
                       options={robot.water.choices.map((w) => [w, WATER_LABELS[w] ?? w])}
                       onChange={setWater}
                     />
                   )}
                   {advanced && mops && robot.mopRoute && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Mopování"
-                      tone="accent"
                       className="rb-adv"
+                      iconKind="mop"
                       value={mopRoute}
                       options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}
                       onChange={setMopRoute}
                     />
                   )}
                   {advanced && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Průchody"
-                      tone="accent"
                       className="rb-adv"
+                      iconKind="passes"
                       value={String(passes)}
                       options={[
                         ['1', '1×'],
@@ -1067,6 +1168,7 @@ function RobotPanel({
                       })
                     }
                   >
+                    {!robot.error && selected.length > 0 ? <PlayIcon /> : null}
                     {robot.error
                       ? 'Nejdřív odstraňte závadu'
                       : busy
@@ -1198,42 +1300,6 @@ function Battery({ value, charging }: { value: number | null; charging: boolean 
         <em>{charging ? 'nabíjí se' : 'baterie'}</em>
       </span>
     </div>
-  );
-}
-
-function EditIcon() {
-  return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M3 11.5V13h1.5l7-7L10 4.5l-7 7zm9.7-6.2a.8.8 0 000-1.1l-.9-.9a.8.8 0 00-1.1 0l-.7.7 2 2 .7-.7z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M5 3.5v9l7.5-4.5z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true">
-      <rect x="5" y="4" width="3.4" height="12" rx="1.2" />
-      <rect x="11.6" y="4" width="3.4" height="12" rx="1.2" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true">
-      <path d="M3.5 9.2 10 3.8l6.5 5.4V16a1 1 0 0 1-1 1h-3.3v-4.4H7.8V17H4.5a1 1 0 0 1-1-1Z" />
-    </svg>
   );
 }
 

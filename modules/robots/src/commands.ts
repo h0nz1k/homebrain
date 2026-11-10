@@ -1,5 +1,6 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
 import { ServiceNotAllowedError } from '@homebrain/ha-client';
+import { RESOLVABLE_DOCK_ERROR_CODES } from './errors.js';
 
 /** Every HA service the Roboti panel may call (AGENTS.md rule 4, label writes-to-ha). */
 export const ROBOT_SERVICE_ALLOWLIST = [
@@ -50,6 +51,8 @@ export const FAN_LABELS: Record<string, string> = {
   max: 'Max',
   max_plus: 'Max+',
   smart_mode: 'Chytré',
+  off: 'Vypnuto',
+  custom: 'Vlastní',
 };
 // Max+ is core too, but the views only offer it in vacuum-only mode (`fansForMode`).
 const CORE_FANS = ['quiet', 'balanced', 'turbo', 'max', 'max_plus'];
@@ -71,7 +74,7 @@ export const WATER_LABELS: Record<string, string> = {
   low: 'Nízká',
   mild: 'Nízká',
   medium: 'Střední',
-  moderate: 'Střední',
+  moderate: 'Středně vysoká',
   standard: 'Střední',
   high: 'Vysoká',
   intense: 'Vysoká',
@@ -219,6 +222,23 @@ export function planResumeAfterFix(vacuum: string, problem: string): ServiceCall
   ];
 }
 
+/** Physically fixed dock tank fault — Roborock `resolve_error` on the vacuum entity. */
+export function planResolveDockError(
+  vacuum: string,
+  errorCode: number,
+  title: string,
+): ServiceCallPlan[] {
+  if (!RESOLVABLE_DOCK_ERROR_CODES.has(errorCode)) return [];
+  return [
+    {
+      service: 'vacuum.send_command',
+      entityId: vacuum,
+      data: { command: 'resolve_error', params: { error_code: errorCode } },
+      summary: `Potvrdit chybu doku: ${title}`,
+    },
+  ];
+}
+
 /**
  * `button.press` is allowlisted ONLY for Roborock consumable-reset buttons of a configured robot:
  * `button.<vacuum object id>_[dock_](reset|resetovat)_<part>` (HA names them after the vacuum
@@ -279,6 +299,11 @@ export async function runPlan(
       !vacuums.some((vacuum) => isRobotResetButton(step.entityId, vacuum))
     )
       throw new ServiceNotAllowedError(`${step.service} ${step.entityId}`);
+    if (step.service === 'vacuum.send_command' && step.data?.command === 'resolve_error') {
+      const code = (step.data.params as { error_code?: number } | undefined)?.error_code;
+      if (code === undefined || !RESOLVABLE_DOCK_ERROR_CODES.has(code))
+        throw new ServiceNotAllowedError(`resolve_error ${String(code)}`);
+    }
   }
   for (const step of plan) {
     const [domain, service] = step.service.split('.') as [string, string];
