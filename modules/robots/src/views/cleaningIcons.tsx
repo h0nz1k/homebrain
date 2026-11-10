@@ -37,33 +37,29 @@ function G({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Signal meter: `count` filled bars of increasing height (2 SVG units wide). */
-function levelBars(count: number, slots: number, x0 = 15.5, yFoot = 20) {
-  const gap = 3.2;
-  const maxH = 11;
+/** Signal meter: `count` of `slots` bars of increasing height, always inside x 12.5–23.5. */
+function levelBars(count: number, slots: number, x0 = 12.5, yFoot = 20) {
+  const span = 11;
+  const step = span / slots;
+  const w = Math.max(1.4, step * 0.62);
+  const maxH = 14;
   const bars: React.ReactNode[] = [];
   for (let i = 0; i < slots; i++) {
-    const h = 4 + (maxH - 4) * ((i + 1) / slots);
-    const x = x0 + i * gap;
-    const y = yFoot - h;
-    if (i < count) {
-      bars.push(<rect key={i} x={x} y={y} width={2} height={h} rx={0.4} fill="currentColor" stroke="none" />);
-    } else {
-      bars.push(
-        <rect
-          key={i}
-          x={x}
-          y={yFoot - h}
-          width={2}
-          height={h}
-          rx={0.4}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={SW}
-          opacity={0.35}
-        />,
-      );
-    }
+    const h = 3.5 + (maxH - 3.5) * ((i + 1) / slots);
+    const x = x0 + i * step + (step - w) / 2;
+    bars.push(
+      <rect
+        key={i}
+        x={x}
+        y={yFoot - h}
+        width={w}
+        height={h}
+        rx={0.4}
+        fill="currentColor"
+        stroke="none"
+        opacity={i < count ? 1 : 0.28}
+      />,
+    );
   }
   return bars;
 }
@@ -78,7 +74,7 @@ function plusMark(x = 20.5, y = 5.5, s = 2.2) {
 }
 
 function slashMark() {
-  return <path d="M15 5.5 21 18.5" />;
+  return <path d="M2.5 4.5 10.5 19.5" />;
 }
 
 function sparkMark() {
@@ -100,17 +96,27 @@ function sliderMark() {
   );
 }
 
+/** Three filled fan blades around a hub, drawn inside x 0.5–11.5. */
+function fanBlades(cx: number, cy: number) {
+  const blade = `M${cx} ${cy}C${cx - 0.6} ${cy - 3.2} ${cx + 1.2} ${cy - 5.6} ${cx + 3.2} ${cy - 4.6}C${cx + 4.6} ${cy - 3.8} ${cx + 3.2} ${cy - 1.2} ${cx} ${cy}Z`;
+  return (
+    <>
+      {[0, 120, 240].map((a) => (
+        <path key={a} d={blade} fill="currentColor" stroke="none" transform={`rotate(${a} ${cx} ${cy})`} />
+      ))}
+      <circle cx={cx} cy={cy} r={1.3} fill="var(--hb-bg, #000)" stroke="none" />
+    </>
+  );
+}
+
 /** Three curved fan blades in the left 14 px (centre ≈ 7, 12). */
 function fanGlyph(extra?: React.ReactNode) {
-  const cx = 7;
+  const cx = 6;
   const cy = 12;
   return (
     <Ico>
       <G>
-        <circle cx={cx} cy={cy} r="1.4" fill="currentColor" stroke="none" />
-        <path d={`M${cx} ${cy} Q10.5 6.5 11.2 9.5`} />
-        <path d={`M${cx} ${cy} Q11.5 13 9.5 15.8`} />
-        <path d={`M${cx} ${cy} Q3.5 13.5 4.8 11`} />
+        {fanBlades(cx, cy)}
         {extra}
       </G>
     </Ico>
@@ -149,18 +155,15 @@ function fanLevel(
   extra?: React.ReactNode,
 ) {
   const n = barCount;
-  const cx = 7;
+  const cx = 6;
   const cy = 12;
   return (
     <Ico>
       <G>
-        <circle cx={cx} cy={cy} r="1.4" fill="currentColor" stroke="none" />
-        <path d={`M${cx} ${cy} Q10.5 6.5 11.2 9.5`} />
-        <path d={`M${cx} ${cy} Q11.5 13 9.5 15.8`} />
-        <path d={`M${cx} ${cy} Q3.5 13.5 4.8 11`} />
+        {fanBlades(cx, cy)}
         {levelBars(n, 4)}
         {slash && slashMark()}
-        {plus && plusMark()}
+        {plus && plusMark(14.6, 6, 2)}
         {extra}
       </G>
     </Ico>
@@ -199,9 +202,9 @@ function waterLevel(key: string, slash = false, extra?: React.ReactNode) {
 }
 
 function mopZigzag(passes: number, dense = false, plus = false, spark = false) {
-  const amp = dense ? 1.8 : 2.8;
-  const y0 = dense ? 8.5 : 9;
-  const step = dense ? 3.2 : 4.5;
+  const amp = dense ? 1.3 : 2.4;
+  const y0 = dense ? 7.6 : 8;
+  const step = dense ? 3.7 : 4.6;
   const lines: React.ReactNode[] = [];
   for (let i = 0; i < passes; i++) {
     const y = y0 + i * step;
@@ -212,7 +215,7 @@ function mopZigzag(passes: number, dense = false, plus = false, spark = false) {
     <Ico>
       <G>
         {lines}
-        {plus && plusMark()}
+        {plus && plusMark(20.5, 3.6, 1.9)}
         {spark && sparkMark()}
       </G>
     </Ico>
