@@ -720,7 +720,6 @@ demoHass.connection = createMockConnection({
           demoHass.states[dockId] = {
             ...demoHass.states[dockId]!,
             state: 'ok',
-            last_changed: stamp,
             last_updated: stamp,
           };
         }

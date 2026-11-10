@@ -4,6 +4,7 @@ import { defineConfig } from '@playwright/test';
 const port = Number(process.env.HB_E2E_PORT ?? 5173);
 
 export default defineConfig({
+  globalSetup: './tests/e2e/global-setup.ts',
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),

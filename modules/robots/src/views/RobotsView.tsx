@@ -306,7 +306,12 @@ function RobotPanel({
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
   const [dockPendingRevision, setDockPendingRevision] = useState(0);
-  const [dockResolvePendingUi, setDockResolvePendingUi] = useState(false);
+  const [dockResolvePendingUiBySlot, setDockResolvePendingUiBySlot] = useState<
+    Record<number, boolean>
+  >({});
+  const dockResolvePendingUi = dockResolvePendingUiBySlot[robot.slot] ?? false;
+  const setDockResolvePendingUi = (pending: boolean) =>
+    setDockResolvePendingUiBySlot((prev) => ({ ...prev, [robot.slot]: pending }));
   const dockResolvePending = useMemo(
     () =>
       dockResolvePendingUi ||
@@ -314,9 +319,6 @@ function RobotPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pending marker reread after resolve_error
     [robot.slot, robot.dockError, robot.dockErrorStamp, dockPendingRevision, dockResolvePendingUi],
   );
-  useEffect(() => {
-    setDockResolvePendingUi(false);
-  }, [robot.slot]);
   const [confirm, setConfirm] = useState<{
     title: string;
     plan: ServiceCallPlan[];
