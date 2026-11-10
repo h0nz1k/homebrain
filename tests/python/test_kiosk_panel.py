@@ -7,11 +7,19 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homebrain.const import DOMAIN
-from custom_components.homebrain.roles import KIOSK_WS_COMMANDS, role_ws_commands
 
 # A schema-valid payload for every homebrain/* command, so the handler (not voluptuous)
 # answers. A new command without an entry here fails test_matrix_covers_every_command.
+from custom_components.homebrain.kitchen.model import defaults
+from custom_components.homebrain.roles import KIOSK_WS_COMMANDS, role_ws_commands
+
 PAYLOADS: dict[str, dict] = {
+    "homebrain/kitchen/get": {},
+    "homebrain/kitchen/search_radios": {"query": "Demo"},
+    "homebrain/kitchen/playlists": {},
+    "homebrain/kitchen/play": {"media_id": "library://radio/demo", "media_type": "radio"},
+    "homebrain/kitchen/transport": {"action": "pause"},
+    "homebrain/kitchen/save": {"config": defaults()},
     "homebrain/session/get": {},
     "homebrain/bindings/get": {},
     "homebrain/bindings/set": {"module": "waste", "bindings": {}},

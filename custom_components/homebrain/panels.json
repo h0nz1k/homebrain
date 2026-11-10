@@ -100,6 +100,13 @@
       "icon": "mdi:server",
       "module": "server",
       "require_admin": true
+    },
+    {
+      "url_path": "homebrain-kuchyn",
+      "title": "Kuchyň",
+      "icon": "mdi:countertop",
+      "module": "kitchen",
+      "require_admin": false
     }
   ]
 }

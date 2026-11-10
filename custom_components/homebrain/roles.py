@@ -27,6 +27,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "health",
             "wine",
             "family",
+            "kitchen",
             "robots",
             "recipes",
             "access",
@@ -46,6 +47,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "health",
             "wine",
             "family",
+            "kitchen",
             "robots",
             "recipes",
             "network",
@@ -55,7 +57,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
     ),
     "child": frozenset({"today", "weather", "waste", "family", "recipes"}),
     # Kiosk: energy as a summary only, family without details, never health/wine/settings.
-    "kiosk": frozenset({"today", "weather", "energy", "waste", "family", "recipes"}),
+    "kiosk": frozenset({"today", "weather", "energy", "waste", "family", "recipes", "kitchen"}),
     "guest": frozenset({"about"}),
 }
 
@@ -184,6 +186,11 @@ def role_ws_commands(role: str) -> frozenset[str]:
     if role == "guest":
         return frozenset({"homebrain/session/get"})
     extra = RECIPES_DEVICE_WS_COMMANDS if role in RECIPES_DEVICE_ROLES else frozenset()
+    if role in {"owner", "adult", "kiosk"}:
+        extra |= {
+            f"homebrain/kitchen/{cmd}"
+            for cmd in ("get", "search_radios", "playlists", "play", "transport")
+        }
     if role in NETWORK_SUMMARY_ROLES:
         extra |= {"homebrain/network/summary"}
     if role in NETWORK_QR_ROLES:

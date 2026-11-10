@@ -341,7 +341,8 @@
         "access": "Přístup",
         "network": "Síť",
         "server": "Server",
-        "heating": "Topení"
+        "heating": "Topení",
+        "kitchen": "Kuchyň"
       }
     },
     "meals_display": {
