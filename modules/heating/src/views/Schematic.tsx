@@ -1,586 +1,535 @@
-import {
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from 'react';
-import {
-  fmtNum,
-  fmtT,
-  particleDuration,
-  polylineKeyframes,
-  polylineLength,
-  tempColor,
-  waterColor,
-  type Pt,
-  type SchematicState,
-} from '../model.js';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { HEATING_LOGO_ROOT, useHeatingLogoManifest, type HeatingLogoManifest } from '../logo.js';
+import { fmtDuration, fmtT as formatTemperature, heroScene } from '../model.js';
 import type { HeatingSnapshot } from '../types.js';
 
-/** Geometry of the hydraulic picture; `wide` for cards ≥ 640 px, `tall` for phones. */
-export interface SchematicLayout {
-  w: number;
-  h: number;
-  soil: { x: number; y: number; w: number; h: number };
-  /** Brine loop: HP → down → serpentine through the soil → back up to the HP. */
-  brine: Pt[];
-  hp: { x: number; y: number; w: number; h: number };
-  comp: Pt;
-  pumps: { primary: Pt; charge: Pt; house: Pt; circulation: Pt };
-  charge: Pt[];
-  valve: Pt;
-  toTank: Pt[];
-  toDhw: Pt[];
-  chargeReturn: Pt[];
-  tank: { x: number; y: number; w: number; h: number };
-  house: { outline: Pt[]; radiators: Array<{ x: number; y: number; w: number; h: number }> };
-  houseLoop: Pt[];
-  dhw: Pt[];
-  tap: Pt;
-  labels: Record<
-    'outdoor' | 'collector' | 'hp' | 'tank' | 'house' | 'dhw' | 'valve',
-    { at: Pt; align: 'l' | 'c' | 'r' }
-  >;
+const HP_W = 66;
+const LOGO_W = HP_W * 0.72;
+
+function usePageTheme(): 'light' | 'dark' {
+  const read = (): 'light' | 'dark' => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    if (theme === 'light') return 'light';
+    if (theme === 'dark') return 'dark';
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
+  };
+  const [theme, setTheme] = useState(read);
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => setTheme(read());
+    const mo = new MutationObserver(update);
+    mo.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    if (typeof matchMedia !== 'undefined') {
+      const mq = matchMedia('(prefers-color-scheme: light)');
+      mq.addEventListener('change', update);
+      return () => {
+        mo.disconnect();
+        mq.removeEventListener('change', update);
+      };
+    }
+    return () => mo.disconnect();
+  }, []);
+  return theme;
 }
 
-export const LAYOUTS: Record<'wide' | 'tall', SchematicLayout> = {
-  wide: {
-    w: 1000,
-    h: 430,
-    soil: { x: 24, y: 318, w: 540, h: 104 },
-    brine: [
-      [350, 292],
-      [350, 346],
-      [70, 346],
-      [70, 364],
-      [466, 364],
-      [466, 382],
-      [70, 382],
-      [70, 400],
-      [496, 400],
-      [496, 306],
-      [404, 306],
-      [404, 292],
-    ],
-    hp: { x: 300, y: 150, w: 150, h: 142 },
-    comp: [352, 226],
-    pumps: { primary: [350, 305], charge: [478, 222], house: [690, 136], circulation: [700, 92] },
-    charge: [
-      [450, 222],
-      [516, 222],
-    ],
-    valve: [516, 222],
-    toTank: [
-      [516, 222],
-      [566, 222],
-    ],
-    toDhw: [
-      [516, 222],
-      [516, 92],
-      [566, 92],
-    ],
-    chargeReturn: [
-      [566, 276],
-      [450, 276],
-    ],
-    tank: { x: 566, y: 48, w: 84, h: 264 },
-    house: {
-      // the hot-water tap sits INSIDE the house, above the radiator loop
-      outline: [
-        [728, 214],
-        [728, 70],
-        [848, 8],
-        [968, 70],
-        [968, 214],
-      ],
-      radiators: [
-        { x: 762, y: 150, w: 66, h: 40 },
-        { x: 856, y: 150, w: 66, h: 40 },
-      ],
-    },
-    houseLoop: [
-      [650, 136],
-      [944, 136],
-      [944, 202],
-      [650, 202],
-    ],
-    dhw: [
-      [646, 92],
-      [752, 92],
-    ],
-    tap: [752, 92],
-    labels: {
-      outdoor: { at: [28, 6], align: 'l' },
-      // above the terrain line (soil starts at y 318)
-      collector: { at: [40, 258], align: 'l' },
-      hp: { at: [375, 94], align: 'c' },
-      tank: { at: [608, 322], align: 'c' },
-      house: { at: [848, 224], align: 'c' },
-      dhw: { at: [772, 80], align: 'l' },
-      valve: { at: [516, 240], align: 'c' },
-    },
-  },
-  tall: {
-    w: 360,
-    h: 636,
-    // terrain line at y 494; the collector label sits ABOVE it (right), pipes stay below
-    soil: { x: 8, y: 494, w: 344, h: 134 },
-    brine: [
-      [86, 440],
-      [86, 532],
-      [26, 532],
-      [26, 552],
-      [306, 552],
-      [306, 572],
-      [26, 572],
-      [26, 592],
-      [334, 592],
-      [334, 514],
-      [150, 514],
-      [150, 440],
-    ],
-    hp: { x: 52, y: 336, w: 132, h: 104 },
-    comp: [96, 392],
-    pumps: { primary: [86, 466], charge: [26, 340], house: [168, 140], circulation: [182, 104] },
-    charge: [
-      [52, 380],
-      [26, 380],
-      [26, 270],
-    ],
-    valve: [26, 270],
-    toTank: [
-      [26, 270],
-      [92, 270],
-    ],
-    toDhw: [
-      [26, 270],
-      [26, 128],
-      [92, 128],
-    ],
-    chargeReturn: [
-      [122, 300],
-      [122, 336],
-    ],
-    tank: { x: 92, y: 74, w: 62, h: 226 },
-    house: {
-      // taller house: the hot-water tap now sits INSIDE it, above the radiator loop
-      outline: [
-        [196, 236],
-        [196, 88],
-        [272, 44],
-        [348, 88],
-        [348, 236],
-      ],
-      radiators: [
-        { x: 210, y: 172, w: 52, h: 34 },
-        { x: 280, y: 172, w: 52, h: 34 },
-      ],
-    },
-    houseLoop: [
-      [154, 140],
-      [338, 140],
-      [338, 222],
-      [154, 222],
-    ],
-    // DHW leaves the top of the tank and runs into the house to the tap
-    dhw: [
-      [148, 104],
-      [236, 104],
-    ],
-    tap: [236, 104],
-    labels: {
-      outdoor: { at: [8, 6], align: 'l' },
-      collector: { at: [346, 448], align: 'r' },
-      hp: { at: [194, 356], align: 'l' },
-      tank: { at: [160, 304], align: 'l' },
-      house: { at: [272, 244], align: 'c' },
-      dhw: { at: [258, 94], align: 'l' },
-      valve: { at: [36, 254], align: 'l' },
-    },
-  },
-};
-
-const path = (pts: Pt[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]} ${p[1]}`).join(' ');
-
-/** Calm moving dots along an active pipe (transform-only keyframes; hidden for reduced motion). */
-function Particles({
-  id,
-  pts,
-  speed,
-  color,
-}: {
-  id: string;
-  pts: Pt[];
-  speed: number;
-  color: string;
-}) {
-  if (speed <= 0) return null;
-  const len = polylineLength(pts);
-  const dur = particleDuration(len, speed);
-  const n = Math.max(2, Math.round(len / 150));
-  const name = `ht-k-${id}`;
-  return (
-    <g className="ht-particles" data-pipe={id} aria-hidden="true">
-      <style>{polylineKeyframes(name, pts)}</style>
-      {Array.from({ length: n }, (_, i) => (
-        <circle
-          key={i}
-          r={2.3}
-          fill={color}
-          className="ht-p"
-          style={{
-            animation: `${name} ${dur}s linear ${(-(dur * i) / n).toFixed(2)}s infinite`,
-          }}
-        />
-      ))}
-    </g>
-  );
+function logoFile(manifest: HeatingLogoManifest, theme: 'light' | 'dark'): string {
+  return theme === 'dark' && manifest.logoDark ? manifest.logoDark : manifest.logo;
 }
 
-function Pipe({
-  id,
-  pts,
-  color,
-  active,
-  speed = 0,
-  dashed,
-}: {
-  id: string;
-  pts: Pt[];
-  color: string;
-  active: boolean;
-  speed?: number;
-  dashed?: boolean;
-}) {
-  return (
-    <g className="ht-pipe" data-pipe-id={id} data-active={active ? '' : undefined}>
-      <path d={path(pts)} className="ht-pipe-case" />
-      <path
-        d={path(pts)}
-        className="ht-pipe-core"
-        stroke={color}
-        strokeDasharray={dashed ? '2 7' : undefined}
-      />
-      {active && <Particles id={id} pts={pts} speed={speed} color="var(--ht-particle)" />}
-    </g>
-  );
+function compressorLabel(hp: HeatingSnapshot['heat_pump']): string {
+  if (hp.compressor_on === null) return 'Kompresor —';
+  const base = hp.compressor_on ? 'Kompresor běží' : 'Kompresor stojí';
+  if (hp.compressor_on && hp.running_since && Number.isFinite(Date.parse(hp.running_since))) {
+    return `${base} ${fmtDuration(Math.max(0, (Date.now() - Date.parse(hp.running_since)) / 60_000))}`;
+  }
+  return base;
 }
 
-/** Circulation pump: ring + 3-blade impeller that rotates only while the pump runs. */
-function Pump({ at, on, id, label }: { at: Pt; on: boolean; id: string; label: string }) {
-  return (
-    <g
-      transform={`translate(${at[0]} ${at[1]})`}
-      className="ht-pump"
-      data-pump={id}
-      data-on={on ? '' : undefined}
-      role="img"
-      aria-label={`${label}: ${on ? 'běží' : 'stojí'}`}
-    >
-      <circle r={12} className="ht-pump-body" />
-      <g className="ht-impeller">
-        {[0, 120, 240].map((a) => (
-          <path
-            key={a}
-            d="M0 0 C 2 -4, 6 -7, 1 -9 C -1 -6, -2 -3, 0 0Z"
-            transform={`rotate(${a})`}
-          />
-        ))}
-        <circle r={2} />
-      </g>
-    </g>
-  );
-}
+const fmtT = (value: number | null, digits = 1) =>
+  value === null ? '' : formatTemperature(value, digits);
 
-function Valve({ at, to }: { at: Pt; to: 'tank' | 'dhw' }) {
-  return (
-    <g
-      transform={`translate(${at[0]} ${at[1]})`}
-      className="ht-valve"
-      data-valve={to}
-      role="img"
-      aria-label={`Trojcestný ventil: ${to === 'dhw' ? 'teplá voda' : 'nádrž (topení)'}`}
-    >
-      <circle r={11} className="ht-valve-body" />
-      {/* Indicator points right (tank) or up (DHW); the turn is a short transition. */}
-      <g className="ht-valve-flag" style={{ transform: `rotate(${to === 'dhw' ? -90 : 0}deg)` }}>
-        <path d="M-5 0 H7 M3 -4 L7 0 L3 4" />
-      </g>
-    </g>
-  );
-}
+// Scene coordinates follow the approved C3 hydraulic ports. The room starts at y=50.
+const ROUTES = [
+  ['compressor-outlet', 'M68 249H80Q88 249 88 241V174', 'hot'],
+  ['tank-inlet', 'M88 174H120', 'hot'],
+  ['dhw-inlet', 'M88 174V108Q88 100 96 100H120', 'hot'],
+  ['tank-return', 'M120 261H104Q96 261 96 269V311Q96 319 88 319H68', 'cold'],
+  ['mixing-hot', 'M242 145H262Q270 145 270 153V177Q270 193 280 193H290', 'hot'],
+  ['radiator-supply', 'M290 193H322Q330 193 330 201V289Q330 297 322 297H280', 'hot'],
+  [
+    'radiator-return',
+    'M308 343V345Q308 353 300 353H260Q252 353 252 345V228Q252 220 254 220',
+    'cold',
+  ],
+  ['house-tank-return', 'M254 220V197Q254 189 246 189H242', 'cold'],
+  ['mixing-bypass', 'M254 220H282Q290 220 290 212V193', 'cold'],
+  [
+    'collector',
+    'M54 358V429Q54 436 61 436H324A7 7 0 0 1 324 450H61A7 7 0 0 0 61 464H324A7 7 0 0 1 324 478H40Q33 478 33 471V358',
+    'ground',
+  ],
+] as const;
 
 function Label({
-  layout,
-  pos,
+  x,
+  y,
   children,
-  testid,
+  id,
+  muted = false,
+  anchor = 'start',
+  className,
 }: {
-  layout: SchematicLayout;
-  pos: SchematicLayout['labels'][keyof SchematicLayout['labels']];
+  x: number;
+  y: number;
   children: ReactNode;
-  testid: string;
+  id?: string;
+  muted?: boolean;
+  anchor?: 'start' | 'middle' | 'end';
+  className?: string;
 }) {
-  const style: CSSProperties = {
-    left: `${(pos.at[0] / layout.w) * 100}%`,
-    top: `${(pos.at[1] / layout.h) * 100}%`,
-  };
   return (
-    <div className="ht-lbl" data-align={pos.align} style={style} data-testid={testid}>
+    <text
+      x={x}
+      y={y}
+      textAnchor={anchor}
+      className={`ht-c3-label${muted ? ' ht-c3-muted' : ''}${className ? ` ${className}` : ''}`}
+      data-label={id}
+      data-testid={id ? `heating-sch-${id}` : undefined}
+    >
       {children}
-    </div>
+    </text>
   );
 }
 
-export function HeatingSchematic({
-  snap,
-  state,
+function Pump({
+  x,
+  y,
+  on,
+  id,
+  horizontal = false,
 }: {
-  snap: HeatingSnapshot;
-  state: SchematicState;
+  x: number;
+  y: number;
+  on: boolean | null;
+  id: string;
+  horizontal?: boolean;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [variant, setVariant] = useState<'wide' | 'tall'>('wide');
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry?.contentRect.width ?? 0;
-      if (w > 0) setVariant(w < 600 ? 'tall' : 'wide');
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const L = LAYOUTS[variant];
+  return (
+    <g
+      transform={`translate(${x} ${y})`}
+      data-pump={id}
+      data-on={on === true ? '' : undefined}
+      role="img"
+      aria-label={`Čerpadlo ${id === 'charge' ? 'nabíjení' : 'topení'}: ${on === null ? '—' : on ? 'běží' : 'stojí'}`}
+    >
+      <g transform={horizontal ? 'scale(.72) rotate(90)' : 'scale(.7)'}>
+        <path d="M0 -18V18" className="ht-c3-metal-pipe" />
+        <path d="M0 -12C-16 -12 -16 15 -1 16Q12 16 12 2Q12 -12 0 -12Z" className="ht-c3-metal" />
+        <path d="M-5 -9L6 -13L15 -7V7L5 12L-5 7Z" className="ht-c3-motor" />
+        <ellipse cx="-2" cy="0" rx="8" ry="10" className="ht-c3-metal" />
+        <circle cx="-2" cy="5" r="1.8" className={on === true ? 'ht-c3-led-on' : 'ht-c3-led'} />
+      </g>
+    </g>
+  );
+}
+
+function Valve({
+  x,
+  y,
+  diverter,
+  port,
+}: {
+  x: number;
+  y: number;
+  diverter?: boolean;
+  port?: 'tank' | 'dhw' | null;
+}) {
+  return (
+    <g
+      transform={`translate(${x} ${y})`}
+      data-valve={diverter ? (port ?? 'unknown') : undefined}
+      className="ht-c3-valve"
+    >
+      <path d={diverter ? 'M0 14V0H14M0 0V-14' : 'M-14 0H14M0 0V14'} className="ht-c3-metal-pipe" />
+      <circle r="8" className="ht-c3-metal" />
+      {(!diverter || port !== null) && (
+        <path d={diverter && port === 'dhw' ? 'M0 5V-5' : 'M-5 0H5'} className="ht-c3-indicator" />
+      )}
+      <path d="M0 -8V-15" className="ht-c3-metal-pipe" />
+      <rect x="-8" y="-22" width="16" height="9" rx="1" className="ht-c3-motor" />
+      <path d="M-4 -18H1" className="ht-c3-servo-mark" />
+    </g>
+  );
+}
+
+export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!root.current || typeof matchMedia === 'undefined') return;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const particles = Array.from(
+      root.current.querySelectorAll<SVGCircleElement>('.ht-c3-particle'),
+    );
+    let animations: Animation[] = [];
+    const update = () => {
+      animations.forEach((animation) => animation.cancel());
+      animations = [];
+      if (reduced.matches) return;
+      for (const particle of particles) {
+        const path = particle.parentElement?.querySelector('path');
+        if (
+          !path ||
+          typeof path.getTotalLength !== 'function' ||
+          typeof particle.animate !== 'function'
+        )
+          continue;
+        const length = path.getTotalLength();
+        const frames = Array.from({ length: 100 }, (_, i) => {
+          const point = path.getPointAtLength((length * i) / 99);
+          return { transform: `translate(${point.x}px, ${point.y}px)`, opacity: 1, offset: i / 99 };
+        });
+        animations.push(
+          particle.animate(frames, { duration: Math.max(2400, length * 25), iterations: Infinity }),
+        );
+      }
+    };
+    update();
+    reduced.addEventListener('change', update);
+    return () => {
+      animations.forEach((animation) => animation.cancel());
+      reduced.removeEventListener('change', update);
+    };
+  }, [
+    snap.activity,
+    snap.heat_pump.compressor_on,
+    snap.pumps.heating,
+    snap.house.mixing_valve_pct,
+  ]);
+  const uid = useId().replace(/:/g, '');
+  const scene = heroScene(snap);
   const hp = snap.heat_pump;
-  // Collector colour indicates the circuit, never an unmeasured temperature.
-  const brineColor = 'var(--ht-c-out)';
-  const hot = tempColor(hp.condenser_out ?? 45);
-  const warm = tempColor(snap.house.supply_temp ?? 35);
-  const dhwColor = 'var(--ht-c-dhw)';
-  const cool = tempColor(hp.return_temp ?? 35);
-  const gid = `ht-tank-${variant}`;
-  const tankTop = state.tankTop;
-  const tankBottom = state.tankBottom;
-  const serp = useMemo(() => L.brine, [L]);
-  const t = L.tank;
-  const running = state.compressor === 'on';
-  const houseTop = L.houseLoop[0]![1];
-  const houseBottom = L.houseLoop[L.houseLoop.length - 1]![1];
+  const logoManifest = useHeatingLogoManifest();
+  const [logoFailed, setLogoFailed] = useState(false);
+  const pageTheme = usePageTheme();
+  const showLogo = logoManifest != null && !logoFailed;
+  const compHint = compressorLabel(hp);
   return (
     <div
-      ref={ref}
-      className="ht-sch"
-      data-variant={variant}
-      data-compressor={state.compressor}
+      ref={root}
+      className="ht-c3"
       data-testid="heating-schematic"
-      style={{ aspectRatio: `${L.w} / ${L.h}` }}
+      data-compressor={
+        hp.compressor_on === true ? 'on' : hp.compressor_on === false ? 'off' : 'unknown'
+      }
+      data-hp-logo={showLogo ? '' : undefined}
+      data-scenario={scene.scenario}
     >
       <svg
-        viewBox={`0 0 ${L.w} ${L.h}`}
+        viewBox="0 0 344 542"
+        preserveAspectRatio="xMidYMin meet"
         role="img"
-        aria-label="Schéma: zemní kolektor, tepelné čerpadlo, nádrž, dům a teplá voda"
+        aria-label="Zásoba tepla: tepelné čerpadlo, nádrž s vnitřním zásobníkem TUV a radiátory"
       >
         <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={waterColor(tankTop)} />
+          <linearGradient id={`${uid}-water`} x1="0" y1="0" x2="0" y2="1">
+            <stop stopColor={snap.tank.top === null ? 'var(--ht-c3-inactive)' : '#ba6970'} />
+            <stop offset=".27" stopColor="#bb7b80" />
+            <stop offset=".52" stopColor="#9a9da3" />
+            <stop offset=".75" stopColor="#739abb" />
             <stop
-              offset="0.45"
-              stopColor={waterColor(
-                tankTop !== null && tankBottom !== null ? (tankTop + tankBottom) / 2 : null,
-              )}
+              offset="1"
+              stopColor={snap.tank.bottom === null ? 'var(--ht-c3-inactive)' : '#4e88b9'}
             />
-            <stop offset="1" stopColor={waterColor(tankBottom)} />
           </linearGradient>
-          <linearGradient id={`${gid}-soil`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--ht-soil-a)" />
-            <stop offset="1" stopColor="var(--ht-soil-b)" />
+          <linearGradient id={`${uid}-shell`}>
+            <stop stopColor="var(--ht-c3-jacket)" />
+            <stop offset=".2" stopColor="var(--ht-c3-jacket-light)" />
+            <stop offset=".6" stopColor="var(--ht-c3-jacket)" />
+            <stop offset="1" stopColor="var(--ht-c3-jacket-end)" />
           </linearGradient>
-          <radialGradient id={`${gid}-glow`}>
-            <stop offset="0" stopColor="var(--ht-heat)" stopOpacity="0.55" />
-            <stop offset="1" stopColor="var(--ht-heat)" stopOpacity="0" />
-          </radialGradient>
+          <linearGradient id={`${uid}-rim`} x1="0" y1="0" x2="0" y2="1">
+            <stop stopColor="#858d99" />
+            <stop offset="1" stopColor="#6b7280" />
+          </linearGradient>
+          <linearGradient id={`${uid}-chrome`}>
+            <stop stopColor="#7b8991" />
+            <stop offset=".35" stopColor="#e4e9eb" />
+            <stop offset="1" stopColor="#78878f" />
+          </linearGradient>
         </defs>
-        {/* Soil with the horizontal ground collector (serpentine loops, ~1.5 m deep). */}
-        <rect
-          x={L.soil.x}
-          y={L.soil.y}
-          width={L.soil.w}
-          height={L.soil.h}
-          rx={18}
-          fill={`url(#${gid}-soil)`}
-          className="ht-soil"
-        />
+        <path d="M-4 78L172 3L344 78V450H-4Z" className="ht-c3-interior" />
+        <path d="M-4 78L172 3L344 78M-4 78V450H344V78" className="ht-c3-envelope" />
         <path
-          d={`M${L.soil.x + 10} ${L.soil.y} H${L.soil.x + L.soil.w - 10}`}
-          className="ht-grass"
+          d="M-4 78L172 3L344 78L350 84L172 9L2 84ZM344 78L350 84V450H344Z"
+          className="ht-c3-depth"
         />
-        <Pipe
-          id="brine"
-          pts={serp}
-          color={brineColor}
-          active={state.brine > 0}
-          speed={state.brine}
-        />
-        <Pump at={L.pumps.primary} on={state.pumps.primary} id="primary" label="Čerpadlo primáru" />
-        {/* Heat pump unit with the compressor. */}
-        <g className="ht-hp">
-          <rect
-            x={L.hp.x}
-            y={L.hp.y}
-            width={L.hp.w}
-            height={L.hp.h}
-            rx={22}
-            className="ht-hp-body"
-          />
-          {running && (
-            <circle
-              cx={L.comp[0]}
-              cy={L.comp[1]}
-              r={46}
-              fill={`url(#${gid}-glow)`}
-              className="ht-comp-glow"
-            />
-          )}
-          <g className="ht-comp" data-on={running ? '' : undefined}>
-            <g transform={`translate(${L.comp[0]} ${L.comp[1]})`}>
-              <rect x={-22} y={-30} width={44} height={60} rx={14} className="ht-comp-shell" />
-              <path
-                d="M-10 -12 a10 10 0 1 1 0 12 M-6 -4 a5 5 0 1 1 0 8"
-                className="ht-comp-scroll"
-              />
-            </g>
-          </g>
-        </g>
-        <Pipe
-          id="charge"
-          pts={L.charge}
-          color={hot}
-          active={state.charge > 0}
-          speed={state.charge}
-        />
-        <Pipe
-          id="to-tank"
-          pts={L.toTank}
-          color={hot}
-          active={state.charge > 0 && state.valve === 'tank'}
-          speed={state.charge}
-        />
-        <Pipe
-          id="to-dhw"
-          pts={L.toDhw}
-          color={hot}
-          active={state.charge > 0 && state.valve === 'dhw'}
-          speed={state.charge}
-        />
-        <Pipe
-          id="return"
-          pts={L.chargeReturn}
-          color={cool}
-          active={state.charge > 0}
-          speed={state.charge}
-        />
-        <Pump at={L.pumps.charge} on={state.pumps.charge} id="charge" label="Nabíjecí čerpadlo" />
-        <Valve at={L.valve} to={state.valve} />
-        {/* Buffer tank: colour gradient = measured stratification (top/bottom). */}
-        <g className="ht-tank">
-          <rect x={t.x} y={t.y} width={t.w} height={t.h} rx={t.w / 2.2} fill={`url(#${gid})`} />
-          <rect x={t.x} y={t.y} width={t.w} height={t.h} rx={t.w / 2.2} className="ht-tank-glass" />
-          {state.backup !== 'hidden' && (
+        <path d="M8 415H334" className="ht-c3-floor" />
+        <rect x="-6" y="451" width="356" height="91" rx="8" className="ht-c3-soil" />
+        <path d="M-6 463.5H350" className="ht-c3-topsoil" />
+        <path d="M-6 476H350" className="ht-c3-soil-layer" />
+        <path d="M-6 448H25M64 448H350" className="ht-c3-grass" />
+        {Array.from({ length: 29 }, (_, i) => (
+          <path key={i} d={`M${70 + i * 9.5} 445l-2 -5 4 3 2 -6 1 8`} className="ht-c3-blade" />
+        ))}
+        <rect x="25" y="442" width="37" height="12" rx="5" className="ht-c3-metal" />
+        <g transform="translate(0 50)">
+          {ROUTES.map(([id, d, kind]) => (
             <g
-              className="ht-backup"
-              data-on={state.backup === 'on' ? '' : undefined}
-              data-testid="heating-backup"
+              key={id}
+              data-pipe-id={id}
+              data-active={scene.activePipes.includes(id) ? '' : undefined}
+              className={`ht-c3-route ht-c3-${kind}${id === 'mixing-bypass' ? ' ht-c3-bypass' : ''}`}
             >
-              <path
-                d={`M${t.x + 16} ${t.y + t.h * 0.62} ${Array.from({ length: 6 }, (_, i) => `L${t.x + 16 + ((t.w - 32) * (i + 1)) / 6} ${t.y + t.h * (i % 2 ? 0.62 : 0.68)}`).join(' ')}`}
-              />
-            </g>
-          )}
-        </g>
-        <Pipe
-          id="house"
-          pts={L.houseLoop}
-          color={warm}
-          active={state.house > 0}
-          speed={state.house}
-        />
-        <Pump at={L.pumps.house} on={state.pumps.house} id="house" label="Čerpadlo topení domu" />
-        <g className="ht-house">
-          <path d={`${path(L.house.outline)} Z`} className="ht-house-outline" />
-          {L.house.radiators.map((r, i) => (
-            <g key={i} className="ht-rad" data-on={state.house > 0 ? '' : undefined}>
-              <path
-                d={`M${r.x + 8} ${houseTop} V${r.y} M${r.x + r.w - 8} ${r.y + r.h} V${houseBottom}`}
-                className="ht-rad-pipe"
-              />
-              <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} />
-              {Array.from({ length: 5 }, (_, k) => (
-                <path key={k} d={`M${r.x + ((k + 1) * r.w) / 6} ${r.y + 6} V${r.y + r.h - 6}`} />
-              ))}
+              <path d={d} />
+              {scene.activePipes.includes(id) && id !== 'mixing-bypass' && (
+                <circle r="2.4" className="ht-c3-particle" />
+              )}
             </g>
           ))}
-        </g>
-        <Pipe
-          id="dhw"
-          pts={L.dhw}
-          color={dhwColor}
-          active={state.circulation > 0}
-          speed={state.circulation}
-        />
-        {state.circulationKnown && (
-          <Pump
-            at={L.pumps.circulation}
-            on={state.pumps.circulation}
-            id="circulation"
-            label="Cirkulace teplé vody"
+          <g className="ht-c3-tank" data-floor="tank">
+            <path
+              d="M120 53.5Q181 34.5 242 53.5V365H120Z"
+              fill={`url(#${uid}-shell)`}
+              className="ht-c3-shell"
+            />
+            <ellipse
+              cx="181"
+              cy="53.5"
+              rx="61"
+              ry="10.5"
+              fill={`url(#${uid}-rim)`}
+              className="ht-c3-rim"
+            />
+            <rect
+              x="128"
+              y="75"
+              width="106"
+              height="262"
+              rx="17"
+              fill={`url(#${uid}-water)`}
+              className="ht-c3-window"
+            />
+
+            <rect
+              x="146"
+              y="87"
+              width="70"
+              height="128"
+              rx="30"
+              className="ht-c3-vessel"
+              data-vessel=""
+            />
+            <rect
+              x="154"
+              y="114"
+              width="54"
+              height="69"
+              rx="9"
+              className="ht-c3-value-bg"
+              data-vessel-card=""
+            />
+            <Label x={181} y={129} anchor="middle" id="dhw" muted={snap.dhw.temp === null}>
+              Teplá voda
+              <tspan x="181" dy="21" className="ht-c3-dhw-value">
+                {fmtT(snap.dhw.temp).replace(/\s°C$/u, '')}
+                {snap.dhw.temp !== null && <tspan className="ht-c3-dhw-unit"> °C</tspan>}
+              </tspan>
+              <tspan
+                x="181"
+                dy="20"
+                className={snap.dhw.target === null ? 'ht-c3-muted' : undefined}
+              >
+                {snap.dhw.target === null ? '' : `cíl ${fmtT(snap.dhw.target, 0)}`}
+              </tspan>
+            </Label>
+            <rect
+              x="143"
+              y="268"
+              width="76"
+              height="59"
+              rx="10"
+              className="ht-c3-value-bg"
+              data-tank-card=""
+            />
+            <Label x={181} y={286} anchor="middle" id="tank" muted={snap.tank.bottom === null}>
+              Nádrž dole
+              <tspan x="181" dy="27" className="ht-c3-tank-value">
+                {fmtT(snap.tank.bottom).replace(/\s°C$/u, '')}
+                {snap.tank.bottom !== null && <tspan className="ht-c3-unit"> °C</tspan>}
+              </tspan>
+            </Label>
+            <path
+              d="M120 355Q181 337 242 355V365H120Z"
+              fill={`url(#${uid}-rim)`}
+              className="ht-c3-rim"
+            />
+          </g>
+          {/* A short back-wall floor main feeds the vessel dip tube, left of the lower tank card. */}
+          <path
+            d="M220 364V355H138Q130 355 130 347V232Q130 224 138 224H158Q165 224 165 217V210"
+            className="ht-c3-cold-inlet"
+            data-pipe-id="cold-water"
           />
-        )}
-        <g className="ht-tap" transform={`translate(${L.tap[0]} ${L.tap[1]})`}>
-          <path d="M-14 0 H14 M0 0 V12 M-6 12 H6" />
-          <path d="M0 18 c-4 6 -4 10 0 10 c4 0 4 -4 0 -10Z" className="ht-drop" />
+          <path
+            d="M210 352L216 358V352L210 358ZM213 352V348M210 348H216"
+            className="ht-c3-water-valve"
+          />
+          <path d="M216 364H224" className="ht-c3-water-valve" />
+          <rect
+            x="137"
+            y="331"
+            width="78"
+            height="16"
+            rx="3"
+            className="ht-c3-main-label-bg ht-c3-cold-portrait-bg"
+          />
+          <Label x={140} y={343} id="cold-water" className="ht-c3-cold-portrait">
+            studená voda
+          </Label>
+          <g className="ht-c3-land-only">
+            <rect x="142" y="240" width="78" height="16" rx="3" className="ht-c3-main-label-bg" />
+            <Label x={146} y={252} id="cold-water" anchor="start" className="ht-c3-cold-land">
+              studená voda
+            </Label>
+          </g>
+          {/* Standing hot water: deliberately static, not a simulated draw. */}
+          <path
+            d="M181 87V46Q181 38 189 38H244Q252 38 252 46V64Q252 72 260 72H282"
+            className="ht-c3-draw"
+            data-pipe-id="dhw-draw"
+          />
+          <Label x={181} y={22} anchor="middle" id="tank-title">
+            Akumulační nádrž
+          </Label>
+          {snap.tank.top !== null && (
+            <g className="ht-c3-land-only">
+              <path d="M118 58H124L134 75" className="ht-c3-leader" data-tank-top-leader="" />
+              <rect x="22" y="48" width="96" height="18" rx="4" className="ht-c3-tank-top-bg" />
+              <Label x={114} y={61} anchor="end" id="tank-top" muted={false}>
+                nahoře {fmtT(snap.tank.top)}
+              </Label>
+            </g>
+          )}
+          <g className="ht-c3-hp" data-floor="hp" role="img" aria-label="Tepelné čerpadlo">
+            <rect x="8" y="243" width={HP_W} height="118" rx="9" className="ht-c3-cabinet" />
+            <path d="M17 361V365M63 361V365" className="ht-c3-metal-pipe" />
+            {showLogo && logoManifest ? (
+              <image
+                data-testid="heating-sch-hp-logo"
+                href={`${HEATING_LOGO_ROOT}${logoFile(logoManifest, pageTheme)}`}
+                x={8 + (HP_W - LOGO_W) / 2}
+                y={258}
+                width={LOGO_W}
+                height={52}
+                className="ht-c3-owner-logo"
+                preserveAspectRatio="xMidYMid meet"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <Label x={16} y={261} id="hp-mark">
+                TČ
+              </Label>
+            )}
+            <circle
+              data-testid="heating-sch-compressor-led"
+              cx={20}
+              cy={252}
+              r={4.5}
+              className={
+                hp.compressor_on === true
+                  ? 'ht-c3-comp-led-on'
+                  : hp.compressor_on === false
+                    ? 'ht-c3-comp-led-off'
+                    : 'ht-c3-comp-led-unknown'
+              }
+              data-pulse={hp.compressor_on === true ? '' : undefined}
+              role="img"
+              aria-label={compHint}
+            >
+              <title>{compHint}</title>
+            </circle>
+            <rect x="16" y="320" width="49" height="29" rx="4" className="ht-c3-cutaway" />
+            <path d="M22 326V345M57 326V345" className="ht-c3-plates" />
+            <rect x="31" y="324" width="21" height="24" rx="8" className="ht-c3-compressor" />
+          </g>
+          <Valve x={88} y={174} diverter port={scene.port} />
+          <Label x={10} y={122} id="valve">
+            Ventil TUV
+            <tspan x="10" dy="18">
+              {scene.port === null ? '' : scene.port === 'dhw' ? '→ ohřev' : '→ nádrž'}
+            </tspan>
+            {scene.port === 'dhw' && (
+              <tspan x="10" dy="16">
+                TUV
+              </tspan>
+            )}
+          </Label>
+          <Label x={116} y={91} anchor="end" id="dhw-port">
+            → teplá voda
+          </Label>
+          <Pump x={96} y={293} on={snap.pumps.secondary} id="charge" />
+          <Label x={96} y={349} anchor="middle" id="charge" muted={snap.pumps.secondary !== true}>
+            nabíjení
+          </Label>
+          <Label x={10} y={211} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
+            výstup
+            <tspan x="10" dy="16">
+              {fmtT(hp.condenser_out)}
+            </tspan>
+          </Label>
+          <path d="M96 319V328" className="ht-c3-leader" />
+          <Label x={78} y={382} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
+            vstup
+            <tspan dx="4">{fmtT(hp.return_temp)}</tspan>
+          </Label>
+          <Valve x={290} y={193} />
+          <path d="M290 151V170" className="ht-c3-leader" />
+          <Label x={267} y={123} id="mixing" muted={scene.mixingPct === null}>
+            Směšovací
+            <tspan x="267" dy="16">
+              ventil{scene.mixingPct === null ? '' : ` ${scene.mixingPct} %`}
+            </tspan>
+          </Label>
+          <Label x={266} y={251} id="supply" muted={scene.supplyMuted}>
+            do topení
+            {snap.pumps.heating === true && snap.house.supply_temp !== null && (
+              <tspan x="266" dy="18">
+                {fmtT(snap.house.supply_temp)}
+              </tspan>
+            )}
+          </Label>
+          <g className="ht-c3-radiator">
+            <path d="M280 297V307M308 326V343" className="ht-c3-metal-pipe" />
+            <path d="M274 326V365M312 326V365" className="ht-c3-rad-feet" />
+            <rect x="268" y="306" width="50" height="23" rx="3" className="ht-c3-ceramic" />
+            {[273, 281, 289, 297, 305, 313].map((x) => (
+              <rect key={x} x={x} y="309" width="4" height="17" rx="1" className="ht-c3-fin" />
+            ))}
+          </g>
+          <Label x={250} y={382} anchor="end" id="house-pump" muted={snap.pumps.heating !== true}>
+            topení
+          </Label>
+          <Pump x={252} y={350} on={snap.pumps.heating} id="house" />
+          <path d="M252 362V365" className="ht-c3-pump-foot" data-floor="pump" />
+          <Label x={266} y={382} id="radiators">
+            Radiátory
+          </Label>
+          <g className="ht-c3-tap" fill={`url(#${uid}-chrome)`}>
+            <path d="M277 61V39Q282 35 287 39V61M287 46H311V51H307V49H287M281 37V32L298 30V33L285 35V37" />
+            <path d="M273 61H322V65H273Z" />
+            <path d="M273 65H317Q317 76 306 76H284Q273 76 273 65Z" />
+            <path d="M319 65V75" />
+          </g>
+          <Label x={266} y={96} id="tap">
+            Odběr TUV
+          </Label>
         </g>
-      </svg>
-      <Label layout={L} pos={L.labels.collector} testid="heating-sch-collector">
-        <span className="ht-lbl-k">Zemní kolektor</span>
-      </Label>
-      <Label layout={L} pos={L.labels.hp} testid="heating-sch-hp">
-        <span className="ht-lbl-k">Tepelné čerpadlo</span>
-        <b>
-          {state.compressor === 'on'
-            ? `běží${hp.power_w !== null ? ` · ${fmtNum(hp.power_w / 1000)} kW` : ''}`
-            : state.compressor === 'prerun'
-              ? 'předběh primáru'
-              : 'stojí'}
-        </b>
-      </Label>
-      <Label layout={L} pos={L.labels.tank} testid="heating-sch-tank">
-        <span className="ht-lbl-k">Nádrž</span>
-        <b>
-          ↑ {fmtNum(tankTop)}° ↓ {fmtNum(tankBottom)}°
-        </b>
-      </Label>
-      <Label layout={L} pos={L.labels.house} testid="heating-sch-house">
-        <span className="ht-lbl-k">Radiátory</span>
-        <b>{state.house > 0 ? `teče ${fmtT(snap.house.supply_temp)}` : 'okruh stojí'}</b>
-      </Label>
-      <Label layout={L} pos={L.labels.dhw} testid="heating-sch-dhw">
-        <span className="ht-lbl-k">Teplá voda</span>
-        <b>{fmtT(snap.dhw.temp)}</b>
-      </Label>
-      {state.backup !== 'hidden' && (
-        <Label
-          layout={L}
-          pos={{ at: [t.x + t.w / 2, t.y + t.h * 0.74], align: 'c' }}
-          testid="heating-sch-backup"
-        >
-          <span className="ht-lbl-warn">
-            záložní topení {state.backup === 'on' ? 'hřeje' : 'připraveno'}
-          </span>
+        <Label x={69} y={468} id="collector">
+          Zemní kolektor
         </Label>
-      )}
+      </svg>
     </div>
   );
 }

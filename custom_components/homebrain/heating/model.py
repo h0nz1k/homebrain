@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from .client import parse_name, parse_value
+from .keys import KEYS
 from .mapfile import HeatingMap, VarSpec
 
 MAX_GAP = timedelta(minutes=20)  # longer gaps (HA down, PLC offline) are not credited
@@ -269,8 +270,21 @@ def build_payload(
     )
     winter = v("mode.winter")
 
-    def extra(key: str) -> dict[str, Any] | None:
-        return {"temp": _r(v(key))} if key in res.mapped else None
+    def _field(key: str) -> Any:
+        if key not in res.mapped:
+            return None
+        if KEYS.get(key) and KEYS[key].kind == "bool":
+            return v(key)
+        return _r(v(key), 2 if key.endswith("hysteresis") else 1)
+
+    def extra_group(temp_key: str, **fields: str) -> dict[str, Any] | None:
+        keys = (temp_key, *fields.values())
+        if not any(k in res.mapped for k in keys):
+            return None
+        out: dict[str, Any] = {"temp": _field(temp_key)}
+        for name, fkey in fields.items():
+            out[name] = _field(fkey)
+        return out
 
     return {
         "updated_at": _iso(updated_at),
@@ -292,6 +306,9 @@ def build_payload(
             "hysteresis": _r(v("house.hysteresis"), 2),
             "attic_temp": _r(v("house.attic_temp")),
             "circuit_on": v("house.circuit_on"),
+            "mixing_valve_pct": (
+                None if v("house.mixing_valve_pct") is None else round(v("house.mixing_valve_pct"))
+            ),
             "supply_temp": _r(v("house.supply_temp")),
         },
         "heat_pump": {
@@ -354,9 +371,19 @@ def build_payload(
         "curve": {"points": curve, "outdoor_now": _r(v("outdoor.temp"))},
         "schedules": res.schedules,
         "extras": {
-            "solar": extra("extras.solar_temp"),
-            "pool": extra("extras.pool_temp"),
-            "fish": extra("extras.fish_temp"),
+            "solar": extra_group("extras.solar_temp", pump="extras.solar_pump"),
+            "pool": extra_group(
+                "extras.pool_temp",
+                heating_pump="extras.pool_heating_pump",
+                filter_pump="extras.pool_filter_pump",
+            ),
+            "fish": extra_group(
+                "extras.fish_temp",
+                target="extras.fish_target",
+                hysteresis="extras.fish_hysteresis",
+                heating_on="extras.fish_heating_on",
+                valve_open="extras.fish_valve_open",
+            ),
         },
         "rooms": rooms or [],
     }

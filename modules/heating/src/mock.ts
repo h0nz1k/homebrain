@@ -86,10 +86,67 @@ const DEMO_ROOMS: HeatingRoom[] = [
   },
 ];
 
+export type HeatingExtrasMode = 'default' | 'none';
+
+function mockExtras(
+  scenario: HeatingScenario,
+  mode: HeatingExtrasMode,
+  tankBottom: number | null = null,
+): HeatingSnapshot['extras'] {
+  if (mode === 'none' || scenario === 'unconfigured') {
+    return { solar: null, pool: null, fish: null };
+  }
+  const winterPool = {
+    temp: 27.9,
+    heating_pump: false,
+    filter_pump: false,
+  };
+  const collectorWinter = 4;
+  const solarWinter = {
+    temp: scenario === 'heating' || scenario === 'house' ? collectorWinter : 12.6,
+    pump:
+      tankBottom !== null && collectorWinter >= tankBottom
+        ? scenario === 'heating' || scenario === 'house'
+        : false,
+  };
+  if (scenario === 'heating') {
+    return {
+      fish: {
+        temp: 7.9,
+        target: 8.0,
+        hysteresis: 0.2,
+        heating_on: true,
+        valve_open: true,
+      },
+      solar: solarWinter,
+      pool: winterPool,
+    };
+  }
+  if (scenario === 'idle') {
+    return {
+      fish: {
+        temp: 11.4,
+        target: 8.0,
+        hysteresis: 0.2,
+        heating_on: true,
+        valve_open: false,
+      },
+      solar: { temp: 12.6, pump: false },
+      pool: winterPool,
+    };
+  }
+  return {
+    fish: { temp: 9.8, target: 10.0, hysteresis: 0.2, heating_on: true, valve_open: true },
+    solar: solarWinter,
+    pool: winterPool,
+  };
+}
+
 export function buildMockSnapshot(
   scenario: HeatingScenario,
   rooms: number,
   now = Date.now(),
+  extrasMode: HeatingExtrasMode = 'default',
 ): HeatingSnapshot {
   const iso = (ms: number) => new Date(ms).toISOString();
   const running = scenario === 'heating' || scenario === 'dhw';
@@ -121,15 +178,16 @@ export function buildMockSnapshot(
       ref_target_effective: 22.5,
       hysteresis: 0.1,
       attic_temp: 19.6,
-      circuit_on: scenario === 'heating' || scenario === 'house',
-      supply_temp: scenario === 'heating' || scenario === 'house' ? 37.8 : 18.2,
+      circuit_on: scenario === 'house',
+      supply_temp: 37.8,
+      mixing_valve_pct: scenario === 'house' ? 72 : 100,
     },
     heat_pump: {
       compressor_on: running,
       running_since: running ? iso(now - (scenario === 'dhw' ? 14 : 27) * MIN) : null,
       power_w: running ? (scenario === 'dhw' ? 4900 : 4200) : 6,
-      condenser_out: running ? (scenario === 'dhw' ? 51.3 : 45.8) : 31.2,
-      return_temp: running ? 38.9 : 30.4,
+      condenser_out: running ? (scenario === 'dhw' ? 52.5 : 46.0) : 32.4,
+      return_temp: running ? (scenario === 'dhw' ? 43.2 : 41.8) : 29.7,
       brine_in: null,
       brine_out: null,
       primary_prerun: null,
@@ -144,20 +202,27 @@ export function buildMockSnapshot(
     },
     tank: {
       top: scenario === 'dhw' ? 42.6 : 48.4,
-      bottom: scenario === 'heating' ? 41.7 : scenario === 'idle' ? 44.9 : 39.8,
+      bottom:
+        scenario === 'heating'
+          ? 41.7
+          : scenario === 'dhw'
+            ? 42.4
+            : scenario === 'house'
+              ? 36.9
+              : 39.5,
       target: 41,
       hysteresis: 5,
       curve_target: 41,
     },
     dhw: {
-      temp: scenario === 'dhw' ? 42.6 : 48.4,
+      temp: scenario === 'dhw' ? 44.6 : scenario === 'heating' ? 46.2 : 48.4,
       target: 47,
       reheat_below: 43,
       valve_to_dhw: scenario === 'dhw',
     },
     outdoor: { temp: -1.8, min_today: -4.6, max_today: 2.9 },
     pumps: {
-      heating: scenario === 'heating' || scenario === 'house',
+      heating: scenario === 'house',
       secondary: running,
       circulation: null,
     },
@@ -205,9 +270,150 @@ export function buildMockSnapshot(
         ],
       },
     ],
-    extras: { solar: { temp: 4.1 }, pool: null, fish: { temp: 13.4 } },
+    extras: mockExtras(
+      scenario,
+      extrasMode,
+      scenario === 'heating'
+        ? 41.7
+        : scenario === 'dhw'
+          ? 42.4
+          : scenario === 'house'
+            ? 36.9
+            : scenario === 'idle'
+              ? 39.5
+              : null,
+    ),
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
   };
+  const tune: Record<
+    Exclude<HeatingScenario, 'fault' | 'unconfigured' | 'stale'>,
+    Partial<{
+      ref: number;
+      attic: number;
+      setback: boolean;
+      outdoor: number;
+      tankTop: number;
+      tankBottom: number;
+      tankTarget: number;
+      curveTarget: number;
+      dhwTemp: number;
+      runtime: number;
+      starts: number;
+      kwh: number;
+      moto: number;
+      supply: number;
+      power: number;
+      out: number;
+      ret: number;
+    }>
+  > = {
+    heating: {
+      ref: 22.4,
+      attic: 19.6,
+      setback: false,
+      outdoor: -1.8,
+      tankTop: 49.8,
+      tankBottom: 41.7,
+      tankTarget: 41,
+      curveTarget: 41,
+      dhwTemp: 46.2,
+      runtime: 3.4,
+      starts: 5,
+      kwh: 14.2,
+      moto: 18_430.4,
+      supply: 37.8,
+      power: 4200,
+      out: 46.0,
+      ret: 41.8,
+    },
+    dhw: {
+      ref: 22.3,
+      attic: 24.1,
+      setback: false,
+      outdoor: 0.4,
+      tankTop: 44.8,
+      tankBottom: 42.4,
+      tankTarget: 41,
+      curveTarget: 38,
+      dhwTemp: 44.6,
+      runtime: 1.1,
+      starts: 2,
+      kwh: 5.4,
+      moto: 18_430.4,
+      supply: 35.2,
+      power: 4900,
+      out: 52.5,
+      ret: 43.2,
+    },
+    house: {
+      ref: 22.6,
+      attic: 18.2,
+      setback: false,
+      outdoor: -3.2,
+      tankTop: 38.4,
+      tankBottom: 36.9,
+      tankTarget: 43,
+      curveTarget: 43,
+      dhwTemp: 48.4,
+      runtime: 2.8,
+      starts: 4,
+      kwh: 8.6,
+      moto: 18_430.4,
+      supply: 37.8,
+      power: 6,
+      out: 32.4,
+      ret: 29.7,
+    },
+    idle: {
+      ref: 22.5,
+      attic: 17.8,
+      setback: true,
+      outdoor: 2.1,
+      tankTop: 40.6,
+      tankBottom: 39.5,
+      tankTarget: 41,
+      curveTarget: 37,
+      dhwTemp: 47.9,
+      runtime: 0.9,
+      starts: 2,
+      kwh: 3.1,
+      moto: 18_430.4,
+      supply: 34.1,
+      power: 6,
+      out: 32.4,
+      ret: 29.7,
+    },
+  };
+  if (scenario in tune) {
+    const t = tune[scenario as keyof typeof tune]!;
+    snap.house.ref_temp = t.ref!;
+    snap.house.attic_temp = t.attic!;
+    snap.mode.setback_active = t.setback!;
+    snap.outdoor.temp = t.outdoor!;
+    snap.outdoor.min_today = t.outdoor! - 2.8;
+    snap.outdoor.max_today = t.outdoor! + 4.7;
+    snap.curve.outdoor_now = t.outdoor!;
+    snap.tank.top = t.tankTop!;
+    snap.tank.bottom = t.tankBottom!;
+    snap.tank.target = t.tankTarget!;
+    snap.tank.curve_target = t.curveTarget!;
+    snap.dhw.temp = t.dhwTemp!;
+    snap.heat_pump.runtime_today_h = t.runtime!;
+    snap.heat_pump.starts_today = t.starts!;
+    snap.heat_pump.energy_today_kwh = t.kwh!;
+    snap.heat_pump.motohours = t.moto!;
+    snap.house.supply_temp = t.supply!;
+    snap.heat_pump.power_w = running ? t.power! : 6;
+    snap.heat_pump.condenser_out = running ? t.out! : t.out!;
+    snap.heat_pump.return_temp = running ? t.ret! : t.ret!;
+    snap.tank.top = scenario === 'dhw' ? t.tankTop! : snap.tank.top;
+    snap.tank.bottom =
+      scenario === 'heating'
+        ? t.tankBottom!
+        : scenario === 'house'
+          ? t.tankBottom!
+          : snap.tank.bottom;
+  }
   if (scenario === 'heating') snap.rooms = snap.rooms.map((r) => ({ ...r }));
   return snap;
 }
@@ -403,18 +609,24 @@ export function buildMockSeasons(now = Date.now()): HeatingSeason[] {
 }
 
 export function createMockHeatingApi(
-  opts: { scenario?: HeatingScenario; rooms?: number; now?: () => number } = {},
+  opts: {
+    scenario?: HeatingScenario;
+    rooms?: number;
+    now?: () => number;
+    extrasMode?: HeatingExtrasMode;
+  } = {},
 ): HeatingApi {
   const scenario =
     opts.scenario && HEATING_SCENARIOS.includes(opts.scenario) ? opts.scenario : 'heating';
   const now = opts.now ?? (() => Date.now());
   const rooms = opts.rooms ?? 4;
+  const extrasMode = opts.extrasMode ?? 'default';
   const delay = <R>(v: R) => new Promise<R>((resolve) => setTimeout(() => resolve(v), 60));
   return {
-    get: () => delay(buildMockSnapshot(scenario, rooms, now())),
+    get: () => delay(buildMockSnapshot(scenario, rooms, now(), extrasMode)),
     history: (range, keys) => {
       if (scenario === 'unconfigured') return delay(buildMockHistory(range, [], now()));
-      const snap = buildMockSnapshot(scenario, rooms, now());
+      const snap = buildMockSnapshot(scenario, rooms, now(), extrasMode);
       const since = snap.heat_pump.running_since;
       return delay(
         buildMockHistory(range, keys, now(), {

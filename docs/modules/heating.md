@@ -51,19 +51,28 @@ new start. Gaps longer than 20 min (HA or PLC down) are not credited.
 ## Map keys
 
 `mode.{winter, auto_season, setback_active, main_switch, cooling, hdo_low_tariff}`,
-`house.{ref_temp, ref_target, ref_target_effective, hysteresis, attic_temp, circuit_on, supply_temp}`,
+`house.{ref_temp, ref_target, ref_target_effective, hysteresis, attic_temp, circuit_on, supply_temp, mixing_valve_pct}`,
 `heat_pump.{compressor_on, condenser_out, return_temp, brine_in, brine_out, primary_prerun,
 discharge_temp, discharge_bar, suction_temp, suction_bar, motohours, motominutes}`,
 `tank.{top, bottom, target, hysteresis, curve_target}`, `dhw.{temp, target, hysteresis, valve_to_dhw}`,
 `outdoor.temp`, `pumps.{heating, secondary, circulation}`, `backup_heater.on`,
 `faults.{fatal, compressor_block}`, `curve.p1_outdoor … curve.p4_water`,
-`extras.{solar_temp, pool_temp, fish_temp}`; plus the lists `faults:` (single fault lamps
+`extras.{solar_temp, solar_pump, pool_temp, pool_heating_pump, pool_filter_pump, fish_temp,
+fish_target, fish_hysteresis, fish_heating_on, fish_valve_open}`; plus the lists `faults:` (single fault lamps
 with a label) and `schedules:` (time programs). See the example file for the syntax.
+
+`house.mixing_valve_pct` is numeric percent (no device class), rounded to an integer in the payload; unmapped or unavailable → `null`. The private mapping is configured outside this repository.
 
 Derived payload values: `dhw.reheat_below = dhw.target − dhw.hysteresis`;
 `heat_pump.motohours = motohours + motominutes / 60`; `outdoor.min_today/max_today` from
 polls; `heat_pump.running_since` from the last off → on transition; `power_w` from the
 `heating_power` binding; `backup_heater.available` = `backup_heater.on` is mapped.
+
+Payload groups (any unmapped field → `null`; entire group → `null` when no key in the group is mapped):
+`extras.fish = {temp, target, hysteresis, heating_on, valve_open}` (air temperature);
+`extras.solar = {temp, pump}`; `extras.pool = {temp, heating_pump, filter_pump}` (pool sensor on the
+return pipe, not in the water). Legacy payloads with only `extras.fish_temp` / `extras.solar_temp` /
+`extras.pool_temp` mapped still work.
 
 ## WebSocket
 
@@ -91,6 +100,32 @@ continue from the last stored row's cumulative sum strictly before the batch. Se
 oldest-first and before live data for that period exists. The command waits for recorder
 writes before reading that seed and before acknowledging the import, so batches are safe
 back-to-back after each response, without sleeps or extra recorder flushes.
+
+## Vlastní logo TČ
+
+Na schématu v záložce **Teď** lze na přední panel jednotky TČ zobrazit logo výrobce (nikdy se
+neskládá do panelu ani do integrace).
+
+1. V Home Assistantu vytvořte složku `www/homebrain/heating/` (v konfiguraci typicky
+   `/config/www/homebrain/heating/`).
+2. Nahrajte soubory loga (SVG, PNG nebo WebP) – pouze **prosté názvy souborů** bez cest.
+3. Přidejte `manifest.json`:
+
+```json
+{
+  "schema": 1,
+  "logo": "hp-logo.svg",
+  "logoDark": "hp-logo-dark.svg"
+}
+```
+
+- `logo` – výchozí logo (světlý motiv nebo univerzální).
+- `logoDark` – volitelné logo pro tmavý motiv panelu; chybí-li, použije se `logo`.
+
+Panel načte manifest z URL `/local/homebrain/heating/manifest.json` (stejný mechanismus jako
+fotky robotů). Logo je vycentrované na přední straně TČ, max. cca 72 % šířky jednotky.
+Bez manifestu nebo při neplatném souboru zůstane popisek **TČ**. Stav kompresoru je jen
+malá LED na panelu (zelená pulzující při běhu, šedá při klidu).
 
 ## Not in phase 0
 

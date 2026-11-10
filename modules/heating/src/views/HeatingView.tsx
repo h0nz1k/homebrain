@@ -24,7 +24,6 @@ import {
   fmtSeasonEnergy,
   fmtT,
   roomsModel,
-  schematicState,
   seasonsModel,
 } from '../model.js';
 import type {
@@ -42,6 +41,8 @@ import {
   TimeChart,
   type ChartSeries,
 } from './charts.js';
+import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js';
+import { SideCircuitsPortrait } from './SideCircuits.js';
 import { HeatingSchematic } from './Schematic.js';
 import { heatingStyles } from './styles.js';
 
@@ -164,7 +165,22 @@ function NowTab({
   go: (t: TabId) => void;
 }) {
   const act = activityModel(snap, nowMs());
-  const st = schematicState(snap);
+  const copies: Partial<Record<HeatingSnapshot['activity'], readonly [string, string, string]>> = {
+    heating_tank: ['Právě nahříváme nádrž.', 'Teplo ze země ukládáme na později.', 'Ohřev nádrže'],
+    heating_dhw: [
+      'Dohříváme teplou vodu.',
+      'Ohříváme horní část zásoby pro TUV.',
+      'Ohřev teplé vody',
+    ],
+    house_circuit: [
+      'Dům čerpá teplo z nádrže.',
+      'Zásoba tepla právě zahřívá radiátory.',
+      'Vytápění domu',
+    ],
+    idle: ['Teplo je připravené.', 'Zásoba čeká na další potřebu tepla.', 'Klidový režim'],
+  };
+  const copy = copies[snap.activity];
+  const sceneCopy = snap.source === 'ok' && !snap.stale ? copy : undefined;
   const day = useHistory(api, 'day', DAY_KEYS);
   const rooms = roomsModel(snap);
   const hp = snap.heat_pump;
@@ -172,53 +188,100 @@ function NowTab({
   const dhwMark =
     snap.dhw.target !== null ? Math.max(0, Math.min(1, (snap.dhw.target - 30) / 30)) : null;
   const faults = snap.faults.active.length;
-  const extras: Array<[string, number | null]> = [];
-  if (snap.extras.solar) extras.push(['Solár', snap.extras.solar.temp]);
-  if (snap.extras.pool) extras.push(['Bazén', snap.extras.pool.temp]);
-  if (snap.extras.fish) extras.push(['Rybárna', snap.extras.fish.temp]);
   const domain: [number, number] | null = day?.series[0]?.points.length
     ? [day.series[0].points[0]![0], day.series[0].points.at(-1)![0]]
     : null;
+  const tick = nowMs();
+  const compressorLine =
+    hp.compressor_on === null
+      ? 'Kompresor —'
+      : hp.compressor_on
+        ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (tick - Date.parse(hp.running_since)) / 60_000))}` : ''}`
+        : 'Kompresor stojí';
+  const powerLine = hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`;
+  const landHeadline =
+    sceneCopy?.[0] ??
+    `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
   return (
-    <>
+    <div className="ht-now">
       <Card
-        className="ht-hero"
+        className="ht-hero ht-hero-now"
         tone={act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : 'calm'}
         data-testid="heating-hero"
         data-state={act.state}
       >
-        <div className="ht-hero-copy">
-          <h2 data-testid="heating-headline">
-            {act.headline[0]}
-            <b>{act.headline[1]}</b>
-            {act.headline[2]}
-          </h2>
-          <p className="ht-hero-detail">{act.detail}</p>
-          <div className="ht-pills">
-            <Pill tone={act.tone} dot data-testid="heating-pill">
-              {act.pill}
+        <div className="ht-now-hero-grid">
+          <header className="ht-land-strip ht-land-only" data-testid="heating-land-strip">
+            <Pill tone={act.tone} dot>
+              {sceneCopy?.[2] ?? act.pill}
             </Pill>
-            {snap.mode.season && (
-              <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
-            )}
-            {snap.mode.hdo_low_tariff !== null && (
-              <Pill tone={snap.mode.hdo_low_tariff ? 'ok' : 'warn'} data-testid="heating-hdo">
-                {snap.mode.hdo_low_tariff ? 'Nízký tarif' : 'Vysoký tarif'}
-              </Pill>
-            )}
+            <p className="ht-land-strip-head">{landHeadline}</p>
+            <p className="ht-land-strip-meta">
+              <span>{compressorLine}</span>
+              <span className="ht-land-strip-sep" aria-hidden="true">
+                ·
+              </span>
+              <b className={hp.power_w === null ? 'ht-muted' : undefined}>příkon {powerLine}</b>
+            </p>
+            <LandscapePumpChips snap={snap} />
+          </header>
+          <div className="ht-hero-copy ht-portrait-hero-copy">
+            <span className="ht-k">Zásoba tepla</span>
+            <Pill tone={act.tone} dot data-testid="heating-pill">
+              {sceneCopy?.[2] ?? act.pill}
+            </Pill>
+            <h2 data-testid="heating-headline">
+              {sceneCopy?.[0] ?? (
+                <>
+                  {act.headline[0]}
+                  <b>{act.headline[1]}</b>
+                  {act.headline[2]}
+                </>
+              )}
+            </h2>
+            <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+            <p className="ht-run-meta">
+              <span>{compressorLine}</span>
+              <b className={hp.power_w === null ? 'ht-muted' : undefined}>{powerLine}</b>
+            </p>
           </div>
-          <p className="ht-big">
-            {fmtNum(snap.house.ref_temp)}
-            <small>°C</small>
-          </p>
-          <p className="ht-hero-sub">
-            doma (chodba – referenční místnost) · cíl{' '}
-            {fmtT(snap.house.ref_target_effective ?? snap.house.ref_target)}
-          </p>
+          <div className="ht-now-schematic">
+            <HeatingSchematic snap={snap} />
+          </div>
+          <aside className="ht-land-dash" data-testid="heating-land-dash">
+            <LandscapeDashboard
+              snap={snap}
+              day={day}
+              domain={domain}
+              nowMs={tick}
+              goRooms={() => go('mistnosti')}
+            />
+          </aside>
         </div>
-        <HeatingSchematic snap={snap} state={st} />
+        <div className="ht-c3-chips ht-portrait-only">
+          <Chip>
+            {snap.pumps.secondary === null
+              ? 'Nádrž · —'
+              : snap.pumps.secondary
+                ? snap.activity === 'heating_dhw'
+                  ? 'Teplá voda · ohřev'
+                  : 'Nádrž · běží'
+                : 'Nádrž · stojí'}
+          </Chip>
+          <Chip>
+            Topení · {snap.pumps.heating === null ? '—' : snap.pumps.heating ? 'běží' : 'stojí'}
+          </Chip>
+          {snap.mode.season && (
+            <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
+          )}
+          {snap.mode.hdo_low_tariff !== null && (
+            <Pill tone={snap.mode.hdo_low_tariff ? 'ok' : 'warn'} data-testid="heating-hdo">
+              {snap.mode.hdo_low_tariff ? 'Nízký tarif' : 'Vysoký tarif'}
+            </Pill>
+          )}
+        </div>
       </Card>
-      <div className="ht-stats">
+      <div className="ht-stats ht-portrait-only">
         <Stat
           id="outdoor"
           label="Venku"
@@ -250,7 +313,7 @@ function NowTab({
           sub={`hlídá ${czCount(snap.faults.monitored, 'čidlo a ochranu', 'čidla a ochrany', 'čidel a ochran')}`}
         />
       </div>
-      <div className="ht-row">
+      <div className="ht-row ht-portrait-only">
         <Card className="ht-card ht-grow" data-testid="heating-day">
           <header className="ht-ch">
             <h3>Posledních 24 hodin</h3>
@@ -305,17 +368,39 @@ function NowTab({
           )}
         </Card>
       </div>
-      {extras.length > 0 && (
-        <div className="ht-extras" data-testid="heating-extras">
-          <span>Další okruhy · jen měření</span>
-          {extras.map(([name, temp]) => (
-            <Pill key={name}>
-              {name} {fmtT(temp)}
-            </Pill>
-          ))}
-        </div>
-      )}
-    </>
+      <div className="ht-row ht-land-rooms-only">
+        <Card className="ht-card ht-grow" data-testid="heating-rooms-mini-land">
+          <header className="ht-ch">
+            <h3>Místnosti</h3>
+            <Button size="sm" variant="ghost" onClick={() => go('mistnosti')}>
+              Všechny ›
+            </Button>
+          </header>
+          {rooms.rows.length ? (
+            <>
+              <ul className="ht-mini">
+                {rooms.rows.slice(0, 4).map((r) => (
+                  <li key={r.id}>
+                    <span>{r.name}</span>
+                    <b>{fmtT(r.temp)}</b>
+                    <em data-cold={r.delta !== null && r.delta < -0.5 ? '' : undefined}>
+                      {r.delta === null ? '' : `${r.delta > 0 ? '+' : ''}${fmtNum(r.delta)}`}
+                    </em>
+                  </li>
+                ))}
+              </ul>
+              {rooms.insight && <p className="ht-insight">{rooms.insight}</p>}
+            </>
+          ) : (
+            <p className="ht-muted">
+              Zatím jen referenční místnost (chodba) {fmtT(snap.house.ref_temp)}. Čidla a hlavice v
+              pokojích přidá správce v nastavení.
+            </p>
+          )}
+        </Card>
+      </div>
+      <SideCircuitsPortrait snap={snap} />
+    </div>
   );
 }
 

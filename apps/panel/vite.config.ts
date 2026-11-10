@@ -1,20 +1,25 @@
 import react from '@vitejs/plugin-react';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+
+const panelDir = fileURLToPath(new URL('.', import.meta.url));
 
 /**
  * Dev only: serve a LOCAL photo folder at the same URL Home Assistant uses (`/local/homebrain/…`):
  * `HB_ROBOT_PHOTOS_DIR` (one subfolder per robot with manifest.json) → `/local/homebrain/robots/`,
- * `HB_AIRFRYER_PHOTOS_DIR` (manifest.json + pictures) → `/local/homebrain/airfryer/`. The photos
- * are never part of the repo or the build output.
+ * `HB_AIRFRYER_PHOTOS_DIR` (manifest.json + pictures) → `/local/homebrain/airfryer/`,
+ * `HB_HEATING_LOGOS_DIR` → `/local/homebrain/heating/` (else built-in dev mock under
+ * `apps/panel/dev/mocks/heating/`). The photos are never part of the repo or the build output.
  */
-function localPhotosDev(env: string, prefix: string): Plugin {
-  const root = process.env[env];
+function localPhotosDev(env: string | undefined, prefix: string, fallback?: string): Plugin {
+  const root = process.env[env ?? ''] ?? fallback;
   const types: Record<string, string> = {
     json: 'application/json',
     webp: 'image/webp',
     png: 'image/png',
+    svg: 'image/svg+xml',
   };
   return {
     name: `hb-photos-dev:${prefix}`,
@@ -49,6 +54,11 @@ export default defineConfig(({ command }) => ({
     react(),
     localPhotosDev('HB_ROBOT_PHOTOS_DIR', '/local/homebrain/robots/'),
     localPhotosDev('HB_AIRFRYER_PHOTOS_DIR', '/local/homebrain/airfryer/'),
+    localPhotosDev(
+      'HB_HEATING_LOGOS_DIR',
+      '/local/homebrain/heating/',
+      join(panelDir, 'dev/mocks/heating'),
+    ),
   ],
   build: {
     lib: { entry: 'src/index.ts', formats: ['es'], fileName: () => 'homebrain-panel.js' },

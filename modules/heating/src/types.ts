@@ -54,6 +54,7 @@ export interface HeatingSnapshot {
     attic_temp: T;
     circuit_on: B;
     supply_temp: T;
+    mixing_valve_pct: T;
   };
   heat_pump: {
     compressor_on: B;
@@ -92,9 +93,15 @@ export interface HeatingSnapshot {
   curve: { points: Array<[number, number]>; outdoor_now: T };
   schedules: HeatingSchedule[];
   extras: {
-    solar?: { temp: T } | null;
-    pool?: { temp: T } | null;
-    fish?: { temp: T } | null;
+    solar?: { temp: T; pump: B } | null;
+    pool?: { temp: T; heating_pump: B; filter_pump: B } | null;
+    fish?: {
+      temp: T;
+      target: T;
+      hysteresis: T;
+      heating_on: B;
+      valve_open: B;
+    } | null;
   };
   rooms: HeatingRoom[];
 }
