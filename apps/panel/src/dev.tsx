@@ -87,6 +87,7 @@ import {
 } from '@homebrain/module-access';
 import { defineHomebrainPanel, HomebrainPanel } from './host';
 import { installDevKitchenTimers } from './devTimers';
+import { kitchenMock } from './kitchen/mock';
 const agoIsoDev = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const haAge = new URLSearchParams(location.search).get('ha_age');
 // `?live=1`: keep the production live Dnes adapter (modules.ts) on top of the fake HA connection
@@ -147,32 +148,35 @@ const recipesApi = createMockRecipesApi(undefined, {
   music: recipesQuery.get('music') === '1',
   airfryer: recipesQuery.get('fryer') === '1',
   // `?friteza=1`: Fritéza page (manual start, favourites); `&role=child|kiosk` = status only.
-  fryer: recipesQuery.get('friteza')
-    ? {
-        canControl: !['child', 'kiosk'].includes(recipesQuery.get('role') ?? ''),
-        favourites:
-          recipesQuery.get('friteza') === 'prazdne'
-            ? []
-            : [
-                {
-                  id: 'demo-fries',
-                  name: 'Hranolky',
-                  temperature: 200,
-                  minutes: 18,
-                  air_speed: 2,
-                  probe_temperature: null,
-                },
-                {
-                  id: 'demo-chicken',
-                  name: 'Kuřecí stehna',
-                  temperature: 180,
-                  minutes: 25,
-                  air_speed: 2,
-                  probe_temperature: 75,
-                },
-              ],
-      }
-    : undefined,
+  fryer:
+    recipesQuery.get('friteza') || location.pathname.includes('homebrain-kuchyn')
+      ? {
+          canControl: !['child', 'kiosk'].includes(
+            recipesQuery.get('session') ?? recipesQuery.get('role') ?? '',
+          ),
+          favourites:
+            recipesQuery.get('friteza') === 'prazdne'
+              ? []
+              : [
+                  {
+                    id: 'demo-fries',
+                    name: 'Hranolky',
+                    temperature: 200,
+                    minutes: 18,
+                    air_speed: 2,
+                    probe_temperature: null,
+                  },
+                  {
+                    id: 'demo-chicken',
+                    name: 'Kuřecí stehna',
+                    temperature: 180,
+                    minutes: 25,
+                    air_speed: 2,
+                    probe_temperature: 75,
+                  },
+                ],
+        }
+      : undefined,
   // Mock "server" timers shared across tabs (two tabs = two devices).
   timerStorage: localStorage,
   log: ((window as unknown as { __hbRecipesLog?: unknown[] }).__hbRecipesLog = []) as Array<{
@@ -214,7 +218,7 @@ setFamilyApiFactory(() => familyApi);
 // `?jidlo=none` = Mealie not installed (no meals tile at all).
 const jidlo = recipesQuery.get('jidlo');
 // Dnes „Maso v troubě“ (MEATER): `?maso=1|2|4` active probes (2 = one „Sundat z tepla“).
-const maso = recipesQuery.get('maso');
+const maso = recipesQuery.get('maso') ?? (recipesQuery.get('cooking') === 'active' ? '2' : null);
 setCookingSourceFactory(() =>
   createMockCookingSource(
     maso === '1' || maso === '2' || maso === '4' ? (maso as CookingScenario) : 'none',
@@ -228,9 +232,13 @@ setTodayHomeApiFactory(() => homeApi);
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
 if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
 // `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).
-const fryerLive = recipesQuery.get('fryerlive') as FryerDemoScenario | null;
+const fryerLive = (recipesQuery.get('fryerlive') ??
+  (recipesQuery.get('cooking') === 'active' ? 'cooking' : null)) as FryerDemoScenario | null;
 if (fryerLive) registerTodaySignalSource('recipes', recipesFryerTodaySignalSource);
 // `?timers=1|demo`: kitchen timers on Dnes (demo = three synthetic running timers).
+if (recipesQuery.get('cooking') === 'active') {
+  recipesQuery.set('timers', 'demo');
+}
 installDevKitchenTimers(recipesApi, recipesQuery);
 // Dev server only: synthetic weather snapshot (production uses the integration WS).
 setWeatherAdapterFactory(() => createMockWeatherAdapter(scenarioFromUrl(location.search)));
@@ -383,7 +391,7 @@ demoHass.states['binary_sensor.demo_fryer_drawer'] = {
   attributes: { device_class: 'door' },
 };
 if (fryerLive) Object.assign(demoHass.states, fryerDemoStates(fryerLive, new Date()));
-else if (recipesQuery.get('friteza')) {
+else if (recipesQuery.get('friteza') || location.pathname.includes('homebrain-kuchyn')) {
   Object.assign(demoHass.states, fryerDemoStates('off', new Date()));
   demoHass.states['binary_sensor.demo_fryer_drawer']!.state = recipesQuery.get('drawer') ?? 'off';
 }
@@ -602,9 +610,19 @@ const invoiceGate = () => {
 // `?session=adult|child|kiosk|guest`: answer `homebrain/session/get` like the integration does for
 // a non-admin HA user with that role (guest = unmapped -> „Nemáte přístup“). Absent = no session.
 const DEV_VISIBLE: Record<string, string[]> = {
-  adult: ['energy', 'family', 'heating', 'network', 'recipes', 'today', 'waste', 'weather'],
+  adult: [
+    'kitchen',
+    'energy',
+    'family',
+    'heating',
+    'network',
+    'recipes',
+    'today',
+    'waste',
+    'weather',
+  ],
   child: ['family', 'heating', 'recipes', 'today', 'waste', 'weather'],
-  kiosk: ['energy', 'family', 'recipes', 'today', 'waste', 'weather'],
+  kiosk: ['kitchen', 'energy', 'family', 'recipes', 'today', 'waste', 'weather'],
   guest: ['about'],
 };
 const devSessionRole = new URLSearchParams(location.search).get('session');
@@ -622,6 +640,7 @@ const devSession =
       }
     : {};
 demoHass.connection = createMockConnection({
+  ...kitchenMock(recipesQuery),
   ...devSession,
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).
   'homebrain/weather/get': () => buildMockSnapshot(scenarioFromUrl(location.search)),
@@ -744,6 +763,7 @@ demoHass.connection = createMockConnection({
 // Alternativní zdroje (Refs #41): senzor ve formátu WCS a kalendář.
 if (scenario === 'wcs') {
   demoHass.connection = createMockConnection({
+    ...kitchenMock(recipesQuery),
     'homebrain/bindings/get': { waste: { waste_next: 'sensor.demo_waste_wcs' } },
   });
   demoHass.states['sensor.demo_waste_wcs'] = {
@@ -760,6 +780,7 @@ if (scenario === 'wcs') {
 }
 if (scenario === 'calendar') {
   demoHass.connection = createMockConnection({
+    ...kitchenMock(recipesQuery),
     'homebrain/bindings/get': { waste: { waste_calendar: 'calendar.demo_waste' } },
     'calendar/event/subscribe': {
       events: [
@@ -826,6 +847,7 @@ if (scenario === 'history' || scenario === 'horizon') {
     [0, 'Plasty'],
   ];
   demoHass.connection = createMockConnection({
+    ...kitchenMock(recipesQuery),
     'homebrain/bindings/get': {
       waste: { waste_next: 'sensor.demo_waste_wcs', waste_calendar: 'calendar.demo_waste' },
     },

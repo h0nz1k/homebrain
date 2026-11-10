@@ -213,3 +213,5 @@ export {
   SETTINGS_PANEL_PATH,
 } from './panels.generated.js';
 export * from './people.js';
+
+export * from './kitchen.js';

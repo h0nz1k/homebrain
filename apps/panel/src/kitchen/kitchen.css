@@ -1,0 +1,1056 @@
+.hb-shell main:has(.kn) {
+  padding: 0;
+}
+.kn {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--hb-t1);
+  background: var(--hb-bg);
+  font-size: 16px;
+}
+.kn *,
+.kn-sheet * {
+  box-sizing: border-box;
+}
+.kn button,
+.kn input,
+.kn select,
+.kn-sheet button,
+.kn-sheet input,
+.kn-sheet select {
+  font: inherit;
+}
+.kn button,
+.kn-sheet button {
+  cursor: pointer;
+}
+.kn button:disabled,
+.kn-sheet button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.kn button:focus-visible,
+.kn-sheet button:focus-visible {
+  outline: 3px solid var(--hb-ac);
+  outline-offset: 3px;
+}
+.kn .hb-btn,
+.kn-sheet .hb-btn {
+  min-height: 56px;
+  min-width: 56px;
+}
+.kn-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 20px;
+  margin: 0 28px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hb-b2);
+}
+.kn-brand {
+  min-width: 210px;
+  display: grid;
+  gap: 2px;
+}
+.kn-brand b {
+  font-size: 22px;
+}
+.kn-brand span {
+  color: var(--hb-t2);
+  padding-left: 25px;
+  font-size: 14px;
+}
+.kn-header .hb-seg {
+  margin-right: auto;
+}
+.kn-header .hb-seg button {
+  min-width: 130px;
+  min-height: 56px;
+  font-size: 20px;
+}
+.kn-clock {
+  display: grid;
+  text-align: right;
+  flex: none;
+}
+.kn-clock time {
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 350;
+}
+.kn-clock span {
+  font-size: 14px;
+  color: var(--hb-t2);
+}
+.kn-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 28px 16px;
+  scrollbar-width: thin;
+}
+.kn h1,
+.kn h2,
+.kn h3,
+.kn p {
+  margin: 0;
+}
+.kn h1 {
+  font-size: 28px;
+}
+.kn h2 {
+  font-size: 21px;
+}
+.kn p {
+  line-height: 1.5;
+}
+.kn-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+}
+.kn-section-head > span {
+  font-size: 14px;
+  color: var(--hb-t2);
+}
+.kn-section-head .hb-btn {
+  padding: 0 12px;
+  min-height: 56px;
+}
+.kn-section-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.kn-section-head small {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--hb-t2);
+}
+.kn-library {
+  display: grid;
+  gap: 8px;
+}
+.kn-radio-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 8px;
+}
+.kn-radio,
+.kn-more button,
+.kn-playlists button,
+.kn-picker-grid button,
+.kn-recipe-grid button {
+  border: 1px solid var(--hb-b1);
+  background: var(--hb-s1);
+  color: var(--hb-t1);
+  border-radius: 16px;
+  min-width: 0;
+  position: relative;
+}
+.kn-radio {
+  height: 146px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  overflow: hidden;
+}
+.kn-radio .kn-art {
+  width: 128px;
+  height: 128px;
+}
+.kn-radio b {
+  position: absolute;
+  inset: auto 8px 15px;
+  z-index: 1;
+  text-align: center;
+  font-size: 21px;
+  line-height: 1.2;
+  padding: 8px 2px;
+  background: color-mix(in srgb, var(--hb-s1) 90%, transparent);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.kn-play-mark {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  color: var(--hb-t2);
+  font-size: 16px;
+}
+.kn-art {
+  display: block;
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.kn-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kn-art-lines {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 42px;
+  opacity: 0.8;
+  border: 1px solid #ffffff30;
+  border-radius: 50% 10% 35% 20%;
+  transform: rotate(-12deg);
+}
+.kn-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.kn-more > span {
+  font-size: 14px;
+  color: var(--hb-t2);
+  max-width: 66px;
+}
+.kn-more button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  flex: 1;
+  padding: 6px;
+}
+.kn-more .kn-art {
+  width: 32px;
+  height: 40px;
+  border-radius: 8px;
+}
+.kn-more .kn-art-lines {
+  font-size: 20px;
+}
+.kn-more b {
+  font-size: 16px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.kn-person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 225px;
+  gap: 24px;
+  align-items: center;
+}
+.kn-person-library {
+  min-width: 0;
+}
+.kn-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--hb-ac-s);
+  color: var(--hb-sel-ink);
+  font-size: 16px;
+}
+.kn-playlists {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.kn-playlists button {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  min-height: 104px;
+}
+.kn-playlists .kn-art {
+  width: 104px;
+  height: 104px;
+}
+.kn-playlists b {
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.kn-youtube {
+  min-height: 94px !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding: 12px !important;
+  border-radius: 18px !important;
+}
+.kn-youtube b {
+  font-size: 18px;
+  white-space: normal;
+}
+.kn-youtube small {
+  display: block;
+  text-align: left;
+  font-size: 14px;
+  color: var(--hb-t2);
+  margin-top: 6px;
+}
+.kn-yt-symbol {
+  color: #ff8a96;
+  background: #ff627518;
+  padding: 12px;
+  border-radius: 10px;
+}
+.kn-player {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--hb-b2);
+  background: var(--hb-s1);
+  min-height: 112px;
+}
+.kn-playing {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+.kn-playing .kn-art {
+  width: 72px;
+  height: 72px;
+}
+.kn-playing > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.kn-playing b {
+  font-size: 23px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kn-playing span:not(.kn-art, .kn-art-lines) {
+  color: var(--hb-t2);
+  font-size: 14px;
+}
+.kn .kn-transport {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  font-size: 28px;
+  padding: 0;
+}
+.kn-volume {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  max-width: 360px;
+}
+.kn-volume label {
+  display: grid;
+  min-width: 60px;
+  flex: 1;
+  font-size: 14px;
+  color: var(--hb-t2);
+}
+.kn-volume input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 56px;
+  margin: 0;
+  accent-color: var(--hb-ac);
+}
+.kn-volume input::-webkit-slider-thumb {
+  width: 26px;
+  height: 26px;
+}
+.kn-device {
+  display: grid;
+  gap: 10px;
+  text-align: right;
+  max-width: 270px;
+  font-size: 14px;
+  color: var(--hb-t2);
+}
+.kn-output {
+  border-radius: 30px;
+  background: var(--hb-s3);
+  padding: 9px 14px;
+  color: var(--hb-t1);
+  font-size: 16px;
+}
+.kn-notice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid var(--hb-b2);
+  border-radius: 12px;
+  background: var(--hb-s2);
+  margin-bottom: 12px !important;
+}
+.kn-empty {
+  padding: 30px;
+  background: var(--hb-s1);
+  border-radius: 16px;
+}
+.kn-sheet {
+  font-size: 16px;
+}
+.kn-form {
+  display: grid;
+  gap: 20px;
+}
+.kn-form label {
+  display: grid;
+  gap: 8px;
+}
+.kn-form input,
+.kn-form select,
+.kn-search input {
+  width: 100%;
+  min-height: 56px;
+  border: 1px solid var(--hb-b2);
+  border-radius: 12px;
+  background: var(--hb-s2);
+  color: var(--hb-t1);
+  padding: 10px 12px;
+}
+.kn-form fieldset {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--hb-b2);
+  border-radius: 16px;
+  padding: 16px;
+}
+.kn-form section {
+  display: grid;
+  gap: 10px;
+}
+.kn-form form {
+  display: grid;
+  gap: 12px;
+}
+.kn-setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.kn-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.kn-picker-grid button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 80px;
+  text-align: left;
+  padding: 10px;
+}
+.kn-picker-grid .kn-art {
+  width: 56px;
+  height: 56px;
+}
+.kn-picker-grid [aria-pressed='true'] {
+  border-color: var(--hb-ac);
+  background: var(--hb-ac-s);
+}
+.kn-cooking {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.kn-slot-recipes {
+  grid-column: 1/-1;
+}
+.kn-cook-slot {
+  min-width: 0;
+}
+.kn-card {
+  height: 100%;
+  border: 1px solid var(--hb-b1);
+  background: var(--hb-s1);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.kn-card[data-active='true'] {
+  border-color: var(--hb-warn);
+}
+.kn-card > .hb-btn:last-child {
+  margin-top: auto;
+}
+.kn-calm {
+  padding: 16px 0;
+  color: var(--hb-t2);
+}
+.kn-search {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+}
+.kn-search label {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  color: var(--hb-t2);
+  font-size: 14px;
+}
+.kn-recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.kn-recipe-grid button {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  text-align: left;
+}
+.kn-recipe-grid img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.kn-dish {
+  display: grid;
+  place-items: center;
+  height: 60px;
+  color: var(--hb-warn);
+  font-size: 56px;
+}
+.kn-recipe-grid span:last-child {
+  font-size: 14px;
+  color: var(--hb-t2);
+}
+.kn-idle {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex: 1;
+}
+.kn-idle > span {
+  font-size: 64px;
+  color: var(--hb-t2);
+}
+.kn-idle p {
+  font-size: 24px;
+}
+.kn-idle p span {
+  display: block;
+  font-size: 14px;
+  color: var(--hb-t2);
+}
+.kn-temps {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-top: 10px;
+}
+.kn-temps > span {
+  display: grid;
+  gap: 5px;
+  color: var(--hb-t2);
+  font-size: 14px;
+}
+.kn-temps strong {
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--hb-t1);
+}
+.kn-temps b {
+  font-size: 20px;
+  color: var(--hb-t1);
+}
+.kn-probe {
+  display: grid;
+  gap: 8px;
+}
+.kn-reuse.rc {
+  min-height: 0;
+  background: transparent;
+}
+.kn .kn-reuse .rc-timer {
+  width: 100%;
+  min-width: 0;
+}
+.kn-reuse :is(button, input, select) {
+  min-height: 56px;
+}
+.kn-reuse .rc-ibtn {
+  min-width: 56px;
+}
+.kn-sheet .kn-reuse .rcf-back {
+  display: none;
+}
+.kn-sheet .rcf-cta > .hb-btn:first-child {
+  background: var(--hb-s2);
+  color: var(--hb-t1);
+  border: 1px solid var(--hb-b2);
+}
+.kn .kn-reuse .rc-fl {
+  margin: 0;
+}
+@media (max-width: 1150px) and (min-width: 901px) {
+  .kn-person {
+    grid-template-columns: minmax(0, 1fr) 190px;
+    gap: 12px;
+  }
+  .kn-playlists button {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kn-playlists .kn-art {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .kn-playlists b {
+    font-size: 16px;
+  }
+  .kn-device {
+    max-width: 180px;
+  }
+  .kn-brand {
+    min-width: 150px;
+  }
+}
+@media (max-width: 900px) {
+  .kn-header {
+    margin: 0 24px;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .kn-brand {
+    min-width: 160px;
+  }
+  .kn-clock {
+    margin-left: auto;
+  }
+  .kn-header .hb-seg {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0;
+  }
+  .kn-header .hb-seg button {
+    flex: 1;
+  }
+  .kn-content {
+    padding: 16px 24px;
+  }
+  .kn-library {
+    gap: 14px;
+  }
+  .kn-radio-grid {
+    gap: 10px;
+  }
+  .kn-radio {
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .kn-radio .kn-art {
+    width: 100%;
+    height: 100%;
+  }
+  .kn-radio b {
+    font-size: 18px;
+    inset: auto 6px 6px;
+    padding: 6px 2px;
+  }
+  .kn-play-mark {
+    display: none;
+  }
+  .kn-more {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .kn-more > span {
+    grid-column: 1/-1;
+    max-width: none;
+  }
+  .kn-more button {
+    min-height: 56px;
+  }
+  .kn-more .kn-art {
+    width: 36px;
+    height: 40px;
+  }
+  .kn-person {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .kn-playlists button {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .kn-playlists .kn-art {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .kn-playlists b {
+    font-size: 16px;
+  }
+  .kn-youtube {
+    min-height: 56px !important;
+    justify-content: center !important;
+    padding: 6px 12px !important;
+  }
+  .kn-youtube > span:last-child {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .kn-youtube small {
+    margin: 0;
+  }
+  .kn-yt-symbol {
+    padding: 6px 12px;
+  }
+  .kn-player {
+    flex-wrap: wrap;
+    padding: 14px 24px;
+    gap: 12px;
+  }
+  .kn-playing {
+    flex-basis: 55%;
+  }
+  .kn-volume {
+    order: 3;
+    flex-basis: 55%;
+    max-width: none;
+  }
+  .kn-device {
+    order: 4;
+    margin-left: auto;
+    max-width: 260px;
+  }
+  .kn-transport {
+    margin-left: auto;
+  }
+  .kn-cooking {
+    grid-template-columns: 1fr 1fr;
+  }
+  .kn-slot-timers {
+    grid-column: 1/-1;
+  }
+  .kn-card {
+    padding: 16px;
+  }
+  .kn-recipe-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kn-recipe-grid img {
+    height: 60px;
+  }
+}
+@media (max-width: 560px) {
+  .kn-header {
+    margin: 0 12px;
+    gap: 8px;
+  }
+  .kn-brand {
+    min-width: 0;
+  }
+  .kn-brand b {
+    font-size: 18px;
+  }
+  .kn-clock span {
+    max-width: 130px;
+  }
+  .kn-content {
+    padding: 12px;
+  }
+  .kn-header .hb-seg button {
+    min-width: 90px;
+  }
+  .kn-radio-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kn-more {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kn-playlists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kn-person .kn-section-head small {
+    display: none;
+  }
+  .kn-youtube > span:last-child {
+    display: grid;
+    gap: 4px;
+  }
+  .kn-player {
+    padding: 12px;
+  }
+  .kn-playing .kn-art {
+    display: none;
+  }
+  .kn-playing b {
+    font-size: 18px;
+  }
+  .kn-volume {
+    flex-basis: 100%;
+  }
+  .kn-device {
+    max-width: none;
+    text-align: left;
+  }
+  .kn-cooking {
+    grid-template-columns: 1fr;
+  }
+  .kn-search {
+    flex-wrap: wrap;
+  }
+  .kn-picker-grid {
+    grid-template-columns: 1fr;
+  }
+  .kn-section-head {
+    flex-wrap: wrap;
+  }
+}
+
+.kn-radio[aria-pressed='true'] {
+  border-color: var(--hb-ac);
+  background: var(--hb-ac-s);
+  box-shadow: inset 0 0 0 1px var(--hb-ac);
+}
+.kn-radio[aria-pressed='true'] .kn-play-mark {
+  color: var(--hb-sel-ink);
+}
+.kn-header > .hb-seg-wrap {
+  margin-right: auto;
+}
+@media (max-width: 900px) {
+  .kn-header > .hb-seg-wrap {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+.kn .rc-tcard {
+  flex-wrap: wrap;
+  padding: 8px;
+  gap: 8px;
+}
+.kn .rc-tcard .tx {
+  flex: 1;
+  min-width: 110px;
+}
+.kn .rc-tcard .ring {
+  width: 56px;
+  height: 56px;
+}
+.kn .rc-tcard > .hb-btn {
+  min-width: 56px;
+}
+.kn-sheet .rcf-top > button:first-child,
+.kn-sheet .kt-top > button:first-child {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .kn-header {
+    padding: 8px 0;
+  }
+  .kn-content {
+    padding-top: 8px;
+    padding-bottom: 12px;
+  }
+  .kn-library {
+    gap: 4px;
+  }
+}
+.kn-radio[aria-pressed='true'] .kn-play-mark::before {
+  content: 'Hraje ';
+  font-size: 14px;
+}
+/* The shared fryer card sits in a column, regardless of the viewport's desktop breakpoint. */
+.kn .kn-card.kn-fryer .kn-reuse .rc-fl {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'band' 'vis' 'main';
+  justify-content: stretch;
+  gap: 14px;
+  padding: 14px;
+}
+.kn .kn-card.kn-fryer .kn-reuse .rc-fl-side-art {
+  display: none;
+}
+.kn .kn-fryer .rc-fl-band {
+  margin: 0;
+  padding: 12px;
+  flex-wrap: wrap;
+}
+.kn .kn-fryer .rc-fl-main {
+  gap: 14px;
+}
+.kn .kn-fryer .rc-fl-fact small,
+.kn .kn-fryer .hb-step,
+.kn .kn-fryer .hb-step-t {
+  font-size: 14px;
+}
+.kn .kn-recipes.kn-card {
+  gap: 10px;
+  padding: 12px;
+}
+.kn .kn-recipes .kn-search label {
+  gap: 4px;
+}
+.kn .kn-fryer .rc-fl-ring {
+  width: 128px;
+  height: 128px;
+}
+.kn .kn-fryer .rc-fl-time {
+  font-size: 40px;
+}
+.kn .kn-timers .rc-tcard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(56px, 1fr));
+  gap: 8px;
+}
+.kn .kn-timers .rc-tcard .ring {
+  display: none;
+}
+.kn .kn-timers .rc-tcard .tx {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+}
+.kn .kn-timers .rc-tcard .tx b {
+  font-size: 36px;
+}
+.kn .kn-timers .rc-tcard .tx span {
+  font-size: 16px;
+}
+.kn .kn-volume input {
+  appearance: none;
+  background: transparent;
+}
+.kn .kn-volume input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 6px;
+  background: var(--hb-ac);
+}
+.kn .kn-volume input::-webkit-slider-thumb {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hb-t1);
+}
+@media (min-width: 901px) {
+  .kn:has(.kn-notice) .kn-radio {
+    height: 102px;
+  }
+  .kn:has(.kn-notice) .kn-radio .kn-art {
+    width: 88px;
+    height: 88px;
+  }
+  .kn:has(.kn-notice) .kn-library {
+    gap: 0;
+  }
+  .kn-notice {
+    padding-block: 8px;
+  }
+}
+@media (min-width: 561px) and (max-width: 900px) {
+  .kn-content {
+    padding-block: 12px;
+  }
+  .kn-library {
+    gap: 10px;
+  }
+  .kn-person {
+    gap: 8px;
+  }
+  .kn-playlists .kn-art {
+    max-width: 120px;
+    align-self: center;
+  }
+  .kn:has(.kn-notice) .kn-radio {
+    height: 96px;
+    aspect-ratio: auto;
+  }
+  .kn:has(.kn-notice) .kn-radio .kn-art {
+    width: 86px;
+    height: 86px;
+  }
+}
+.kn-clock {
+  gap: 2px;
+}
+.kn-clock time {
+  line-height: 1.25;
+}
+@media (min-width: 561px) and (max-width: 900px) {
+  .kn-header {
+    padding-block: 6px;
+  }
+}
+.kn .hb-btn[data-size='sm'],
+.kn-sheet .hb-btn[data-size='sm'] {
+  font-size: 14px;
+}
+.kn-sheet .kt-field span,
+.kn-sheet .kt-switch small,
+.kn-sheet .kt-badge {
+  font-size: 14px;
+}
+.kn-sheet .kt-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'run' 'eggs' 'quick';
+  padding: 0;
+}
+.kn-sheet .kt-strip {
+  grid-template-columns: minmax(0, 1fr);
+}
+.kn-sheet .kt-eggs {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'head' 'form' 'result' 'why' 'cta';
+}
+.kn-sheet .rc-stepper button {
+  min-width: 56px;
+  min-height: 56px;
+}
+.kn-sheet .hb-seg button {
+  min-height: 56px;
+  font-size: 14px;
+}
+@media (min-width: 901px) {
+  .kn-content {
+    padding-top: 6px;
+    padding-bottom: 8px;
+  }
+}
+.kn .kn-sheet :is(small, .rcf-name span) {
+  font-size: 14px;
+}

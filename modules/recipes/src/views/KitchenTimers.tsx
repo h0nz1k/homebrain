@@ -110,7 +110,7 @@ export function KitchenTimers({
   );
 }
 
-function QuickTimer({ store }: { store: TimerStore }) {
+export function QuickTimer({ store }: { store: TimerStore }) {
   const [name, setName] = useState('');
   const [minutes, setMinutes] = useState('');
   const start = (min: number) => {

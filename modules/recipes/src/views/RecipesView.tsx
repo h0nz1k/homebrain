@@ -51,7 +51,7 @@ export function parseRoute(path = ''): Route {
 
 /** One store per API instance: the integration owns the timers (shared by all devices). */
 const sharedTimers = new WeakMap<RecipesApi, TimerStore>();
-function timerStore(api: RecipesApi): TimerStore {
+export function timerStore(api: RecipesApi): TimerStore {
   let store = sharedTimers.get(api);
   if (!store) {
     store = createTimerStore({

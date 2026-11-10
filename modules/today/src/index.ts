@@ -31,6 +31,10 @@ export {
 } from './data/home.js';
 export type { HomeApi, HomeRole, HomeScenario, Meal, MealsSnapshot } from './data/home.js';
 export {
+  useCooking,
+  cookStateLabel,
+  formatTemp,
+  remainingLabel,
   createMockCookingProbes,
   createMockCookingSource,
   createWsCookingSource,
