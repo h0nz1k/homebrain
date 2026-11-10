@@ -216,6 +216,8 @@ async function serveFryerPhotos(page: Page, available = true) {
 test('Recepty: fritéza s fotkou – přední pohled při pečení, vysunutý šuplík při protřepání', async ({
   page,
 }) => {
+  // Artwork is intentionally hidden on medium tablet layouts; this checks its desktop variant.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await serveFryerPhotos(page);
   await page.goto('/homebrain-recepty?fryerlive=cooking');
   const photo = page.getByTestId('recipes-fryer-photo');
@@ -235,7 +237,10 @@ test('Recepty: fritéza s fotkou – přední pohled při pečení, vysunutý š
 });
 
 test('Recepty: fritéza s fotkou – chyba i reduced motion bez smyček', async ({ browser }) => {
-  const ctx = await browser.newContext({ reducedMotion: 'reduce' });
+  const ctx = await browser.newContext({
+    reducedMotion: 'reduce',
+    viewport: { width: 1280, height: 800 },
+  });
   const page = await ctx.newPage();
   await serveFryerPhotos(page);
   await page.goto('/homebrain-recepty?fryerlive=cooking');
@@ -259,6 +264,7 @@ test('Recepty: fritéza s fotkou – chyba i reduced motion bez smyček', async 
 });
 
 test('Recepty: bez fotek fritézy zůstává SVG ilustrace', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await serveFryerPhotos(page, false);
   await page.goto('/homebrain-recepty?fryerlive=cooking');
   await expect(page.getByTestId('recipes-fryer-live')).toBeVisible({ timeout: 20_000 });
