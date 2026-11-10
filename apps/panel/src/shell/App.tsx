@@ -39,7 +39,12 @@ if (!styleEl) {
 styleEl.textContent = tokens + components + shellStyles;
 
 /** The separate wall-tablet panel (`/homebrain-kiosk`) registers `config: { kiosk: true }`. */
-const KIOSK_SESSION_MODULES: ReadonlySet<string> = new Set(['today', 'family']);
+const KIOSK_SESSION_MODULES: ReadonlySet<string> = new Set([
+  'today',
+  'family',
+  'kitchen',
+  'recipes',
+]);
 
 export function isKioskPanel(panel: unknown): boolean {
   if (typeof panel !== 'object' || panel === null) return false;
@@ -119,7 +124,7 @@ const ModuleContent = memo(function ModuleContent({
       <Suspense fallback={<p>{t('loading')}</p>}>
         <module.View
           store={store}
-          bindings={bindings[module.id] ?? {}}
+          bindings={bindings[module.id === 'kitchen' ? 'recipes' : module.id] ?? {}}
           connection={connection}
           fetchWithAuth={fetchWithAuth}
           route={route}
@@ -158,8 +163,9 @@ export const App = memo(function App({
   const [session, setSession] = useState<HomeBrainSession | null | undefined>(undefined);
   // ADR-0002: the kiosk role always gets the kiosk shell on Dnes; `?kiosk=1` alone is layout only.
   // The kiosk panel always shows only Dnes, whatever the route or role.
-  const kiosk = kioskPanel || isKioskRoute(path, search) || session?.kiosk === true;
-  // A kiosk session may also open Rodina (kitchen tablet: family overview + shopping list).
+  const kiosk =
+    moduleId === 'kitchen' || kioskPanel || isKioskRoute(path, search) || session?.kiosk === true;
+  // Kiosk sessions can open family, the kitchen panel and its recipe destinations.
   const id =
     kioskPanel || (session?.kiosk && !KIOSK_SESSION_MODULES.has(moduleId)) ? 'today' : moduleId;
   const activeModule =
@@ -241,7 +247,7 @@ export const App = memo(function App({
           </header>
         )}
         <main>
-          {kiosk && session?.isAdmin ? <KioskAdminWarning /> : null}
+          {kiosk && id !== 'kitchen' && session?.isAdmin ? <KioskAdminWarning /> : null}
           {!connected && !kiosk && (
             <p className="hb-disconnected" role="status">
               {t('disconnected')}

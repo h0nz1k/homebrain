@@ -301,7 +301,7 @@ export function fryerTimeline(phase: FryerPhase, progress: number | null = null)
 /** Wall-clock time the cook ends („v 18:42“), null when the countdown is not running. */
 export function fryerEta(m: FryerModel, now: number): string | null {
   if (m.remainingS === null || (m.phase !== 'cooking' && m.phase !== 'preheat')) return null;
-  const d = new Date(now + m.remainingS * 1000);
+  const d = new Date(Math.ceil((now + m.remainingS * 1000) / 60_000) * 60_000);
   return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 

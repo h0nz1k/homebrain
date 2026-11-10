@@ -341,7 +341,8 @@
         "access": "Access",
         "network": "Network",
         "server": "Server",
-        "heating": "Heating"
+        "heating": "Heating",
+        "kitchen": "Kitchen"
       }
     },
     "meals_display": {

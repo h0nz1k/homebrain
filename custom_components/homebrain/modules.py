@@ -41,6 +41,7 @@ MODULES: Final = (
     "access",
     "network",
     "family",
+    "kitchen",
     "server",
     "heating",
 )

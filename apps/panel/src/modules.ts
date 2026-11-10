@@ -27,7 +27,7 @@ today.registerTodaySignalSource('recipes', recipes.recipesFryerTodaySignalSource
 today.registerTodaySignalSource('recipes.timers', recipes.recipesTimersTodaySignalSource);
 // Dnes: network problem headline (adults + kitchen kiosk get only this summary).
 today.registerTodaySignalSource('network', network.networkTodaySignalSource);
-export const modules = [
+const standardModules = [
   today,
   weather,
   energy,
@@ -45,3 +45,14 @@ export const modules = [
   ...module.moduleManifest,
   View: lazy(module.loadView),
 }));
+
+export const modules = [
+  ...standardModules,
+  {
+    id: 'kitchen',
+    titleCs: 'Kuchyň',
+    icon: 'mdi:countertop',
+    phase: 3,
+    View: lazy(() => import('./kitchen/KitchenView')),
+  },
+];

@@ -41,6 +41,7 @@ from .energy.ws import websocket_compare, websocket_pv_forecast
 from .family import ws as family_ws
 from .heating import setup as heating_setup
 from .heating import ws as heating_ws
+from .kitchen import ws as kitchen_ws
 from .meals import ws as meals_ws
 from .modules import (
     STATE_DISABLED,
@@ -151,6 +152,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "network": _commands(*network_ws.COMMANDS)(hass),
             "server": _commands(*server_ws.COMMANDS)(hass),
             "family": _commands(*family_ws.COMMANDS)(hass),
+            "kitchen": _commands(*kitchen_ws.COMMANDS)(hass),
             "heating": _commands(*heating_ws.COMMANDS)(hass),
         },
     )

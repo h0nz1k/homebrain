@@ -44,7 +44,15 @@ def test_resolve_role_ignores_invalid_mapping():
 def test_kiosk_never_sees_private_modules():
     for module in ("health", "wine", "settings"):
         assert module not in MODULE_VISIBILITY["kiosk"]
-    assert visible_modules("kiosk") == ["energy", "family", "recipes", "today", "waste", "weather"]
+    assert visible_modules("kiosk") == [
+        "energy",
+        "family",
+        "kitchen",
+        "recipes",
+        "today",
+        "waste",
+        "weather",
+    ]
     assert visible_modules("nonsense") == ["about"]
 
 
@@ -72,7 +80,7 @@ async def test_session_get_kiosk_user(hass: HomeAssistant, hass_ws_client, hass_
     assert msg["success"]
     assert msg["result"] == {
         "role": "kiosk",
-        "visible_modules": ["energy", "family", "recipes", "today", "waste", "weather"],
+        "visible_modules": ["energy", "family", "kitchen", "recipes", "today", "waste", "weather"],
         "is_admin": False,
         "kiosk": True,
         "unavailable_modules": [],

@@ -22,6 +22,7 @@ NON_ADMIN_MODULES = {
     "weather",
     "waste",
     "family",
+    "kitchen",
     "energy",
     "recipes",
     "network",
