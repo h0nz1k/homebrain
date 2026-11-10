@@ -27,6 +27,14 @@ export const heatingStyles = `
   --ht-c-out: oklch(0.6 0.11 235);
   --ht-c-supply: oklch(0.66 0.13 75);
 }
+[data-theme='light'] .ht .ht-xlabs span,
+[data-theme='light'] .ht .ht-ylab,
+[data-theme='light'] .ht .ht-runs-lbl,
+[data-theme='light'] .ht .ht-sbars-grid em,
+[data-theme='light'] .ht .ht-sched-axis b,
+[data-theme='light'] .ht .ht-curve-unit {
+  color: var(--hb-t2);
+}
 .ht * { box-sizing: border-box; }
 .ht :where(h2, h3, p, ul, dl, dd) { margin: 0; }
 .ht :where(p, small, li) { text-wrap: pretty; }
@@ -287,14 +295,14 @@ export const heatingStyles = `
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
 .ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
-.ht-c3-label[data-label='dhw'] { font-size:11px; letter-spacing:-.5px; }
+.ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-.5px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
 [data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; }
 [data-theme='light'] .ht-c3-vessel { stroke:#35434e; }
-.ht-c3-label[data-label='charge'], .ht-c3-label[data-label='hp-in'], .ht-c3-label[data-label='cold-water'], .ht-c3-label[data-label='house-pump'] { font-size:10px; }
+.ht-c3-label[data-label='charge'], .ht-c3-label[data-label='hp-in'], .ht-c3-label[data-label='cold-water'], .ht-c3-label[data-label='house-pump'] { font-size:12px; }
 .ht-c3-dhw-value { font-size:15px; font-weight:500; }
 .ht-c3-unit { font-size:13px; }
-.ht-c3-dhw-unit { font-size:11px; }
+.ht-c3-dhw-unit { font-size:12px; }
 .ht-c3-tank-value { font-size:24px; font-weight:500; }
 .ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
 .ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
@@ -323,8 +331,8 @@ export const heatingStyles = `
 .ht-c3-main-label-bg { fill:var(--ht-c3-room); }
 .ht-c3-tank-top-bg { fill:color-mix(in srgb, var(--ht-c3-room) 92%, #000); opacity:.92; }
 .ht-c3-hp-metrics-bg { fill:color-mix(in srgb, var(--ht-c3-room) 90%, var(--hb-s1)); opacity:.95; }
-.ht-c3-label[data-label='tank-top'] { font-size:11px; font-weight:550; }
-.ht-c3-label[data-label='hp-delta'] { font-size:11px; font-weight:500; }
+.ht-c3-label[data-label='tank-top'] { font-size:12px; font-weight:550; }
+.ht-c3-label[data-label='hp-delta'] { font-size:12px; font-weight:500; }
 .ht-c3-water-valve { fill:none; stroke:var(--ht-c3-cold); stroke-width:1; }
 .ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:.5; }
 [data-theme='light'] .ht-c3-draw { stroke:#ab3037; opacity:1; }
@@ -387,7 +395,7 @@ export const heatingStyles = `
 .ht-land-day .ht-ylab { font-size: 11px; }
 .ht-curve-target { stroke: var(--ht-c-top); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; opacity: .85; }
 .ht-tank-gauge { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: stretch; }
-.ht-tank-gauge-bar { position: relative; width: 100%; min-height: 120px; border-radius: 8px; overflow: hidden; background: var(--hb-fill, rgba(127,127,127,.15)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); }
+.ht-tank-gauge-bar { position: relative; width: 100%; min-height: 120px; border-radius: var(--hb-radius-md, 12px); overflow: hidden; background: var(--hb-fill, rgba(127,127,127,.15)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 10%, transparent); }
 .ht-tank-gauge-fill { position: absolute; inset: 0; background: linear-gradient(0deg, #4e88b9 0%, #9a9da3 52%, #ba6970 100%); opacity: .9; }
 .ht-tank-gauge-band { position: absolute; left: 0; right: 0; background: color-mix(in srgb, var(--hb-ac) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 45%, transparent); pointer-events: none; }
 .ht-tank-gauge-mark { position: absolute; left: -2px; right: -2px; height: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); pointer-events: none; }

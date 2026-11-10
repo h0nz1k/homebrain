@@ -732,4 +732,69 @@ test.describe('Topení', () => {
       expect(await infiniteAnimations(page)).toBe(0);
     });
   });
+
+  test('jednotky: venkovní min/max, příkon a hystereze v Režimech', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=heating&theme=light');
+    await expect(page.getByTestId('heating-stat-outdoor')).toBeVisible({ timeout: 20_000 });
+    const outdoorSub = await page.getByTestId('heating-stat-outdoor').innerText();
+    expect(outdoorSub).toMatch(/dnes .*°C až .*°C/u);
+    expect(outdoorSub).not.toMatch(/dnes -?\d+[,.]\d+ až/u);
+    const meta = await page.getByTestId('heating-hero').innerText();
+    expect(meta).toMatch(/\d,\d\u00a0kW/u);
+    await page.goto('/homebrain-topeni/rezimy?topeni=heating&theme=light');
+    await expect(page.getByTestId('heating-curve-now')).toBeVisible({ timeout: 20_000 });
+    const modes = await page.getByTestId('heating-view').innerText();
+    expect(modes).toMatch(/± \d+[,.]\d[\s\u00a0]°C/u);
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`os chartů čitelné v ${theme} motivu`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/homebrain-topeni/trendy?topeni=heating&theme=${theme}`);
+      await expect(page.getByTestId('heating-trend-chart')).toBeVisible({ timeout: 20_000 });
+      const contrast = await page.evaluate(() => {
+        const c = document.createElement('canvas').getContext('2d')!;
+        const lum = (color: string) => {
+          c.fillStyle = color;
+          c.fillRect(0, 0, 1, 1);
+          const rgb = [...c.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => {
+            const x = v / 255;
+            return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+          });
+          return rgb[0]! * 0.2126 + rgb[1]! * 0.7152 + rgb[2]! * 0.0722;
+        };
+        const labels = Array.from(document.querySelectorAll('.ht-xlabs span, .ht-ylab'));
+        const root = document.querySelector('.ht')!;
+        const cardBg = getComputedStyle(root).getPropertyValue('--hb-s1').trim() || '#fff';
+        return labels.map((el) => {
+          const fg = lum(getComputedStyle(el).color);
+          const bg = lum(cardBg);
+          return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+        });
+      });
+      expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
+  test('Teď portrét: popisky schématu ≥ 11 px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=heating');
+    await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(() => document.fonts.ready);
+    const min = await page.getByTestId('heating-schematic').evaluate((el) => {
+      const svg = el.querySelector('svg')!;
+      const rendered = (node: SVGGraphicsElement) => {
+        const b = node.getBBox();
+        const m = node.getScreenCTM()!;
+        const a = new DOMPoint(b.x, b.y).matrixTransform(m);
+        const z = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
+        return z.y - a.y;
+      };
+      return Math.min(
+        ...Array.from(svg.querySelectorAll('text')).map((t) => rendered(t as SVGGraphicsElement)),
+      );
+    });
+    expect(min).toBeGreaterThanOrEqual(11);
+  });
 });
