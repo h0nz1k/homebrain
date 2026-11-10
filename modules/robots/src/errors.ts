@@ -378,7 +378,7 @@ export const REFILL_DOCK_ERRORS = new Set([
 ]);
 
 export const DOCK_REFILL_AFTER_HINT =
-  'Po doplnění/vyprázdnění zpráva zmizí, až se robot vrátí do doku a dok nádrž zkontroluje.';
+  'Po doplnění chybu potvrďte v aplikaci Roborock, jinak zmizí po návratu robota do doku.';
 
 export function isRefillDockError(code: string | null | undefined): boolean {
   const key = (code ?? '').trim().toLowerCase();

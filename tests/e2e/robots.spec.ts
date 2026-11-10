@@ -125,10 +125,10 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
     expect(clipped, name).toEqual([]);
   }
   await expect(page.getByRole('radiogroup', { name: 'Sání' })).toBeVisible();
-  await page.getByRole('radio', { name: 'Pokročilé' }).click();
 
   // Water, mop route and passes only under „Pokročilé“.
   await expect(page.getByRole('radiogroup', { name: 'Voda' })).toHaveCount(0);
+  await page.getByRole('radio', { name: 'Pokročilé' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Průchody' })).toBeVisible();
   await page.getByRole('radio', { name: 'Vysát' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Voda' })).toHaveCount(0);

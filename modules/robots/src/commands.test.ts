@@ -46,25 +46,22 @@ describe('clean plan: water, mop route, passes', () => {
     expect(vacuumOnly.some((p) => p.entityId.endsWith('_mop_intensity'))).toBe(false);
   });
 
-  it('offers every HA option in power order (Kraken-like lists)', () => {
+  it('offers known options in power order, one per label, custom only when current', () => {
     expect(waterChoices(['off', 'mild', 'moderate', 'intense', 'custom'], 'moderate')).toEqual([
       'off',
       'mild',
       'moderate',
       'intense',
+    ]);
+    expect(waterChoices(['low', 'mild', 'high', 'custom'], 'custom')).toEqual([
+      'low',
+      'high',
       'custom',
     ]);
-    expect(
-      waterChoices(
-        ['off', 'slight', 'low', 'medium', 'moderate', 'high', 'extreme'],
-        'moderate',
-      ),
-    ).toEqual(['off', 'slight', 'low', 'medium', 'moderate', 'high', 'extreme']);
     expect(mopRouteChoices(['standard', 'deep', 'deep_plus', 'custom'], 'standard')).toEqual([
       'standard',
       'deep',
       'deep_plus',
-      'custom',
     ]);
   });
 });

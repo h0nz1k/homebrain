@@ -90,8 +90,6 @@ describe('command plans', () => {
       'balanced',
       'max',
       'max_plus',
-      'off',
-      'custom',
     ]);
     expect(fanChoices(['quiet', 'max', 'smart_mode'], 'smart_mode')).toEqual([
       'quiet',

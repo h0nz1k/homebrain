@@ -199,6 +199,7 @@ export const robotsStyles = `
 @keyframes rb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
 .rb-hint { color: var(--hb-t2); font-size: 14px; margin: 16px 0 14px; }
 .rb-controls { display: grid; gap: 14px; margin-bottom: 22px; }
+.rb-controls .hb-seg button { min-height: 44px; }
 .rb-opt-wrap { display: grid; gap: 8px; }
 .rb-opt-grid {
   display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0;
