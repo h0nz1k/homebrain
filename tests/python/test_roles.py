@@ -44,7 +44,15 @@ def test_resolve_role_ignores_invalid_mapping():
 def test_kiosk_never_sees_private_modules():
     for module in ("health", "wine", "settings"):
         assert module not in MODULE_VISIBILITY["kiosk"]
-    assert visible_modules("kiosk") == ["energy", "family", "kitchen", "recipes", "today", "waste", "weather"]
+    assert visible_modules("kiosk") == [
+        "energy",
+        "family",
+        "kitchen",
+        "recipes",
+        "today",
+        "waste",
+        "weather",
+    ]
     assert visible_modules("nonsense") == ["about"]
 
 

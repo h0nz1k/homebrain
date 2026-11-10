@@ -39,9 +39,9 @@ from .energy.offers import ws as offers_ws
 from .energy.pv_forecast import PvForecastManager
 from .energy.ws import websocket_compare, websocket_pv_forecast
 from .family import ws as family_ws
-from .kitchen import ws as kitchen_ws
 from .heating import setup as heating_setup
 from .heating import ws as heating_ws
+from .kitchen import ws as kitchen_ws
 from .meals import ws as meals_ws
 from .modules import (
     STATE_DISABLED,
