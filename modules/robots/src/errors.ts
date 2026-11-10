@@ -378,7 +378,7 @@ export const REFILL_DOCK_ERRORS = new Set([
 ]);
 
 export const DOCK_REFILL_AFTER_HINT =
-  'Po doplnění klepněte na Doplněno, potvrdit. Chyba jinak zmizí sama, až se robot vrátí do doku.';
+  'Po doplnění klepněte na „Doplněno, potvrdit“. Jinak hláška zmizí, až robot zajede do doku a dok nádrž zkontroluje.';
 
 export const DOCK_REFILL_ACK_NOTE = 'Voda doplněna · čeká na potvrzení robotem';
 
