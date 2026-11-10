@@ -81,6 +81,16 @@ import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 import { CleaningOptionRow } from './CleaningOptionRow.js';
 import {
+  CheckIcon,
+  EditIcon,
+  HomeIcon,
+  InfoIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  RouteIcon,
+} from './robotActionIcons.js';
+import {
   readDockResolvePending,
   writeDockResolvePending,
 } from '../dockResolvePending.js';
@@ -712,6 +722,7 @@ function RobotPanel({
                         ask('Pokračovat v úklidu?', planSimple('resume', robot.vacuum))
                       }
                     >
+                      <PlayIcon />
                       Pokračovat
                     </Button>
                   ) : tone === 'cleaning' ? (
@@ -786,6 +797,7 @@ function RobotPanel({
                       )
                     }
                   >
+                    <PlayIcon />
                     Hotovo – pokračovat
                   </Button>
                   <span>Robot pokračuje až po potvrzení.</span>
@@ -799,6 +811,7 @@ function RobotPanel({
                     disabled={!canAct || dockResolvePending || sending}
                     onClick={() => void confirmDockRefillResolved()}
                   >
+                    <CheckIcon />
                     Doplněno, potvrdit
                   </Button>
                   {!busy && tone !== 'charging' && tone !== 'docked' && (
@@ -807,13 +820,17 @@ function RobotPanel({
                       disabled={!canAct}
                       onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
                     >
+                      <HomeIcon />
                       Vrátit do doku
                     </Button>
                   )}
                 </div>
               )}
               <details>
-                <summary>Podrobnosti</summary>
+                <summary>
+                  <InfoIcon />
+                  Podrobnosti
+                </summary>
                 Kód pro servis: {problem.code}
               </details>
             </Card>
@@ -862,17 +879,7 @@ function RobotPanel({
                     writeTrailPref(!fullTrail);
                   }}
                 >
-                  <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-                    <path
-                      d="M3.5 13.5a2 2 0 1 1 0-4h7a2 2 0 1 0 0-4H5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="12.5" cy="13.5" r="1.6" />
-                    <circle cx="3.5" cy="5.5" r="1.6" />
-                  </svg>
+                  <RouteIcon />
                   Trasa
                 </Chip>
               )}
@@ -925,7 +932,8 @@ function RobotPanel({
                     pressed={false}
                     onPress={() => setEditor({ kind: 'preset', preset: null })}
                   >
-                    + Předvolba
+                    <PlusIcon />
+                    Předvolba
                   </Chip>
                   <Chip
                     className="rb-chip"
@@ -1034,10 +1042,10 @@ function RobotPanel({
                     onChange={(value) => setAdvanced(value === 'advanced')}
                   />
                   {modes.length > 1 && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Režim"
-                      tone="accent"
                       value={mode}
+                      iconKind="mode"
                       options={modes.map((m) => [m, CLEAN_MODE_LABELS[m]])}
                       onChange={(value) => chooseMode(value as CleanMode)}
                     />
@@ -1046,6 +1054,7 @@ function RobotPanel({
                     <CleaningOptionRow
                       label="Sání"
                       value={fan}
+                      iconKind="fan"
                       options={fansForMode(robot.fanChoices, mode).map((f) => [
                         f,
                         FAN_LABELS[f] ?? f,
@@ -1065,6 +1074,7 @@ function RobotPanel({
                     <CleaningOptionRow
                       label="Voda"
                       className="rb-adv"
+                      iconKind="water"
                       value={water}
                       options={robot.water.choices.map((w) => [w, WATER_LABELS[w] ?? w])}
                       onChange={setWater}
@@ -1074,16 +1084,17 @@ function RobotPanel({
                     <CleaningOptionRow
                       label="Mopování"
                       className="rb-adv"
+                      iconKind="mop"
                       value={mopRoute}
                       options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}
                       onChange={setMopRoute}
                     />
                   )}
                   {advanced && (
-                    <SegmentedControl
+                    <CleaningOptionRow
                       label="Průchody"
-                      tone="accent"
                       className="rb-adv"
+                      iconKind="passes"
                       value={String(passes)}
                       options={[
                         ['1', '1×'],
@@ -1155,6 +1166,7 @@ function RobotPanel({
                       })
                     }
                   >
+                    {!robot.error && selected.length > 0 ? <PlayIcon /> : null}
                     {robot.error
                       ? 'Nejdřív odstraňte závadu'
                       : busy
@@ -1286,42 +1298,6 @@ function Battery({ value, charging }: { value: number | null; charging: boolean 
         <em>{charging ? 'nabíjí se' : 'baterie'}</em>
       </span>
     </div>
-  );
-}
-
-function EditIcon() {
-  return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M3 11.5V13h1.5l7-7L10 4.5l-7 7zm9.7-6.2a.8.8 0 000-1.1l-.9-.9a.8.8 0 00-1.1 0l-.7.7 2 2 .7-.7z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M5 3.5v9l7.5-4.5z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true">
-      <rect x="5" y="4" width="3.4" height="12" rx="1.2" />
-      <rect x="11.6" y="4" width="3.4" height="12" rx="1.2" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true">
-      <path d="M3.5 9.2 10 3.8l6.5 5.4V16a1 1 0 0 1-1 1h-3.3v-4.4H7.8V17H4.5a1 1 0 0 1-1-1Z" />
-    </svg>
   );
 }
 

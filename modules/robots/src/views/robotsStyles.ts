@@ -155,7 +155,49 @@ export const robotsStyles = `
 
 
 
-.rb-ico { width: 16px; height: 16px; fill: currentColor; }
+.rb-ico { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+.rb-ico-opt { width: 20px; height: 20px; flex-shrink: 0; color: inherit; }
+.rb-seg-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  width: 100%;
+  padding: 4px 0;
+}
+.rb-seg-opt-label {
+  font-size: 13px;
+  font-weight: inherit;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.rb .hb-seg button:has(.rb-seg-stack) {
+  min-height: 44px;
+  padding-inline: 4px;
+}
+.rb-opt-tile.hb-chip {
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  min-width: 68px;
+}
+.rb-opt-tile .rb-opt-label {
+  font-size: 13px;
+  line-height: 1.15;
+  text-align: center;
+  font-weight: 600;
+}
+.rb-problem details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rb-start .rb-ico { margin-right: 2px; vertical-align: -2px; }
 
 
 
