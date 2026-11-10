@@ -186,7 +186,10 @@ function CookingContent({
                 <img src={r.photo.thumbUrl} alt="" />
               ) : (
                 <span className="kn-dish" aria-hidden="true">
-                  ◉
+                  <svg className="kn-ico" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="12" r="6" opacity="0.35" />
+                    <circle cx="12" cy="12" r="2.5" />
+                  </svg>
                 </span>
               )}
               <b>{r.title}</b>
@@ -220,18 +223,16 @@ function CookingContent({
             </p>
           </div>
         )}
-        <Button onClick={() => setSheet('fryer')}>Otevřít fritézu</Button>
+        {fryerActive ? null : (
+          <Button onClick={() => setSheet('fryer')}>Otevřít fritézu</Button>
+        )}
       </section>
     ),
     meater: (
-      <section
-        className="kn-card kn-meater"
-        data-active={attention.meater}
-        data-testid="kitchen-meater"
-      >
+      <section className="kn-card kn-meater" data-testid="kitchen-meater">
         <div className="kn-section-head">
           <h2>MEATER</h2>
-          <span>Pouze náhled</span>
+          <small>Teploty z MEATERu</small>
         </div>
         {probes.length ? (
           probes.map((p) => (
@@ -265,7 +266,7 @@ function CookingContent({
                     )
                   }
                 >
-                  Odpočinek · {p.name} · {props.config.rest_minutes} min
+                  Spustit odpočinek {props.config.rest_minutes} min
                 </Button>
               ) : null}
             </div>

@@ -18,10 +18,32 @@ function TransportIcon({ playing }: { playing: boolean }) {
   );
 }
 
-function BatteryIcon({ charging }: { charging: boolean }) {
+function SpeakerIcon() {
+  return (
+    <svg className="kn-ico" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M11 5 6 9H3v6h3l5 4V5z"
+        fill="currentColor"
+      />
+      <path
+        d="M15.5 8.5a4.5 4.5 0 0 1 0 7M18 5.5a7.5 7.5 0 0 1 0 13"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function BatteryIcon({ charging, level }: { charging: boolean; level: number | null }) {
+  const fillW = level === null ? 0 : Math.max(0, Math.min(14, (14 * level) / 100));
   return (
     <svg className="kn-ico" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4" y="7" width="16" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      {fillW > 0 ? (
+        <rect x="6" y="9" width={fillW} height="6" rx="1" fill="currentColor" opacity="0.88" />
+      ) : null}
       <rect x="20" y="10" width="2" height="4" rx="0.5" fill="currentColor" />
       {charging ? (
         <path d="M12 8.5l-2.5 5h2l-1 4.5 3.5-6h-2.5l2.5-3.5z" fill="currentColor" />
@@ -314,12 +336,15 @@ export default function KitchenView(props: ModuleViewProps) {
           </Button>
         </div>
         <div className="kn-device">
-          <span className="kn-output">◉ {player?.name ?? 'Výstup nenastaven'}</span>
+          <span className="kn-output">
+            <SpeakerIcon />
+            {player?.name ?? 'Výstup nenastaven'}
+          </span>
           <span
             className="kn-battery"
             aria-label={batteryLabel(snapshot?.battery.level ?? null, snapshot?.battery.state ?? null)}
           >
-            <BatteryIcon charging={battery.charging} />
+            <BatteryIcon charging={battery.charging} level={battery.pct} />
             <span>
               {battery.pct !== null ? (
                 <>

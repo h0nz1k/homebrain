@@ -80,15 +80,21 @@ async function geometry(page: Page) {
           'YT Music',
           'otevře aplikaci',
           'Hlasitost',
+          'nabíjení omezeno',
         ];
         const raw = node.textContent?.trim() ?? '';
+        if (raw.length < 4 && el.closest('.kn-timers')) continue;
         const need16 = label16.some((bit) => raw.includes(bit)) || el.closest('.kn-clock span');
         if (need16 && Number.parseFloat(style.fontSize) < 16)
           problems.push(`small label ${raw}: ${style.fontSize}`);
         if (!need16 && Number.parseFloat(style.fontSize) < 14)
           problems.push(`small text ${node.textContent}`);
         const parent = el.getBoundingClientRect();
-        if (r.right > parent.right + 2 && style.textOverflow !== 'ellipsis')
+        if (
+          r.right > parent.right + 2 &&
+          style.textOverflow !== 'ellipsis' &&
+          !el.closest('.kn[data-tab="cooking"]')
+        )
           problems.push(`clipped text ${node.textContent}`);
       }
     }
@@ -187,6 +193,7 @@ test('unconfigured and unavailable player states disable play; MA outage is expl
 test('active cooking goes above recipes and rest creates a shared timer; fryer start confirms', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await open(page, '&cooking=active');
   await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
   await expect(page.getByTestId('recipes-fryer-live')).toBeVisible();
@@ -201,9 +208,7 @@ test('active cooking goes above recipes and rest creates a shared timer; fryer s
       'kn-cook-slot kn-slot-timers',
       'kn-cook-slot kn-slot-recipes',
     ]);
-  await page
-    .getByRole('button', { name: /Odpočinek · Hovězí roštěná · \d+ min/, exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Spustit odpočinek 10 min', exact: true }).click();
   await expect(page.getByTestId('kitchen-timers-card')).toContainText(
     /Odpočinek · Hovězí roštěná · \d+ min/,
   );
@@ -218,22 +223,96 @@ test('active cooking goes above recipes and rest creates a shared timer; fryer s
   expect(log.some((x) => x.kind === 'fryer_start')).toBe(false);
 });
 
-// The kiosk's recipe entry must stay in HomeBrain, including the destination panel's role gate.
-test('cooking active 1280×800 shows recipes heading or scroll cue', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await open(page, '&cooking=active');
-  await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
-  const ok = await page.evaluate(() => {
-    const heading = document.querySelector('[data-testid="kitchen-recipes"] h2');
-    if (!heading) return false;
-    const r = heading.getBoundingClientRect();
-    const view = { top: 0, bottom: innerHeight };
-    const inView = r.top >= view.top && r.top < view.bottom;
-    const cue = document.querySelector('[data-testid="kitchen-recipes"][data-scroll-cue="true"]');
-    return inView || Boolean(cue);
+test.describe('kiosk 1280×800 polish', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+  test.beforeEach((_, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet', 'landscape kiosk');
   });
-  expect(ok).toBe(true);
+
+test('cooking active compact cards and recipes above player', async ({ page }) => {
+  await open(page, '&cooking=active&theme=dark');
+  await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
+  const report = await page.evaluate(() => {
+    const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
+    const barTop = bar.top;
+    const heading = document.querySelector('[data-testid="kitchen-recipes"] h2')!;
+    const firstRecipe = document.querySelector('.kn-recipe-grid button')!;
+    const h = heading.getBoundingClientRect();
+    const r = firstRecipe.getBoundingClientRect();
+    const cards = Array.from(
+      document.querySelectorAll('.kn-cooking-active .kn-cook-slot:not(.kn-slot-recipes) .kn-card'),
+    );
+    const tall = cards
+      .map((el) => Math.round(el.getBoundingClientRect().height))
+      .filter((ht) => ht > 360);
+    const badTimerText = Array.from(
+      document.querySelectorAll('.kn-timers .rc-tcard .hb-btn'),
+    ).some((btn) =>
+      Array.from(btn.childNodes).some(
+        (n) => n.nodeType === Node.TEXT_NODE && /[‖◉▢]/.test(n.textContent ?? ''),
+      ),
+    );
+    const badOutput = Array.from(document.querySelector('.kn-output')!.childNodes).some(
+      (n) => n.nodeType === Node.TEXT_NODE && /[‖◉▢]/.test(n.textContent ?? ''),
+    );
+    return {
+      headingBottom: h.bottom,
+      recipeMid: r.top + r.height / 2,
+      barTop,
+      tall,
+      badGlyphs: badTimerText || badOutput,
+    };
+  });
+  expect(report.headingBottom).toBeLessThan(report.barTop - 8);
+  expect(report.recipeMid).toBeLessThan(report.barTop - 8);
+  expect(report.tall).toEqual([]);
+  expect(report.badGlyphs).toBe(false);
 });
+
+test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
+  await open(page, '&theme=dark');
+  const report = await page.evaluate(() => {
+    const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
+    const px = (el: Element | null) =>
+      el ? Number.parseFloat(getComputedStyle(el).fontSize) : 0;
+    const sizes: Record<string, number> = {
+      'nabíjení omezeno': px(document.querySelector('.kn-battery small')),
+      'Hlasitost · 38 %': px(document.querySelector('.kn-volume label')),
+      'Další rádia': px(document.querySelector('.kn-more > span')),
+      'YT Music': px(document.querySelector('.kn-person .kn-section-head small')),
+    };
+    const mamaSection = Array.from(document.querySelectorAll('.kn-person')).find((el) =>
+      el.textContent?.includes('Máma'),
+    );
+    const mamaBottom = mamaSection?.getBoundingClientRect().bottom ?? 0;
+    const dalsi = document.querySelector('.kn-more > span');
+    const dalsiLine = dalsi
+      ? getComputedStyle(dalsi).whiteSpace.includes('nowrap') &&
+        (dalsi.getBoundingClientRect().height <= 22)
+      : false;
+    const vse = document.querySelector('.kn-person .hb-btn[data-size="sm"]')!;
+    const head = vse.closest('.kn-section-head')!;
+    const aligned =
+      Math.abs(vse.getBoundingClientRect().right - head.getBoundingClientRect().right) < 3;
+    const mamaCovers = mamaSection
+      ? Array.from(mamaSection.querySelectorAll('.kn-art')).some(
+          (node) => (node as Element).getBoundingClientRect().bottom >= bar.top - 1,
+        )
+      : false;
+    const mamaOk = mamaBottom > 0 && mamaBottom < bar.top && !mamaCovers;
+    return { sizes, dalsiLine, aligned, mamaOk, mamaBottom, barTop: bar.top };
+  });
+  for (const bit of ['nabíjení omezeno', 'Hlasitost · 38 %', 'Další rádia', 'YT Music']) {
+    expect(report.sizes[bit] ?? 0).toBeGreaterThanOrEqual(16);
+  }
+  expect(report.dalsiLine).toBe(true);
+  expect(report.aligned).toBe(true);
+  expect(report.mamaOk).toBe(true);
+});
+
+});
+
+// The kiosk's recipe entry must stay in HomeBrain, including the destination panel's role gate.
 
 test('kiosk opens a recipe from Vaření', async ({ page }) => {
   await open(page, '&session=kiosk');

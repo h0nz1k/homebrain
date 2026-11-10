@@ -237,7 +237,7 @@ const fryerLive = (recipesQuery.get('fryerlive') ??
 if (fryerLive) registerTodaySignalSource('recipes', recipesFryerTodaySignalSource);
 // `?timers=1|demo`: kitchen timers on Dnes (demo = three synthetic running timers).
 if (recipesQuery.get('cooking') === 'active') {
-  recipesQuery.set('timers', 'demo');
+  recipesQuery.set('timers', '1');
 }
 installDevKitchenTimers(recipesApi, recipesQuery);
 // Dev server only: synthetic weather snapshot (production uses the integration WS).
