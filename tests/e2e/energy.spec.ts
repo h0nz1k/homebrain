@@ -568,6 +568,13 @@ test.describe('Hero: rozvaděč a sedící čísla (mobil 360 px)', () => {
     });
 });
 
+function rectsIntersect(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
 test.describe('srovnání období', () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-11-07T15:23:00Z'));
@@ -629,10 +636,85 @@ test.describe('srovnání období', () => {
     await expect(sept.locator('[data-testid="energy-compare-invoice-marker"]')).toHaveCount(1);
     await sept.click();
     const detail = page.getByTestId('energy-compare-invoice-detail');
-    await expect(detail).toContainText('Faktura:');
-    await expect(detail).toContainText('Naměřeno v HA:');
-    await expect(detail).toContainText('Rozdíl:');
+    await expect(detail).toContainText('Faktura');
+    await expect(detail).toContainText('Naměřeno v HA');
+    await expect(detail).toContainText('Rozdíl');
+    await expect(detail.locator('.en-cmp-inv-line')).toHaveCount(3);
     await expect(page.getByTestId('energy-compare-legend-invoice')).toContainText('Fakturováno');
+
+    const markerChecks = await card.evaluate((root) => {
+      const rgb = (s: string) =>
+        (s.match(/[\d.]+/g) ?? [])
+          .slice(0, 3)
+          .map((v) => Number(v) * (s.startsWith('color(') ? 255 : 1));
+      const lum = (c: number[]) => {
+        const [R, G, B] = c.map((v) => {
+          const x = v / 255;
+          return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * R! + 0.7152 * G! + 0.0722 * B!;
+      };
+      const contrast = (fg: string, bg: string) => {
+        const [l1, l2] = [lum(rgb(fg)), lum(rgb(bg))].sort((a, b) => b - a);
+        return (l1! + 0.05) / (l2! + 0.05);
+      };
+      const cardBg = getComputedStyle(root).backgroundColor;
+      const markers = Array.from(root.querySelectorAll('[data-testid="energy-compare-invoice-marker"]'));
+      const markerMeta = markers.map((m) => {
+        const svg = m.querySelector('svg');
+        const paths = svg ? svg.querySelectorAll('path').length : 0;
+        const stroke = svg ? getComputedStyle(svg).color : '';
+        const box = m.getBoundingClientRect();
+        const col = m.closest('[data-testid="energy-compare-month"]') as HTMLElement | null;
+        const colBox = col?.getBoundingClientRect();
+        const bars = col ? Array.from(col.querySelectorAll('.en-cmp-bar, .en-cmp-ghost')) : [];
+        const barRects = bars.map((b) => b.getBoundingClientRect());
+        const ticks = Array.from(root.querySelectorAll('[data-testid="energy-compare-tick"]'));
+        const tickRects = ticks.map((t) => t.getBoundingClientRect());
+        const sel = col?.matches('[data-active]') ? col.getBoundingClientRect() : null;
+        const hitBar = barRects.some((b) =>
+          box.x < b.x + b.width && box.x + box.width > b.x && box.y < b.y + b.height && box.y + box.height > b.y,
+        );
+        const hitTick = tickRects.some((t) =>
+          box.x < t.x + t.width && box.x + box.width > t.x && box.y < t.y + t.height && box.y + box.height > t.y,
+        );
+        const cx = box.x + box.width / 2;
+        const inBand = colBox ? cx >= colBox.x && cx <= colBox.x + colBox.width : false;
+        return {
+          paths,
+          contrast: stroke ? contrast(stroke, cardBg) : 0,
+          hitBar,
+          hitTick,
+          hitSel:
+            !!sel &&
+            box.x < sel.x + sel.width &&
+            box.x + box.width > sel.x &&
+            box.y < sel.y + sel.height &&
+            box.y + box.height > sel.y,
+          inBand,
+        };
+      });
+      const legend = root.querySelector('[data-testid="energy-compare-legend-invoice"]');
+      const legendGap = (() => {
+        if (!legend) return 99;
+        const icon = legend.querySelector('.en-cmp-legend-receipt');
+        const label = legend.querySelector('span:last-child');
+        if (!icon || !label) return 99;
+        const ib = icon.getBoundingClientRect();
+        const lb = label.getBoundingClientRect();
+        return Math.abs(ib.y + ib.height / 2 - (lb.y + lb.height / 2));
+      })();
+      return { markerMeta, legendGap };
+    });
+    for (const m of markerChecks.markerMeta) {
+      expect(m.paths).toBeGreaterThan(0);
+      expect(m.contrast).toBeGreaterThanOrEqual(3);
+      expect(m.hitBar).toBe(false);
+      expect(m.hitTick).toBe(false);
+      expect(m.inBand).toBe(true);
+    }
+    expect(markerChecks.legendGap).toBeLessThanOrEqual(2);
+
     const label = sept.locator('.en-axis-x');
     const marker = sept.locator('[data-testid="energy-compare-invoice-marker"]');
     const labelBox = await label.boundingBox();
@@ -640,6 +722,37 @@ test.describe('srovnání období', () => {
     expect(labelBox).not.toBeNull();
     expect(markerBox).not.toBeNull();
     expect(markerBox!.y + markerBox!.height).toBeLessThanOrEqual(labelBox!.y - 1);
+    const septBars = await sept.locator('.en-cmp-bar, .en-cmp-ghost').all();
+    for (const bar of septBars) {
+      const barBox = await bar.boundingBox();
+      if (!barBox || barBox.height <= 1) continue;
+      expect(rectsIntersect(markerBox!, barBox)).toBe(false);
+    }
+
+    await page.goto('/homebrain-energie?theme=light');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const lightContrast = await card.evaluate((root) => {
+      const rgb = (s: string) =>
+        (s.match(/[\d.]+/g) ?? [])
+          .slice(0, 3)
+          .map((v) => Number(v) * (s.startsWith('color(') ? 255 : 1));
+      const lum = (c: number[]) => {
+        const [R, G, B] = c.map((v) => {
+          const x = v / 255;
+          return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * R! + 0.7152 * G! + 0.0722 * B!;
+      };
+      const contrast = (fg: string, bg: string) => {
+        const [l1, l2] = [lum(rgb(fg)), lum(rgb(bg))].sort((a, b) => b - a);
+        return (l1! + 0.05) / (l2! + 0.05);
+      };
+      const cardBg = getComputedStyle(root).backgroundColor;
+      return Array.from(root.querySelectorAll('[data-testid="energy-compare-invoice-marker"] svg')).map(
+        (svg) => contrast(getComputedStyle(svg).color, cardBg),
+      );
+    });
+    for (const ratio of lightContrast) expect(ratio).toBeGreaterThanOrEqual(3);
   });
 
   test('bez faktur nejsou ve srovnání značky', async ({ page }) => {

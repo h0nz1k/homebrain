@@ -65,9 +65,10 @@ describe('CompareCard data correctness', () => {
     expect(text('energy-compare-legend')).toContain('Fakturováno');
     fireEvent.click(sept);
     const detail = text('energy-compare-invoice-detail');
-    expect(detail).toContain('Faktura:');
-    expect(detail).toContain('Naměřeno v HA:');
-    expect(detail).toContain('Rozdíl:');
+    expect(detail).toContain('Faktura');
+    expect(detail).toContain('Naměřeno v HA');
+    expect(detail).toContain('Rozdíl');
+    expect(screen.getByTestId('energy-compare-invoice-detail').querySelectorAll('.en-cmp-inv-line').length).toBe(3);
   });
 
   it('leaves the chart unchanged when there are no invoices', () => {
