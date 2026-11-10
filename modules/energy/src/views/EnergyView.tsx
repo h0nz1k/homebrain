@@ -956,11 +956,12 @@ export function EnergyScreen({
         <CompareCard comparison={comparison} invoices={invoiceList?.invoices ?? null} />
         {invoices}
         {offers}
-        <PriceCard model={model} />
         <DayChart model={model} history={history} />
         <WeekChart model={model} history={history} />
         <BalanceCard model={model} />
         {appliances.length > 0 && <AppliancesCard items={appliances} model={model} />}
+        {/* Spotová cena až na konci: vlastník ji používá jen výjimečně. */}
+        <PriceCard model={model} />
       </div>
     </div>
   );

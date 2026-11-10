@@ -6,10 +6,8 @@ import { fetchInvoices, type InvoiceList } from './invoices.js';
 export function useEnergyInvoiceList(connection: ConnectionLike | undefined, kiosk: boolean) {
   const [list, setList] = useState<InvoiceList | null>(null);
   useEffect(() => {
-    if (kiosk) {
-      setList(null);
-      return;
-    }
+    // Kiosk never shows invoices; the returned list is masked below instead of reset here.
+    if (kiosk) return;
     let alive = true;
     void fetchInvoices(connection).then((next) => alive && setList(next));
     return () => {
@@ -21,5 +19,5 @@ export function useEnergyInvoiceList(connection: ConnectionLike | undefined, kio
     setList(next);
     return next;
   }, [connection]);
-  return { list, setList, reload };
+  return { list: kiosk ? null : list, setList, reload };
 }

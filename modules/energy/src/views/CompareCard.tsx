@@ -47,12 +47,10 @@ function ReceiptMarkerIcon({ size = 16 }: { size?: number }) {
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M8 3.5h8" />
-      <path d="M8 3.5v14.2" />
-      <path d="M16 3.5v14.2" />
-      <path d="M8 17.7 9.6 19 11.2 17.7l1.6 1.3 1.6-1.3 1.6 1.3L16 17.7" />
-      <path d="M9.5 8.2h7" />
-      <path d="M9.5 11.8h5" />
+      <path d="M5 2.5h14v18.5l-2.33-1.5-2.33 1.5-2.34-1.5-2.33 1.5-2.34-1.5L5 21z" />
+      <path d="M8.5 7.5h7" />
+      <path d="M8.5 11h7" />
+      <path d="M8.5 14.5h4" />
     </svg>
   );
 }
@@ -212,18 +210,24 @@ function MonthChart({
     if (!marker) return null;
     const v = values(i);
     const measured =
-      meta.key === 'cost' ? v.thisValue : meta.key === 'house' || meta.key === 'import' ? v.thisValue : null;
-    return formatInvoiceMarkerDetail(marker, measured, meta.key, (val) =>
-      formatCompareValue(val, meta.key),
-    monthKey(i));
+      meta.key === 'cost'
+        ? v.thisValue
+        : meta.key === 'house' || meta.key === 'import'
+          ? v.thisValue
+          : null;
+    return formatInvoiceMarkerDetail(
+      marker,
+      measured,
+      meta.key,
+      (val) => formatCompareValue(val, meta.key),
+      monthKey(i),
+    );
   };
   const hasAnyMarker = thisYear.some((_, i) => invoiceMarkers[monthKey(i)]);
   const activeMarker = invoiceMarkers[monthKey(active)];
   const activeMeasured = (() => {
     const v = values(active);
-    return meta.key === 'cost' ||
-      meta.key === 'house' ||
-      meta.key === 'import'
+    return meta.key === 'cost' || meta.key === 'house' || meta.key === 'import'
       ? v.thisValue
       : null;
   })();

@@ -18,6 +18,20 @@ test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
   });
 });
 
+test('spotová cena je poslední karta stránky', async ({ page }) => {
+  await page.goto('/homebrain-energie');
+  await expect(page.getByTestId('energy-price')).toBeVisible();
+  const order = await page.evaluate(() => {
+    const ids = ['energy-7d', 'energy-appliances', 'energy-price'];
+    const els = ids.map((id) => document.querySelector(`[data-testid="${id}"]`));
+    if (els.some((e) => !e)) return 'missing';
+    const before = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return before(els[0]!, els[2]!) && before(els[1]!, els[2]!) ? 'ok' : 'wrong';
+  });
+  expect(order).toBe('ok');
+});
+
 test('nedostupná data Energie', async ({ page }) => {
   await page.goto('/homebrain-energie?energy=unavailable');
   await expect(page.getByText('Nedostupné').first()).toBeVisible();
@@ -660,7 +674,8 @@ test.describe('srovnání období', () => {
         const h = bar.getBoundingClientRect().height;
         const ratio = h / plotH;
         const expected = v / axisMax;
-        if (Math.abs(ratio - expected) / expected > 0.02) bad.push(`${v}:${ratio.toFixed(3)} vs ${expected.toFixed(3)}`);
+        if (Math.abs(ratio - expected) / expected > 0.02)
+          bad.push(`${v}:${ratio.toFixed(3)} vs ${expected.toFixed(3)}`);
       }
       return { ok: bad.length === 0, bad };
     });
@@ -683,7 +698,9 @@ test.describe('srovnání období', () => {
         return (l1! + 0.05) / (l2! + 0.05);
       };
       const cardBg = getComputedStyle(root).backgroundColor;
-      const markers = Array.from(root.querySelectorAll('[data-testid="energy-compare-invoice-marker"]'));
+      const markers = Array.from(
+        root.querySelectorAll('[data-testid="energy-compare-invoice-marker"]'),
+      );
       const markerMeta = markers.map((m) => {
         const svg = m.querySelector('svg');
         const paths = svg ? svg.querySelectorAll('path').length : 0;
@@ -699,11 +716,19 @@ test.describe('srovnání období', () => {
         const sel = body && col?.matches('[data-active]') ? body.getBoundingClientRect() : null;
         const label = col?.querySelector('.en-axis-x');
         const labelBox = label?.getBoundingClientRect();
-        const hitBar = barRects.some((b) =>
-          box.x < b.x + b.width && box.x + box.width > b.x && box.y < b.y + b.height && box.y + box.height > b.y,
+        const hitBar = barRects.some(
+          (b) =>
+            box.x < b.x + b.width &&
+            box.x + box.width > b.x &&
+            box.y < b.y + b.height &&
+            box.y + box.height > b.y,
         );
-        const hitTick = tickRects.some((t) =>
-          box.x < t.x + t.width && box.x + box.width > t.x && box.y < t.y + t.height && box.y + box.height > t.y,
+        const hitTick = tickRects.some(
+          (t) =>
+            box.x < t.x + t.width &&
+            box.x + box.width > t.x &&
+            box.y < t.y + t.height &&
+            box.y + box.height > t.y,
         );
         const cx = box.x + box.width / 2;
         const colCx = colBox ? colBox.x + colBox.width / 2 : cx;
@@ -786,9 +811,9 @@ test.describe('srovnání období', () => {
         return (l1! + 0.05) / (l2! + 0.05);
       };
       const cardBg = getComputedStyle(root).backgroundColor;
-      return Array.from(root.querySelectorAll('[data-testid="energy-compare-invoice-marker"] svg')).map(
-        (svg) => contrast(getComputedStyle(svg).color, cardBg),
-      );
+      return Array.from(
+        root.querySelectorAll('[data-testid="energy-compare-invoice-marker"] svg'),
+      ).map((svg) => contrast(getComputedStyle(svg).color, cardBg));
     });
     for (const ratio of lightContrast) expect(ratio).toBeGreaterThanOrEqual(3);
   });
