@@ -5,8 +5,8 @@ import { fansForMode } from '../presets.js';
 
 export type CleaningIconKind = 'mode' | 'fan' | 'water' | 'mop' | 'passes';
 
-const VB = '0 0 20 20';
-const S = 1.6;
+const VB = '0 0 24 24';
+const SW = 2;
 
 function Ico({
   children,
@@ -29,182 +29,244 @@ function Ico({
   );
 }
 
-function stroke(children: React.ReactNode) {
+function G({ children }: { children: React.ReactNode }) {
   return (
-    <Ico>
-      <g stroke="currentColor" strokeWidth={S} strokeLinecap="round" strokeLinejoin="round">
-        {children}
-      </g>
-    </Ico>
+    <g stroke="currentColor" strokeWidth={SW} strokeLinecap="round" strokeLinejoin="round" fill="none">
+      {children}
+    </g>
   );
 }
 
-function fanArcs(n: number, slash = false, plus = false) {
-  const arcs = [
-    'M10 10 V4.2',
-    'M10 10 l4.8-2.8',
-    'M10 10 l3 4.2',
-    'M10 10 l-3 4.2',
-    'M10 10 l-4.8-2.8',
-  ];
-  return (
-    <Ico>
-      <g stroke="currentColor" strokeWidth={S} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="10" cy="10" r="2.1" fill="currentColor" stroke="none" />
-        {arcs.slice(0, n).map((d) => (
-          <path key={d} d={d} fill="none" />
-        ))}
-        {slash && <path d="M5.5 5.5 14.5 14.5" fill="none" />}
-        {plus && (
-          <>
-            <path d="M16.2 4.5v2.4" fill="none" />
-            <path d="M15 5.7h2.4" fill="none" />
-          </>
-        )}
-      </g>
-    </Ico>
-  );
-}
-
-function waterDrop(level: number, slash = false, clipKey = 'w') {
-  const fillY = 4 + (1 - level) * 11;
-  const clipId = `rb-water-${clipKey}`;
-  return (
-    <Ico>
-      <path
-        d="M10 3.2c2.8 3.6 5.2 6.4 5.2 9.3a5.2 5.2 0 1 1-10.4 0c0-2.9 2.4-5.7 5.2-9.3Z"
-        stroke="currentColor"
-        strokeWidth={S}
-        fill="none"
-      />
-      {level > 0 && (
-        <path
-          d="M10 3.2c2.8 3.6 5.2 6.4 5.2 9.3a5.2 5.2 0 1 1-10.4 0c0-2.9 2.4-5.7 5.2-9.3Z"
-          fill="currentColor"
-          clipPath={`url(#${clipId})`}
-          opacity={0.85}
-        />
-      )}
-      {slash && (
-        <path
-          d="M5.8 5.8 14.2 14.2"
+/** Signal meter: `count` filled bars of increasing height (2 SVG units wide). */
+function levelBars(count: number, slots: number, x0 = 15.5, yFoot = 20) {
+  const gap = 3.2;
+  const maxH = 11;
+  const bars: React.ReactNode[] = [];
+  for (let i = 0; i < slots; i++) {
+    const h = 4 + (maxH - 4) * ((i + 1) / slots);
+    const x = x0 + i * gap;
+    const y = yFoot - h;
+    if (i < count) {
+      bars.push(<rect key={i} x={x} y={y} width={2} height={h} rx={0.4} fill="currentColor" stroke="none" />);
+    } else {
+      bars.push(
+        <rect
+          key={i}
+          x={x}
+          y={yFoot - h}
+          width={2}
+          height={h}
+          rx={0.4}
+          fill="none"
           stroke="currentColor"
-          strokeWidth={S}
-          strokeLinecap="round"
-        />
-      )}
-      <defs>
-        <clipPath id={clipId}>
-          <rect x="4" y={fillY} width="12" height={16 - fillY} />
-        </clipPath>
-      </defs>
+          strokeWidth={SW}
+          opacity={0.35}
+        />,
+      );
+    }
+  }
+  return bars;
+}
+
+function plusMark(x = 20.5, y = 5.5, s = 2.2) {
+  return (
+    <>
+      <path d={`M${x} ${y - s}v${s * 2}`} />
+      <path d={`M${x - s} ${y}h${s * 2}`} />
+    </>
+  );
+}
+
+function slashMark() {
+  return <path d="M15 5.5 21 18.5" />;
+}
+
+function sparkMark() {
+  return (
+  <path
+      d="M20.2 6.2 19.2 9.2h-2.2l3.2 5.2-.8-3.5h2.4Z"
+      fill="currentColor"
+      stroke="none"
+    />
+  );
+}
+
+function sliderMark() {
+  return (
+    <>
+      <path d="M19 7.5v9" />
+      <circle cx="19" cy="11" r="1.6" fill="currentColor" stroke="none" />
+    </>
+  );
+}
+
+/** Three curved fan blades in the left 14 px (centre ≈ 7, 12). */
+function fanGlyph(extra?: React.ReactNode) {
+  const cx = 7;
+  const cy = 12;
+  return (
+    <Ico>
+      <G>
+        <circle cx={cx} cy={cy} r="1.4" fill="currentColor" stroke="none" />
+        <path d={`M${cx} ${cy} Q10.5 6.5 11.2 9.5`} />
+        <path d={`M${cx} ${cy} Q11.5 13 9.5 15.8`} />
+        <path d={`M${cx} ${cy} Q3.5 13.5 4.8 11`} />
+        {extra}
+      </G>
     </Ico>
   );
 }
 
-const WATER_LEVEL: Record<string, number> = {
-  off: 0,
-  slight: 0.15,
-  min: 0.15,
-  low: 0.32,
-  mild: 0.32,
-  medium: 0.48,
-  standard: 0.48,
-  moderate: 0.62,
-  high: 0.78,
-  intense: 0.78,
-  max: 0.95,
-  extreme: 0.95,
-};
-
-function mopPath(density: 'sparse' | 'normal' | 'dense', plus = false) {
-  const y = density === 'sparse' ? 11 : density === 'normal' ? 10 : 9;
-  const amp = density === 'sparse' ? 2.2 : density === 'normal' ? 3.2 : 4.4;
-  const d = `M3.5 ${y} Q6 ${y - amp} 8.5 ${y} T13.5 ${y} T18 ${y}`;
-  return stroke(
-    <>
-      <path d={d} />
-      {plus && (
-        <>
-          <path d="M16.5 4.8v2.2" />
-          <path d="M15.4 5.9h2.2" />
-        </>
-      )}
-    </>,
+function dropGlyph(
+  extra?: React.ReactNode,
+  opts?: { fillDrop?: boolean; slash?: boolean },
+) {
+  const d =
+    'M6 5.2c1.8 2.6 3.6 5 3.6 7.5a3.6 3.6 0 1 1-7.2 0c0-2.5 1.8-4.9 3.6-7.5Z';
+  return (
+    <Ico>
+      <G>
+        <path d={d} fill={opts?.fillDrop ? 'currentColor' : 'none'} />
+        {opts?.slash && slashMark()}
+        {extra}
+      </G>
+    </Ico>
   );
 }
 
-function smartSpark() {
-  return stroke(
-    <>
-      <path d="M11.2 3.5 9.5 8.8H6.2l4.8 7.5-1-5.5h3.5Z" fill="currentColor" stroke="none" />
-    </>,
-  );
-}
-
-function slidersIcon() {
-  return stroke(
-    <>
-      <path d="M4 6h12" />
-      <path d="M4 10h12" />
-      <path d="M4 14h12" />
-      <circle cx="7.5" cy="6" r="1.6" fill="currentColor" stroke="none" />
-      <circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none" />
-      <circle cx="9" cy="14" r="1.6" fill="currentColor" stroke="none" />
-    </>,
-  );
-}
-
-function modeVacuum() {
-  return stroke(
-    <>
-      <circle cx="10" cy="10" r="2" fill="currentColor" stroke="none" />
-      <path d="M10 10V5" />
-      <path d="M10 10l3.5-2" />
-      <path d="M10 10l2.2 2.8" />
-    </>,
-  );
-}
-
-function modeMop() {
-  return stroke(
-    <>
-      <rect x="5.5" y="8" width="9" height="7" rx="2.2" />
-      <path d="M7 8V6.2a3 3 0 0 1 6 0V8" />
-      <path d="M8.2 12.2h3.6" stroke="currentColor" strokeWidth="1.2" opacity="0.7" />
-    </>,
-  );
-}
-
-function modeBoth() {
-  return stroke(
-    <>
-      <circle cx="7.5" cy="9.5" r="1.5" fill="currentColor" stroke="none" />
-      <path d="M7.5 9.5V6" />
-      <path d="M7.5 9.5l2.2-1.3" />
-      <rect x="10.5" y="9" width="6" height="5.5" rx="1.6" />
-      <path d="M12 9V7.8a2 2 0 0 1 3.5 0V9" />
-    </>,
-  );
-}
-
-function passLines(n: number) {
-  return stroke(
-    <>
-      {Array.from({ length: n }, (_, i) => (
-        <path key={i} d={`M4 ${7 + i * 3.5}h12`} />
-      ))}
-    </>,
-  );
-}
-
-const FAN_LEVEL: Record<string, number> = {
+const FAN_BARS: Record<string, number> = {
   quiet: 1,
   balanced: 2,
   turbo: 3,
   max: 4,
   max_plus: 4,
 };
+
+function fanLevel(
+  barCount: number,
+  slash = false,
+  plus = false,
+  extra?: React.ReactNode,
+) {
+  const n = barCount;
+  const cx = 7;
+  const cy = 12;
+  return (
+    <Ico>
+      <G>
+        <circle cx={cx} cy={cy} r="1.4" fill="currentColor" stroke="none" />
+        <path d={`M${cx} ${cy} Q10.5 6.5 11.2 9.5`} />
+        <path d={`M${cx} ${cy} Q11.5 13 9.5 15.8`} />
+        <path d={`M${cx} ${cy} Q3.5 13.5 4.8 11`} />
+        {levelBars(n, 4)}
+        {slash && slashMark()}
+        {plus && plusMark()}
+        {extra}
+      </G>
+    </Ico>
+  );
+}
+
+const WATER_BARS: Record<string, { bars: number; fill?: boolean }> = {
+  off: { bars: 0 },
+  slight: { bars: 1 },
+  min: { bars: 1 },
+  low: { bars: 2 },
+  mild: { bars: 2 },
+  medium: { bars: 3 },
+  standard: { bars: 3 },
+  moderate: { bars: 4 },
+  high: { bars: 5 },
+  intense: { bars: 5 },
+  max: { bars: 5, fill: true },
+  extreme: { bars: 5, fill: true },
+};
+
+function waterLevel(key: string, slash = false, extra?: React.ReactNode) {
+  const spec = WATER_BARS[key] ?? { bars: 0 };
+  const d =
+    'M6 5.2c1.8 2.6 3.6 5 3.6 7.5a3.6 3.6 0 1 1-7.2 0c0-2.5 1.8-4.9 3.6-7.5Z';
+  return (
+    <Ico>
+      <G>
+        <path d={d} fill={spec.fill ? 'currentColor' : 'none'} />
+        {levelBars(spec.bars, 5)}
+        {(slash || key === 'off') && slashMark()}
+        {extra}
+      </G>
+    </Ico>
+  );
+}
+
+function mopZigzag(passes: number, dense = false, plus = false, spark = false) {
+  const amp = dense ? 1.8 : 2.8;
+  const y0 = dense ? 8.5 : 9;
+  const step = dense ? 3.2 : 4.5;
+  const lines: React.ReactNode[] = [];
+  for (let i = 0; i < passes; i++) {
+    const y = y0 + i * step;
+    const d = `M2.5 ${y} L5.5 ${y - amp} L8.5 ${y} L11.5 ${y + amp} L14.5 ${y} L17.5 ${y - amp} L21 ${y}`;
+    lines.push(<path key={i} d={d} />);
+  }
+  return (
+    <Ico>
+      <G>
+        {lines}
+        {plus && plusMark()}
+        {spark && sparkMark()}
+      </G>
+    </Ico>
+  );
+}
+
+function modeVacuum() {
+  return (
+    <Ico>
+      <G>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="5.2" r="2.5" fill="currentColor" stroke="none" />
+        <path d="M6.2 17.2 A6 6 0 0 0 17.8 17.2" />
+      </G>
+    </Ico>
+  );
+}
+
+function modeMop() {
+  return (
+    <Ico>
+      <G>
+        <path d="M12 4.5c1.2 1.6 2.2 3 2.2 4.4a2.2 2.2 0 1 1-4.4 0c0-1.4 1-2.8 2.2-4.4Z" />
+        <rect x="4" y="18" width="16" height="4" rx="1.2" />
+      </G>
+    </Ico>
+  );
+}
+
+function modeBoth() {
+  return (
+    <Ico>
+      <G>
+        <circle cx="8" cy="13" r="6" />
+        <circle cx="8" cy="9.8" r="1.6" fill="currentColor" stroke="none" />
+        <path d="M16.5 7.5c.9 1.2 1.5 2.4 1.5 3.6a1.5 1.5 0 1 1-3 0c0-1.2.6-2.4 1.5-3.6Z" />
+      </G>
+    </Ico>
+  );
+}
+
+function passLines(n: number) {
+  const gap = 4.5;
+  const y0 = 12 - ((n - 1) * gap) / 2;
+  return (
+    <Ico>
+      <G>
+        {Array.from({ length: n }, (_, i) => (
+          <path key={i} d={`M4 ${y0 + i * gap}h16`} />
+        ))}
+      </G>
+    </Ico>
+  );
+}
 
 export function cleaningOptionIcon(kind: CleaningIconKind, key: string): ReactElement | null {
   if (kind === 'mode') {
@@ -220,27 +282,26 @@ export function cleaningOptionIcon(kind: CleaningIconKind, key: string): ReactEl
     return null;
   }
   if (kind === 'fan') {
-    if (key === 'off') return fanArcs(2, true);
-    if (key === 'smart_mode') return smartSpark();
-    if (key === 'custom') return slidersIcon();
-    if (key in FAN_LEVEL) return fanArcs(FAN_LEVEL[key]!, false, key === 'max_plus');
+    if (key === 'off') return fanLevel(0, true);
+    if (key === 'smart_mode') return fanGlyph(sparkMark());
+    if (key === 'custom') return fanGlyph(sliderMark());
+    if (key in FAN_BARS) return fanLevel(FAN_BARS[key]!, false, key === 'max_plus');
     return null;
   }
   if (kind === 'water') {
-    if (key === 'smart_mode') return smartSpark();
-    if (key === 'custom' || key === 'custom_water_flow') return slidersIcon();
-    if (key === 'off') return waterDrop(0, true, key);
-    const level = WATER_LEVEL[key];
-    if (level !== undefined) return waterDrop(level, false, key);
+    if (key === 'smart_mode') return dropGlyph(sparkMark());
+    if (key === 'custom' || key === 'custom_water_flow') return dropGlyph(sliderMark());
+    if (key === 'off') return waterLevel('off');
+    if (key in WATER_BARS) return waterLevel(key);
     return null;
   }
   if (kind === 'mop') {
-    if (key === 'fast') return mopPath('sparse');
-    if (key === 'standard') return mopPath('normal');
-    if (key === 'deep') return mopPath('dense');
-    if (key === 'deep_plus') return mopPath('dense', true);
-    if (key === 'smart_mode') return smartSpark();
-    if (key === 'custom') return slidersIcon();
+    if (key === 'fast') return mopZigzag(2, false);
+    if (key === 'standard') return mopZigzag(3, false);
+    if (key === 'deep') return mopZigzag(4, true);
+    if (key === 'deep_plus') return mopZigzag(4, true, true);
+    if (key === 'smart_mode') return mopZigzag(3, false, false, true);
+    if (key === 'custom') return mopZigzag(2, false);
     return null;
   }
   return null;

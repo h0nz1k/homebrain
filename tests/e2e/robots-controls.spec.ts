@@ -59,3 +59,23 @@ for (const theme of ['dark', 'light'] as const) {
     });
   }
 }
+
+test('ikony pokročilých voleb mají alespoň 20×20 px (telefon)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/homebrain-roboti');
+  await expect(page.getByTestId('robots-vector-map')).toBeVisible();
+  await page.getByRole('radio', { name: 'Pokročilé' }).click();
+  const controls = page.getByTestId('robots-controls');
+  await controls.scrollIntoViewIfNeeded();
+  const sizes = await controls.locator('.rb-ico-opt').evaluateAll((nodes) =>
+    nodes.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    }),
+  );
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const { w, h } of sizes) {
+    expect(w).toBeGreaterThanOrEqual(20);
+    expect(h).toBeGreaterThanOrEqual(20);
+  }
+});

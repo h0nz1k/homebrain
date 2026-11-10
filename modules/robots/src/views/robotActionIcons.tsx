@@ -1,37 +1,50 @@
-/** Inline action glyphs (same pattern as PauseIcon / HomeIcon in RobotsView). */
+/** Inline action glyphs (hero / sheet controls). */
+
+const VB = '0 0 24 24';
+const SW = 2;
 
 export function PlayIcon() {
   return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M5 3.5v9l7.5-4.5z" fill="currentColor" />
+    <svg className="rb-ico" viewBox={VB} aria-hidden="true">
+      <path
+        d="M8 6.2v11.6L18.5 12 8 6.2Z"
+        fill="currentColor"
+        stroke="none"
+      />
     </svg>
   );
 }
 
 export function PauseIcon() {
   return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true" fill="currentColor">
-      <rect x="5" y="4" width="3.4" height="12" rx="1.2" />
-      <rect x="11.6" y="4" width="3.4" height="12" rx="1.2" />
+    <svg viewBox={VB} className="rb-ico" aria-hidden="true" fill="currentColor">
+      <rect x="7" y="5.5" width="3.8" height="13" rx="1.2" />
+      <rect x="13.2" y="5.5" width="3.8" height="13" rx="1.2" />
     </svg>
   );
 }
 
 export function HomeIcon() {
   return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true" fill="currentColor">
-      <path d="M3.5 9.2 10 3.8l6.5 5.4V16a1 1 0 0 1-1 1h-3.3v-4.4H7.8V17H4.5a1 1 0 0 1-1-1Z" />
+    <svg viewBox={VB} className="rb-ico" aria-hidden="true" fill="none">
+      <path
+        d="M4.5 11.5 12 5.5l7.5 6V18.5a1.2 1.2 0 0 1-1.2 1.2h-4.1v-5.2H9.8v6.4H5.7a1.2 1.2 0 0 1-1.2-1.2Z"
+        stroke="currentColor"
+        strokeWidth={SW}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 export function CheckIcon() {
   return (
-    <svg viewBox="0 0 20 20" className="rb-ico" aria-hidden="true" fill="none">
+    <svg viewBox={VB} className="rb-ico" aria-hidden="true" fill="none">
       <path
-        d="M5 10.2 8.4 14 15 6.5"
+        d="M6.5 12.2 10.2 16.2 17.8 7.8"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth={SW}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -41,28 +54,29 @@ export function CheckIcon() {
 
 export function PlusIcon() {
   return (
-    <svg viewBox="0 0 16 16" className="rb-ico" aria-hidden="true" fill="none">
-      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <svg viewBox={VB} className="rb-ico" aria-hidden="true" fill="none">
+      <path d="M12 6.5v11M6.5 12h11" stroke="currentColor" strokeWidth={SW} strokeLinecap="round" />
     </svg>
   );
 }
 
 export function InfoIcon() {
   return (
-    <svg viewBox="0 0 16 16" className="rb-ico" aria-hidden="true" fill="none">
-      <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M8 7.2V11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="8" cy="5.2" r="0.9" fill="currentColor" />
+    <svg viewBox={VB} className="rb-ico" aria-hidden="true" fill="none">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth={SW} />
+      <path d="M12 11v6" stroke="currentColor" strokeWidth={SW} strokeLinecap="round" />
+      <circle cx="12" cy="7.8" r="1.1" fill="currentColor" />
     </svg>
   );
 }
 
 export function EditIcon() {
   return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
+    <svg className="rb-ico" viewBox={VB} aria-hidden="true" fill="none">
       <path
-        d="M3 11.5V13h1.5l7-7L10 4.5l-7 7zm9.7-6.2a.8.8 0 000-1.1l-.9-.9a.8.8 0 00-1.1 0l-.7.7 2 2 .7-.7z"
+        d="M5 17.5V19h1.5l8.8-8.8-1.5-1.5-8.8 8.8zm11.2-7.3a1.1 1.1 0 0 0 0-1.6l-1.1-1.1a1.1 1.1 0 0 0-1.6 0l-.9.9 2.7 2.7.9-.9z"
         fill="currentColor"
+        stroke="none"
       />
     </svg>
   );
@@ -70,16 +84,15 @@ export function EditIcon() {
 
 export function RouteIcon() {
   return (
-    <svg className="rb-ico" viewBox="0 0 16 16" aria-hidden="true">
+    <svg className="rb-ico" viewBox={VB} aria-hidden="true" fill="none">
       <path
-        d="M3.5 13.5a2 2 0 1 1 0-4h7a2 2 0 1 0 0-4H5"
-        fill="none"
+        d="M5 17.5a2.5 2.5 0 1 1 0-5h8.5a2.5 2.5 0 1 0 0-5H6.5"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth={SW}
         strokeLinecap="round"
       />
-      <circle cx="12.5" cy="13.5" r="1.6" fill="currentColor" />
-      <circle cx="3.5" cy="5.5" r="1.6" fill="currentColor" />
+      <circle cx="18.5" cy="17.5" r="2" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="7.5" r="2" fill="currentColor" stroke="none" />
     </svg>
   );
 }

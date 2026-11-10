@@ -155,8 +155,16 @@ export const robotsStyles = `
 
 
 
-.rb-ico { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
-.rb-ico-opt { width: 20px; height: 20px; flex-shrink: 0; color: inherit; }
+.rb-ico { width: 20px; height: 20px; fill: currentColor; flex-shrink: 0; }
+.rb-ico-opt { width: 22px; height: 22px; flex-shrink: 0; color: inherit; }
+.rb-opt-chip:not([aria-pressed='true']) .rb-ico-opt,
+.rb .hb-seg button:not([aria-checked='true']) .rb-ico-opt {
+  color: var(--hb-t1);
+}
+.rb-opt-chip[aria-pressed='true'] .rb-ico-opt,
+.rb .hb-seg-wrap[data-tone='accent'] .hb-seg button[aria-checked='true'] .rb-ico-opt {
+  color: var(--hb-sel-ink);
+}
 .rb-seg-stack {
   display: flex;
   flex-direction: column;
@@ -181,8 +189,9 @@ export const robotsStyles = `
   padding-inline: 4px;
 }
 .rb-opt-tile.hb-chip {
-  flex-direction: column;
-  gap: 5px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   padding: 8px 10px;
   min-width: 68px;
 }
