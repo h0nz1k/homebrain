@@ -597,6 +597,8 @@ test.describe('srovnání období', () => {
   test('měsíc vs loni a minulý měsíc, graf po měsících, přepnutí na rok a náklady', async ({
     page,
   }) => {
+    // Two page loads plus invoice and geometry checks need headroom on the shared host.
+    test.setTimeout(60_000);
     await page.goto('/homebrain-energie');
     const card = page.getByTestId('energy-compare');
     await expect(card).toBeVisible({ timeout: 20_000 });
@@ -606,13 +608,18 @@ test.describe('srovnání období', () => {
     await expect(page.getByTestId('energy-compare-previous')).toContainText('říjen 2026');
     await expect(page.getByTestId('energy-compare-range')).toContainText('1.–7. 11. do 16:00');
     await expect(page.getByTestId('energy-compare-headline')).toContainText(
-      'než loni za 1.–7. 11.',
+      'než loni',
     );
-    await expect(page.getByTestId('energy-compare-previous')).toContainText('1.–7. 10. do 16:00');
+    await expect(page.getByTestId('energy-compare-previous')).toContainText('1.–7. 10.');
     await expect(page.getByTestId('energy-compare-yaxis')).toContainText('kWh');
     await expect(page.getByTestId('energy-compare-legend')).toContainText(
       'obrys = celý listopad 2025',
     );
+    await expect(page.getByTestId('energy-compare-readout')).toBeHidden();
+    const previous = (await page.getByTestId('energy-compare-previous').boundingBox())!;
+    const lastYear = (await page.getByTestId('energy-compare-last-year').boundingBox())!;
+    expect(Math.abs(previous.y - lastYear.y)).toBeLessThan(1);
+    expect(previous.x).toBeGreaterThanOrEqual(lastYear.x + lastYear.width);
     const months = page.getByTestId('energy-compare-month');
     await expect(months).toHaveCount(12);
     await expect(months.nth(10)).toHaveAttribute('data-current', 'true');
@@ -641,6 +648,7 @@ test.describe('srovnání období', () => {
     await expect(card.locator('.en-cmp-tile')).toHaveCount(2);
     await expect(page.getByTestId('energy-compare-current')).toContainText('Rok 2026 od ledna');
     await expect(page.getByTestId('energy-compare-range')).toContainText('1. 1.–7. 11. do 16:00');
+    await expect(page.getByTestId('energy-compare-last-year')).not.toContainText('do 16:00');
 
     await card.getByRole('radio', { name: 'Náklady' }).click();
     await expect(page.getByTestId('energy-compare-current')).toContainText('Kč');

@@ -41,19 +41,22 @@ describe('CompareCard data correctness', () => {
     const demo = createCompareDemo('full', NOW);
     render(<CompareCard comparison={demo} />);
     const prev = text('energy-compare-previous');
-    expect(prev).toContain('1.–7. 10. do 16:00');
+    expect(prev).toContain('1.–7. 10.');
     expect(prev).toContain('celý říjen 2026');
     const full = demo.series.house!.monthly.this_year[9]!;
     expect(prev).toContain(formatCompareValue(full, 'house').replace(/\u00a0/g, ' '));
-    expect(text('energy-compare-last-year')).toContain('1.–7. 11. 2025 do 16:00');
+    expect(text('energy-compare-range')).toContain('1.–7. 11. do 16:00');
   });
 
   it('headline states the partial scope of a running month and of the year', () => {
     render(<CompareCard comparison={createCompareDemo('full', NOW)} />);
-    expect(text('energy-compare-headline')).toMatch(/než loni za 1\.–7\. 11\.$/);
+    expect(text('energy-compare-headline')).toMatch(/než loni$/);
+    expect(text('energy-compare-range')).toContain('1.–7. 11.');
     fireEvent.click(screen.getByRole('radio', { name: 'Od ledna' }));
-    expect(text('energy-compare-headline')).toMatch(/než loni za 1\. 1\.–7\. 11\.$/);
-    expect(text('energy-compare-last-year')).toContain('1. 1.–7. 11. 2025 do 16:00');
+    expect(text('energy-compare-headline')).toMatch(/než loni$/);
+    expect(text('energy-compare-range')).toContain('1. 1.–7. 11.');
+    expect(text('energy-compare-range')).toContain('1. 1.–7. 11. do 16:00');
+    expect(text('energy-compare-last-year')).not.toContain('do 16:00');
   });
 
   it('shows invoice markers, legend and tap detail when invoices are loaded', () => {
@@ -110,7 +113,7 @@ describe('CompareCard data correctness', () => {
     expect(axis.textContent).toContain('kWh');
     expect(within(axis).getAllByTestId('energy-compare-tick').length).toBeGreaterThanOrEqual(3);
     expect(text('energy-compare-legend')).toContain('obrys = celý listopad 2025');
-    expect(text('energy-compare-readout')).toContain('Listopad');
+    expect(screen.getByTestId('energy-compare-readout').hidden).toBe(true);
     fireEvent.click(screen.getAllByTestId('energy-compare-month')[2]!);
     expect(text('energy-compare-readout')).toMatch(/Březen 2026: [\d ,]+ kWh/);
     fireEvent.click(screen.getByRole('radio', { name: 'Náklady' }));
