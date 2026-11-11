@@ -281,18 +281,113 @@ export const TARIFF_LABELS: Record<TariffKey, { label: string; unit: string }> =
   fixed_monthly: { label: 'Stálé platby', unit: 'Kč/měs.' },
 };
 
-/** Invoice history months (incl. the invoice itself) as `{ 'YYYY-MM': kWh }` chart markers. */
-export function invoiceMonthMarkers(invoices: Invoice[]): Record<string, number> {
-  const out: Record<string, number> = {};
+export interface InvoiceMonthMarker {
+  kwh: number;
+  czk: number | null;
+}
+
+/** Same month keys as {@link invoiceMonthMarkers}, with billed kWh and amount when known. */
+export function invoiceMonthMarkerMap(invoices: Invoice[]): Record<string, InvoiceMonthMarker> {
+  const out: Record<string, InvoiceMonthMarker> = {};
   for (const inv of invoices) {
     for (const row of inv.fields.history ?? []) {
-      if (row.total !== null) out[row.month] ??= row.total;
+      if (row.total !== null && !(row.month in out)) {
+        out[row.month] = { kwh: row.total, czk: row.czk ?? null };
+      }
     }
     const p = inv.fields.period;
     const total = inv.fields.kwh?.total;
     if (p && total !== null && total !== undefined && p[0].slice(0, 7) === p[1].slice(0, 7)) {
-      out[p[0].slice(0, 7)] = total;
+      out[p[0].slice(0, 7)] = { kwh: total, czk: inv.fields.total_incl_vat ?? null };
     }
   }
   return out;
+}
+
+/** Invoice history months (incl. the invoice itself) as `{ 'YYYY-MM': kWh }` chart markers. */
+export function invoiceMonthMarkers(invoices: Invoice[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [month, marker] of Object.entries(invoiceMonthMarkerMap(invoices))) {
+    out[month] = marker.kwh;
+  }
+  return out;
+}
+
+/** Percent difference of invoiced vs HA-measured (same basis as the active compare series). */
+export function invoiceMarkerDiffPct(
+  marker: InvoiceMonthMarker,
+  measured: number | null,
+  seriesKey: 'house' | 'import' | 'cost',
+): number | null {
+  if (measured === null || !Number.isFinite(measured) || Math.abs(measured) < 1e-9) return null;
+  const invoice = seriesKey === 'cost' ? marker.czk : marker.kwh;
+  if (invoice === null || !Number.isFinite(invoice)) return null;
+  return ((invoice - measured) / Math.abs(measured)) * 100;
+}
+
+/** Absolute difference invoice − HA in the active series unit. */
+export function invoiceMarkerDiffValue(
+  marker: InvoiceMonthMarker,
+  measured: number | null,
+  seriesKey: 'house' | 'import' | 'cost',
+): number | null {
+  if (measured === null || !Number.isFinite(measured)) return null;
+  const invoice = seriesKey === 'cost' ? marker.czk : marker.kwh;
+  if (invoice === null || !Number.isFinite(invoice)) return null;
+  return invoice - measured;
+}
+
+export type InvoiceMarkerDiffTone = 'muted' | 'warn' | 'warn-strong';
+
+/** Colour band from |percent| gap (never “success” for a large discrepancy). */
+export function invoiceMarkerDiffTone(
+  pct: number | null | undefined,
+): InvoiceMarkerDiffTone | undefined {
+  if (pct === null || pct === undefined) return undefined;
+  const a = Math.abs(pct);
+  if (a <= 5) return 'muted';
+  if (a <= 15) return 'warn';
+  return 'warn-strong';
+}
+
+export function formatInvoiceMarkerDiffLine(
+  marker: InvoiceMonthMarker,
+  measured: number | null,
+  seriesKey: 'house' | 'import' | 'cost',
+): string | null {
+  const pct = invoiceMarkerDiffPct(marker, measured, seriesKey);
+  const diff = invoiceMarkerDiffValue(marker, measured, seriesKey);
+  if (pct === null || diff === null) return null;
+  const raw = seriesKey === 'cost' ? formatKc(diff) : formatKwh(diff);
+  const value = raw.replace(/^-/, '\u2212');
+  return `Rozdíl (faktura − HA): ${value} (${formatPct(pct)})`;
+}
+
+/** „Faktura za září 2026“ from a `YYYY-MM` key. */
+export function invoiceMarkerMonthTitle(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number);
+  const name = MONTHS[(m! - 1 + 12) % 12]!;
+  return `Faktura za ${name} ${y}`;
+}
+
+export function formatInvoiceMarkerDetail(
+  marker: InvoiceMonthMarker,
+  measured: number | null,
+  seriesKey: 'house' | 'import' | 'cost' | 'pv' | 'export',
+  formatMeasured: (v: number) => string,
+  monthKey?: string,
+): string {
+  const parts: string[] = [];
+  if (monthKey) parts.push(invoiceMarkerMonthTitle(monthKey));
+  parts.push(
+    `Faktura: ${formatKwh(marker.kwh)}${marker.czk !== null ? `, ${formatKc(marker.czk)}` : ''}`,
+  );
+  if (measured !== null) {
+    parts.push(`Naměřeno v HA: ${formatMeasured(measured)}`);
+    if (seriesKey === 'house' || seriesKey === 'import' || seriesKey === 'cost') {
+      const line = formatInvoiceMarkerDiffLine(marker, measured, seriesKey);
+      if (line) parts.push(line);
+    }
+  }
+  return parts.join(' · ');
 }

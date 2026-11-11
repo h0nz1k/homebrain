@@ -428,6 +428,19 @@ export const energyStyles = `
 .en-cmp-range{margin:0;font-size:13px;color:var(--hb-t2)}
 .en-cmp-chart-wrap{display:flex;flex-direction:column;gap:8px}
 .en-cmp-readout{margin:0;min-height:1.5em;font-size:13px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-cmp-inv-detail{display:flex;flex-direction:column;gap:4px;margin:0;padding:8px 10px;border-radius:var(--hb-radius-sm,10px);background:color-mix(in srgb,var(--hb-t1) 5%,transparent);font-size:13px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-cmp-inv-title{margin:0 0 2px;font-size:13px;font-weight:600;color:var(--hb-t1)}
+.en-cmp-inv-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+.en-cmp-inv-lbl{flex:0 0 auto;white-space:nowrap;color:var(--hb-t2)}
+.en-cmp-inv-val{flex:0 1 auto;text-align:right;white-space:nowrap;font-weight:600;color:var(--hb-t1)}
+.en-cmp-inv-line[data-tone='muted'] .en-cmp-inv-val{color:var(--hb-t2)}
+.en-cmp-inv-line[data-tone='warn'] .en-cmp-inv-val{color:var(--hb-warn)}
+.en-cmp-inv-line[data-tone='warn-strong'] .en-cmp-inv-val{color:var(--hb-warn);font-weight:700}
+.en-cmp-inv-marker{position:absolute;top:-20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;height:18px;color:var(--hb-warn);line-height:0;pointer-events:none;z-index:2}
+.en-cmp-inv-marker svg{display:block;width:16px;height:16px}
+.en-cmp-legend-invoice{display:inline-flex;align-items:center;gap:6px}
+.en-cmp-legend-receipt{display:inline-flex;align-items:center;justify-content:center;width:auto!important;height:auto!important;margin-right:0!important;border-radius:0!important;color:var(--hb-warn)}
+.en-cmp-legend-receipt svg{display:block;width:16px;height:16px}
 .en-cmp-plot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;height:196px}
 .en-cmp-yaxis{position:relative;margin-top:22px;height:calc(100% - 42px);min-width:34px;font-size:11px;color:var(--hb-t3);font-variant-numeric:tabular-nums;text-align:right}
 .en-cmp-tick{position:absolute;right:0;transform:translateY(50%);white-space:nowrap;line-height:1}
@@ -435,12 +448,13 @@ export const energyStyles = `
 .en-cmp-chart{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;height:100%;padding-top:22px;box-sizing:border-box}
 .en-cmp-grid{position:absolute;left:0;right:0;top:22px;bottom:20px;pointer-events:none}
 .en-cmp-grid i{position:absolute;left:0;right:0;height:0;border-top:1px solid color-mix(in srgb,var(--hb-t1) 14%,transparent)}
-.en-cmp-col{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;padding:0;border:0;border-radius:8px;background:transparent;font:inherit;color:inherit;cursor:pointer}
+.en-cmp-col{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;padding:0;border:0;border-radius:8px;background:transparent;font:inherit;color:inherit;cursor:pointer}
 .en-cmp-col[data-current]{background:color-mix(in srgb,var(--hb-t1) 5%,transparent)}
-.en-cmp-col[data-active]{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--hb-ac) 55%,transparent)}
+.en-cmp-col[data-active] .en-cmp-body{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--hb-ac) 55%,transparent)}
 .en-cmp-col:focus-visible{outline:2px solid var(--hb-ac);outline-offset:1px}
 .en-cmp-col[data-current] .en-axis-x,.en-cmp-col[data-active] .en-axis-x{color:var(--hb-t1);font-weight:600}
-.en-cmp-pair{flex:1;width:100%;display:flex;align-items:stretch;justify-content:center;gap:2px}
+.en-cmp-body{display:flex;flex:1;flex-direction:column;align-items:center;gap:4px;min-width:0;min-height:0;width:100%;border-radius:8px}
+.en-cmp-pair{position:relative;flex:1;width:100%;display:flex;align-items:stretch;justify-content:center;gap:2px;min-height:0}
 .en-cmp-slot{position:relative;width:40%;max-width:20px}
 .en-cmp-slot>span{position:absolute;left:0;right:0;bottom:0}
 .en-cmp-ghost,.en-cmp-legend-ghost{border-radius:4px 4px 1px 1px;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--hb-t1) 72%,transparent);background:transparent}

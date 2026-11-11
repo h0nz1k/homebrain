@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { EmptyState, SegmentedControl } from '@homebrain/ui';
 import {
   COMPARE_SERIES,
@@ -18,6 +18,88 @@ import {
   type CompareSeries,
   type CompareSeriesKey,
 } from '../compare.js';
+import {
+  formatInvoiceMarkerDetail,
+  formatInvoiceMarkerDiffLine,
+  formatKc,
+  formatKwh,
+  invoiceMarkerDiffPct,
+  invoiceMarkerDiffTone,
+  invoiceMarkerMonthTitle,
+  invoiceMonthMarkerMap,
+  type Invoice,
+  type InvoiceMonthMarker,
+} from '../invoices.js';
+
+function ReceiptMarkerIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-hb-icon=""
+      data-testid="energy-receipt-icon"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M5 2.5h14v18.5l-2.33-1.5-2.33 1.5-2.34-1.5-2.33 1.5-2.34-1.5L5 21z" />
+      <path d="M8.5 7.5h7" />
+      <path d="M8.5 11h7" />
+      <path d="M8.5 14.5h4" />
+    </svg>
+  );
+}
+
+function InvoiceMarkerDetail({
+  marker,
+  measured,
+  seriesKey,
+  formatMeasured,
+  monthKey,
+}: {
+  marker: InvoiceMonthMarker;
+  measured: number | null;
+  seriesKey: CompareSeriesKey;
+  formatMeasured: (v: number) => string;
+  monthKey: string;
+}) {
+  const canDiff =
+    measured !== null && (seriesKey === 'house' || seriesKey === 'import' || seriesKey === 'cost');
+  const pct = canDiff ? invoiceMarkerDiffPct(marker, measured, seriesKey) : null;
+  const diffLine = canDiff ? formatInvoiceMarkerDiffLine(marker, measured, seriesKey) : null;
+  const tone = invoiceMarkerDiffTone(pct);
+  return (
+    <div className="en-cmp-inv-detail" data-testid="energy-compare-invoice-detail">
+      <p className="en-cmp-inv-title">{invoiceMarkerMonthTitle(monthKey)}</p>
+      <div className="en-cmp-inv-line">
+        <span className="en-cmp-inv-lbl">Faktura</span>
+        <span className="en-cmp-inv-val">
+          {formatKwh(marker.kwh)}
+          {marker.czk !== null ? ` · ${formatKc(marker.czk)}` : ''}
+        </span>
+      </div>
+      {measured !== null && (
+        <div className="en-cmp-inv-line">
+          <span className="en-cmp-inv-lbl">Naměřeno v HA</span>
+          <span className="en-cmp-inv-val">{formatMeasured(measured)}</span>
+        </div>
+      )}
+      {diffLine && (
+        <div className="en-cmp-inv-line" data-tone={tone}>
+          <span className="en-cmp-inv-lbl">Rozdíl (faktura − HA)</span>
+          <span className="en-cmp-inv-val">
+            {diffLine.replace(/^Rozdíl \(faktura − HA\): /, '')}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PERIOD_OPTIONS: ReadonlyArray<readonly [ComparePeriod, string]> = [
   ['month', 'Měsíc'],
@@ -81,18 +163,20 @@ function MonthChart({
   year,
   month,
   partialLabel,
+  invoiceMarkers,
 }: {
   series: CompareSeries;
   meta: (typeof COMPARE_SERIES)[number];
   year: number;
   month: number;
   partialLabel: string | null;
+  invoiceMarkers: Record<string, InvoiceMonthMarker>;
 }) {
   const [active, setActive] = useState<number>(month - 1);
   const { this_year: thisYear, last_year: lastYear } = series.monthly;
   const ticks = niceTicks(barScale([thisYear, lastYear]));
   const top = ticks[ticks.length - 1]!;
-  const pct = (v: number) => `${(v / top) * 100}%`;
+  const pct = (v: number, headroom = 1) => `${(v / top) * 100 * headroom}%`;
   const noLastYear = lastYear.every((v) => v === null);
   const unit = meta.key === 'cost' ? 'Kč' : 'kWh';
   const tick = (v: number) =>
@@ -107,6 +191,7 @@ function MonthChart({
       fullLast: current ? (lastYear[i] ?? null) : null,
     };
   };
+  const monthKey = (i: number) => `${year}-${String(i + 1).padStart(2, '0')}`;
   const readout = (i: number) => {
     const v = values(i);
     const name = cap(monthName(i + 1));
@@ -120,11 +205,46 @@ function MonthChart({
       );
     return parts.join(' · ');
   };
+  const invoiceDetail = (i: number) => {
+    const marker = invoiceMarkers[monthKey(i)];
+    if (!marker) return null;
+    const v = values(i);
+    const measured =
+      meta.key === 'cost'
+        ? v.thisValue
+        : meta.key === 'house' || meta.key === 'import'
+          ? v.thisValue
+          : null;
+    return formatInvoiceMarkerDetail(
+      marker,
+      measured,
+      meta.key,
+      (val) => formatCompareValue(val, meta.key),
+      monthKey(i),
+    );
+  };
+  const hasAnyMarker = thisYear.some((_, i) => invoiceMarkers[monthKey(i)]);
+  const activeMarker = invoiceMarkers[monthKey(active)];
+  const activeMeasured = (() => {
+    const v = values(active);
+    return meta.key === 'cost' || meta.key === 'house' || meta.key === 'import'
+      ? v.thisValue
+      : null;
+  })();
   return (
     <div className="en-cmp-chart-wrap">
       <p className="en-cmp-readout" data-testid="energy-compare-readout" aria-live="polite">
         {readout(active)}
       </p>
+      {activeMarker && (
+        <InvoiceMarkerDetail
+          marker={activeMarker}
+          measured={activeMeasured}
+          seriesKey={meta.key}
+          formatMeasured={(val) => formatCompareValue(val, meta.key)}
+          monthKey={monthKey(active)}
+        />
+      )}
       <div className="en-cmp-plot">
         <div className="en-cmp-yaxis" data-testid="energy-compare-yaxis" aria-hidden="true">
           <span className="en-cmp-unit">{unit}</span>
@@ -152,6 +272,8 @@ function MonthChart({
           </div>
           {thisYear.map((_, i) => {
             const { current, thisValue, lastValue, fullLast } = values(i);
+            const invoiced = invoiceMarkers[monthKey(i)];
+            const invLine = invoiceDetail(i);
             return (
               <button
                 type="button"
@@ -159,39 +281,47 @@ function MonthChart({
                 className="en-cmp-col"
                 data-current={current || undefined}
                 data-active={i === active || undefined}
+                data-invoiced={invoiced ? 'true' : undefined}
                 data-testid="energy-compare-month"
                 aria-pressed={i === active}
-                aria-label={readout(i)}
+                aria-label={invLine ? `${readout(i)}. ${invLine}` : readout(i)}
                 onClick={() => setActive(i)}
               >
-                <span className="en-cmp-pair">
-                  <span className="en-cmp-slot">
-                    {fullLast !== null && (
-                      <span
-                        className="en-cmp-ghost"
-                        data-value={fullLast}
-                        style={{ height: pct(fullLast) }}
-                      />
-                    )}
-                    {lastValue !== null && (
-                      <span
-                        className="en-cmp-bar en-cmp-bar--last"
-                        data-value={lastValue}
-                        style={{ height: pct(lastValue) }}
-                      />
-                    )}
+                {invoiced && (
+                  <span className="en-cmp-inv-marker" data-testid="energy-compare-invoice-marker">
+                    <ReceiptMarkerIcon />
                   </span>
-                  <span className="en-cmp-slot">
-                    {thisValue !== null && (
-                      <span
-                        className="en-cmp-bar en-cmp-bar--this"
-                        data-value={thisValue}
-                        style={{ height: pct(thisValue), background: meta.color }}
-                      />
-                    )}
+                )}
+                <span className="en-cmp-body">
+                  <span className="en-cmp-pair">
+                    <span className="en-cmp-slot">
+                      {fullLast !== null && (
+                        <span
+                          className="en-cmp-ghost"
+                          data-value={fullLast}
+                          style={{ height: pct(fullLast) }}
+                        />
+                      )}
+                      {lastValue !== null && (
+                        <span
+                          className="en-cmp-bar en-cmp-bar--last"
+                          data-value={lastValue}
+                          style={{ height: pct(lastValue) }}
+                        />
+                      )}
+                    </span>
+                    <span className="en-cmp-slot">
+                      {thisValue !== null && (
+                        <span
+                          className="en-cmp-bar en-cmp-bar--this"
+                          data-value={thisValue}
+                          style={{ height: pct(thisValue), background: meta.color }}
+                        />
+                      )}
+                    </span>
                   </span>
+                  <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
                 </span>
-                <span className="en-axis-x">{monthName(i + 1, 'short')}</span>
               </button>
             );
           })}
@@ -219,12 +349,30 @@ function MonthChart({
             Za rok {year - 1} nemáme data.
           </span>
         )}
+        {hasAnyMarker && (
+          <span className="en-cmp-legend-invoice" data-testid="energy-compare-legend-invoice">
+            <i className="en-cmp-legend-receipt" aria-hidden="true">
+              <ReceiptMarkerIcon />
+            </i>
+            <span>Fakturováno</span>
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-export function CompareCard({ comparison }: { comparison: Comparison }) {
+export function CompareCard({
+  comparison,
+  invoices = null,
+}: {
+  comparison: Comparison;
+  invoices?: Invoice[] | null;
+}) {
+  const invoiceMarkers = useMemo(
+    () => (invoices?.length ? invoiceMonthMarkerMap(invoices) : {}),
+    [invoices],
+  );
   const [period, setPeriod] = useState<ComparePeriod>('month');
   const [picked, setPicked] = useState<CompareSeriesKey>('house');
   if (comparison.status === 'unconfigured') return null;
@@ -393,6 +541,7 @@ export function CompareCard({ comparison }: { comparison: Comparison }) {
         year={year}
         month={month}
         partialLabel={partialLabel}
+        invoiceMarkers={invoiceMarkers}
       />
     </section>
   );

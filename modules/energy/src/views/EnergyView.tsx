@@ -4,6 +4,8 @@ import { Breakdown, EmptyState, SegmentedControl, StatusBadge } from '@homebrain
 import { fetchComparison, type Comparison } from '../compare.js';
 import { CompareCard } from './CompareCard.js';
 import { InvoicesCard } from './InvoicesCard.js';
+import { useEnergyInvoiceList } from '../useEnergyInvoiceList.js';
+import type { InvoiceList } from '../invoices.js';
 import { OffersCard } from './OffersCard.js';
 import {
   adaptEnergyEntities,
@@ -796,11 +798,14 @@ export function EnergyScreen({
   cost = null,
   comparison = { status: 'unconfigured' },
   invoices = null,
+  invoiceList = null,
   offers = null,
 }: {
   model: EnergyModel;
   /** Energie „Faktury“ card (needs the connection; absent in pure screen tests). */
   invoices?: ReactNode;
+  /** Confirmed/uploaded invoices for compare markers (shared fetch with Faktury). */
+  invoiceList?: InvoiceList | null;
   /** Energie „Srovnání nabídek“ card (needs the connection). */
   offers?: ReactNode;
   cost?: CostView | null;
@@ -948,14 +953,15 @@ export function EnergyScreen({
           }
         />
         <CostCard cost={cost} model={model} />
-        <CompareCard comparison={comparison} />
+        <CompareCard comparison={comparison} invoices={invoiceList?.invoices ?? null} />
         {invoices}
         {offers}
-        <PriceCard model={model} />
         <DayChart model={model} history={history} />
         <WeekChart model={model} history={history} />
         <BalanceCard model={model} />
         {appliances.length > 0 && <AppliancesCard items={appliances} model={model} />}
+        {/* Spotová cena až na konci: vlastník ji používá jen výjimečně. */}
+        <PriceCard model={model} />
       </div>
     </div>
   );
@@ -1109,6 +1115,7 @@ export default function EnergyView({
       }),
     [bindings, entities, now, model.today.house.value, extras],
   );
+  const invoiceState = useEnergyInvoiceList(connection, !!kiosk);
   return (
     <>
       <style>{energyStyles}</style>
@@ -1122,12 +1129,16 @@ export default function EnergyView({
           thermalHistory={thermalHistory}
           cost={cost}
           comparison={comparison}
+          invoiceList={invoiceState.list}
           invoices={
             <InvoicesCard
               connection={connection}
               fetchWithAuth={fetchWithAuth}
               kiosk={kiosk}
               now={now}
+              list={invoiceState.list}
+              setList={invoiceState.setList}
+              reload={invoiceState.reload}
             />
           }
           offers={<OffersCard connection={connection} kiosk={kiosk} />}
