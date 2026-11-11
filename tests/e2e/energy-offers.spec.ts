@@ -85,7 +85,7 @@ for (const width of [390, 800, 1280]) {
           if (!node.textContent?.trim()) continue;
           const range = document.createRange();
           range.selectNodeContents(node);
-          for (const box of range.getClientRects()) {
+          for (const box of Array.from(range.getClientRects())) {
             if (box.width && box.height) rects.push({ text: node.textContent, box });
           }
         }
