@@ -905,3 +905,25 @@ test('světlé téma: barvy protistran jsou odlišné a mají kontrast pro grafy
   expect(new Set(colors.map((c) => c.color)).size).toBe(colors.length);
   for (const color of colors) expect(color.ratio, color.color).toBeGreaterThanOrEqual(3);
 });
+
+test('čtyři KPI vyplňují řadu a grafy sítě mají čitelnou šířku', async ({ page }) => {
+  await page.goto('/homebrain-energie');
+  await expect(page.locator('.en-kpi')).toHaveCount(4);
+  const cards = await page.locator('.en-kpi').evaluateAll((els) =>
+    els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    }),
+  );
+  const mobile = page.viewportSize()!.width <= 760;
+  expect(Math.abs(cards[0]!.top - cards[1]!.top)).toBeLessThan(1);
+  expect(Math.abs(cards[2]!.top - cards[3]!.top)).toBeLessThan(1);
+  expect(mobile ? cards[2]!.top > cards[0]!.bottom : cards[2]!.top === cards[0]!.top).toBe(true);
+  const grid = (await page.locator('.en-grid').boundingBox())!;
+  expect(Math.abs(cards[3]!.right - (grid.x + grid.width))).toBeLessThan(1);
+  for (const spark of await page.locator('.en-grid-half .en-spark').all())
+    expect((await spark.boundingBox())!.width).toBeGreaterThan(45);
+  await expect(page.getByTestId('energy-price').getByTestId('energy-kpi-price')).toContainText(
+    'Spot teď',
+  );
+});

@@ -23,7 +23,7 @@ export const energyStyles = `
 .en-ct{margin:0;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .en-ct small{font-size:12px;font-weight:400;color:var(--hb-t2)}
 .en-lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--hb-t2)}
-.en-kpi{grid-column:span 2;gap:4px;padding:12px 14px 10px}
+.en-kpi{grid-column:span 3;gap:4px;padding:12px 14px 10px}
 .en-kpi-v{font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.2;white-space:nowrap}
 .en-kpi-v small,.en-flow strong small{font-size:13px;font-weight:400;color:var(--hb-t2);letter-spacing:0}
 .en-kpi .en-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -134,7 +134,7 @@ export const energyStyles = `
   .en-cost-v{font-size:38px}
 }
 @media (max-width:1180px){
-  .en-kpi{grid-column:span 4}
+  .en-kpi{grid-column:span 3}
   .en-price,.en-now,.en-day{grid-column:span 12}
   .en-week,.en-balance{grid-column:span 6}
   .en-appl-list{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -635,4 +635,17 @@ export const energyStyles = `
   .en-off-mlabel{font-size:11px}
   .en-off-form{grid-template-columns:minmax(0,1fr)}
 }
+
+.en-grid-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;flex:1}
+.en-grid-half{display:flex;flex-direction:column;gap:4px;min-width:0}
+.en-grid-half+.en-grid-half{border-left:1px solid var(--hb-b1);padding-left:8px}
+.en-grid-half .en-kpi-v{font-size:20px}
+.en-grid-half .en-kpi-v small{font-size:11px}
+.en-self-gauge{margin-top:auto;padding-top:14px}
+.en-self-gauge .en-track{height:9px}
+.en-self-gauge .en-sub{display:flex;justify-content:space-between;margin-top:5px}
+.en-spark-time{font-size:10px;color:var(--hb-t3)}
+.en-price-now{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;font-size:14px}
+.en-price{grid-column:span 12}
+@media(min-width:761px){.en-kpi .en-spark{height:38px}}
 `;
