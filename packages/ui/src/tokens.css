@@ -30,9 +30,11 @@
   --hb-ok: #34d399;
   --hb-warn: #f5a524;
   --hb-crit: #f2555a;
-  --hb-energy-pv: #34d399;
+  --hb-energy-pv: #f7b733;
   --hb-energy-home: #5eb1ff;
   --hb-energy-grid: #a78bfa;
+  --hb-energy-grid-export: #c4b5fd;
+  --hb-energy-battery-charge: #67e8f9;
   --hb-energy-battery: #22d3ee;
   --hb-weather-temp: #ff9f5a;
   --hb-weather-rain: #4cb8ff;
@@ -88,9 +90,11 @@
   --hb-ok: #047857;
   --hb-warn: #b45309;
   --hb-crit: #dc2626;
-  --hb-energy-pv: #10a36f;
+  --hb-energy-pv: #a56700;
   --hb-energy-home: #2b7fe0;
   --hb-energy-grid: #7c5ce0;
+  --hb-energy-grid-export: #8460d6;
+  --hb-energy-battery-charge: #1598b5;
   --hb-energy-battery: #0891b2;
   --hb-weather-temp: #e8662b;
   --hb-weather-rain: #1c8fe0;
@@ -145,9 +149,11 @@
     --hb-ok: #34d399;
     --hb-warn: #f5a524;
     --hb-crit: #f2555a;
-    --hb-energy-pv: #34d399;
+    --hb-energy-pv: #f7b733;
     --hb-energy-home: #5eb1ff;
     --hb-energy-grid: #a78bfa;
+  --hb-energy-grid-export: #c4b5fd;
+  --hb-energy-battery-charge: #67e8f9;
     --hb-energy-battery: #22d3ee;
     --hb-weather-temp: #ff9f5a;
     --hb-weather-rain: #4cb8ff;

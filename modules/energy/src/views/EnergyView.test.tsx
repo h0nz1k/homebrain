@@ -31,7 +31,7 @@ describe('EnergyView', () => {
     await act(async () => {});
     const houseId = demo.bindings.energy_house_energy_today!;
     act(() => store.update({ [houseId]: { ...demo.states[houseId]!, state: '1.0' } }));
-    expect(screen.getByTestId('energy-balance-gap').textContent).toMatch(/^Rozdíl \d+,\d kWh/);
+    expect(screen.getByTestId('energy-balance-gap').textContent).toMatch(/^Šrafovaná část: rozdíl \d+,\d kWh/);
     expect(screen.getByTestId('energy-balance').textContent).toContain('Do baterie');
   });
 
