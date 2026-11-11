@@ -840,3 +840,27 @@ test.describe('srovnání období', () => {
     await expect(page.getByTestId('energy-compare')).toHaveCount(0);
   });
 });
+
+
+test('800 px: text tarifu a spotřebičů zůstává uvnitř karty', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 1280 });
+  await page.goto('/homebrain-energie');
+  await expect(page.getByTestId('energy-invoice-tariff')).toBeVisible();
+  for (const id of ['energy-flow', 'energy-invoice-tariff']) {
+    const outside = await page.getByTestId(id).evaluate((root) => {
+      const card = root.getBoundingClientRect();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const out: string[] = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of Array.from(range.getClientRects()))
+          if (r.width && (r.left < card.left - 1 || r.right > card.right + 1)) out.push(node.textContent);
+      }
+      return out;
+    });
+    expect(outside, id).toEqual([]);
+  }
+});
