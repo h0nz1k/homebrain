@@ -214,12 +214,12 @@ export const energyStyles = `
 .ef-src i{width:8px;height:8px;flex:none;border-radius:50%;background:var(--ef-c)}
 .ef-hit{position:absolute;z-index:1;aspect-ratio:1;margin:0;padding:0;border:0;border-radius:50%;background:none;cursor:pointer}
 .ef-cons{display:flex;align-items:center;gap:10px;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;animation:ef-in .34s var(--hb-ease-out,var(--hb-ease)) both}
-.ef-cons-col .ef-cons{position:absolute;z-index:1;transition:top .35s var(--hb-ease)}
+.ef-cons-col .ef-cons{position:absolute;max-width:100%;z-index:1;transition:top .35s var(--hb-ease)}
 .ef-cons.is-leaving{animation:ef-out .26s ease forwards;pointer-events:none}
 .ef-cons-ic{flex:none;width:calc(var(--ef-u) * 48);height:calc(var(--ef-u) * 48);color:var(--hb-energy-home);overflow:visible}
 .ef-cons-disc{fill:color-mix(in srgb,var(--hb-energy-home) 11%,var(--hb-s1));stroke:color-mix(in srgb,var(--hb-energy-home) 38%,transparent);stroke-width:1.3}
 .ef-cons-t{display:flex;flex-direction:column;min-width:0}
-.ef-cons-n{font-size:13px;color:var(--hb-t2);white-space:nowrap}
+.ef-cons-n{font-size:13px;color:var(--hb-t2);white-space:normal;overflow-wrap:anywhere}
 .ef-cons-v{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--hb-t1);line-height:1.25}
 .ef-cons-v small{font-size:13px;font-weight:500;color:var(--hb-t2);letter-spacing:0}
 .ef-cwire{animation:ef-fade .4s ease both}
@@ -505,12 +505,13 @@ export const energyStyles = `
 .en-inv-row[data-tone='ok'] .en-inv-row-n{color:var(--hb-ok)}
 .en-inv-row[data-tone='warn'] .en-inv-row-n{color:var(--hb-warn)}
 .en-inv-explain{margin:4px 0 0;font-size:13px;color:var(--hb-t2);line-height:1.45}
-.en-inv-tariff{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:var(--hb-radius-md,12px);background:color-mix(in srgb,var(--hb-t1) 4%,var(--hb-s1))}
+.en-inv-tariff{container-type:inline-size;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:var(--hb-radius-md,12px);background:color-mix(in srgb,var(--hb-t1) 4%,var(--hb-s1))}
 .en-inv-tariff h3{margin:0 0 2px}
 .en-inv-tariff > button{align-self:flex-start}
 .en-inv-trow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;font-size:13px;color:var(--hb-t2);padding:6px 0;border-top:1px solid var(--hb-b1)}
 .en-inv-trow span:not(:first-child){white-space:nowrap;text-align:right}
 .en-inv-trow b{color:var(--hb-t1);font-weight:600;font-variant-numeric:tabular-nums}
+@container (max-width:360px){.en-inv-trow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.en-inv-trow span:first-child{grid-column:1/-1}.en-inv-trow span:not(:first-child){white-space:normal;text-align:left;min-width:0}.en-inv-trow b{display:block;white-space:normal;overflow-wrap:anywhere}}
 .en-inv-trow[data-differs] span:last-child b{color:var(--hb-warn)}
 .en-inv-actions{display:flex;gap:8px;flex-wrap:wrap}
 .en-inv-note{margin:0 0 12px;font-size:14px;color:var(--hb-t2)}
