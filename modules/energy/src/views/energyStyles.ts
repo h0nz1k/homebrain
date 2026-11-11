@@ -116,12 +116,12 @@ export const energyStyles = `
 .en-cost-col{display:flex;flex-direction:column;gap:4px;min-width:0}
 .en-cost-col+.en-cost-col{padding-left:24px;border-left:1px solid color-mix(in srgb,var(--hb-t1) 10%,transparent)}
 .en-cost-v{font-size:44px;font-weight:600;line-height:1.15;color:var(--hb-t1);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.en-cost-save{display:flex;flex-direction:column;gap:2px;margin-top:12px;padding:10px 14px;border-radius:var(--hb-radius-md,12px);background:color-mix(in srgb,var(--hb-ok) 12%,transparent);align-self:flex-start}
+.en-cost-save{display:flex;flex-direction:column;gap:2px;margin-top:12px;padding:10px 14px;border-radius:var(--hb-radius-md,12px);background:color-mix(in srgb,var(--hb-ok) 12%,transparent);align-self:stretch}
 .en-cost-save b{color:var(--hb-ok);font-size:15px;font-weight:600}
 .en-cost-save span{color:var(--hb-t2);font-size:13px}
-.en-cost-spot-line{margin:0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
+.en-cost-spot-line{margin:0;font-size:13px;line-height:1.45;color:var(--hb-t2)}
 .en-cost-spot-line b{color:var(--hb-t1);font-weight:600}
-.en-cost-spot{padding-top:12px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 10%,transparent)}
+.en-cost-spot{padding-top:0}
 .en-cost-more{font-size:13px;color:var(--hb-t2);line-height:1.5}
 .en-cost-more summary{cursor:pointer;color:var(--hb-t2);font-size:13px;width:max-content;list-style:none}
 .en-cost-more summary::-webkit-details-marker{display:none}
@@ -129,8 +129,8 @@ export const energyStyles = `
 .en-cost-more[open] summary::after{transform:rotate(90deg)}
 .en-cost-more p{margin:6px 0 0;max-width:72ch}
 @media (max-width:900px){
-  .en-cost-grid{grid-template-columns:minmax(0,1fr);gap:18px}
-  .en-cost-col+.en-cost-col{padding-left:0;border-left:0;padding-top:18px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 10%,transparent)}
+  .en-cost-grid{grid-template-columns:minmax(0,1fr);gap:14px}
+  .en-cost-col+.en-cost-col{padding-left:0;border-left:0;padding-top:14px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 10%,transparent)}
   .en-cost-v{font-size:38px}
 }
 @media (max-width:1180px){

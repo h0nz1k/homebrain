@@ -729,10 +729,9 @@ function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }
       ) : (
         <div className="en-cost-grid">
           <div className="en-cost-col" data-testid="energy-cost-total">
-            <span className="en-lbl">{PERIOD_LABEL[period]}</span>
             <strong className="en-cost-v">{kc(p.total, dig)}</strong>
             <span className="en-sub">
-              {fromLabel} · {kwh(p.importKwh)} ze sítě
+              {PERIOD_LABEL[period].toLocaleLowerCase('cs-CZ')} {fromLabel} · {kwh(p.importKwh)} ze sítě
             </span>
             {p.savings !== null && (
               <span className="en-cost-save" data-testid="energy-cost-savings">
@@ -778,7 +777,7 @@ function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }
         <div className="en-cost-spot" data-testid="energy-cost-spot">
           {spot ? (
             <p className="en-cost-spot-line" data-testid="energy-cost-spot-diff">
-              Pro srovnání: se spotovým tarifem by to vyšlo <b>{kc(spot.total, dig)}</b>
+              Se spotovým tarifem by to vyšlo <b>{kc(spot.total, dig)}</b>
               {diff !== null &&
                 (Math.abs(diff) < 0.5
                   ? ' – stejně jako teď'
