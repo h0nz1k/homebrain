@@ -67,17 +67,38 @@ function PhaseBar(props: { i: number; a: PhaseAnalysis; delay: number }) {
     >
       <span className="ef-ph-l">L{props.i + 1}</span>
       <span className="ef-ph-track" aria-hidden="true">
-        <i className="ef-ph-limit" />
         <i className="ef-ph-fill" />
       </span>
       <span className="ef-ph-v">
         <b title={ph.estimated ? 'odhad z výkonu při 230 V' : undefined}>
           {dir === 'idle' ? '0' : rowAmps(ph.amps)}
-          <small> A</small>
+          <small>&nbsp;A</small>
         </b>
         <em>{dir === 'idle' ? '0,00' : nf2.format(Math.abs(ph.kw))} kW</em>
       </span>
     </span>
+  );
+}
+
+function PhaseBars({ a }: { a: PhaseAnalysis }) {
+  const dirs = a.phases.map((p) => dirOf(p.kw));
+  return (
+      <span
+        className="ef-ph-bars"
+        data-export={dirs.includes('out') || undefined}
+        style={{ '--z': dirs.includes('out') ? 0.5 : 0.18 } as CSSProperties}
+      >
+        <span className="ef-ph-axis" aria-hidden="true">
+          {dirs.includes('out') && <span className="ef-ph-axis-out">← dodávka</span>}
+          <span className="ef-ph-axis-in">odběr →</span>
+          {!dirs.includes('out') && (
+            <span className="ef-ph-axis-max">{nf0.format(a.breakerA)}&nbsp;A</span>
+          )}
+        </span>
+        {[0, 1, 2].map((i) => (
+          <PhaseBar key={i} i={i} a={a} delay={i * 70} />
+        ))}
+      </span>
   );
 }
 
@@ -115,6 +136,12 @@ export function PhaseStrip(props: {
   if (!view) return null;
   const a = view.analysis;
   const dirs = a.phases.map((p) => dirOf(p.kw));
+  const compact = a.state === 'ok' && !a.saldo;
+  const currents = a.phases.map((p) => Math.abs(p.amps));
+  const low = Math.min(...currents);
+  const high = Math.max(...currents);
+  const currentText = rowAmps(low) === rowAmps(high)
+    ? `po ${rowAmps(high)}` : `${rowAmps(low)}–${rowAmps(high)}`;
   const hint = phaseHint(
     a,
     props.appliances ?? [],
@@ -128,14 +155,20 @@ export function PhaseStrip(props: {
       type="button"
       className="ef-ph"
       data-state={a.state}
+      data-compact={compact || undefined}
       data-saldo={a.saldo ? 'true' : undefined}
       data-testid="energy-phases"
       aria-label={label}
       onClick={props.onOpen}
     >
-      <span className="ef-ph-head">
+      {compact && (
+        <span className="ef-ph-summary" data-testid="energy-phases-hint">
+          L1–L3 {currentText}&nbsp;A · rezerva {nf0.format(Math.max(0, a.breakerA - high))}&nbsp;A
+        </span>
+      )}
+      <span className="ef-ph-head" hidden={compact}>
         <span className="ef-ph-eyebrow">
-          Fáze <span>· jistič 3×{nf0.format(a.breakerA)} A</span>
+          Fáze <span>· jistič 3×{nf0.format(a.breakerA)}&nbsp;A</span>
         </span>
         <span className="ef-ph-state" data-testid="energy-phases-state">
           <i aria-hidden="true" />
@@ -146,25 +179,11 @@ export function PhaseStrip(props: {
           <small> A rozdíl fází</small>
         </span>
       </span>
-      <span
-        className="ef-ph-bars"
-        data-export={dirs.includes('out') || undefined}
-        style={{ '--z': dirs.includes('out') ? 0.5 : 0.18 } as CSSProperties}
-      >
-        <span className="ef-ph-axis" aria-hidden="true">
-          {dirs.includes('out') && <span className="ef-ph-axis-out">← dodávka</span>}
-          <span className="ef-ph-axis-in">odběr →</span>
-          {!dirs.includes('out') && (
-            <span className="ef-ph-axis-max">{nf0.format(a.breakerA)} A</span>
-          )}
-        </span>
-        {[0, 1, 2].map((i) => (
-          <PhaseBar key={i} i={i} a={a} delay={i * 70} />
-        ))}
-      </span>
+      {!compact && <PhaseBars a={a} />}
       <span
         className="ef-ph-hint"
-        data-testid={a.saldo ? 'energy-phases-saldo' : 'energy-phases-hint'}
+        hidden={compact}
+        data-testid={compact ? undefined : a.saldo ? 'energy-phases-saldo' : 'energy-phases-hint'}
       >
         {a.saldo ? (
           <>
@@ -256,6 +275,7 @@ export function PhaseSheetBody(props: {
   }
   return (
     <div className="ef-phs" data-testid="energy-phases-sheet">
+      {a.state === 'ok' && !a.saldo && <PhaseBars a={a} />}
       <div className="ef-phs-now" data-state={a.state}>
         <span className="ef-ph-state">
           <i aria-hidden="true" />
