@@ -78,7 +78,7 @@ describe('EnergyView', () => {
     expect(screen.getByTestId('energy-cost-savings').textContent).toContain(
       'FVE a baterie ušetřily',
     );
-    expect(screen.getByTestId('energy-cost-spot').textContent).toContain('se spotovým tarifem');
+    expect(screen.getByTestId('energy-cost-spot').textContent).toContain('Se spotovým tarifem');
   });
 
   it('shows the statistics empty state without a connection', async () => {
