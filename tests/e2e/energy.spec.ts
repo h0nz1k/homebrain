@@ -71,7 +71,7 @@ test.describe('Náklady na elektřinu', () => {
     await expect(total).toContainText('ze sítě', { timeout: 20_000 });
     await expect(card.locator('.hb-breakdown-row')).toHaveCount(3);
     await expect(page.getByTestId('energy-cost-savings')).toContainText('FVE a baterie ušetřily');
-    await expect(page.getByTestId('energy-cost-spot')).toContainText('se spotovým tarifem');
+    await expect(page.getByTestId('energy-cost-spot')).toContainText('Se spotovým tarifem');
     await expect(page.getByTestId('energy-cost-spot-diff')).toContainText(/dráž|levněji|stejně/);
     await expect(page.getByTestId('energy-cost-basis')).toContainText('korekce ×1,05');
     await expect(page.getByTestId('energy-cost-basis')).toContainText('ne doporučení');
@@ -934,4 +934,18 @@ test('čtyři KPI vyplňují řadu a grafy sítě mají čitelnou šířku', asy
   await expect(page.getByTestId('energy-price').getByTestId('energy-kpi-price')).toContainText(
     'Spot teď',
   );
+});
+
+
+test('úspora vyplňuje šířku sloupce nákladů a popis je pod částkou', async ({ page }) => {
+  await page.goto('/homebrain-energie');
+  const total = page.getByTestId('energy-cost-total');
+  await expect(total).toBeVisible();
+  const column = (await total.boundingBox())!;
+  const savings = (await page.getByTestId('energy-cost-savings').boundingBox())!;
+  expect(Math.abs(savings.width - column.width)).toBeLessThan(1);
+  const number = (await total.locator('.en-cost-v').boundingBox())!;
+  const description = (await total.locator('.en-sub').boundingBox())!;
+  expect(description.y).toBeGreaterThanOrEqual(number.y + number.height);
+  await expect(total.locator('.en-lbl')).toHaveCount(0);
 });
