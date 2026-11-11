@@ -48,8 +48,8 @@ test('karta Spotřebiče a dokončená myčka', async ({ page }) => {
   const card = page.getByTestId('energy-appliances');
   await expect(card).toBeVisible();
   await expect(card.getByRole('listitem')).toHaveCount(4);
-  await expect(page.getByTestId('energy-appliance-heat_pump')).toContainText('Běží');
-  await expect(page.getByTestId('energy-appliance-heat_pump')).toContainText('% domu');
+  await expect(page.getByTestId('energy-appliance-heat_pump').getByLabel('Běží', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('energy-appliance-heat_pump')).toContainText('% dne');
   await expect(page.getByTestId('energy-appliance-dishwasher')).toContainText('Dokončeno');
   await expect(page.getByTestId('energy-appliance-coffee_maker')).toContainText('Pohotovost');
   await expect(page.getByTestId('energy-signals')).toContainText('Myčka dokončila');
@@ -979,4 +979,25 @@ test('světlé téma: barvy protistran jsou odlišné a mají kontrast pro grafy
   });
   expect(new Set(colors.map((c) => c.color)).size).toBe(colors.length);
   for (const color of colors) expect(color.ratio, color.color).toBeGreaterThanOrEqual(3);
+});
+
+test('spotřebiče tvoří řádky s oddělovači a jednotnou jednotkou kW', async ({ page }) => {
+  await page.goto('/homebrain-energie');
+  const card = page.getByTestId('energy-appliances');
+  await expect(card.getByRole('listitem')).toHaveCount(4);
+  const rows = await card.getByRole('listitem').all();
+  for (const [i, row] of rows.entries()) {
+    await expect(row.locator('.en-appl-v')).toContainText('kW');
+    const style = await row.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { border: s.borderBottomWidth, radius: s.borderRadius, background: s.backgroundColor };
+    });
+    expect(style).toEqual({ border: i < 3 ? '1px' : '0px', radius: '0px', background: 'rgba(0, 0, 0, 0)' });
+    if (i) {
+      const prev = (await rows[i - 1]!.boundingBox())!;
+      const next = (await row.boundingBox())!;
+      expect(next.y).toBeGreaterThanOrEqual(prev.y + prev.height - 1);
+    }
+  }
+  expect(await card.evaluate((el) => getComputedStyle(el).borderRadius)).toBe('16px');
 });
