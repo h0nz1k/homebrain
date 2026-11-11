@@ -1525,18 +1525,6 @@ export function EnergyFlowHero({
     pairs.filter((pr) => pr.from === src).reduce((t, pr) => t + pr.kw, 0);
   const ac = inverterAcKw(model.inverterDetail.acPower.value, alloc);
   const hubActive = pairs.some((pr) => viaInverter(pr.id)) || Math.abs(ac.kw ?? 0) >= FLOW_IDLE_KW;
-  // Import and export can both be non-zero over a day (and per 15 min): always show both.
-  const today = (
-    [
-      ['Vyrobeno', model.today.pv, COLOR.pv, false],
-      ['Spotřeba', model.today.house, COLOR.house, false],
-      ['Odběr', model.today.gridImport, COLOR.grid, true],
-      // Export is drawn in the sun's colour everywhere (lanes, phase bars): same in the legend.
-      ['Dodávka', model.today.gridExport, COLOR.pv, true],
-    ] as const
-  )
-    .filter(([, r, , always]) => always || r.value !== null)
-    .map(([label, r, color]) => ({ label, kwh: r.value, color }));
   const texts = nodeTexts(model, edges, ac, alloc);
   const head = flowHeadline(model, alloc);
   const gid = 'ef-g';
@@ -1590,24 +1578,6 @@ export function EnergyFlowHero({
         </div>
       </header>
       <div className="ef-body">
-        {L.name === 'wide' && today.length > 0 && (
-          <dl className="ef-today" data-testid="energy-flow-today">
-            <dt className="ef-today-h">Dnes</dt>
-            {today.map((row) => (
-              <div
-                key={row.label}
-                data-out={row.label === 'Dodávka' ? 'true' : undefined}
-                style={{ '--ef-c': row.color } as CSSProperties}
-              >
-                <dt>{row.label}</dt>
-                <dd>
-                  {kwText(row.kwh)}
-                  <small> kWh</small>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
         <div
           className="ef-stage"
           ref={setEl}
@@ -1823,6 +1793,7 @@ export function EnergyFlowHero({
                   data-ml={sub.includes('\n') || undefined}
                   data-tone={t.tone}
                   data-testid={id === 'hub' ? 'energy-flow-hub-status' : undefined}
+                  hidden={id === 'hub' && t.tone === 'ok'}
                 >
                   {t.tone && <i aria-hidden="true" />}
                   {sub}

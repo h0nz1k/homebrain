@@ -54,7 +54,7 @@ describe('EnergyView', () => {
   it('renders KPIs, flows, prices and Czech labels read-only (ENE-001)', async () => {
     const { sendMessagePromise } = setup();
     await act(async () => {});
-    expect(screen.getByRole('heading', { name: 'Energie', level: 1 })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Energie', level: 1 })).toBeNull();
     expect(screen.getByTestId('energy-kpi-price').textContent).toContain('2,40');
     expect(
       screen.getByTestId('energy-price').contains(screen.getByTestId('energy-kpi-price')),
@@ -175,7 +175,8 @@ describe('EnergyView', () => {
       for (const id of flows)
         expect(screen.getByTestId(`energy-flow-edge-${id}`).dataset.via).toBe('hub');
       expect(screen.getByTestId('energy-flow-hub').textContent).toContain('4,3');
-      expect(screen.getByTestId('energy-flow-hub-status').textContent).toContain('Normální');
+      expect(screen.getByTestId('energy-flow-hub-status').hidden).toBe(true);
+      expect(screen.queryByTestId('energy-inverter')).toBeNull();
       expect(screen.getByTestId('energy-flow-hub-temp').textContent).toMatch(/°C/);
       expect(screen.getByTestId('energy-flow-battery-temp').textContent).toContain('21');
       // No value on a wire: each sink names its source in the source colour (review 003).

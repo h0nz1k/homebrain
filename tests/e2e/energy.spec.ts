@@ -2,7 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
   await page.goto('/homebrain-energie');
-  await expect(page.getByRole('heading', { name: 'Energie', exact: true, level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Energie', exact: true, level: 1 })).toHaveCount(0);
+  await expect(page.getByTestId('energy-flow')).toBeVisible();
   await expect(page.getByTestId('energy-price')).toBeVisible();
   await expect(page.getByTestId('energy-flow')).toContainText('Baterie');
   await expect(page.getByTestId('energy-7d').locator('.en-bar-day')).toHaveCount(7);
@@ -326,6 +327,11 @@ test.describe('Fáze: tři fáze, nesymetrie a saldování', () => {
     await expect(page.getByTestId('energy-phases-state')).toHaveText('vyrovnané');
     await expect(ph).toContainText('jistič 3×25 A');
     await expect(page.getByTestId('energy-phases-saldo')).toHaveCount(0);
+    await expect(ph).toHaveAttribute('data-compact', 'true');
+    await expect(page.getByTestId('energy-phases-hint')).toContainText('L1–L3');
+    await expect(page.getByTestId('energy-phases-state')).toBeHidden();
+    await ph.click();
+    await expect(page.getByTestId('energy-phases-sheet')).toBeVisible();
     for (const i of [1, 2, 3])
       await expect(page.getByTestId(`energy-phase-l${i}`)).toHaveAttribute('data-dir', 'in');
   });
@@ -872,15 +878,21 @@ test('800 px: text tarifu a spotřebičů zůstává uvnitř karty', async ({ pa
 });
 
 test('bilance používá společnou škálu a šrafuje rozdíl měření', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-05T14:30:00+01:00'));
   await page.goto('/homebrain-energie');
   const card = page.getByTestId('energy-balance');
   await expect(card).toBeVisible();
   const widths = await card.locator('.en-stack').evaluateAll((bars) =>
     bars.map((bar) => {
+      const grow = (el: Element) => {
+        const st = (el as HTMLElement).getAttribute('style') ?? '';
+        const m = st.match(/(?:flex-grow|flexGrow)\s*:\s*([0-9.]+)/);
+        return m ? parseFloat(m[1]!) : 0;
+      };
       const r = bar.getBoundingClientRect();
       const values = Array.from(bar.children).map((el) => ({
         width: el.getBoundingClientRect().width,
-        value: Number((el as HTMLElement).style.flexGrow),
+        value: grow(el),
       }));
       return { width: r.width, values };
     }),
@@ -1000,4 +1012,54 @@ test('spotřebiče tvoří řádky s oddělovači a jednotnou jednotkou kW', asy
     }
   }
   expect(await card.evaluate((el) => getComputedStyle(el).borderRadius)).toBe('16px');
+});
+
+test('úsporné hero a čitelné malé zatížení fází v obou motivech', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.clock.setFixedTime(new Date('2026-11-05T14:30:00+01:00'));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const width of [390, 800, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const theme of ['dark', 'light']) {
+      await page.goto(`/homebrain-energie?theme=${theme}`);
+      const strip = page.getByTestId('energy-phases');
+      await expect(strip).toHaveAttribute('data-compact', 'true');
+      await expect(page.getByTestId('energy-inverter')).toHaveCount(0);
+      await expect(page.getByTestId('energy-flow-hub-status')).toBeHidden();
+      await expect(page.getByTestId('energy-flow-today')).toHaveCount(0);
+      const summary = page.getByTestId('energy-phases-hint');
+      await expect(summary).toContainText(/L1–L3 po [\d,]+\s*A · rezerva 24\s*A/);
+      expect((await summary.boundingBox())!.height).toBeLessThan(25);
+      await strip.click();
+      const sheet = page.getByTestId('energy-phases-sheet');
+      await expect(sheet).toBeVisible();
+      for (const i of [1, 2, 3]) {
+        const bar = page.getByTestId(`energy-phase-l${i}`);
+        await expect.poll(async () => (await bar.locator('.ef-ph-fill').boundingBox())!.width).toBeGreaterThanOrEqual(6);
+        const track = (await bar.locator('.ef-ph-track').boundingBox())!;
+        const fill = (await bar.locator('.ef-ph-fill').boundingBox())!;
+        expect(fill.x).toBeGreaterThanOrEqual(track.x);
+        expect(fill.x + fill.width).toBeLessThanOrEqual(track.x + track.width + 1);
+        const contrast = await bar.evaluate((el) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d')!;
+          const luminance = (color: string) => {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            const rgb = [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((c) => {
+              const s = c / 255;
+              return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4;
+            });
+            return rgb[0]! * .2126 + rgb[1]! * .7152 + rgb[2]! * .0722;
+          };
+          const track = luminance(getComputedStyle(el.querySelector('.ef-ph-track')!).backgroundColor);
+          const surface = luminance(getComputedStyle(el.closest('.ef-sheet')!).backgroundColor);
+          return (Math.max(track, surface) + .05) / (Math.min(track, surface) + .05);
+        });
+        expect(contrast).toBeGreaterThanOrEqual(3);
+      }
+      await expect(sheet.locator('.ef-ph-limit')).toHaveCount(0);
+    }
+  }
 });

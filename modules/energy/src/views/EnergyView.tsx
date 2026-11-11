@@ -941,14 +941,13 @@ export function EnergyScreen({
     <div className="en-root">
       <header className="en-head">
         <div>
-          <h1>Energie</h1>
           <p className="en-sub">
             FVE · baterie · 3 fáze · <b>spotová cena</b>
             {interval ? ` po ${interval === 60 ? 'hodinách' : `${interval} min`}` : ''}
           </p>
         </div>
         <div className="en-head-r">
-          {model.inverter && (
+          {model.inverter && model.inverter.tone !== 'ok' && (
             <span
               className={`en-pill en-pill--${model.inverter.tone}`}
               title={model.inverter.raw}
@@ -958,7 +957,6 @@ export function EnergyScreen({
               Střídač · {model.inverter.label}
             </span>
           )}
-          <span className="en-pill en-pill--ac">Kč/kWh</span>
           <StatusBadge quality={model.quality} />
         </div>
       </header>
@@ -1253,7 +1251,6 @@ export default function EnergyView({
         />
       ) : (
         <div className="en-root">
-          <h1>Energie</h1>
           <EmptyState title="Modul Energie nemá nastavené entity.">
             Vazby nastavíte v integraci HomeBrain v Home Assistantu.
           </EmptyState>
