@@ -472,7 +472,10 @@ export const energyStyles = `
 .en-cmp-bar--last{background:color-mix(in srgb,var(--hb-t1) 30%,transparent)}
 .en-cmp-legend-last{background:color-mix(in srgb,var(--hb-t1) 30%,transparent)}
 @media (max-width:760px){
-.en-cmp-tiles,.en-cmp-tiles[data-period='ytd']{grid-template-columns:minmax(0,1fr);gap:8px}
+.en-cmp-tiles,.en-cmp-tiles[data-period='ytd']{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.en-cmp-tiles[data-period='month'] .en-cmp-tile--main{grid-column:1/-1}
+.en-cmp-tile:not(.en-cmp-tile--main) .en-cmp-v{font-size:20px}
+.en-cmp-context{font-size:12px;color:var(--hb-t3)}
 .en-cmp-tile{padding:10px 14px}
 .en-cmp-v{font-size:22px}
 .en-cmp-tile--main .en-cmp-v{font-size:30px}

@@ -11,7 +11,6 @@ import {
   monthName,
   niceTicks,
   partialRangeLabel,
-  scopeLabel,
   ytdRangeLabel,
   type Comparison,
   type ComparePeriod,
@@ -233,7 +232,7 @@ function MonthChart({
   })();
   return (
     <div className="en-cmp-chart-wrap">
-      <p className="en-cmp-readout" data-testid="energy-compare-readout" aria-live="polite">
+      <p className="en-cmp-readout" data-testid="energy-compare-readout" aria-live="polite" hidden={active === month - 1}>
         {readout(active)}
       </p>
       {activeMarker && (
@@ -419,19 +418,7 @@ export function CompareCard({
     period === 'month'
       ? compareDelta(series.month.current, series.month.last_year)
       : compareDelta(series.ytd.current, series.ytd.last_year);
-  const scope = scopeLabel(comparison.partial, month, period);
-  const headlineText = compareHeadline(meta.short, yoy, null);
-  const headline = headlineText && (
-    <>
-      {headlineText}
-      {scope && (
-        <>
-          {' '}
-          <span className="en-cmp-scope">za {scope}</span>
-        </>
-      )}
-    </>
-  );
+  const headline = compareHeadline(meta.short, yoy, null);
   const prevFull =
     month === 1
       ? (series.monthly.last_year[11] ?? null)
@@ -466,6 +453,13 @@ export function CompareCard({
         headline,
         deltaTone(meta.key, yoy),
       )}
+      {rangeLabel && (
+        <p className="en-cmp-range" data-testid="energy-compare-range">
+          Porovnáváme stejné dny a hodiny: {rangeLabel}
+          {meta.key === 'cost' &&
+            ' · náklady = odhad podle současného tarifu (VT/NT, stálé platby)'}
+        </p>
+      )}
       <div className="en-cmp-tiles" data-period={period}>
         {period === 'month' ? (
           <>
@@ -475,11 +469,11 @@ export function CompareCard({
               value={series.month.current}
               seriesKey={meta.key}
               testId="energy-compare-current"
-              sub={partialLabel ? `${partialLabel} · rozpracovaný měsíc` : null}
+              sub={partialLabel ? 'rozpracovaný měsíc' : null}
               missing="zatím bez dat"
             />
             <Tile
-              label={`Loni · ${partialRangeLabel(comparison.partial, month, year - 1) ?? `${monthName(month)} ${year - 1}`}`}
+              label="Loni"
               value={series.month.last_year}
               against={series.month.current}
               seriesKey={meta.key}
@@ -492,7 +486,7 @@ export function CompareCard({
               }
             />
             <Tile
-              label={`Minulý měsíc · ${partialRangeLabel(comparison.partial, prevMonth, prevYear === year ? undefined : prevYear) ?? `${monthName(prevMonth)} ${prevYear}`}`}
+              label={`Minulý měsíc · ${(partialRangeLabel(comparison.partial, prevMonth) ?? monthName(prevMonth)).replace(/ do .*/, '')}`}
               value={series.month.previous}
               against={series.month.current}
               seriesKey={meta.key}
@@ -513,11 +507,10 @@ export function CompareCard({
               value={series.ytd.current}
               seriesKey={meta.key}
               testId="energy-compare-current"
-              sub={ytdLabel}
               missing="nemáme data od ledna"
             />
             <Tile
-              label={`Loni · ${ytdRangeLabel(comparison.partial, month, year - 1) ?? year - 1}`}
+              label="Loni"
               value={series.ytd.last_year}
               against={series.ytd.current}
               seriesKey={meta.key}
@@ -528,13 +521,6 @@ export function CompareCard({
           </>
         )}
       </div>
-      {rangeLabel && (
-        <p className="en-cmp-range" data-testid="energy-compare-range">
-          Porovnáváme stejné dny a hodiny: {rangeLabel}
-          {meta.key === 'cost' &&
-            ' · náklady = odhad podle současného tarifu (VT/NT, stálé platby)'}
-        </p>
-      )}
       <MonthChart
         series={series}
         meta={meta}
