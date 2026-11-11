@@ -124,7 +124,7 @@ describe('EnergyView', () => {
     const card = screen.getByTestId('energy-appliances');
     expect(within(card).getAllByRole('listitem')).toHaveLength(4);
     expect(screen.getByTestId('energy-appliance-dishwasher').dataset.state).toBe('finished');
-    expect(screen.getByTestId('energy-appliance-heat_pump').textContent).toContain('% domu');
+    expect(screen.getByTestId('energy-appliance-heat_pump').textContent).toContain('% dne');
     expect(screen.getByTestId('energy-signals').textContent).toContain('Myčka dokončila');
     expect(sendMessagePromise.mock.calls.every(([m]) => !m.type.includes('call_service'))).toBe(
       true,

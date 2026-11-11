@@ -629,8 +629,7 @@ const APPLIANCE_CHIP: Record<ApplianceState, { label: string; tone: string }> = 
   unknown: { label: 'Bez dat', tone: 'warn' },
 };
 function watts(w: number | null): [string, string] {
-  if (w === null) return ['–', 'W'];
-  return w >= 1000 ? [fmt(w / 1000, 2), 'kW'] : [fmt(w, w < 10 ? 1 : 0), 'W'];
+  return [w === null ? '–' : fmt(w / 1000, 2), 'kW'];
 }
 const clock = (ms: number, tz: string) => {
   const p = localParts(ms, tz);
@@ -657,10 +656,11 @@ function AppliancesCard({ items, model }: { items: ApplianceReading[]; model: En
               <div className="en-appl-top">
                 <span className="en-appl-name">{a.label}</span>
                 <span
-                  className={`en-chip en-chip--${chip.tone}`}
+                  className={a.state === 'running' ? 'en-appl-running' : `en-chip en-chip--${chip.tone}`}
+                  aria-label={chip.label}
                   title={`Běží nad ${fmt(a.runningW, 0)} W`}
                 >
-                  {chip.label}
+                  {a.state === 'running' ? <i className="en-dot" aria-hidden="true" /> : chip.label}
                   {a.state === 'off' && a.switchOn === false ? ' · spínač' : ''}
                 </span>
               </div>
@@ -669,16 +669,16 @@ function AppliancesCard({ items, model }: { items: ApplianceReading[]; model: En
                   className={`en-appl-v${a.state === 'running' ? '' : ' en-appl-v--idle'}`}
                   aria-label={`Výkon teď ${v} ${unit}`}
                 >
-                  {v} <small>{unit}</small>
+                  {v}&nbsp;<small>{unit}</small>
                   {a.power.quality === 'stale' && <span className="en-appl-stale">neaktuální</span>}
                 </div>
                 <div className="en-appl-today">
                   <span>
-                    dnes <b>{fmt(a.todayKwh)}</b> kWh
+                    dnes <b>{fmt(a.todayKwh)}</b>&nbsp;kWh
                   </span>
                   {a.sharePercent !== null && (
                     <span>
-                      <b>{fmt(a.sharePercent, 0)} %</b> domu
+                      <b>{fmt(a.sharePercent, 0)}&nbsp;%</b> dne
                     </span>
                   )}
                 </div>
