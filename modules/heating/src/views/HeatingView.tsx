@@ -198,7 +198,7 @@ function NowTab({
       : hp.compressor_on
         ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (tick - Date.parse(hp.running_since)) / 60_000))}` : ''}`
         : 'Kompresor stojí';
-  const powerLine = hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)} kW`;
+  const powerLine = hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)}\u00a0kW`;
   const landHeadline =
     sceneCopy?.[0] ??
     `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
@@ -286,7 +286,7 @@ function NowTab({
           id="outdoor"
           label="Venku"
           value={fmtT(snap.outdoor.temp)}
-          sub={`dnes ${fmtNum(snap.outdoor.min_today)} až ${fmtT(snap.outdoor.max_today)}`}
+          sub={`dnes ${fmtT(snap.outdoor.min_today)} až ${fmtT(snap.outdoor.max_today)}`}
         />
         <Stat
           id="dhw"
@@ -864,6 +864,7 @@ function ModesTab({ snap }: { snap: HeatingSnapshot }) {
               <span>Doma (chodba)</span>
               <b>
                 cíl {fmtT(snap.house.ref_target)} ± {fmtNum(snap.house.hysteresis)}
+                {'\u00a0°C'}
               </b>
             </li>
           </ul>

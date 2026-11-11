@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'r
 import {
   downsample,
   fmtNum,
+  fmtT,
   minutesOf,
   niceTicks,
   timeLabel,
@@ -444,7 +445,7 @@ export function CurveChart({
           >
             <i />
             <b>
-              teď {fmtNum(now.x)}° → {fmtNum(now.y, 0)}°
+              teď {fmtT(now.x)} → {fmtT(now.y, 0)}
             </b>
           </span>
         )}
@@ -458,7 +459,7 @@ export function CurveChart({
       <div className="ht-xlabs" aria-hidden="true">
         {xs.map((t) => (
           <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
-            {compact ? (t > 0 ? `+${t}` : t < 0 ? `−${-t}` : '0') : `${fmtNum(t, 0)} °C`}
+            {compact ? (t > 0 ? `+${t}` : t < 0 ? `−${-t}` : '0') : `${fmtNum(t, 0)}\u00a0°C`}
           </span>
         ))}
       </div>
