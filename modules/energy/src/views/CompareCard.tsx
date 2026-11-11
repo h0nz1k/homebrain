@@ -232,7 +232,12 @@ function MonthChart({
   })();
   return (
     <div className="en-cmp-chart-wrap">
-      <p className="en-cmp-readout" data-testid="energy-compare-readout" aria-live="polite" hidden={active === month - 1}>
+      <p
+        className="en-cmp-readout"
+        data-testid="energy-compare-readout"
+        aria-live="polite"
+        hidden={active === month - 1}
+      >
         {readout(active)}
       </p>
       {activeMarker && (

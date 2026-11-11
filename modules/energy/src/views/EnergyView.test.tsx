@@ -56,7 +56,9 @@ describe('EnergyView', () => {
     await act(async () => {});
     expect(screen.getByRole('heading', { name: 'Energie', level: 1 })).toBeTruthy();
     expect(screen.getByTestId('energy-kpi-price').textContent).toContain('2,40');
-    expect(screen.getByTestId('energy-price').contains(screen.getByTestId('energy-kpi-price'))).toBe(true);
+    expect(
+      screen.getByTestId('energy-price').contains(screen.getByTestId('energy-kpi-price')),
+    ).toBe(true);
     expect(document.querySelectorAll('.en-kpi')).toHaveLength(4);
     expect(screen.getByRole('meter', { name: 'Soběstačnost' })).toBeTruthy();
     expect(screen.queryByTestId('energy-cheap-today')).toBeNull();
