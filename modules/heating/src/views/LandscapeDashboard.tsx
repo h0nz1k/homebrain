@@ -198,7 +198,7 @@ export function LandscapeDashboard({
           <KvRow k="Teplota" v={fmtT(snap.outdoor.temp)} hide={snap.outdoor.temp === null} />
           <KvRow
             k="Dnes min / max"
-            v={`${fmtNum(snap.outdoor.min_today)} až ${fmtT(snap.outdoor.max_today)}`}
+            v={`${fmtT(snap.outdoor.min_today)} až ${fmtT(snap.outdoor.max_today)}`}
             hide={snap.outdoor.min_today === null || snap.outdoor.max_today === null}
           />
           <KvRow k="Cíl nádrže (křivka)" v={fmtT(tankTarget, 0)} hide={tankTarget === null} />
