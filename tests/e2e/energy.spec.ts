@@ -864,3 +864,44 @@ test('800 px: text tarifu a spotřebičů zůstává uvnitř karty', async ({ pa
     expect(outside, id).toEqual([]);
   }
 });
+
+test('bilance používá společnou škálu a šrafuje rozdíl měření', async ({ page }) => {
+  await page.goto('/homebrain-energie');
+  const card = page.getByTestId('energy-balance');
+  await expect(card).toBeVisible();
+  const widths = await card.locator('.en-stack').evaluateAll((bars) => bars.map((bar) => {
+    const r = bar.getBoundingClientRect();
+    const values = Array.from(bar.children).map((el) => ({
+      width: el.getBoundingClientRect().width,
+      value: Number((el as HTMLElement).style.flexGrow),
+    }));
+    return { width: r.width, values };
+  }));
+  const scales = widths.flatMap((bar) => bar.values.filter((v) => v.value > 0).map((v) => v.width / v.value));
+  expect(Math.max(...scales) - Math.min(...scales)).toBeLessThan(1);
+  await expect(card.getByTestId('energy-balance-hatched')).toHaveCount(1);
+});
+
+test('světlé téma: barvy protistran jsou odlišné a mají kontrast pro grafy', async ({ page }) => {
+  await page.goto('/homebrain-energie?theme=light');
+  const card = page.getByTestId('energy-balance');
+  await expect(card).toBeVisible();
+  const colors = await card.evaluate((root) => {
+    const luminance = (color: string) => {
+      const rgb = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const linear = rgb.map((v) => {
+        const c = v / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+    };
+    const bg = luminance(getComputedStyle(root).backgroundColor);
+    return Array.from(root.querySelectorAll('.en-stack span:not(.en-stack-gap)')).map((el) => {
+      const color = getComputedStyle(el).backgroundColor;
+      const fg = luminance(color);
+      return { color, ratio: (Math.max(bg, fg) + 0.05) / (Math.min(bg, fg) + 0.05) };
+    });
+  });
+  expect(new Set(colors.map((c) => c.color)).size).toBe(colors.length);
+  for (const color of colors) expect(color.ratio, color.color).toBeGreaterThanOrEqual(3);
+});
