@@ -116,16 +116,22 @@ function Kpi(props: {
   color: string;
   spark?: number[];
   testId?: string;
+  gauge?: number | null;
 }) {
   return (
     <section className="en-card en-kpi" data-testid={props.testId}>
       <span className="en-lbl">{props.label}</span>
       <strong className="en-kpi-v">
         {props.value}
-        <small> {props.unit}</small>
+        <small>{'\u00a0'}{props.unit}</small>
       </strong>
       <span className="en-sub">{props.sub}</span>
-      <Sparkline points={props.spark ?? []} color={props.color} />
+      {props.gauge !== undefined ? (
+        <div className="en-self-gauge" role="meter" aria-label="Soběstačnost" aria-valuemin={0} aria-valuemax={100} aria-valuenow={props.gauge ?? undefined}>
+          <div className="en-track"><span style={{ width: `${props.gauge ?? 0}%`, background: 'var(--hb-ok)' }} /></div>
+          <span className="en-sub">0 % <span>100 %</span></span>
+        </div>
+      ) : <><Sparkline points={props.spark ?? []} color={props.color} /><span className="en-spark-time">posledních 24 h</span></>}
     </section>
   );
 }
@@ -142,10 +148,27 @@ function PriceCard({ model }: { model: EnergyModel }) {
   const tz = model.timeZone;
   const dayStart = startOfLocalDay(model.now, tz);
   const visible = series.filter((p) => p.start >= dayStart && p.start < dayStart + 48 * HOUR);
+  const currentPrice = (
+    <div className="en-price-now" data-testid="energy-kpi-price">
+      <span>
+        Spot teď{' '}
+        <b>
+          {fmt(model.price.now.value, 2)}
+          {'\u00a0'}Kč/kWh
+        </b>
+      </span>
+      <span className="en-sub">
+        {model.price.next
+          ? `od ${hourOf(model.price.next.start, tz)} h ${fmt(model.price.next.price, 2)}\u00a0Kč/kWh`
+          : 'další hodina bez dat'}
+      </span>
+    </div>
+  );
   if (!visible.length)
     return (
-      <section className="en-card en-price" aria-label="Spotová cena">
+      <section className="en-card en-price" aria-label="Spotová cena" data-testid="energy-price">
         <h2 className="en-ct">Spotová cena</h2>
+        {currentPrice}
         <EmptyState title="Ceny nejsou k dispozici" />
       </section>
     );
@@ -164,6 +187,7 @@ function PriceCard({ model }: { model: EnergyModel }) {
       <h2 className="en-ct">
         Spotová cena <small>dnes + zítra · Kč/kWh</small>
       </h2>
+      {currentPrice}
       <div className="en-chips">
         {averageTomorrow === null && (
           <span className="en-chip en-chip--off" data-testid="energy-tomorrow-pending">
@@ -835,10 +859,6 @@ export function EnergyScreen({
     [model, history, appliances],
   );
   const t = model.today;
-  const nextPrice = model.price.next;
-  const priceSpark = model.price.series
-    .filter((p) => p.end > model.now - 6 * HOUR && p.start < model.now + 18 * HOUR)
-    .map((p) => p.price);
   const interval = model.price.intervalMinutes;
   return (
     <div className="en-root">
@@ -919,44 +939,30 @@ export function EnergyScreen({
           testId="energy-kpi-house"
           sub="dům dnes"
         />
-        <Kpi
-          label="Nákup ze sítě"
-          value={fmt(t.gridImport.value)}
-          unit="kWh"
-          color="var(--hb-energy-grid)"
-          spark={values(history.hourly.energy_grid_import_energy_today)}
-          testId="energy-kpi-import"
-          sub="dnes"
-        />
-        <Kpi
-          label="↑ Prodej"
-          value={fmt(t.gridExport.value)}
-          unit="kWh"
-          color="var(--hb-energy-grid-export)"
-          spark={values(history.hourly.energy_grid_export_energy_today)}
-          testId="energy-kpi-export"
-          sub="přetoky dnes"
-        />
+        <section className="en-card en-kpi en-kpi-grid" data-testid="energy-kpi-grid">
+          <span className="en-lbl">Síť dnes</span>
+          <div className="en-grid-split">
+            {([
+              ['import', '↓ Nákup', t.gridImport.value, 'var(--hb-energy-grid)', history.hourly.energy_grid_import_energy_today],
+              ['export', '↑ Prodej', t.gridExport.value, 'var(--hb-energy-grid-export)', history.hourly.energy_grid_export_energy_today],
+            ] as const).map(([key, label, value, color, points]) => (
+              <div className="en-grid-half" key={key} data-testid={`energy-kpi-${key}`}>
+                <strong className="en-kpi-v">{fmt(value)}<small>{'\u00a0'}kWh</small></strong>
+                <span className="en-sub" style={{ color }}>{label}</span>
+                <Sparkline points={values(points)} color={color} />
+              </div>
+            ))}
+          </div>
+          <span className="en-spark-time">posledních 24 h</span>
+        </section>
         <Kpi
           label="Soběstačnost"
+          gauge={model.selfSufficiencyPercent}
           value={fmt(model.selfSufficiencyPercent, 0)}
           unit="%"
           color="var(--hb-ok)"
           testId="energy-kpi-self"
           sub={model.selfSufficiencyPercent === null ? 'nelze spočítat' : 'bez nákupu ze sítě'}
-        />
-        <Kpi
-          label="Spot teď"
-          value={fmt(model.price.now.value, 2)}
-          unit="Kč/kWh"
-          color="var(--hb-warn)"
-          spark={priceSpark}
-          testId="energy-kpi-price"
-          sub={
-            nextPrice
-              ? `od ${hourOf(nextPrice.start, model.timeZone)} h ${fmt(nextPrice.price, 2)} Kč`
-              : 'další hodina bez dat'
-          }
         />
         <CostCard cost={cost} model={model} />
         <CompareCard comparison={comparison} invoices={invoiceList?.invoices ?? null} />
