@@ -123,15 +123,34 @@ function Kpi(props: {
       <span className="en-lbl">{props.label}</span>
       <strong className="en-kpi-v">
         {props.value}
-        <small>{'\u00a0'}{props.unit}</small>
+        <small>
+          {'\u00a0'}
+          {props.unit}
+        </small>
       </strong>
       <span className="en-sub">{props.sub}</span>
       {props.gauge !== undefined ? (
-        <div className="en-self-gauge" role="meter" aria-label="Soběstačnost" aria-valuemin={0} aria-valuemax={100} aria-valuenow={props.gauge ?? undefined}>
-          <div className="en-track"><span style={{ width: `${props.gauge ?? 0}%`, background: 'var(--hb-ok)' }} /></div>
-          <span className="en-sub">0 % <span>100 %</span></span>
+        <div
+          className="en-self-gauge"
+          role="meter"
+          aria-label="Soběstačnost"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={props.gauge ?? undefined}
+        >
+          <div className="en-track">
+            <span style={{ width: `${props.gauge ?? 0}%`, background: 'var(--hb-ok)' }} />
+          </div>
+          <span className="en-sub">
+            0 % <span>100 %</span>
+          </span>
         </div>
-      ) : <><Sparkline points={props.spark ?? []} color={props.color} /><span className="en-spark-time">posledních 24 h</span></>}
+      ) : (
+        <>
+          <Sparkline points={props.spark ?? []} color={props.color} />
+          <span className="en-spark-time">posledních 24 h</span>
+        </>
+      )}
     </section>
   );
 }
@@ -334,18 +353,31 @@ function StatsEmpty({ history }: { history: EnergyHistory }) {
   );
 }
 
+/** Four or fewer intervals with round, readable energy values. */
+function energyAxis(values: number[], minimumStep: number) {
+  const peak = Math.max(minimumStep, ...values);
+  const rough = Math.max(minimumStep, peak / 3);
+  const power = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 5, 10].map((n) => n * power).find((n) => n >= rough)!;
+  const max = Math.ceil(peak / step) * step;
+  return { max, ticks: Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step) };
+}
+
 function DayChart({ model, history }: { model: EnergyModel; history: EnergyHistory }) {
   const pv = history.hourly.energy_pv_energy_today ?? [];
   const house = history.hourly.energy_house_energy_today ?? [];
   const start = Math.floor(model.now / HOUR) * HOUR - 23 * HOUR;
-  const max = Math.max(0.5, ...pv.map((p) => p.value), ...house.map((p) => p.value)) * 1.1;
+  const { max, ticks } = energyAxis(
+    [...pv, ...house].map((p) => p.value),
+    1,
+  );
   const xs = (t: number) => ((t - start + HOUR / 2) / (24 * HOUR)) * 100;
   const line = (pts: StatPoint[]) =>
     pts.map((p) => `${xs(p.start)},${100 - (p.value / max) * 100}`).join(' ');
   return (
     <section className="en-card en-day" aria-label="Posledních 24 hodin" data-testid="energy-24h">
       <h2 className="en-ct">
-        Výroba a spotřeba <small>24 h · kWh za hodinu</small>
+        Výroba a spotřeba <small>posledních 24 h · kWh za hodinu</small>
       </h2>
       {!pv.length && !house.length ? (
         <StatsEmpty history={history} />
@@ -353,13 +385,13 @@ function DayChart({ model, history }: { model: EnergyModel; history: EnergyHisto
         <>
           <div className="en-chart en-chart--line">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {[0.25, 0.5, 0.75].map((f) => (
+              {ticks.map((tick) => (
                 <line
-                  key={f}
+                  key={tick}
                   x1="0"
                   x2="100"
-                  y1={f * 100}
-                  y2={f * 100}
+                  y1={100 - (tick / max) * 100}
+                  y2={100 - (tick / max) * 100}
                   stroke="var(--hb-b1)"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -390,9 +422,15 @@ function DayChart({ model, history }: { model: EnergyModel; history: EnergyHisto
                 />
               )}
             </svg>
-            <span className="en-axis en-axis--y" style={{ top: '0%' }}>
-              {fmt(max, 1)}
-            </span>
+            {ticks.map((tick) => (
+              <span
+                key={tick}
+                className="en-axis en-axis--y"
+                style={{ top: `${100 - (tick / max) * 100}%` }}
+              >
+                {fmt(tick, 0)}
+              </span>
+            ))}
           </div>
           <div className="en-xaxis">
             {[0, 6, 12, 18].map((h) => (
@@ -423,47 +461,76 @@ function WeekChart({ model, history }: { model: EnergyModel; history: EnergyHist
   const house = history.daily.energy_house_energy_today ?? [];
   const days = [...new Set([...pv, ...house].map((p) => p.start))].sort((a, b) => a - b).slice(-7);
   const val = (pts: StatPoint[], t: number) => pts.find((p) => p.start === t)?.value ?? 0;
-  const max = Math.max(1, ...days.flatMap((d) => [val(pv, d), val(house, d)])) * 1.1;
+  const { max, ticks } = energyAxis(
+    days.flatMap((d) => [val(pv, d), val(house, d)]),
+    5,
+  );
+  const today = localParts(model.now, model.timeZone).day;
   return (
     <section className="en-card en-week" aria-label="Posledních 7 dní" data-testid="energy-7d">
       <h2 className="en-ct">
-        7 dní <small>kWh za den</small>
+        7 dní <small>kWh za den · dnešek rozpracovaný (obrys)</small>
       </h2>
       {!days.length ? (
         <StatsEmpty history={history} />
       ) : (
         <>
-          <div className="en-bars">
-            {days.map((d) => (
-              <div key={d} className="en-bar-day">
-                <div className="en-bar-pair">
-                  <span
-                    style={{
-                      height: `${(val(pv, d) / max) * 100}%`,
-                      background: 'var(--hb-energy-pv)',
-                    }}
-                    title={`FVE ${fmt(val(pv, d))} kWh`}
-                  />
-                  <span
-                    style={{
-                      height: `${(val(house, d) / max) * 100}%`,
-                      background: 'var(--hb-energy-home)',
-                    }}
-                    title={`Dům ${fmt(val(house, d))} kWh`}
-                  />
-                </div>
-                <span className="en-axis-x">{weekday(d + 12 * HOUR, model.timeZone)}</span>
+          <div className="en-week-plot">
+            {ticks.map((tick) => (
+              <div key={tick} className="en-week-grid" style={{ bottom: `${(tick / max) * 100}%` }}>
+                <span>{fmt(tick, 0)}</span>
               </div>
             ))}
+            <div className="en-bars">
+              {days.map((d) => (
+                <div
+                  key={d}
+                  className="en-bar-day"
+                  data-progress={
+                    localParts(d + 12 * HOUR, model.timeZone).day === today || undefined
+                  }
+                >
+                  <div className="en-bar-pair">
+                    <span
+                      style={{
+                        height: `${(val(pv, d) / max) * 100}%`,
+                        background: 'var(--hb-energy-pv)',
+                      }}
+                      title={`FVE ${fmt(val(pv, d))} kWh`}
+                    />
+                    <span
+                      style={{
+                        height: `${(val(house, d) / max) * 100}%`,
+                        background: 'var(--hb-energy-home)',
+                      }}
+                      title={`Dům ${fmt(val(house, d))} kWh`}
+                    />
+                  </div>
+                  <span className="en-axis-x">
+                    {localParts(d + 12 * HOUR, model.timeZone).day === today
+                      ? 'dnes'
+                      : weekday(d + 12 * HOUR, model.timeZone)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="en-legend">
             <span>
               <i style={{ background: 'var(--hb-energy-pv)' }} />
-              FVE <b>{fmt(total(pv), 0)}</b>
+              FVE{' '}
+              <b>
+                {fmt(total(pv), 0)}
+                {'\u00a0'}kWh za 7 dní
+              </b>
             </span>
             <span>
               <i style={{ background: 'var(--hb-energy-home)' }} />
-              Dům <b>{fmt(total(house), 0)}</b>
+              Dům{' '}
+              <b>
+                {fmt(total(house), 0)}
+                {'\u00a0'}kWh za 7 dní
+              </b>
             </span>
           </div>
         </>
@@ -487,7 +554,13 @@ function Stack({
         {valid.map((p) => (
           <span key={p.label} style={{ flexGrow: p.value!, background: p.color }} />
         ))}
-        {gap > 0 && <span className="en-stack-gap" style={{ flexGrow: gap }} data-testid="energy-balance-hatched" />}
+        {gap > 0 && (
+          <span
+            className="en-stack-gap"
+            style={{ flexGrow: gap }}
+            data-testid="energy-balance-hatched"
+          />
+        )}
         {!valid.length && !gap && <span style={{ flexGrow: 1, background: 'var(--hb-s3)' }} />}
       </div>
       <div className="en-legend">
@@ -531,13 +604,17 @@ function BalanceCard({ model }: { model: EnergyModel }) {
         parts={[
           { label: 'Dům', value: t.house.value, color: 'var(--hb-energy-home)' },
           { label: '↑ Prodej', value: t.gridExport.value, color: 'var(--hb-energy-grid-export)' },
-          { label: 'Do baterie', value: t.batteryCharge.value, color: 'var(--hb-energy-battery-charge)' },
+          {
+            label: 'Do baterie',
+            value: t.batteryCharge.value,
+            color: 'var(--hb-energy-battery-charge)',
+          },
         ]}
       />
       {Math.abs(sources - uses) >= 0.5 && (
         <p className="en-note" data-testid="energy-balance-gap">
-          Šrafovaná část: rozdíl {fmt(Math.abs(sources - uses))} kWh – ztráty střídače nebo měřidla, která se
-          nesčítají (počítadla jsou z různých senzorů).
+          Šrafovaná část: rozdíl {fmt(Math.abs(sources - uses))} kWh – ztráty střídače nebo měřidla,
+          která se nesčítají (počítadla jsou z různých senzorů).
         </p>
       )}
     </section>
@@ -731,7 +808,8 @@ function CostCard({ cost, model }: { cost: CostView | null; model: EnergyModel }
           <div className="en-cost-col" data-testid="energy-cost-total">
             <strong className="en-cost-v">{kc(p.total, dig)}</strong>
             <span className="en-sub">
-              {PERIOD_LABEL[period].toLocaleLowerCase('cs-CZ')} {fromLabel} · {kwh(p.importKwh)} ze sítě
+              {PERIOD_LABEL[period].toLocaleLowerCase('cs-CZ')} {fromLabel} · {kwh(p.importKwh)} ze
+              sítě
             </span>
             {p.savings !== null && (
               <span className="en-cost-save" data-testid="energy-cost-savings">
@@ -941,13 +1019,32 @@ export function EnergyScreen({
         <section className="en-card en-kpi en-kpi-grid" data-testid="energy-kpi-grid">
           <span className="en-lbl">Síť dnes</span>
           <div className="en-grid-split">
-            {([
-              ['import', '↓ Nákup', t.gridImport.value, 'var(--hb-energy-grid)', history.hourly.energy_grid_import_energy_today],
-              ['export', '↑ Prodej', t.gridExport.value, 'var(--hb-energy-grid-export)', history.hourly.energy_grid_export_energy_today],
-            ] as const).map(([key, label, value, color, points]) => (
+            {(
+              [
+                [
+                  'import',
+                  '↓ Nákup',
+                  t.gridImport.value,
+                  'var(--hb-energy-grid)',
+                  history.hourly.energy_grid_import_energy_today,
+                ],
+                [
+                  'export',
+                  '↑ Prodej',
+                  t.gridExport.value,
+                  'var(--hb-energy-grid-export)',
+                  history.hourly.energy_grid_export_energy_today,
+                ],
+              ] as const
+            ).map(([key, label, value, color, points]) => (
               <div className="en-grid-half" key={key} data-testid={`energy-kpi-${key}`}>
-                <strong className="en-kpi-v">{fmt(value)}<small>{'\u00a0'}kWh</small></strong>
-                <span className="en-sub" style={{ color }}>{label}</span>
+                <strong className="en-kpi-v">
+                  {fmt(value)}
+                  <small>{'\u00a0'}kWh</small>
+                </strong>
+                <span className="en-sub" style={{ color }}>
+                  {label}
+                </span>
                 <Sparkline points={values(points)} color={color} />
               </div>
             ))}

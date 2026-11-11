@@ -651,4 +651,14 @@ export const energyStyles = `
 .en-price-now{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;font-size:14px}
 .en-price{grid-column:span 12}
 @media(min-width:761px){.en-kpi .en-spark{height:38px}}
+
+.en-week-plot{position:relative;height:132px;margin:12px 0 24px 26px}
+.en-week-plot .en-bars{position:relative;height:100%;min-height:0;z-index:1}
+.en-week-plot .en-bar-day{position:relative;height:100%}
+.en-week-plot .en-axis-x{position:absolute;top:calc(100% + 4px)}
+.en-week-grid{position:absolute;left:0;right:0;border-top:1px solid var(--hb-b1);pointer-events:none}
+.en-week-grid>span{position:absolute;right:100%;margin-right:6px;font-size:11px;color:var(--hb-t3);transform:translateY(-50%)}
+.en-bar-day[data-progress] .en-bar-pair span{border:2px solid;min-height:3px}
+.en-bar-day[data-progress] .en-bar-pair span:first-child{border-color:var(--hb-energy-pv);background:color-mix(in srgb,var(--hb-energy-pv) 10%,var(--hb-s1))!important}
+.en-bar-day[data-progress] .en-bar-pair span:last-child{border-color:var(--hb-energy-home);background:color-mix(in srgb,var(--hb-energy-home) 10%,var(--hb-s1))!important}
 `;

@@ -152,8 +152,8 @@
     --hb-energy-pv: #f7b733;
     --hb-energy-home: #5eb1ff;
     --hb-energy-grid: #a78bfa;
-  --hb-energy-grid-export: #c4b5fd;
-  --hb-energy-battery-charge: #67e8f9;
+    --hb-energy-grid-export: #c4b5fd;
+    --hb-energy-battery-charge: #67e8f9;
     --hb-energy-battery: #22d3ee;
     --hb-weather-temp: #ff9f5a;
     --hb-weather-rain: #4cb8ff;

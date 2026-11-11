@@ -1909,7 +1909,11 @@ export function EnergyFlowHero({
                   key={c.slot}
                   item={c}
                   onOpen={() => setOpen(c.slot)}
-                  style={{ left: u(CONSUMER_X - 24), maxWidth: `calc(100% - ${u(CONSUMER_X - 24)})`, top: u(consumerY(i, rows) - 24) }}
+                  style={{
+                    left: u(CONSUMER_X - 24),
+                    maxWidth: `calc(100% - ${u(CONSUMER_X - 24)})`,
+                    top: u(consumerY(i, rows) - 24),
+                  }}
                 />
               ))}
               {!items.length && (

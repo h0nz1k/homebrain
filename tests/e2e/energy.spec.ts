@@ -607,9 +607,7 @@ test.describe('srovnání období', () => {
     await expect(page.getByTestId('energy-compare-last-year-delta')).toContainText(/[+−±]\d+\s%/);
     await expect(page.getByTestId('energy-compare-previous')).toContainText('říjen 2026');
     await expect(page.getByTestId('energy-compare-range')).toContainText('1.–7. 11. do 16:00');
-    await expect(page.getByTestId('energy-compare-headline')).toContainText(
-      'než loni',
-    );
+    await expect(page.getByTestId('energy-compare-headline')).toContainText('než loni');
     await expect(page.getByTestId('energy-compare-previous')).toContainText('1.–7. 10.');
     await expect(page.getByTestId('energy-compare-yaxis')).toContainText('kWh');
     await expect(page.getByTestId('energy-compare-legend')).toContainText(
@@ -849,7 +847,6 @@ test.describe('srovnání období', () => {
   });
 });
 
-
 test('800 px: text tarifu a spotřebičů zůstává uvnitř karty', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 1280 });
   await page.goto('/homebrain-energie');
@@ -865,7 +862,8 @@ test('800 px: text tarifu a spotřebičů zůstává uvnitř karty', async ({ pa
         const range = document.createRange();
         range.selectNodeContents(node);
         for (const r of Array.from(range.getClientRects()))
-          if (r.width && (r.left < card.left - 1 || r.right > card.right + 1)) out.push(node.textContent);
+          if (r.width && (r.left < card.left - 1 || r.right > card.right + 1))
+            out.push(node.textContent);
       }
       return out;
     });
@@ -877,41 +875,21 @@ test('bilance používá společnou škálu a šrafuje rozdíl měření', async
   await page.goto('/homebrain-energie');
   const card = page.getByTestId('energy-balance');
   await expect(card).toBeVisible();
-  const widths = await card.locator('.en-stack').evaluateAll((bars) => bars.map((bar) => {
-    const r = bar.getBoundingClientRect();
-    const values = Array.from(bar.children).map((el) => ({
-      width: el.getBoundingClientRect().width,
-      value: Number((el as HTMLElement).style.flexGrow),
-    }));
-    return { width: r.width, values };
-  }));
-  const scales = widths.flatMap((bar) => bar.values.filter((v) => v.value > 0).map((v) => v.width / v.value));
+  const widths = await card.locator('.en-stack').evaluateAll((bars) =>
+    bars.map((bar) => {
+      const r = bar.getBoundingClientRect();
+      const values = Array.from(bar.children).map((el) => ({
+        width: el.getBoundingClientRect().width,
+        value: Number((el as HTMLElement).style.flexGrow),
+      }));
+      return { width: r.width, values };
+    }),
+  );
+  const scales = widths.flatMap((bar) =>
+    bar.values.filter((v) => v.value > 0).map((v) => v.width / v.value),
+  );
   expect(Math.max(...scales) - Math.min(...scales)).toBeLessThan(1);
   await expect(card.getByTestId('energy-balance-hatched')).toHaveCount(1);
-});
-
-test('světlé téma: barvy protistran jsou odlišné a mají kontrast pro grafy', async ({ page }) => {
-  await page.goto('/homebrain-energie?theme=light');
-  const card = page.getByTestId('energy-balance');
-  await expect(card).toBeVisible();
-  const colors = await card.evaluate((root) => {
-    const luminance = (color: string) => {
-      const rgb = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-      const linear = rgb.map((v) => {
-        const c = v / 255;
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      });
-      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
-    };
-    const bg = luminance(getComputedStyle(root).backgroundColor);
-    return Array.from(root.querySelectorAll('.en-stack span:not(.en-stack-gap)')).map((el) => {
-      const color = getComputedStyle(el).backgroundColor;
-      const fg = luminance(color);
-      return { color, ratio: (Math.max(bg, fg) + 0.05) / (Math.min(bg, fg) + 0.05) };
-    });
-  });
-  expect(new Set(colors.map((c) => c.color)).size).toBe(colors.length);
-  for (const color of colors) expect(color.ratio, color.color).toBeGreaterThanOrEqual(3);
 });
 
 test('čtyři KPI vyplňují řadu a grafy sítě mají čitelnou šířku', async ({ page }) => {
@@ -936,7 +914,6 @@ test('čtyři KPI vyplňují řadu a grafy sítě mají čitelnou šířku', asy
   );
 });
 
-
 test('úspora vyplňuje šířku sloupce nákladů a popis je pod částkou', async ({ page }) => {
   await page.goto('/homebrain-energie');
   const total = page.getByTestId('energy-cost-total');
@@ -948,4 +925,58 @@ test('úspora vyplňuje šířku sloupce nákladů a popis je pod částkou', as
   const description = (await total.locator('.en-sub').boundingBox())!;
   expect(description.y).toBeGreaterThanOrEqual(number.y + number.height);
   await expect(total.locator('.en-lbl')).toHaveCount(0);
+});
+
+test('denní a týdenní osy mají kulaté hodnoty a dnešek je obrysový', async ({ page }) => {
+  await page.goto('/homebrain-energie');
+  const day = page.getByTestId('energy-24h');
+  const week = page.getByTestId('energy-7d');
+  await expect(day.locator('.en-axis--y').first()).toBeVisible();
+  await expect(week).toContainText('kWh za 7 dní');
+  await expect(week.locator('[data-progress]')).toHaveCount(1);
+  for (const axis of [day.locator('.en-axis--y'), week.locator('.en-week-grid>span')]) {
+    const values = await axis.allTextContents();
+    expect(values.length).toBeGreaterThanOrEqual(3);
+    expect(values[0]).toBe('0');
+    expect(values.every((v) => /^\d+$/.test(v))).toBe(true);
+  }
+  const geometry = await week.evaluate((root) => {
+    const plot = root.querySelector('.en-week-plot')!.getBoundingClientRect();
+    const today = root.querySelector('[data-progress] .en-bar-pair span')!;
+    return {
+      plotHeight: plot.height,
+      pairHeight: root.querySelector('.en-bar-pair')!.getBoundingClientRect().height,
+      border: parseFloat(getComputedStyle(today).borderTopWidth),
+      ticks: Array.from(root.querySelectorAll('.en-week-grid')).map(
+        (el) => el.getBoundingClientRect().top,
+      ),
+    };
+  });
+  expect(Math.abs(geometry.plotHeight - geometry.pairHeight)).toBeLessThan(1);
+  expect(geometry.border).toBeGreaterThanOrEqual(2);
+  expect(new Set(geometry.ticks).size).toBe(geometry.ticks.length);
+});
+
+test('světlé téma: barvy protistran jsou odlišné a mají kontrast pro grafy', async ({ page }) => {
+  await page.goto('/homebrain-energie?theme=light');
+  const card = page.getByTestId('energy-balance');
+  await expect(card).toBeVisible();
+  const colors = await card.evaluate((root) => {
+    const luminance = (color: string) => {
+      const rgb = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const linear = rgb.map((v) => {
+        const c = v / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+    };
+    const bg = luminance(getComputedStyle(root).backgroundColor);
+    return Array.from(root.querySelectorAll('.en-stack span:not(.en-stack-gap)')).map((el) => {
+      const color = getComputedStyle(el).backgroundColor;
+      const fg = luminance(color);
+      return { color, ratio: (Math.max(bg, fg) + 0.05) / (Math.min(bg, fg) + 0.05) };
+    });
+  });
+  expect(new Set(colors.map((c) => c.color)).size).toBe(colors.length);
+  for (const color of colors) expect(color.ratio, color.color).toBeGreaterThanOrEqual(3);
 });
