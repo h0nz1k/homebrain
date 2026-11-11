@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createEntityStore } from '@homebrain/ha-client';
-import EnergyView from './EnergyView';
+import EnergyView, { EnergyScreen } from './EnergyView';
+import { adaptEnergyEntities } from '../adapter';
 import { applyFlowScenario, createEnergyDemo, type FlowScenario } from '../fixtures';
 
 const NOW = Date.parse('2026-10-31T10:40:00+01:00');
@@ -31,8 +32,23 @@ describe('EnergyView', () => {
     await act(async () => {});
     const houseId = demo.bindings.energy_house_energy_today!;
     act(() => store.update({ [houseId]: { ...demo.states[houseId]!, state: '1.0' } }));
-    expect(screen.getByTestId('energy-balance-gap').textContent).toMatch(/^Šrafovaná část: rozdíl \d+,\d kWh/);
+    expect(screen.getByTestId('energy-balance-gap').textContent).toMatch(
+      /^Šrafovaná část: rozdíl \d+,\d kWh/,
+    );
     expect(screen.getByTestId('energy-balance').textContent).toContain('Do baterie');
+  });
+
+  it('keeps the live spot price in its card when the price series is missing', () => {
+    const demo = createEnergyDemo(NOW);
+    const model = adaptEnergyEntities({
+      bindings: demo.bindings,
+      getState: (id) => demo.states[id],
+      now: NOW,
+    });
+    model.price.series = [];
+    render(<EnergyScreen model={model} history={{ hourly: {}, daily: {}, status: 'ready' }} />);
+    expect(screen.getByTestId('energy-price').textContent).toContain('Ceny nejsou k dispozici');
+    expect(screen.getByTestId('energy-kpi-price').textContent).toContain('2,40');
   });
 
   it('renders KPIs, flows, prices and Czech labels read-only (ENE-001)', async () => {
@@ -40,6 +56,9 @@ describe('EnergyView', () => {
     await act(async () => {});
     expect(screen.getByRole('heading', { name: 'Energie', level: 1 })).toBeTruthy();
     expect(screen.getByTestId('energy-kpi-price').textContent).toContain('2,40');
+    expect(screen.getByTestId('energy-price').contains(screen.getByTestId('energy-kpi-price'))).toBe(true);
+    expect(document.querySelectorAll('.en-kpi')).toHaveLength(4);
+    expect(screen.getByRole('meter', { name: 'Soběstačnost' })).toBeTruthy();
     expect(screen.queryByTestId('energy-cheap-today')).toBeNull();
     expect(screen.queryByTestId('energy-advice')).toBeNull();
     expect(screen.getByTestId('energy-flow-battery').textContent).toContain('58');
