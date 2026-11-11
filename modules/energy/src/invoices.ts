@@ -340,7 +340,9 @@ export function invoiceMarkerDiffValue(
 export type InvoiceMarkerDiffTone = 'muted' | 'warn' | 'warn-strong';
 
 /** Colour band from |percent| gap (never “success” for a large discrepancy). */
-export function invoiceMarkerDiffTone(pct: number | null | undefined): InvoiceMarkerDiffTone | undefined {
+export function invoiceMarkerDiffTone(
+  pct: number | null | undefined,
+): InvoiceMarkerDiffTone | undefined {
   if (pct === null || pct === undefined) return undefined;
   const a = Math.abs(pct);
   if (a <= 5) return 'muted';

@@ -69,7 +69,10 @@ describe('CompareCard data correctness', () => {
     expect(detail).toContain('Naměřeno v HA');
     expect(detail).toContain('Rozdíl (faktura − HA)');
     expect(detail).toContain('Faktura za září 2026');
-    expect(screen.getByTestId('energy-compare-invoice-detail').querySelectorAll('.en-cmp-inv-line').length).toBe(3);
+    expect(
+      screen.getByTestId('energy-compare-invoice-detail').querySelectorAll('.en-cmp-inv-line')
+        .length,
+    ).toBe(3);
     const diffTone = screen
       .getByTestId('energy-compare-invoice-detail')
       .querySelector('.en-cmp-inv-line[data-tone]')
