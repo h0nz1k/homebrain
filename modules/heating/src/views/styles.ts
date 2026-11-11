@@ -33,7 +33,7 @@ export const heatingStyles = `
 [data-theme='light'] .ht .ht-sbars-grid em,
 [data-theme='light'] .ht .ht-sched-axis b,
 [data-theme='light'] .ht .ht-curve-unit {
-  color: var(--hb-t2);
+  color: var(--hb-t1);
 }
 .ht * { box-sizing: border-box; }
 .ht :where(h2, h3, p, ul, dl, dd) { margin: 0; }
@@ -124,7 +124,7 @@ export const heatingStyles = `
 .ht-tip[data-side='l'] { transform: translateX(calc(-100% - 20px)); }
 .ht-tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .ht-zoomsel { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--hb-ac) 18%, transparent); box-shadow: inset 0 0 0 1px var(--hb-ac); pointer-events: none; }
-.ht-runs { position: relative; height: 12px; margin-top: 8px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.12)); }
+.ht-runs { position: relative; height: 12px; margin-top: 12px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.12)); }
 .ht-runs i { position: absolute; top: 0; bottom: 0; background: var(--hb-ac); opacity: .85; border-radius: 2px; min-width: 2px; }
 .ht-runs-tick { position: absolute; top: -3px; bottom: -3px; width: 1px; background: color-mix(in srgb, var(--hb-t1) 14%, transparent); }
 .ht-runs-lbl { position: absolute; left: -34px; top: 50%; transform: translateY(-50%); font-size: 11px; font-weight: 600; color: var(--hb-t3, var(--hb-t2)); }
@@ -295,11 +295,10 @@ export const heatingStyles = `
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
 .ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
-.ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-.5px; }
+.ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-1px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
 [data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; }
 [data-theme='light'] .ht-c3-vessel { stroke:#35434e; }
-.ht-c3-label[data-label='charge'], .ht-c3-label[data-label='hp-in'], .ht-c3-label[data-label='cold-water'], .ht-c3-label[data-label='house-pump'] { font-size:12px; }
 .ht-c3-dhw-value { font-size:15px; font-weight:500; }
 .ht-c3-unit { font-size:13px; }
 .ht-c3-dhw-unit { font-size:12px; }
@@ -480,8 +479,6 @@ export const heatingStyles = `
   .ht { max-width: min(100%, 1920px); width: 100%; }
   .ht-c3-owner-logo { x: 11px; width: 60px; }
   .ht-land-panel .hb-chip { align-self: start; justify-self: start; width: fit-content; }
-  .ht-c3-label:is([data-label='charge'],[data-label='hp-in'],[data-label='cold-water'],[data-label='house-pump']) { font-size: 11px; }
-  .ht-c3-label[data-label='tank-top'] { font-size: 11px; }
 }
 
 @media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) and (max-height: 599px) {

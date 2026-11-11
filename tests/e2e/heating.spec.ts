@@ -17,7 +17,9 @@ async function infiniteAnimations(page: Page) {
 }
 
 test.describe('Topení', () => {
-  test('Teď: logo z manifestu (dev), LED kompresoru a bez manifestu popisek TČ', async ({ page }) => {
+  test('Teď: logo z manifestu (dev), LED kompresoru a bez manifestu popisek TČ', async ({
+    page,
+  }) => {
     await page.goto('/homebrain-topeni?topeni=heating');
     const sch = page.getByTestId('heating-schematic');
     await expect(sch).toHaveAttribute('data-hp-logo', '', { timeout: 20_000 });
@@ -404,6 +406,8 @@ test.describe('Topení', () => {
               const at = path.getPointAtLength(n);
               const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
               for (const label of labels) {
+                const id = label.getAttribute('data-label');
+                const pipeId = path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id');
                 const b = label.getBoundingClientRect();
                 if (
                   pt.x + stroke * scale > b.left &&
@@ -411,9 +415,7 @@ test.describe('Topení', () => {
                   pt.y + stroke * scale > b.top &&
                   pt.y - stroke * scale < b.bottom
                 )
-                  errors.push(
-                    `pipe/label: ${path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id')} / ${label.getAttribute('data-label')}`,
-                  );
+                  errors.push(`pipe/label: ${pipeId} / ${id}`);
               }
             }
           }
@@ -459,9 +461,10 @@ test.describe('Topení', () => {
             errors.push('tap/mixer gap');
           const floor = box('.ht-c3-floor');
           if (box('[data-label="hp-in"]').top - floor.bottom < 6) errors.push('floor label hp-in');
-          for (const id of ['charge', 'cold-water'])
-            if (floor.top - box(`[data-label="${id}"]`).bottom < 6)
-              errors.push(`floor label ${id}`);
+          if (box('[data-label="charge"]').top - floor.bottom < 6)
+            errors.push('floor label charge');
+          if (floor.top - box('[data-label="cold-water"]').bottom < 6)
+            errors.push('floor label cold-water');
           return [...new Set(errors)];
         });
         expect(issues).toEqual([]);
@@ -572,7 +575,11 @@ test.describe('Topení', () => {
                       ) {
                         return { hit: true, note: overlapNote };
                       }
-                      rects.push({ box, owner, text: textNode.textContent?.trim().slice(0, 40) ?? '' });
+                      rects.push({
+                        box,
+                        owner,
+                        text: textNode.textContent?.trim().slice(0, 40) ?? '',
+                      });
                     }
                   }
                   return { hit: false, note: overlapNote };
@@ -611,7 +618,7 @@ test.describe('Topení', () => {
                 ),
               )) {
                 const stroke = Number.parseFloat(getComputedStyle(path).strokeWidth) / 2;
-                for (let n = 0; n <= path.getTotalLength(); n += Math.max(2, path.getTotalLength() / 80)) {
+                for (let n = 0; n <= path.getTotalLength(); n += 1) {
                   const at = path.getPointAtLength(n);
                   const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
                   if (
@@ -620,7 +627,9 @@ test.describe('Topení', () => {
                     pt.y + stroke > lb.top &&
                     pt.y - stroke < lb.bottom
                   ) {
-                    svgLabelPipeHits.push(`${id}/${path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id') ?? 'pipe'}`);
+                    svgLabelPipeHits.push(
+                      `${id}/${path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id') ?? 'pipe'}`,
+                    );
                     break;
                   }
                 }
@@ -753,27 +762,155 @@ test.describe('Topení', () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/homebrain-topeni/trendy?topeni=heating&theme=${theme}`);
       await expect(page.getByTestId('heating-trend-chart')).toBeVisible({ timeout: 20_000 });
-      const contrast = await page.evaluate(() => {
+      const metrics = await page.evaluate(() => {
         const c = document.createElement('canvas').getContext('2d')!;
-        const lum = (color: string) => {
+        const resolve = (color: string) => {
           c.fillStyle = color;
           c.fillRect(0, 0, 1, 1);
-          const rgb = [...c.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => {
+          return [...c.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        const lum = (rgb: number[]) => {
+          const lin = rgb.map((v) => {
             const x = v / 255;
             return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
           });
-          return rgb[0]! * 0.2126 + rgb[1]! * 0.7152 + rgb[2]! * 0.0722;
+          return lin[0]! * 0.2126 + lin[1]! * 0.7152 + lin[2]! * 0.0722;
         };
-        const labels = Array.from(document.querySelectorAll('.ht-xlabs span, .ht-ylab'));
-        const root = document.querySelector('.ht')!;
-        const cardBg = getComputedStyle(root).getPropertyValue('--hb-s1').trim() || '#fff';
-        return labels.map((el) => {
-          const fg = lum(getComputedStyle(el).color);
-          const bg = lum(cardBg);
-          return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+        const contrast = (fg: string, bg: string) => {
+          const a = lum(resolve(fg));
+          const b = lum(resolve(bg));
+          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+        };
+        const card = document.querySelector('[data-testid="heating-trend"]')!;
+        const cardBg = getComputedStyle(card).backgroundColor;
+        const axisLabels = Array.from(document.querySelectorAll('.ht-xlabs span, .ht-ylab'));
+        const contrasts = axisLabels.map((el) => {
+          const style = getComputedStyle(el);
+          return contrast(el instanceof SVGElement ? style.fill : style.color, cardBg);
         });
+        const ylabGaps: number[] = [];
+        const runsLbl = document.querySelector('.ht-runs-lbl');
+        if (runsLbl) {
+          const rb = runsLbl.getBoundingClientRect();
+          for (const ylab of Array.from(document.querySelectorAll('.ht-ylab'))) {
+            const yb = ylab.getBoundingClientRect();
+            ylabGaps.push(
+              Math.hypot(
+                Math.max(yb.left - rb.right, rb.left - yb.right, 0),
+                Math.max(yb.top - rb.bottom, rb.top - yb.bottom, 0),
+              ),
+            );
+          }
+        }
+        return { contrasts, ylabGaps };
       });
-      expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
+      expect(metrics.contrasts.length).toBeGreaterThan(0);
+      expect(Math.min(...metrics.contrasts)).toBeGreaterThanOrEqual(4.5);
+      if (theme === 'light') {
+        expect(metrics.ylabGaps.length).toBeGreaterThan(0);
+        expect(Math.min(...metrics.ylabGaps)).toBeGreaterThanOrEqual(4);
+      }
+    });
+  }
+
+  for (const scenario of ['heating', 'house', 'dhw', 'idle'] as const) {
+    test(`Teď portrét ${scenario}: odstup klíčových popisků schématu ≥ 4 px`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
+      await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+      await page.evaluate(() => document.fonts.ready);
+      const gaps = await page.getByTestId('heating-schematic').evaluate((el) => {
+        const svg = el.querySelector('svg')!;
+        const scale = svg.getBoundingClientRect().width / 344;
+        const textBox = (text: SVGTextElement) => {
+          const b = text.getBBox();
+          const matrix = text.getScreenCTM()!;
+          const start = new DOMPoint(b.x, b.y).matrixTransform(matrix);
+          const end = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(matrix);
+          return new DOMRect(start.x, start.y, end.x - start.x, end.y - start.y);
+        };
+        const minGap = 4;
+        const errors: string[] = [];
+        const labelGap = (a: DOMRect, b: DOMRect) =>
+          Math.hypot(
+            Math.max(a.left - b.right, b.left - a.right, 0),
+            Math.max(a.top - b.bottom, b.top - a.bottom, 0),
+          );
+        const allLabels = Array.from(el.querySelectorAll<SVGTextElement>('text')).filter(
+          (n) => !n.closest('.ht-c3-land-only'),
+        );
+        const focusIds = ['charge', 'house-pump', 'cold-water', 'hp-in'];
+        const focus = focusIds
+          .map((id) => el.querySelector<SVGTextElement>(`[data-label="${id}"]`))
+          .filter(Boolean);
+        for (let i = 0; i < allLabels.length; i++) {
+          for (let j = i + 1; j < allLabels.length; j++) {
+            const label = allLabels[i]!;
+            const other = allLabels[j]!;
+            const gap = labelGap(textBox(label), textBox(other));
+            if (gap < minGap)
+              errors.push(
+                `label: ${label.getAttribute('data-label')}↔${other.getAttribute('data-label')} ${gap.toFixed(1)}px`,
+              );
+          }
+        }
+        for (const label of focus) {
+          const lb = textBox(label!);
+          const fontPx = Number.parseFloat(getComputedStyle(label!).fontSize) * scale;
+          if (fontPx < 12 || fontPx > 13)
+            errors.push(`font: ${label!.getAttribute('data-label')} ${fontPx.toFixed(1)}px`);
+          for (const shape of Array.from(
+            el.querySelectorAll(
+              '[data-pump], .ht-c3-cabinet, .ht-c3-radiator, .ht-c3-tap, .ht-c3-floor, .ht-c3-rim',
+            ),
+          )) {
+            const style = getComputedStyle(shape);
+            const stroke = style.stroke === 'none' ? 0 : (Number.parseFloat(style.strokeWidth) * scale) / 2;
+            const gap = labelGap(lb, shape.getBoundingClientRect()) - stroke;
+            if (gap < minGap)
+              errors.push(
+                `shape: ${label!.getAttribute('data-label')}↔${shape.getAttribute('class')} ${gap.toFixed(1)}px`,
+              );
+          }
+          if (label!.getAttribute('data-label') === 'cold-water') {
+            const tank = el.querySelector('.ht-c3-shell')!.getBoundingClientRect();
+            const pill = el.querySelector('.ht-c3-cold-portrait-bg')!.getBoundingClientRect();
+            if (Math.min(pill.left - tank.left, tank.right - pill.right) < minGap)
+              errors.push('cold-water pill near tank wall');
+            const rim = el.querySelector('path.ht-c3-rim')!;
+            const rimStroke = (Number.parseFloat(getComputedStyle(rim).strokeWidth) * scale) / 2;
+            if (labelGap(pill, rim.getBoundingClientRect()) - rimStroke < minGap)
+              errors.push('cold-water pill near tank rim');
+          }
+        }
+        const pipeCheckIds = ['charge', 'house-pump', 'cold-water', 'hp-in'] as const;
+        for (const id of pipeCheckIds) {
+          const label = el.querySelector<SVGTextElement>(`[data-label="${id}"]`);
+          if (!label) continue;
+          const lb = textBox(label);
+          for (const path of Array.from(
+            el.querySelectorAll<SVGPathElement>('[data-pipe-id] path, path[data-pipe-id]'),
+          )) {
+            const stroke = (Number.parseFloat(getComputedStyle(path).strokeWidth) * scale) / 2;
+            const pipeId = path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id');
+            for (let n = 0; n <= path.getTotalLength(); n += 1) {
+              const at = path.getPointAtLength(n);
+              const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
+              const g =
+                Math.hypot(
+                  Math.max(lb.left - pt.x, 0, pt.x - lb.right),
+                  Math.max(lb.top - pt.y, 0, pt.y - lb.bottom),
+                ) - stroke;
+              if (g < minGap) {
+                errors.push(`pipe: ${id}↔${pipeId} ${g.toFixed(1)}px`);
+                break;
+              }
+            }
+          }
+        }
+        return [...new Set(errors)];
+      });
+      expect(gaps, gaps.join('; ')).toEqual([]);
     });
   }
 

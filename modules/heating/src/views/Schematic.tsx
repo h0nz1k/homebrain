@@ -330,15 +330,15 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               className="ht-c3-value-bg"
               data-vessel-card=""
             />
-            <Label x={181} y={129} anchor="middle" id="dhw" muted={snap.dhw.temp === null}>
+            <Label x={181} y={134} anchor="middle" id="dhw" muted={snap.dhw.temp === null}>
               Teplá voda
-              <tspan x="181" dy="21" className="ht-c3-dhw-value">
+              <tspan x="181" dy="19" className="ht-c3-dhw-value">
                 {fmtT(snap.dhw.temp).replace(/\s°C$/u, '')}
                 {snap.dhw.temp !== null && <tspan className="ht-c3-dhw-unit"> °C</tspan>}
               </tspan>
               <tspan
                 x="181"
-                dy="20"
+                dy="17"
                 className={snap.dhw.target === null ? 'ht-c3-muted' : undefined}
               >
                 {snap.dhw.target === null ? '' : `cíl ${fmtT(snap.dhw.target, 0)}`}
@@ -378,14 +378,14 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           />
           <path d="M216 364H224" className="ht-c3-water-valve" />
           <rect
-            x="137"
-            y="331"
-            width="78"
+            x="148"
+            y="324"
+            width="84"
             height="16"
             rx="3"
             className="ht-c3-main-label-bg ht-c3-cold-portrait-bg"
           />
-          <Label x={140} y={343} id="cold-water" className="ht-c3-cold-portrait">
+          <Label x={151} y={336} id="cold-water" className="ht-c3-cold-portrait">
             studená voda
           </Label>
           <g className="ht-c3-land-only">
@@ -470,7 +470,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             → teplá voda
           </Label>
           <Pump x={96} y={293} on={snap.pumps.secondary} id="charge" />
-          <Label x={96} y={349} anchor="middle" id="charge" muted={snap.pumps.secondary !== true}>
+          <Label x={164} y={385} anchor="start" id="charge" muted={snap.pumps.secondary !== true}>
             nabíjení
           </Label>
           <Label x={10} y={211} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
@@ -480,7 +480,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             </tspan>
           </Label>
           <path d="M96 319V328" className="ht-c3-leader" />
-          <Label x={78} y={382} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
+          <Label x={65} y={385} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
             vstup
             <tspan dx="4">{fmtT(hp.return_temp)}</tspan>
           </Label>
@@ -508,7 +508,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               <rect key={x} x={x} y="309" width="4" height="17" rx="1" className="ht-c3-fin" />
             ))}
           </g>
-          <Label x={250} y={382} anchor="end" id="house-pump" muted={snap.pumps.heating !== true}>
+          <Label x={260} y={385} anchor="end" id="house-pump" muted={snap.pumps.heating !== true}>
             topení
           </Label>
           <Pump x={252} y={350} on={snap.pumps.heating} id="house" />
