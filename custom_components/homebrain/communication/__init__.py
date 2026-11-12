@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import SupportsResponse, callback
@@ -12,6 +14,18 @@ from ..const import DOMAIN
 from .config import CHANNELS, PRIORITIES
 from .router import Router
 
+
+def bounded_data(value):
+    """Bound UTF-8 JSON payloads before they enter the persistent queues."""
+    try:
+        size = len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+    except (TypeError, ValueError, RecursionError) as err:
+        raise vol.Invalid("Data must be JSON serializable") from err
+    if size > 2048:
+        raise vol.Invalid("Data exceeds 2 KB")
+    return value
+
+
 SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required("recipient"): cv.slug,
@@ -20,7 +34,7 @@ SERVICE_SCHEMA = vol.Schema(
         vol.Optional("priority", default="normal"): vol.In(PRIORITIES),
         vol.Optional("channel"): vol.In(CHANNELS),
         vol.Optional("tag"): vol.All(cv.string, vol.Length(min=1, max=200)),
-        vol.Optional("data", default=dict): dict,
+        vol.Optional("data", default=dict): vol.All(dict, bounded_data),
     }
 )
 

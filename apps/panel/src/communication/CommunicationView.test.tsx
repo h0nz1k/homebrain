@@ -28,7 +28,7 @@ const props = { store: createEntityStore(), bindings: {} };
 it('shows Czech audit details, confirmation and escaped message text', async () => {
   const send = vi.fn().mockResolvedValue({ messages: [row] });
   render(<CommunicationView {...props} connection={connection(send)} />);
-  expect(await screen.findByText('Potvrzeno: Beru')).toBeDefined();
+  expect(await screen.findByText('Potvrzeno – odpověď „Beru“')).toBeDefined();
   expect(screen.getByText('<script>ukázka</script>')).toBeDefined();
   expect(document.querySelector('script')).toBeNull();
   expect(screen.getByText('Důležitá')).toBeDefined();
@@ -92,4 +92,38 @@ it('ignores stale requests when connection changes', async () => {
     resolveOld({ messages: [row] });
   });
   expect(screen.queryByText('Zkušební zpráva')).toBeNull();
+});
+
+it('hides unknown routing keys and uses semantic priority and delivery tones', async () => {
+  const send = vi.fn().mockResolvedValue({
+    messages: [
+      {
+        ...row,
+        recipient: 'private_key',
+        channel: 'unknown_channel',
+        priority: 'critical',
+        status: 'failed',
+        ack: false,
+      },
+      { ...row, id: 'pending', status: 'sent', pending_ack: true, ack: false },
+    ],
+  });
+  render(<CommunicationView {...props} connection={connection(send)} />);
+  expect(await screen.findByText('Selhalo')).toBeDefined();
+  expect(screen.queryByText('private_key')).toBeNull();
+  expect(screen.queryByText('unknown_channel')).toBeNull();
+  expect(screen.getByText('Kritická').getAttribute('data-tone')).toBe('crit');
+  expect(screen.getByText('Selhalo').getAttribute('data-tone')).toBe('crit');
+  expect(screen.getByText('Čeká na potvrzení').getAttribute('data-tone')).toBe('warn');
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Zprávy');
+  expect(screen.getByRole('button', { name: 'Obnovit' }).textContent).toContain('↻');
+});
+
+it('formats Czech dates with minutes and colours acknowledged delivery green', async () => {
+  const send = vi.fn().mockResolvedValue({ messages: [{ ...row, at: '2026-11-12T08:00:00' }] });
+  render(<CommunicationView {...props} connection={connection(send)} />);
+  const status = await screen.findByText('Potvrzeno – odpověď „Beru“');
+  expect(status.getAttribute('data-tone')).toBe('ok');
+  expect(document.querySelector('time')?.textContent).toBe('12. 11. 2026 08:00');
+  expect(screen.queryByText('demo')).toBeNull();
 });

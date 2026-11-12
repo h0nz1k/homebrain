@@ -209,6 +209,7 @@ async def test_daily_digest_and_retry(router, calls, freezer, hass):
     await router.tick()
     assert len(router.state["queue"]) == 2
     hass.services.async_register("notify", "demo_chat", lambda call: None)
+    freezer.tick(timedelta(minutes=5))
     await router.tick()
     sent = [r for r in router.snapshot() if r["status"] == "sent"]
     assert sent[0]["title"] == "Denní souhrn"
@@ -462,9 +463,196 @@ async def test_normal_push_acknowledgement_without_escalation(router, calls, fre
 async def test_idle_ticks_do_not_rewrite_store(router, calls, freezer):
     freezer.move_to("2026-11-12T23:00:00+00:00")
     await router.notify(request())
-    with patch.object(router.store, "async_save", wraps=router.store.async_save) as save:
+    with patch.object(router.store, "async_delay_save") as save:
         await router.tick()
         save.assert_not_called()
         freezer.move_to("2026-11-13T07:00:00+00:00")
         await router.tick()
-        save.assert_awaited_once()
+        save.assert_called_once()
+
+
+async def test_normal_pushes_do_not_fill_escalation_buffer(router, calls, freezer):
+    for _ in range(LIMIT):
+        await router.notify(request())
+    assert not router.state["pending"]
+    await router.notify(request(priority="high"))
+    assert len(router.state["pending"]) == 1
+    assert all(service == "mobile_app_demo" for _, service, _ in calls)
+    assert router.snapshot()[0]["pending_ack"]
+    freezer.tick(timedelta(minutes=5))
+    await router.tick()
+    assert calls[-1][1] == "demo_chat"
+
+
+async def test_failed_delivery_does_not_consume_dedup_tag(router, calls, hass):
+    hass.services.async_remove("notify", "mobile_app_demo")
+    first = await router.notify(request(channel="push", tag="retry"))
+    assert first["results"][0]["status"] == "failed"
+    assert "demo:retry" not in router.state["dedup"]
+    hass.services.async_register("notify", "mobile_app_demo", lambda call: None)
+    second = await router.notify(request(channel="push", tag="retry"))
+    assert second["results"][0]["status"] == "sent"
+    assert "demo:retry" in router.state["dedup"]
+
+
+async def test_digest_backoff_preserves_real_audit(router, calls, hass, freezer):
+    await router.notify(request(message="Skutečná zpráva"))
+    await router.notify(request(priority="info"))
+    hass.services.async_remove("notify", "demo_chat")
+    hass.services.async_remove("notify", "demo_mail")
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    with (
+        patch.object(router.store, "async_save") as immediate,
+        patch.object(router.store, "async_delay_save") as delayed,
+    ):
+        for _ in range(100):
+            await router.tick()
+            freezer.tick(timedelta(seconds=30))
+        assert immediate.call_count + delayed.call_count <= 3
+    assert len([r for r in router.snapshot() if r["title"] == "Denní souhrn"]) == 3
+    assert any(r["message"] == "Skutečná zpráva" for r in router.snapshot())
+    # Last retry after two hours, then defer to the next daily digest.
+    freezer.move_to("2026-11-13T09:35:00+00:00")
+    await router.tick()
+    assert router.state["queue"][0]["due"] == "2026-11-14T07:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "preferences,channels", [(["push", "tts"], {}), (["push", "telegram", "email"], {})]
+)
+async def test_digest_without_channel_logs_once_per_day(router, freezer, preferences, channels):
+    person = router.entry.options["communication"]["people"]["demo"]
+    person.update(preferences=preferences, channels=channels)
+    await router.notify(request(priority="info", message="A" * 3000))
+    await router.notify(request(priority="info", message="B" * 3000))
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    with patch.object(router.store, "async_delay_save") as save:
+        for _ in range(100):
+            await router.tick()
+            freezer.tick(timedelta(seconds=30))
+        assert save.call_count == 1
+    assert len([r for r in router.snapshot() if r["reason"] == "no_digest_channel"]) == 1
+    freezer.move_to("2026-11-14T07:00:00+00:00")
+    await router.tick()
+    assert len([r for r in router.snapshot() if r["reason"] == "no_digest_channel"]) == 2
+
+
+async def test_slow_recipient_does_not_block_critical_or_group(router, calls, hass):
+    import asyncio
+
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def slow(call):
+        started.set()
+        await release.wait()
+
+    hass.services.async_register("notify", "mobile_app_demo", slow)
+    task = asyncio.create_task(router.notify(request(recipient="household")))
+    try:
+        await asyncio.wait_for(started.wait(), 1)
+        urgent = await asyncio.wait_for(
+            router.notify(request(recipient="other", priority="critical")), 1
+        )
+        assert urgent["results"][0]["status"] == "sent"
+        assert any(service == "add_item" for _, service, _ in calls)
+        assert not router.lock.locked()
+    finally:
+        release.set()
+        await task
+
+
+async def test_adapter_sets_ten_second_timeout(hass, calls):
+    import asyncio
+
+    with patch(
+        "custom_components.homebrain.communication.adapters.asyncio.timeout",
+        wraps=asyncio.timeout,
+    ) as timeout:
+        await deliver(hass, "push", "notify.mobile_app_demo", request() | {"id": "demo"})
+        timeout.assert_called_once_with(10)
+
+
+@pytest.mark.parametrize("data", [{"text": "x" * 2048}, {"text": "ž" * 1024}, {"bad": object()}])
+def test_service_rejects_oversized_or_non_json_data(data):
+    with pytest.raises(vol.Invalid):
+        request(data=data)
+
+
+def test_service_accepts_bounded_data():
+    assert request(data={"url": "/demo"})["data"] == {"url": "/demo"}
+
+
+async def test_routine_writes_delayed_pending_changes_immediate(router, calls):
+    with (
+        patch.object(router.store, "async_save") as immediate,
+        patch.object(router.store, "async_delay_save") as delayed,
+    ):
+        await router.notify(request())
+        immediate.assert_not_called()
+        assert delayed.called
+        await router.notify(request(priority="high"))
+        immediate.assert_awaited_once()
+        notification_id = next(iter(router.state["pending"]))
+        await router.ack(notification_id)
+        assert immediate.await_count == 2
+
+
+async def test_restore_discards_legacy_normal_pending_entries(router, calls):
+    await router.notify(request(priority="high"))
+    high_id = next(iter(router.state["pending"]))
+    legacy = deepcopy(router.state["pending"][high_id])
+    legacy["message"]["priority"] = "normal"
+    legacy["due"] = None
+    router.state["pending"]["legacy-normal"] = legacy
+    await router.stop()
+    restored = Router(router.hass, router.entry)
+    await restored.start()
+    try:
+        assert list(restored.state["pending"]) == [high_id]
+    finally:
+        await restored.stop()
+
+
+async def test_digest_missing_forced_endpoint_skips_without_fallback(router, calls, freezer):
+    del router.entry.options["communication"]["people"]["demo"]["channels"]["push"]
+    await router.notify(request(priority="info", channel="push"))
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    await router.tick()
+    assert not calls
+    assert router.snapshot()[0]["reason"] == "no_digest_channel"
+    assert router.state["queue"][0]["due"] == "2026-11-14T07:00:00+00:00"
+
+
+async def test_slow_digest_does_not_block_other_critical_escalation(router, calls, freezer, hass):
+    import asyncio
+
+    started, release, escalated = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def slow(call):
+        started.set()
+        await release.wait()
+
+    @callback
+    def urgent(call):
+        escalated.set()
+
+    await router.notify(request(priority="info"))
+    person = router.entry.options["communication"]["people"]["other"]
+    person.update(
+        preferences=["telegram"], channels={"telegram": {"service": "notify.urgent_demo"}}
+    )
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    router.state["pending"]["urgent"] = {
+        "message": request(recipient="other", priority="critical") | {"id": "urgent"},
+        "due": dt_util.utcnow().isoformat(),
+        "expires": (dt_util.utcnow() + timedelta(days=1)).isoformat(),
+    }
+    hass.services.async_register("notify", "demo_chat", slow)
+    hass.services.async_register("notify", "urgent_demo", urgent)
+    task = asyncio.create_task(router.tick())
+    try:
+        await asyncio.wait_for(started.wait(), 1)
+        await asyncio.wait_for(escalated.wait(), 1)
+    finally:
+        release.set()
+        await task

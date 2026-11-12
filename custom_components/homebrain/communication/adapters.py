@@ -51,7 +51,7 @@ async def deliver(hass, channel, config, message, context=None):
         _LOGGER.info("HomeBrain channel %s skipped: service unavailable", channel)
         return "skipped", "service_unavailable"
     try:
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(10):
             await hass.services.async_call(domain, service, payload, blocking=True, context=context)
     except Exception:  # noqa: BLE001 - optional HA providers may raise arbitrary errors
         _LOGGER.warning("HomeBrain channel %s failed: service call rejected", channel)

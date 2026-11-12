@@ -24,8 +24,10 @@ class Router:
         self.hass = hass
         self.entry = entry
         self.store = Store(hass, 1, "homebrain.communication")
-        self.state = {"audit": [], "queue": [], "pending": {}, "dedup": {}}
+        self.state = {"audit": [], "queue": [], "pending": {}, "dedup": {}, "digest_skipped": {}}
         self.lock = asyncio.Lock()
+        self.tick_lock = asyncio.Lock()
+        self.inflight = set()
         self.stops = []
 
     @property
@@ -38,6 +40,11 @@ class Router:
         saved = await self.store.async_load()
         if saved:
             self.state.update(saved)
+            self.state["pending"] = {
+                key: value
+                for key, value in self.state["pending"].items()
+                if value["message"]["priority"] in ("high", "critical")
+            }
         self.stops = [
             self.hass.bus.async_listen("mobile_app_notification_action", self._ack_event),
             async_track_time_interval(self.hass, self.tick, timedelta(seconds=30)),
@@ -48,13 +55,24 @@ class Router:
             stop()
         self.stops.clear()
         async with self.lock:
-            await self.save()
+            await self.save(immediate=True)
 
-    async def save(self):
-        await self.store.async_save(self.state)
+    async def save(self, *, immediate=False):
+        if immediate:
+            await self.store.async_save(deepcopy(self.state))
+        else:
+            self.store.async_delay_save(lambda: deepcopy(self.state), 5)
 
     def snapshot(self):
-        return deepcopy(list(reversed(self.state["audit"])))
+        return [
+            {
+                **deepcopy(row),
+                "pending_ack": row["notification_id"] in self.state["pending"]
+                and row["channel"] == "push"
+                and row["status"] == "sent",
+            }
+            for row in reversed(self.state["audit"])
+        ]
 
     def audit(self, message, channel, status, reason="", now=None):
         self.state["audit"].append(
@@ -88,60 +106,91 @@ class Router:
         }
         return len(self.state["dedup"]) != previous
 
+    def _remember(self, message, now):
+        if not message.get("tag"):
+            return
+        key = f"{message['recipient']}:{message['tag']}"
+        if len(self.state["dedup"]) >= 1000:
+            del self.state["dedup"][min(self.state["dedup"], key=self.state["dedup"].get)]
+        self.state["dedup"][key] = now.timestamp() + self.config["dedup_seconds"]
+
+    def _digest_due(self, now):
+        local = dt_util.as_local(now)
+        hour, minute = map(int, self.config["digest_at"].split(":"))
+        return (
+            (local + timedelta(days=1))
+            .replace(hour=hour, minute=minute, second=0, microsecond=0)
+            .isoformat()
+        )
+
     async def notify(self, request, context=None):
+        config = self.config
+        recipients = config["groups"].get(request["recipient"], [request["recipient"]])
+        if not recipients or any(p not in config["people"] for p in recipients):
+            raise ValueError("Unknown recipient")
+        results = await asyncio.gather(
+            *(
+                self._notify_person(request, recipient, config["people"][recipient], context)
+                for recipient in dict.fromkeys(recipients)
+            )
+        )
+        return {"results": results}
+
+    async def _notify_person(self, request, recipient, person, context):
+        now = dt_util.utcnow()
+        message = {
+            **deepcopy(request),
+            "id": uuid4().hex,
+            "recipient": recipient,
+            "created": now.isoformat(),
+        }
+        key = (recipient, request.get("tag"))
         async with self.lock:
-            now = dt_util.utcnow()
-            config = self.config
-            recipients = config["groups"].get(request["recipient"], [request["recipient"]])
-            if not recipients or any(p not in config["people"] for p in recipients):
-                raise ValueError("Unknown recipient")
-            results = []
             self._prune(now)
-            for recipient in dict.fromkeys(recipients):
-                message = {
-                    **deepcopy(request),
-                    "id": uuid4().hex,
-                    "recipient": recipient,
-                    "created": now.isoformat(),
-                }
-                person = config["people"][recipient]
-                key = f"{recipient}:{request['tag']}" if request.get("tag") else None
-                if key and key in self.state["dedup"]:
-                    self.audit(message, "router", "duplicate", now=now)
-                    results.append({"id": message["id"], "status": "duplicate"})
-                    continue
-                queued = message["priority"] == "info" or (
-                    message["priority"] != "critical" and self.quiet(person, now)
+            duplicate = request.get("tag") and (
+                f"{recipient}:{request['tag']}" in self.state["dedup"]
+                or key in self.inflight
+                or any(
+                    m["recipient"] == recipient and m.get("tag") == request["tag"]
+                    for m in self.state["queue"]
                 )
-                if queued and len(self.state["queue"]) >= LIMIT:
+            )
+            queued = message["priority"] == "info" or (
+                message["priority"] != "critical" and self.quiet(person, now)
+            )
+            if duplicate:
+                self.audit(message, "router", "duplicate", now=now)
+                status = "duplicate"
+            elif queued:
+                if len(self.state["queue"]) >= LIMIT:
                     self.audit(message, "router", "failed", "queue_full", now)
-                    results.append({"id": message["id"], "status": "failed"})
-                    continue
-                if key:
-                    # Bounded dedup cache, including unique caller-supplied tags.
-                    if len(self.state["dedup"]) >= 1000:
-                        del self.state["dedup"][
-                            min(self.state["dedup"], key=self.state["dedup"].get)
-                        ]
-                    self.state["dedup"][key] = now.timestamp() + config["dedup_seconds"]
-                if queued:
+                    status = "failed"
+                else:
                     if message["priority"] == "info":
                         local = dt_util.as_local(now)
-                        hour, minute = map(int, config["digest_at"].split(":"))
+                        hour, minute = map(int, self.config["digest_at"].split(":"))
                         due = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                        if due <= local:
-                            due += timedelta(days=1)
-                        message["due"] = due.isoformat()
+                        message["due"] = (
+                            due if due > local else due + timedelta(days=1)
+                        ).isoformat()
                     self.state["queue"].append(message)
                     self.audit(message, "router", "queued", now=now)
                     status = "queued"
-                else:
-                    status = await self._send(message, person, now, context=context)
-                results.append({"id": message["id"], "status": status})
+            else:
+                self.inflight.add(key)
+                status = None
             await self.save()
-            return {"results": results}
+        if status is None:
+            try:
+                status = await self._send(message, person, now, context=context)
+                if status == "sent":
+                    self._remember(message, dt_util.utcnow())
+            finally:
+                self.inflight.discard(key)
+                await self.save()
+        return {"id": message["id"], "status": status}
 
-    async def _send(self, message, person, now, *, context=None, escalation=False):
+    async def _send(self, message, person, now, *, context=None, escalation=False, digest=False):
         if escalation:
             channels = [c for c in person["preferences"] if c in ("telegram", "email")]
         elif message.get("channel"):
@@ -152,21 +201,25 @@ class Router:
             status, reason = await deliver(
                 self.hass, channel, person["channels"].get(channel), message, context
             )
-            self.audit(message, channel, status, reason, now)
+            now = dt_util.utcnow()
+            if not digest:
+                self.audit(message, channel, status, reason, now)
             if status == "sent":
-                if channel == "push":
-                    escalate = message["priority"] in ("high", "critical")
+                if digest:
+                    self.audit(message, channel, status, reason, now)
+                if channel == "push" and message["priority"] in ("high", "critical"):
                     if len(self.state["pending"]) >= LIMIT:
                         # Do not silently evict an existing unacknowledged alarm.
                         self.audit(message, "router", "failed", "pending_full", now)
-                        if escalate:
-                            await self._send(message, person, now, escalation=True)
+                        await self._send(message, person, now, escalation=True)
                     else:
                         self.state["pending"][message["id"]] = {
                             "message": message,
-                            "due": (now + timedelta(minutes=5)).isoformat() if escalate else None,
+                            "due": (now + timedelta(minutes=5)).isoformat(),
                             "expires": (now + TTL).isoformat(),
                         }
+                        async with self.lock:
+                            await self.save(immediate=True)
                 return "sent"
         self.audit(message, "router", "failed", "no_channel", now)
         return "failed"
@@ -180,16 +233,34 @@ class Router:
     async def ack(self, notification_id):
         async with self.lock:
             pending = self.state["pending"].pop(notification_id, None)
-            if pending:
-                self.audit(pending["message"], "push", "acknowledged")
-                await self.save()
+            message = (
+                pending["message"]
+                if pending
+                else next(
+                    (
+                        row
+                        for row in reversed(self.state["audit"])
+                        if row["notification_id"] == notification_id
+                        and row["channel"] == "push"
+                        and row["status"] == "sent"
+                    ),
+                    None,
+                )
+            )
+            if message and not any(
+                row["notification_id"] == notification_id and row["ack"]
+                for row in self.state["audit"]
+            ):
+                self.audit({**message, "id": notification_id}, "push", "acknowledged")
+                await self.save(immediate=bool(pending))
 
     async def tick(self, _time=None):
-        async with self.lock:
+        async with self.tick_lock:
             now = dt_util.utcnow()
             config = self.config
             changed = self._prune(now)
             digest = {}
+            deliveries = []
             for message in list(self.state["queue"]):
                 person = config["people"].get(message["recipient"])
                 expired = now - datetime.fromisoformat(message["created"]) > TTL
@@ -210,8 +281,7 @@ class Router:
                         ).append(message)
                 else:
                     changed = True
-                    await self._send(message, person, now)
-                    self.state["queue"].remove(message)
+                    deliveries.append(self._flush_message(message, person, now))
             batches = []
             for key, messages in digest.items():
                 batch, size = [], 0
@@ -225,29 +295,15 @@ class Router:
                 batches.append((key, batch))
             for (recipient, forced), messages in batches:
                 changed = True
-                summary = {
-                    "id": uuid4().hex,
-                    "recipient": recipient,
-                    "priority": "info",
-                    "title": "Denní souhrn",
-                    "message": "\n".join(m["message"] for m in messages),
-                }
-                person = config["people"][recipient]
-                # Informational messages use Telegram/email for the daily digest by default.
-                choices = [c for c in person["preferences"] if c in ("telegram", "email", "todo")]
-                if forced:
-                    summary["channel"] = forced
-                status = await self._send(summary, {**person, "preferences": choices}, now)
-                if status == "sent":
-                    for message in messages:
-                        self.state["queue"].remove(message)
-                        self.audit(message, "router", "digested", summary["id"], now)
+                deliveries.append(self._digest(recipient, forced, messages, config, now))
             for key, pending in list(self.state["pending"].items()):
                 message = pending["message"]
                 if pending.get("expires") and datetime.fromisoformat(pending["expires"]) <= now:
                     changed = True
                     self.audit(message, "router", "failed", "ack_expired", now)
                     del self.state["pending"][key]
+                    async with self.lock:
+                        await self.save(immediate=True)
                     continue
                 if pending["due"] is None or datetime.fromisoformat(pending["due"]) > now:
                     continue
@@ -255,10 +311,71 @@ class Router:
                 if person and message["priority"] != "critical" and self.quiet(person, now):
                     continue
                 changed = True
-                if person:
-                    await self._send(message, person, now, escalation=True)
-                else:
-                    self.audit(message, "router", "failed", "removed", now)
-                del self.state["pending"][key]
+                deliveries.append(self._escalate(key, pending, person, now))
+            if deliveries:
+                await asyncio.gather(*deliveries)
             if changed:
                 await self.save()
+
+    async def _flush_message(self, message, person, now):
+        if await self._send(message, person, now) == "sent":
+            self._remember(message, dt_util.utcnow())
+        self.state["queue"].remove(message)
+
+    async def _escalate(self, key, pending, person, now):
+        # An acknowledgement may arrive while another delivery is completing.
+        if key not in self.state["pending"]:
+            return
+        message = pending["message"]
+        if person:
+            await self._send(message, person, now, escalation=True)
+        else:
+            self.audit(message, "router", "failed", "removed", now)
+        self.state["pending"].pop(key, None)
+        async with self.lock:
+            await self.save(immediate=True)
+
+    async def _digest(self, recipient, forced, messages, config, now):
+        summary = {
+            "id": uuid4().hex,
+            "recipient": recipient,
+            "priority": "info",
+            "title": "Denní souhrn",
+            "message": "\n".join(m["message"] for m in messages),
+        }
+        person = config["people"][recipient]
+        choices = [
+            c
+            for c in person["preferences"]
+            if c in ("telegram", "email", "todo") and person["channels"].get(c)
+        ]
+        if forced:
+            summary["channel"] = forced
+        if (forced and not person["channels"].get(forced)) or (not forced and not choices):
+            day = dt_util.as_local(now).date().isoformat()
+            if self.state["digest_skipped"].get(recipient) != day:
+                self.audit(summary, "router", "skipped", "no_digest_channel", now)
+                self.state["digest_skipped"] = {
+                    key: value
+                    for key, value in self.state["digest_skipped"].items()
+                    if key in config["people"]
+                }
+                self.state["digest_skipped"][recipient] = day
+            for message in messages:
+                message["due"] = self._digest_due(now)
+            return
+        status = await self._send(summary, {**person, "preferences": choices}, now, digest=True)
+        if status == "sent":
+            for message in messages:
+                self.state["queue"].remove(message)
+                self._remember(message, dt_util.utcnow())
+        else:
+            for message in messages:
+                attempt = message.get("digest_attempt", 0)
+                delays = (5, 30, 120)
+                message["due"] = (
+                    (now + timedelta(minutes=delays[attempt])).isoformat()
+                    if attempt < len(delays)
+                    else self._digest_due(now)
+                )
+                message["digest_attempt"] = attempt + 1 if attempt < len(delays) else 0

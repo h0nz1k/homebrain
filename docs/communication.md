@@ -112,14 +112,20 @@ data:
   `mobile_app_notification_action` s unikátní akcí zruší eskalaci. Bez potvrzení
   následuje po 5 minutách první dostupný Telegram/e-mail **z preferencí osoby**.
   Vyhodnocení běží každých 30 s. `high` při eskalaci respektuje tiché hodiny.
-  Běžný push lze také potvrdit, ale neeskaluje; možnost potvrzení expiruje po 7 dnech.
+  Běžný push lze také potvrdit, dokud jeho záznam zůstává v auditu; neobsazuje
+  frontu eskalací. Potvrzení high/critical expiruje po 7 dnech.
 - `info`: uloží se do denního souhrnu, nejbližší čas `digest_at` po přijetí.
-  Souhrn používá Telegram/e-mail/todo z preferencí; při selhání zůstává ve frontě.
+  Souhrn používá nakonfigurovaný Telegram/e-mail/todo z preferencí. Při selhání
+  opakuje pokus za 5 minut, 30 minut a 2 hodiny; poté až v dalším denním termínu.
+  Jeden pokus vytvoří jeden záznam auditu. Bez vhodného kanálu se souhrn odloží
+  na další den a zapíše se nejvýše jedno přeskočení za osobu a den.
   Tiché hodiny mají přednost. Různá vynucení kanálu mají oddělené souhrny.
 - `channel` vynucuje výhradně jeden kanál počátečního doručení, bez fallbacku.
   Eskalace high/critical push zůstává aktivní. Vynucení neobchází tiché hodiny ani souhrn.
 - `tag` deduplikuje pro každou osobu v okně `dedup_seconds`, bez ohledu na text,
-  prioritu či kanál. Pro alarm s vyšší prioritou proto použít jiný tag.
+  prioritu či kanál. Okno začíná až úspěšným předáním službě; neúspěšné
+  odeslání lze opakovat. Stejný tag ve frontě nebo během odesílání se neopakuje.
+  Pro alarm s vyšší prioritou proto použít jiný tag.
 - Audit zaznamenává předání HA službě, nikoliv potvrzení poskytovatele či přečtení.
   `acknowledged` znamená přijetí akce Beru pro čekající push zprávu.
 
@@ -133,13 +139,17 @@ Frontend žádnou zapisující službu nevolá, proto nerozšiřuje allowlist HA
 Administrátorský panel **Zprávy** čte `homebrain/communication/recent` každých 30 s
 nebo tlačítkem Obnovit. Obsah zpráv je soukromý: nedostává jej dítě ani kiosk.
 HA Store `homebrain.communication` obsahuje posledních 200 auditních událostí,
-až 200 odložených zpráv, 200 čekajících potvrzení a 1000 aktivních dedup tagů.
+až 200 odložených zpráv, 200 čekajících potvrzení high/critical a 1000 aktivních
+dedup tagů. Pole `data` přijímá nejvýše 2 KB serializovaného UTF-8 JSON.
 Přetečení fronty je v auditu chyba; nepotvrzený alarm při plné kapacitě rovnou
 eskaluje. Odložené zprávy po 7 dnech expirují. Odebrání osoby zruší její čekající
 zprávy. Audit a fronty obsahují text zpráv, proto chránit zálohy HA.
 
 Fronty, termíny eskalací a dedup přežijí restart. Při startu HA se opožděné úlohy
-zpracují v příštím intervalu. Každý dokončený požadavek a změna ve frontách se uloží; nečinné intervaly Store nepřepisují. Při unloadu
+zpracují v příštím intervalu. Běžné zápisy se slučují přes `Store.async_delay_save`
+s prodlevou 5 sekund; změny čekajících potvrzení se ukládají ihned. Nečinné
+intervaly Store nepřepisují. Volání HA služby má limit 10 sekund a neblokuje
+směrovací zámek; příjemci skupiny se obsluhují souběžně. Při unloadu
 se zruší listenery a timer a stav se dopíše. Přesně jedno doručení nelze zaručit
 při pádu HA mezi přijetím externí služby a uložením stavu. Nejde o náhradu
 certifikovaného alarmu. Fáze 1 nepotvrzuje todo položky ani akce v Telegramu.

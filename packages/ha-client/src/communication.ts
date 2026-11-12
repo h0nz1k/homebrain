@@ -13,6 +13,7 @@ export interface CommunicationMessage {
   status: 'sent' | 'skipped' | 'failed' | 'queued' | 'duplicate' | 'acknowledged' | 'digested';
   reason: string;
   ack: boolean;
+  pending_ack?: boolean;
 }
 
 export async function getRecentMessages(
