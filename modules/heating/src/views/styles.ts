@@ -306,7 +306,7 @@ export const heatingStyles = `
 .ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
 .ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
 [data-theme='light'] .ht-c3-label { fill:#48525d; }
-[data-theme='light'] .ht-c3-label[data-label='collector'] { fill:#343d46; }
+[data-theme='light'] .ht-c3-label:is([data-label='collector'],[data-label='cold-water']) { fill:#343d46; }
 [data-theme='light'] .ht-c3-label.ht-c3-muted, [data-theme='light'] .ht-c3-muted { fill:#606b77; }
 .ht-run-meta b.ht-muted { color:var(--hb-t2); }
 .ht-c3-cabinet { fill:color-mix(in srgb, var(--hb-s2) 70%, #7b858f); stroke:#78828c; }
