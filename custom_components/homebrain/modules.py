@@ -46,6 +46,7 @@ MODULES: Final = (
     "heating",
     "anomaly",
     "agents",
+    "communication",
 )
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 

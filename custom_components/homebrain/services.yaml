@@ -19,3 +19,42 @@ wine_consume_text:
       required: false
       selector:
         text:
+notify:
+  name: Odeslat zprávu
+  description: Doručí zprávu osobě nebo skupině podle preferencí, tichých hodin a priority.
+  fields:
+    recipient:
+      name: Příjemce
+      required: true
+      example: household
+      selector:
+        text:
+    message:
+      name: Zpráva
+      required: true
+      selector:
+        text:
+          multiline: true
+    title:
+      name: Nadpis
+      selector:
+        text:
+    priority:
+      name: Priorita
+      default: normal
+      selector:
+        select:
+          options: [info, normal, high, critical]
+    channel:
+      name: Vynucený kanál
+      selector:
+        select:
+          options: [push, todo, tts, telegram, email]
+    tag:
+      name: Značka deduplikace
+      selector:
+        text:
+    data:
+      name: Data push oznámení
+      selector:
+        object:

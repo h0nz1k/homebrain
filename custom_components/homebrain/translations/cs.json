@@ -32,7 +32,8 @@
           "people": "Kdo je doma",
           "heating": "Topení – PLC Tecomat",
           "server": "Server – zálohy",
-          "agents": "Agenti – monitoring"
+          "agents": "Agenti – monitoring",
+          "communication": "Komunikační centrum"
         }
       },
       "waste": {
@@ -342,6 +343,13 @@
           "agents_status": "Senzor stavu monitoringu",
           "monitor_url": "URL AgentsMonitoringu (volitelné)"
         }
+      },
+      "communication": {
+        "title": "Komunikační centrum",
+        "description": "Preference osob, skupiny a existující služby HA. Schéma a příklady: docs/communication.md. Žádné tokeny.",
+        "data": {
+          "communication": "Pravidla doručování"
+        }
       }
     },
     "error": {
@@ -350,7 +358,8 @@
       "invalid_auth": "Přihlášení k UniFi selhalo – zkontrolujte uživatele a heslo.",
       "cannot_connect": "Řadič UniFi není dostupný – zkontrolujte adresu a certifikát.",
       "invalid_url": "Zadejte adresu začínající https:// (nebo http://).",
-      "unifi_source_missing": "Vybraná integrace UniFi teď v Home Assistantu neběží (odebraná nebo s chybou). Zkontrolujte ji v Nastavení → Zařízení a služby → UniFi Network, nebo zvolte jiný účet."
+      "unifi_source_missing": "Vybraná integrace UniFi teď v Home Assistantu neběží (odebraná nebo s chybou). Zkontrolujte ji v Nastavení → Zařízení a služby → UniFi Network, nebo zvolte jiný účet.",
+      "invalid_communication": "Neplatná konfigurace kanálů, času nebo skupin."
     }
   },
   "selector": {
@@ -376,7 +385,8 @@
         "heating": "Topení",
         "kitchen": "Kuchyň",
         "anomaly": "Hlídání domu",
-        "agents": "Agenti"
+        "agents": "Agenti",
+        "communication": "Komunikační centrum"
       }
     },
     "coffee_mode": {
@@ -441,6 +451,35 @@
     "heating_project_changed": {
       "title": "HomeBrain Topení: projekt v PLC se změnil",
       "description": "Kompilační ID stránek {pages} nesedí s mapou topení: projekt v PLC byl nejspíš znovu nahrán a adresy proměnných se mohly posunout. Tyto stránky se ignorují, dokud mapu nezkontrolujete a neupravíte její sekci `ucid`."
+    }
+  },
+  "services": {
+    "notify": {
+      "name": "Odeslat zprávu",
+      "description": "Doručí zprávu osobě nebo skupině podle preferencí.",
+      "fields": {
+        "recipient": {
+          "name": "Příjemce"
+        },
+        "message": {
+          "name": "Zpráva"
+        },
+        "title": {
+          "name": "Nadpis"
+        },
+        "priority": {
+          "name": "Priorita"
+        },
+        "channel": {
+          "name": "Vynucený kanál"
+        },
+        "tag": {
+          "name": "Značka deduplikace"
+        },
+        "data": {
+          "name": "Data push oznámení"
+        }
+      }
     }
   }
 }

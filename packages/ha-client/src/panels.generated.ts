@@ -18,6 +18,7 @@ export const PANEL_PATHS_BY_MODULE: Readonly<Record<string, string>> = {
   agents: 'homebrain-agenti',
   kitchen: 'homebrain-kuchyn',
   anomaly: 'homebrain-hlidani',
+  communication: 'homebrain-zpravy',
 };
 export const SETTINGS_PANEL_PATH = 'homebrain-nastaveni';
 export const KIOSK_PANEL_PATH = 'homebrain-kiosk';
