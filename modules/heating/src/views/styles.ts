@@ -341,7 +341,7 @@ export const heatingStyles = `
 .ht-c3-label[data-label='tank-top'] { font-size:12px; font-weight:550; }
 .ht-c3-label[data-label='hp-delta'] { font-size:12px; font-weight:500; }
 .ht-c3-water-valve { fill:none; stroke:var(--ht-c3-cold); stroke-width:1; }
-.ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:.5; }
+.ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:1; }
 [data-theme='light'] .ht-c3-draw { stroke:#ab3037; opacity:1; }
 .ht-c3-ceramic { fill:#d0d1c8; stroke:#858f8c; }
 .ht-c3-fin { fill:#bdc2b7; stroke:#8f9d92; stroke-width:.6; }

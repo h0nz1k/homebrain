@@ -48,37 +48,92 @@ function compressorLabel(hp: HeatingSnapshot['heat_pump']): string {
 }
 
 const fmtT = (value: number | null, digits = 1) =>
-  value === null ? '' : formatTemperature(value, digits);
+  value === null ? '' : formatTemperature(value, digits).replace(/\s°C$/u, '\u202f°C');
 
-// Tank-in-tank: charging flow enters mid-buffer; return leaves below the inner vessel.
+// Tank-in-tank: hot supply is high, charging flow below DHW, both returns low.
 // The mixer draws beside the DHW vessel, with pipes painted above the tank for clarity.
 // Same hydraulic topology as C3. The tank sits lower so the mixer and the flow to the house get
 // a full-width band under the eaves. Local coordinates are translated by 50: floor 458, soil 493.
 const ROUTES = [
   ['compressor-outlet', 'M14 316V164', 'hot'],
-  ['tank-inlet', 'M14 164H118V250H132', 'hot'],
+  ['tank-inlet', 'M14 164H118V266H120', 'hot'],
   ['dhw-inlet', 'M14 164V126Q14 118 22 118H120', 'hot'],
-  ['tank-return', 'M132 276H118V308Q118 316 110 316H50', 'cold'],
+  [
+    'tank-return',
+    'M120 350H118V268Q118 260 110 260H108Q100 260 100 252V250H30Q22 250 22 258V308Q22 316 30 316H50',
+    'cold',
+  ],
   ['mixing-hot', 'M230 180V110Q230 102 222 102H198Q190 102 190 94V82Q190 74 198 74H214', 'hot'],
   ['radiator-supply', 'M214 74H330Q338 74 338 82V334Q338 342 330 342H280', 'hot'],
-  ['radiator-return', 'M308 386V390Q308 398 300 398H270Q262 398 262 390V200', 'cold'],
-  ['house-tank-return', 'M262 200H242', 'cold'],
-  ['mixing-bypass', 'M262 200V102Q262 94 254 94H222Q214 94 214 86V74', 'cold'],
+  ['radiator-return', 'M308 386V395Q308 403 300 403H270Q262 403 262 395V300', 'cold'],
+  ['house-tank-return', 'M262 300H242', 'cold'],
+  ['mixing-bypass', 'M262 300V102Q262 94 254 94H222Q214 94 214 86V74', 'cold'],
   ['collector', 'M54 401V467Q54 474 61 474H324A6 6 0 0 1 324 486H40Q33 486 33 479V401', 'ground'],
 ] as const;
 
-const DIRECTIONS = {
-  'compressor-outlet': [14, 268, -90],
-  'tank-inlet': [106, 164, 0],
-  'dhw-inlet': [14, 132, -90],
-  'tank-return': [90, 316, 180],
-  'mixing-hot': [190, 87, -90],
-  'radiator-supply': [338, 250, 90],
-  'radiator-return': [262, 310, -90],
-  'house-tank-return': [254, 200, 180],
-  'mixing-bypass': [242, 94, 180],
-  collector: [170, 474, 0],
-} satisfies Record<string, [number, number, number]>;
+// Every straight run that can reach 60 CSS px has a persistent flow cue.
+const DIRECTIONS: Record<string, [number, number, number][]> = {
+  'compressor-outlet': [[14, 268, -90]],
+  'tank-inlet': [
+    [70, 164, 0],
+    [118, 210, 90],
+  ],
+  'dhw-inlet': [
+    [14, 132, -90],
+    [70, 118, 0],
+  ],
+  'tank-return': [
+    [118, 295, -90],
+    [60, 250, 180],
+    [22, 290, 90],
+  ],
+  'mixing-hot': [
+    [230, 145, -90],
+    [208, 102, 180],
+    [190, 87, -90],
+  ],
+  'radiator-supply': [
+    [280, 74, 0],
+    [338, 250, 90],
+    [308, 342, 180],
+  ],
+  'radiator-return': [
+    [286, 403, 180],
+    [262, 310, -90],
+  ],
+  'house-tank-return': [[254, 300, 180]],
+  'mixing-bypass': [
+    [262, 148, -90],
+    [242, 94, 180],
+  ],
+  collector: [
+    [54, 435, 90],
+    [170, 474, 0],
+    [180, 486, 180],
+    [33, 435, -90],
+  ],
+  'cold-water': [
+    [228, 420, -90],
+    [211, 270, 180],
+  ],
+  'dhw-draw': [
+    [175, 100, -90],
+    [150, 60, 180],
+  ],
+};
+
+function Directions({ id }: { id: string }) {
+  return DIRECTIONS[id]!.map(([x, y, rotation], index) => (
+    <g
+      key={index}
+      className="ht-c3-direction"
+      aria-hidden="true"
+      transform={`translate(${x} ${y}) rotate(${rotation})`}
+    >
+      <path d="M-3 -2L0 0L-3 2" />
+    </g>
+  ));
+}
 
 function Label({
   x,
@@ -314,7 +369,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               x="146"
               y="146"
               width="70"
-              height="128"
+              height="108"
               rx="30"
               className="ht-c3-vessel"
               data-vessel=""
@@ -374,13 +429,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               className={`ht-c3-route ht-c3-${kind}${id === 'mixing-bypass' ? ' ht-c3-bypass' : ''}`}
             >
               <path d={d} />
-              <g
-                className="ht-c3-direction"
-                aria-hidden="true"
-                transform={`translate(${DIRECTIONS[id][0]} ${DIRECTIONS[id][1]}) rotate(${DIRECTIONS[id][2]})`}
-              >
-                <path d="M-3 -2L0 0L-3 2" />
-              </g>
+              <Directions id={id} />
               {scene.activePipes.includes(id) && id !== 'mixing-bypass' && (
                 <circle r="2.4" className="ht-c3-particle" />
               )}
@@ -389,22 +438,19 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           {/* Cold mains rise from the ground and feed the bottom of the inner DHW vessel. */}
           <g data-pipe-id="cold-water">
             <path
-              d="M228 460V320Q228 312 236 312H240Q248 312 248 304V290Q248 282 240 282H189Q181 282 181 274"
+              d="M228 460V320Q228 312 236 312H240Q248 312 248 304V278Q248 270 240 270H189Q181 270 181 262V254"
               className="ht-c3-cold-inlet"
             />
-            <g
-              className="ht-c3-direction ht-c3-cold-direction"
-              aria-hidden="true"
-              transform="translate(228 420) rotate(-90)"
-            >
-              <path d="M-3 -2L0 0L-3 2" />
-            </g>
+            <Directions id="cold-water" />
           </g>
           <Label x={234} y={463} id="cold-water">
             studená voda
           </Label>
           {/* Standing hot water: deliberately static, not a simulated draw. */}
-          <path d="M175 146V68Q175 60 167 60H131" className="ht-c3-draw" data-pipe-id="dhw-draw" />
+          <g data-pipe-id="dhw-draw">
+            <path d="M175 146V68Q175 60 167 60H131" className="ht-c3-draw" />
+            <Directions id="dhw-draw" />
+          </g>
           <g
             className="ht-c3-tap"
             fill={`url(#${uid}-chrome)`}
@@ -486,8 +532,8 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           <Label x={29} y={305} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
             vstup <tspan>{fmtT(hp.return_temp)}</tspan>
           </Label>
-          <Pump x={118} y={276} on={snap.pumps.secondary} id="charge" />
-          <Label x={54} y={257} id="charge" muted={snap.pumps.secondary !== true}>
+          <Pump x={85} y={250} on={snap.pumps.secondary} id="charge" horizontal />
+          <Label x={54} y={279} id="charge" muted={snap.pumps.secondary !== true}>
             nabíjení
           </Label>
           <Valve x={214} y={74} />
@@ -503,7 +549,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           </Label>
           <g className="ht-c3-radiator" transform="translate(0 43)">
             <path d="M280 297V307M308 326V343" className="ht-c3-metal-pipe" />
-            <path d="M274 326V365M312 326V365" className="ht-c3-rad-feet" />
+            <path d="M274 326V363.5M312 326V363.5" className="ht-c3-rad-feet" />
             <rect x="268" y="306" width="50" height="23" rx="3" className="ht-c3-ceramic" />
             {[273, 281, 289, 297, 305, 313].map((x) => (
               <rect key={x} x={x} y="309" width="4" height="17" rx="1" className="ht-c3-fin" />
@@ -512,8 +558,8 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           <Label x={270} y={331} id="radiators">
             radiátory
           </Label>
-          <Pump x={286} y={398} on={snap.pumps.heating} id="house" horizontal />
-          <Label x={234} y={427} id="house-pump" muted={snap.pumps.heating !== true}>
+          <Pump x={286} y={403} on={snap.pumps.heating} id="house" horizontal />
+          <Label x={240} y={430.5} id="house-pump" muted={snap.pumps.heating !== true}>
             čerpadlo topení
           </Label>
         </g>

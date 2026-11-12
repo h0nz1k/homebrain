@@ -74,11 +74,12 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     'cold-water': 'cold-water',
     collector: 'collector',
   };
-  const icons = Array.from(
+  const iconNodes = Array.from(
     el.querySelectorAll<SVGGraphicsElement>(
       '[data-pump], .ht-c3-valve, .ht-c3-radiator, .ht-c3-tap, .ht-c3-cabinet',
     ),
-  ).map(body);
+  );
+  const icons = iconNodes.map(body);
   const outlines = Array.from(
     el.querySelectorAll<SVGGeometryElement>(
       '.ht-c3-shell, .ht-c3-window, .ht-c3-vessel, .ht-c3-envelope',
@@ -103,7 +104,7 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
       ) < 4
     )
       errors.push(`${id}: scene edge`);
-    if (/℃|(?<!\u202f)°C/u.test(text.textContent!)) errors.push(`${id}: temperature unit`);
+
     if (cards.includes(id)) continue;
     const font = parseFloat(getComputedStyle(text).fontSize) * scale;
     if (font < 12) errors.push(`${id}: font ${font}`);
@@ -158,8 +159,85 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     errors.push('valve caption must be above valve');
   if (q('[data-label="mixing"]').querySelectorAll('tspan').length > 1)
     errors.push('mixer must be one label');
-  if (el.querySelectorAll('.ht-c3-direction').length !== 11)
-    errors.push('missing static flow directions');
+  // Scan every rendered text/tspan, including the split large values and target.
+  for (const text of Array.from(el.querySelectorAll('text, tspan'))) {
+    const content = text.textContent ?? '';
+    if (content.includes('℃') || /(?<!\u202f)°C/u.test(content))
+      errors.push(`temperature unit: ${content}`);
+    if (content.includes('°C') && !/\d(?:,\d)?\u202f°C/u.test(content)) {
+      // A unit-only tspan belongs to its numeric parent, which is scanned as well.
+      if (content !== '\u202f°C') errors.push(`temperature string: ${content}`);
+      else if (!/\d(?:,\d)?\u202f°C/u.test(text.parentElement?.textContent ?? ''))
+        errors.push('temperature unit without value');
+    }
+  }
+  const houseLabel = label('house-pump');
+  const ownPump = gap(houseLabel, body(q('[data-pump="house"]')));
+  const competitors = [
+    ...iconNodes
+      .filter((node) => node !== q('[data-pump="house"]'))
+      .map((node) => gap(houseLabel, body(node))),
+    gap(houseLabel, q('.ht-c3-shell').getBoundingClientRect()),
+    gap(houseLabel, q('[data-vessel]').getBoundingClientRect()),
+    pathGap(houseLabel, pipes.find((pipe) => pipe.id === 'cold-water')!.sample),
+  ];
+  if (ownPump > 16 || competitors.some((distance) => distance < 2 * ownPump))
+    errors.push(
+      `house-pump: nearest owner (${ownPump.toFixed(2)}/${Math.min(...competitors).toFixed(2)})`,
+    );
+  if (
+    pipes.some(
+      (pipe) => pipe.id !== 'radiator-return' && pathGap(houseLabel, pipe.sample) < ownPump,
+    )
+  )
+    errors.push('house-pump: another pipe nearer than heating pump');
+  // Parse the actual straight SVG commands, independently of the marker table.
+  // Curves join these runs and are checked by the direction/tangent guard below.
+  for (const path of Array.from(
+    el.querySelectorAll<SVGPathElement>(
+      '.ht-c3-route > path, path.ht-c3-cold-inlet, path.ht-c3-draw',
+    ),
+  )) {
+    const route = path.closest('[data-pipe-id]')!;
+    if (
+      path
+        .getAttribute('d')!
+        .match(/[a-z]/gi)
+        ?.some((c) => !['M', 'H', 'V', 'L', 'Q', 'A'].includes(c))
+    )
+      errors.push(`${route.getAttribute('data-pipe-id')}: unsupported segment command`);
+    const centers = Array.from(route.querySelectorAll<SVGGraphicsElement>('.ht-c3-direction')).map(
+      (marker) => new DOMPoint(0, 0).matrixTransform(marker.getScreenCTM()!),
+    );
+    let x = 0,
+      y = 0;
+    const m = path.getScreenCTM()!;
+    for (const command of path.getAttribute('d')!.matchAll(/([MHVLQA])([^MHVLQA]+)/g)) {
+      const values = command[2]!.trim().split(/[ ,]+/).map(Number);
+      const kind = command[1];
+      const nextX = kind === 'V' ? x : (values.at(-2) ?? values[0]!);
+      const nextY = kind === 'H' ? y : values.at(-1)!;
+      if (['H', 'V', 'L'].includes(kind!)) {
+        const a = new DOMPoint(x, y).matrixTransform(m);
+        const b = new DOMPoint(nextX, nextY).matrixTransform(m);
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        if (
+          length >= 60 &&
+          !centers.some((p) => {
+            const along =
+              ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (length * length);
+            const across = Math.abs((p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)) / length;
+            return along > 0 && along < 1 && across < 0.5;
+          })
+        )
+          errors.push(
+            `${route.getAttribute('data-pipe-id')}: segment ${command[0]} (${length.toFixed(1)}px) missing chevron`,
+          );
+      }
+      x = nextX;
+      y = nextY;
+    }
+  }
   for (const marker of Array.from(el.querySelectorAll<SVGGraphicsElement>('.ht-c3-direction'))) {
     const route = marker.closest('[data-pipe-id]')!;
     const path = route.querySelector<SVGPathElement>(':scope > path')!;
@@ -279,6 +357,8 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     mixerStart.y <= inner.bottom
   )
     errors.push('mixer feed inside DHW vessel bbox');
+  if (Math.max(inner.left - mixerStart.x, mixerStart.x - inner.right) < 8)
+    errors.push('mixer feed horizontal DHW gap');
   if (mixerStart.y <= inner.top || mixerStart.y >= inner.bottom)
     errors.push('mixer feed must be beside DHW vessel');
   if (point('house-tank-return', true).y <= mixerStart.y)
@@ -287,8 +367,36 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     back = point('tank-return', false);
   const tankBounds = tank.getBoundingClientRect();
   const flowHeight = (flow.y - tankBounds.top) / tankBounds.height;
-  if (!inTank(flow) || flowHeight < 0.4 || flowHeight > 0.6)
-    errors.push('charging flow must enter mid-buffer');
+  if (!inTank(flow) || flowHeight < 0.3 || flowHeight > 0.55 || flow.y <= inner.bottom)
+    errors.push('charging flow must enter upper-middle buffer below DHW');
+  if (
+    back.y <= tankBounds.top + 0.75 * tankBounds.height ||
+    back.y - flow.y < 0.25 * tankBounds.height
+  )
+    errors.push('charging return lower third / flow separation');
+  const heatingReturn = point('house-tank-return', true);
+  const returnHeight = (heatingReturn.y - tankBounds.top) / tankBounds.height;
+  if (
+    !inTank(heatingReturn) ||
+    returnHeight < 0.55 ||
+    returnHeight > 0.75 ||
+    heatingReturn.y >= back.y
+  )
+    errors.push('heating return must enter lower zone above HP return');
+  if ((mixerStart.y - tankBounds.top) / tankBounds.height >= 0.3)
+    errors.push('mixer supply must draw from top buffer zone');
+  const coldEnd = point('cold-water', true),
+    hotStart = point('dhw-draw', false);
+  if (Math.abs(coldEnd.y - inner.bottom) > 0.5 || coldEnd.x < inner.left || coldEnd.x > inner.right)
+    errors.push('DHW cold inlet must meet vessel bottom');
+  if (Math.abs(hotStart.y - inner.top) > 0.5 || hotStart.x < inner.left || hotStart.x > inner.right)
+    errors.push('DHW hot outlet must meet vessel top');
+  for (const port of [flow, back, heatingReturn, point('dhw-inlet', true)]) {
+    if (Math.min(Math.abs(port.x - tankBounds.left), Math.abs(port.x - tankBounds.right)) > 0.5)
+      errors.push('buffer port must meet tank wall');
+  }
+  const charge = q('[data-pump="charge"]').getBoundingClientRect();
+  if (gap(charge, tankBounds) < 4) errors.push('charging pump tank clearance');
   if (!inTank(back) || back.y <= inner.bottom || back.y <= flow.y)
     errors.push('charging return must leave lower buffer below DHW vessel');
   const value = label('dhw');
@@ -315,8 +423,17 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     pill.bottom > shell.bottom
   )
     errors.push('tank title pill outside tank');
-  if ([...outlines, ...pipes.map((pipe) => pipe.sample)].some((line) => pathGap(pill, line) < 6))
+  const allLines = Array.from(
+    el.querySelectorAll<SVGGeometryElement>('path, rect, ellipse, circle, line, polyline, polygon'),
+  ).filter(
+    (node) =>
+      !node.closest('.ht-c3-direction') &&
+      getComputedStyle(node).stroke !== 'none' &&
+      parseFloat(getComputedStyle(node).strokeWidth) > 0,
+  );
+  if (allLines.some((line) => pathGap(pill, samples(line)) < 6))
     errors.push('tank title pill line clearance');
+  if (gap(pill, charge) < 6) errors.push('tank title pill charging pump clearance');
   const title = label('tank-title');
   if (
     title.left < pill.left ||
