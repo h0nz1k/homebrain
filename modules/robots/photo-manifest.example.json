@@ -2,9 +2,9 @@
   "schema": 1,
   "model": "Example robot (synthetic)",
   "images": {
-    "dock": "dock.webp",
-    "bottom": "bottom.webp",
-    "sideBrush": "side_brush.webp"
+    "dock": "dock.svg",
+    "bottom": "bottom.svg",
+    "sideBrush": "brush.svg"
   },
   "bottom": {
     "roller": [28, 42, 72, 50],

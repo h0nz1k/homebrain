@@ -19,13 +19,19 @@ const example = JSON.parse(readFileSync(join(moduleDir, 'photo-manifest.example.
 describe('photo manifest', () => {
   it('parses the synthetic example and rejects broken manifests', () => {
     const manifest = parsePhotoManifest(example);
-    expect(manifest?.images.bottom).toBe('bottom.webp');
+    expect(manifest?.images.bottom).toBe('bottom.svg');
     expect(manifest?.bottom.mops).toHaveLength(2);
     expect(parsePhotoManifest({ ...example, schema: 2 })).toBeNull();
     expect(
       parsePhotoManifest({ ...example, images: { dock: '../x.webp', bottom: 'b.webp' } }),
     ).toBeNull();
     expect(parsePhotoManifest(null)).toBeNull();
+    expect(
+      parsePhotoManifest({
+        ...example,
+        bottom: { sideBrush: { box: [10, 10, 0], dir: 1 } },
+      }),
+    ).toBeNull();
   });
 
   it('JSON schema lists the same top-level keys', () => {

@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "bottom": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2,
+        "maxItems": 2,
+        "description": "[x, y] in % of the image"
+      },
+      "description": "main_brush, side_brush, wheels, mop, sensors\u2026"
+    },
+    "dock": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2,
+        "maxItems": 2,
+        "description": "[x, y] in % of the image"
+      },
+      "description": "clean_tank, dirty_tank, dust_bag"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HomeBrain robot photo hotspots",
+  "description": "Percent coordinates of the matching image; robot front points up in the bottom view."
+}

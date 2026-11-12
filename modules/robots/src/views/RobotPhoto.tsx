@@ -124,17 +124,17 @@ export function RobotPhoto({
       className="rbp"
       data-rbp-view={view}
       data-testid="robots-photo"
-      role="img"
+      role="group"
       aria-label={`${name}${manifest.model ? ` (${manifest.model})` : ''}`}
     >
-      <div className="rbp-layer rbp-dock" data-on={dockLayer} aria-hidden="true">
+      <div className="rbp-layer rbp-dock" data-on={dockLayer} aria-hidden={!dockLayer}>
         <div className="rbp-dock-wrap">
           <span className="rbp-shadow" />
           <img src={src(manifest.images.dock)} alt="" decoding="async" onError={onFail} />
           {hot?.layer === 'dock' && bang}
         </div>
       </div>
-      <div className="rbp-layer rbp-bottom" data-on={!dockLayer} aria-hidden="true">
+      <div className="rbp-layer rbp-bottom" data-on={!dockLayer} aria-hidden={dockLayer}>
         <div className="rbp-wrap">
           <div className="rbp-disc">
             <img className="rbp-base" src={bottomSrc} alt="" decoding="async" onError={onFail} />
@@ -161,14 +161,24 @@ export function RobotPhoto({
               <div
                 className="rbp-part rbp-brush"
                 data-rbp-dir={brush.dir}
-                style={box([
-                  brush.box[0],
-                  brush.box[1],
-                  brush.box[0] + brush.box[2],
-                  brush.box[1] + brush.box[2],
-                ])}
+                style={{
+                  ...box([
+                    brush.box[0],
+                    brush.box[1],
+                    brush.box[0] + brush.box[2],
+                    brush.box[1] + brush.box[2],
+                  ]),
+                  transformOrigin: brush.centre
+                    ? `${((brush.centre[0] - brush.box[0]) / brush.box[2]) * 100}% ${((brush.centre[1] - brush.box[1]) / brush.box[2]) * 100}%`
+                    : undefined,
+                }}
               >
-                <img src={src(manifest.images.sideBrush)} alt="" decoding="async" />
+                <img
+                  src={src(manifest.images.sideBrush)}
+                  alt=""
+                  decoding="async"
+                  onError={onFail}
+                />
               </div>
             )}
             {hot?.layer === 'bottom' && bang}

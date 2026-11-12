@@ -21,7 +21,10 @@ const rooms = [
 async function mount(
   map: VectorMap,
   theme = 'dark',
-  extra: { selected?: number[]; tone?: 'cleaning' | 'idle' } = {},
+  extra: {
+    selected?: number[];
+    tone?: 'cleaning' | 'idle' | 'docked' | 'returning' | 'error';
+  } = {},
 ) {
   const resolve = vi.fn(async (path: string) => `signed:${path}`);
   const onToggle = vi.fn();
@@ -168,6 +171,29 @@ it('docked robot: parks on the dock plate in front of the charger, facing into t
   const [rx, ry] = at(robot);
   expect(Math.hypot(rx! - dx!, ry! - dy!)).toBeGreaterThan(0);
 });
+
+it.each([demo().robot, null])(
+  'docked status overrides stale or missing map position (%j)',
+  async (robot) => {
+    await mount({ ...demo(), robot, path: [] }, 'dark', { tone: 'docked' });
+    const marker = screen.getByTestId('robots-map-robot');
+    expect(marker.getAttribute('data-docked')).toBe('true');
+    const parked = marker.getAttribute('transform');
+    cleanup();
+    const map = demo();
+    await mount({ ...map, robot: { ...map.dock!, a: 90 }, path: [] }, 'dark', { tone: 'idle' });
+    expect(screen.getByTestId('robots-map-robot').getAttribute('transform')).toBe(parked);
+  },
+);
+
+it.each(['cleaning', 'returning', 'error'] as const)(
+  'does not park a %s robot passing the dock',
+  async (tone) => {
+    const map = demo();
+    await mount({ ...map, robot: { ...map.dock!, a: 90 } }, 'dark', { tone });
+    expect(screen.getByTestId('robots-map-robot').hasAttribute('data-docked')).toBe(false);
+  },
+);
 
 it('dockPose snaps the charger to the nearest wall and faces into the room', () => {
   const room = [

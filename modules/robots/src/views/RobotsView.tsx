@@ -210,7 +210,10 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
             <span className="rb-floor-name">{robot.floor || `Robot ${robot.slot}`}</span>
             <span className="rb-floor-meta">
               <i className="rb-dot" data-rb-att={attention(robot)} aria-hidden="true" />
-              <span className="rb-floor-robot">{robot.name} · </span>
+              <span className="rb-floor-robot">{robot.name}</span>
+              <span className="rb-floor-separator" aria-hidden="true">
+                ·
+              </span>
               {robot.battery !== null ? `${Math.round(robot.battery)}\u00a0%` : robot.status.label}
               {attention(robot) === 'crit' ? (
                 <span className="rb-floor-help">{' · potřebuje pomoc'}</span>
@@ -643,9 +646,9 @@ function RobotPanel({
       ? dockErrorRoborockCode(robot.dockError.code)
       : null;
   const manifest = usePhotoManifest(photoDir);
-  const [photoFailed, setPhotoFailed] = useState(false);
+  const [failedPhotoDir, setFailedPhotoDir] = useState<string | null>(null);
   const [maintenance, setMaintenance] = useState(false);
-  const photo = !!photoDir && !!manifest && !photoFailed;
+  const photo = !!photoDir && !!manifest && failedPhotoDir !== photoDir;
   return (
     <>
       <div className="rb-grid" data-rb-tone={tone}>
@@ -674,10 +677,10 @@ function RobotPanel({
                   partsLow={anyPartLow(robot.consumables)}
                   maintenance={maintenance}
                   onMaintenance={setMaintenance}
-                  onFail={() => setPhotoFailed(true)}
+                  onFail={() => setFailedPhotoDir(photoDir)}
                 />
               ) : (
-                <RobotArt tone={tone} image={robot.image} name={robot.name} />
+                <RobotArt tone={tone} image={photoDir ? '' : robot.image} name={robot.name} />
               )}
             </div>
             <div className="rb-hero-body">
@@ -1263,6 +1266,7 @@ function RobotPanel({
 }
 
 function markerTone(tone: RobotModel['status']['tone']): MarkerTone {
+  if (tone === 'charging' || tone === 'docked') return 'docked';
   if (tone === 'cleaning' || tone === 'returning' || tone === 'error') return tone;
   return 'idle';
 }
