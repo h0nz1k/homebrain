@@ -295,8 +295,17 @@ export const heatingStyles = `
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
 .ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
 .ht-c3-label:is([data-label='hp-in'],[data-label='radiators']) { font-size:12px; }
-.ht-c3-label[data-label='charge'] { font-size:11.8px; }
+.ht-c3-label:is([data-label='charge'],[data-label='radiators']) { font-size:12.4px; }
+@media(max-width:600px) {
+  .ht-c3-label:is([data-label='mixing'],[data-label='tap']) { transform:translateY(-.5px); }
+}
+@media(min-width:601px) and (max-height:450px) {
+  .ht-c3-label[data-label='radiators'] { font-size:10.25px; transform:translateY(-2.2px); }
+  .ht-c3-label[data-label='house-pump'] { font-size:11.5px; transform:translateY(-1.7px); }
+  .ht-c3-label[data-label='mixing'] { transform:translate(1px,.25px); }
+}
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
+.ht-c3-label[data-label='tank'] { font-size:12px; }
 .ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-1px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
 [data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; }
@@ -304,7 +313,7 @@ export const heatingStyles = `
 .ht-c3-dhw-value { font-size:15px; font-weight:500; }
 .ht-c3-unit { font-size:13px; }
 .ht-c3-dhw-unit { font-size:12px; }
-.ht-c3-tank-value { font-size:24px; font-weight:500; }
+.ht-c3-tank-value { font-size:20px; font-weight:500; }
 .ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
 .ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
 [data-theme='light'] .ht-c3-label { fill:#48525d; }
@@ -327,6 +336,7 @@ export const heatingStyles = `
 .ht-c3-metal-pipe { fill:none; stroke:#94a3ab; stroke-width:5; }
 .ht-c3-indicator { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; stroke-linecap:round; }
 .ht-c3-servo-mark { stroke:#b8d4ca; stroke-width:1.5; }
+.ht-c3-component-leader { fill:none; stroke:var(--hb-t2); stroke-width:1px; vector-effect:non-scaling-stroke; }
 .ht-c3-leader { fill:none; stroke:var(--hb-t2); stroke-width:.7; }
 .ht-c3-cold-inlet { fill:none; stroke:var(--ht-c3-cold); stroke-width:1.5; opacity:.7; }
 .ht-c3-main-label-bg { fill:var(--ht-c3-room); }
