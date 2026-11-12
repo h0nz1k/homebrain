@@ -1,26 +1,28 @@
 name: CI
 
-# Minute budget rules (gate, reuse on merge, scoped e2e): docs/ci.md.
+# Rules (gate, reuse on merge, scoped + sharded e2e): docs/ci.md. Public repo: hosted runners are free,
+# so drafts get the full suite too (agents push and wait for CI instead of testing locally).
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # No ready_for_review: the draft run already verified the same commit.
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  # PR runs are superseded by new pushes; main runs are cheap (mostly reused) and must not be lost.
+  # PR runs are superseded by new pushes; main runs (mostly reused) must not be lost.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  # Always runs (also drafts and docs-only changes): gate + gitleaks, then lint/typecheck/unit/build when needed.
-  # The gate used to be a separate `secrets` job; folding it in saves one billed minute per run.
-  js:
+  # Always runs (also docs-only changes): changed paths -> which jobs run, gitleaks, reuse on main.
+  # Prints HB_TESTED, read back by gate.sh on merge (the job name `gate` is referenced there).
+  gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     permissions:
       contents: read
       actions: read # reuse check reads the PR's CI run + log
@@ -29,6 +31,8 @@ jobs:
       python: ${{ steps.gate.outputs.python }}
       e2e: ${{ steps.gate.outputs.e2e }}
       e2e_specs: ${{ steps.gate.outputs.e2e_specs }}
+      e2e_shards: ${{ steps.gate.outputs.e2e_shards }}
+      js: ${{ steps.gate.outputs.js }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -37,8 +41,6 @@ jobs:
         id: gate
         env:
           EVENT_NAME: ${{ github.event_name }}
-          DRAFT: ${{ github.event.pull_request.draft == true }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BEFORE: ${{ github.event.before }}
@@ -55,44 +57,39 @@ jobs:
         if: steps.gate.outputs.reused == 'true'
         run: echo "Identical tree on identical base already passed CI on the PR; suite skipped."
 
-      - if: steps.gate.outputs.js == 'true'
-        uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
-      - if: steps.gate.outputs.js == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+  js:
+    needs: gate
+    if: ${{ needs.gate.outputs.js == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       # Workspace exports point at dist; prepare them on a clean checkout.
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm --filter '@homebrain/panel^...' build
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm lint
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm typecheck
+      - run: pnpm --filter '@homebrain/panel^...' build
+      - run: pnpm lint
+      - run: pnpm typecheck
       - name: Unit tests (vitest)
-        if: steps.gate.outputs.js == 'true'
         run: pnpm test
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm build
+      - run: pnpm build
       # Živý katalog komponent (dev nástroj) musí jít sestavit; do bundlu panelu nepatří.
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm --filter @homebrain/panel build:catalog
-      - if: steps.gate.outputs.js == 'true'
-        run: pnpm build:integration
-      - if: steps.gate.outputs.js == 'true'
-        run: node scripts/check-bundle-size.mjs
-      - if: steps.gate.outputs.js == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - run: pnpm --filter @homebrain/panel build:catalog
+      - run: pnpm build:integration
+      - run: node scripts/check-bundle-size.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: panel-dist
           path: apps/panel/dist/
           if-no-files-found: error
 
   python:
-    needs: js
-    if: ${{ !cancelled() && needs.js.outputs.python == 'true' }}
+    needs: gate
+    if: ${{ needs.gate.outputs.python == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -101,7 +98,7 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
-      # uv installs the large HA test stack several times faster than pip (job fits one billed minute).
+      # uv installs the large HA test stack several times faster than pip.
       - run: |
           python -m pip install --disable-pip-version-check uv==0.13.7
           uv pip install --system -r requirements-test.txt
@@ -112,11 +109,17 @@ jobs:
       - name: Python tests (pytest)
         run: pytest tests/python
 
+  # Sharded (playwright --shard): the whole suite takes ~16 min on one runner, ~4-5 min per shard.
   e2e:
-    needs: js
-    if: ${{ !cancelled() && needs.js.result == 'success' && needs.js.outputs.e2e == 'true' }}
+    name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: gate
+    if: ${{ needs.gate.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.gate.outputs.e2e_shards) }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
@@ -139,17 +142,22 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
       # PR/main: desktop + mobile only (tablet runs in nightly.yml); specs scoped by the gate
-      # (empty list = whole suite). One worker per vCPU (2 on private, 4 on public runners).
-      - name: Playwright (desktop + mobile, scoped)
+      # (empty list = whole suite). One worker per vCPU (4 on public runners).
+      - name: Playwright (desktop + mobile, scoped, sharded)
         env:
-          SPECS: ${{ needs.js.outputs.e2e_specs }}
+          SPECS: ${{ needs.gate.outputs.e2e_specs }}
+          SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
         run: |
-          echo "Specs: ${SPECS:-<all>}"
+          echo "Specs: ${SPECS:-<all>}, shard $SHARD"
           # shellcheck disable=SC2086 # SPECS is a space-separated list of paths
-          pnpm exec playwright test --project=desktop --project=mobile-s21 --workers="$(nproc)" $SPECS
+          pnpm exec playwright test --project=desktop --project=mobile-s21 --workers="$(nproc)" \
+            --shard="$SHARD" --pass-with-no-tests $SPECS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-report-${{ matrix.shard }}
+          # HTML report embeds traces/screenshots of failed tests (trace: retain-on-failure).
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 7
