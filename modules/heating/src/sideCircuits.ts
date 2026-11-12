@@ -90,6 +90,6 @@ export function fishHoldLine(
 ): string | null {
   if (target === null) return null;
   const band =
-    hysteresis !== null ? ` ± ${fmtNum(hysteresis)}\u00a0°C` : '';
+    hysteresis !== null ? ` ± ${fmtNum(hysteresis)}\u202f°C` : '';
   return `drží ${fmtT(target)}${band}`;
 }

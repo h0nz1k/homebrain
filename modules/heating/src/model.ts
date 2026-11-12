@@ -27,7 +27,7 @@ export function fmtNum(v: number | null | undefined, digits = 1): string {
 }
 
 export const fmtT = (v: number | null | undefined, digits = 1) =>
-  v === null || v === undefined ? '–' : `${fmtNum(v, digits)}${NBSP}°C`;
+  v === null || v === undefined ? '–' : `${fmtNum(v, digits)}\u202f°C`;
 
 export function fmtDuration(minutes: number): string {
   if (minutes < 60) return `${Math.max(1, Math.round(minutes))}${NBSP}min`;
@@ -418,8 +418,8 @@ export function roomsModel(snap: HeatingSnapshot): RoomsModel {
     const refWarm = h.ref_temp !== null && target !== null && h.ref_temp >= target;
     insight =
       refWarm && !h.circuit_on
-        ? `${coldest.name} je o ${fmtNum(-coldest.delta)}\u00a0°C pod cílem, ale okruh domu stojí – referenční místnost (chodba) už má ${fmtT(h.ref_temp)}.`
-        : `Nejchladnější je ${coldest.name}: ${fmtT(coldest.temp)}, o ${fmtNum(-coldest.delta)}\u00a0°C pod cílem.`;
+        ? `${coldest.name} je o ${fmtNum(-coldest.delta)}\u202f°C pod cílem, ale okruh domu stojí – referenční místnost (chodba) už má ${fmtT(h.ref_temp)}.`
+        : `Nejchladnější je ${coldest.name}: ${fmtT(coldest.temp)}, o ${fmtNum(-coldest.delta)}\u202f°C pod cílem.`;
     if (coldest.window_open) insight += ' Má otevřené okno.';
     else if (coldest.valve_pct !== null && coldest.valve_pct >= 90)
       insight += ' Hlavice je otevřená naplno.';

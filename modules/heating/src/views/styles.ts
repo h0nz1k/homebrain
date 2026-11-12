@@ -287,11 +287,17 @@ export const heatingStyles = `
 .ht-c3-route.ht-c3-ground > path { stroke-width:4; }
 .ht-c3-route[data-active].ht-c3-ground > path { stroke:var(--ht-c3-ground); }
 .ht-c3-route.ht-c3-bypass > path { stroke-width:2.5; }
+.ht-c3-direction { fill:none; stroke:var(--hb-t1); stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; }
 .ht-c3-particle { fill:#fff; opacity:0; }
 .ht-c3-shell, .ht-c3-rim { stroke:#939ca8; stroke-width:1.5; }
 .ht-c3-window { stroke:#171c22; stroke-width:2; filter:drop-shadow(0 0 1px #a0a9ae); }
 [data-theme='light'] .ht-c3-window { stroke:#535d68; }
 .ht-c3-vessel { stroke:#fafcfe; stroke-width:2; fill:#c57c84; }
+.ht-c3-title-bg { fill:#1b2026; }
+.ht-c3-label[data-label="tank-title"] { fill:#fff; }
+.ht-c3-label:is([data-label="tank-title"],[data-label="hp-out"],[data-label="charge"]) { font-size:12.4px; }
+[data-theme="light"] .ht-c3-title-bg { fill:#eef1f4; }
+[data-theme="light"] .ht-c3-label[data-label="tank-title"] { fill:#202735; }
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
 .ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
@@ -305,6 +311,7 @@ export const heatingStyles = `
 .ht-c3-tank-value { font-size:24px; font-weight:500; }
 .ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
 .ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
+.ht-c3-label[data-label="mixing"]:not(.ht-c3-muted) tspan { font-weight:700; }
 [data-theme='light'] .ht-c3-label { fill:#48525d; }
 [data-theme='light'] .ht-c3-label:is([data-label='collector'],[data-label='cold-water']) { fill:#343d46; }
 [data-theme='light'] .ht-c3-label.ht-c3-muted, [data-theme='light'] .ht-c3-muted { fill:#606b77; }
