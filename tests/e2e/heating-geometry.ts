@@ -264,6 +264,33 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     ) < 6
   )
     errors.push('vessel card padding');
+  // Refs #82: the mixer draws buffer water beside, never inside, the DHW vessel.
+  const tank = q('.ht-c3-shell');
+  const mixerStart = point('mixing-hot', false);
+  const inTank = (p: DOMPoint) => {
+    const local = p.matrixTransform(tank.getScreenCTM()!.inverse());
+    return (tank as SVGGeometryElement).isPointInFill(local);
+  };
+  if (!inTank(mixerStart)) errors.push('mixer feed outside buffer');
+  if (
+    mixerStart.x >= inner.left &&
+    mixerStart.x <= inner.right &&
+    mixerStart.y >= inner.top &&
+    mixerStart.y <= inner.bottom
+  )
+    errors.push('mixer feed inside DHW vessel bbox');
+  if (mixerStart.y <= inner.top || mixerStart.y >= inner.bottom)
+    errors.push('mixer feed must be beside DHW vessel');
+  if (point('house-tank-return', true).y <= mixerStart.y)
+    errors.push('heating return must enter buffer below mixer feed');
+  const flow = point('tank-inlet', true),
+    back = point('tank-return', false);
+  const tankBounds = tank.getBoundingClientRect();
+  const flowHeight = (flow.y - tankBounds.top) / tankBounds.height;
+  if (!inTank(flow) || flowHeight < 0.4 || flowHeight > 0.6)
+    errors.push('charging flow must enter mid-buffer');
+  if (!inTank(back) || back.y <= inner.bottom || back.y <= flow.y)
+    errors.push('charging return must leave lower buffer below DHW vessel');
   const value = label('dhw');
   if (
     value.left < card.left ||
