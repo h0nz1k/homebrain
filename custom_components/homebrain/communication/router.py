@@ -221,7 +221,8 @@ class Router:
                         async with self.lock:
                             await self.save(immediate=True)
                 return "sent"
-        self.audit(message, "router", "failed", "no_channel", now)
+        if not digest:
+            self.audit(message, "router", "failed", "no_channel", now)
         return "failed"
 
     @callback
@@ -259,6 +260,7 @@ class Router:
             now = dt_util.utcnow()
             config = self.config
             changed = self._prune(now)
+            pending_expired = False
             digest = {}
             deliveries = []
             for message in list(self.state["queue"]):
@@ -293,17 +295,19 @@ class Router:
                     batch.append(message)
                     size += len(message["message"]) + (len(batch) > 1)
                 batches.append((key, batch))
+            recipient_batches = {}
             for (recipient, forced), messages in batches:
+                recipient_batches.setdefault(recipient, []).append((forced, messages))
+            for recipient, grouped in recipient_batches.items():
                 changed = True
-                deliveries.append(self._digest(recipient, forced, messages, config, now))
+                deliveries.append(self._digest_recipient(recipient, grouped, config, now))
             for key, pending in list(self.state["pending"].items()):
                 message = pending["message"]
                 if pending.get("expires") and datetime.fromisoformat(pending["expires"]) <= now:
                     changed = True
                     self.audit(message, "router", "failed", "ack_expired", now)
                     del self.state["pending"][key]
-                    async with self.lock:
-                        await self.save(immediate=True)
+                    pending_expired = True
                     continue
                 if pending["due"] is None or datetime.fromisoformat(pending["due"]) > now:
                     continue
@@ -315,7 +319,8 @@ class Router:
             if deliveries:
                 await asyncio.gather(*deliveries)
             if changed:
-                await self.save()
+                async with self.lock:
+                    await self.save(immediate=pending_expired)
 
     async def _flush_message(self, message, person, now):
         if await self._send(message, person, now) == "sent":
@@ -334,6 +339,29 @@ class Router:
         self.state["pending"].pop(key, None)
         async with self.lock:
             await self.save(immediate=True)
+
+    async def _digest_recipient(self, recipient, batches, config, now):
+        failures = await asyncio.gather(
+            *(
+                self._digest(recipient, forced, messages, config, now)
+                for forced, messages in batches
+            )
+        )
+        count = sum(failures)
+        if count:
+            self.audit(
+                {
+                    "id": uuid4().hex,
+                    "recipient": recipient,
+                    "priority": "info",
+                    "title": "Denní souhrn",
+                    "message": f"Počet neodeslaných zpráv v denním souhrnu: {count}",
+                },
+                "router",
+                "failed",
+                "no_channel",
+                dt_util.utcnow(),
+            )
 
     async def _digest(self, recipient, forced, messages, config, now):
         summary = {
@@ -363,12 +391,13 @@ class Router:
                 self.state["digest_skipped"][recipient] = day
             for message in messages:
                 message["due"] = self._digest_due(now)
-            return
+            return 0
         status = await self._send(summary, {**person, "preferences": choices}, now, digest=True)
         if status == "sent":
             for message in messages:
                 self.state["queue"].remove(message)
                 self._remember(message, dt_util.utcnow())
+                self.audit(message, "router", "digested", summary["id"], dt_util.utcnow())
         else:
             for message in messages:
                 attempt = message.get("digest_attempt", 0)
@@ -379,3 +408,5 @@ class Router:
                     else self._digest_due(now)
                 )
                 message["digest_attempt"] = attempt + 1 if attempt < len(delays) else 0
+            return len(messages)
+        return 0

@@ -423,6 +423,81 @@ async def test_digest_splits_large_messages(router, calls, freezer):
     assert not router.state["queue"]
 
 
+async def test_digest_audits_each_message_with_its_successful_summary(router, calls, freezer):
+    results = [
+        await router.notify(request(priority="info", message=text))
+        for text in ("A" * 3000, "B" * 3000, "C")
+    ]
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    await router.tick()
+    rows = router.snapshot()
+    summaries = {r["notification_id"]: r for r in rows if r["status"] == "sent"}
+    digested = [r for r in rows if r["status"] == "digested"]
+    assert len(summaries) == 2
+    assert {r["notification_id"] for r in digested} == {
+        result["results"][0]["id"] for result in results
+    }
+    for row in digested:
+        assert row["channel"] == "router"
+        assert row["message"] in summaries[row["reason"]]["message"]
+        assert not row["pending_ack"]
+
+
+async def test_failed_digest_audits_once_per_recipient_per_attempt(router, calls, hass, freezer):
+    for i in range(LIMIT):
+        await router.notify(
+            request(priority="info", message="A" * 3000, channel="email" if i % 2 else "telegram")
+        )
+    await router.notify(request(message="Zachovaná zpráva"))
+    hass.services.async_remove("notify", "demo_chat")
+    hass.services.async_remove("notify", "demo_mail")
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    for attempt, delay in enumerate((5, 30, 120, 0), start=1):
+        await router.tick()
+        failures = [r for r in router.snapshot() if r["reason"] == "no_channel"]
+        assert len(failures) == attempt
+        assert all(str(LIMIT) in r["message"] for r in failures)
+        assert not any(r["status"] == "digested" for r in router.snapshot())
+        assert any(r["message"] == "Zachovaná zpráva" for r in router.snapshot())
+        assert len(router.state["queue"]) == LIMIT
+        freezer.tick(timedelta(minutes=delay))
+
+
+async def test_partial_digest_success_only_marks_delivered_messages(router, calls, hass, freezer):
+    sent = await router.notify(request(priority="info", channel="telegram"))
+    failed = await router.notify(request(priority="info", channel="email"))
+    await router.notify(request(recipient="other", priority="info"))
+    hass.services.async_remove("notify", "demo_mail")
+    hass.services.async_remove("todo", "add_item")
+    freezer.move_to("2026-11-13T07:00:00+00:00")
+    await router.tick()
+    rows = router.snapshot()
+    assert [r["notification_id"] for r in rows if r["status"] == "digested"] == [
+        sent["results"][0]["id"]
+    ]
+    failures = [r for r in rows if r["reason"] == "no_channel"]
+    assert {r["recipient"] for r in failures} == {"demo", "other"}
+    assert len(failures) == 2
+    assert all(r["message"].endswith(": 1") for r in failures)
+    assert failed["results"][0]["id"] in {m["id"] for m in router.state["queue"]}
+
+
+async def test_many_expired_pending_entries_save_once(router, calls, freezer):
+    for _ in range(5):
+        await router.notify(request(priority="high"))
+    freezer.tick(timedelta(days=8))
+    with (
+        patch.object(router.store, "async_save") as immediate,
+        patch.object(router.store, "async_delay_save") as delayed,
+    ):
+        await router.tick()
+        immediate.assert_awaited_once()
+        delayed.assert_not_called()
+        assert immediate.call_args.args[0]["pending"] == {}
+    assert not router.state["pending"]
+    assert len([r for r in router.snapshot() if r["reason"] == "ack_expired"]) == 5
+
+
 @pytest.mark.parametrize(
     "error",
     [TimeoutError(), vol.Invalid("Rejected schema"), ConnectionError("Provider unavailable")],

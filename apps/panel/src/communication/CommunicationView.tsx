@@ -13,7 +13,7 @@ const statusLabels: Record<CommunicationMessage['status'], string> = {
   queued: 'Čeká na odeslání',
   duplicate: 'Opakovaná zpráva',
   acknowledged: 'Potvrzeno – odpověď „Beru“',
-  digested: 'Zahrnuto v souhrnu',
+  digested: 'V denním souhrnu',
 };
 const channelLabels: Record<string, string> = {
   push: 'Telefon',
@@ -51,6 +51,8 @@ const timeFormat = new Intl.DateTimeFormat('cs-CZ', {
 function delivery(item: CommunicationMessage) {
   if (item.status === 'acknowledged')
     return { tone: 'ok', icon: '✓', label: statusLabels.acknowledged } as const;
+  if (item.status === 'digested')
+    return { tone: 'ok', icon: '✓', label: statusLabels.digested } as const;
   if (item.status === 'failed')
     return { tone: 'crit', icon: '!', label: statusLabels.failed } as const;
   if (item.pending_ack) return { tone: 'warn', icon: '◷', label: 'Čeká na potvrzení' } as const;

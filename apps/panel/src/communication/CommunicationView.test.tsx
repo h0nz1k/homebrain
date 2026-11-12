@@ -127,3 +127,12 @@ it('formats Czech dates with minutes and colours acknowledged delivery green', a
   expect(document.querySelector('time')?.textContent).toBe('12. 11. 2026 08:00');
   expect(screen.queryByText('demo')).toBeNull();
 });
+
+it('shows messages delivered in a daily digest with a green Czech status', async () => {
+  const send = vi.fn().mockResolvedValue({
+    messages: [{ ...row, status: 'digested', channel: 'router', priority: 'info', ack: false }],
+  });
+  render(<CommunicationView {...props} connection={connection(send)} />);
+  expect((await screen.findByText('V denním souhrnu')).getAttribute('data-tone')).toBe('ok');
+  expect(screen.queryByText('Čeká na odeslání')).toBeNull();
+});
