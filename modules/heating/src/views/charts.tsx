@@ -313,7 +313,8 @@ export function Scatter({
       <div className="ht-xlabs" aria-hidden="true">
         {xs.map((t) => (
           <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
-            {fmtNum(t, 0)}&nbsp;°C
+            {fmtNum(t, 0)}
+            {'\u202f°C'}
           </span>
         ))}
       </div>
@@ -459,7 +460,7 @@ export function CurveChart({
       <div className="ht-xlabs" aria-hidden="true">
         {xs.map((t) => (
           <span key={t} style={{ left: pct((fx(t) / VW) * 100) }}>
-            {compact ? (t > 0 ? `+${t}` : t < 0 ? `−${-t}` : '0') : `${fmtNum(t, 0)}\u00a0°C`}
+            {compact ? (t > 0 ? `+${t}` : t < 0 ? `−${-t}` : '0') : `${fmtNum(t, 0)}\u202f°C`}
           </span>
         ))}
       </div>

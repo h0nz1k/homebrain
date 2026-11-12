@@ -51,7 +51,7 @@ describe('C3 measured state and routes', () => {
     render(<HeatingSchematic snap={snap} />);
     for (const id of ['hp-out', 'hp-in', 'supply'])
       expect(screen.getByTestId(`heating-sch-${id}`).classList.contains('ht-c3-muted')).toBe(true);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovacíventil');
+    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovací ventil');
     expect(screen.getByTestId('heating-sch-supply').textContent).toBe('do topení');
     expect(screen.getByTestId('heating-sch-hp-in').textContent).toContain('29,7');
   });
@@ -65,7 +65,7 @@ describe('C3 measured state and routes', () => {
     expect(heroScene(snap).activePipes).not.toContain('mixing-bypass');
     snap.house.mixing_valve_pct = null;
     rerender(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovacíventil');
+    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovací ventil');
     expect(screen.getByTestId('heating-sch-supply').textContent).toContain('37,8');
   });
   it('diverter follows the output even when it disagrees with activity', () => {
@@ -75,7 +75,9 @@ describe('C3 measured state and routes', () => {
     expect(document.querySelector('[data-valve]')?.getAttribute('data-valve')).toBe('tank');
     snap.dhw.valve_to_dhw = true;
     rerender(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-valve').textContent).toContain('→ ohřevTUV');
+    expect(document.querySelector('[data-valve]')?.getAttribute('data-valve')).toBe('dhw');
+    expect(screen.getByTestId('heating-sch-dhw-port').textContent).toBe('→ teplá voda');
+    expect(screen.getByTestId('heating-sch-tank-port').textContent).toBe('→ nádrž');
   });
   for (const activity of ['cooling', 'fault', 'blocked_hdo'] as const) {
     it(`${activity} keeps an idle drawing`, () => {
@@ -94,8 +96,8 @@ describe('C3 measured state and routes', () => {
     expect(document.querySelector('.ht-c3-display')).toBeNull();
     snap.heat_pump.compressor_on = false;
     rerender(<HeatingSchematic snap={snap} />);
-    expect(document.querySelector('[data-testid="heating-sch-compressor-led"]')!.classList).toContain(
-      'ht-c3-comp-led-off',
-    );
+    expect(
+      document.querySelector('[data-testid="heating-sch-compressor-led"]')!.classList,
+    ).toContain('ht-c3-comp-led-off');
   });
 });

@@ -444,7 +444,8 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
           </p>
           <p className="ht-hero-sub">
             čidlo regulace TČ · cíl {fmtT(h.ref_target_effective ?? h.ref_target)} · hystereze{' '}
-            {fmtNum(h.hysteresis)}&nbsp;°C
+            {fmtNum(h.hysteresis)}
+            {'\u202f°C'}
           </p>
           <p className="ht-hero-detail">
             Chodba řídí topení celého domu. Když dosáhne cílové teploty, čerpadlo topení se zastaví
@@ -519,7 +520,7 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
                     <span className="ht-muted">
                       {r.target === null
                         ? 'bez cíle'
-                        : `cíl ${fmtNum(r.target)} · ${r.delta! > 0 ? '+' : ''}${fmtNum(r.delta)}\u00a0°C`}
+                        : `cíl ${fmtNum(r.target)} · ${r.delta! > 0 ? '+' : ''}${fmtNum(r.delta)}\u202f°C`}
                     </span>
                     <span
                       className="ht-track"
@@ -864,7 +865,7 @@ function ModesTab({ snap }: { snap: HeatingSnapshot }) {
               <span>Doma (chodba)</span>
               <b>
                 cíl {fmtT(snap.house.ref_target)} ± {fmtNum(snap.house.hysteresis)}
-                {'\u00a0°C'}
+                {'\u202f°C'}
               </b>
             </li>
           </ul>

@@ -107,7 +107,7 @@ function TankGauge({ snap }: { snap: HeatingSnapshot }) {
           k="Cíl nádrže"
           v={
             g.target !== null && g.hyst !== null
-              ? `${fmtT(g.target, 0)} ± ${fmtNum(g.hyst, 0)}\u00a0°C`
+              ? `${fmtT(g.target, 0)} ± ${fmtNum(g.hyst, 0)}\u202f°C`
               : fmtT(g.target, 0)
           }
           hide={g.target === null}
@@ -178,7 +178,7 @@ export function LandscapeDashboard({
             k="Cíl ± hystereze"
             v={
               target !== null && h.hysteresis !== null
-                ? `${fmtT(target)} ± ${fmtNum(h.hysteresis)}\u00a0°C`
+                ? `${fmtT(target)} ± ${fmtNum(h.hysteresis)}\u202f°C`
                 : fmtT(target)
             }
             hide={target === null}
@@ -240,7 +240,7 @@ export function LandscapeDashboard({
           />
           <KvRow k="Ø délka běhu" v={avg !== null ? fmtDuration(avg) : '–'} hide={avg === null} />
           <KvRow k="Motohodiny" v={fmtMotohours(hp.motohours)} hide={hp.motohours === null} />
-          <KvRow k="ΔT TČ" v={`${fmtNum(delta)}\u00a0°C`} hide={delta === null} />
+          <KvRow k="ΔT TČ" v={`${fmtNum(delta)}\u202f°C`} hide={delta === null} />
           <KvRow
             k="Běží od"
             v={

@@ -35,7 +35,7 @@ describe('formatting', () => {
   it('uses Czech decimal comma, real minus and NBSP thousands', () => {
     expect(fmtNum(-2.94)).toBe('\u22122,9');
     expect(fmtNum(1888, 0)).toBe('1\u00a0888');
-    expect(fmtT(22.55)).toBe('22,6\u00a0°C');
+    expect(fmtT(22.55)).toBe('22,6\u202f°C');
     expect(fmtT(null)).toBe('–');
     expect(fmtNum(-0.01)).toBe('0,0');
   });
@@ -46,7 +46,7 @@ describe('activityModel – plain Czech sentence', () => {
     const m = activityModel(snap('heating'), NOW);
     expect(m.state).toBe('heating');
     expect(m.headline[1]).toBe('nahřívá nádrž');
-    expect(text(m)).toContain('dole má 41,7\u00a0°C');
+    expect(text(m)).toContain('dole má 41,7\u202f°C');
     expect(m.pill).toBe('Kompresor běží 27\u00a0min');
     expect(text(m)).toContain('Okruh domu stojí');
   });

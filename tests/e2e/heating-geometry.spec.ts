@@ -104,9 +104,9 @@ for (const [width, height] of [
           const led = root
             .querySelector('[data-testid="heating-sch-compressor-led"]')!
             .getBoundingClientRect().width;
-          const top = texts.find((t) => t.dataset.label === 'tank-top')!;
+          const title = texts.find((t) => t.dataset.label === 'tank-title')!;
           const tank = root.querySelector('[data-floor="tank"]')!.getBoundingClientRect();
-          const tb = rendered(top);
+          const tb = rendered(title);
           const store = document.querySelector('[data-testid="heating-land-store"]')!;
           const rowValue = (parent: Element, label: string) =>
             Array.from(parent.querySelectorAll('li'))
@@ -195,12 +195,12 @@ for (const [width, height] of [
             tickInset: Math.min(
               ...tickBoxes.map((b) => Math.min(b.left - chartCard.left, chartCard.right - b.right)),
             ),
-            tankTopInside:
-              (tb.left >= tank.left &&
-                tb.right <= tank.right &&
-                tb.top >= tank.top &&
-                tb.bottom <= tank.bottom) ||
-              (tb.right < tank.left && !!root.querySelector('[data-tank-top-leader]')),
+            // R17: the cold inlet splits the lower buffer, so the nameplate sits under the tank.
+            tankTitleUnder:
+              tb.top >= tank.bottom &&
+              tb.top - tank.bottom <= 16 &&
+              tb.right > tank.left &&
+              tb.left < tank.right,
             topLabel: rowValue(store, 'Nádrž nahoře'),
             target,
             curveTarget,
@@ -214,7 +214,7 @@ for (const [width, height] of [
           .toBeGreaterThanOrEqual(height! < 600 ? 9 : 11);
         expect.soft(result.overlaps, 'all text/text and text/icon BBoxes').toEqual([]);
         expect.soft(result.coldGap, 'cold-water glyph clearance').toBeGreaterThanOrEqual(6);
-        expect.soft(result.tankTopInside, 'buffer top value inside tank').toBe(true);
+        expect.soft(result.tankTitleUnder, 'buffer nameplate right under tank').toBe(true);
         expect.soft(result.holes, 'every grid track interior covered by a card').toEqual([]);
         expect
           .soft(result.minText, 'smallest rendered font')
