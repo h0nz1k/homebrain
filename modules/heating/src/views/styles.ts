@@ -294,6 +294,8 @@ export const heatingStyles = `
 .ht-c3-vessel { stroke:#fafcfe; stroke-width:2; fill:#c57c84; }
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
 .ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
+.ht-c3-label:is([data-label='hp-in'],[data-label='radiators']) { font-size:12px; }
+.ht-c3-label[data-label='charge'] { font-size:11.8px; }
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
 .ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-1px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
@@ -447,7 +449,6 @@ export const heatingStyles = `
 .ht-land-strip-sep { color: var(--hb-t2); opacity: .75; }
 
 @media (orientation: landscape) and (min-width: 560px) and (min-height: 340px) {
-  .ht-c3-cold-portrait, .ht-c3-cold-portrait-bg { display: none; }
   .ht-land-only, .ht-c3-land-only { display: block; }
   .ht-land-strip.ht-land-only { display: grid; }
   .ht-portrait-hero-copy, .ht-portrait-only { display: none !important; }
