@@ -295,12 +295,11 @@ export const heatingStyles = `
 .ht-c3-vessel { stroke:#fafcfe; stroke-width:2; fill:#c57c84; }
 .ht-c3-title-bg { fill:#1b2026; }
 .ht-c3-label[data-label="hp-out"] { letter-spacing:-.2px; }
-.ht-c3-label[data-label="tank-title"] { fill:#fff; font-size:12.3px; letter-spacing:-.55px; }
-.ht-c3-label:is([data-label="hp-out"],[data-label="hp-in"],[data-label="charge"]) { font-size:12.4px; }
+.ht-c3-label[data-label="tank-title"] { fill:#fff; font-size:13.3px; letter-spacing:-.7px; }
 [data-theme="light"] .ht-c3-title-bg { fill:#eef1f4; }
 [data-theme="light"] .ht-c3-label[data-label="tank-title"] { fill:#202735; }
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
-.ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
+.ht-c3-label { fill:var(--hb-t2); font-size:13.3px; font-family:var(--hb-font, inherit); }
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
 .ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-1px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }

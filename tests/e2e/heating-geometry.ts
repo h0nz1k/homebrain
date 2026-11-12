@@ -1,5 +1,8 @@
 /** Rendered guards: allow route redesigns while keeping readable, attached labels. */
-export function schematicGeometry(el: HTMLElement | SVGElement) {
+export function schematicGeometry(
+  el: HTMLElement | SVGElement,
+  onRouting?: (metrics: Record<string, unknown>) => void,
+) {
   const svg = el.querySelector('svg')!;
   const errors: string[] = [];
   const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
@@ -270,9 +273,9 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     const local = p.matrixTransform(svg.getScreenCTM()!.inverse());
     return (
       local.x >= 0 &&
-      local.x <= 344 &&
-      local.y >= 9 + (Math.abs(local.x - 172) * 75) / 176 &&
-      local.y <= 490
+      local.x <= 372 &&
+      local.y >= 9 + (Math.abs(local.x - 184) * 75) / 188 &&
+      local.y <= 534
     );
   };
   for (const text of labels) {
@@ -300,7 +303,7 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
       3.9 * scale
     )
       errors.push('collector: scene edge');
-    if (local.x > 64 && local.y < 510) errors.push('collector: loop above soil');
+    if (local.x > 64 && local.y < 558) errors.push('collector: loop above soil');
   }
   // Junction endpoints, rather than path snapshots, encode the hydraulic connections.
   const point = (id: string, end: boolean) => {
@@ -344,6 +347,9 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     errors.push('vessel card padding');
   // Refs #82: the mixer draws buffer water beside, never inside, the DHW vessel.
   const tank = q('.ht-c3-shell');
+  const shellSamples = samples(tank as SVGGeometryElement).points;
+  const outlineGap = (p: DOMPoint) =>
+    Math.min(...shellSamples.map((s) => Math.hypot(s.x - p.x, s.y - p.y)));
   const mixerStart = point('mixing-hot', false);
   const inTank = (p: DOMPoint) => {
     const local = p.matrixTransform(tank.getScreenCTM()!.inverse());
@@ -359,8 +365,9 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     errors.push('mixer feed inside DHW vessel bbox');
   if (Math.max(inner.left - mixerStart.x, mixerStart.x - inner.right) < 8)
     errors.push('mixer feed horizontal DHW gap');
-  if (mixerStart.y <= inner.top || mixerStart.y >= inner.bottom)
-    errors.push('mixer feed must be beside DHW vessel');
+  // Owner zones: top of the outer buffer, beside or above the vessel – a port on the shell itself.
+  if (mixerStart.y >= inner.bottom || outlineGap(mixerStart) > scale)
+    errors.push('mixer feed must leave the top cap or upper wall');
   if (point('house-tank-return', true).y <= mixerStart.y)
     errors.push('heating return must enter buffer below mixer feed');
   const flow = point('tank-inlet', true),
@@ -416,13 +423,14 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     errors.push('cold inlet outside vessel');
   const pill = q('.ht-c3-title-bg').getBoundingClientRect();
   const shell = q('.ht-c3-shell').getBoundingClientRect();
+  // The cold inlet splits the lower buffer, so the nameplate sits on the floor right below the tank.
   if (
-    pill.left < shell.left ||
-    pill.right > shell.right ||
-    pill.top < shell.top ||
-    pill.bottom > shell.bottom
+    pill.top < shell.bottom ||
+    pill.top - shell.bottom > 16 ||
+    pill.right <= shell.left ||
+    pill.left >= shell.right
   )
-    errors.push('tank title pill outside tank');
+    errors.push('tank title pill must sit directly under the tank');
   const allLines = Array.from(
     el.querySelectorAll<SVGGeometryElement>('path, rect, ellipse, circle, line, polyline, polygon'),
   ).filter(
@@ -444,6 +452,199 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     errors.push('tank title outside pill');
   const tankCard = q('[data-tank-card]').getBoundingClientRect();
   if (pathGap(tankCard, samples(cold)) < 8 * scale) errors.push('cold inlet near tank card');
+  // Nested so Playwright serialises it together with this function.
+  /** Refs #82 R17: pipe routing around the tank, measured on the painted SVG in CSS px. */
+  function pipeRouting(el: HTMLElement | SVGElement) {
+    const svg = el.querySelector('svg')!;
+    const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+    const errors: string[] = [];
+    const shell = el.querySelector<SVGGeometryElement>('.ht-c3-shell')!;
+    const rim = el.querySelector<SVGGeometryElement>('ellipse.ht-c3-rim')!;
+    const vessel = el.querySelector<SVGGeometryElement>('[data-vessel]')!;
+    const outline = [shell, rim].flatMap((node) => {
+      const m = node.getScreenCTM()!,
+        length = node.getTotalLength();
+      const pts = Array.from({ length: Math.ceil(length) * 2 + 1 }, (_, i) => {
+        const p = node.getPointAtLength((length * i) / (Math.ceil(length) * 2));
+        return new DOMPoint(p.x, p.y).matrixTransform(m);
+      });
+      const half = (parseFloat(getComputedStyle(node).strokeWidth) * scale) / 2;
+      return pts.map((p, i) => {
+        const a = pts[Math.max(0, i - 1)]!,
+          b = pts[Math.min(pts.length - 1, i + 1)]!;
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        return { p, tx: (b.x - a.x) / len, ty: (b.y - a.y) / len, half };
+      });
+    });
+    const nearest = (p: DOMPoint) =>
+      outline.reduce(
+        (best, o) => {
+          const d = Math.hypot(o.p.x - p.x, o.p.y - p.y);
+          return d < best.d ? { d, o } : best;
+        },
+        { d: Infinity, o: outline[0]! },
+      );
+    const tankBox = shell.getBoundingClientRect();
+    const inBuffer = (p: DOMPoint) =>
+      shell.isPointInFill(p.matrixTransform(shell.getScreenCTM()!.inverse())) &&
+      nearest(p).d > 1.5 * scale;
+    const inVessel = (p: DOMPoint) =>
+      vessel.isPointInFill(p.matrixTransform(vessel.getScreenCTM()!.inverse()));
+    type Segment = { id: string; a: DOMPoint; b: DOMPoint; half: number; length: number };
+    const segments: Segment[] = [];
+    const paths = Array.from(
+      el.querySelectorAll<SVGPathElement>(
+        '.ht-c3-route > path, path.ht-c3-cold-inlet, path.ht-c3-draw',
+      ),
+    );
+    for (const path of paths) {
+      const id = path.closest('[data-pipe-id]')!.getAttribute('data-pipe-id')!;
+      const m = path.getScreenCTM()!;
+      const half = (parseFloat(getComputedStyle(path).strokeWidth) * scale) / 2;
+      let x = 0,
+        y = 0;
+      for (const command of path.getAttribute('d')!.matchAll(/([MHVLQA])([^MHVLQA]+)/g)) {
+        const values = command[2]!.trim().split(/[ ,]+/).map(Number);
+        const nextX = command[1] === 'V' ? x : (values.at(-2) ?? values[0]!);
+        const nextY = command[1] === 'H' ? y : values.at(-1)!;
+        if (['H', 'V', 'L'].includes(command[1]!)) {
+          const a = new DOMPoint(x, y).matrixTransform(m),
+            b = new DOMPoint(nextX, nextY).matrixTransform(m);
+          segments.push({ id, a, b, half, length: Math.hypot(b.x - a.x, b.y - a.y) });
+        }
+        x = nextX;
+        y = nextY;
+      }
+    }
+    const along = (s: Segment, t: number) =>
+      new DOMPoint(s.a.x + (s.b.x - s.a.x) * t, s.a.y + (s.b.y - s.a.y) * t);
+    const dir = (s: Segment) => ({ x: (s.b.x - s.a.x) / s.length, y: (s.b.y - s.a.y) / s.length });
+    // (a) Nothing may run along the tank outline; port stubs must meet it perpendicularly.
+    let parallelMax = 0,
+      nearestLane = Infinity;
+    const stubs: { id: string; length: number; angle: number }[] = [];
+    for (const s of segments) {
+      const d = dir(s);
+      const isStub = [s.a, s.b].some((p) => nearest(p).d <= 1.5 * scale);
+      if (isStub) {
+        const port = nearest(nearest(s.a).d < nearest(s.b).d ? s.a : s.b).o;
+        const angle =
+          (Math.acos(Math.min(1, Math.abs(d.x * port.tx + d.y * port.ty))) * 180) / Math.PI;
+        stubs.push({ id: s.id, length: s.length, angle });
+        if (angle < 70) errors.push(`${s.id}: port stub not perpendicular (${angle.toFixed(0)}°)`);
+        continue;
+      }
+      let run = 0;
+      const steps = Math.max(1, Math.ceil(s.length));
+      for (let i = 0; i <= steps; i++) {
+        const p = along(s, i / steps);
+        const n = nearest(p);
+        const edge = n.d - s.half - n.o.half;
+        const parallel = Math.abs(d.x * n.o.tx + d.y * n.o.ty) > Math.cos((20 * Math.PI) / 180);
+        if (parallel) nearestLane = Math.min(nearestLane, edge);
+        if (parallel && edge < 20) run += s.length / steps;
+      }
+      parallelMax = Math.max(parallelMax, run);
+      if (run > 24) errors.push(`${s.id}: runs along the tank outline for ${run.toFixed(1)} px`);
+    }
+    // (b) Parallel pipes keep a clear gap of 12 px wherever they run side by side for 30 px.
+    let parallelGap = Infinity;
+    for (const [i, s] of segments.entries())
+      for (const t of segments.slice(i + 1)) {
+        const ds = dir(s),
+          dt = dir(t);
+        if (Math.abs(ds.x * dt.y - ds.y * dt.x) > Math.sin((10 * Math.PI) / 180)) continue;
+        const proj = (p: DOMPoint) => (p.x - s.a.x) * ds.x + (p.y - s.a.y) * ds.y;
+        const lo = Math.max(0, Math.min(proj(t.a), proj(t.b))),
+          hi = Math.min(s.length, Math.max(proj(t.a), proj(t.b)));
+        if (hi - lo <= 30) continue;
+        const gap = Math.abs((t.a.x - s.a.x) * ds.y - (t.a.y - s.a.y) * ds.x) - s.half - t.half;
+        parallelGap = Math.min(parallelGap, gap);
+        if (gap < 12) errors.push(`${s.id}/${t.id}: parallel gap ${gap.toFixed(1)} px`);
+      }
+    // (c) Buffer circuits stay outside the tank body; DHW nozzles cross the buffer straight.
+    const inside: Record<string, number> = {};
+    for (const path of paths) {
+      const id = path.closest('[data-pipe-id]')!.getAttribute('data-pipe-id')!;
+      const m = path.getScreenCTM()!,
+        length = path.getTotalLength();
+      const xs: number[] = [];
+      let run = 0;
+      for (let n = 0; n <= length; n += 0.5) {
+        const p = path.getPointAtLength(n);
+        const s = new DOMPoint(p.x, p.y).matrixTransform(m);
+        if (!inBuffer(s) || inVessel(s)) continue;
+        run += 0.5 * scale;
+        xs.push(s.x);
+      }
+      inside[id] = run;
+      const nozzle = ['cold-water', 'dhw-draw'].includes(id);
+      if (!nozzle && run > 0)
+        errors.push(`${id}: drawn inside the tank body (${run.toFixed(1)} px)`);
+      if (nozzle && xs.length && Math.max(...xs) - Math.min(...xs) > 0.5)
+        errors.push(`${id}: DHW nozzle must cross the buffer as one straight riser`);
+    }
+    // (d) No crossings at all; junction endpoints do not count.
+    const crossings: string[] = [];
+    let nearTank = 0;
+    for (const [i, s] of segments.entries())
+      for (const t of segments.slice(i + 1)) {
+        if (s.id === t.id) continue;
+        const den = (s.b.x - s.a.x) * (t.b.y - t.a.y) - (s.b.y - s.a.y) * (t.b.x - t.a.x);
+        if (Math.abs(den) < 1e-9) continue;
+        const u = ((t.a.x - s.a.x) * (t.b.y - t.a.y) - (t.a.y - s.a.y) * (t.b.x - t.a.x)) / den;
+        const v = ((t.a.x - s.a.x) * (s.b.y - s.a.y) - (t.a.y - s.a.y) * (s.b.x - s.a.x)) / den;
+        if (u <= 0 || u >= 1 || v <= 0 || v >= 1) continue;
+        const p = along(s, u);
+        if ([s.a, s.b].some((e) => [t.a, t.b].some((f) => Math.hypot(e.x - f.x, e.y - f.y) < 1)))
+          continue;
+        crossings.push(`${s.id}/${t.id}`);
+        const dx = Math.max(0, tankBox.left - p.x, p.x - tankBox.right),
+          dy = Math.max(0, tankBox.top - p.y, p.y - tankBox.bottom);
+        if (Math.hypot(dx, dy) <= 40) nearTank++;
+      }
+    if (crossings.length) errors.push(`pipe crossings: ${crossings.join(', ')}`);
+    // Left: flow and return keep separate vertical lanes; the charging pump sits on the blue one.
+    const vertical = (id: string) =>
+      segments
+        .filter((s) => s.id === id && Math.abs(s.a.x - s.b.x) < 0.5)
+        .sort((a, b) => b.length - a.length)[0]!;
+    const red = vertical('tank-inlet'),
+      blue = vertical('tank-return');
+    const laneGap = Math.abs(red.a.x - blue.a.x) - red.half - blue.half;
+    if (laneGap < 14) errors.push(`charging lanes ${laneGap.toFixed(1)} px apart`);
+    const pump = new DOMPoint(0, 0).matrixTransform(
+      el.querySelector<SVGGraphicsElement>('[data-pump="charge"]')!.getScreenCTM()!,
+    );
+    const top = Math.min(blue.a.y, blue.b.y),
+      bottom = Math.max(blue.a.y, blue.b.y);
+    if (Math.abs(pump.x - blue.a.x) > 0.5 || pump.y <= top || pump.y >= bottom)
+      errors.push('charging pump must sit on the blue lane');
+    for (const [id, end] of [
+      ['tank-inlet', true],
+      ['tank-return', false],
+      ['house-tank-return', true],
+      ['dhw-inlet', true],
+    ] as const) {
+      const own = segments.filter((s) => s.id === id);
+      const s = end ? own.at(-1)! : own[0]!;
+      if (Math.abs(s.a.y - s.b.y) > 0.5) errors.push(`${id}: must meet the wall horizontally`);
+    }
+    return {
+      errors,
+      parallelMax,
+      nearestLane,
+      parallelGap,
+      inside,
+      crossings: crossings.length,
+      nearTank,
+      laneGap,
+      stubs,
+    };
+  }
+  const routing = pipeRouting(el);
+  onRouting?.(routing);
+  for (const issue of routing.errors) errors.push(issue);
   const luminance = (color: string) => {
     const rgb = color
       .match(/[\d.]+/g)!

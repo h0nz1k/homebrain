@@ -521,7 +521,7 @@ test.describe('Topení', () => {
       await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
       expect(await infiniteAnimations(page)).toBe(0);
       const chevrons = page.locator('.ht-c3-direction');
-      await expect(chevrons).toHaveCount(27);
+      await expect(chevrons).toHaveCount(16);
       expect(await page.getByTestId('heating-schematic').evaluate(schematicGeometry)).toEqual([]);
       for (const chevron of await chevrons.all()) await expect(chevron).toBeVisible();
     });

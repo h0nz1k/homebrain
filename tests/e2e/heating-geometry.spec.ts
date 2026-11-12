@@ -195,11 +195,12 @@ for (const [width, height] of [
             tickInset: Math.min(
               ...tickBoxes.map((b) => Math.min(b.left - chartCard.left, chartCard.right - b.right)),
             ),
-            tankTitleInside:
-              tb.left >= tank.left &&
-              tb.right <= tank.right &&
-              tb.top >= tank.top &&
-              tb.bottom <= tank.bottom,
+            // R17: the cold inlet splits the lower buffer, so the nameplate sits under the tank.
+            tankTitleUnder:
+              tb.top >= tank.bottom &&
+              tb.top - tank.bottom <= 16 &&
+              tb.right > tank.left &&
+              tb.left < tank.right,
             topLabel: rowValue(store, 'Nádrž nahoře'),
             target,
             curveTarget,
@@ -213,7 +214,7 @@ for (const [width, height] of [
           .toBeGreaterThanOrEqual(height! < 600 ? 9 : 11);
         expect.soft(result.overlaps, 'all text/text and text/icon BBoxes').toEqual([]);
         expect.soft(result.coldGap, 'cold-water glyph clearance').toBeGreaterThanOrEqual(6);
-        expect.soft(result.tankTitleInside, 'buffer title inside tank').toBe(true);
+        expect.soft(result.tankTitleUnder, 'buffer nameplate right under tank').toBe(true);
         expect.soft(result.holes, 'every grid track interior covered by a card').toEqual([]);
         expect
           .soft(result.minText, 'smallest rendered font')
