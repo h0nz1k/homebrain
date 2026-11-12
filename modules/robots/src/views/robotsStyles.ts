@@ -375,7 +375,7 @@ export const robotsStyles = `
     .rb-floors { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: auto; }
   .rb-floor { min-width: 0; padding: 9px 10px; }
   .rb-floor-meta { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  .rb-floor-help, .rb-floor-robot { display: none; }
+  .rb-floor-help, .rb-floor-robot, .rb-floor-separator { display: none; }
   .rb-card { padding: 18px; }
   .rb-hero { grid-template-columns: 104px minmax(0, 1fr); gap: 14px; padding: 18px; }
   .rb-state { font-size: 26px; }

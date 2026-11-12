@@ -115,6 +115,7 @@ test('fotka robota: v doku, žlutá Údržba při dílu pod 25 %', async ({ page
   await expect(page.getByTestId('robots-photo')).toHaveAttribute('data-rbp-view', 'dock', {
     timeout: 20_000,
   });
+  await expect(page.getByTestId('robots-map-robot')).toHaveAttribute('data-docked', 'true');
   const toggle = page.getByTestId('robots-photo-maintenance');
   await expect(toggle).toHaveAttribute('data-tone', 'warn');
   await toggle.click();

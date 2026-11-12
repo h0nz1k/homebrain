@@ -40,7 +40,7 @@ import {
 import { findDoors, planDoorRoute, planRoute, trimLine } from '../map/route.js';
 import { orderBadge, type Room } from '../rooms.js';
 
-export type MarkerTone = 'cleaning' | 'returning' | 'error' | 'idle';
+export type MarkerTone = 'cleaning' | 'returning' | 'error' | 'idle' | 'docked';
 
 interface Props {
   map: VectorMap;
@@ -197,10 +197,11 @@ export function VectorFloorPlan({
   );
   // Parked on the station (not just driving past it while cleaning).
   const docked =
-    tone !== 'cleaning' &&
     !!dockGeo &&
-    !!rawRobot &&
-    Math.hypot(dockView![0] - rawRobot[0], dockView![1] - rawRobot[1]) < botR * 1.6;
+    (tone === 'docked' ||
+      (tone === 'idle' &&
+        !!rawRobot &&
+        Math.hypot(dockView![0] - rawRobot[0], dockView![1] - rawRobot[1]) < botR * 1.6));
   const robotView = docked ? dockGeo!.robot : rawRobot;
   const robotRoom = robotView
     ? placed.find((room) => containsPoint(room.rings, robotView[0], robotView[1]))?.id
@@ -637,6 +638,18 @@ export function VectorFloorPlan({
           {n}
         </b>
       ))}
+      {dockGeo && (
+        <span
+          className="rv-bot-spot"
+          data-rv-obstacle=""
+          style={{
+            left: pct(dockGeo.station[0], frame.width),
+            top: pct(dockGeo.station[1], frame.height),
+            width: pct(unit * 8, frame.width),
+            height: pct(unit * 8, frame.height),
+          }}
+        />
+      )}
       {robotView && (
         // Where the robot ends up (it may still be gliding): labels move out of this spot.
         <span
@@ -1393,7 +1406,7 @@ export function dockPose(
   const n = Math.hypot(nx, ny) || 1;
   nx /= n;
   ny /= n;
-  const base = wallWidth / 2 + r * 0.22;
+  const base = wallWidth / 2 + r * 0.55;
   return {
     foot,
     station: [foot[0] + nx * (base + r * 0.5), foot[1] + ny * (base + r * 0.5)],
