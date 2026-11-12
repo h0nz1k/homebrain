@@ -241,7 +241,7 @@ test.describe('Topení', () => {
             x >= 0 && x <= 342 && y >= 9 + (Math.abs(x - 172) * 75) / 176 && y <= 445;
           for (const node of Array.from(
             el.querySelectorAll<SVGGraphicsElement>(
-              'text:not([data-label="collector"]), .ht-c3-tap, [data-pipe-id]:not([data-pipe-id="collector"])',
+              'text[data-label]:not([data-label="collector"]), .ht-c3-tap, [data-pipe-id]:not([data-pipe-id="collector"])',
             ),
           )) {
             const b = node.getBBox();
@@ -270,7 +270,7 @@ test.describe('Topení', () => {
                 if (!inside(pt.x, pt.y)) errors.push(`outside: ${node.textContent}`);
               }
           }
-          const labels = Array.from(el.querySelectorAll('text')).filter(
+          const labels = Array.from(el.querySelectorAll('text[data-label]')).filter(
             (node) => !node.closest('.ht-c3-land-only'),
           );
           for (let i = 0; i < labels.length; i++)
@@ -420,25 +420,6 @@ test.describe('Topení', () => {
               }
             }
           }
-          // Small-label clearance includes the pipe stroke, in scene coordinates.
-          for (const id of ['charge', 'house-pump', 'cold-water']) {
-            const label = box(`[data-label="${id}"]`);
-            for (const path of Array.from(
-              el.querySelectorAll<SVGPathElement>('[data-pipe-id] path, path[data-pipe-id]'),
-            )) {
-              const stroke = (Number.parseFloat(getComputedStyle(path).strokeWidth) * scale) / 2;
-              for (let n = 0; n <= path.getTotalLength(); n++) {
-                const at = path.getPointAtLength(n);
-                const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
-                const gap =
-                  Math.hypot(
-                    Math.max(label.left - pt.x, 0, pt.x - label.right),
-                    Math.max(label.top - pt.y, 0, pt.y - label.bottom),
-                  ) - stroke;
-                if (gap < 4) errors.push(`small label near pipe: ${id}`);
-              }
-            }
-          }
           const grass = box('.ht-c3-grass');
           const collector = el.querySelector<SVGPathElement>('[data-pipe-id="collector"] path')!;
           const collectorStroke = Number.parseFloat(getComputedStyle(collector).strokeWidth) / 2;
@@ -458,14 +439,6 @@ test.describe('Topení', () => {
             }
           }
           if (box('[data-label="collector"]').top < grass.bottom) errors.push('collector caption');
-          if (box('[data-label="mixing"]').top - box('[data-label="tap"]').bottom < 10)
-            errors.push('tap/mixer gap');
-          const floor = box('.ht-c3-floor');
-          if (box('[data-label="hp-in"]').top - floor.bottom < 6) errors.push('floor label hp-in');
-          if (rectangleGap(box('[data-label="charge"]'), floor) < 6)
-            errors.push('floor label charge');
-          if (box('[data-label="cold-water"]').top - floor.bottom < 4)
-            errors.push('floor label cold-water');
           return [...new Set(errors)];
         });
         expect(issues).toEqual([]);
@@ -599,7 +572,8 @@ test.describe('Topení', () => {
           const pumps = document.querySelector('[data-testid="heating-land-pumps"]');
           const pumpsBox = pumps?.getBoundingClientRect();
           const chipsInView = !pumpsBox || pumpsBox.bottom <= vh + 1;
-          const schematicBottomOk = sch.bottom <= vh + 1;
+          // The HTML legend follows the SVG; retain the viewport fit guard for the drawing.
+          const schematicBottomOk = svgBox.bottom <= vh + 1;
           let deadZoneMax = 0;
           if (vw >= 1280 && vh >= 600 && panels.length) {
             const dashRoot = document.querySelector('[data-testid="heating-land-dash"]')!;
@@ -655,7 +629,10 @@ test.describe('Topení', () => {
             schW: svgBox.width,
             schH: svgBox.height,
             schInView:
-              sch.left >= -1 && sch.right <= vw + 1 && sch.bottom <= vh + 2 && sch.top >= -2,
+              svgBox.left >= -1 &&
+              svgBox.right <= vw + 1 &&
+              svgBox.bottom <= vh + 2 &&
+              svgBox.top >= -2,
             dashInView: dash.right <= vw + 1,
             panelOverlap,
             panelHitsStrip,
@@ -667,8 +644,8 @@ test.describe('Topení', () => {
             allPanelsInView,
             chipsInView,
             schematicBottomOk,
-            schTop: sch.top,
-            schBottom: sch.bottom,
+            schTop: svgBox.top,
+            schBottom: svgBox.bottom,
             deadZoneMax,
             stickyTopGap,
             svgLabelPipeHits: [...new Set(svgLabelPipeHits)],
@@ -858,13 +835,9 @@ test.describe('Topení', () => {
               Math.max(a.left - b.right, b.left - a.right, 0),
               Math.max(a.top - b.bottom, b.top - a.bottom, 0),
             );
-          const allLabels = Array.from(el.querySelectorAll<SVGTextElement>('text')).filter(
-            (n) => n.getBoundingClientRect().width > 0,
-          );
-          const focusIds = ['charge', 'house-pump', 'cold-water', 'hp-in', 'radiators', 'mixing'];
-          const focus = focusIds
-            .map((id) => el.querySelector<SVGTextElement>(`[data-label="${id}"]`))
-            .filter(Boolean);
+          const allLabels = Array.from(
+            el.querySelectorAll<SVGTextElement>('text[data-label]'),
+          ).filter((n) => n.getBoundingClientRect().width > 0);
           for (let i = 0; i < allLabels.length; i++) {
             for (let j = i + 1; j < allLabels.length; j++) {
               const label = allLabels[i]!;
@@ -878,12 +851,6 @@ test.describe('Topení', () => {
           }
           for (const label of allLabels) {
             const lb = textBox(label!);
-            const fontPx = Number.parseFloat(getComputedStyle(label!).fontSize) * scale;
-            if (
-              (['charge', 'radiators'].includes(label.dataset.label ?? '') && fontPx < 12) ||
-              (innerWidth < innerHeight && focus.includes(label) && (fontPx < 11.5 || fontPx > 13))
-            )
-              errors.push(`font: ${label!.getAttribute('data-label')} ${fontPx.toFixed(1)}px`);
             const vb = svg.viewBox.baseVal;
             const matrix = svg.getScreenCTM()!;
             const start = new DOMPoint(vb.x, vb.y).matrixTransform(matrix);
@@ -905,15 +872,6 @@ test.describe('Topení', () => {
                 errors.push(
                   `shape: ${label!.getAttribute('data-label')}↔${shape.getAttribute('class')} ${gap.toFixed(1)}px`,
                 );
-            }
-            if (label!.getAttribute('data-label') === 'cold-water') {
-              const pill = el.querySelector('[data-cold-water-pill]')!.getBoundingClientRect();
-              const card = el.querySelector('[data-tank-card]')!.getBoundingClientRect();
-              if (labelGap(pill, card) < 8) errors.push('cold-water pill near lower tank card');
-              const rim = el.querySelector('path.ht-c3-rim')!;
-              const rimStroke = (Number.parseFloat(getComputedStyle(rim).strokeWidth) * scale) / 2;
-              if (labelGap(pill, rim.getBoundingClientRect()) - rimStroke < minGap)
-                errors.push('cold-water pill near tank rim');
             }
           }
           const pipes = Array.from(
@@ -968,87 +926,72 @@ test.describe('Topení', () => {
               }
             }
           }
-          // The return temperature belongs to the HP; the other labels name their local icons.
-          const components = {
-            'hp-in': '.ht-c3-cabinet',
-            charge: '[data-pump="charge"] ellipse',
-            'house-pump': '[data-pump="house"] ellipse',
+          const components: Record<string, string> = {
+            'hp-in': '[data-pipe-id="tank-return"]',
+            charge: '[data-pump="charge"]',
+            mixing: '.ht-c3-valve:not([data-valve])',
+            'house-pump': '[data-pump="house"]',
             radiators: '.ht-c3-ceramic',
             'cold-water': '[data-cold-water-valve]',
-            mixing: '.ht-c3-valve:not([data-valve])',
           };
-          const supply = textBox(el.querySelector<SVGTextElement>('[data-label="supply"]')!);
-          if (
-            labelGap(
-              textBox(el.querySelector<SVGTextElement>('[data-label="radiators"]')!),
-              supply,
-            ) < 10
-          )
-            errors.push('radiators near supply text');
-          const leaderStyles = new Set<string>();
-          for (const [id, selector] of Object.entries(components)) {
-            const label = textBox(el.querySelector<SVGTextElement>(`[data-label="${id}"]`)!);
-            const component = el.querySelector(selector)!.getBoundingClientRect();
-            const centre = new DOMRect(label.x + label.width / 2, label.y + label.height / 2, 0, 0);
-            const distance = labelGap(centre, component);
-            const leader = el.querySelector<SVGGeometryElement>(`[data-label-leader="${id}"]`);
-            if (
-              distance >
-              (['charge', 'radiators', 'cold-water', 'mixing', 'hp-in'].includes(id) && leader
-                ? 56
-                : 24)
-            )
-              errors.push(`component: ${id} ${distance.toFixed(1)}px`);
-            if (distance > 24 && !leader) errors.push(`missing leader: ${id}`);
-            if (leader) {
-              const matrix = leader.getScreenCTM()!;
-              const length = leader.getTotalLength();
-              const endpoint = leader.getPointAtLength(length);
-              const end = new DOMPoint(endpoint.x, endpoint.y).matrixTransform(matrix);
-              if (labelGap(new DOMRect(end.x, end.y, 0, 0), component) > 4)
-                errors.push(`leader endpoint: ${id}`);
-              if (id === 'hp-in') {
-                const pipe = el.querySelector<SVGPathElement>('[data-pipe-id="tank-return"] path')!;
-                const port = pipe.getPointAtLength(pipe.getTotalLength() - 10);
-                const pt = new DOMPoint(port.x, port.y).matrixTransform(pipe.getScreenCTM()!);
-                if (Math.hypot(end.x - pt.x, end.y - pt.y) > 4)
-                  errors.push('HP leader misses return port');
-              }
-              const style = getComputedStyle(leader);
-              if (
-                style.strokeWidth !== '1px' ||
-                style.vectorEffect !== 'non-scaling-stroke' ||
-                style.markerStart !== 'none' ||
-                style.markerMid !== 'none' ||
-                style.markerEnd !== 'none'
-              )
-                errors.push(`leader style: ${id}`);
-              leaderStyles.add(style.stroke);
-              const crossed = new Set<number>();
-              for (let n = 0; n <= length; n += 0.25) {
-                const at = leader.getPointAtLength(n);
-                const pt = new DOMPoint(at.x, at.y).matrixTransform(matrix);
-                const point = new DOMRect(pt.x, pt.y, 0, 0);
-                if (allLabels.some((text) => labelGap(point, textBox(text)) <= 0.5))
-                  errors.push(`leader crosses text: ${id}`);
-                pipes.forEach((pipe, index) => {
-                  if (
-                    pipe.isPipe &&
-                    pipe.points.some((p) => Math.hypot(pt.x - p.x, pt.y - p.y) <= pipe.stroke + 0.5)
-                  )
-                    crossed.add(index);
+          const badges = Array.from(el.querySelectorAll<SVGGElement>('[data-marker]'));
+          for (const badge of badges) {
+            const b = badge.getBoundingClientRect();
+            const id = badge.dataset.marker!;
+            if (badge.getAttribute('aria-hidden') !== 'true') errors.push('badge accessibility');
+            const luminance = (color: string) => {
+              const values = color
+                .match(/[\d.]+/g)!
+                .slice(0, 3)
+                .map(Number)
+                .map((v) => {
+                  const c = v / 255;
+                  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
                 });
-              }
-              if (crossed.size > 1) errors.push(`leader crosses pipes: ${id} ${crossed.size}`);
+              return values[0]! * 0.2126 + values[1]! * 0.7152 + values[2]! * 0.0722;
+            };
+            const fg = luminance(getComputedStyle(badge.querySelector('text')!).fill);
+            const bg = luminance(getComputedStyle(badge.querySelector('circle')!).fill);
+            if ((Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) < 4.5)
+              errors.push(`badge contrast: ${id}`);
+
+            if (b.width < 14 || b.height < 14) errors.push(`small badge: ${id}`);
+            const component = el.querySelector(components[id]!)!;
+            let componentBox = component.getBoundingClientRect();
+            if (id === 'hp-in') {
+              const route = component.querySelector('path')!;
+              const pt = route.getPointAtLength(route.getTotalLength());
+              const screen = new DOMPoint(pt.x, pt.y).matrixTransform(route.getScreenCTM()!);
+              componentBox = new DOMRect(screen.x, screen.y, 0, 0);
             }
-            for (const grass of Array.from(el.querySelectorAll('.ht-c3-grass, .ht-c3-blade'))) {
-              if (labelGap(label, grass.getBoundingClientRect()) === 0) errors.push(`grass: ${id}`);
-            }
+            if (labelGap(b, componentBox) > 3) errors.push(`badge component: ${id}`);
+            for (const text of allLabels)
+              if (labelGap(b, textBox(text)) < 3) errors.push(`badge text: ${id}`);
+            for (const other of badges)
+              if (other !== badge && labelGap(b, other.getBoundingClientRect()) < 3)
+                errors.push(`badge badge: ${id}`);
           }
-          if (leaderStyles.size > 1) errors.push('leader colours differ');
+          for (const text of allLabels)
+            for (const grass of Array.from(el.querySelectorAll('.ht-c3-grass, .ht-c3-blade'))) {
+              const stroke = grass.matches('.ht-c3-grass') ? 4 * scale : 0;
+              if (labelGap(textBox(text), grass.getBoundingClientRect()) - stroke < 4)
+                errors.push(`grass: ${text.dataset.label}`);
+            }
+          const legend = el.querySelector('ol[aria-label="Legenda schématu"]')!;
+          if (legend.children.length !== 6 || badges.length !== 6) errors.push('legend count');
+          for (const row of Array.from(legend.querySelectorAll<HTMLElement>('li, span'))) {
+            if (row.clientWidth && row.scrollWidth > row.clientWidth)
+              errors.push('legend overflow');
+            const style = getComputedStyle(row);
+            if (style.wordBreak === 'break-all' || style.hyphens !== 'none')
+              errors.push('legend word breaking');
+          }
+          if (legend.getBoundingClientRect().right > innerWidth)
+            errors.push('legend outside viewport');
           return [...new Set(errors)];
         });
         expect(gaps, gaps.join('; ')).toEqual([]);
+        await noSidewaysScroll(page);
       });
     }
   }
@@ -1068,7 +1011,9 @@ test.describe('Topení', () => {
         return z.y - a.y;
       };
       return Math.min(
-        ...Array.from(svg.querySelectorAll('text')).map((t) => rendered(t as SVGGraphicsElement)),
+        ...Array.from(svg.querySelectorAll('text[data-label]')).map((t) =>
+          rendered(t as SVGGraphicsElement),
+        ),
       );
     });
     expect(min).toBeGreaterThanOrEqual(11);

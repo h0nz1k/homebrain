@@ -166,6 +166,19 @@ function Valve({
 
 export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const root = useRef<HTMLDivElement>(null);
+  const [markerScale, setMarkerScale] = useState(1);
+  useEffect(() => {
+    const svg = root.current?.querySelector('svg');
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const width = svg.getBoundingClientRect().width;
+      if (width > 0) setMarkerScale(Math.max(1, (14.2 * 344) / (18 * width)));
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(svg);
+    update();
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (!root.current || typeof matchMedia === 'undefined') return;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -215,6 +228,50 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const pageTheme = usePageTheme();
   const showLogo = logoManifest != null && !logoFailed;
   const compHint = compressorLabel(hp);
+  const pumpState = (on: boolean | null) => (on === null ? '—' : on ? 'běží' : 'stojí');
+  const markers = [
+    {
+      id: 'hp-in',
+      x: 74,
+      y: 319,
+      label: 'vstup do tepelného čerpadla',
+      value: fmtT(hp.return_temp),
+      muted: scene.hpMuted || hp.return_temp === null,
+    },
+    {
+      id: 'charge',
+      x: 96,
+      y: 293,
+      label: 'nabíjecí čerpadlo',
+      value: pumpState(snap.pumps.secondary),
+      muted: snap.pumps.secondary !== true,
+    },
+    {
+      id: 'mixing',
+      x: 290,
+      y: 185,
+      label: 'směšovací ventil',
+      value: scene.mixingPct === null ? '' : `${scene.mixingPct} %`,
+      muted: scene.mixingPct === null,
+    },
+    {
+      id: 'house-pump',
+      x: 252,
+      y: 350,
+      label: 'čerpadlo topení',
+      value: pumpState(snap.pumps.heating),
+      muted: snap.pumps.heating !== true,
+    },
+    {
+      id: 'radiators',
+      x: 294,
+      y: 317,
+      label: 'radiátory',
+      value: '',
+      muted: snap.pumps.heating !== true,
+    },
+    { id: 'cold-water', x: 213, y: 354, label: 'studená voda', value: '', muted: false },
+  ];
   return (
     <div
       ref={root}
@@ -334,7 +391,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               Teplá voda
               <tspan x="181" dy="19" className="ht-c3-dhw-value">
                 {fmtT(snap.dhw.temp).replace(/\s°C$/u, '')}
-                {snap.dhw.temp !== null && <tspan className="ht-c3-dhw-unit"> °C</tspan>}
+                {snap.dhw.temp !== null && <tspan className="ht-c3-dhw-unit">{'\u00a0°C'}</tspan>}
               </tspan>
               <tspan
                 x="181"
@@ -357,7 +414,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               Nádrž dole
               <tspan x="196.6" dy="27" className="ht-c3-tank-value">
                 {fmtT(snap.tank.bottom).replace(/\s°C$/u, '')}
-                {snap.tank.bottom !== null && <tspan className="ht-c3-unit"> °C</tspan>}
+                {snap.tank.bottom !== null && <tspan className="ht-c3-unit">{'\u00a0°C'}</tspan>}
               </tspan>
             </Label>
             <path
@@ -378,26 +435,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             className="ht-c3-water-valve"
           />
           <path d="M216 364H224" className="ht-c3-water-valve" />
-          <rect
-            x="145"
-            y="370"
-            width="94"
-            height="20"
-            rx="3"
-            className="ht-c3-main-label-bg"
-            data-cold-water-pill=""
-          />
-          <line
-            x1="208"
-            y1="368"
-            x2="213"
-            y2="360"
-            className="ht-c3-component-leader"
-            data-label-leader="cold-water"
-          />
-          <Label x={149} y={383} id="cold-water">
-            studená voda
-          </Label>
+
           {/* Standing hot water: deliberately static, not a simulated draw. */}
           <path
             d="M181 87V46Q181 38 189 38H244Q252 38 252 46V64Q252 72 260 72H282"
@@ -474,50 +512,19 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             → teplá voda
           </Label>
           <Pump x={96} y={293} on={snap.pumps.secondary} id="charge" />
-          <rect x="134" y="274" width="28" height="36" rx="3" className="ht-c3-main-label-bg" />
-          <Label x={136.1} y={289} id="charge" muted={snap.pumps.secondary !== true}>
-            <tspan textLength="23.2" lengthAdjust="spacingAndGlyphs">
-              nabí
-            </tspan>
-            <tspan x="136.1" dy="14" textLength="23.2" lengthAdjust="spacingAndGlyphs">
-              jení
-            </tspan>
-          </Label>
-          <line
-            x1="131"
-            y1="293"
-            x2="103"
-            y2="293"
-            className="ht-c3-component-leader"
-            data-label-leader="charge"
-          />
+
           <Label x={10} y={211} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
             výstup
             <tspan x="10" dy="16">
               {fmtT(hp.condenser_out)}
             </tspan>
           </Label>
-          <path d="M96 319V328" className="ht-c3-leader" />
-          <line
-            x1="78"
-            y1="367"
-            x2="77"
-            y2="322"
-            className="ht-c3-component-leader"
-            data-label-leader="hp-in"
-          />
-          <Label x={60.5} y={383.1} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
-            vstup
-            <tspan dx="4">{fmtT(hp.return_temp)}</tspan>
-          </Label>
+          {/* Retain baseline path data without the obsolete label guide. */}
+          <path d="M96 319V328" display="none" />
+
           <Valve x={290} y={193} />
-          <path d="M290 151V170" className="ht-c3-component-leader" data-label-leader="mixing" />
-          <Label x={266} y={120} id="mixing" muted={scene.mixingPct === null}>
-            Směšovací
-            <tspan x="266" dy="16">
-              ventil{scene.mixingPct === null ? '' : ` ${scene.mixingPct} %`}
-            </tspan>
-          </Label>
+          <path d="M290 151V170" display="none" />
+
           <Label x={263} y={249} id="supply" muted={scene.supplyMuted}>
             do topení
             {snap.pumps.heating === true && snap.house.supply_temp !== null && (
@@ -534,28 +541,27 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               <rect key={x} x={x} y="309" width="4" height="17" rx="1" className="ht-c3-fin" />
             ))}
           </g>
-          <Label
-            x={257.5}
-            y={382.5}
-            anchor="middle"
-            id="house-pump"
-            muted={snap.pumps.heating !== true}
-          >
-            topení
-          </Label>
+
           <Pump x={252} y={350} on={snap.pumps.heating} id="house" />
           <path d="M252 362V365" className="ht-c3-pump-foot" data-floor="pump" />
-          <line
-            x1="296"
-            y1="367"
-            x2="296"
-            y2="332"
-            className="ht-c3-component-leader"
-            data-label-leader="radiators"
-          />
-          <Label x={309} y={382.2} anchor="middle" id="radiators">
-            radiátory
-          </Label>
+
+          {markers.map((marker, index) => (
+            <g
+              key={marker.id}
+              transform={`translate(${marker.x} ${marker.y})`}
+              data-marker={marker.id}
+              aria-hidden="true"
+              className="ht-c3-marker"
+              data-muted={marker.muted ? '' : undefined}
+            >
+              <g transform={`scale(${markerScale})`}>
+                <circle r="9" />
+                <text textAnchor="middle" dominantBaseline="central">
+                  {index + 1}
+                </text>
+              </g>
+            </g>
+          ))}
           <g className="ht-c3-tap" fill={`url(#${uid}-chrome)`}>
             <path d="M277 61V39Q282 35 287 39V61M287 46H311V51H307V49H287M281 37V32L298 30V33L285 35V37" />
             <path d="M273 61H322V65H273Z" />
@@ -566,10 +572,31 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             Odběr TUV
           </Label>
         </g>
-        <Label x={69} y={468} id="collector">
+        <Label x={69} y={470} id="collector">
           Zemní kolektor
         </Label>
       </svg>
+      <ol className="ht-c3-legend" aria-label="Legenda schématu">
+        {markers.map((marker, index) => (
+          <li key={marker.id} data-muted={marker.muted ? '' : undefined}>
+            <span className="ht-c3-legend-badge" aria-hidden="true">
+              {index + 1}
+            </span>
+            <span
+              data-testid={`heating-sch-${marker.id}`}
+              className={marker.muted ? 'ht-c3-muted' : undefined}
+            >
+              {marker.label}
+              {marker.value && (
+                <>
+                  {' '}
+                  <span className="ht-c3-legend-value">{marker.value}</span>
+                </>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
