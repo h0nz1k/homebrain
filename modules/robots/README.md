@@ -28,7 +28,7 @@ kartáče) s animovanými díly při úklidu, „!“ na vadném dílu a tečkam
 - `<robot>` = jméno robota bez diakritiky malými písmeny (`Bobík` → `bobik`). Jinou složku nastavíte
   volbou „Obrázek robota“ zakončenou `/` (nebo cestou k `manifest.json`).
 - Ve složce musí být `manifest.json` podle `photo-manifest.schema.json`; vzor se syntetickými čísly je
-  `photo-manifest.example.json`. Souřadnice jsou v % spodní fotky (čtverec, předek robota nahoře).
+  `photo-manifest.example.json`; hotspotům odpovídá také `photo-hotspots.schema.json`. Souřadnice jsou v % spodní fotky (čtverec, předek robota nahoře).
 - Bez manifestu nebo když se fotka nenačte, zůstane neutrální ilustrace.
 - Dev server: `HB_ROBOT_PHOTOS_DIR=<lokální složka> vite` + `?photos=<robot1>,<robot2>,…`.
 
@@ -46,3 +46,12 @@ neaktivní a návod ukáže, kterou entitu povolit. Odeslání vždy potvrzuje d
 Z bezpečnostních důvodů panel stiskne jen tlačítko daného robota ve tvaru
 `button.<robot>_[dock_]reset_…` / `button.<robot>_[dock_]resetovat_…` (`<robot>` = object id jeho
 entity `vacuum.*`); jiná tlačítka z manifestu odmítne.
+
+Syntetický příklad bez fotografií výrobce: zkopírujte `photo-manifest.example.json` jako
+`manifest.json` a tři SVG z `test-fixtures/synthetic/` do jedné lokální složky. Je použitelný
+stejně jako skutečná sada a slouží také v e2e. `bottom.sideBrush.centre` určuje skutečný střed
+rotace v procentech celé spodní fotky; bez něj se sprite otáčí kolem středu svého `box`.
+Šířka `box` musí být kladná. Při otočení nebo posunu fotky je nutné stejně změnit souřadnice
+hotspotů, animovaných dílů i sprite. Předek spodní fotky směřuje nahoru, hlavní kartáč je vodorovně.
+Chybějící fotka nebo sprite vrátí kartu na ilustraci; změna složky umožní načíst jinou sadu.
+Refs #107.
