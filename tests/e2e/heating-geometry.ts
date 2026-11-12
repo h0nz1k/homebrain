@@ -117,6 +117,20 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     if (outlines.some((p) => pathGap(r, p) < 4)) errors.push(`${id}: outline gap`);
     if (grass.some((b) => gap(r, b) < 4)) errors.push(`${id}: grass gap`);
     const owner = pipeOwners[id];
+    if (id === 'hp-in' || id === 'hp-out') {
+      const distances = pipes
+        .map((pipe) => ({ id: pipe.id, distance: pathGap(r, pipe.sample) }))
+        .sort((a, b) => a.distance - b.distance);
+      if (distances[0]!.id !== owner) errors.push(`${id}: nearest pipe must be ${owner}`);
+      const own = distances.find((pipe) => pipe.id === owner)!.distance;
+      const other = distances.find(
+        (pipe) => pipe.id === (id === 'hp-in' ? 'compressor-outlet' : 'tank-return'),
+      )!.distance;
+      if (other < 2 * own)
+        errors.push(
+          `${id}: opposite pipe must be at least twice as far (${own.toFixed(2)}/${other.toFixed(2)})`,
+        );
+    }
     const component = components[id];
     const distance = owner
       ? pathGap(r, pipes.find((p) => p.id === owner)!.sample)
@@ -144,7 +158,7 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     errors.push('valve caption must be above valve');
   if (q('[data-label="mixing"]').querySelectorAll('tspan').length > 1)
     errors.push('mixer must be one label');
-  if (el.querySelectorAll('.ht-c3-direction').length !== 10)
+  if (el.querySelectorAll('.ht-c3-direction').length !== 11)
     errors.push('missing static flow directions');
   for (const marker of Array.from(el.querySelectorAll<SVGGraphicsElement>('.ht-c3-direction'))) {
     const route = marker.closest('[data-pipe-id]')!;
@@ -258,13 +272,32 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
     value.bottom > card.bottom
   )
     errors.push('vessel value outside card');
-  const cold = q('[data-pipe-id="cold-water"]') as SVGPathElement;
+  const cold = q('[data-pipe-id="cold-water"] > path') as SVGPathElement;
   const end = cold.getPointAtLength(cold.getTotalLength());
   const localEnd = new DOMPoint(end.x, end.y).matrixTransform(
     q('[data-vessel]').getCTM()!.inverse().multiply(cold.getCTM()!),
   );
   if (!(q('[data-vessel]') as SVGGeometryElement).isPointInFill(localEnd))
     errors.push('cold inlet outside vessel');
+  const pill = q('.ht-c3-title-bg').getBoundingClientRect();
+  const shell = q('.ht-c3-shell').getBoundingClientRect();
+  if (
+    pill.left < shell.left ||
+    pill.right > shell.right ||
+    pill.top < shell.top ||
+    pill.bottom > shell.bottom
+  )
+    errors.push('tank title pill outside tank');
+  if ([...outlines, ...pipes.map((pipe) => pipe.sample)].some((line) => pathGap(pill, line) < 6))
+    errors.push('tank title pill line clearance');
+  const title = label('tank-title');
+  if (
+    title.left < pill.left ||
+    title.right > pill.right ||
+    title.top < pill.top ||
+    title.bottom > pill.bottom
+  )
+    errors.push('tank title outside pill');
   const tankCard = q('[data-tank-card]').getBoundingClientRect();
   if (pathGap(tankCard, samples(cold)) < 8 * scale) errors.push('cold inlet near tank card');
   const luminance = (color: string) => {
@@ -278,6 +311,13 @@ export function schematicGeometry(el: HTMLElement | SVGElement) {
       });
     return rgb[0]! * 0.2126 + rgb[1]! * 0.7152 + rgb[2]! * 0.0722;
   };
+  for (const marker of Array.from(el.querySelectorAll<SVGGraphicsElement>('.ht-c3-direction'))) {
+    const route = marker.closest('[data-pipe-id]')!;
+    const a = luminance(getComputedStyle(marker.querySelector('path')!).stroke);
+    const b = luminance(getComputedStyle(route.querySelector(':scope > path')!).stroke);
+    if ((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) < 3)
+      errors.push(`${route.getAttribute('data-pipe-id')}: chevron contrast`);
+  }
   if (el.closest('[data-theme="light"]'))
     for (const text of labels) {
       const id = text.dataset.label!;

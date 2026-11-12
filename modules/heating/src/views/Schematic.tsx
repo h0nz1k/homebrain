@@ -69,7 +69,7 @@ const DIRECTIONS = {
   'compressor-outlet': [14, 268, -90],
   'tank-inlet': [106, 164, 0],
   'dhw-inlet': [14, 132, -90],
-  'tank-return': [118, 298, 90],
+  'tank-return': [90, 316, 180],
   'mixing-hot': [190, 87, -90],
   'radiator-supply': [338, 250, 90],
   'radiator-return': [262, 310, -90],
@@ -349,8 +349,10 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             <Label x={181} y={193} anchor="middle" id="dhw" muted={snap.dhw.temp === null}>
               Teplá voda
               <tspan x="181" dy="19" className="ht-c3-dhw-value">
-                {fmtT(snap.dhw.temp).replace(/\s°C$/u, '')}
-                {snap.dhw.temp !== null && <tspan className="ht-c3-dhw-unit">{'\u202f°C'}</tspan>}
+                {fmtT(snap.dhw.temp).slice(0, -3)}
+                {snap.dhw.temp !== null && (
+                  <tspan className="ht-c3-dhw-unit">{fmtT(snap.dhw.temp).slice(-3)}</tspan>
+                )}
               </tspan>
               <tspan
                 x="181"
@@ -383,11 +385,19 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             />
           </g>
           {/* Cold mains rise from the ground and feed the bottom of the inner DHW vessel. */}
-          <path
-            d="M228 460V320Q228 312 236 312H240Q248 312 248 304V290Q248 282 240 282H189Q181 282 181 274"
-            className="ht-c3-cold-inlet"
-            data-pipe-id="cold-water"
-          />
+          <g data-pipe-id="cold-water">
+            <path
+              d="M228 460V320Q228 312 236 312H240Q248 312 248 304V290Q248 282 240 282H189Q181 282 181 274"
+              className="ht-c3-cold-inlet"
+            />
+            <g
+              className="ht-c3-direction ht-c3-cold-direction"
+              aria-hidden="true"
+              transform="translate(228 420) rotate(-90)"
+            >
+              <path d="M-3 -2L0 0L-3 2" />
+            </g>
+          </g>
           <Label x={234} y={463} id="cold-water">
             studená voda
           </Label>
@@ -406,8 +416,8 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           <Label x={18} y={52} id="tap">
             Odběr TUV
           </Label>
-          <rect x="124" y="286" width="114" height="24" rx="4" className="ht-c3-title-bg" />
-          <Label x={181} y={303} anchor="middle" id="tank-title">
+          <rect x="131.5" y="289" width="99" height="15.5" rx="4" className="ht-c3-title-bg" />
+          <Label x={181} y={301.3} anchor="middle" id="tank-title">
             Akumulační nádrž
           </Label>
           <g
@@ -468,14 +478,14 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           <Label x={34} y={138} id="valve">
             Ventil TUV
           </Label>
-          <Label x={22} y={305} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
+          <Label x={20.7} y={282} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
             výstup <tspan>{fmtT(hp.condenser_out)}</tspan>
           </Label>
-          <Label x={26} y={215} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
+          <Label x={29} y={305} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
             vstup <tspan>{fmtT(hp.return_temp)}</tspan>
           </Label>
-          <Pump x={118} y={270} on={snap.pumps.secondary} id="charge" />
-          <Label x={63} y={250} id="charge" muted={snap.pumps.secondary !== true}>
+          <Pump x={118} y={255} on={snap.pumps.secondary} id="charge" />
+          <Label x={63} y={233} id="charge" muted={snap.pumps.secondary !== true}>
             nabíjení
           </Label>
           <Valve x={214} y={74} />

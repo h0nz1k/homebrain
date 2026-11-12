@@ -287,15 +287,16 @@ export const heatingStyles = `
 .ht-c3-route.ht-c3-ground > path { stroke-width:4; }
 .ht-c3-route[data-active].ht-c3-ground > path { stroke:var(--ht-c3-ground); }
 .ht-c3-route.ht-c3-bypass > path { stroke-width:2.5; }
-.ht-c3-direction { fill:none; stroke:var(--hb-t1); stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; }
+.ht-c3-direction { fill:none; stroke:#fff; stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 .7px #17212c); }
 .ht-c3-particle { fill:#fff; opacity:0; }
 .ht-c3-shell, .ht-c3-rim { stroke:#939ca8; stroke-width:1.5; }
 .ht-c3-window { stroke:#171c22; stroke-width:2; filter:drop-shadow(0 0 1px #a0a9ae); }
 [data-theme='light'] .ht-c3-window { stroke:#535d68; }
 .ht-c3-vessel { stroke:#fafcfe; stroke-width:2; fill:#c57c84; }
 .ht-c3-title-bg { fill:#1b2026; }
-.ht-c3-label[data-label="tank-title"] { fill:#fff; }
-.ht-c3-label:is([data-label="tank-title"],[data-label="hp-out"],[data-label="charge"]) { font-size:12.4px; }
+.ht-c3-label[data-label="hp-out"] { letter-spacing:-.2px; }
+.ht-c3-label[data-label="tank-title"] { fill:#fff; font-size:12.3px; letter-spacing:-.55px; }
+.ht-c3-label:is([data-label="hp-out"],[data-label="hp-in"],[data-label="charge"]) { font-size:12.4px; }
 [data-theme="light"] .ht-c3-title-bg { fill:#eef1f4; }
 [data-theme="light"] .ht-c3-label[data-label="tank-title"] { fill:#202735; }
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
