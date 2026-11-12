@@ -19,7 +19,7 @@ const manifest = {
       [32, 78, 17],
       [68, 78, 17],
     ],
-    sideBrush: { box: [-5, -3, 40], dir: 1 },
+    sideBrush: { box: [-5, -3, 40], centre: [15, 17], dir: 1 },
   },
   hotspots: {
     bottom: { main_brush: [50, 46], side_brush: [15, 22], sensors: [62, 8] },
@@ -29,16 +29,14 @@ const manifest = {
 const svg = (body: string, w = 200, h = 200) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${body}</svg>`;
 const pictures: Record<string, string> = {
-  'dock.svg': svg(
-    '<rect x="40" y="10" width="120" height="270" rx="18" fill="#59606b"/>',
-    200,
-    290,
-  ),
-  'bottom.svg': svg(
-    '<circle cx="100" cy="100" r="96" fill="#2b2f36"/><rect x="56" y="84" width="88" height="16" fill="#777"/>',
-  ),
-  'brush.svg': svg(
-    '<path d="M100 100 L100 10 M100 100 L180 140 M100 100 L20 140" stroke="#ccc" stroke-width="6"/>',
+  ...Object.fromEntries(
+    ['dock.svg', 'bottom.svg', 'brush.svg'].map((name) => [
+      name,
+      readFileSync(
+        join(import.meta.dirname, '../../modules/robots/test-fixtures/synthetic', name),
+        'utf8',
+      ),
+    ]),
   ),
 };
 
@@ -127,11 +125,13 @@ test('fotka robota: bez fotek zůstává neutrální ilustrace', async ({ page }
   await page.route('**/local/homebrain/robots/**', (route) =>
     route.fulfill({ status: 404, body: '' }),
   );
-  await page.goto('/homebrain-roboti');
+  await page.goto('/homebrain-roboti?photos=a,b,c');
   await expect(page.getByTestId('robots-hero-visual')).toHaveAttribute('data-rb-visual', 'art', {
     timeout: 20_000,
   });
   await expect(page.getByTestId('robots-photo')).toHaveCount(0);
+  await expect(page.locator('.rb-art > svg')).toBeVisible();
+  await expect(page.locator('.rb-art > img')).toHaveCount(0);
 });
 
 test.describe('omezený pohyb', () => {
@@ -200,4 +200,23 @@ test('údržba: bez soukromého návodu obecný postup bez videa', async ({ page
   await expect(sheet.getByTestId('robots-guide-video')).toHaveCount(0);
   // No private guides → no guide-only tiles (mops, wheel, dust bag…).
   await expect(page.locator('[data-rb-kind=guide]')).toHaveCount(0);
+});
+
+test('fotka robota: chybějící sprite přepne celou kartu na ilustraci', async ({ page }) => {
+  await servePhotos(page);
+  await page.route('**/local/homebrain/robots/**/brush.svg', (route) =>
+    route.fulfill({ status: 404, body: '' }),
+  );
+  const failedSprite = page.waitForResponse(
+    (response) => response.url().endsWith('/brush.svg') && response.status() === 404,
+  );
+  await page.goto('/homebrain-roboti?photos=a,b,c');
+  await failedSprite;
+  await expect(page.getByTestId('robots-hero-visual')).toHaveAttribute('data-rb-visual', 'art', {
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId('robots-photo')).toHaveCount(0);
+  await expect(page.locator('.rb-art > svg')).toBeVisible();
+  await expect(page.locator('.rb-art > img')).toHaveCount(0);
+  await expect(page.getByTestId('robots-state')).toBeVisible();
 });

@@ -38,10 +38,10 @@ export const photoManifestSchema = z.object({
         .optional(),
       /** Vibrating mop plate (VibraRise): rectangle that buzzes while cleaning. */
       plate: rect.optional(),
-      /** Side-brush sprite: square box [left, top, size]; rotates around the box centre. */
+      /** Side-brush sprite: square box [left, top, size]; centre overrides its default pivot. */
       sideBrush: z
         .object({
-          box: z.tuple([pct, pct, pct]),
+          box: z.tuple([pct, pct, z.number().positive().max(150)]),
           centre: point.optional(),
           dir: z.union([z.literal(1), z.literal(-1)]),
         })

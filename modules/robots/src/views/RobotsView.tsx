@@ -643,9 +643,9 @@ function RobotPanel({
       ? dockErrorRoborockCode(robot.dockError.code)
       : null;
   const manifest = usePhotoManifest(photoDir);
-  const [photoFailed, setPhotoFailed] = useState(false);
+  const [failedPhotoDir, setFailedPhotoDir] = useState<string | null>(null);
   const [maintenance, setMaintenance] = useState(false);
-  const photo = !!photoDir && !!manifest && !photoFailed;
+  const photo = !!photoDir && !!manifest && failedPhotoDir !== photoDir;
   return (
     <>
       <div className="rb-grid" data-rb-tone={tone}>
@@ -674,10 +674,10 @@ function RobotPanel({
                   partsLow={anyPartLow(robot.consumables)}
                   maintenance={maintenance}
                   onMaintenance={setMaintenance}
-                  onFail={() => setPhotoFailed(true)}
+                  onFail={() => setFailedPhotoDir(photoDir)}
                 />
               ) : (
-                <RobotArt tone={tone} image={robot.image} name={robot.name} />
+                <RobotArt tone={tone} image={photoDir ? '' : robot.image} name={robot.name} />
               )}
             </div>
             <div className="rb-hero-body">

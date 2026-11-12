@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "homebrain/robots/photo-manifest.schema.json",
   "title": "HomeBrain robot photo set manifest",
-  "description": "Lives next to the owner's pictures in Home Assistant /config/www/homebrain/robots/<robot>/manifest.json (served as /local/…). Coordinates are percent (0–100) of the square bottom image, robot front = top edge. Pictures are never part of the HomeBrain repo or release.",
+  "description": "Lives next to the owner's pictures in Home Assistant /config/www/homebrain/robots/<robot>/manifest.json (served as /local/\u2026). Coordinates are percent (0\u2013100) of the square bottom image, robot front = top edge. Pictures are never part of the HomeBrain repo or release.",
   "type": "object",
   "required": ["schema", "images"],
   "additionalProperties": true,
@@ -97,12 +97,27 @@
           "properties": {
             "box": {
               "type": "array",
-              "items": {
-                "type": "number"
-              },
+              "items": false,
               "minItems": 3,
               "maxItems": 3,
-              "description": "[left, top, size]; rotates around the box centre"
+              "description": "[left, top, size]; rotates around centre if supplied, otherwise the box centre",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": -50,
+                  "maximum": 150
+                },
+                {
+                  "type": "number",
+                  "minimum": -50,
+                  "maximum": 150
+                },
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 150
+                }
+              ]
             },
             "centre": {
               "type": "array",
@@ -111,7 +126,7 @@
               },
               "minItems": 2,
               "maxItems": 2,
-              "description": "[x, y] in % of the image"
+              "description": "[x, y] in % of the bottom image; rotation pivot (defaults to box centre)"
             },
             "dir": {
               "enum": [1, -1]
@@ -134,7 +149,7 @@
             "maxItems": 2,
             "description": "[x, y] in % of the image"
           },
-          "description": "main_brush, side_brush, wheels, mop, sensors…"
+          "description": "main_brush, side_brush, wheels, mop, sensors\u2026"
         },
         "dock": {
           "type": "object",
