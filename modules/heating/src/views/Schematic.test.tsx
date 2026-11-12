@@ -25,6 +25,13 @@ describe('C3 measured state and routes', () => {
       expect(document.querySelectorAll('[data-active]')).toHaveLength(pipes.length);
       expect(document.querySelector('[data-pipe-id="dhw-draw"] circle')).toBeNull();
       expect(document.querySelectorAll('[data-pump]')).toHaveLength(2);
+      const legend = screen.getByRole('list', { name: 'Legenda schématu' });
+      expect(legend.querySelectorAll('li')).toHaveLength(6);
+      expect(
+        Array.from(document.querySelectorAll('[data-marker]'), (el) => el.textContent),
+      ).toEqual(['1', '2', '3', '4', '5', '6']);
+      expect(document.querySelector('[data-label-leader]')).toBeNull();
+      expect(legend.textContent).not.toContain('℃');
     });
   }
   it('null values stay unknown, including the diverter output', () => {
@@ -51,7 +58,7 @@ describe('C3 measured state and routes', () => {
     render(<HeatingSchematic snap={snap} />);
     for (const id of ['hp-out', 'hp-in', 'supply'])
       expect(screen.getByTestId(`heating-sch-${id}`).classList.contains('ht-c3-muted')).toBe(true);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovacíventil');
+    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('směšovací ventil');
     expect(screen.getByTestId('heating-sch-supply').textContent).toBe('do topení');
     expect(screen.getByTestId('heating-sch-hp-in').textContent).toContain('29,7');
   });
@@ -65,7 +72,7 @@ describe('C3 measured state and routes', () => {
     expect(heroScene(snap).activePipes).not.toContain('mixing-bypass');
     snap.house.mixing_valve_pct = null;
     rerender(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovacíventil');
+    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('směšovací ventil');
     expect(screen.getByTestId('heating-sch-supply').textContent).toContain('37,8');
   });
   it('diverter follows the output even when it disagrees with activity', () => {
@@ -94,8 +101,8 @@ describe('C3 measured state and routes', () => {
     expect(document.querySelector('.ht-c3-display')).toBeNull();
     snap.heat_pump.compressor_on = false;
     rerender(<HeatingSchematic snap={snap} />);
-    expect(document.querySelector('[data-testid="heating-sch-compressor-led"]')!.classList).toContain(
-      'ht-c3-comp-led-off',
-    );
+    expect(
+      document.querySelector('[data-testid="heating-sch-compressor-led"]')!.classList,
+    ).toContain('ht-c3-comp-led-off');
   });
 });

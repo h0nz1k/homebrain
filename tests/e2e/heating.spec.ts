@@ -226,6 +226,7 @@ test.describe('Topení', () => {
         await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=${theme}`);
         const sch = page.getByTestId('heating-schematic');
         await expect(sch).toBeVisible({ timeout: 20_000 });
+        await page.evaluate(() => document.fonts.ready);
         const issues = await sch.evaluate((el) => {
           const svg = el.querySelector('svg')!;
           const errors: string[] = [];
@@ -240,7 +241,7 @@ test.describe('Topení', () => {
             x >= 0 && x <= 342 && y >= 9 + (Math.abs(x - 172) * 75) / 176 && y <= 445;
           for (const node of Array.from(
             el.querySelectorAll<SVGGraphicsElement>(
-              'text:not([data-label="collector"]), .ht-c3-tap, [data-pipe-id]:not([data-pipe-id="collector"])',
+              'text[data-label]:not([data-label="collector"]), .ht-c3-tap, [data-pipe-id]:not([data-pipe-id="collector"])',
             ),
           )) {
             const b = node.getBBox();
@@ -269,7 +270,7 @@ test.describe('Topení', () => {
                 if (!inside(pt.x, pt.y)) errors.push(`outside: ${node.textContent}`);
               }
           }
-          const labels = Array.from(el.querySelectorAll('text')).filter(
+          const labels = Array.from(el.querySelectorAll('text[data-label]')).filter(
             (node) => !node.closest('.ht-c3-land-only'),
           );
           for (let i = 0; i < labels.length; i++)
@@ -419,25 +420,6 @@ test.describe('Topení', () => {
               }
             }
           }
-          // Small-label clearance includes the pipe stroke, in scene coordinates.
-          for (const id of ['charge', 'house-pump', 'cold-water']) {
-            const label = box(`[data-label="${id}"]`);
-            for (const path of Array.from(
-              el.querySelectorAll<SVGPathElement>('[data-pipe-id] path, path[data-pipe-id]'),
-            )) {
-              const stroke = (Number.parseFloat(getComputedStyle(path).strokeWidth) * scale) / 2;
-              for (let n = 0; n <= path.getTotalLength(); n++) {
-                const at = path.getPointAtLength(n);
-                const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
-                const gap =
-                  Math.hypot(
-                    Math.max(label.left - pt.x, 0, pt.x - label.right),
-                    Math.max(label.top - pt.y, 0, pt.y - label.bottom),
-                  ) - stroke;
-                if (gap < 6 * scale) errors.push(`small label near pipe: ${id}`);
-              }
-            }
-          }
           const grass = box('.ht-c3-grass');
           const collector = el.querySelector<SVGPathElement>('[data-pipe-id="collector"] path')!;
           const collectorStroke = Number.parseFloat(getComputedStyle(collector).strokeWidth) / 2;
@@ -457,14 +439,6 @@ test.describe('Topení', () => {
             }
           }
           if (box('[data-label="collector"]').top < grass.bottom) errors.push('collector caption');
-          if (box('[data-label="mixing"]').top - box('[data-label="tap"]').bottom < 10)
-            errors.push('tap/mixer gap');
-          const floor = box('.ht-c3-floor');
-          if (box('[data-label="hp-in"]').top - floor.bottom < 6) errors.push('floor label hp-in');
-          if (box('[data-label="charge"]').top - floor.bottom < 6)
-            errors.push('floor label charge');
-          if (floor.top - box('[data-label="cold-water"]').bottom < 6)
-            errors.push('floor label cold-water');
           return [...new Set(errors)];
         });
         expect(issues).toEqual([]);
@@ -505,9 +479,15 @@ test.describe('Topení', () => {
           const doc = document.documentElement;
           const main = document.querySelector('[data-testid="heating-view"]')!;
           const mainBox = main.getBoundingClientRect();
-          const strip = document.querySelector('[data-testid="heating-land-strip"]')!.getBoundingClientRect();
-          const sch = document.querySelector('[data-testid="heating-schematic"]')!.getBoundingClientRect();
-          const dash = document.querySelector('[data-testid="heating-land-dash"]')!.getBoundingClientRect();
+          const strip = document
+            .querySelector('[data-testid="heating-land-strip"]')!
+            .getBoundingClientRect();
+          const sch = document
+            .querySelector('[data-testid="heating-schematic"]')!
+            .getBoundingClientRect();
+          const dash = document
+            .querySelector('[data-testid="heating-land-dash"]')!
+            .getBoundingClientRect();
           const panels = Array.from(document.querySelectorAll('.ht-land-panel')).map((p) =>
             p.getBoundingClientRect(),
           );
@@ -517,7 +497,9 @@ test.describe('Topení', () => {
           const panelOverlap = panels.some((a, i) =>
             panels.some(
               (b, j) =>
-                i < j && overlap(a, b) && Math.abs(a.top - b.top) < Math.min(a.height, b.height) * 0.8,
+                i < j &&
+                overlap(a, b) &&
+                Math.abs(a.top - b.top) < Math.min(a.height, b.height) * 0.8,
             ),
           );
           const panelHitsStrip = panels.some((p) => overlap(p, strip));
@@ -553,7 +535,9 @@ test.describe('Topení', () => {
                   while ((n = walker.nextNode())) {
                     const textNode = n;
                     if (!textNode.textContent?.trim()) continue;
-                    const owner = textNode.parentElement?.closest('svg') ? null : textNode.parentElement;
+                    const owner = textNode.parentElement?.closest('svg')
+                      ? null
+                      : textNode.parentElement;
                     if (!owner || !(owner as HTMLElement).getClientRects().length) continue;
                     if (
                       (owner as HTMLElement).closest(
@@ -584,26 +568,30 @@ test.describe('Topení', () => {
                   }
                   return { hit: false, note: overlapNote };
                 })();
-          const allPanelsInView =
-            vh >= 1000 ? panels.every((p) => p.bottom <= vh + 1) : true;
+          const allPanelsInView = vh >= 1000 ? panels.every((p) => p.bottom <= vh + 1) : true;
           const pumps = document.querySelector('[data-testid="heating-land-pumps"]');
           const pumpsBox = pumps?.getBoundingClientRect();
           const chipsInView = !pumpsBox || pumpsBox.bottom <= vh + 1;
-          const schematicBottomOk = sch.bottom <= vh + 1;
+          // The HTML legend follows the SVG; retain the viewport fit guard for the drawing.
+          const schematicBottomOk = svgBox.bottom <= vh + 1;
           let deadZoneMax = 0;
           if (vw >= 1280 && vh >= 600 && panels.length) {
             const dashRoot = document.querySelector('[data-testid="heating-land-dash"]')!;
             const dBox = dashRoot.getBoundingClientRect();
-            const day = document.querySelector('[data-testid="heating-land-day"]')?.getBoundingClientRect();
-            const status = document.querySelector('[data-testid="heating-land-status"]')?.getBoundingClientRect();
+            const day = document
+              .querySelector('[data-testid="heating-land-day"]')
+              ?.getBoundingClientRect();
+            const status = document
+              .querySelector('[data-testid="heating-land-status"]')
+              ?.getBoundingClientRect();
             if (day && status) {
-              const orphanW = dBox.right - Math.max(day.right, status.right, ...panels.map((p) => p.right));
+              const orphanW =
+                dBox.right - Math.max(day.right, status.right, ...panels.map((p) => p.right));
               const orphanH = dBox.bottom - Math.max(day.bottom, ...panels.map((p) => p.bottom));
               deadZoneMax = Math.max(orphanW, orphanH);
             }
           }
-          const stickyTopGap =
-            vh <= 450 && vh >= 360 ? sch.top - dash.top : null;
+          const stickyTopGap = vh <= 450 && vh >= 360 ? sch.top - dash.top : null;
           const schSvgTexts = ['tank-top', 'cold-water'];
           const svgLabelPipeHits: string[] = [];
           if (vh >= 600) {
@@ -641,10 +629,10 @@ test.describe('Topení', () => {
             schW: svgBox.width,
             schH: svgBox.height,
             schInView:
-              sch.left >= -1 &&
-              sch.right <= vw + 1 &&
-              sch.bottom <= vh + 2 &&
-              sch.top >= -2,
+              svgBox.left >= -1 &&
+              svgBox.right <= vw + 1 &&
+              svgBox.bottom <= vh + 2 &&
+              svgBox.top >= -2,
             dashInView: dash.right <= vw + 1,
             panelOverlap,
             panelHitsStrip,
@@ -656,8 +644,8 @@ test.describe('Topení', () => {
             allPanelsInView,
             chipsInView,
             schematicBottomOk,
-            schTop: sch.top,
-            schBottom: sch.bottom,
+            schTop: svgBox.top,
+            schBottom: svgBox.bottom,
             deadZoneMax,
             stickyTopGap,
             svgLabelPipeHits: [...new Set(svgLabelPipeHits)],
@@ -687,8 +675,12 @@ test.describe('Topení', () => {
         expect(layout.chipsInView, 'pump chips visible').toBe(true);
         expect(layout.deadZoneMax, 'dead zone px').toBeLessThanOrEqual(120);
         if (w >= 1280) {
-          const dayW = await page.getByTestId('heating-land-day').evaluate((el) => el.getBoundingClientRect().width);
-          const dashW = await page.getByTestId('heating-land-dash').evaluate((el) => el.getBoundingClientRect().width);
+          const dayW = await page
+            .getByTestId('heating-land-day')
+            .evaluate((el) => el.getBoundingClientRect().width);
+          const dashW = await page
+            .getByTestId('heating-land-dash')
+            .evaluate((el) => el.getBoundingClientRect().width);
           expect(dayW).toBeGreaterThanOrEqual(dashW * 0.88);
         }
         expect(layout.svgLabelPipeHits, layout.svgLabelPipeHits.join(', ')).toEqual([]);
@@ -813,105 +805,195 @@ test.describe('Topení', () => {
     });
   }
 
-  for (const scenario of ['heating', 'house', 'dhw', 'idle'] as const) {
-    test(`Teď portrét ${scenario}: odstup klíčových popisků schématu ≥ 4 px`, async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
-      await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
-      await page.evaluate(() => document.fonts.ready);
-      const gaps = await page.getByTestId('heating-schematic').evaluate((el) => {
-        const svg = el.querySelector('svg')!;
-        const scale = svg.getBoundingClientRect().width / 344;
-        const textBox = (text: SVGTextElement) => {
-          const b = text.getBBox();
-          const matrix = text.getScreenCTM()!;
-          const start = new DOMPoint(b.x, b.y).matrixTransform(matrix);
-          const end = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(matrix);
-          return new DOMRect(start.x, start.y, end.x - start.x, end.y - start.y);
-        };
-        const minGap = 4;
-        const errors: string[] = [];
-        const labelGap = (a: DOMRect, b: DOMRect) =>
-          Math.hypot(
-            Math.max(a.left - b.right, b.left - a.right, 0),
-            Math.max(a.top - b.bottom, b.top - a.bottom, 0),
-          );
-        const allLabels = Array.from(el.querySelectorAll<SVGTextElement>('text')).filter(
-          (n) => !n.closest('.ht-c3-land-only'),
-        );
-        const focusIds = ['charge', 'house-pump', 'cold-water', 'hp-in'];
-        const focus = focusIds
-          .map((id) => el.querySelector<SVGTextElement>(`[data-label="${id}"]`))
-          .filter(Boolean);
-        for (let i = 0; i < allLabels.length; i++) {
-          for (let j = i + 1; j < allLabels.length; j++) {
-            const label = allLabels[i]!;
-            const other = allLabels[j]!;
-            const gap = labelGap(textBox(label), textBox(other));
-            if (gap < minGap)
-              errors.push(
-                `label: ${label.getAttribute('data-label')}↔${other.getAttribute('data-label')} ${gap.toFixed(1)}px`,
-              );
+  for (const [width, height] of [
+    [390, 844],
+    [1280, 800],
+    [844, 390],
+  ] as const) {
+    for (const scenario of ['heating', 'house', 'dhw', 'idle'] as const) {
+      test(`Teď ${width}×${height} ${scenario}: odstup a příslušnost popisků schématu`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
+        await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+        await page.evaluate(() => document.fonts.ready);
+        const gaps = await page.getByTestId('heating-schematic').evaluate((el) => {
+          const svg = el.querySelector('svg')!;
+          const scale = svg.getBoundingClientRect().width / 344;
+          const textBox = (text: SVGTextElement) => {
+            const b = text.getBBox();
+            const matrix = text.getScreenCTM()!;
+            const start = new DOMPoint(b.x, b.y).matrixTransform(matrix);
+            const end = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(matrix);
+            return new DOMRect(start.x, start.y, end.x - start.x, end.y - start.y);
+          };
+          const minGap = 4;
+          const errors: string[] = [];
+          const labelGap = (a: DOMRect, b: DOMRect) =>
+            Math.hypot(
+              Math.max(a.left - b.right, b.left - a.right, 0),
+              Math.max(a.top - b.bottom, b.top - a.bottom, 0),
+            );
+          const allLabels = Array.from(
+            el.querySelectorAll<SVGTextElement>('text[data-label]'),
+          ).filter((n) => n.getBoundingClientRect().width > 0);
+          for (let i = 0; i < allLabels.length; i++) {
+            for (let j = i + 1; j < allLabels.length; j++) {
+              const label = allLabels[i]!;
+              const other = allLabels[j]!;
+              const gap = labelGap(textBox(label), textBox(other));
+              if (gap < minGap)
+                errors.push(
+                  `label: ${label.getAttribute('data-label')}↔${other.getAttribute('data-label')} ${gap.toFixed(1)}px`,
+                );
+            }
           }
-        }
-        for (const label of focus) {
-          const lb = textBox(label!);
-          const fontPx = Number.parseFloat(getComputedStyle(label!).fontSize) * scale;
-          if (fontPx < 12 || fontPx > 13)
-            errors.push(`font: ${label!.getAttribute('data-label')} ${fontPx.toFixed(1)}px`);
-          for (const shape of Array.from(
-            el.querySelectorAll(
-              '[data-pump], .ht-c3-cabinet, .ht-c3-radiator, .ht-c3-tap, .ht-c3-floor, .ht-c3-rim',
+          for (const label of allLabels) {
+            const lb = textBox(label!);
+            const vb = svg.viewBox.baseVal;
+            const matrix = svg.getScreenCTM()!;
+            const start = new DOMPoint(vb.x, vb.y).matrixTransform(matrix);
+            const end = new DOMPoint(vb.x + vb.width, vb.y + vb.height).matrixTransform(matrix);
+            if (
+              Math.min(lb.left - start.x, lb.top - start.y, end.x - lb.right, end.y - lb.bottom) < 4
+            )
+              errors.push(`viewBox edge: ${label.dataset.label}`);
+            for (const shape of Array.from(
+              el.querySelectorAll(
+                '[data-pump], .ht-c3-cabinet, .ht-c3-radiator, .ht-c3-tap, .ht-c3-valve, .ht-c3-floor, .ht-c3-rim:not(path)',
+              ),
+            )) {
+              const style = getComputedStyle(shape);
+              const stroke =
+                style.stroke === 'none' ? 0 : (Number.parseFloat(style.strokeWidth) * scale) / 2;
+              const gap = labelGap(lb, shape.getBoundingClientRect()) - stroke;
+              if (gap < minGap)
+                errors.push(
+                  `shape: ${label!.getAttribute('data-label')}↔${shape.getAttribute('class')} ${gap.toFixed(1)}px`,
+                );
+            }
+          }
+          const pipes = Array.from(
+            el.querySelectorAll<SVGPathElement>(
+              '[data-pipe-id] path, path[data-pipe-id], .ht-c3-metal-pipe, .ht-c3-water-valve, path.ht-c3-rim, path.ht-c3-shell, .ht-c3-window',
             ),
-          )) {
-            const style = getComputedStyle(shape);
-            const stroke = style.stroke === 'none' ? 0 : (Number.parseFloat(style.strokeWidth) * scale) / 2;
-            const gap = labelGap(lb, shape.getBoundingClientRect()) - stroke;
-            if (gap < minGap)
-              errors.push(
-                `shape: ${label!.getAttribute('data-label')}↔${shape.getAttribute('class')} ${gap.toFixed(1)}px`,
-              );
-          }
-          if (label!.getAttribute('data-label') === 'cold-water') {
-            const tank = el.querySelector('.ht-c3-shell')!.getBoundingClientRect();
-            const pill = el.querySelector('.ht-c3-cold-portrait-bg')!.getBoundingClientRect();
-            if (Math.min(pill.left - tank.left, tank.right - pill.right) < minGap)
-              errors.push('cold-water pill near tank wall');
-            const rim = el.querySelector('path.ht-c3-rim')!;
-            const rimStroke = (Number.parseFloat(getComputedStyle(rim).strokeWidth) * scale) / 2;
-            if (labelGap(pill, rim.getBoundingClientRect()) - rimStroke < minGap)
-              errors.push('cold-water pill near tank rim');
-          }
-        }
-        const pipeCheckIds = ['charge', 'house-pump', 'cold-water', 'hp-in'] as const;
-        for (const id of pipeCheckIds) {
-          const label = el.querySelector<SVGTextElement>(`[data-label="${id}"]`);
-          if (!label) continue;
-          const lb = textBox(label);
-          for (const path of Array.from(
-            el.querySelectorAll<SVGPathElement>('[data-pipe-id] path, path[data-pipe-id]'),
-          )) {
-            const stroke = (Number.parseFloat(getComputedStyle(path).strokeWidth) * scale) / 2;
-            const pipeId = path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id');
-            for (let n = 0; n <= path.getTotalLength(); n += 1) {
+          ).map((path) => {
+            const matrix = path.getScreenCTM()!;
+            const length = path.getTotalLength();
+            const points: DOMPoint[] = [];
+            for (let n = 0; n <= length; n += 1) {
               const at = path.getPointAtLength(n);
-              const pt = new DOMPoint(at.x, at.y).matrixTransform(path.getScreenCTM()!);
-              const g =
-                Math.hypot(
-                  Math.max(lb.left - pt.x, 0, pt.x - lb.right),
-                  Math.max(lb.top - pt.y, 0, pt.y - lb.bottom),
-                ) - stroke;
-              if (g < minGap) {
-                errors.push(`pipe: ${id}↔${pipeId} ${g.toFixed(1)}px`);
-                break;
+              points.push(new DOMPoint(at.x, at.y).matrixTransform(matrix));
+            }
+            return {
+              points,
+              // The curved tank rim has empty corners in its bounding rectangle.
+              rim: path.matches('.ht-c3-rim') ? { path, inverse: matrix.inverse() } : null,
+              stroke:
+                (Number.parseFloat(getComputedStyle(path).strokeWidth) *
+                  Math.hypot(matrix.a, matrix.b)) /
+                2,
+              isPipe: !path.matches('.ht-c3-rim, .ht-c3-shell, .ht-c3-window, .ht-c3-water-valve'),
+              id: path.closest('[data-pipe-id]')?.getAttribute('data-pipe-id') ?? 'metal',
+            };
+          });
+          for (const label of allLabels) {
+            const id = label.getAttribute('data-label');
+            const lb = textBox(label);
+            for (const pipe of pipes) {
+              const rim = pipe.rim;
+              if (rim) {
+                const corners = [
+                  new DOMPoint(lb.left, lb.top),
+                  new DOMPoint(lb.right, lb.top),
+                  new DOMPoint(lb.left, lb.bottom),
+                  new DOMPoint(lb.right, lb.bottom),
+                ];
+                if (corners.some((pt) => rim.path.isPointInFill(pt.matrixTransform(rim.inverse))))
+                  errors.push(`rim fill: ${id}`);
+              }
+              for (const pt of pipe.points) {
+                const gap =
+                  Math.hypot(
+                    Math.max(lb.left - pt.x, 0, pt.x - lb.right),
+                    Math.max(lb.top - pt.y, 0, pt.y - lb.bottom),
+                  ) - pipe.stroke;
+                if (gap < minGap) {
+                  errors.push(`pipe: ${id}↔${pipe.id} ${gap.toFixed(1)}px`);
+                  break;
+                }
               }
             }
           }
-        }
-        return [...new Set(errors)];
+          const components: Record<string, string> = {
+            'hp-in': '[data-pipe-id="tank-return"]',
+            charge: '[data-pump="charge"]',
+            mixing: '.ht-c3-valve:not([data-valve])',
+            'house-pump': '[data-pump="house"]',
+            radiators: '.ht-c3-ceramic',
+            'cold-water': '[data-cold-water-valve]',
+          };
+          const badges = Array.from(el.querySelectorAll<SVGGElement>('[data-marker]'));
+          for (const badge of badges) {
+            const b = badge.getBoundingClientRect();
+            const id = badge.dataset.marker!;
+            if (badge.getAttribute('aria-hidden') !== 'true') errors.push('badge accessibility');
+            const luminance = (color: string) => {
+              const values = color
+                .match(/[\d.]+/g)!
+                .slice(0, 3)
+                .map(Number)
+                .map((v) => {
+                  const c = v / 255;
+                  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+                });
+              return values[0]! * 0.2126 + values[1]! * 0.7152 + values[2]! * 0.0722;
+            };
+            const fg = luminance(getComputedStyle(badge.querySelector('text')!).fill);
+            const bg = luminance(getComputedStyle(badge.querySelector('circle')!).fill);
+            if ((Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) < 4.5)
+              errors.push(`badge contrast: ${id}`);
+
+            if (b.width < 14 || b.height < 14) errors.push(`small badge: ${id}`);
+            const component = el.querySelector(components[id]!)!;
+            let componentBox = component.getBoundingClientRect();
+            if (id === 'hp-in') {
+              const route = component.querySelector('path')!;
+              const pt = route.getPointAtLength(route.getTotalLength());
+              const screen = new DOMPoint(pt.x, pt.y).matrixTransform(route.getScreenCTM()!);
+              componentBox = new DOMRect(screen.x, screen.y, 0, 0);
+            }
+            if (labelGap(b, componentBox) > 3) errors.push(`badge component: ${id}`);
+            for (const text of allLabels)
+              if (labelGap(b, textBox(text)) < 3) errors.push(`badge text: ${id}`);
+            for (const other of badges)
+              if (other !== badge && labelGap(b, other.getBoundingClientRect()) < 3)
+                errors.push(`badge badge: ${id}`);
+          }
+          for (const text of allLabels)
+            for (const grass of Array.from(el.querySelectorAll('.ht-c3-grass, .ht-c3-blade'))) {
+              const stroke = grass.matches('.ht-c3-grass') ? 4 * scale : 0;
+              if (labelGap(textBox(text), grass.getBoundingClientRect()) - stroke < 4)
+                errors.push(`grass: ${text.dataset.label}`);
+            }
+          const legend = el.querySelector('ol[aria-label="Legenda schématu"]')!;
+          if (legend.children.length !== 6 || badges.length !== 6) errors.push('legend count');
+          for (const row of Array.from(legend.querySelectorAll<HTMLElement>('li, span'))) {
+            if (row.clientWidth && row.scrollWidth > row.clientWidth)
+              errors.push('legend overflow');
+            const style = getComputedStyle(row);
+            if (style.wordBreak === 'break-all' || style.hyphens !== 'none')
+              errors.push('legend word breaking');
+          }
+          if (legend.getBoundingClientRect().right > innerWidth)
+            errors.push('legend outside viewport');
+          return [...new Set(errors)];
+        });
+        expect(gaps, gaps.join('; ')).toEqual([]);
+        await noSidewaysScroll(page);
       });
-      expect(gaps, gaps.join('; ')).toEqual([]);
-    });
+    }
   }
 
   test('Teď portrét: popisky schématu ≥ 11 px', async ({ page }) => {
@@ -929,7 +1011,9 @@ test.describe('Topení', () => {
         return z.y - a.y;
       };
       return Math.min(
-        ...Array.from(svg.querySelectorAll('text')).map((t) => rendered(t as SVGGraphicsElement)),
+        ...Array.from(svg.querySelectorAll('text[data-label]')).map((t) =>
+          rendered(t as SVGGraphicsElement),
+        ),
       );
     });
     expect(min).toBeGreaterThanOrEqual(11);
