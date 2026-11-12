@@ -34,8 +34,8 @@ def test_every_frontend_module_has_a_panel():
     }
     # family lives inside the settings panel.
     routed = {panel["module"] for panel in PANELS["modules"]} | {"family"}
-    # Kitchen is a panel-local composition of existing modules.
-    assert frontend | {"kitchen"} == routed
+    # Kitchen and communication are panel-local views.
+    assert frontend | {"kitchen", "communication"} == routed
 
 
 def test_panel_paths_are_unique_and_prefixed():

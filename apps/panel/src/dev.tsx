@@ -644,6 +644,39 @@ const devSession =
       }
     : {};
 demoHass.connection = createMockConnection({
+  'homebrain/communication/recent': {
+    messages:
+      new URLSearchParams(location.search).get('messages') === 'empty'
+        ? []
+        : [
+            {
+              id: 'audit-demo-1',
+              notification_id: 'demo-1',
+              recipient: 'demo',
+              title: 'Připomenutí domácnosti',
+              message: 'Zkušební úkol je hotový.',
+              priority: 'high',
+              at: '2026-11-12T12:00:00Z',
+              channel: 'push',
+              status: 'acknowledged',
+              reason: '',
+              ack: true,
+            },
+            {
+              id: 'audit-demo-2',
+              notification_id: 'demo-2',
+              recipient: 'other',
+              title: 'Denní souhrn',
+              message: 'Dvě nové informační zprávy.',
+              priority: 'info',
+              at: '2026-11-12T07:00:00Z',
+              channel: 'email',
+              status: 'sent',
+              reason: 'service_accepted',
+              ack: false,
+            },
+          ],
+  },
   ...kitchenMock(recipesQuery),
   ...devSession,
   // Live Dnes reads the integration snapshot over WS (synthetic, fixed MOCK_NOW day).

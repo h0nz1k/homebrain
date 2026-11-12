@@ -44,6 +44,7 @@ MODULES: Final = (
     "kitchen",
     "server",
     "heating",
+    "communication",
 )
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 

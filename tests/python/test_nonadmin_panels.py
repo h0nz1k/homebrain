@@ -28,7 +28,7 @@ NON_ADMIN_MODULES = {
     "network",
     "heating",
 }
-ADMIN_ONLY_MODULES = {"wine", "health", "robots", "access", "server"}
+ADMIN_ONLY_MODULES = {"communication", "wine", "health", "robots", "access", "server"}
 
 
 def _panels() -> dict:

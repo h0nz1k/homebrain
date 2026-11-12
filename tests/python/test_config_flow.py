@@ -82,6 +82,7 @@ async def test_options_bindings(hass: HomeAssistant, user_input, expected):
         "meals",
         "people",
         "roles",
+        "communication",
     ]
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "waste"}
