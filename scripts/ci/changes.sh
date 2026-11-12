@@ -59,6 +59,13 @@ while IFS= read -r f || [ -n "$f" ]; do
       e2e_full=true
       continue
       ;;
+    # Panel contract: generated into packages/ha-client and read by routing.spec.ts.
+    custom_components/homebrain/panels.json)
+      js=true
+      python=true
+      e2e_full=true
+      continue
+      ;;
     *.py | custom_components/* | tests/python/* | requirements-test.txt | pyproject.toml) python=true ;;
     *) js=true ;;
   esac
