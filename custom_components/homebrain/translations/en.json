@@ -29,7 +29,8 @@
           "meals": "Show meal plan (Mealie)",
           "roles": "Users and roles",
           "people": "Who is home",
-          "heating": "Heating – Tecomat PLC"
+          "heating": "Heating – Tecomat PLC",
+          "communication": "Communication hub"
         }
       },
       "waste": {
@@ -310,6 +311,13 @@
           "map_path": "Variable map (YAML path)",
           "poll_interval": "Poll interval"
         }
+      },
+      "communication": {
+        "title": "Communication hub",
+        "description": "People, groups and existing HA services. Schema and examples: docs/communication.md. No tokens.",
+        "data": {
+          "communication": "Routing settings"
+        }
       }
     },
     "error": {
@@ -318,7 +326,8 @@
       "invalid_auth": "UniFi login failed – check username and password.",
       "cannot_connect": "Cannot reach the UniFi controller – check the URL and certificate.",
       "invalid_url": "Enter a URL starting with https:// (or http://).",
-      "unifi_source_missing": "The selected UniFi integration is not loaded in Home Assistant (removed or failing). Check it in Settings → Devices & services → UniFi Network, or choose another account."
+      "unifi_source_missing": "The selected UniFi integration is not loaded in Home Assistant (removed or failing). Check it in Settings → Devices & services → UniFi Network, or choose another account.",
+      "invalid_communication": "Invalid channel, time or group configuration."
     }
   },
   "selector": {
@@ -342,7 +351,8 @@
         "network": "Network",
         "server": "Server",
         "heating": "Heating",
-        "kitchen": "Kitchen"
+        "kitchen": "Kitchen",
+        "communication": "Communication hub"
       }
     },
     "meals_display": {
@@ -401,6 +411,35 @@
     "heating_project_changed": {
       "title": "HomeBrain Heating: PLC project changed",
       "description": "The compile ID of {pages} differs from the one in your heating map: the PLC project was probably re-uploaded and the variable addresses may have moved. Those pages are ignored until you check the map and update its `ucid` section."
+    }
+  },
+  "services": {
+    "notify": {
+      "name": "Send notification",
+      "description": "Route a message to a person or group using their preferences.",
+      "fields": {
+        "recipient": {
+          "name": "Recipient"
+        },
+        "message": {
+          "name": "Message"
+        },
+        "title": {
+          "name": "Title"
+        },
+        "priority": {
+          "name": "Priority"
+        },
+        "channel": {
+          "name": "Forced channel"
+        },
+        "tag": {
+          "name": "Deduplication tag"
+        },
+        "data": {
+          "name": "Push notification data"
+        }
+      }
     }
   }
 }

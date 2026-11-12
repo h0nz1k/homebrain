@@ -49,6 +49,13 @@ const standardModules = [
 export const modules = [
   ...standardModules,
   {
+    id: 'communication',
+    titleCs: 'Zprávy',
+    icon: 'mdi:message-text-clock',
+    phase: 1,
+    View: lazy(() => import('./communication/CommunicationView')),
+  },
+  {
     id: 'kitchen',
     titleCs: 'Kuchyň',
     icon: 'mdi:countertop',

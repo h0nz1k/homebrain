@@ -9,6 +9,9 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from .bindings import binding_domains, get_bindings, validate_binding
+from .communication.config import DEFAULT as COMM_DEFAULT
+from .communication.config import OPTION as COMM_OPTION
+from .communication.config import validate as validate_communication
 from .const import BINDING_MODULES, DOMAIN, MEALS_DISPLAY, MEALS_DISPLAY_MODES, PANEL_TITLE
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .heating.poller import (
@@ -56,6 +59,7 @@ OPTIONS_FLOW_EXTRA = (
     "meals",
     "people",
     "roles",
+    "communication",
 )
 # „none“ in the roles step removes the mapping (the user falls back to guest = no access).
 ROLE_NONE = "none"
@@ -97,6 +101,29 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
         # Only modules with an options step; weather bindings are not edited here (yet).
         return self.async_show_menu(
             step_id="init", menu_options=[*OPTIONS_FLOW_MODULES, *OPTIONS_FLOW_EXTRA]
+        )
+
+    async def async_step_communication(self, user_input=None) -> FlowResult:
+        """Routing settings as an object; HA retains all endpoint bindings locally."""
+        errors = {}
+        if user_input is not None:
+            try:
+                value = validate_communication(user_input[COMM_OPTION])
+            except (vol.Invalid, TypeError, ValueError):
+                errors["base"] = "invalid_communication"
+            else:
+                return self.async_create_entry(
+                    title="", data={**self.config_entry.options, COMM_OPTION: value}
+                )
+        current = (user_input or {}).get(
+            COMM_OPTION, self.config_entry.options.get(COMM_OPTION, COMM_DEFAULT)
+        )
+        return self.async_show_form(
+            step_id="communication",
+            errors=errors,
+            data_schema=vol.Schema(
+                {vol.Required(COMM_OPTION, default=current): selector.ObjectSelector()}
+            ),
         )
 
     async def async_step_waste(self, user_input: dict[str, Any] | None = None) -> FlowResult:

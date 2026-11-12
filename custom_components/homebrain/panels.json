@@ -107,6 +107,13 @@
       "icon": "mdi:countertop",
       "module": "kitchen",
       "require_admin": false
+    },
+    {
+      "url_path": "homebrain-zpravy",
+      "title": "Zprávy",
+      "icon": "mdi:message-text-clock",
+      "module": "communication",
+      "require_admin": true
     }
   ]
 }

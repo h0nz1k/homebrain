@@ -215,3 +215,4 @@ export {
 export * from './people.js';
 
 export * from './kitchen.js';
+export * from './communication.js';
