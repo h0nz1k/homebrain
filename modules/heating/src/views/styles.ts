@@ -287,13 +287,19 @@ export const heatingStyles = `
 .ht-c3-route.ht-c3-ground > path { stroke-width:4; }
 .ht-c3-route[data-active].ht-c3-ground > path { stroke:var(--ht-c3-ground); }
 .ht-c3-route.ht-c3-bypass > path { stroke-width:2.5; }
+.ht-c3-direction { fill:none; stroke:#fff; stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 .7px #17212c); }
 .ht-c3-particle { fill:#fff; opacity:0; }
 .ht-c3-shell, .ht-c3-rim { stroke:#939ca8; stroke-width:1.5; }
 .ht-c3-window { stroke:#171c22; stroke-width:2; filter:drop-shadow(0 0 1px #a0a9ae); }
 [data-theme='light'] .ht-c3-window { stroke:#535d68; }
 .ht-c3-vessel { stroke:#fafcfe; stroke-width:2; fill:#c57c84; }
+.ht-c3-title-bg { fill:#1b2026; }
+.ht-c3-label[data-label="hp-out"] { letter-spacing:-.2px; }
+.ht-c3-label[data-label="tank-title"] { fill:#fff; font-size:13.3px; letter-spacing:-.7px; }
+[data-theme="light"] .ht-c3-title-bg { fill:#eef1f4; }
+[data-theme="light"] .ht-c3-label[data-label="tank-title"] { fill:#202735; }
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
-.ht-c3-label { fill:var(--hb-t2); font-size:13px; font-family:var(--hb-font, inherit); }
+.ht-c3-label { fill:var(--hb-t2); font-size:13.3px; font-family:var(--hb-font, inherit); }
 .ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
 .ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-1px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
@@ -305,8 +311,9 @@ export const heatingStyles = `
 .ht-c3-tank-value { font-size:24px; font-weight:500; }
 .ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
 .ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
+.ht-c3-label[data-label="mixing"]:not(.ht-c3-muted) tspan { font-weight:700; }
 [data-theme='light'] .ht-c3-label { fill:#48525d; }
-[data-theme='light'] .ht-c3-label[data-label='collector'] { fill:#343d46; }
+[data-theme='light'] .ht-c3-label:is([data-label='collector'],[data-label='cold-water']) { fill:#343d46; }
 [data-theme='light'] .ht-c3-label.ht-c3-muted, [data-theme='light'] .ht-c3-muted { fill:#606b77; }
 .ht-run-meta b.ht-muted { color:var(--hb-t2); }
 .ht-c3-cabinet { fill:color-mix(in srgb, var(--hb-s2) 70%, #7b858f); stroke:#78828c; }
@@ -333,7 +340,7 @@ export const heatingStyles = `
 .ht-c3-label[data-label='tank-top'] { font-size:12px; font-weight:550; }
 .ht-c3-label[data-label='hp-delta'] { font-size:12px; font-weight:500; }
 .ht-c3-water-valve { fill:none; stroke:var(--ht-c3-cold); stroke-width:1; }
-.ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:.5; }
+.ht-c3-draw { fill:none; stroke:var(--ht-c3-hot); stroke-width:3; opacity:1; }
 [data-theme='light'] .ht-c3-draw { stroke:#ab3037; opacity:1; }
 .ht-c3-ceramic { fill:#d0d1c8; stroke:#858f8c; }
 .ht-c3-fin { fill:#bdc2b7; stroke:#8f9d92; stroke-width:.6; }
