@@ -1,3 +1,4 @@
+import { settingsDemo } from '@homebrain/module-energy';
 import { createHealthDemo, type HealthScenario } from '@homebrain/module-health';
 import {
   createMockNetworkApi,
@@ -791,6 +792,19 @@ demoHass.connection = createMockConnection({
     }
     robotCalls.push(message);
     return { context: { id: 'demo' } };
+  },
+  'homebrain/energy/settings/get': () => ({
+    rows: settingsDemo.rows.map((row) => ({
+      ...row,
+      editable: row.editable && new URLSearchParams(location.search).get('role') !== 'adult',
+    })),
+  }),
+  'homebrain/energy/settings/set': (message: { key: string; value: number }) => {
+    const row = settingsDemo.rows.find((item) => item.key === message.key);
+    if (!row?.editable || new URLSearchParams(location.search).get('role') === 'adult')
+      throw new Error('Nepovoleno');
+    row.value = message.value;
+    return structuredClone(settingsDemo);
   },
   'homebrain/energy/pv_forecast': pvDemo.server,
   // `?srovnani=full|nodata|unconfigured`: Energie period comparison (synthetic).

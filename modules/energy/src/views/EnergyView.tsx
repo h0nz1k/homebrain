@@ -47,6 +47,7 @@ import {
   type TariffSettings,
 } from '../costs.js';
 import { energyStyles } from './energyStyles.js';
+import { EnergySettingsView } from './EnergySettingsView.js';
 import { EnergyFlowHero } from './EnergyFlowHero.js';
 
 const HOUR = 3_600_000;
@@ -656,7 +657,9 @@ function AppliancesCard({ items, model }: { items: ApplianceReading[]; model: En
               <div className="en-appl-top">
                 <span className="en-appl-name">{a.label}</span>
                 <span
-                  className={a.state === 'running' ? 'en-appl-running' : `en-chip en-chip--${chip.tone}`}
+                  className={
+                    a.state === 'running' ? 'en-appl-running' : `en-chip en-chip--${chip.tone}`
+                  }
                   aria-label={chip.label}
                   title={`Běží nad ${fmt(a.runningW, 0)} W`}
                 >
@@ -1080,6 +1083,7 @@ export default function EnergyView({
   fetchWithAuth,
   kiosk,
 }: ModuleViewProps) {
+  const [tab, setTab] = useState<'overview' | 'settings'>('overview');
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -1225,7 +1229,23 @@ export default function EnergyView({
   return (
     <>
       <style>{energyStyles}</style>
-      {ids.length ? (
+      {!kiosk && (
+        <div className="en-tabs">
+          <SegmentedControl
+            label="Zobrazení energie"
+            hideLabel
+            value={tab}
+            options={[
+              ['overview', 'Přehled'],
+              ['settings', 'Nastavení'],
+            ]}
+            onChange={setTab}
+          />
+        </div>
+      )}
+      {tab === 'settings' ? (
+        <EnergySettingsView connection={connection} />
+      ) : ids.length ? (
         <EnergyScreen
           model={model}
           history={history}

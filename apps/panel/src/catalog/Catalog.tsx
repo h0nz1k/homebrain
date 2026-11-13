@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  InfoTip,
   Breakdown,
   Button,
   Card,
@@ -64,6 +65,21 @@ interface Spec {
 }
 
 const specs: Spec[] = [
+  {
+    id: 'info-tip',
+    name: 'InfoTip',
+    summary: 'Kontextová nápověda klepnutím, najetím a fokusem.',
+    importName: 'InfoTip',
+    states: ['closed', 'open'],
+    doText: 'Vysvětlete význam a důsledky nastavení.',
+    dontText: 'Neschovávejte nezbytný popisek.',
+    notes: 'Escape zavírá, tlačítko je dostupné klávesnicí.',
+    render: () => (
+      <InfoTip label="Rezerva baterie">
+        Vyšší rezerva ponechá více energie pro výpadek. Obvykle 10–50 %.
+      </InfoTip>
+    ),
+  },
   {
     id: 'card',
     name: 'Card',

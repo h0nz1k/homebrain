@@ -20,3 +20,6 @@ export * from './compare.js';
 export * from './invoices.js';
 export * from './invoicesDemo.js';
 export * from './offersDemo.js';
+
+export * from './settingsDemo.js';
+export * from './settings.js';

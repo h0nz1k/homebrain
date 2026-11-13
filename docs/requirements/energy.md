@@ -4,7 +4,7 @@ Stav: sklizeno 2026-10-31 (issue #13). Zdroje: `donor/energy@fc4419a`, `donor/en
 
 ## Rozsah
 
-Read-only přehled hybridní FVE (GoodWe), třífázové spotřeby (Shelly 3EM), baterie, volitelně EV, predikce `forecast.solar` a spotové ceny elektřiny a plynu (HACS CZ spot integrace). Dlouhá historie jen odkaz na InfluxDB/Grafana, ne embed v MVP (`ADR-0001 §4.1`).
+Přehled s omezenou konfigurací (ENE-017) hybridní FVE (GoodWe), třífázové spotřeby (Shelly 3EM), baterie, volitelně EV, predikce `forecast.solar` a spotové ceny elektřiny a plynu (HACS CZ spot integrace). Dlouhá historie jen odkaz na InfluxDB/Grafana, ne embed v MVP (`ADR-0001 §4.1`).
 
 ## Datové vstupy (logické klíče)
 
@@ -62,6 +62,19 @@ Read-only přehled hybridní FVE (GoodWe), třífázové spotřeby (Shelly 3EM),
 **Topologie diagramu (střídač jako uzel):** Hybridní střídač je středový uzel. FV stringy (DC) → střídač; baterie ↔ střídač (DC); střídač ↔ AC rozvaděč (AC výstup, záporný při nabíjení baterie ze sítě); síť ↔ rozvaděč (elektroměr na přípojce); rozvaděč → dům. Každá dvojice zdroj → cíl (`allocateFlows`) má vlastní pruh a vede přes střídač, kde to fyzicky platí (FV → dům/baterie/síť, baterie → dům/síť, síť → baterie přes AC stranu střídače); jen síť → dům střídač obchází po AC sběrnici. Pruhy se na společných úsecích řadí bez křížení (`LANE_ORDER`), hodnota toku sedí na posledním úseku k cíli. Uzel střídače ukazuje AC výkon a stav; detail: stringy FV (výkon/napětí), baterie (SoC/napětí/proud/teplota), AC po fázích, režim, výroba dnes a chyba česky.
 
 Klíče `pv_power`, `phase_l1_power` atd. z donor kontraktu mapují na prefix `energy_*` v HomeBrain bindings.
+
+### Konfigurace střídače (ENE-017)
+
+| klíč | doména | jednotka | poznámka |
+| --- | --- | --- | --- |
+| `energy_battery_dod_ongrid`, `energy_battery_dod_backup` | number | % | Maximum vybití; UI zobrazuje rezervu = 100 − DoD |
+| `energy_battery_keep_dod` | switch | on/off | udržování DOD |
+| `energy_fast_charge` | switch | on/off | rychlé nabíjení; bezpečnostní automatizace vypíná ve VT |
+| `energy_fast_charge_power`, `energy_fast_charge_soc` | number | % | výkon a cílové nabití |
+| `energy_eco_power`, `energy_eco_soc` | number | % | ekonomický režim |
+| `energy_export_limit_enabled` | switch | on/off | řízení dodávky |
+| `energy_export_limit` | number | W | skutečný limit střídače, pouze čtení |
+| `energy_inverter_mode`, `energy_ems_mode` | select | text | provozní a EMS režim, pouze čtení |
 
 ## Spotřebiče (issue #56)
 
@@ -239,3 +252,31 @@ výchozí 25 A), tečkovaná značka na 80 %. Zdroj: `energy_grid_l1…l3_power`
 - **Úspora FVE + baterie** = Σ (spotřeba domu − odběr) × cena VT/NT dané hodiny. Bez příjmu za přetoky.
 - **Srovnání se spotem** je jen informativní: Σ odběr × ((spot + přirážka) × DPH + distribuce VT/NT) + stálé platby spotového produktu. Nikdy se nezobrazuje jako doporučení.
 - Doporučení „kdy pustit spotřebiče“ a signál „Levný proud“ jsou odstraněné.
+
+### ENE-017 – Konfigurační záložka
+
+- **Popis:** Přehled | Nastavení zachovává původní přehled. Pět sekcí: Fotovoltaika
+  (výkon, sklon, orientace, performance ratio, AC limit, zítřejší předpověď), Baterie
+  (kapacita, rezervy, udržování DOD, rychlé nabíjení a ekonomický režim), Síť
+  (řízení a fyzický limit přetoku, modelový limit, jistič), Tarif a ceny (VT/NT,
+  stálé platby, HDO a další změna, spotové přirážky/distribuce/platby), Střídač (režim, EMS, stav).
+- **Nápověda:** Každý řádek má hodnotu, jednotku, vysvětlení a InfoTip s důsledkem,
+  rozsahem nebo doporučením a místem změny. Klepnutí, hover, focus; Escape zavírá.
+  Chybějící vazba = „nepřipojeno“ a logický klíč. Výchozí sklon 35 ° a azimut 0 °
+  mají odznak „odhad“. Azimut 0 = jih, −90 = východ, 90 = západ.
+- **Role:** `settings/get` čte owner/admin a adult, ostatní role nemají detailní přístup.
+  `settings/set` vyžaduje HA admina; ostatní vidí pouze čtení. Server vynucuje allowlist.
+- **Zápisy:** `energy_pv` options: `pv_kwp` 0,01–100, `pv_tilt` 0–90,
+  `pv_azimuth` −180–180, `inverter_ac_limit_kw`, `battery_capacity_kwh`, `export_limit_kw`
+  0,01–1000. Systémové hodnoty mají krok 0,01, úhly 1 °. Jde pouze o model předpovědi.
+  Rezerva v síti 10–50 %, krok 5 %, se zapisuje jako DoD = 100 − rezerva přes
+  `number.set_value`, navíc respektuje min/max/step entity. Potvrzení ukazuje starou a novou
+  hodnotu a dopad do noční energie podle kapacity baterie.
+  Pouze pomocníci `input_number` pro VT/NT cenu, stálé platby, spot přirážku/distribuci/platby
+  a hlavní jistič používají `input_number.set_value` v mezích min/max/step entity.
+- **Pouze čtení:** backup DoD, udržování DOD, rychlé nabíjení, eco, fyzický export limit,
+  režimy i pracovní stav. Nikdy `goodwe.set_parameter`, zápisy select ani switch.
+- **Audit:** každý úspěšný zápis loguje uživatele, logický klíč, původní a novou hodnotu;
+  služba nese HA kontext uživatele. Neplatné/nepřipojené entity nelze zapisovat.
+- **Evidence:** issue #112; testy WS oprávnění, hranic, převodu a options, komponentové testy,
+  Playwright na desktopu, tabletu a mobilu ve světlém a tmavém motivu.

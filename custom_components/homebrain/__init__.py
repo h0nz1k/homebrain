@@ -37,6 +37,7 @@ from .cooking import ws as cooking_ws
 from .energy.invoices import api as invoices_api
 from .energy.offers import ws as offers_ws
 from .energy.pv_forecast import PvForecastManager
+from .energy.settings import websocket_settings_get, websocket_settings_set
 from .energy.ws import websocket_compare, websocket_pv_forecast
 from .family import ws as family_ws
 from .heating import setup as heating_setup
@@ -133,6 +134,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _commands(
             websocket_pv_forecast,
             websocket_compare,
+            websocket_settings_get,
+            websocket_settings_set,
             *invoices_api.COMMANDS,
             *offers_ws.COMMANDS,
         )(hass)(reg)
