@@ -2369,6 +2369,15 @@ button.hb-tile[data-empty] .hb-tile-status {
   height: 10px;
 }
 
+.hb-svg-icon {
+  flex: none;
+  display: block;
+}
+/* Floating help sits one step above cards: lighter in dark themes, white in light ones. */
+.hb-info-tip,
+.hb-info-sheet-scrim {
+  --hb-tip-surface: light-dark(var(--hb-s1), var(--hb-s3));
+}
 .hb-info-tip {
   position: relative;
   display: inline-flex;
@@ -2379,31 +2388,126 @@ button.hb-tile[data-empty] .hb-tile-status {
   place-items: center;
   width: 36px;
   height: 36px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--hb-s1);
-  color: var(--hb-t2);
-  font:
-    italic 600 16px Georgia,
-    serif;
+  background: transparent;
+  color: var(--hb-t3);
   cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
-.hb-info-tip > button:focus-visible {
+.hb-info-tip > button:hover,
+.hb-info-tip > button[aria-expanded='true'] {
+  color: var(--hb-ac);
+  background: var(--hb-ac-s);
+}
+.hb-info-tip > button:focus-visible,
+.hb-info-sheet-head button:focus-visible {
   outline: 2px solid var(--hb-ac);
   outline-offset: 2px;
 }
 .hb-info-tip-body {
   position: absolute;
   top: 100%;
-  right: 0;
+  left: 0;
   z-index: 40;
-  width: min(300px, 78vw);
+  width: min(320px, calc(100vw - 24px));
   box-sizing: border-box;
-  padding: 18px;
+  padding: 14px 16px;
   border: 1px solid var(--hb-b2);
-  border-radius: 16px;
-  background: var(--hb-s1);
+  border-radius: 14px;
+  background: var(--hb-tip-surface);
   color: var(--hb-t1);
-  box-shadow: 0 12px 40px #0003;
-  font: 400 14px/1.6 var(--hb-font-family, sans-serif);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.12),
+    0 18px 48px rgb(0 0 0 / 0.32);
+  font: 400 14px/1.55 var(--hb-font-family, sans-serif);
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+/* Arrow: a rotated square sharing the border, pointing at the trigger. */
+.hb-info-tip-body::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--hb-tip-arrow-x, 50%) - 6px);
+  width: 12px;
+  height: 12px;
+  background: var(--hb-tip-surface);
+  border: 1px solid var(--hb-b2);
+  transform: rotate(45deg);
+}
+.hb-info-tip-body[data-placement='bottom']::before,
+.hb-info-tip-body:not([data-placement])::before {
+  top: -7px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.hb-info-tip-body[data-placement='top']::before {
+  bottom: -7px;
+  border-left: 0;
+  border-top: 0;
+}
+.hb-info-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.68);
+  backdrop-filter: blur(2px);
+  animation: hb-fade-in 0.15s ease-out;
+}
+.hb-info-sheet {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 16px 20px;
+  border: 1px solid var(--hb-b2);
+  border-radius: 20px;
+  background: var(--hb-tip-surface);
+  color: var(--hb-t1);
+  box-shadow: 0 -8px 40px rgb(0 0 0 / 0.35);
+}
+/* Grab handle: signals a sheet, not a toast. */
+.hb-info-sheet::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: -6px auto 10px;
+  border-radius: 2px;
+  background: var(--hb-b2);
+}
+.hb-info-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font: 600 16px/1.3 var(--hb-font-family, sans-serif);
+}
+.hb-info-sheet-head button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px -8px 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hb-t2);
+  cursor: pointer;
+}
+.hb-info-sheet-body {
+  display: block;
+  color: var(--hb-t2);
+  font: 400 15px/1.6 var(--hb-font-family, sans-serif);
+}
+@keyframes hb-fade-in {
+  from {
+    opacity: 0;
+  }
 }

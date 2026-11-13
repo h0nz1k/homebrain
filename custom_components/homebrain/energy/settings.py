@@ -14,13 +14,18 @@ from .pv_forecast import DEFAULT_AZIMUTH, DEFAULT_PERFORMANCE_RATIO, DEFAULT_TIL
 from .ws import _require_energy
 
 _LOGGER = logging.getLogger(__name__)
-# key: section, Czech label, unit, explanation, min, max, step
+# key: section, Czech label, unit, (visible summary, tooltip help), min, max, step.
+# The tooltip never repeats the summary: meaning, practical consequence, recommended range.
 OPTIONS = {
     "pv_kwp": (
         "Fotovoltaika",
         "Výkon pole",
         "kWp",
-        "Součet jmenovitých výkonů panelů. Změna upraví předpověď výroby, nikoli skutečný výkon.",
+        (
+            "Součet jmenovitých výkonů všech panelů.",
+            "kWp je výkon panelů za ideálního slunce, najdete ho ve smlouvě nebo na štítcích. "
+            "Mění jen předpověď výroby, skutečný výkon elektrárny zůstává stejný.",
+        ),
         0.01,
         100,
         0.01,
@@ -29,7 +34,11 @@ OPTIONS = {
         "Fotovoltaika",
         "Sklon panelů",
         "°",
-        "Úhel vůči vodorovné ploše. Pro běžnou střechu obvykle 25–45 °; upravuje předpověď.",
+        (
+            "Úhel panelů vůči vodorovné ploše.",
+            "0 ° znamená panely naležato, 90 ° svisle na fasádě. Mění jen předpověď výroby; "
+            "běžná šikmá střecha má 25–45 °.",
+        ),
         0,
         90,
         1,
@@ -39,8 +48,9 @@ OPTIONS = {
         "Orientace panelů",
         "°",
         (
-            "0 ° je jih, −90 ° východ, 90 ° západ a ±180 ° sever. Změna posune průběh "
-            "předpovědi během dne."
+            "Kam panely míří: 0 ° jih, −90 ° východ, 90 ° západ.",
+            "Určuje, kdy během dne předpověď čeká nejvíc výroby: východ dopoledne, západ "
+            "odpoledne. Sever je ±180 °.",
         ),
         -180,
         180,
@@ -50,7 +60,11 @@ OPTIONS = {
         "Fotovoltaika",
         "AC limit střídače",
         "kW",
-        "Jmenovitý střídavý výkon omezuje odhad výroby. Zadejte údaj ze štítku střídače.",
+        (
+            "Nejvyšší výkon, který střídač dodá do domu.",
+            "Při silném slunci se výroba nad tento výkon ořízne a předpověď s tím počítá. "
+            "Zadejte jmenovitý výkon ze štítku střídače.",
+        ),
         0.01,
         1000,
         0.01,
@@ -60,8 +74,9 @@ OPTIONS = {
         "Kapacita baterie",
         "kWh",
         (
-            "Kapacita pro odhad dostupné energie. Zadejte kapacitu podle výrobce; nemění "
-            "nastavení BMS."
+            "Využitelná kapacita baterie.",
+            "Slouží k výpočtu zbývající energie a dopadu změny rezervy v kWh. Nastavení "
+            "baterie se tím nemění; zadejte údaj výrobce.",
         ),
         0.01,
         1000,
@@ -72,15 +87,16 @@ OPTIONS = {
         "Limit přetoku pro předpověď",
         "kW",
         (
-            "Modelový limit pro výpočet předpovědi; fyzický limit střídače se tím nemění. "
-            "Použijte smluvený limit připojení."
+            "Kolik smí předpověď počítat s dodávkou do sítě.",
+            "Přetok je elektřina, kterou dům nespotřebuje a která odteče do sítě. Tento limit "
+            "platí jen pro výpočet předpovědi, střídač neovlivní; použijte smluvený limit.",
         ),
         0.01,
         1000,
         0.01,
     ),
 }
-# Binding rows: key, section, label, fallback unit, plain explanation.
+# Binding rows: key, section, label, fallback unit, (visible summary, tooltip help).
 BINDINGS = [
     (
         "energy_battery_dod_ongrid",
@@ -88,8 +104,9 @@ BINDINGS = [
         "Rezerva v síti",
         "%",
         (
-            "Minimální nabití při provozu se sítí. Vyšší rezerva ponechá více energie pro "
-            "výpadek, ale sníží noční využití baterie. Doporučené rozmezí 10–50 % po 5 %."
+            "Kolik energie baterie vždy podrží při běžném provozu.",
+            "Vyšší rezerva ponechá víc energie pro výpadek, ale v noci z baterie využijete "
+            "méně. Doporučeno 10–50 %.",
         ),
     ),
     (
@@ -98,18 +115,20 @@ BINDINGS = [
         "Rezerva pro výpadek",
         "%",
         (
-            "Minimální nabití v záložním provozu. Vyšší rezerva zkrátí výdrž při výpadku. "
-            "Řiďte se doporučením výrobce baterie."
+            "Kolik energie baterie podrží při výpadku sítě.",
+            "Při výpadku se baterie vybije jen k této hranici. Vyšší rezerva šetří baterii, "
+            "ale zkrátí výdrž domu bez sítě.",
         ),
     ),
     (
         "energy_battery_keep_dod",
         "Baterie",
-        "Udržovat DOD",
+        "Hlídat rezervu",
         "",
         (
-            "Udržování hranice vybití chrání rezervu baterie; může vyžadovat energii ze "
-            "sítě. Doporučení závisí na typu baterie."
+            "Střídač nedovolí baterii klesnout pod rezervu.",
+            "Když baterie klesne pod rezervu, střídač ji dobije i ze sítě. Chrání to baterii "
+            "za cenu malého odběru ze sítě; běžně zapnuto.",
         ),
     ),
     (
@@ -118,8 +137,9 @@ BINDINGS = [
         "Rychlé nabíjení",
         "",
         (
-            "Nucené nabíjení doplní baterii ze sítě. Bezpečnostní automatizace jej vypíná "
-            "ve VT. Obvykle vypnuto mimo potřebu rychlého doplnění."
+            "Nucené nabíjení baterie ze sítě.",
+            "Hodí se před ohlášeným výpadkem nebo při levné elektřině. Ve vysokém tarifu ho "
+            "bezpečnostní automatizace sama vypne; běžně vypnuto.",
         ),
     ),
     (
@@ -128,8 +148,9 @@ BINDINGS = [
         "Výkon rychlého nabíjení",
         "%",
         (
-            "Podíl maximálního nabíjecího výkonu. Vyšší výkon zvýší odběr domu; obvykle "
-            "0–100 % podle výrobce."
+            "Jak rychle se baterie při rychlém nabíjení plní.",
+            "Udává se v procentech nejvyššího nabíjecího výkonu. Vyšší hodnota zvýší odběr "
+            "ze sítě, proto hlídejte hlavní jistič.",
         ),
     ),
     (
@@ -138,8 +159,8 @@ BINDINGS = [
         "Cíl rychlého nabíjení",
         "%",
         (
-            "Po dosažení cílového nabití se rychlé nabíjení ukončí. Obvykle 10–100 % podle "
-            "potřeb zálohy."
+            "Do kolika procent se baterie rychle nabije.",
+            "Po dosažení cíle se rychlé nabíjení samo ukončí. Pro zálohu obvykle stačí 80–100 %.",
         ),
     ),
     (
@@ -148,18 +169,20 @@ BINDINGS = [
         "Výkon ekonomického režimu",
         "%",
         (
-            "Výkon plánovaného nabíjení nebo vybíjení. Ovlivňuje odběr i životnost baterie; "
-            "rozsah určuje výrobce."
+            "Výkon plánovaného nabíjení nebo vybíjení.",
+            "Platí v ekonomickém režimu podle časového plánu. Vyšší výkon zrychlí nabití, "
+            "ale víc zatíží baterii; rozsah určuje výrobce.",
         ),
     ),
     (
         "energy_eco_soc",
         "Baterie",
-        "Cílové nabití ekonomického režimu",
+        "Cíl ekonomického režimu",
         "%",
         (
-            "Hranice nabití pro ekonomický plán. Vyšší cíl ponechá více uložené energie; "
-            "obvykle 10–100 %."
+            "Do kolika procent ekonomický plán nabíjí.",
+            "Vyšší cíl ponechá víc energie na večer, nižší nechá víc místa pro slunce. "
+            "Obvykle 80–100 %.",
         ),
     ),
     (
@@ -168,8 +191,9 @@ BINDINGS = [
         "Řízení dodávky do sítě",
         "",
         (
-            "Zapnuté řízení omezuje přetok podle limitu střídače. Musí odpovídat podmínkám "
-            "distributora."
+            "Zda střídač omezuje přetok do sítě.",
+            "Když je zapnuto, střídač nepustí do sítě víc než limit přetoku střídače. "
+            "Nastavení musí odpovídat podmínkám distributora.",
         ),
     ),
     (
@@ -178,8 +202,9 @@ BINDINGS = [
         "Limit přetoku střídače",
         "W",
         (
-            "Fyzický limit dodávky do distribuční sítě. Vyšší hodnota umožní více prodávat; "
-            "použijte pouze smluvený limit."
+            "Kolik smí střídač skutečně poslat do sítě.",
+            "Přetok je přebytek elektřiny, který odteče do sítě. Vyšší limit umožní víc "
+            "prodat, ale musí odpovídat smlouvě s distributorem.",
         ),
     ),
     (
@@ -188,8 +213,9 @@ BINDINGS = [
         "Hlavní jistič",
         "A",
         (
-            "Jmenovitý proud jedné fáze, například 25 A pro 3×25 A. Mění měřítko fází, "
-            "nikoli fyzický jistič. Obvykle 16–63 A."
+            "Proud jističe na jednu fázi, např. 25 A pro 3×25 A.",
+            "Slouží jako stupnice pro zatížení fází v přehledu, skutečný jistič se tím "
+            "nemění. Domácnosti mají obvykle 16–32 A.",
         ),
     ),
     (
@@ -197,14 +223,22 @@ BINDINGS = [
         "Tarif a ceny",
         "Cena vysokého tarifu",
         "Kč/kWh",
-        "Celková cena odběru ve VT s DPH. Vyšší cena zvýší odhad nákladů; opište aktuální smlouvu.",
+        (
+            "Celková cena 1 kWh ve vysokém tarifu s DPH.",
+            "Podle ní se počítají náklady na odběr ve VT. Opište ji z aktuálního ceníku "
+            "nebo vyúčtování.",
+        ),
     ),
     (
         "energy_tariff_price_nt",
         "Tarif a ceny",
         "Cena nízkého tarifu",
         "Kč/kWh",
-        "Celková cena odběru v NT s DPH. Mění odhad nákladů během nízkého tarifu; opište smlouvu.",
+        (
+            "Celková cena 1 kWh v nízkém tarifu s DPH.",
+            "Podle ní se počítají náklady na odběr v NT. Opište ji z aktuálního ceníku "
+            "nebo vyúčtování.",
+        ),
     ),
     (
         "energy_tariff_fixed_monthly",
@@ -212,8 +246,9 @@ BINDINGS = [
         "Stálé měsíční platby",
         "Kč/měs.",
         (
-            "Součet stálých plateb s DPH. Rozpočítá se do odhadu nákladů; použijte částku z "
-            "vyúčtování."
+            "Platby nezávislé na spotřebě, s DPH.",
+            "Rozpočítají se do odhadu měsíčních nákladů. Použijte součet stálých položek "
+            "z vyúčtování.",
         ),
     ),
     (
@@ -222,8 +257,9 @@ BINDINGS = [
         "Aktuální tarif HDO",
         "",
         (
-            "Zapnuto znamená nízký tarif. Stav určuje cenu pro výpočet nákladů; řídí jej "
-            "distributor, bez doporučeného číselného rozsahu."
+            "Který tarif právě platí.",
+            "HDO je signál distributora, který přepíná nízký a vysoký tarif. Podle něj se "
+            "vybírá cena pro výpočet nákladů.",
         ),
     ),
     (
@@ -232,8 +268,9 @@ BINDINGS = [
         "Další změna tarifu",
         "",
         (
-            "Čas dalšího přepnutí HDO pomáhá naplánovat spotřebu. Hodnotu dodává integrace "
-            "HDO, bez číselného rozsahu."
+            "Kdy se tarif příště přepne.",
+            "Pomáhá naplánovat pračku, myčku nebo ohřev vody do nízkého tarifu. Čas dodává "
+            "integrace HDO.",
         ),
     ),
     (
@@ -242,8 +279,9 @@ BINDINGS = [
         "Přirážka obchodníka",
         "Kč/kWh",
         (
-            "Přirážka ke spotu bez DPH. Vyšší hodnota zvýší srovnávací náklady; použijte "
-            "smlouvu obchodníka."
+            "Přirážka ke spotové ceně bez DPH.",
+            "Použije se jen pro srovnání se spotovým produktem. Hodnotu najdete ve smlouvě "
+            "obchodníka.",
         ),
     ),
     (
@@ -252,8 +290,9 @@ BINDINGS = [
         "Spot: distribuce VT",
         "Kč/kWh",
         (
-            "Distribuce, služby a daň s DPH ve VT. Mění srovnání se spotem; použijte ceník "
-            "distributora."
+            "Distribuce, služby a daň ve VT s DPH.",
+            "Použije se jen pro srovnání se spotovým produktem. Hodnotu najdete v ceníku "
+            "distributora.",
         ),
     ),
     (
@@ -262,8 +301,9 @@ BINDINGS = [
         "Spot: distribuce NT",
         "Kč/kWh",
         (
-            "Distribuce, služby a daň s DPH v NT. Mění srovnání se spotem; použijte ceník "
-            "distributora."
+            "Distribuce, služby a daň v NT s DPH.",
+            "Použije se jen pro srovnání se spotovým produktem. Hodnotu najdete v ceníku "
+            "distributora.",
         ),
     ),
     (
@@ -272,8 +312,9 @@ BINDINGS = [
         "Spot: stálé platby",
         "Kč/měs.",
         (
-            "Stálé měsíční platby spotového produktu s DPH. Mění pouze srovnání; použijte "
-            "ceník obchodníka."
+            "Stálé měsíční platby spotového produktu s DPH.",
+            "Použijí se jen pro srovnání se spotovým produktem. Hodnotu najdete v ceníku "
+            "obchodníka.",
         ),
     ),
     (
@@ -282,18 +323,20 @@ BINDINGS = [
         "Provozní režim",
         "",
         (
-            "Strategie řízení baterie a výroby. Změna může zahájit odběr ze sítě; obvykle "
-            "obecný režim podle výrobce."
+            "Jak střídač hospodaří s baterií a výrobou.",
+            "Jiný režim může například začít nabíjet baterii ze sítě. Běžně stačí obecný "
+            "režim, změny konzultujte s instalatérem.",
         ),
     ),
     (
         "energy_ems_mode",
         "Střídač",
-        "EMS režim",
+        "Řízení toků (EMS)",
         "",
         (
-            "Nadřazené řízení energetických toků. Změna ovlivní chování střídače; "
-            "doporučení je podle instalatéra."
+            "Nadřazené řízení toků energie ve střídači.",
+            "EMS rozhoduje, kdy se baterie nabíjí, vybíjí nebo čeká. Běžně automatický "
+            "režim; jiné nastavení doporučí instalatér.",
         ),
     ),
     (
@@ -302,8 +345,9 @@ BINDINGS = [
         "Pracovní stav",
         "",
         (
-            "Aktuální stav střídače, například normální provoz nebo porucha. Jde o "
-            "diagnostiku, bez doporučeného rozsahu."
+            "Co střídač právě dělá.",
+            "Slouží jen k diagnostice, například normální provoz, čekání nebo porucha. "
+            "Při poruše kontaktujte servis.",
         ),
     ),
 ]
@@ -329,10 +373,26 @@ def finite(value: Any) -> float | None:
         return None
 
 
+LOCATIONS = {
+    "HomeBrain": "v HomeBrainu",
+    "Home Assistant": "v Home Assistantu",
+    "SolarGo": "v aplikaci SolarGo",
+    "Správce": "jen správce v HomeBrainu",
+}
+
+
+def _where(admin: bool, writable: bool, origin: str) -> dict[str, str | None]:
+    """Where a row is changed; editable rows need no note, admin-only rows name the admin."""
+    if admin and writable:
+        return {"source": None, "location": None}
+    source = "Správce" if writable else origin
+    return {"source": source, "location": LOCATIONS[source]}
+
+
 def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
     rows = []
     options = entry.options.get(OPTION_KEY) or {}
-    for key, (section, label, unit, explanation, lo, hi, step) in OPTIONS.items():
+    for key, (section, label, unit, (summary, explanation), lo, hi, step) in OPTIONS.items():
         value = finite(options.get(key))
         assumed = value is None and key in {"pv_tilt", "pv_azimuth"}
         if assumed:
@@ -343,6 +403,7 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                 section=section,
                 label=label,
                 unit=unit,
+                summary=summary,
                 explanation=explanation,
                 value=value,
                 min=lo,
@@ -350,26 +411,28 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                 step=step,
                 editable=admin,
                 assumed=assumed,
-                location="v HomeBrainu (model předpovědi)",
+                **_where(admin, True, "HomeBrain"),
             )
         )
     rows.append(
         dict(
             key="performance_ratio",
             section="Fotovoltaika",
-            label="Účinnost modelu",
+            label="Účinnost systému",
             unit="%",
             value=DEFAULT_PERFORMANCE_RATIO * 100,
             editable=False,
+            summary="Podíl výroby, který zbude po ztrátách.",
             explanation=(
-                "Konstantní performance ratio zahrnuje ztráty kabeláže, střídače a panelů. "
-                "Obvyklý odhad 80–90 %; upravuje odhad výroby."
+                "Zahrnuje ztráty v kabelech, ve střídači a zahříváním panelů. Předpověď jí "
+                "násobí teoretickou výrobu; běžné systémy mají 80–90 %."
             ),
-            location="v Home Assistantu aktualizací integrace",
+            source="Home Assistant",
+            location="v Home Assistantu aktualizací integrace HomeBrain",
         )
     )
     bindings = get_bindings(entry).get("energy", {})
-    for key, section, label, unit, explanation in BINDINGS:
+    for key, section, label, unit, (summary, explanation) in BINDINGS:
         entity_id = bindings.get(key)
         state = hass.states.get(entity_id) if entity_id else None
         attrs = state.attributes if state else {}
@@ -385,7 +448,7 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
         if reserve:
             value = 100 - numeric if numeric is not None else None
             if numeric is not None:
-                explanation += f" Surové Maximum vybití (DoD): {numeric:g} %. Rezerva = 100 − DoD."
+                explanation += f" Ve střídači se jmenuje Maximum vybití {numeric:g} %."
         lo, hi, step = (finite(attrs.get(k)) for k in ("min", "max", "step"))
         writable = bool(
             numeric is not None
@@ -405,6 +468,7 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                 section=section,
                 label=label,
                 unit=attrs.get("unit_of_measurement") or unit,
+                summary=summary,
                 explanation=explanation,
                 value=value,
                 min=10
@@ -415,9 +479,13 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                 else (100 - lo if reserve and lo is not None else hi),
                 step=5 if key == "energy_battery_dod_ongrid" else step,
                 editable=admin and writable,
-                location="v Home Assistantu"
-                if key in HELPERS or key.startswith("energy_tariff_")
-                else "v aplikaci SolarGo",
+                **_where(
+                    admin,
+                    writable,
+                    "Home Assistant"
+                    if key in HELPERS or key.startswith("energy_tariff_")
+                    else "SolarGo",
+                ),
                 binding=key,
                 connected=bool(state),
                 **{"raw_min": lo, "raw_max": hi, "raw_step": step},

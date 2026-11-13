@@ -42,7 +42,8 @@ async def test_get_reserve_defaults_and_unbound(hass, setup, hass_ws_client):
     rows = {r["key"]: r for r in result["result"]["rows"]}
     assert rows["energy_battery_dod_ongrid"]["value"] == 10
     assert rows["energy_battery_dod_ongrid"]["editable"]
-    assert "90 %" in rows["energy_battery_dod_ongrid"]["explanation"]
+    assert "Maximum vybití 90 %" in rows["energy_battery_dod_ongrid"]["explanation"]
+    assert "DoD" not in rows["energy_battery_dod_ongrid"]["explanation"]
     assert rows["pv_tilt"]["value"] == 35 and rows["pv_tilt"]["assumed"]
     assert rows["energy_fast_charge"]["value"] is None
     assert not rows["energy_fast_charge"]["editable"]
@@ -108,7 +109,19 @@ async def test_adult_reads_but_cannot_edit(hass, setup, hass_ws_client, hass_adm
     )
     result = await request(await hass_ws_client(hass))
     assert result["success"]
-    assert not any(r["editable"] for r in result["result"]["rows"])
+    rows = {r["key"]: r for r in result["result"]["rows"]}
+    assert not any(r["editable"] for r in rows.values())
+    # Rows the admin can change here never point adults to the original app.
+    assert rows["energy_battery_dod_ongrid"]["source"] == "Správce"
+    assert rows["pv_tilt"]["source"] == "Správce"
+    assert rows["energy_fast_charge"]["source"] == "SolarGo"
+
+
+async def test_where_changed_only_for_read_only_rows(hass, setup, hass_ws_client):
+    result = await request(await hass_ws_client(hass))
+    for row in result["result"]["rows"]:
+        assert row["summary"] and row["summary"] not in row["explanation"]
+        assert (row["location"] is None) == row["editable"], row["key"]
 
 
 async def test_wrong_domain_read_only(hass, setup, hass_ws_client):

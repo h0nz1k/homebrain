@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  Icon,
+  iconNames,
   InfoTip,
   Breakdown,
   Button,
@@ -76,8 +78,25 @@ const specs: Spec[] = [
     notes: 'Escape zavírá, tlačítko je dostupné klávesnicí.',
     render: () => (
       <InfoTip label="Rezerva baterie">
-        Vyšší rezerva ponechá více energie pro výpadek. Obvykle 10–50 %.
+        Vyšší rezerva ponechá víc energie pro výpadek. Doporučeno 10–50&nbsp;%.
       </InfoTip>
+    ),
+  },
+  {
+    id: 'icon',
+    name: 'Icon',
+    summary: 'Sdílené linkové ikony (24 px, currentColor) pro sekce, stavy a akce.',
+    importName: 'Icon',
+    states: iconNames,
+    doText: 'Doplňte ikonou nadpis sekce nebo stav (zámek u hodnot jen pro čtení).',
+    dontText: 'Nekreslete v modulu vlastní kopii téže ikony.',
+    notes: 'Bez `label` je dekorativní (aria-hidden); s `label` má roli img.',
+    render: () => (
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {iconNames.map((name) => (
+          <Icon key={name} name={name} label={name} />
+        ))}
+      </div>
     ),
   },
   {

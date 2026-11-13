@@ -660,31 +660,49 @@ export const energyStyles = `
 .en-bar-day[data-progress] .en-bar-pair span:last-child{border-color:var(--hb-energy-home);background:color-mix(in srgb,var(--hb-energy-home) 10%,var(--hb-s1))!important}
 
 .en-tabs{margin:0 0 24px;display:flex}
-.en-settings{gap:24px;max-width:1120px;margin:0 auto}
-.en-settings-heading{padding:16px 0 4px}
-.en-settings-eyebrow{font-size:11px;letter-spacing:.14em;color:var(--hb-ac);font-weight:600}
-.en-settings-heading h1{font-size:32px;font-weight:500;letter-spacing:-.04em;margin:12px 0}
+.en-settings{gap:24px;max-width:1400px}
+.en-settings-heading{padding:4px 0 0}
+.en-settings-eyebrow{font-size:12px;letter-spacing:.08em;color:var(--hb-t2);font-weight:600;text-transform:uppercase}
+.en-settings-heading h1{font-size:32px;font-weight:500;letter-spacing:-.03em;margin:8px 0}
 .en-settings-heading p{color:var(--hb-t2);font-size:15px;line-height:1.6;margin:0}
-.en-settings-note{font-size:13px;line-height:1.6;padding:16px 20px;background:var(--hb-ac-s);border-radius:16px;color:var(--hb-t2)}
+.en-settings-note{font-size:14px;line-height:1.6;padding:14px 18px;background:var(--hb-ac-s);border-radius:16px;color:var(--hb-t1)}
 .en-settings-grid{columns:2;column-gap:24px}
-.en-settings-section{padding:24px;gap:0;border-radius:24px;break-inside:avoid;margin-bottom:24px}
-.en-settings-section>header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.en-settings-section h2{font-size:20px;font-weight:500;letter-spacing:-.03em;margin:0}
-.en-section-number{color:var(--hb-ac);font-size:12px;background:var(--hb-ac-s);padding:8px;border-radius:10px}
-.en-setting{padding:20px 0;border-bottom:1px solid var(--hb-b1);display:flex;flex-wrap:wrap;align-items:start;gap:10px;min-width:0}
+.en-settings-section{padding:24px;gap:0;border-radius:24px;break-inside:avoid;margin-bottom:24px;container-type:inline-size}
+.en-settings-section>header{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.en-settings-section h2{font-size:20px;font-weight:500;letter-spacing:-.02em;margin:0}
+.en-section-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;color:var(--hb-ac);background:var(--hb-ac-s)}
+.en-forecast{margin:16px 0 4px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,var(--hb-ac-s),transparent 85%),var(--hb-s2)}
+.en-forecast .hb-stat{display:flex;flex-direction:column;gap:2px}
+.en-forecast .hb-stat span{font-size:13px;color:var(--hb-t2)}
+.en-forecast .hb-stat strong{font-size:32px;font-weight:500;letter-spacing:-.02em;color:var(--hb-t1);line-height:1.2}
+.en-forecast p{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--hb-t2)}
+/* Row: copy | value | (i) | action. Fixed (i) and action columns keep values on one edge. */
+.en-setting{display:grid;grid-template-columns:minmax(0,1fr) auto 36px 112px;align-items:center;column-gap:8px;padding:18px 0;border-bottom:1px solid var(--hb-b1);min-width:0}
 .en-setting:last-child{border-bottom:0;padding-bottom:0}
-.en-setting-copy{flex:1 1 200px;min-width:0}
-.en-setting h3{font-size:14px;font-weight:500;margin:0 0 6px}
-.en-setting p,.en-setting small{display:block;font-size:12px;line-height:1.6;color:var(--hb-t2);margin:0}
-.en-setting small{font-size:11px;color:var(--hb-t3);margin-top:6px}
-.en-setting code{overflow-wrap:anywhere;font-size:10px}
-.en-setting-value{display:flex;gap:4px;align-items:center;max-width:100%;font-size:15px}
-.en-setting-value strong{font-weight:500;overflow-wrap:anywhere}
-.en-setting[data-muted] .en-setting-value{color:var(--hb-t3)}
-.en-setting-action{display:flex;margin-left:auto;justify-content:flex-end}.en-setting-action .hb-btn{min-height:36px}
-.en-setting-editor{display:flex;align-items:center;justify-content:flex-end;gap:8px;width:100%;font-size:12px;color:var(--hb-t2)}
-.en-setting-editor input{width:94px;min-height:40px;border:1px solid var(--hb-b2);border-radius:10px;padding:8px 10px;background:var(--hb-s2);color:var(--hb-t1);font:inherit;font-size:14px}
-.en-estimate{display:inline-block;font-size:10px;color:var(--hb-warn);background:var(--hb-warn-s);padding:3px 6px;border-radius:6px}
-.en-forecast-hint{color:var(--hb-ok);font-size:12px;line-height:1.6}
+.en-setting-copy{min-width:0;padding-right:8px}
+.en-setting h3{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;margin:0 0 4px}
+.en-setting p,.en-setting small{display:block;font-size:13px;line-height:1.5;color:var(--hb-t2);margin:0}
+.en-setting small{margin-top:4px}
+.en-setting code{overflow-wrap:anywhere;font-size:12px}
+.en-setting-hint{grid-column:1/-1;margin-top:10px!important;padding:8px 10px;border-radius:10px;background:var(--hb-s2);border-left:3px solid var(--hb-ac);color:var(--hb-t2)}
+.en-setting-value{justify-self:end;text-align:right;font-size:16px;font-weight:500;white-space:nowrap}
+.en-setting[data-muted] .en-setting-value{color:var(--hb-t3);font-weight:400}
+.en-setting-action{display:flex;justify-content:flex-end;min-width:0}
+.en-edit.hb-btn{color:var(--hb-ac);gap:2px;padding-inline:10px 4px;margin-right:-4px}
+.en-edit.hb-btn:hover:not(:disabled){color:var(--hb-ac);background:var(--hb-ac-s)}
+.en-source.hb-pill{color:var(--hb-t2);background:var(--hb-fill-strong,var(--hb-s2));font-weight:500;font-size:12px;padding:3px 8px 3px 6px}
+.en-estimate.hb-pill{font-size:12px}
+.en-tip-where{display:block;margin-top:8px;padding-top:8px;border-top:1px solid var(--hb-b1);color:var(--hb-t2);font-size:13px}
+.en-setting-editor{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;font-size:13px;color:var(--hb-t2)}
+.en-setting-editor input{width:104px;min-height:40px;border:1px solid var(--hb-b2);border-radius:10px;padding:8px 10px;background:var(--hb-s2);color:var(--hb-t1);font:inherit;font-size:15px}
+.en-setting-range{margin-right:auto;order:-1;color:var(--hb-t2)}
+.en-confirm-change{display:flex;align-items:center;gap:10px;font-size:22px;margin:4px 0 12px}
+.en-confirm-change span{color:var(--hb-t2)}
+.en-confirm-change strong{font-weight:600;color:var(--hb-ac)}
+@container (max-width:440px){
+.en-setting{grid-template-columns:auto 36px minmax(0,1fr);row-gap:6px}
+.en-setting-copy{grid-column:1/-1;padding-right:0}
+.en-setting-value{justify-self:start;text-align:left}
+}
 @media(max-width:900px){.en-settings-grid{columns:1}.en-settings-section{padding:20px}.en-settings-heading h1{font-size:28px}}
 `;

@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { ConnectionLike } from '@homebrain/ha-client';
-import { Button, ConfirmDialog, ErrorState, InfoTip, Skeleton } from '@homebrain/ui';
+import {
+  Button,
+  ConfirmDialog,
+  ErrorState,
+  Icon,
+  InfoTip,
+  Pill,
+  Skeleton,
+  Stat,
+  formatQuantity,
+  nbspUnits,
+  type IconName,
+} from '@homebrain/ui';
 import {
   getEnergySettings,
   setEnergySetting,
@@ -10,9 +22,13 @@ import {
 import { inverterStatusChip } from '../adapter.js';
 import { fetchPvForecast, type PvForecast } from '../pvForecast.js';
 
-const sections = ['Fotovoltaika', 'Baterie', 'Síť', 'Tarif a ceny', 'Střídač'];
-const number = (v: number) =>
-  new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 2 }).format(v);
+const sections: [string, IconName][] = [
+  ['Fotovoltaika', 'sun'],
+  ['Baterie', 'battery'],
+  ['Síť', 'grid'],
+  ['Tarif a ceny', 'tariff'],
+  ['Střídač', 'inverter'],
+];
 function display(row: EnergySetting) {
   if (row.value === null) return row.binding ? 'nepřipojeno' : 'nenastaveno';
   if (row.key === 'energy_inverter_status') return inverterStatusChip(String(row.value)).label;
@@ -53,54 +69,89 @@ function display(row: EnergySetting) {
       'východ',
       'jihovýchod',
     ][((Math.round(v / 45) % 8) + 8) % 8];
-    return `${number(v)} ° · ${direction}`;
+    return `${formatQuantity(v, '°')} · ${direction}`;
   }
   if (row.value === 'on') return row.key === 'energy_tariff_hdo' ? 'Nízký tarif' : 'Zapnuto';
   if (row.value === 'off') return row.key === 'energy_tariff_hdo' ? 'Vysoký tarif' : 'Vypnuto';
   const numeric = Number(row.value);
-  return `${Number.isFinite(numeric) ? number(numeric) : row.value} ${row.unit}`;
+  return Number.isFinite(numeric)
+    ? formatQuantity(numeric, row.unit)
+    : nbspUnits(`${row.value} ${row.unit}`.trim());
+}
+/** Watts the inverter really lets out vs. the forecast model limit; null when comparable. */
+function exportLimitHint(rows: EnergySetting[]) {
+  const inverter = Number(rows.find((r) => r.key === 'energy_export_limit')?.value);
+  const model = Number(rows.find((r) => r.key === 'export_limit_kw')?.value) * 1000;
+  if (!Number.isFinite(inverter) || !(model > 0)) return null;
+  if (inverter >= model / 10 && inverter <= model * 10) return null;
+  return nbspUnits(
+    `Střídač pustí do sítě nejvýš ${formatQuantity(inverter, 'W')}, předpověď počítá ` +
+      `s ${formatQuantity(model / 1000, 'kW')}. Velmi nízký limit ve střídači bývá záměrný ` +
+      '(dodávka do sítě není sjednaná). Pokud ano, nastavte stejný limit i pro předpověď.',
+  );
 }
 function SettingRow({
   row,
+  hint,
   onEdit,
 }: {
   row: EnergySetting;
+  hint?: string | null;
   onEdit: (row: EnergySetting, value: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(row.value ?? ''));
+  const where = !row.editable && row.location ? `Mění se ${row.location}.` : null;
   return (
     <div className="en-setting" data-muted={row.value === null || undefined}>
       <div className="en-setting-copy">
         <h3>
-          {row.label} {row.assumed && <span className="en-estimate">odhad</span>}
+          {row.label}
+          {row.assumed && (
+            <Pill tone="warn" size="sm" className="en-estimate">
+              odhad
+            </Pill>
+          )}
         </h3>
-        <p>{row.explanation.split('. ')[0]}.</p>
+        <p>{nbspUnits(row.summary)}</p>
         {row.value === null && row.binding && (
           <small>
             Nastavte vazbu <code>{row.binding}</code> v integraci HomeBrain.
           </small>
         )}
-        {!row.editable && <small>Mění se {row.location}.</small>}
       </div>
-      <div className="en-setting-value">
-        <strong>{display(row)}</strong>
-        <InfoTip label={row.label}>
-          {row.explanation}{' '}
-          {row.min != null && row.max != null && (
-            <>
-              {' '}
-              Povolený rozsah {row.min}–{row.max} {row.unit}, krok {row.step}.
-            </>
-          )}{' '}
-          Mění se {row.location}.
-        </InfoTip>
+      <strong className="en-setting-value">{display(row)}</strong>
+      <InfoTip label={row.label}>
+        {nbspUnits(row.explanation)}
+        {where && <span className="en-tip-where">{where}</span>}
+      </InfoTip>
+      <div className="en-setting-action">
+        {row.editable
+          ? !editing && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="en-edit"
+                aria-label={`Upravit: ${row.label}`}
+                onClick={() => setEditing(true)}
+              >
+                Upravit
+                <Icon name="chevron" size={16} />
+              </Button>
+            )
+          : row.source && (
+              <Pill
+                size="sm"
+                icon={<Icon name="lock" size={14} />}
+                className="en-source"
+                title={where ?? undefined}
+                aria-label={where ?? undefined}
+              >
+                {row.source}
+              </Pill>
+            )}
       </div>
-      {row.editable && !editing && (
-        <div className="en-setting-action">
-          <Button onClick={() => setEditing(true)}>Upravit</Button>
-        </div>
-      )}
+      {hint && <p className="en-setting-hint">{hint}</p>}
       {row.editable && editing && (
         <form
           className="en-setting-editor"
@@ -120,10 +171,24 @@ function SettingRow({
               step={row.step ?? undefined}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              autoFocus
             />
           </label>
           <span>{row.unit}</span>
-          <Button type="submit" disabled={draft === '' || Number(draft) === Number(row.value)}>
+          {row.min != null && row.max != null && (
+            <span className="en-setting-range">
+              {formatQuantity(row.min)}–{formatQuantity(row.max, row.unit)}
+            </span>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+            Zrušit
+          </Button>
+          <Button
+            type="submit"
+            size="sm"
+            variant="primary"
+            disabled={draft === '' || Number(draft) === Number(row.value)}
+          >
             Pokračovat
           </Button>
         </form>
@@ -160,6 +225,7 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
   );
   const tomorrowKwh = pv?.days[tomorrowKey];
   const capacity = Number(data?.rows.find((r) => r.key === 'battery_capacity_kwh')?.value);
+  const exportHint = data ? exportLimitHint(data.rows) : null;
   const delta = pending ? pending.value - Number(pending.row.value) : 0;
   return (
     <div className="en-root en-settings">
@@ -179,16 +245,24 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
             povoleném rozsahu.
           </div>
           <div className="en-settings-grid">
-            {sections.map((section, index) => (
+            {sections.map(([section, icon]) => (
               <section className="en-card en-settings-section" key={section}>
                 <header>
-                  <span className="en-section-number">0{index + 1}</span>
+                  <span className="en-section-icon">
+                    <Icon name={icon} size={20} />
+                  </span>
                   <h2>{section}</h2>
                 </header>
                 {section === 'Fotovoltaika' && tomorrowKwh !== undefined && (
-                  <p className="en-forecast-hint">
-                    Zítra přibližně {number(tomorrowKwh)} kWh · kontrola nastavení podle předpovědi
-                  </p>
+                  <div className="en-forecast">
+                    <Stat
+                      label="Zítřejší předpověď výroby"
+                      value={formatQuantity(tomorrowKwh, 'kWh')}
+                    />
+                    <p>
+                      Když se výrazně liší od skutečnosti, zkontrolujte výkon a orientaci panelů.
+                    </p>
+                  </div>
                 )}
                 {data.rows
                   .filter((row) => row.section === section)
@@ -196,6 +270,7 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
                     <SettingRow
                       key={`${row.key}:${row.value}`}
                       row={row}
+                      hint={row.key === 'energy_export_limit' ? exportHint : null}
                       onEdit={(r, value) => setPending({ row: r, value })}
                     />
                   ))}
@@ -213,18 +288,20 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
             setData(await setEnergySetting(connection, pending.row.key, pending.value));
           }}
         >
-          <p>
-            {display(pending.row)} → {number(pending.value)} {pending.row.unit}
+          <p className="en-confirm-change">
+            <span>{display(pending.row)}</span>
+            <Icon name="chevron" size={18} />
+            <strong>{formatQuantity(pending.value, pending.row.unit)}</strong>
           </p>
           {pending.row.key === 'energy_battery_dod_ongrid' ? (
             <p>
               {capacity > 0
-                ? `V noci se z baterie odebere přibližně o ${number((Math.abs(delta) * capacity) / 100)} kWh ${delta > 0 ? 'míň' : 'víc'}.`
+                ? `V noci se z baterie odebere přibližně o ${formatQuantity((Math.abs(delta) * capacity) / 100, 'kWh')} ${delta > 0 ? 'míň' : 'víc'}.`
                 : 'Kapacita není nastavena; změnu dostupné energie v kWh nelze určit.'}{' '}
               Vyšší rezerva ponechá více energie pro výpadek.
             </p>
           ) : (
-            <p>{pending.row.explanation}</p>
+            <p>{nbspUnits(pending.row.explanation)}</p>
           )}
         </ConfirmDialog>
       )}

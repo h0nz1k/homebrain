@@ -4,6 +4,9 @@ export interface EnergySetting {
   section: string;
   label: string;
   unit: string;
+  /** Visible one-line subtitle. */
+  summary: string;
+  /** Tooltip: meaning, practical consequence, recommended range (never repeats `summary`). */
   explanation: string;
   value: string | number | null;
   editable: boolean;
@@ -13,7 +16,9 @@ export interface EnergySetting {
   max?: number | null;
   step?: number | null;
   binding?: string;
-  location: string;
+  /** Read-only rows: where the value is changed (chip text and sentence). */
+  source?: string | null;
+  location?: string | null;
 }
 export interface EnergySettings {
   rows: EnergySetting[];

@@ -794,10 +794,11 @@ demoHass.connection = createMockConnection({
     return { context: { id: 'demo' } };
   },
   'homebrain/energy/settings/get': () => ({
-    rows: settingsDemo.rows.map((row) => ({
-      ...row,
-      editable: row.editable && new URLSearchParams(location.search).get('role') !== 'adult',
-    })),
+    rows: settingsDemo.rows.map((row) =>
+      row.editable && new URLSearchParams(location.search).get('role') === 'adult'
+        ? { ...row, editable: false, source: 'Správce', location: 'jen správce v HomeBrainu' }
+        : row,
+    ),
   }),
   'homebrain/energy/settings/set': (message: { key: string; value: number }) => {
     const row = settingsDemo.rows.find((item) => item.key === message.key);

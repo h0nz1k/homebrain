@@ -13,7 +13,7 @@ for (const theme of ['dark', 'light']) {
     });
     const help = page.getByRole('button', { name: 'Nápověda: Rezerva v síti' });
     await help.click();
-    await expect(page.getByRole('tooltip')).toContainText('DoD');
+    await expect(page.getByRole('tooltip')).toContainText(/Maximum vybití 90\s%/);
     const bounds = await page.getByRole('tooltip').boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
@@ -36,7 +36,7 @@ for (const theme of ['dark', 'light']) {
       .locator('xpath=ancestor::form')
       .getByRole('button', { name: 'Pokračovat' })
       .click();
-    await expect(page.getByRole('alertdialog')).toContainText('1,2 kWh míň');
+    await expect(page.getByRole('alertdialog')).toContainText(/1,2\skWh míň/);
     await page.screenshot({ path: testInfo.outputPath(`settings-${theme}-confirm.png`) });
     await testInfo.attach(`settings-${theme}-confirm`, {
       path: testInfo.outputPath(`settings-${theme}-confirm.png`),
@@ -44,7 +44,7 @@ for (const theme of ['dark', 'light']) {
     });
     await page.getByRole('button', { name: 'Potvrdit změnu' }).click();
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
-    await expect(reserveRow.locator('.en-setting-value')).toContainText('20 %');
+    await expect(reserveRow.locator('.en-setting-value')).toContainText(/20\s%/);
     expect(await page.locator('html').evaluate((el) => el.scrollWidth)).toBeLessThanOrEqual(
       page.viewportSize()!.width,
     );
