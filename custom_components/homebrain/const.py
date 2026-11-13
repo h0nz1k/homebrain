@@ -45,7 +45,6 @@ ENERGY_BINDING_KEYS = (
     "energy_export_limit",
     "energy_inverter_mode",
     "energy_ems_mode",
-
     "energy_pv_power",
     "energy_pv1_power",
     "energy_pv2_power",
@@ -199,7 +198,6 @@ BINDING_DOMAINS: dict[str, str | tuple[str, ...]] = {
     "energy_export_limit": "number",
     "energy_inverter_mode": "select",
     "energy_ems_mode": "select",
-
     **{key: ("binary_sensor", "sensor") for key in HEALTH_BINARY_BINDING_KEYS},
     "waste_calendar": "calendar",
     "family_calendar_family": "calendar",

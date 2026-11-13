@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { EnergySettingsView } from './EnergySettingsView';
 import { settingsDemo } from '../settingsDemo';
@@ -13,6 +13,13 @@ it('renders all sections, explains settings and confirms reserve before sending'
     expect(await screen.findByRole('heading', { name })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Nápověda: Rezerva v síti' }));
   expect(screen.getByRole('tooltip').textContent).toContain('DoD');
+  fireEvent.click(
+    within(
+      screen
+        .getByRole('heading', { name: 'Rezerva v síti' })
+        .closest('.en-setting')! as HTMLElement,
+    ).getByRole('button', { name: 'Upravit' }),
+  );
   const input = screen.getByRole('spinbutton', { name: 'Rezerva v síti: nová hodnota' });
   fireEvent.change(input, { target: { value: '20' } });
   fireEvent.submit(input.closest('form')!);

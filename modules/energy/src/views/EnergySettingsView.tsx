@@ -67,6 +67,7 @@ function SettingRow({
   row: EnergySetting;
   onEdit: (row: EnergySetting, value: number) => void;
 }) {
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(row.value ?? ''));
   return (
     <div className="en-setting" data-muted={row.value === null || undefined}>
@@ -95,7 +96,12 @@ function SettingRow({
           Mění se {row.location}.
         </InfoTip>
       </div>
-      {row.editable && (
+      {row.editable && !editing && (
+        <div className="en-setting-action">
+          <Button onClick={() => setEditing(true)}>Upravit</Button>
+        </div>
+      )}
+      {row.editable && editing && (
         <form
           className="en-setting-editor"
           onSubmit={(e) => {
@@ -118,7 +124,7 @@ function SettingRow({
           </label>
           <span>{row.unit}</span>
           <Button type="submit" disabled={draft === '' || Number(draft) === Number(row.value)}>
-            Upravit
+            Pokračovat
           </Button>
         </form>
       )}

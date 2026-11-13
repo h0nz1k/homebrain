@@ -122,3 +122,35 @@ async def test_wrong_domain_read_only(hass, setup, hass_ws_client):
     hass.states.async_set("number.demo_breaker", 25, {"min": 0, "max": 63, "step": 1})
     result = await request(await hass_ws_client(hass), "set", key="energy_main_breaker", value=30)
     assert result["error"]["code"] == "not_allowed"
+
+
+async def test_hdo_next_change_attribute_fallback(hass, setup, hass_ws_client):
+    hass.config_entries.async_update_entry(
+        setup,
+        options={
+            **setup.options,
+            "bindings": {"energy": {"energy_tariff_hdo": "binary_sensor.demo_hdo"}},
+        },
+    )
+    hass.states.async_set(
+        "binary_sensor.demo_hdo", "on", {"next_change": "2026-11-14T18:00:00+01:00"}
+    )
+    result = await request(await hass_ws_client(hass))
+    row = next(r for r in result["result"]["rows"] if r["key"] == "energy_tariff_next_change")
+    assert row["value"] == "2026-11-14T18:00:00+01:00"
+    assert not row["editable"]
+
+
+@pytest.mark.parametrize("value", ["unavailable", "unknown", "nan", "bad"])
+async def test_invalid_helper_never_writable(hass, setup, hass_ws_client, value):
+    hass.states.async_set("input_number.demo_vt", value, {"min": 0, "max": 20, "step": 0.1})
+    result = await request(await hass_ws_client(hass), "set", key="energy_tariff_price_vt", value=6)
+    assert result["error"]["code"] == "not_allowed"
+
+
+async def test_reserve_respects_inverter_limits(hass, setup, hass_ws_client):
+    hass.states.async_set("number.demo_dod", "90", {"min": 85, "max": 95, "step": 5})
+    result = await request(
+        await hass_ws_client(hass), "set", key="energy_battery_dod_ongrid", value=20
+    )
+    assert result["error"]["code"] == "invalid_value"

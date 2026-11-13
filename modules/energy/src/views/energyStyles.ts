@@ -666,8 +666,8 @@ export const energyStyles = `
 .en-settings-heading h1{font-size:32px;font-weight:500;letter-spacing:-.04em;margin:12px 0}
 .en-settings-heading p{color:var(--hb-t2);font-size:15px;line-height:1.6;margin:0}
 .en-settings-note{font-size:13px;line-height:1.6;padding:16px 20px;background:var(--hb-ac-s);border-radius:16px;color:var(--hb-t2)}
-.en-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}
-.en-settings-section{padding:24px;gap:0;border-radius:24px}
+.en-settings-grid{columns:2;column-gap:24px}
+.en-settings-section{padding:24px;gap:0;border-radius:24px;break-inside:avoid;margin-bottom:24px}
 .en-settings-section>header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
 .en-settings-section h2{font-size:20px;font-weight:500;letter-spacing:-.03em;margin:0}
 .en-section-number{color:var(--hb-ac);font-size:12px;background:var(--hb-ac-s);padding:8px;border-radius:10px}
@@ -681,9 +681,10 @@ export const energyStyles = `
 .en-setting-value{display:flex;gap:4px;align-items:center;max-width:100%;font-size:15px}
 .en-setting-value strong{font-weight:500;overflow-wrap:anywhere}
 .en-setting[data-muted] .en-setting-value{color:var(--hb-t3)}
+.en-setting-action{display:flex;margin-left:auto;justify-content:flex-end}.en-setting-action .hb-btn{min-height:36px}
 .en-setting-editor{display:flex;align-items:center;justify-content:flex-end;gap:8px;width:100%;font-size:12px;color:var(--hb-t2)}
 .en-setting-editor input{width:94px;min-height:40px;border:1px solid var(--hb-b2);border-radius:10px;padding:8px 10px;background:var(--hb-s2);color:var(--hb-t1);font:inherit;font-size:14px}
 .en-estimate{display:inline-block;font-size:10px;color:var(--hb-warn);background:var(--hb-warn-s);padding:3px 6px;border-radius:6px}
 .en-forecast-hint{color:var(--hb-ok);font-size:12px;line-height:1.6}
-@media(max-width:900px){.en-settings-grid{grid-template-columns:1fr}.en-settings-section{padding:20px}.en-settings-heading h1{font-size:28px}}
+@media(max-width:900px){.en-settings-grid{columns:1}.en-settings-section{padding:20px}.en-settings-heading h1{font-size:28px}}
 `;
