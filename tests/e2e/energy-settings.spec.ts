@@ -56,7 +56,9 @@ for (const theme of ['dark', 'light']) {
     await expect(sheet.getByRole('spinbutton')).toHaveValue('20');
     await shot(page, testInfo, `${theme}-edit-sheet`);
     await sheet.getByRole('button', { name: 'Pokračovat' }).click();
-    const confirm = page.getByRole('dialog', { name: /Změnit rezervu baterie z 10\s% na 20\s%\?/ });
+    const confirm = page.getByRole('dialog', {
+      name: /Změnit rezervu baterie z\s10\s% na 20\s%\?/,
+    });
     await expect(confirm).toContainText(/1,2\skWh míň/);
     await expect(confirm).toContainText('uloží do střídače');
     await shot(page, testInfo, `${theme}-confirm`);
@@ -74,7 +76,7 @@ test('dospělý může nastavení pouze číst', async ({ page }) => {
   await page.goto('/homebrain-energie?role=adult');
   await page.getByRole('radio', { name: 'Nastavení', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Baterie', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Použít .* i pro předpověď/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Použít .* i\spro předpověď/ })).toHaveCount(0);
   await page.getByRole('button', { name: /^Rezerva v síti: .*jen pro čtení$/ }).click();
   const sheet = page.getByRole('dialog', { name: 'Rezerva v síti' });
   await expect(sheet).toContainText('Mění jen správce v HomeBrainu.');

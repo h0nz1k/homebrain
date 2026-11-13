@@ -27,7 +27,9 @@ it('opens the reserve in a sheet and confirms the inverter write before sending'
     within(sheet).getByRole('button', { name: 'Zvýšit: Rezerva v síti: nová hodnota' }),
   );
   fireEvent.click(within(sheet).getByRole('button', { name: 'Pokračovat' }));
-  const confirm = screen.getByRole('dialog', { name: /Změnit rezervu baterie z 10\s% na 20\s%\?/ });
+  const confirm = screen.getByRole('dialog', {
+    name: /Změnit rezervu baterie z\s10\s% na 20\s%\?/,
+  });
   expect(confirm.textContent).toMatch(/1,2\skWh míň/);
   expect(confirm.textContent).toMatch(/uloží do střídače/);
   expect(send.mock.calls.some(([m]) => m.type.endsWith('/set'))).toBe(false);
@@ -68,9 +70,9 @@ it('keeps every row read-only for adults and says where it changes', async () =>
 it('warns about a very different inverter export limit and offers to align the forecast', async () => {
   const send = connect();
   const note = await screen.findByRole('note');
-  expect(note.textContent).toMatch(/nejvýš 80\sW, předpověď ale počítá s 5\skW/);
-  fireEvent.click(within(note).getByRole('button', { name: /Použít 0,08\skW i pro předpověď/ }));
-  const confirm = screen.getByRole('dialog', { name: /Použít 0,08\skW i pro předpověď\?/ });
+  expect(note.textContent).toMatch(/nejvýš 80\sW, předpověď ale počítá s\s5\skW/);
+  fireEvent.click(within(note).getByRole('button', { name: /Použít 0,08\skW i\spro předpověď/ }));
+  const confirm = screen.getByRole('dialog', { name: /Použít 0,08\skW i\spro předpověď\?/ });
   fireEvent.click(within(confirm).getByRole('button', { name: 'Potvrdit změnu' }));
   await waitFor(() =>
     expect(send).toHaveBeenCalledWith({
