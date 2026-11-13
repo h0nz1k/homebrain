@@ -15,21 +15,20 @@ it('opens the reserve in a sheet and confirms the inverter write before sending'
   const send = connect();
   for (const name of ['Fotovoltaika', 'Baterie', 'Síť', 'Tarif a ceny', 'Střídač'])
     expect(await screen.findByRole('heading', { name })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: /^Rezerva v síti: 10\s%$/ }));
-  const sheet = screen.getByRole('dialog', { name: 'Rezerva v síti' });
+  fireEvent.click(screen.getByRole('button', { name: /^Rezerva při běžném provozu: 10\s%$/ }));
+  const sheet = screen.getByRole('dialog', { name: 'Rezerva při běžném provozu' });
   expect(sheet.textContent).toMatch(/„Maximum vybití“ = 100\s% − rezerva \(teď 90\s%\)/);
   // Editable rows never send the user to the original app.
   expect(sheet.textContent).not.toContain('SolarGo');
   fireEvent.click(
-    within(sheet).getByRole('button', { name: 'Zvýšit: Rezerva v síti: nová hodnota' }),
+    within(sheet).getByRole('button', { name: 'Zvýšit: Rezerva při běžném provozu: nová hodnota' }),
   );
   fireEvent.click(
-    within(sheet).getByRole('button', { name: 'Zvýšit: Rezerva v síti: nová hodnota' }),
+    within(sheet).getByRole('button', { name: 'Zvýšit: Rezerva při běžném provozu: nová hodnota' }),
   );
   fireEvent.click(within(sheet).getByRole('button', { name: 'Pokračovat' }));
-  const confirm = screen.getByRole('dialog', {
-    name: /Změnit rezervu baterie z\s10\s% na 20\s%\?/,
-  });
+  const confirm = screen.getByRole('dialog', { name: 'Změnit rezervu baterie?' });
+  expect(confirm.textContent).toMatch(/10\s%.*20\s%/);
   expect(confirm.textContent).toMatch(/1,2\skWh míň/);
   expect(confirm.textContent).toMatch(/uloží do střídače/);
   expect(send.mock.calls.some(([m]) => m.type.endsWith('/set'))).toBe(false);
@@ -61,7 +60,9 @@ it('keeps every row read-only for adults and says where it changes', async () =>
   connect({ rows: settingsDemo.rows.map((row) => ({ ...row, editable: false })) });
   await screen.findByRole('heading', { name: 'Baterie' });
   expect(screen.queryByRole('button', { name: /Použít/ })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Provozní režim: Obecný, jen pro čtení' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Provozní režim: Obecný, jen pro čtení (ze střídače)' }),
+  );
   const sheet = screen.getByRole('dialog', { name: 'Provozní režim' });
   expect(within(sheet).queryByRole('spinbutton')).toBeNull();
   expect(within(sheet).queryByRole('button', { name: 'Uložit' })).toBeNull();
@@ -70,9 +71,11 @@ it('keeps every row read-only for adults and says where it changes', async () =>
 it('warns about a very different inverter export limit and offers to align the forecast', async () => {
   const send = connect();
   const note = await screen.findByRole('note');
-  expect(note.textContent).toMatch(/nejvýš 80\sW, předpověď ale počítá s\s5\skW/);
-  fireEvent.click(within(note).getByRole('button', { name: /Použít 0,08\skW i\spro předpověď/ }));
-  const confirm = screen.getByRole('dialog', { name: /Použít 0,08\skW i\spro předpověď\?/ });
+  expect(note.textContent).toMatch(/nejvýše 80\sW, předpověď počítá s\s5\skW \(62× víc\)/);
+  expect(note.textContent).toMatch(/čte přímo ze střídače/);
+  fireEvent.click(within(note).getByRole('button', { name: /Použít 80\sW i\spro předpověď/ }));
+  const confirm = screen.getByRole('dialog', { name: 'Použít limit střídače i pro předpověď?' });
+  expect(confirm.textContent).toMatch(/5\skW.*80\sW/);
   fireEvent.click(within(confirm).getByRole('button', { name: 'Potvrdit změnu' }));
   await waitFor(() =>
     expect(send).toHaveBeenCalledWith({
@@ -81,4 +84,22 @@ it('warns about a very different inverter export limit and offers to align the f
       value: 0.08,
     }),
   );
+});
+it('keeps rows to one line, puts the export limits under the warning and asks to verify estimates', async () => {
+  connect();
+  const net = (await screen.findByRole('heading', { name: 'Síť' })).closest('section')!;
+  const keys = [...net.querySelectorAll('[data-key]')].map((el) => el.getAttribute('data-key'));
+  expect(keys.slice(0, 3)).toEqual([
+    'energy_export_limit',
+    'export_limit_kw',
+    'energy_export_limit_enabled',
+  ]);
+  expect(document.querySelector('.hb-cell-desc')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Orientace panelů: Jih' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /^Sklon panelů:/ }));
+  const sheet = screen.getByRole('dialog', { name: 'Sklon panelů' });
+  expect(sheet.textContent).toContain('Ověřit sklon');
+  expect(
+    (within(sheet).getByRole('button', { name: 'Potvrdit' }) as HTMLButtonElement).disabled,
+  ).toBe(false);
 });

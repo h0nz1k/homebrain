@@ -661,21 +661,36 @@ export const energyStyles = `
 
 .en-tabs{margin:0 0 24px;display:flex}
 /* Nastavení: module-scoped surface tokens so cards separate from the page in both themes. */
-.en-settings{--en-card:color-mix(in srgb,var(--hb-s1) 55%,var(--hb-s2));--en-card-edge:var(--hb-edge,var(--hb-b1));--en-card-shadow:inset 0 1px 0 rgb(255 255 255 / 4%),0 1px 2px rgb(0 0 0 / 35%),0 16px 36px -22px rgb(0 0 0 / 70%);gap:16px;max-width:1400px}
+.en-settings{--en-card:color-mix(in srgb,var(--hb-s1) 55%,var(--hb-s2));--en-card-edge:var(--hb-edge,var(--hb-b1));--en-card-shadow:inset 0 1px 0 rgb(255 255 255 / 4%),0 1px 2px rgb(0 0 0 / 35%),0 16px 36px -22px rgb(0 0 0 / 70%);--en-pad:20px;gap:16px;width:100%;max-width:760px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 [data-theme='light'] .en-settings{--en-card:#fff;--en-card-edge:transparent;--en-card-shadow:0 1px 3px rgb(16 24 40 / 8%),0 10px 28px -10px rgb(16 24 40 / 20%)}
 [data-theme='light'] .en-pv-chart stop:first-child{stop-opacity:.24}
-.en-settings-grid{columns:2;column-gap:20px}
-.en-settings-section{display:flex;flex-direction:column;gap:12px;padding:20px 20px 8px;margin-bottom:20px;border-radius:var(--hb-radius-lg,20px);background:var(--en-card);box-shadow:var(--en-card-shadow),0 0 0 1px var(--en-card-edge);break-inside:avoid;min-width:0}
-.en-settings-section>header{display:flex;align-items:center;gap:12px}
-.en-settings-section h2{margin:0;font-size:17px;font-weight:650;letter-spacing:-.015em;color:var(--hb-t1)}
+/* Settings: tabs sit on the same centred column as the cards. */
+.en-tabs[data-tab='settings']{width:100%;max-width:760px}
+/* Selected tab: a clearly raised neutral thumb (not a ring that reads as keyboard focus). */
+.en-tabs .hb-seg button[aria-checked='true']{background:color-mix(in srgb,var(--hb-t1) 24%,var(--hb-s2));color:var(--hb-t1);font-weight:650;box-shadow:0 1px 2px rgb(0 0 0 / 40%),inset 0 1px 0 rgb(255 255 255 / 8%)}
+[data-theme='light'] .en-tabs .hb-seg{background:color-mix(in srgb,var(--hb-t1) 9%,transparent)}
+[data-theme='light'] .en-tabs .hb-seg button[aria-checked='true']{background:#fff;box-shadow:0 1px 3px rgb(16 24 40 / 16%),0 0 0 .5px rgb(16 24 40 / 12%)}
+/* One column on every width: settings read top to bottom, no cross-column row offsets. */
+.en-settings-grid,.en-settings-col{display:flex;flex-direction:column;gap:20px;min-width:0}
+/* Wide screens: two top-aligned columns (same header block in both, no empty half screen). */
+@media(min-width:1200px){
+.en-settings,.en-tabs[data-tab='settings']{max-width:1400px}
+.en-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+}
+.en-settings-section{display:flex;flex-direction:column;gap:12px;padding:var(--en-pad) var(--en-pad) 6px;border-radius:var(--hb-radius-lg,20px);background:var(--en-card);box-shadow:var(--en-card-shadow),0 0 0 1px var(--en-card-edge);min-width:0}
+.en-settings-section>header{display:flex;align-items:center;gap:12px;min-height:36px}
+.en-settings-section h2{margin:0;font-size:20px;font-weight:700;line-height:1.2;letter-spacing:-.02em;color:var(--hb-t1)}
 .en-section-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;color:var(--en-tint);background:color-mix(in srgb,var(--en-tint) 16%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--en-tint) 22%,transparent)}
 [data-theme='light'] .en-section-icon{color:color-mix(in srgb,var(--en-tint) 85%,#000);background:color-mix(in srgb,var(--en-tint) 12%,transparent)}
 .en-cells{display:flex;flex-direction:column}
-.en-cells .hb-cell-value small{font-size:.8em}
-.en-value-aside{font-weight:450;color:var(--hb-t2)}
-.en-estimate.hb-pill{font-size:12px;font-weight:600}
-/* AA on the warn tint in light mode (plain --hb-warn gives 4.2:1). */
-[data-theme='light'] .en-estimate.hb-pill{color:color-mix(in srgb,var(--hb-warn) 80%,#000)}
+.en-cells .hb-cell-main{min-height:52px;padding-block:10px}
+.en-cells .hb-cell-label{font-size:15px;font-weight:400}
+.en-cells .hb-cell-value{font-size:15px;font-weight:600}
+.en-cells .hb-quantity small{font-size:13px;font-weight:500}
+/* Read-only values step back; editable ones lead. */
+.en-cells .hb-cell:has(.hb-cell-trail[data-kind='lock']) .hb-cell-value{font-weight:500;color:var(--hb-t2)}
+.en-cells .hb-cell:has(.hb-cell-trail[data-kind='lock']) .hb-quantity small{color:inherit}
+.en-estimate.hb-pill{font-size:12px;font-weight:600;color:var(--hb-sel-ink);background:var(--hb-sel)}
 .en-glyph{display:block;overflow:visible;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .en-glyph-base{stroke:color-mix(in srgb,var(--hb-t1) 28%,transparent);stroke-width:1.5}
 .en-glyph-tick{stroke:var(--hb-t2);stroke-width:1.75}
@@ -683,34 +698,32 @@ export const energyStyles = `
 .en-glyph-main{stroke:var(--hb-energy-pv);stroke-width:3}
 .en-glyph-needle{fill:var(--hb-energy-pv);stroke:none}
 .en-glyph-hub{fill:var(--hb-t2);stroke:none}
-/* Fotovoltaika hero: tomorrow's kWh + hourly area, flat inside the card (no nested box). */
-.en-pv-hero{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:32px;align-items:end;padding:4px 0 12px;border-bottom:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent)}
-.en-pv-head{display:flex;flex-direction:column;gap:2px;min-width:0}
-.en-pv-label{font-size:13px;font-weight:500;color:var(--hb-t2)}
-.en-pv-value{font-size:40px;font-weight:650;letter-spacing:-.035em;line-height:1.1;color:var(--hb-t1)}
-.en-pv-value small{font-size:18px;font-weight:500;letter-spacing:0}
-.en-pv-context{font-size:13px;line-height:1.4;color:var(--hb-t2)}
-.en-pv-chart{position:relative;min-width:0;padding-bottom:22px}
-.en-pv-chart svg{display:block;width:100%;height:64px;overflow:visible}
-.en-pv-line{fill:none;stroke:var(--hb-energy-pv);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
-.en-pv-axis{position:absolute;left:0;right:0;bottom:0;height:16px}
-.en-pv-axis span{position:absolute;transform:translateX(-50%);font-size:11px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+/* Fotovoltaika: forecast as a compact supporting strip (text + sparkline), never the headline. */
+.en-pv-strip{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,240px);gap:8px 24px;align-items:center;padding:2px 0 12px;border-bottom:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent)}
+.en-pv-text{margin:0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
+.en-pv-text strong{font-weight:600;color:var(--hb-t1);font-variant-numeric:tabular-nums}
+.en-pv-peak{font-variant-numeric:tabular-nums}
+.en-pv-chart{position:relative;min-width:0;padding-bottom:16px}
+.en-pv-plot{position:relative;height:36px}
+.en-pv-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.en-pv-line{fill:none;stroke:var(--hb-energy-pv);stroke-width:1.75;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.en-pv-dot{position:absolute;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:var(--hb-energy-pv);box-shadow:0 0 0 2px var(--en-card)}
+.en-pv-axis{position:absolute;left:0;right:0;bottom:0;height:14px}
+.en-pv-axis span{position:absolute;transform:translateX(-50%);font-size:12px;line-height:14px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
 .en-pv-axis span:first-child{transform:none}
 .en-pv-axis span:last-child{transform:translateX(-100%)}
-.en-limit{display:grid;gap:6px;padding:2px 40px 0 0}
-.en-limit-row{display:grid;grid-template-columns:76px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13px;color:var(--hb-t2)}
-.en-limit-row b{font-weight:600;color:var(--hb-t1);text-align:right;font-variant-numeric:tabular-nums}
-.en-limit-track{height:6px;border-radius:999px;background:var(--hb-fill-strong,var(--hb-s3));overflow:hidden}
-.en-limit-track i{display:block;min-width:4px;height:100%;border-radius:999px;background:color-mix(in srgb,var(--hb-t1) 38%,transparent)}
-.en-limit-row[data-kind='inverter'] .en-limit-track i{background:var(--hb-warn)}
 .en-settings-foot{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;line-height:1.45;color:var(--hb-t2)}
 .en-settings-foot svg{flex:none}
 /* Edit / detail sheet */
-.en-sheet-lead{margin:-8px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
-.en-sheet-now{display:flex;align-items:baseline;gap:8px;margin-top:12px;font-size:14px;color:var(--hb-t2)}
-.en-sheet-now strong{font-size:22px;font-weight:650;letter-spacing:-.02em;color:var(--hb-t1);font-variant-numeric:tabular-nums}
-.en-sheet-text{margin:20px 0 0;padding-top:16px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent);font-size:14px;line-height:1.55;color:var(--hb-t2)}
-.en-sheet-where{display:flex;align-items:flex-start;gap:8px;margin:12px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
+.en-sheet-lead{margin:-8px 0 0;text-wrap:pretty;font-size:14px;line-height:1.45;color:var(--hb-t2)}
+.en-sheet-now{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:14px;color:var(--hb-t2)}
+.en-sheet-now strong{font-size:15px;font-weight:600;color:var(--hb-t1);font-variant-numeric:tabular-nums}
+.en-sheet-now[data-readonly] strong{font-size:22px;font-weight:650;letter-spacing:-.02em}
+.en-sheet-now strong .hb-quantity small{font-size:.7em}
+.en-sheet-glyph{display:inline-flex;margin-left:4px}
+.hb-sheet .hb-callout{margin-top:16px}
+.en-sheet-text{margin:20px 0 0;text-wrap:pretty;padding-top:16px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent);font-size:14px;line-height:1.55;color:var(--hb-t2)}
+.en-sheet-where{text-wrap:pretty;display:flex;align-items:flex-start;gap:8px;margin:12px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
 .en-sheet-where svg{flex:none;margin-top:1px}
 .en-sheet-where code{overflow-wrap:anywhere;font-size:13px}
 .en-sheet-change{display:flex;align-items:center;justify-content:center;gap:16px;margin:4px 0 16px;padding:16px;border-radius:var(--hb-radius-md,14px);background:var(--hb-fill,rgb(127 127 127 / 6%));font-size:34px;font-weight:650;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
@@ -720,13 +733,16 @@ export const energyStyles = `
 .hb-sheet .en-sheet-change+p{margin:0;font-size:15px;line-height:1.55;color:var(--hb-t1)}
 .en-sheet-error{margin:12px 0 0;color:var(--hb-crit);font-size:14px}
 .hb-sheet .hb-range{margin-top:16px}
-@media(max-width:900px){.en-settings-grid{columns:1}}
 @media(max-width:600px){
 .en-tabs{margin-bottom:16px}
 .en-settings{gap:12px}
-.en-settings-section{padding:16px 16px 4px;margin-bottom:12px}
-.en-pv-hero{grid-template-columns:minmax(0,1fr);gap:8px}
-.en-pv-value{font-size:34px}
-.en-pv-chart svg{height:52px}
+.en-settings-grid,.en-settings-col{gap:12px}
+.en-settings-section{--en-pad:16px}
+.en-pv-strip{grid-template-columns:minmax(0,1fr);gap:6px}
+}
+/* Small phones: the page margin already insets the card, so the card itself stays narrow. */
+@media(max-width:400px){
+.en-settings,.en-tabs[data-tab='settings']{width:auto;margin-inline:-6px}
+.en-settings-section{--en-pad:14px;border-radius:16px}
 }
 `;

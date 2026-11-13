@@ -260,28 +260,34 @@ výchozí 25 A), tečkovaná značka na 80 %. Zdroj: `energy_grid_l1…l3_power`
   (kapacita, rezervy, hlídání rezervy, rychlé nabíjení a ekonomický režim), Síť
   (řízení a fyzický limit přetoku, modelový limit, jistič), Tarif a ceny (VT/NT,
   stálé platby, HDO a další změna, spotové přirážky/distribuce/platby), Střídač (režim, EMS, stav).
-- **Nápověda a úpravy:** Každý řádek je celý klepatelný (`ListCell`): popisek, jednořádkové
-  shrnutí (`summary`), hodnota s jednotkou a pevný koncový slot – šipka u upravitelných řádků,
-  zámek u řádků jen pro čtení. Klepnutí otevře detail (`Sheet` raised: telefon spodní panel s
-  úchytem, tablet/desktop dialog) s velkou současnou hodnotou, `RangeStepper` s doporučeným
-  pásmem (rezerva 10–30 %, sklon 25–45 °, orientace ±45 °, jistič 16–32 A) a vysvětlením
-  (`explanation`, 2–3 věty: význam, praktický důsledek, doporučení; neopakuje shrnutí).
-  Řádky jen pro čtení otevřou stejný detail bez úprav s místem změny (`source`/`location`:
-  SolarGo, Home Assistant, Správce) – to mají jen řádky, které zde aktuální uživatel měnit
-  nemůže. Zápis do střídače (rezerva v síti) má v detailu krok potvrzení „Změnit rezervu
-  baterie z A na B?“ s dopadem v kWh a poznámkou o zápisu do střídače; ostatní hodnoty se
-  uloží tlačítkem Uložit. Výrazně odlišný limit přetoku střídače a předpovědi (≥ 10×) ukáže
-  v kartě Síť varování; správce může jedním tlačítkem (s potvrzením) nastavit limit střídače
-  i pro předpověď (`export_limit_kw`). Fotovoltaika má jako hlavní údaj zítřejší předpověď
-  v kWh s hodinovým průběhem. Escape i tlačítko Zavřít (44 px) detail zavírají.
+- **Nápověda a úpravy:** Každý řádek je celý klepatelný (`ListCell`) a jednořádkový: popisek
+  (+ odznak), hodnota s jednotkou a pevný koncový slot – šipka u upravitelných řádků, zámek
+  u řádků jen pro čtení (u popisku krátký zdroj „ze střídače“ / „z HA“ / „jen správce“, když
+  se vejde). Shrnutí (`summary`) a vysvětlení jsou jen v detailu. Klepnutí otevře detail
+  (`Sheet` raised: telefon spodní panel s úchytem, tablet/desktop centrovaný dialog) se
+  shrnutím, velkou současnou hodnotou, `RangeStepper` s doporučeným pásmem (rezerva 10–30 %,
+  sklon 25–45 °, orientace ±45 °, jistič 16–32 A) a vysvětlením (`explanation`, 2–3 věty:
+  význam, praktický důsledek, doporučení; neopakuje shrnutí). Řádky jen pro čtení otevřou
+  stejný detail bez úprav s místem změny (`source`/`location`: SolarGo, Home Assistant,
+  Správce) – to mají jen řádky, které zde aktuální uživatel měnit nemůže. Zápis do střídače
+  (rezerva při běžném provozu) má v detailu krok potvrzení „Změnit rezervu baterie?“ se
+  starou a novou hodnotou, dopadem v kWh a poznámkou o zápisu do střídače; ostatní hodnoty se
+  uloží tlačítkem Uložit. Výkon se všude zobrazuje stejně: pod 1 kW ve W, jinak v kW.
+  Výrazně odlišný limit přetoku střídače a předpovědi (≥ 10×) ukáže v kartě Síť varování
+  s oběma hodnotami a poměrem; oba limity jsou hned pod ním. Platí limit střídače (čte se ze
+  střídače, zde ho změnit nejde); správce může jedním tlačítkem (s potvrzením) nastavit limit
+  střídače i pro předpověď (`export_limit_kw`). Fotovoltaika má nahoře kompaktní pruh
+  „Zítra ~X kWh · špička Y v HH:MM“ s malým hodinovým průběhem (bez vyhlazení, bod ve
+  špičce). Escape i tlačítko Zavřít (44 px) detail zavírají.
   Chybějící vazba = „nepřipojeno“ a logický klíč. Výchozí sklon 35 ° a azimut 0 °
-  mají odznak „odhad“. Azimut 0 = jih, −90 = východ, 90 = západ.
+  mají neutrální odznak „odhad“ a detail vyzve k ověření. Azimut 0 = jih, −90 = východ,
+  90 = západ; v seznamu je jen směr, úhel v detailu.
 - **Role:** `settings/get` čte owner/admin a adult, ostatní role nemají detailní přístup.
   `settings/set` vyžaduje HA admina; ostatní vidí pouze čtení. Server vynucuje allowlist.
 - **Zápisy:** `energy_pv` options: `pv_kwp` 0,01–100, `pv_tilt` 0–90,
   `pv_azimuth` −180–180, `inverter_ac_limit_kw`, `battery_capacity_kwh`, `export_limit_kw`
   0,01–1000. Systémové hodnoty mají krok 0,01, úhly 1 °. Jde pouze o model předpovědi.
-  Rezerva v síti 10–50 %, krok 5 %, se zapisuje jako DoD = 100 − rezerva přes
+  Rezerva při běžném provozu 10–50 %, krok 5 %, se zapisuje jako DoD = 100 − rezerva přes
   `number.set_value`, navíc respektuje min/max/step entity. Potvrzení ukazuje starou a novou
   hodnotu a dopad do noční energie podle kapacity baterie.
   Pouze pomocníci `input_number` pro VT/NT cenu, stálé platby, spot přirážku/distribuci/platby

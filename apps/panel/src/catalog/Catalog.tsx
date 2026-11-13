@@ -73,7 +73,7 @@ function RaisedSheetDemo() {
       <Button onClick={() => setOpen(true)}>Otevřít detail</Button>
       {open && (
         <Sheet
-          title="Rezerva v síti"
+          title="Rezerva při běžném provozu"
           appearance="raised"
           placement="side"
           closeLabel="Zavřít"
@@ -128,19 +128,18 @@ const specs: Spec[] = [
     render: () => (
       <div style={{ maxWidth: 420 }}>
         <ListCell
-          label="Rezerva v síti"
-          description="Co baterie v běžném provozu nikdy nedá do domu."
+          label="Rezerva při běžném provozu"
           value={<Quantity value={10} unit="%" />}
           trailing="chevron"
-          aria-label="Rezerva v síti: 10 %"
+          aria-label="Rezerva při běžném provozu: 10 %"
           onClick={() => toast.info('Otevřít detail')}
         />
         <ListCell
           label="Provozní režim"
-          description="Jak střídač hospodaří s baterií."
           value="Obecný"
           trailing="lock"
           lockLabel="Mění se v aplikaci SolarGo."
+          lockText="ze střídače"
         />
       </div>
     ),

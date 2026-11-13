@@ -87,7 +87,7 @@ OPTIONS = {
         "Limit přetoku pro předpověď",
         "kW",
         (
-            "Kolik smí předpověď počítat s dodávkou do sítě.",
+            "Maximální přetok, se kterým počítá předpověď.",
             "Přetok je elektřina, kterou dům nespotřebuje a která odteče do sítě. Tento limit "
             "platí jen pro výpočet předpovědi, střídač neovlivní; použijte smluvený limit.",
         ),
@@ -101,7 +101,7 @@ BINDINGS = [
     (
         "energy_battery_dod_ongrid",
         "Baterie",
-        "Rezerva v síti",
+        "Rezerva při běžném provozu",
         "%",
         (
             "Co baterie v běžném provozu nikdy nedá do domu.",

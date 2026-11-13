@@ -2528,6 +2528,7 @@ button.hb-tile[data-empty] .hb-tile-status {
 .hb-cell {
   position: relative;
   min-width: 0;
+  container-type: inline-size;
 }
 .hb-cell + .hb-cell::before {
   content: '';
@@ -2590,6 +2591,16 @@ button.hb-cell-main:focus-visible {
   line-height: 1.35;
   color: var(--hb-t1);
 }
+.hb-cell-source {
+  font-size: var(--hb-type-caption);
+  font-weight: 450;
+  color: var(--hb-t2);
+}
+@container (max-width: 400px) {
+  .hb-cell-source {
+    display: none;
+  }
+}
 .hb-cell-desc {
   /* At most two lines; wide cards fit it on one. */
   display: -webkit-box;
@@ -2627,11 +2638,12 @@ button.hb-cell-main:focus-visible {
   color: var(--hb-t3);
 }
 .hb-cell-lock {
+  /* Same box and ink as the chevron, so both read as one quiet trailing column. */
   display: grid;
   place-items: center;
   width: 18px;
   height: 18px;
-  color: var(--hb-t3);
+  color: inherit;
 }
 .hb-cell-extra {
   padding: 0 0 var(--hb-sp-3);
@@ -2677,6 +2689,16 @@ button.hb-cell-main:focus-visible {
 .hb-callout-action {
   margin-top: var(--hb-sp-2);
 }
+/* Warning: the warning token on a tinted surface with a hairline; light mode gets a warm
+   yellow tint (the dark-orange --hb-warn mixed into white reads salmon). */
+.hb-callout[data-tone='warn'] {
+  background: color-mix(in srgb, var(--hb-warn) 11%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-warn) 26%, transparent);
+}
+[data-theme='light'] .hb-callout[data-tone='warn'] {
+  background: #fff6e0;
+  box-shadow: inset 0 0 0 1px #f2d38f;
+}
 /* Action in the callout's own tone: clearly a button, never louder than the message. */
 .hb-callout-action .hb-btn {
   background: color-mix(in srgb, var(--hb-tone) 20%, transparent);
@@ -2685,6 +2707,22 @@ button.hb-cell-main:focus-visible {
 }
 .hb-callout-action .hb-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--hb-tone) 28%, transparent);
+}
+/* Warning action: a quiet neutral button (ink on a raised fill), so the warning colour stays the
+   message and the fix doesn't shout louder than it. */
+.hb-callout[data-tone='warn'] .hb-callout-action .hb-btn {
+  background: color-mix(in srgb, var(--hb-t1) 12%, transparent);
+  color: var(--hb-t1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
+}
+[data-theme='light'] .hb-callout[data-tone='warn'] .hb-callout-action .hb-btn {
+  background: var(--hb-s1);
+  box-shadow:
+    inset 0 0 0 1px #e8c876,
+    0 1px 2px rgb(16 24 40 / 8%);
+}
+.hb-callout[data-tone='warn'] .hb-callout-action .hb-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-t1) 18%, transparent);
 }
 
 /* ── RangeStepper ───────────────────────────────────────────────────── */
@@ -2830,6 +2868,7 @@ button.hb-cell-main:focus-visible {
   border-radius: var(--hb-radius-pill);
 }
 .hb-range-scale {
+  position: relative;
   display: flex;
   justify-content: space-between;
   gap: var(--hb-sp-2);
@@ -2838,6 +2877,11 @@ button.hb-cell-main:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .hb-range-band-label {
+  /* Centred under its band (kept clear of the min/max labels at the ends). */
+  position: absolute;
+  left: clamp(7em, calc((var(--hb-band-from) + var(--hb-band-to)) / 2), calc(100% - 7em));
+  transform: translateX(-50%);
+  white-space: nowrap;
   color: var(--hb-ok);
   font-weight: 500;
 }

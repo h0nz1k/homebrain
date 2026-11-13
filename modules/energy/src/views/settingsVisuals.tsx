@@ -1,4 +1,4 @@
-import { Quantity, formatQuantity } from '@homebrain/ui';
+import { formatPower, formatQuantity } from '@homebrain/ui';
 import { localParts } from '../adapter.js';
 import type { PvForecast } from '../pvForecast.js';
 
@@ -36,46 +36,19 @@ export function CompassGlyph({ azimuth }: { azimuth: number }) {
   );
 }
 
-/** Inverter export limit vs. the limit the forecast assumes, on one shared scale. */
-export function ExportLimitBars({
-  inverterW,
-  forecastKw,
-}: {
-  inverterW: number;
-  forecastKw: number;
-}) {
-  const max = Math.max(inverterW / 1000, forecastKw, 0.001);
-  const rows = [
-    ['Střídač', inverterW / 1000, formatQuantity(inverterW, 'W'), 'inverter'],
-    ['Předpověď', forecastKw, formatQuantity(forecastKw, 'kW'), 'forecast'],
-  ] as const;
-  return (
-    <div
-      className="en-limit"
-      role="img"
-      aria-label={`Limit střídače ${rows[0][2]}, předpověď ${rows[1][2]}`}
-    >
-      {rows.map(([name, kw, text, kind]) => (
-        <div className="en-limit-row" key={kind} data-kind={kind}>
-          <span>{name}</span>
-          <span className="en-limit-track">
-            <i style={{ width: `${Math.max(1.5, (kw / max) * 100)}%` }} />
-          </span>
-          <b>{text}</b>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function dayKey(offset: number) {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(d);
 }
 
-/** Tomorrow's forecast as the Fotovoltaika hero: big kWh, hourly area chart, context line. */
-export function PvForecastHero({ pv }: { pv: PvForecast | null }) {
+/**
+ * Tomorrow's forecast as a compact strip in the Fotovoltaika card: one line of text and a small
+ * hourly sparkline. Hourly values are plotted as they are (straight segments at the middle of each
+ * hour, no smoothing); the dot marks the peak at its real time. Equal neighbouring hours form a
+ * flat top and the peak time is then the middle of that run.
+ */
+export function PvForecastStrip({ pv }: { pv: PvForecast | null }) {
   const tomorrow = dayKey(1);
   const kwh = pv?.days[tomorrow];
   if (kwh === undefined || !pv) return null;
@@ -88,54 +61,48 @@ export function PvForecastHero({ pv }: { pv: PvForecast | null }) {
   const from = Math.max(0, (lit[0] ?? 6) - 1);
   const to = Math.min(24, (lit[lit.length - 1] ?? 18) + 2);
   const peak = Math.max(...hours, 0.001);
-  const peakHour = hours.indexOf(peak);
+  const top = hours.map((v, h) => (peak - v < 1e-6 ? h : -1)).filter((h) => h >= 0);
+  const peakAt = (top[0]! + top[top.length - 1]!) / 2 + 0.5;
   const W = 240;
-  const H = 56;
+  const H = 40;
   const x = (h: number) => ((h - from) / (to - from)) * W;
-  const y = (v: number) => H - (v / peak) * (H - 4);
+  const y = (v: number) => H - (v / peak) * (H - 3);
   const pts = hours
     .slice(from, to)
     .map((v, i) => `${x(from + i + 0.5).toFixed(1)},${y(v).toFixed(1)}`)
     .join(' L');
   const line = `M${pts}`;
   const area = `M${x(from).toFixed(1)},${H} L${pts} L${x(to).toFixed(1)},${H} Z`;
-  const others = Object.entries(pv.days)
-    .filter(([day, v]) => day > dayKey(0) && day !== tomorrow && v > 0)
-    .map(([, v]) => v);
-  const window = [kwh, ...others];
-  const avg = window.reduce((s, v) => s + v, 0) / window.length;
-  const diff = avg > 0 ? Math.round(((kwh - avg) / avg) * 100) : 0;
-  const context =
-    window.length > 1
-      ? Math.abs(diff) < 5
-        ? `Zhruba jako průměr příštích ${window.length} dnů`
-        : `O ${Math.abs(diff)} % ${diff > 0 ? 'víc' : 'míň'} než průměr příštích ${window.length} dnů`
-      : null;
+  const time = `${Math.floor(peakAt)}:${String(Math.round((peakAt % 1) * 60)).padStart(2, '0')}`;
   const ticks = [from, Math.round((from + to) / 2), to];
   return (
-    <div className="en-pv-hero">
-      <div className="en-pv-head">
-        <span className="en-pv-label">Předpověď na zítra</span>
-        <strong className="en-pv-value">
-          <Quantity value={Math.round(kwh * 10) / 10} unit="kWh" />
-        </strong>
-        <span className="en-pv-context">
-          {context && <>{context} · </>}
-          špička {formatQuantity(Math.round(peak * 10) / 10, 'kW')} kolem {peakHour}:30
+    <div className="en-pv-strip">
+      <p className="en-pv-text">
+        <span>
+          Zítra ~<strong>{formatQuantity(Math.round(kwh * 10) / 10, 'kWh')}</strong>
         </span>
-      </div>
-      <div className="en-pv-chart">
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="en-pv-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="var(--hb-energy-pv)" stopOpacity=".42" />
-              <stop offset="1" stopColor="var(--hb-energy-pv)" stopOpacity=".02" />
-            </linearGradient>
-          </defs>
-          <path d={area} fill="url(#en-pv-fill)" />
-          <path d={line} className="en-pv-line" />
-        </svg>
-        <div className="en-pv-axis" aria-hidden="true">
+        <span className="en-pv-peak">
+          {' · '}špička {formatPower(Math.round(peak * 10) / 10, 'kW')} v {time}
+        </span>
+      </p>
+      <div className="en-pv-chart" aria-hidden="true">
+        <div className="en-pv-plot">
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="en-pv-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="var(--hb-energy-pv)" stopOpacity=".38" />
+                <stop offset="1" stopColor="var(--hb-energy-pv)" stopOpacity=".02" />
+              </linearGradient>
+            </defs>
+            <path d={area} fill="url(#en-pv-fill)" />
+            <path d={line} className="en-pv-line" />
+          </svg>
+          <i
+            className="en-pv-dot"
+            style={{ left: `${(x(peakAt) / W) * 100}%`, top: `${(y(peak) / H) * 100}%` }}
+          />
+        </div>
+        <div className="en-pv-axis">
           {ticks.map((h) => (
             <span key={h} style={{ left: `${(x(h) / W) * 100}%` }}>
               {h}:00

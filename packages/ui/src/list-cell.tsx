@@ -1,19 +1,25 @@
 import type { ReactNode } from 'react';
 import { Icon } from './icons.js';
-import { NBSP, formatQuantity } from './units.js';
+import { NBSP, formatQuantity, powerParts } from './units.js';
 
-/** Number in tabular figures with a lighter, smaller unit („10 %“, „8,5 kWp“). */
+/**
+ * Number in tabular figures, a non-breaking space and a lighter, smaller unit („10 %“, „8,5 kWp“).
+ * Angles follow Czech typography and stay glued to the number („35°“). Power is shown as W under
+ * 1 kW and kW from 1 kW (`powerParts`).
+ */
 export function Quantity({ value, unit = '' }: { value: number; unit?: string }) {
-  const text = formatQuantity(value);
+  const [number, shown] = unit === 'W' || unit === 'kW' ? powerParts(value, unit) : [value, unit];
   return (
     <span className="hb-quantity">
-      {text}
-      {unit && (
-        <small>
-          {unit === '°' ? '' : NBSP}
-          {unit}
-        </small>
-      )}
+      {formatQuantity(number)}
+      {shown === '°'
+        ? '°'
+        : shown && (
+            <small>
+              {NBSP}
+              {shown}
+            </small>
+          )}
     </span>
   );
 }
@@ -31,6 +37,8 @@ export interface ListCellProps {
   trailing?: 'chevron' | 'lock' | 'none';
   /** Tooltip/aria text of the lock chip (where the value is changed). */
   lockLabel?: string;
+  /** Short visible source next to the label of a read-only row („ze střídače“); hidden when narrow. */
+  lockText?: string;
   /** Extra full-width content under the row (hint, bar …). */
   children?: ReactNode;
   muted?: boolean;
@@ -40,7 +48,7 @@ export interface ListCellProps {
 }
 
 /**
- * Settings list cell: label + description left, value right, one fixed trailing slot so values of
+ * Settings list cell: label (+ optional description) left, value right, one fixed trailing slot so values of
  * editable (chevron) and read-only (lock) rows share the same right edge. Clickable = a button.
  */
 export function ListCell({
@@ -51,6 +59,7 @@ export function ListCell({
   visual,
   trailing = 'none',
   lockLabel,
+  lockText,
   children,
   muted,
   onClick,
@@ -62,6 +71,7 @@ export function ListCell({
         <span className="hb-cell-label">
           {label}
           {badge}
+          {trailing === 'lock' && lockText && <span className="hb-cell-source">{lockText}</span>}
         </span>
         {description && <span className="hb-cell-desc">{description}</span>}
       </span>
@@ -76,8 +86,8 @@ export function ListCell({
       <span className="hb-cell-trail" data-kind={trailing}>
         {trailing === 'chevron' && <Icon name="chevron" size={18} />}
         {trailing === 'lock' && (
-          <span className="hb-cell-lock" title={lockLabel}>
-            <Icon name="lock" size={16} />
+          <span className="hb-cell-lock" title={lockLabel} role="img" aria-label={lockLabel}>
+            <Icon name="lock" size={18} />
           </span>
         )}
       </span>

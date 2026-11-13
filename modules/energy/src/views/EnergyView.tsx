@@ -1230,7 +1230,7 @@ export default function EnergyView({
     <>
       <style>{energyStyles}</style>
       {!kiosk && (
-        <div className="en-tabs">
+        <div className="en-tabs" data-tab={tab}>
           <SegmentedControl
             label="Zobrazení energie"
             hideLabel

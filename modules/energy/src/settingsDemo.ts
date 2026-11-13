@@ -82,7 +82,7 @@ export const settingsDemo: EnergySettings = {
       section: 'Síť',
       label: 'Limit přetoku pro předpověď',
       unit: 'kW',
-      summary: 'Kolik smí předpověď počítat s dodávkou do sítě.',
+      summary: 'Maximální přetok, se kterým počítá předpověď.',
       explanation:
         'Přetok je elektřina, kterou dům nespotřebuje a která odteče do sítě. Tento limit platí jen pro výpočet předpovědi, střídač neovlivní; použijte smluvený limit.',
       value: 5,
@@ -108,7 +108,7 @@ export const settingsDemo: EnergySettings = {
     {
       key: 'energy_battery_dod_ongrid',
       section: 'Baterie',
-      label: 'Rezerva v síti',
+      label: 'Rezerva při běžném provozu',
       unit: '%',
       summary: 'Co baterie v běžném provozu nikdy nedá do domu.',
       explanation:

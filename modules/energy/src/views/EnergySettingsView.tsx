@@ -11,6 +11,7 @@ import {
   RangeStepper,
   Sheet,
   Skeleton,
+  formatPower,
   formatQuantity,
   nbspUnits,
   toast,
@@ -24,7 +25,7 @@ import {
 } from '../settings.js';
 import { inverterStatusChip } from '../adapter.js';
 import { fetchPvForecast, type PvForecast } from '../pvForecast.js';
-import { CompassGlyph, ExportLimitBars, PvForecastHero, TiltGlyph } from './settingsVisuals.js';
+import { CompassGlyph, PvForecastStrip, TiltGlyph } from './settingsVisuals.js';
 
 /** Section, icon and tint (energy palette, so the tile matches the overview's colours). */
 const sections: [string, IconName, string][] = [
@@ -34,6 +35,11 @@ const sections: [string, IconName, string][] = [
   ['Tarif a ceny', 'tariff', 'var(--hb-ok)'],
   ['Střídač', 'inverter', 'var(--hb-energy-home)'],
 ];
+/** Wide screens: two columns that start with the same header block (forecast strip / warning). */
+const COLUMNS = [
+  ['Fotovoltaika', 'Baterie'],
+  ['Síť', 'Tarif a ceny', 'Střídač'],
+];
 /** Recommended band drawn on the slider in the edit sheet. */
 const BANDS: Record<string, [number, number, string]> = {
   energy_battery_dod_ongrid: [10, 30, 'běžně'],
@@ -41,6 +47,8 @@ const BANDS: Record<string, [number, number, string]> = {
   pv_azimuth: [-45, 45, 'nejvíc výroby'],
   energy_main_breaker: [16, 32, 'běžně'],
 };
+/** Reserves are shown as 100 − inverter DoD; the sheet repeats the inverter value. */
+const reserveKeys = new Set(['energy_battery_dod_ongrid', 'energy_battery_dod_backup']);
 /** Rows whose write goes to the inverter: one extra confirm step inside the sheet. */
 const INVERTER_WRITES = new Set(['energy_battery_dod_ongrid']);
 const MODES: Record<string, string> = {
@@ -56,15 +64,29 @@ const MODES: Record<string, string> = {
   standby: 'Pohotovost',
 };
 const DIRECTIONS = [
-  'jih',
-  'jihozápad',
-  'západ',
-  'severozápad',
-  'sever',
-  'severovýchod',
-  'východ',
-  'jihovýchod',
+  'Jih',
+  'Jihozápad',
+  'Západ',
+  'Severozápad',
+  'Sever',
+  'Severovýchod',
+  'Východ',
+  'Jihovýchod',
 ];
+/** Síť: the two export limits first (right under the mismatch warning), then export control. */
+const ORDER: Record<string, number> = {
+  energy_export_limit: -3,
+  export_limit_kw: -2,
+  energy_export_limit_enabled: -1,
+};
+/** Assumed values: the sheet asks to check them. */
+const VERIFY: Record<string, string> = { pv_tilt: 'Ověřit sklon', pv_azimuth: 'Ověřit orientaci' };
+/** Short visible source of a read-only value, next to the row label. */
+const SOURCE: Record<string, string> = {
+  SolarGo: 'ze střídače',
+  'Home Assistant': 'z HA',
+  Správce: 'jen správce',
+};
 /** Read-only rows: where the value is changed instead. */
 const whereText = (row: EnergySetting) =>
   row.source === 'Správce'
@@ -73,6 +95,9 @@ const whereText = (row: EnergySetting) =>
       ? `Mění se ${row.location}.`
       : undefined;
 const direction = (az: number) => DIRECTIONS[((Math.round(az / 45) % 8) + 8) % 8]!;
+/** One number style everywhere: power as W under 1 kW, otherwise the row's own unit. */
+const format = (value: number, unit: string) =>
+  unit === 'W' || unit === 'kW' ? formatPower(value, unit) : formatQuantity(value, unit);
 
 /** Plain-text value (aria labels, confirm titles). */
 function displayText(row: EnergySetting): string {
@@ -90,24 +115,24 @@ function displayText(row: EnergySetting): string {
         }).format(time)
       : String(row.value);
   }
-  if (row.key === 'pv_azimuth')
-    return `${direction(Number(row.value))} (${formatQuantity(Number(row.value), '°')})`;
+  if (row.key === 'pv_azimuth') return direction(Number(row.value));
   if (row.value === 'on') return row.key === 'energy_tariff_hdo' ? 'Nízký tarif' : 'Zapnuto';
   if (row.value === 'off') return row.key === 'energy_tariff_hdo' ? 'Vysoký tarif' : 'Vypnuto';
   const numeric = Number(row.value);
   return Number.isFinite(numeric)
-    ? formatQuantity(numeric, row.unit)
+    ? format(numeric, row.unit)
     : nbspUnits(`${row.value} ${row.unit}`.trim());
 }
-/** Rich value: number in tabular figures with a lighter unit. */
-function DisplayValue({ row }: { row: EnergySetting }) {
+/** Rich value: number in tabular figures with a lighter unit; the sheet adds the azimuth angle. */
+function DisplayValue({ row, detail }: { row: EnergySetting; detail?: boolean }) {
   const numeric = Number(row.value);
   if (row.key === 'pv_azimuth' && Number.isFinite(numeric))
-    return (
+    return detail ? (
       <span>
-        {direction(numeric)}{' '}
-        <small className="en-value-aside">{formatQuantity(numeric, '°')}</small>
+        {direction(numeric)} <Quantity value={numeric} unit="°" />
       </span>
+    ) : (
+      <>{direction(numeric)}</>
     );
   if (
     row.value !== null &&
@@ -124,6 +149,17 @@ function visualFor(row: EnergySetting): ReactNode {
   if (row.key === 'pv_tilt') return <TiltGlyph deg={v} />;
   if (row.key === 'pv_azimuth') return <CompassGlyph azimuth={v} />;
   return null;
+}
+/** Read-only rows: the row's accessible name says so and where it is changed. */
+const ariaName = (row: EnergySetting) =>
+  `${row.label}: ${displayText(row)}${row.editable ? '' : `, jen pro čtení${row.source && SOURCE[row.source] ? ` (${SOURCE[row.source]})` : ''}`}`;
+/** Callout sentence: both limits in the same units and how far apart they are. */
+function mismatchText({ inverterW, forecastKw }: { inverterW: number; forecastKw: number }) {
+  const forecast = formatPower(forecastKw, 'kW');
+  if (inverterW <= 0) return `Střídač do sítě nepustí nic, předpověď počítá s ${forecast}.`;
+  const ratio = (forecastKw * 1000) / inverterW;
+  const times = ratio >= 1 ? `${Math.floor(ratio)}× víc` : `${Math.floor(1 / ratio)}× míň`;
+  return `Střídač pustí do sítě nejvýše ${formatPower(inverterW)}, předpověď počítá s ${forecast} (${times}).`;
 }
 /** Watts the inverter really lets out vs. the forecast model limit; null when comparable. */
 function exportMismatch(rows: EnergySetting[]) {
@@ -174,16 +210,24 @@ function SettingSheet({
       setBusy(false);
     }
   };
-  const next = formatQuantity(draft, row.unit);
+  const next = format(draft, row.unit);
   // The inverter's own parameter name gets its own line under the explanation.
-  const [text = row.explanation, inverter] = row.explanation.split(/ (?=Ve střídači odpovídá)/);
+  const [text = row.explanation, mapping] = row.explanation.split(/ (?=Ve střídači odpovídá)/);
+  // The inverter value follows the draft live: „(teď 90 %, po změně 80 %)“.
+  const inverter =
+    mapping && changed && reserveKeys.has(row.key) && Number.isFinite(draft)
+      ? mapping.replace(/\)\.$/, `, po změně ${formatQuantity(100 - draft, '%')}).`)
+      : mapping;
   const delta = draft - Number(row.value);
   const reserve = row.key === 'energy_battery_dod_ongrid';
+  // The values are shown big right under the title, so the title names only the change.
   const confirmTitle = reserve
-    ? `Změnit rezervu baterie z ${displayText(row)} na ${next}?`
+    ? 'Změnit rezervu baterie?'
     : row.key === 'export_limit_kw'
-      ? `Použít ${next} i pro předpověď?`
-      : `Změnit ${row.label.toLowerCase()} z ${displayText(row)} na ${next}?`;
+      ? 'Použít limit střídače i pro předpověď?'
+      : `Změnit ${row.label.toLowerCase()}?`;
+  const verify = row.assumed ? VERIFY[row.key] : undefined;
+  const glyph = visualFor(row);
   const error = failed && (
     <p className="en-sheet-error" role="alert">
       Nepodařilo se uložit – zkuste to znovu
@@ -192,7 +236,7 @@ function SettingSheet({
   if (step === 'confirm')
     return (
       <Sheet
-        title={nbspUnits(confirmTitle)}
+        title={confirmTitle}
         appearance="raised"
         placement="center"
         closeLabel="Zavřít"
@@ -256,10 +300,14 @@ function SettingSheet({
             <Button
               variant="primary"
               loading={busy}
-              disabled={!valid || !changed}
+              disabled={!valid || (!changed && !verify)}
               onClick={() => (INVERTER_WRITES.has(row.key) ? onStep('confirm') : void save())}
             >
-              {INVERTER_WRITES.has(row.key) ? 'Pokračovat' : 'Uložit'}
+              {INVERTER_WRITES.has(row.key)
+                ? 'Pokračovat'
+                : !changed && verify
+                  ? 'Potvrdit'
+                  : 'Uložit'}
             </Button>
           </>
         ) : (
@@ -270,12 +318,24 @@ function SettingSheet({
       }
     >
       <p className="en-sheet-lead">{nbspUnits(row.summary)}</p>
-      <div className="en-sheet-now">
+      <div className="en-sheet-now" data-readonly={editable ? undefined : ''}>
         <span>{editable ? 'Teď' : 'Hodnota'}</span>
+        {glyph && (
+          <span className="en-sheet-glyph" aria-hidden="true">
+            {glyph}
+          </span>
+        )}
         <strong>
-          <DisplayValue row={row} />
+          <DisplayValue row={row} detail />
         </strong>
       </div>
+      {verify && (
+        <Callout title={verify}>
+          {editable
+            ? 'Hodnota je zatím odhad. Zkontrolujte ji podle projektu elektrárny a uložte, předpověď pak bude přesnější.'
+            : 'Hodnota je zatím odhad. Správce ji může zkontrolovat podle projektu elektrárny.'}
+        </Callout>
+      )}
       {editable && (
         <RangeStepper
           label={`${row.label}: nová hodnota`}
@@ -343,6 +403,7 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
   const open = (row: EnergySetting) =>
     setPending({ row, draft: Number(row.value ?? row.min ?? 0), step: 'edit' });
   const anyLocked = data?.rows.some((r) => !r.editable);
+  const order = (row: EnergySetting) => ORDER[row.key] ?? 0;
   if (failed || !connection)
     return (
       <div className="en-root en-settings">
@@ -365,84 +426,84 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
   return (
     <div className="en-root en-settings">
       <div className="en-settings-grid">
-        {sections.map(([section, icon, tint]) => {
-          const rows = data.rows.filter((row) => row.section === section);
-          if (!rows.length) return null;
-          return (
-            <section
-              className="en-settings-section"
-              key={section}
-              aria-labelledby={`en-sec-${icon}`}
-              style={{ '--en-tint': tint } as CSSProperties}
-            >
-              <header>
-                <span className="en-section-icon">
-                  <Icon name={icon} size={20} />
-                </span>
-                <h2 id={`en-sec-${icon}`}>{section}</h2>
-              </header>
-              {section === 'Fotovoltaika' && <PvForecastHero pv={pv} />}
-              {section === 'Síť' && mismatch && (
-                <Callout
-                  tone="warn"
-                  title="Limity přetoku se neshodují"
-                  action={
-                    applyLimit !== null && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          setPending({
-                            row: forecastLimit!,
-                            draft: Number(applyLimit.toFixed(2)),
-                            step: 'confirm',
-                          })
+        {COLUMNS.map((names) => (
+          <div className="en-settings-col" key={names[0]}>
+            {sections
+              .filter(([name]) => names.includes(name))
+              .map(([section, icon, tint]) => {
+                const rows = data.rows
+                  .filter((row) => row.section === section)
+                  .sort((a, b) => order(a) - order(b));
+                if (!rows.length) return null;
+                return (
+                  <section
+                    className="en-settings-section"
+                    key={section}
+                    aria-labelledby={`en-sec-${icon}`}
+                    style={{ '--en-tint': tint } as CSSProperties}
+                  >
+                    <header>
+                      <span className="en-section-icon">
+                        <Icon name={icon} size={20} />
+                      </span>
+                      <h2 id={`en-sec-${icon}`}>{section}</h2>
+                    </header>
+                    {section === 'Fotovoltaika' && <PvForecastStrip pv={pv} />}
+                    {section === 'Síť' && mismatch && (
+                      <Callout
+                        tone="warn"
+                        title="Limity přetoku se neshodují"
+                        action={
+                          applyLimit !== null && (
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                setPending({
+                                  row: forecastLimit!,
+                                  draft: Number(applyLimit.toFixed(2)),
+                                  step: 'confirm',
+                                })
+                              }
+                            >
+                              {nbspUnits(`Použít ${formatPower(applyLimit, 'kW')} i pro předpověď`)}
+                            </Button>
+                          )
                         }
                       >
-                        {nbspUnits(`Použít ${formatQuantity(applyLimit, 'kW')} i pro předpověď`)}
-                      </Button>
-                    )
-                  }
-                >
-                  {nbspUnits(
-                    `Střídač pustí do sítě nejvýš ${formatQuantity(mismatch.inverterW, 'W')}, předpověď ale počítá s ${formatQuantity(mismatch.forecastKw, 'kW')}.`,
-                  )}
-                </Callout>
-              )}
-              <div className="en-cells">
-                {rows.map((row) => (
-                  <ListCell
-                    key={row.key}
-                    data-key={row.key}
-                    label={row.label}
-                    badge={
-                      row.assumed && (
-                        <Pill tone="warn" size="sm" className="en-estimate">
-                          odhad
-                        </Pill>
-                      )
-                    }
-                    description={nbspUnits(row.summary)}
-                    value={<DisplayValue row={row} />}
-                    visual={visualFor(row)}
-                    muted={row.value === null}
-                    trailing={row.editable ? 'chevron' : 'lock'}
-                    lockLabel={whereText(row)}
-                    aria-label={`${row.label}: ${displayText(row)}${row.editable ? '' : ', jen pro čtení'}`}
-                    onClick={() => open(row)}
-                  >
-                    {row.key === 'energy_export_limit' && mismatch && (
-                      <ExportLimitBars
-                        inverterW={mismatch.inverterW}
-                        forecastKw={mismatch.forecastKw}
-                      />
+                        {nbspUnits(mismatchText(mismatch))}{' '}
+                        {nbspUnits(
+                          'Platí limit střídače: HomeBrain ho čte přímo ze střídače a tady ho změnit nejde.',
+                        )}
+                      </Callout>
                     )}
-                  </ListCell>
-                ))}
-              </div>
-            </section>
-          );
-        })}
+                    <div className="en-cells">
+                      {rows.map((row) => (
+                        <ListCell
+                          key={row.key}
+                          data-key={row.key}
+                          label={row.label}
+                          badge={
+                            row.assumed && (
+                              <Pill tone="accent" size="sm" className="en-estimate">
+                                odhad
+                              </Pill>
+                            )
+                          }
+                          value={<DisplayValue row={row} />}
+                          muted={row.value === null}
+                          trailing={row.editable ? 'chevron' : 'lock'}
+                          lockLabel={whereText(row) ?? 'Jen pro čtení'}
+                          lockText={row.editable ? undefined : SOURCE[row.source ?? '']}
+                          aria-label={ariaName(row)}
+                          onClick={() => open(row)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+          </div>
+        ))}
       </div>
       {anyLocked && (
         <p className="en-settings-foot">

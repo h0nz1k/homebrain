@@ -22,8 +22,16 @@ describe('ListCell', () => {
   });
   it('renders a lock chip in the same trailing slot and no button without onClick', () => {
     const { container } = render(
-      <ListCell label="Režim" value="Obecný" trailing="lock" lockLabel="Mění se v SolarGo." />,
+      <ListCell
+        label="Režim"
+        value="Obecný"
+        trailing="lock"
+        lockLabel="Mění se v SolarGo."
+        lockText="ze střídače"
+      />,
     );
+    expect(screen.getByRole('img', { name: 'Mění se v SolarGo.' })).toBeTruthy();
+    expect(container.querySelector('.hb-cell-source')?.textContent).toBe('ze střídače');
     expect(screen.queryByRole('button')).toBeNull();
     expect(
       container
@@ -38,6 +46,19 @@ describe('Quantity', () => {
     const { container } = render(<Quantity value={8.5} unit="kWp" />);
     expect(container.textContent).toBe('8,5 kWp');
     expect(container.querySelector('small')?.textContent).toBe(' kWp');
+  });
+});
+
+describe('Quantity units', () => {
+  it('glues angles and shows power under 1 kW in watts', () => {
+    const { container } = render(
+      <>
+        <Quantity value={35} unit="°" />
+        <Quantity value={0.08} unit="kW" />
+        <Quantity value={5000} unit="W" />
+      </>,
+    );
+    expect(container.textContent).toBe('35°80\u00a0W5\u00a0kW');
   });
 });
 
