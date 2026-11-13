@@ -154,3 +154,18 @@ async def test_reserve_respects_inverter_limits(hass, setup, hass_ws_client):
         await hass_ws_client(hass), "set", key="energy_battery_dod_ongrid", value=20
     )
     assert result["error"]["code"] == "invalid_value"
+
+
+async def test_backup_reserve_range_uses_entity_bounds(hass, setup, hass_ws_client):
+    hass.config_entries.async_update_entry(
+        setup,
+        options={
+            **setup.options,
+            "bindings": {"energy": {"energy_battery_dod_backup": "number.demo_backup"}},
+        },
+    )
+    hass.states.async_set("number.demo_backup", "70", {"min": 20, "max": 100, "step": 1})
+    result = await request(await hass_ws_client(hass))
+    row = next(r for r in result["result"]["rows"] if r["key"] == "energy_battery_dod_backup")
+    assert (row["value"], row["min"], row["max"], row["step"]) == (30, 0, 80, 1)
+    assert not row["editable"]

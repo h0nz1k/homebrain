@@ -407,9 +407,13 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                 unit=attrs.get("unit_of_measurement") or unit,
                 explanation=explanation,
                 value=value,
-                min=10 if reserve else lo,
-                max=50 if reserve else hi,
-                step=5 if reserve else step,
+                min=10
+                if key == "energy_battery_dod_ongrid"
+                else (100 - hi if reserve and hi is not None else lo),
+                max=50
+                if key == "energy_battery_dod_ongrid"
+                else (100 - lo if reserve and lo is not None else hi),
+                step=5 if key == "energy_battery_dod_ongrid" else step,
                 editable=admin and writable,
                 location="v Home Assistantu"
                 if key in HELPERS or key.startswith("energy_tariff_")
