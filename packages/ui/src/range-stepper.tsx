@@ -17,6 +17,9 @@ export interface RangeStepperProps {
   /** Recommended band drawn on the track, with its caption („běžně“). */
   band?: [number, number];
   bandLabel?: string;
+  /** Saved value, marked on the slider („teď 20 %“) so the change is visible. */
+  current?: number;
+  currentLabel?: string;
   disabled?: boolean;
 }
 
@@ -36,6 +39,8 @@ export function RangeStepper({
   unit = '',
   band,
   bandLabel = 'doporučeno',
+  current,
+  currentLabel = 'teď',
   disabled,
 }: RangeStepperProps) {
   const id = useId();
@@ -44,12 +49,18 @@ export function RangeStepper({
     return Number(Math.min(max, Math.max(min, snapped)).toFixed(decimals(step)));
   };
   const span = max - min;
-  const pct = (v: number) => (span > 0 ? ((v - min) / span) * 100 : 0);
+  const frac = (v: number) => (span > 0 ? Math.min(1, Math.max(0, (v - min) / span)) : 0);
+  const pct = (v: number) => frac(v) * 100;
   const slider = span > 0 && span / step <= MAX_SLIDER_STEPS;
+  const marked = slider && current !== undefined && Number.isFinite(current);
+  // Fractions place the fill, band and tick on the thumb centre (12 px inset at both ends).
   const style = {
-    '--hb-range-pos': `${pct(value)}%`,
+    '--hb-range-f': frac(value),
+    '--hb-band-a': band ? frac(band[0]) : undefined,
+    '--hb-band-b': band ? frac(band[1]) : undefined,
     '--hb-band-from': band ? `${pct(band[0])}%` : undefined,
     '--hb-band-to': band ? `${pct(band[1])}%` : undefined,
+    '--hb-now-f': marked ? frac(current) : undefined,
   } as CSSProperties;
   return (
     <div className="hb-range" style={style}>
@@ -90,9 +101,17 @@ export function RangeStepper({
           <Icon name="plus" size={20} />
         </button>
       </div>
+      {marked && (
+        <div className="hb-range-now" aria-hidden="true">
+          <span>
+            {currentLabel} {formatQuantity(current, unit)}
+          </span>
+        </div>
+      )}
       {slider && (
-        <div className="hb-range-track">
+        <div className="hb-range-track" data-band={band ? '' : undefined}>
           {band && <span className="hb-range-band" aria-hidden="true" />}
+          {marked && <span className="hb-range-tick" aria-hidden="true" />}
           <input
             type="range"
             aria-label={`${label}: posuvník`}

@@ -62,6 +62,7 @@ function RangeStepperDemo() {
       unit="%"
       band={[10, 30]}
       bandLabel="běžně"
+      current={20}
     />
   );
 }
@@ -904,6 +905,8 @@ function SwitchDemo() {
       <Switch checked={on} onChange={setOn} label="Biometrické odemykání" />
       <Switch checked={warn} onChange={setWarn} tone="warn" label="Servisní režim" />
       <Switch checked={false} onChange={() => undefined} disabled label="Nedostupné" />
+      <Switch checked readOnly label="Ze střídače (jen pro čtení)" />
+      <Switch checked={false} readOnly size="sm" label="Vypnuto ze střídače" />
     </div>
   );
 }

@@ -675,13 +675,26 @@ export const energyStyles = `
 /* Wide screens: two top-aligned columns (same header block in both, no empty half screen). */
 @media(min-width:1200px){
 .en-settings,.en-tabs[data-tab='settings']{max-width:1400px}
-.en-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+/* Cards side by side share rows via subgrid: header | lead (forecast strip / warning) | rows | gap.
+   Paired cards get the same height, the shorter one keeps empty space at its bottom. */
+.en-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,auto auto auto 20px);column-gap:20px;row-gap:0}
+.en-settings-col{display:contents}
+.en-settings-grid .en-settings-section{display:grid;grid-template-rows:subgrid;grid-column:var(--en-col);grid-row:var(--en-row)/span 3;row-gap:0}
+.en-settings-grid .en-settings-section>header{grid-row:1}
+.en-settings-grid .en-section-lead{grid-row:2;display:grid}
+.en-settings-grid .en-section-lead:not(:empty){margin-top:12px}
+.en-settings-grid .en-cells{grid-row:3;margin-top:12px}
+.en-settings-grid .en-pv-strip{align-content:center}
 }
 .en-settings-section{display:flex;flex-direction:column;gap:12px;padding:var(--en-pad) var(--en-pad) 6px;border-radius:var(--hb-radius-lg,20px);background:var(--en-card);box-shadow:var(--en-card-shadow),0 0 0 1px var(--en-card-edge);min-width:0}
 .en-settings-section>header{display:flex;align-items:center;gap:12px;min-height:36px}
 .en-settings-section h2{margin:0;font-size:20px;font-weight:700;line-height:1.2;letter-spacing:-.02em;color:var(--hb-t1)}
+.en-section-lead{display:contents}
+.en-section-lead:empty{display:none}
 .en-section-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;color:var(--en-tint);background:color-mix(in srgb,var(--en-tint) 16%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--en-tint) 22%,transparent)}
-[data-theme='light'] .en-section-icon{color:color-mix(in srgb,var(--en-tint) 85%,#000);background:color-mix(in srgb,var(--en-tint) 12%,transparent)}
+[data-theme='light'] .en-section-lead{display:contents}
+.en-section-lead:empty{display:none}
+.en-section-icon{color:color-mix(in srgb,var(--en-tint) 85%,#000);background:color-mix(in srgb,var(--en-tint) 12%,transparent)}
 .en-cells{display:flex;flex-direction:column}
 .en-cells .hb-cell-main{min-height:52px;padding-block:10px}
 .en-cells .hb-cell-label{font-size:15px;font-weight:400}
@@ -690,7 +703,6 @@ export const energyStyles = `
 /* Read-only values step back; editable ones lead. */
 .en-cells .hb-cell:has(.hb-cell-trail[data-kind='lock']) .hb-cell-value{font-weight:500;color:var(--hb-t2)}
 .en-cells .hb-cell:has(.hb-cell-trail[data-kind='lock']) .hb-quantity small{color:inherit}
-.en-estimate.hb-pill{font-size:12px;font-weight:600;color:var(--hb-sel-ink);background:var(--hb-sel)}
 .en-glyph{display:block;overflow:visible;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .en-glyph-base{stroke:color-mix(in srgb,var(--hb-t1) 28%,transparent);stroke-width:1.5}
 .en-glyph-tick{stroke:var(--hb-t2);stroke-width:1.75}
@@ -721,6 +733,7 @@ export const energyStyles = `
 .en-sheet-now[data-readonly] strong{font-size:22px;font-weight:650;letter-spacing:-.02em}
 .en-sheet-now strong .hb-quantity small{font-size:.7em}
 .en-sheet-glyph{display:inline-flex;margin-left:4px}
+.en-sheet-switch{display:inline-flex;align-items:center;gap:10px}
 .hb-sheet .hb-callout{margin-top:16px}
 .en-sheet-text{margin:20px 0 0;text-wrap:pretty;padding-top:16px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent);font-size:14px;line-height:1.55;color:var(--hb-t2)}
 .en-sheet-where{text-wrap:pretty;display:flex;align-items:flex-start;gap:8px;margin:12px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}

@@ -53,6 +53,14 @@ describe('controls', () => {
     fireEvent.click(sw);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+  it('read-only Switch is a locked, non-focusable switch that names its state', () => {
+    render(<Switch checked readOnly size="sm" label="Hlídat rezervu" />);
+    const sw = screen.getByRole('switch', { name: 'Hlídat rezervu: zapnuto, jen pro čtení' });
+    expect(sw.tagName).toBe('SPAN');
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    expect(sw.getAttribute('aria-readonly')).toBe('true');
+    expect(sw.hasAttribute('data-locked')).toBe(true);
+  });
   it('SegmentedControl tone=accent marks the wrapper (accent thumb like pressed chips)', () => {
     const { container } = render(
       <SegmentedControl

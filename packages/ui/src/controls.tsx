@@ -14,19 +14,41 @@ export interface SwitchProps extends Omit<
   'onChange' | 'children'
 > {
   checked: boolean;
-  onChange: (next: boolean) => void;
+  /** Required unless `readOnly`. */
+  onChange?: (next: boolean) => void;
   /** Accessible name (visible label lives next to the switch). */
   label: string;
   tone?: 'accent' | 'warn' | 'ok';
+  size?: 'sm' | 'md';
+  /**
+   * Locked value (read from a device, changed elsewhere): neutral outlined look, not focusable,
+   * and the accessible name states the value („…: zapnuto, jen pro čtení“).
+   */
+  readOnly?: boolean;
 }
 export function Switch({
   checked,
   onChange,
   label,
   tone = 'accent',
+  size = 'md',
+  readOnly,
   className = '',
   ...props
 }: SwitchProps) {
+  if (readOnly)
+    return (
+      <span
+        role="switch"
+        aria-checked={checked}
+        aria-readonly="true"
+        aria-disabled="true"
+        aria-label={`${label}: ${checked ? 'zapnuto' : 'vypnuto'}, jen pro čtení`}
+        data-size={size}
+        data-locked=""
+        className={`hb-switch ${className}`}
+      />
+    );
   return (
     <button
       {...props}
@@ -35,8 +57,9 @@ export function Switch({
       aria-checked={checked}
       aria-label={label}
       data-tone={tone}
+      data-size={size}
       className={`hb-switch ${className}`}
-      onClick={() => onChange(!checked)}
+      onClick={() => onChange?.(!checked)}
     />
   );
 }

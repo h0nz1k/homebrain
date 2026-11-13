@@ -103,3 +103,45 @@ it('keeps rows to one line, puts the export limits under the warning and asks to
     (within(sheet).getByRole('button', { name: 'Potvrdit' }) as HTMLButtonElement).disabled,
   ).toBe(false);
 });
+it('shows on/off settings as locked switches and source labels in plain words', async () => {
+  connect();
+  const row = await screen.findByRole('button', {
+    name: 'Hlídat rezervu: Zapnuto, jen pro čtení (ze střídače)',
+  });
+  const toggle = row.querySelector('[role="switch"]')!;
+  expect(toggle.getAttribute('aria-checked')).toBe('true');
+  expect(toggle.hasAttribute('data-locked')).toBe(true);
+  expect(row.textContent).not.toContain('Zapnuto');
+  const off = screen.getByRole('button', { name: /^Rychlé nabíjení: Vypnuto/ });
+  expect(off.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('false');
+  // HDO is a tariff state, not a setting: stays text.
+  expect(
+    screen
+      .getByRole('button', { name: /^Aktuální tarif HDO: Nízký tarif/ })
+      .querySelector('[role="switch"]'),
+  ).toBeNull();
+  // One tag style for sources and the estimate; no „z HA“ shorthand.
+  expect(document.body.textContent).not.toMatch(/z HA\b/);
+  expect(screen.getAllByText('z Home Assistantu').length).toBeGreaterThan(0);
+  const estimate = screen.getByText('odhad');
+  expect(estimate.classList.contains('hb-cell-tag')).toBe(true);
+  expect(estimate.getAttribute('data-tone')).toBe('info');
+  fireEvent.click(off);
+  const sheet = screen.getByRole('dialog', { name: 'Rychlé nabíjení' });
+  expect(
+    within(sheet).getByRole('switch', { name: 'Rychlé nabíjení: vypnuto, jen pro čtení' }),
+  ).toBeTruthy();
+  expect(sheet.textContent).toContain('Hodnota je ze střídače. Mění se v aplikaci SolarGo.');
+});
+it('edit sheet has one way out in the footer and marks the saved value on the slider', async () => {
+  connect();
+  fireEvent.click(
+    await screen.findByRole('button', { name: /^Rezerva při běžném provozu: 10\s%$/ }),
+  );
+  const sheet = screen.getByRole('dialog', { name: 'Rezerva při běžném provozu' });
+  expect(within(sheet).queryByRole('button', { name: 'Zavřít' })).toBeNull();
+  expect(within(sheet).getByRole('button', { name: 'Zrušit' })).toBeTruthy();
+  expect(within(sheet).getByText(/^teď 10\s%$/)).toBeTruthy();
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Zrušit' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});

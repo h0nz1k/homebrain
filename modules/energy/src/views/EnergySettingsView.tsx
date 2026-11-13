@@ -3,14 +3,15 @@ import type { ConnectionLike } from '@homebrain/ha-client';
 import {
   Button,
   Callout,
+  CellTag,
   ErrorState,
   Icon,
   ListCell,
-  Pill,
   Quantity,
   RangeStepper,
   Sheet,
   Skeleton,
+  Switch,
   formatPower,
   formatQuantity,
   nbspUnits,
@@ -35,11 +36,16 @@ const sections: [string, IconName, string][] = [
   ['Tarif a ceny', 'tariff', 'var(--hb-ok)'],
   ['Střídač', 'inverter', 'var(--hb-energy-home)'],
 ];
-/** Wide screens: two columns that start with the same header block (forecast strip / warning). */
+/**
+ * Wide screens: two columns. Cards at the same position share grid rows (header / lead block /
+ * rows), so the forecast strip and the warning take the same height and first rows line up.
+ */
 const COLUMNS = [
   ['Fotovoltaika', 'Baterie'],
   ['Síť', 'Tarif a ceny', 'Střídač'],
 ];
+/** Same limit as RangeStepper: above it the stepper has no slider (and no „teď“ marker). */
+const MAX_SLIDER_STEPS = 400;
 /** Recommended band drawn on the slider in the edit sheet. */
 const BANDS: Record<string, [number, number, string]> = {
   energy_battery_dod_ongrid: [10, 30, 'běžně'],
@@ -84,16 +90,19 @@ const VERIFY: Record<string, string> = { pv_tilt: 'Ověřit sklon', pv_azimuth: 
 /** Short visible source of a read-only value, next to the row label. */
 const SOURCE: Record<string, string> = {
   SolarGo: 'ze střídače',
-  'Home Assistant': 'z HA',
+  'Home Assistant': 'z Home Assistantu',
   Správce: 'jen správce',
 };
-/** Read-only rows: where the value is changed instead. */
+/** Read-only rows: where the value comes from and where it is changed instead. */
 const whereText = (row: EnergySetting) =>
   row.source === 'Správce'
     ? 'Mění jen správce v HomeBrainu.'
     : row.location
-      ? `Mění se ${row.location}.`
+      ? `${row.source && SOURCE[row.source] ? `Hodnota je ${SOURCE[row.source]}. ` : ''}Mění se ${row.location}.`
       : undefined;
+/** On/off settings render as a switch; HDO is a tariff state, not a setting, and stays text. */
+const isSwitch = (row: EnergySetting) =>
+  (row.value === 'on' || row.value === 'off') && row.key !== 'energy_tariff_hdo';
 const direction = (az: number) => DIRECTIONS[((Math.round(az / 45) % 8) + 8) % 8]!;
 /** One number style everywhere: power as W under 1 kW, otherwise the row's own unit. */
 const format = (value: number, unit: string) =>
@@ -126,6 +135,20 @@ function displayText(row: EnergySetting): string {
 /** Rich value: number in tabular figures with a lighter unit; the sheet adds the azimuth angle. */
 function DisplayValue({ row, detail }: { row: EnergySetting; detail?: boolean }) {
   const numeric = Number(row.value);
+  if (isSwitch(row)) {
+    // Every on/off setting so far is read from the inverter: a locked switch (row name says it).
+    const toggle = (
+      <Switch readOnly={!row.editable} size="sm" checked={row.value === 'on'} label={row.label} />
+    );
+    return detail ? (
+      <span className="en-sheet-switch">
+        {toggle}
+        {displayText(row)}
+      </span>
+    ) : (
+      toggle
+    );
+  }
   if (row.key === 'pv_azimuth' && Number.isFinite(numeric))
     return detail ? (
       <span>
@@ -228,6 +251,14 @@ function SettingSheet({
       : `Změnit ${row.label.toLowerCase()}?`;
   const verify = row.assumed ? VERIFY[row.key] : undefined;
   const glyph = visualFor(row);
+  // With a slider the saved value is marked on it („teď 20 %“), so the „Teď“ line would repeat it.
+  // Tilt / azimuth keep the line for their glyph.
+  const marked =
+    editable &&
+    !glyph &&
+    row.value !== null &&
+    row.max! > row.min! &&
+    (row.max! - row.min!) / row.step! <= MAX_SLIDER_STEPS;
   const error = failed && (
     <p className="en-sheet-error" role="alert">
       Nepodařilo se uložit – zkuste to znovu
@@ -239,7 +270,7 @@ function SettingSheet({
         title={confirmTitle}
         appearance="raised"
         placement="center"
-        closeLabel="Zavřít"
+        dismissOnScrim
         onClose={onClose}
         footer={
           <>
@@ -285,11 +316,12 @@ function SettingSheet({
       </Sheet>
     );
   return (
+    // One way out in the footer (Zrušit / Zavřít); backdrop tap and Esc still close.
     <Sheet
       title={row.label}
       appearance="raised"
       placement="center"
-      closeLabel="Zavřít"
+      dismissOnScrim
       onClose={onClose}
       footer={
         editable ? (
@@ -318,17 +350,19 @@ function SettingSheet({
       }
     >
       <p className="en-sheet-lead">{nbspUnits(row.summary)}</p>
-      <div className="en-sheet-now" data-readonly={editable ? undefined : ''}>
-        <span>{editable ? 'Teď' : 'Hodnota'}</span>
-        {glyph && (
-          <span className="en-sheet-glyph" aria-hidden="true">
-            {glyph}
-          </span>
-        )}
-        <strong>
-          <DisplayValue row={row} detail />
-        </strong>
-      </div>
+      {!marked && (
+        <div className="en-sheet-now" data-readonly={editable ? undefined : ''}>
+          <span>{editable ? 'Teď' : 'Hodnota'}</span>
+          {glyph && (
+            <span className="en-sheet-glyph" aria-hidden="true">
+              {glyph}
+            </span>
+          )}
+          <strong>
+            <DisplayValue row={row} detail />
+          </strong>
+        </div>
+      )}
       {verify && (
         <Callout title={verify}>
           {editable
@@ -347,6 +381,7 @@ function SettingSheet({
           unit={row.unit}
           band={band ? [band[0], band[1]] : undefined}
           bandLabel={band?.[2]}
+          current={row.value === null ? undefined : Number(row.value)}
         />
       )}
       <p className="en-sheet-text">{nbspUnits(text)}</p>
@@ -426,11 +461,11 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
   return (
     <div className="en-root en-settings">
       <div className="en-settings-grid">
-        {COLUMNS.map((names) => (
+        {COLUMNS.map((names, col) => (
           <div className="en-settings-col" key={names[0]}>
             {sections
               .filter(([name]) => names.includes(name))
-              .map(([section, icon, tint]) => {
+              .map(([section, icon, tint], index) => {
                 const rows = data.rows
                   .filter((row) => row.section === section)
                   .sort((a, b) => order(a) - order(b));
@@ -440,7 +475,13 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
                     className="en-settings-section"
                     key={section}
                     aria-labelledby={`en-sec-${icon}`}
-                    style={{ '--en-tint': tint } as CSSProperties}
+                    style={
+                      {
+                        '--en-tint': tint,
+                        '--en-col': col + 1,
+                        '--en-row': index * 4 + 1,
+                      } as CSSProperties
+                    }
                   >
                     <header>
                       <span className="en-section-icon">
@@ -448,34 +489,38 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
                       </span>
                       <h2 id={`en-sec-${icon}`}>{section}</h2>
                     </header>
-                    {section === 'Fotovoltaika' && <PvForecastStrip pv={pv} />}
-                    {section === 'Síť' && mismatch && (
-                      <Callout
-                        tone="warn"
-                        title="Limity přetoku se neshodují"
-                        action={
-                          applyLimit !== null && (
-                            <Button
-                              variant="secondary"
-                              onClick={() =>
-                                setPending({
-                                  row: forecastLimit!,
-                                  draft: Number(applyLimit.toFixed(2)),
-                                  step: 'confirm',
-                                })
-                              }
-                            >
-                              {nbspUnits(`Použít ${formatPower(applyLimit, 'kW')} i pro předpověď`)}
-                            </Button>
-                          )
-                        }
-                      >
-                        {nbspUnits(mismatchText(mismatch))}{' '}
-                        {nbspUnits(
-                          'Platí limit střídače: HomeBrain ho čte přímo ze střídače a tady ho změnit nejde.',
-                        )}
-                      </Callout>
-                    )}
+                    <div className="en-section-lead">
+                      {section === 'Fotovoltaika' && <PvForecastStrip pv={pv} />}
+                      {section === 'Síť' && mismatch && (
+                        <Callout
+                          tone="warn"
+                          title="Limity přetoku se neshodují"
+                          action={
+                            applyLimit !== null && (
+                              <Button
+                                variant="secondary"
+                                onClick={() =>
+                                  setPending({
+                                    row: forecastLimit!,
+                                    draft: Number(applyLimit.toFixed(2)),
+                                    step: 'confirm',
+                                  })
+                                }
+                              >
+                                {nbspUnits(
+                                  `Použít ${formatPower(applyLimit, 'kW')} i pro předpověď`,
+                                )}
+                              </Button>
+                            )
+                          }
+                        >
+                          {nbspUnits(mismatchText(mismatch))}{' '}
+                          {nbspUnits(
+                            'Platí limit střídače: HomeBrain ho čte přímo ze střídače a tady ho změnit nejde.',
+                          )}
+                        </Callout>
+                      )}
+                    </div>
                     <div className="en-cells">
                       {rows.map((row) => (
                         <ListCell
@@ -484,9 +529,9 @@ export function EnergySettingsView({ connection }: { connection?: ConnectionLike
                           label={row.label}
                           badge={
                             row.assumed && (
-                              <Pill tone="accent" size="sm" className="en-estimate">
+                              <CellTag tone="info" icon="info">
                                 odhad
-                              </Pill>
+                              </CellTag>
                             )
                           }
                           value={<DisplayValue row={row} />}

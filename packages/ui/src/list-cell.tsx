@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon } from './icons.js';
+import { Icon, type IconName } from './icons.js';
 import { NBSP, formatQuantity, powerParts } from './units.js';
 
 /**
@@ -20,6 +20,30 @@ export function Quantity({ value, unit = '' }: { value: number; unit?: string })
               {shown}
             </small>
           )}
+    </span>
+  );
+}
+
+/**
+ * Small tag after a cell label: the source of a read-only value („ze střídače“) or a state of the
+ * value („odhad“). One shape for all of them (plain caption text, optional 14 px icon); `info`
+ * only tints the icon. `source` tags hide in narrow rows, the lock still says it.
+ */
+export function CellTag({
+  children,
+  icon,
+  tone,
+  kind,
+}: {
+  children: ReactNode;
+  icon?: IconName;
+  tone?: 'info';
+  kind?: 'source';
+}) {
+  return (
+    <span className="hb-cell-tag" data-tone={tone} data-kind={kind}>
+      {icon && <Icon name={icon} size={14} />}
+      {children}
     </span>
   );
 }
@@ -71,7 +95,7 @@ export function ListCell({
         <span className="hb-cell-label">
           {label}
           {badge}
-          {trailing === 'lock' && lockText && <span className="hb-cell-source">{lockText}</span>}
+          {trailing === 'lock' && lockText && <CellTag kind="source">{lockText}</CellTag>}
         </span>
         {description && <span className="hb-cell-desc">{description}</span>}
       </span>

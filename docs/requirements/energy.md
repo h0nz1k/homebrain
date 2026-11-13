@@ -262,10 +262,12 @@ výchozí 25 A), tečkovaná značka na 80 %. Zdroj: `energy_grid_l1…l3_power`
   stálé platby, HDO a další změna, spotové přirážky/distribuce/platby), Střídač (režim, EMS, stav).
 - **Nápověda a úpravy:** Každý řádek je celý klepatelný (`ListCell`) a jednořádkový: popisek
   (+ odznak), hodnota s jednotkou a pevný koncový slot – šipka u upravitelných řádků, zámek
-  u řádků jen pro čtení (u popisku krátký zdroj „ze střídače“ / „z HA“ / „jen správce“, když
-  se vejde). Shrnutí (`summary`) a vysvětlení jsou jen v detailu. Klepnutí otevře detail
+  u řádků jen pro čtení (u popisku krátký zdroj „ze střídače“ / „z Home Assistantu“ / „jen
+  správce“, když se vejde; stejný tvar `CellTag` má i „odhad“). Zapnuto/vypnuto se ukazuje
+  přepínačem (`Switch`), u hodnot jen pro čtení zamčeným (`readOnly`). Shrnutí (`summary`) a vysvětlení jsou jen v detailu. Klepnutí otevře detail
   (`Sheet` raised: telefon spodní panel s úchytem, tablet/desktop centrovaný dialog) se
-  shrnutím, velkou současnou hodnotou, `RangeStepper` s doporučeným pásmem (rezerva 10–30 %,
+  shrnutím, velkou současnou hodnotou, `RangeStepper` se značkou uložené hodnoty („teď 20 %“)
+  a doporučeným pásmem (samostatná vrstva pod stopou) (rezerva 10–30 %,
   sklon 25–45 °, orientace ±45 °, jistič 16–32 A) a vysvětlením (`explanation`, 2–3 věty:
   význam, praktický důsledek, doporučení; neopakuje shrnutí). Řádky jen pro čtení otevřou
   stejný detail bez úprav s místem změny (`source`/`location`: SolarGo, Home Assistant,
@@ -278,7 +280,7 @@ výchozí 25 A), tečkovaná značka na 80 %. Zdroj: `energy_grid_l1…l3_power`
   střídače, zde ho změnit nejde); správce může jedním tlačítkem (s potvrzením) nastavit limit
   střídače i pro předpověď (`export_limit_kw`). Fotovoltaika má nahoře kompaktní pruh
   „Zítra ~X kWh · špička Y v HH:MM“ s malým hodinovým průběhem (bez vyhlazení, bod ve
-  špičce). Escape i tlačítko Zavřít (44 px) detail zavírají.
+  špičce). Detail zavírá jediné tlačítko v patičce (Zrušit, u hodnot jen pro čtení Zavřít), Escape a klepnutí mimo panel.
   Chybějící vazba = „nepřipojeno“ a logický klíč. Výchozí sklon 35 ° a azimut 0 °
   mají neutrální odznak „odhad“ a detail vyzve k ověření. Azimut 0 = jih, −90 = východ,
   90 = západ; v seznamu je jen směr, úhel v detailu.

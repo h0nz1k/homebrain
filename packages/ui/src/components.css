@@ -1406,6 +1406,36 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   opacity: 0.45;
   cursor: default;
 }
+.hb-switch[data-size='sm'] {
+  width: 40px;
+  height: 24px;
+}
+.hb-switch[data-size='sm']::after {
+  width: 18px;
+  height: 18px;
+}
+.hb-switch[data-size='sm'][aria-checked='true']::after {
+  transform: translateX(16px);
+}
+/* Locked (read-only): neutral ink instead of the accent, outlined when off, never dimmed. */
+.hb-switch[data-locked] {
+  display: inline-block;
+  box-sizing: border-box;
+  cursor: inherit;
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--hb-t3);
+}
+.hb-switch[data-locked]::after {
+  background: var(--hb-t3);
+  box-shadow: none;
+}
+.hb-switch[data-locked][aria-checked='true'] {
+  background: var(--hb-t3);
+  box-shadow: none;
+}
+.hb-switch[data-locked][aria-checked='true']::after {
+  background: var(--hb-s1);
+}
 
 /* ── SegmentedControl (API + base styles shared with Roboti PR #97) ───── */
 .hb-seg-wrap {
@@ -2591,13 +2621,24 @@ button.hb-cell-main:focus-visible {
   line-height: 1.35;
   color: var(--hb-t1);
 }
-.hb-cell-source {
+/* CellTag: one quiet shape for every tag after a label (source, estimate). */
+.hb-cell-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--hb-type-caption);
-  font-weight: 450;
+  font-weight: 500;
+  line-height: 1.35;
   color: var(--hb-t2);
 }
+.hb-cell-tag[data-tone='info'] svg {
+  color: var(--hb-sel-ink);
+}
+.hb-cell-tag svg {
+  flex: none;
+}
 @container (max-width: 400px) {
-  .hb-cell-source {
+  .hb-cell-tag[data-kind='source'] {
     display: none;
   }
 }
@@ -2797,12 +2838,15 @@ button.hb-cell-main:focus-visible {
 }
 .hb-range-track {
   position: relative;
+  /* 30 px for the thumb, then the recommended band below it (never under the thumb). */
   height: 30px;
 }
-/* One track: empty rail, recommended band tinted inside it, value fill on top. */
+.hb-range-track[data-band] {
+  height: 40px;
+}
+/* Rail + value fill; the band and the current-value tick are separate layers. */
 .hb-range-track::before,
-.hb-range-track::after,
-.hb-range-band {
+.hb-range-track::after {
   content: '';
   position: absolute;
   top: 11px;
@@ -2814,22 +2858,58 @@ button.hb-cell-main:focus-visible {
   right: 0;
   background: var(--hb-fill-strong);
 }
-.hb-range-band {
-  left: var(--hb-band-from);
-  width: calc(var(--hb-band-to) - var(--hb-band-from));
-  background: color-mix(in srgb, var(--hb-ok) 38%, transparent);
-}
 .hb-range-track::after {
   z-index: 1;
   left: 0;
-  width: var(--hb-range-pos);
+  width: calc(12px + (100% - 24px) * var(--hb-range-f));
   background: var(--hb-ac);
-  opacity: 0.9;
+}
+/* Recommended band: a bracket under the rail, readable at any value. */
+.hb-range-band {
+  position: absolute;
+  top: 31px;
+  left: calc(12px + (100% - 24px) * var(--hb-band-a));
+  width: calc((100% - 24px) * (var(--hb-band-b) - var(--hb-band-a)));
+  height: 6px;
+  box-sizing: border-box;
+  border: 2px solid var(--hb-ok);
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+}
+/* Saved value: a tick through the rail and „teď 20 %“ above it. */
+.hb-range-now {
+  position: relative;
+  height: 16px;
+  margin-bottom: calc(-1 * var(--hb-sp-3) + 2px);
+}
+.hb-range-now span {
+  position: absolute;
+  left: calc(12px + (100% - 24px) * var(--hb-now-f));
+  transform: translateX(calc(-100% * var(--hb-now-f)));
+  white-space: nowrap;
+  font-size: var(--hb-type-caption);
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--hb-t2);
+  font-variant-numeric: tabular-nums;
+}
+.hb-range-tick {
+  z-index: 1;
+  position: absolute;
+  top: 4px;
+  left: calc(10.5px + (100% - 24px) * var(--hb-now-f));
+  width: 3px;
+  height: 22px;
+  border-radius: 1.5px;
+  /* Pure white in dark (t1 is too close to the accent fill), t1 in light; halo separates it. */
+  background: light-dark(var(--hb-t1), #fff);
+  box-shadow: 0 0 0 1.5px var(--hb-s2);
 }
 .hb-range-track input {
   z-index: 2;
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto;
+  height: 30px;
   width: 100%;
   margin: 0;
   background: none;

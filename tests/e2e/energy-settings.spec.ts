@@ -17,6 +17,23 @@ for (const theme of ['dark', 'light']) {
     await expect(page.getByRole('heading', { name: 'Fotovoltaika', exact: true })).toBeVisible();
     // At least three settings are visible without scrolling, even on a 360×800 phone.
     await expect(page.locator('.hb-cell').nth(2)).toBeInViewport({ ratio: 1 });
+    // Wide screens: the first rows of both columns (and of the next card pair) line up.
+    if (page.viewportSize()!.width >= 1200) {
+      const top = (section: string) =>
+        page
+          .locator('.en-settings-section', { has: page.getByRole('heading', { name: section }) })
+          .locator('.hb-cell')
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().top);
+      expect(Math.abs((await top('Fotovoltaika')) - (await top('Síť')))).toBeLessThanOrEqual(4);
+      expect(Math.abs((await top('Baterie')) - (await top('Tarif a ceny')))).toBeLessThanOrEqual(4);
+    }
+    // On/off settings read from the inverter are locked switches.
+    await expect(
+      page
+        .getByRole('button', { name: /^Hlídat rezervu: Zapnuto, jen pro čtení/ })
+        .locator('[role="switch"][aria-checked="true"][data-locked]'),
+    ).toHaveCount(1);
     await shot(page, testInfo, theme);
     await shot(page, testInfo, `${theme}-full`, true);
 
@@ -45,6 +62,9 @@ for (const theme of ['dark', 'light']) {
     await reserveRow.click();
     const sheet = page.getByRole('dialog', { name: 'Rezerva při běžném provozu' });
     await expect(sheet).toContainText(/teď 90\s%/);
+    // One way out in the footer, the saved value marked on the slider.
+    await expect(sheet.getByRole('button', { name: 'Zavřít' })).toHaveCount(0);
+    await expect(sheet.locator('.hb-range-now')).toHaveText(/^teď 10\s%$/);
     const box = await sheet.boundingBox();
     const viewport = page.viewportSize()!;
     expect(box!.x).toBeGreaterThanOrEqual(0);
