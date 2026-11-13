@@ -104,9 +104,9 @@ BINDINGS = [
         "Rezerva v síti",
         "%",
         (
-            "Kolik energie baterie vždy podrží při běžném provozu.",
-            "Vyšší rezerva ponechá víc energie pro výpadek, ale v noci z baterie využijete "
-            "méně. Doporučeno 10–50 %.",
+            "Co baterie v běžném provozu nikdy nedá do domu.",
+            "Nižší rezerva = víc energie na noc; vyšší = jistota při výpadcích a šetrnější "
+            "k baterii v mrazu.",
         ),
     ),
     (
@@ -115,9 +115,9 @@ BINDINGS = [
         "Rezerva pro výpadek",
         "%",
         (
-            "Kolik energie baterie podrží při výpadku sítě.",
-            "Při výpadku se baterie vybije jen k této hranici. Vyšší rezerva šetří baterii, "
-            "ale zkrátí výdrž domu bez sítě.",
+            "Spodní hranice baterie, když dům při výpadku jede ze zálohy.",
+            "Při výpadku sítě napájí baterie dům až k této hranici, pak se záloha vypne. "
+            "Nižší hodnota prodlouží výdrž bez sítě, vyšší šetří baterii.",
         ),
     ),
     (
@@ -448,7 +448,10 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
         if reserve:
             value = 100 - numeric if numeric is not None else None
             if numeric is not None:
-                explanation += f" Ve střídači se jmenuje Maximum vybití {numeric:g} %."
+                explanation += (
+                    " Ve střídači odpovídá parametru „Maximum vybití“ = 100 % − rezerva "
+                    f"(teď {numeric:g} %)."
+                )
         lo, hi, step = (finite(attrs.get(k)) for k in ("min", "max", "step"))
         writable = bool(
             numeric is not None

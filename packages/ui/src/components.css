@@ -1568,11 +1568,12 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
 }
 .hb-sheet-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--hb-sp-3);
 }
 .hb-sheet-head h2 {
   flex: 1;
+  text-wrap: balance;
   min-width: 0;
   margin: 0;
   overflow-wrap: break-word;
@@ -2509,5 +2510,410 @@ button.hb-tile[data-empty] .hb-tile-status {
 @keyframes hb-fade-in {
   from {
     opacity: 0;
+  }
+}
+
+/* ── Quantity ───────────────────────────────────────────────────────── */
+.hb-quantity {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hb-quantity small {
+  font-size: 0.8em;
+  font-weight: 450;
+  color: var(--hb-t2);
+}
+
+/* ── ListCell ───────────────────────────────────────────────────────── */
+.hb-cell {
+  position: relative;
+  min-width: 0;
+}
+.hb-cell + .hb-cell::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--hb-t1) 8%, transparent);
+}
+.hb-cell-main {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 28px;
+  align-items: center;
+  column-gap: var(--hb-sp-3);
+  width: 100%;
+  min-height: 56px;
+  margin: 0;
+  padding: var(--hb-sp-3) 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.hb-cell-main {
+  cursor: pointer;
+  border-radius: var(--hb-radius-sm);
+  transition: background-color var(--hb-dur-fast, 0.15s) var(--hb-ease-out);
+}
+/* Hover/press tint bleeds past the text edge without moving the content. */
+@media (hover: hover) {
+  button.hb-cell-main:hover {
+    background: var(--hb-fill);
+    box-shadow: 0 0 0 var(--hb-sp-2) var(--hb-fill);
+  }
+}
+button.hb-cell-main:active {
+  background: var(--hb-fill-strong);
+  box-shadow: 0 0 0 var(--hb-sp-2) var(--hb-fill-strong);
+}
+button.hb-cell-main:focus-visible {
+  outline: 2px solid var(--hb-ac);
+  outline-offset: 4px;
+}
+.hb-cell-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hb-cell-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--hb-type-body);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--hb-t1);
+}
+.hb-cell-desc {
+  /* At most two lines; wide cards fit it on one. */
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--hb-type-caption);
+  line-height: 1.4;
+  color: var(--hb-t2);
+}
+.hb-cell-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hb-sp-2);
+  justify-self: end;
+  font-size: var(--hb-type-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--hb-t1);
+}
+.hb-cell[data-muted] .hb-cell-value {
+  font-weight: 450;
+  color: var(--hb-t3);
+}
+.hb-cell-visual {
+  display: inline-flex;
+  color: var(--hb-t2);
+}
+.hb-cell-trail {
+  display: flex;
+  justify-content: flex-end;
+  color: var(--hb-t3);
+}
+.hb-cell-lock {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--hb-t3);
+}
+.hb-cell-extra {
+  padding: 0 0 var(--hb-sp-3);
+}
+@media (max-width: 420px) {
+  .hb-cell-main {
+    column-gap: var(--hb-sp-2);
+  }
+}
+
+/* ── Callout ────────────────────────────────────────────────────────── */
+.hb-callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--hb-sp-3);
+  padding: var(--hb-sp-3) var(--hb-sp-4);
+  border-radius: var(--hb-radius-md);
+  background: color-mix(in srgb, var(--hb-tone) 10%, var(--hb-s1));
+  color: var(--hb-t1);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.hb-callout-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 28px;
+  color: var(--hb-tone);
+}
+.hb-callout-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 3px;
+}
+.hb-callout-body strong {
+  font-weight: 600;
+}
+.hb-callout-body > span {
+  color: var(--hb-t2);
+}
+.hb-callout-action {
+  margin-top: var(--hb-sp-2);
+}
+/* Action in the callout's own tone: clearly a button, never louder than the message. */
+.hb-callout-action .hb-btn {
+  background: color-mix(in srgb, var(--hb-tone) 20%, transparent);
+  color: color-mix(in srgb, var(--hb-tone) 70%, var(--hb-t1));
+  font-weight: 600;
+}
+.hb-callout-action .hb-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-tone) 28%, transparent);
+}
+
+/* ── RangeStepper ───────────────────────────────────────────────────── */
+.hb-range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hb-sp-3);
+}
+.hb-range-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: var(--hb-sp-3);
+}
+.hb-range-step {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: var(--hb-radius-pill);
+  background: color-mix(in srgb, var(--hb-t1) 13%, transparent);
+  color: var(--hb-t1);
+  cursor: pointer;
+}
+.hb-range-step:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-t1) 14%, transparent);
+}
+.hb-range-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.hb-range-step:focus-visible,
+.hb-range-value:focus-within {
+  outline: 2px solid var(--hb-ac);
+  outline-offset: 2px;
+}
+.hb-range-value {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  border-radius: var(--hb-radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+.hb-range-value input {
+  min-width: 2ch;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hb-t1);
+  font: inherit;
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.hb-range-value input::-webkit-outer-spin-button,
+.hb-range-value input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hb-range-unit {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--hb-t2);
+}
+.hb-range-track {
+  position: relative;
+  height: 30px;
+}
+/* One track: empty rail, recommended band tinted inside it, value fill on top. */
+.hb-range-track::before,
+.hb-range-track::after,
+.hb-range-band {
+  content: '';
+  position: absolute;
+  top: 11px;
+  height: 8px;
+  border-radius: var(--hb-radius-pill);
+}
+.hb-range-track::before {
+  left: 0;
+  right: 0;
+  background: var(--hb-fill-strong);
+}
+.hb-range-band {
+  left: var(--hb-band-from);
+  width: calc(var(--hb-band-to) - var(--hb-band-from));
+  background: color-mix(in srgb, var(--hb-ok) 38%, transparent);
+}
+.hb-range-track::after {
+  z-index: 1;
+  left: 0;
+  width: var(--hb-range-pos);
+  background: var(--hb-ac);
+  opacity: 0.9;
+}
+.hb-range-track input {
+  z-index: 2;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.hb-range-track input::-webkit-slider-runnable-track {
+  height: 28px;
+  background: none;
+}
+.hb-range-track input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 12%),
+    0 2px 6px rgb(0 0 0 / 30%);
+}
+.hb-range-track input::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 12%),
+    0 2px 6px rgb(0 0 0 / 30%);
+}
+.hb-range-track input:focus-visible {
+  outline: 2px solid var(--hb-ac);
+  outline-offset: 2px;
+  border-radius: var(--hb-radius-pill);
+}
+.hb-range-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--hb-sp-2);
+  font-size: var(--hb-type-caption);
+  color: var(--hb-t2);
+  font-variant-numeric: tabular-nums;
+}
+.hb-range-band-label {
+  color: var(--hb-ok);
+  font-weight: 500;
+}
+
+/* ── Sheet: raised appearance + side placement ─────────────────────── */
+.hb-scrim[data-appearance='raised'] {
+  background: rgb(0 0 0 / 42%);
+  backdrop-filter: none;
+}
+[data-theme='light'] .hb-scrim[data-appearance='raised'] {
+  background: rgb(16 24 40 / 32%);
+}
+.hb-scrim[data-appearance='raised'] .hb-sheet {
+  border-color: var(--hb-edge-strong, var(--hb-b2));
+  background: var(--hb-s2);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 2px 8px rgb(0 0 0 / 24%),
+    0 32px 64px -24px rgb(0 0 0 / 60%);
+}
+[data-theme='light'] .hb-scrim[data-appearance='raised'] .hb-sheet {
+  background: var(--hb-s1);
+  box-shadow:
+    0 2px 8px rgb(16 24 40 / 8%),
+    0 32px 64px -24px rgb(16 24 40 / 28%);
+}
+.hb-sheet-handle {
+  display: none;
+}
+.hb-sheet-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -10px -8px -10px 0;
+  border: 0;
+  border-radius: var(--hb-radius-pill);
+  background: var(--hb-fill-strong);
+  color: var(--hb-t1);
+  cursor: pointer;
+}
+.hb-sheet-close:focus-visible {
+  outline: 2px solid var(--hb-ac);
+  outline-offset: 2px;
+}
+@media (min-width: 900px) {
+  /* Hugs its content at the top right (no empty full-height panel). */
+  .hb-scrim[data-placement='side'] {
+    place-items: start end;
+    padding: var(--hb-sp-4);
+  }
+  .hb-scrim[data-placement='side'] .hb-sheet {
+    width: min(440px, 100%);
+    border-radius: var(--hb-radius-xl);
+    animation-name: hb-slide-in;
+  }
+}
+@keyframes hb-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@media (max-width: 600px) {
+  .hb-scrim[data-appearance='raised'] .hb-sheet {
+    padding-top: var(--hb-sp-2);
+    padding-bottom: calc(var(--hb-sp-4) + env(safe-area-inset-bottom));
+  }
+  .hb-sheet-handle {
+    display: block;
+    width: 40px;
+    height: 5px;
+    margin: 0 auto;
+    flex: none;
+    border-radius: var(--hb-radius-pill);
+    background: color-mix(in srgb, var(--hb-t1) 22%, transparent);
   }
 }

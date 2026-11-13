@@ -660,49 +660,73 @@ export const energyStyles = `
 .en-bar-day[data-progress] .en-bar-pair span:last-child{border-color:var(--hb-energy-home);background:color-mix(in srgb,var(--hb-energy-home) 10%,var(--hb-s1))!important}
 
 .en-tabs{margin:0 0 24px;display:flex}
-.en-settings{gap:24px;max-width:1400px}
-.en-settings-heading{padding:4px 0 0}
-.en-settings-eyebrow{font-size:12px;letter-spacing:.08em;color:var(--hb-t2);font-weight:600;text-transform:uppercase}
-.en-settings-heading h1{font-size:32px;font-weight:500;letter-spacing:-.03em;margin:8px 0}
-.en-settings-heading p{color:var(--hb-t2);font-size:15px;line-height:1.6;margin:0}
-.en-settings-note{font-size:14px;line-height:1.6;padding:14px 18px;background:var(--hb-ac-s);border-radius:16px;color:var(--hb-t1)}
-.en-settings-grid{columns:2;column-gap:24px}
-.en-settings-section{padding:24px;gap:0;border-radius:24px;break-inside:avoid;margin-bottom:24px;container-type:inline-size}
-.en-settings-section>header{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-.en-settings-section h2{font-size:20px;font-weight:500;letter-spacing:-.02em;margin:0}
-.en-section-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;color:var(--hb-ac);background:var(--hb-ac-s)}
-.en-forecast{margin:16px 0 4px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,var(--hb-ac-s),transparent 85%),var(--hb-s2)}
-.en-forecast .hb-stat{display:flex;flex-direction:column;gap:2px}
-.en-forecast .hb-stat span{font-size:13px;color:var(--hb-t2)}
-.en-forecast .hb-stat strong{font-size:32px;font-weight:500;letter-spacing:-.02em;color:var(--hb-t1);line-height:1.2}
-.en-forecast p{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--hb-t2)}
-/* Row: copy | value | (i) | action. Fixed (i) and action columns keep values on one edge. */
-.en-setting{display:grid;grid-template-columns:minmax(0,1fr) auto 36px 112px;align-items:center;column-gap:8px;padding:18px 0;border-bottom:1px solid var(--hb-b1);min-width:0}
-.en-setting:last-child{border-bottom:0;padding-bottom:0}
-.en-setting-copy{min-width:0;padding-right:8px}
-.en-setting h3{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;margin:0 0 4px}
-.en-setting p,.en-setting small{display:block;font-size:13px;line-height:1.5;color:var(--hb-t2);margin:0}
-.en-setting small{margin-top:4px}
-.en-setting code{overflow-wrap:anywhere;font-size:12px}
-.en-setting-hint{grid-column:1/-1;margin-top:10px!important;padding:8px 10px;border-radius:10px;background:var(--hb-s2);border-left:3px solid var(--hb-ac);color:var(--hb-t2)}
-.en-setting-value{justify-self:end;text-align:right;font-size:16px;font-weight:500;white-space:nowrap}
-.en-setting[data-muted] .en-setting-value{color:var(--hb-t3);font-weight:400}
-.en-setting-action{display:flex;justify-content:flex-end;min-width:0}
-.en-edit.hb-btn{color:var(--hb-ac);gap:2px;padding-inline:10px 4px;margin-right:-4px}
-.en-edit.hb-btn:hover:not(:disabled){color:var(--hb-ac);background:var(--hb-ac-s)}
-.en-source.hb-pill{color:var(--hb-t2);background:var(--hb-fill-strong,var(--hb-s2));font-weight:500;font-size:12px;padding:3px 8px 3px 6px}
-.en-estimate.hb-pill{font-size:12px}
-.en-tip-where{display:block;margin-top:8px;padding-top:8px;border-top:1px solid var(--hb-b1);color:var(--hb-t2);font-size:13px}
-.en-setting-editor{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;font-size:13px;color:var(--hb-t2)}
-.en-setting-editor input{width:104px;min-height:40px;border:1px solid var(--hb-b2);border-radius:10px;padding:8px 10px;background:var(--hb-s2);color:var(--hb-t1);font:inherit;font-size:15px}
-.en-setting-range{margin-right:auto;order:-1;color:var(--hb-t2)}
-.en-confirm-change{display:flex;align-items:center;gap:10px;font-size:22px;margin:4px 0 12px}
-.en-confirm-change span{color:var(--hb-t2)}
-.en-confirm-change strong{font-weight:600;color:var(--hb-ac)}
-@container (max-width:440px){
-.en-setting{grid-template-columns:auto 36px minmax(0,1fr);row-gap:6px}
-.en-setting-copy{grid-column:1/-1;padding-right:0}
-.en-setting-value{justify-self:start;text-align:left}
+/* Nastavení: module-scoped surface tokens so cards separate from the page in both themes. */
+.en-settings{--en-card:color-mix(in srgb,var(--hb-s1) 55%,var(--hb-s2));--en-card-edge:var(--hb-edge,var(--hb-b1));--en-card-shadow:inset 0 1px 0 rgb(255 255 255 / 4%),0 1px 2px rgb(0 0 0 / 35%),0 16px 36px -22px rgb(0 0 0 / 70%);gap:16px;max-width:1400px}
+[data-theme='light'] .en-settings{--en-card:#fff;--en-card-edge:transparent;--en-card-shadow:0 1px 3px rgb(16 24 40 / 8%),0 10px 28px -10px rgb(16 24 40 / 20%)}
+[data-theme='light'] .en-pv-chart stop:first-child{stop-opacity:.24}
+.en-settings-grid{columns:2;column-gap:20px}
+.en-settings-section{display:flex;flex-direction:column;gap:12px;padding:20px 20px 8px;margin-bottom:20px;border-radius:var(--hb-radius-lg,20px);background:var(--en-card);box-shadow:var(--en-card-shadow),0 0 0 1px var(--en-card-edge);break-inside:avoid;min-width:0}
+.en-settings-section>header{display:flex;align-items:center;gap:12px}
+.en-settings-section h2{margin:0;font-size:17px;font-weight:650;letter-spacing:-.015em;color:var(--hb-t1)}
+.en-section-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;color:var(--en-tint);background:color-mix(in srgb,var(--en-tint) 16%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--en-tint) 22%,transparent)}
+[data-theme='light'] .en-section-icon{color:color-mix(in srgb,var(--en-tint) 85%,#000);background:color-mix(in srgb,var(--en-tint) 12%,transparent)}
+.en-cells{display:flex;flex-direction:column}
+.en-cells .hb-cell-value small{font-size:.8em}
+.en-value-aside{font-weight:450;color:var(--hb-t2)}
+.en-estimate.hb-pill{font-size:12px;font-weight:600}
+/* AA on the warn tint in light mode (plain --hb-warn gives 4.2:1). */
+[data-theme='light'] .en-estimate.hb-pill{color:color-mix(in srgb,var(--hb-warn) 80%,#000)}
+.en-glyph{display:block;overflow:visible;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.en-glyph-base{stroke:color-mix(in srgb,var(--hb-t1) 28%,transparent);stroke-width:1.5}
+.en-glyph-tick{stroke:var(--hb-t2);stroke-width:1.75}
+.en-glyph-arc{stroke:none;fill:color-mix(in srgb,var(--hb-energy-pv) 30%,transparent)}
+.en-glyph-main{stroke:var(--hb-energy-pv);stroke-width:3}
+.en-glyph-needle{fill:var(--hb-energy-pv);stroke:none}
+.en-glyph-hub{fill:var(--hb-t2);stroke:none}
+/* Fotovoltaika hero: tomorrow's kWh + hourly area, flat inside the card (no nested box). */
+.en-pv-hero{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:32px;align-items:end;padding:4px 0 12px;border-bottom:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent)}
+.en-pv-head{display:flex;flex-direction:column;gap:2px;min-width:0}
+.en-pv-label{font-size:13px;font-weight:500;color:var(--hb-t2)}
+.en-pv-value{font-size:40px;font-weight:650;letter-spacing:-.035em;line-height:1.1;color:var(--hb-t1)}
+.en-pv-value small{font-size:18px;font-weight:500;letter-spacing:0}
+.en-pv-context{font-size:13px;line-height:1.4;color:var(--hb-t2)}
+.en-pv-chart{position:relative;min-width:0;padding-bottom:22px}
+.en-pv-chart svg{display:block;width:100%;height:64px;overflow:visible}
+.en-pv-line{fill:none;stroke:var(--hb-energy-pv);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.en-pv-axis{position:absolute;left:0;right:0;bottom:0;height:16px}
+.en-pv-axis span{position:absolute;transform:translateX(-50%);font-size:11px;color:var(--hb-t2);font-variant-numeric:tabular-nums}
+.en-pv-axis span:first-child{transform:none}
+.en-pv-axis span:last-child{transform:translateX(-100%)}
+.en-limit{display:grid;gap:6px;padding:2px 40px 0 0}
+.en-limit-row{display:grid;grid-template-columns:76px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13px;color:var(--hb-t2)}
+.en-limit-row b{font-weight:600;color:var(--hb-t1);text-align:right;font-variant-numeric:tabular-nums}
+.en-limit-track{height:6px;border-radius:999px;background:var(--hb-fill-strong,var(--hb-s3));overflow:hidden}
+.en-limit-track i{display:block;min-width:4px;height:100%;border-radius:999px;background:color-mix(in srgb,var(--hb-t1) 38%,transparent)}
+.en-limit-row[data-kind='inverter'] .en-limit-track i{background:var(--hb-warn)}
+.en-settings-foot{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;line-height:1.45;color:var(--hb-t2)}
+.en-settings-foot svg{flex:none}
+/* Edit / detail sheet */
+.en-sheet-lead{margin:-8px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
+.en-sheet-now{display:flex;align-items:baseline;gap:8px;margin-top:12px;font-size:14px;color:var(--hb-t2)}
+.en-sheet-now strong{font-size:22px;font-weight:650;letter-spacing:-.02em;color:var(--hb-t1);font-variant-numeric:tabular-nums}
+.en-sheet-text{margin:20px 0 0;padding-top:16px;border-top:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent);font-size:14px;line-height:1.55;color:var(--hb-t2)}
+.en-sheet-where{display:flex;align-items:flex-start;gap:8px;margin:12px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
+.en-sheet-where svg{flex:none;margin-top:1px}
+.en-sheet-where code{overflow-wrap:anywhere;font-size:13px}
+.en-sheet-change{display:flex;align-items:center;justify-content:center;gap:16px;margin:4px 0 16px;padding:16px;border-radius:var(--hb-radius-md,14px);background:var(--hb-fill,rgb(127 127 127 / 6%));font-size:34px;font-weight:650;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.en-sheet-change span{color:var(--hb-t2);font-weight:500}
+.en-sheet-change svg{color:var(--hb-ac);flex:none}
+.en-sheet-change strong{color:var(--hb-ac)}
+.hb-sheet .en-sheet-change+p{margin:0;font-size:15px;line-height:1.55;color:var(--hb-t1)}
+.en-sheet-error{margin:12px 0 0;color:var(--hb-crit);font-size:14px}
+.hb-sheet .hb-range{margin-top:16px}
+@media(max-width:900px){.en-settings-grid{columns:1}}
+@media(max-width:600px){
+.en-tabs{margin-bottom:16px}
+.en-settings{gap:12px}
+.en-settings-section{padding:16px 16px 4px;margin-bottom:12px}
+.en-pv-hero{grid-template-columns:minmax(0,1fr);gap:8px}
+.en-pv-value{font-size:34px}
+.en-pv-chart svg{height:52px}
 }
-@media(max-width:900px){.en-settings-grid{columns:1}.en-settings-section{padding:20px}.en-settings-heading h1{font-size:28px}}
 `;

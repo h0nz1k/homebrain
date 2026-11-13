@@ -260,12 +260,20 @@ výchozí 25 A), tečkovaná značka na 80 %. Zdroj: `energy_grid_l1…l3_power`
   (kapacita, rezervy, hlídání rezervy, rychlé nabíjení a ekonomický režim), Síť
   (řízení a fyzický limit přetoku, modelový limit, jistič), Tarif a ceny (VT/NT,
   stálé platby, HDO a další změna, spotové přirážky/distribuce/platby), Střídač (režim, EMS, stav).
-- **Nápověda:** Každý řádek má hodnotu, jednotku, jednořádkové shrnutí (`summary`) a InfoTip
-  (`explanation`, 2–3 věty: význam, praktický důsledek, doporučený rozsah; neopakuje shrnutí).
-  Místo změny (`source`/`location`: SolarGo, Home Assistant, Správce) mají jen řádky, které
-  zde aktuální uživatel měnit nemůže. Výrazně odlišný limit přetoku střídače a předpovědi
-  (≥ 10×) dostane neutrální vysvětlení. Klepnutí, hover, focus; Escape zavírá; na telefonu
-  (< 600 px) se nápověda otevře jako spodní panel se zavíracím tlačítkem.
+- **Nápověda a úpravy:** Každý řádek je celý klepatelný (`ListCell`): popisek, jednořádkové
+  shrnutí (`summary`), hodnota s jednotkou a pevný koncový slot – šipka u upravitelných řádků,
+  zámek u řádků jen pro čtení. Klepnutí otevře detail (`Sheet` raised: telefon spodní panel s
+  úchytem, tablet/desktop dialog) s velkou současnou hodnotou, `RangeStepper` s doporučeným
+  pásmem (rezerva 10–30 %, sklon 25–45 °, orientace ±45 °, jistič 16–32 A) a vysvětlením
+  (`explanation`, 2–3 věty: význam, praktický důsledek, doporučení; neopakuje shrnutí).
+  Řádky jen pro čtení otevřou stejný detail bez úprav s místem změny (`source`/`location`:
+  SolarGo, Home Assistant, Správce) – to mají jen řádky, které zde aktuální uživatel měnit
+  nemůže. Zápis do střídače (rezerva v síti) má v detailu krok potvrzení „Změnit rezervu
+  baterie z A na B?“ s dopadem v kWh a poznámkou o zápisu do střídače; ostatní hodnoty se
+  uloží tlačítkem Uložit. Výrazně odlišný limit přetoku střídače a předpovědi (≥ 10×) ukáže
+  v kartě Síť varování; správce může jedním tlačítkem (s potvrzením) nastavit limit střídače
+  i pro předpověď (`export_limit_kw`). Fotovoltaika má jako hlavní údaj zítřejší předpověď
+  v kWh s hodinovým průběhem. Escape i tlačítko Zavřít (44 px) detail zavírají.
   Chybějící vazba = „nepřipojeno“ a logický klíč. Výchozí sklon 35 ° a azimut 0 °
   mají odznak „odhad“. Azimut 0 = jih, −90 = východ, 90 = západ.
 - **Role:** `settings/get` čte owner/admin a adult, ostatní role nemají detailní přístup.

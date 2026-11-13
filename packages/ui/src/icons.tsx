@@ -23,6 +23,16 @@ const PATHS = {
     </>
   ),
   close: <path d="M6.5 6.5l11 11m0-11-11 11" />,
+  arrow: <path d="M4.5 12h15m-6-6 6 6-6 6" />,
+  plus: <path d="M12 5.5v13M5.5 12h13" />,
+  minus: <path d="M5.5 12h13" />,
+  alert: (
+    <>
+      <path d="M10.3 4.6 3.4 17a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9.5v4" />
+      <circle cx="12" cy="16.9" r=".6" fill="currentColor" />
+    </>
+  ),
   sun: (
     <>
       <circle cx="12" cy="12" r="3.75" />

@@ -17,8 +17,14 @@ const NUMBER_SIGN = /(\d) ?× ?(?=\d)/g;
 
 /** Keeps every „number unit“ pair in free text unbreakable: „10–50 %“, „3×25 A“, „0° je jih“. */
 export function nbspUnits(text: string): string {
-  return text
-    .replace(NUMBER_SIGN, '$1×')
-    .replace(/(\d) °(?!C)/g, '$1°')
-    .replace(NUMBER_UNIT, `$1${NBSP}`);
+  return (
+    text
+      .replace(NUMBER_SIGN, '$1×')
+      // Ranges stay on one line: „10–30 %“ (word joiner around the en dash).
+      .replace(/(\d)–(?=\d)/g, '$1\u2060–\u2060')
+      .replace(/(\d) °(?!C)/g, '$1°')
+      .replace(NUMBER_UNIT, `$1${NBSP}`)
+      // Czech typography: a one-letter preposition/conjunction never ends a line („k baterii“).
+      .replace(/(?<=^|[\s(„\u00a0])([kvszouaiKVSZOUAI]) /gu, `$1${NBSP}`)
+  );
 }

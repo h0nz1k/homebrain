@@ -42,7 +42,11 @@ async def test_get_reserve_defaults_and_unbound(hass, setup, hass_ws_client):
     rows = {r["key"]: r for r in result["result"]["rows"]}
     assert rows["energy_battery_dod_ongrid"]["value"] == 10
     assert rows["energy_battery_dod_ongrid"]["editable"]
-    assert "Maximum vybití 90 %" in rows["energy_battery_dod_ongrid"]["explanation"]
+    assert (
+        "„Maximum vybití“ = 100 % − rezerva (teď 90 %)"
+        in (rows["energy_battery_dod_ongrid"]["explanation"])
+    )
+    assert "výpadek" not in rows["energy_battery_dod_ongrid"]["summary"]
     assert "DoD" not in rows["energy_battery_dod_ongrid"]["explanation"]
     assert rows["pv_tilt"]["value"] == 35 and rows["pv_tilt"]["assumed"]
     assert rows["energy_fast_charge"]["value"] is None

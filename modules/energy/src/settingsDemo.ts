@@ -110,9 +110,9 @@ export const settingsDemo: EnergySettings = {
       section: 'Baterie',
       label: 'Rezerva v síti',
       unit: '%',
-      summary: 'Kolik energie baterie vždy podrží při běžném provozu.',
+      summary: 'Co baterie v běžném provozu nikdy nedá do domu.',
       explanation:
-        'Vyšší rezerva ponechá víc energie pro výpadek, ale v noci z baterie využijete méně. Doporučeno 10–50 %. Ve střídači se jmenuje Maximum vybití 90 %.',
+        'Nižší rezerva = víc energie na noc; vyšší = jistota při výpadcích a šetrnější k baterii v mrazu. Ve střídači odpovídá parametru „Maximum vybití“ = 100 % − rezerva (teď 90 %).',
       value: 10,
       min: 10,
       max: 50,
@@ -125,9 +125,9 @@ export const settingsDemo: EnergySettings = {
       section: 'Baterie',
       label: 'Rezerva pro výpadek',
       unit: '%',
-      summary: 'Kolik energie baterie podrží při výpadku sítě.',
+      summary: 'Spodní hranice baterie, když dům při výpadku jede ze zálohy.',
       explanation:
-        'Při výpadku se baterie vybije jen k této hranici. Vyšší rezerva šetří baterii, ale zkrátí výdrž domu bez sítě. Ve střídači se jmenuje Maximum vybití 95 %.',
+        'Při výpadku sítě napájí baterie dům až k této hranici, pak se záloha vypne. Nižší hodnota prodlouží výdrž bez sítě, vyšší šetří baterii. Ve střídači odpovídá parametru „Maximum vybití“ = 100 % − rezerva (teď 95 %).',
       value: 5,
       min: 5.0,
       max: 100.0,
