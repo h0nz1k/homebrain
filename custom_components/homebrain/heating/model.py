@@ -90,6 +90,16 @@ def derive_activity(values: dict[str, Any], *, any_fault: bool) -> str:
     """One word for "what is the heat pump doing" (contract ``activity``)."""
     if any_fault or values.get("faults.fatal") or values.get("faults.compressor_block"):
         return "fault"
+    if values.get("mode.main_switch") is False:
+        return "off"
+    winter = values.get("mode.winter")
+    heating_on = values.get("mode.heating_enabled")
+    if (
+        winter is True
+        and heating_on is False
+        and not values.get("heat_pump.compressor_on")
+    ):
+        return "dhw_only"
     if values.get("heat_pump.compressor_on"):
         if values.get("dhw.valve_to_dhw"):
             return "heating_dhw"
@@ -310,6 +320,7 @@ def build_payload(
     rooms: list[dict[str, Any]] | None = None,
     monitored: int | None = None,
     solar_samples: tuple[SolarSample, ...] = (),
+    alerts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The full contract payload; every unmapped/unavailable value is ``None``."""
     v = res.values.get
@@ -350,6 +361,9 @@ def build_payload(
             "auto_season": v("mode.auto_season"),
             "setback_active": v("mode.setback_active"),
             "main_switch": v("mode.main_switch"),
+            "heating_enabled": v("mode.heating_enabled"),
+            "winter_limit": _r(v("mode.winter_limit"), 0),
+            "cooling_enabled": v("mode.cooling_enabled"),
             "cooling": v("mode.cooling"),
             "hdo_low_tariff": v("mode.hdo_low_tariff"),
         },
@@ -358,6 +372,8 @@ def build_payload(
             "ref_target": _r(v("house.ref_target")),
             "ref_target_effective": _r(v("house.ref_target_effective")),
             "hysteresis": _r(v("house.hysteresis"), 2),
+            "setback_drop": _r(v("house.setback_drop"), 1),
+            "setback_drop_alt": _r(v("house.setback_drop_alt"), 1),
             "attic_temp": _r(v("house.attic_temp")),
             "circuit_on": v("house.circuit_on"),
             "mixing_valve_pct": (
@@ -422,8 +438,15 @@ def build_payload(
             "compressor_block": bool(v("faults.compressor_block")),
             "monitored": len(res.faults) if monitored is None else monitored,
         },
-        "curve": {"points": curve, "outdoor_now": _r(v("outdoor.temp"))},
+        "curve": {
+            "points": curve,
+            "outdoor_now": _r(v("outdoor.temp")),
+            "weather_comp": v("curve.weather_comp"),
+            "constant_target": _r(v("curve.constant_target"), 0),
+            "min_water": _r(v("curve.min_water"), 0),
+        },
         "schedules": res.schedules,
+        "alerts": alerts or [],
         "extras": {
             "solar": (
                 lambda g: (
@@ -490,6 +513,7 @@ _KIOSK = {
     "dhw": ("temp", "target", "reheat_below"),
     "outdoor": ("temp",),
     "faults": ("active", "fatal", "compressor_block"),
+    "alerts": ("title",),
 }
 
 
@@ -497,6 +521,10 @@ def kiosk_subset(payload: dict[str, Any]) -> dict[str, Any]:
     """What the Dnes wall tablet needs for its signals (no schedules, curve, rooms…)."""
     out = {k: payload.get(k) for k in ("updated_at", "stale", "source", "activity")}
     for section, fields in _KIOSK.items():
+        if section == "alerts":
+            items = payload.get("alerts") or []
+            out["alerts"] = [{"title": a.get("title")} for a in items if isinstance(a, dict)]
+            continue
         data = payload.get(section) or {}
         out[section] = {f: data.get(f) for f in fields}
     return out

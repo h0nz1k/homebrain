@@ -207,6 +207,7 @@ def role_ws_commands(role: str) -> frozenset[str]:
             "homebrain/heating/subscribe",
             "homebrain/heating/history",
             "homebrain/heating/seasons",
+            "homebrain/heating/changes",
         }
     if role in ENERGY_DETAIL_ROLES:
         extra |= {

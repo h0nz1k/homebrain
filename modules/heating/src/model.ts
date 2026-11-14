@@ -1,6 +1,8 @@
 import { czCount } from '@homebrain/ui';
 import { SOLAR_WARN_COPY, solarConfigured, solarStateOf } from './solar.js';
 import type {
+  HeatingAlert,
+  HeatingChangeEntry,
   HeatingRoom,
   HeatingSeason,
   HeatingSnapshot,
@@ -56,6 +58,8 @@ export type HeroState =
   | 'dhw'
   | 'house'
   | 'idle'
+  | 'off'
+  | 'dhw_only'
   | 'cooling'
   | 'blocked'
   | 'fault'
@@ -80,6 +84,45 @@ function runningFor(since: string | null, nowMs: number): string | null {
 }
 
 /** Why the house circuit runs or stands (reference room thermostat). */
+const ALERT_ORDER: Record<HeatingAlert['severity'], number> = {
+  critical: 0,
+  warning: 1,
+  info: 2,
+};
+
+/** Highest-severity alert for the Teď banner (warning+ only). */
+export function bannerAlert(snap: HeatingSnapshot): HeatingAlert | null {
+  const alerts = snap.alerts ?? [];
+  const top = [...alerts]
+    .filter((a) => a.severity !== 'info')
+  .sort((a, b) => ALERT_ORDER[a.severity] - ALERT_ORDER[b.severity])[0];
+  return top ?? null;
+}
+
+export function formatChangeValue(value: unknown, key: string): string {
+  if (typeof value === 'boolean') return value ? 'zapnuto' : 'vypnuto';
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'number') return key.includes('hysteresis') ? `${value} °C` : `${value}`;
+  if (Array.isArray(value)) return 'změna programu';
+  return String(value);
+}
+
+/** `dnes 08:51 · Solár zapnut: zapnuto → vypnuto` */
+export function formatChangeLine(entry: HeatingChangeEntry, now = Date.now()): string {
+  const d = new Date(entry.ts);
+  const sameDay = d.toDateString() === new Date(now).toDateString();
+  const when = sameDay
+    ? `dnes ${d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}`
+    : d.toLocaleString('cs-CZ', {
+        day: 'numeric',
+        month: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+  const line = `${entry.label}: ${formatChangeValue(entry.old, entry.key)} → ${formatChangeValue(entry.new, entry.key)}`;
+  return `${when} · ${line}`;
+}
+
 export function houseReason(snap: HeatingSnapshot): string {
   const h = snap.house;
   const target = h.ref_target_effective ?? h.ref_target;
@@ -191,6 +234,22 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
         pill: 'Vysoký tarif',
         headline: ['Tepelné čerpadlo ', 'čeká na nízký tarif', '.'],
         detail: `Distributor teď blokuje kompresor (HDO). ${houseReason(snap)}`,
+      };
+    case 'off':
+      return {
+        state: 'off',
+        tone: 'neutral',
+        pill: 'Vypnuto',
+        headline: ['Tepelné čerpadlo je ', 'vypnuté', ' hlavním vypínačem na regulaci.'],
+        detail: 'Regulace neběží – neohřívá se nádrž ani teplá voda, dokud vypínač nezapnete.',
+      };
+    case 'dhw_only':
+      return {
+        state: 'dhw_only',
+        tone: 'warn',
+        pill: 'Jen teplá voda',
+        headline: ['Topení domu je na regulaci ', 'vypnuté', ' – ohřívá se jen teplá voda.'],
+        detail: houseReason(snap),
       };
     default: {
       const pre = hp.primary_prerun

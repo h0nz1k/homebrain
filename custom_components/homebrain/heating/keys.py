@@ -40,6 +40,9 @@ KEYS: Final[dict[str, KeySpec]] = {
     "mode.auto_season": _b(None, "Automatické léto/zima"),
     "mode.setback_active": _b(None, "Útlum aktivní"),
     "mode.main_switch": _b("power", "Hlavní vypínač TČ"),
+    "mode.heating_enabled": _b(None, "Topení domu povoleno"),
+    "mode.winter_limit": _n("°C", "temperature", "Mez zimy (venku)"),
+    "mode.cooling_enabled": _b(None, "Chlazení povoleno"),
     "mode.cooling": _b(None, "Chlazení"),
     "mode.hdo_low_tariff": _b(None, "HDO nízký tarif"),
     # house
@@ -51,6 +54,8 @@ KEYS: Final[dict[str, KeySpec]] = {
     "house.circuit_on": _b("running", "Topný okruh domu"),
     "house.mixing_valve_pct": _n("%", None, "Směšovací ventil – otevření"),
     "house.supply_temp": _t("Teplota do topného okruhu"),
+    "house.setback_drop": _n("°C", None, "Útlum – pokles"),
+    "house.setback_drop_alt": _n("°C", None, "Útlum – pokles (druhý registr)"),
     # heat pump
     "heat_pump.compressor_on": _b("running", "Kompresor"),
     "heat_pump.condenser_out": _t("Výstup z kondenzátoru"),
@@ -86,6 +91,9 @@ KEYS: Final[dict[str, KeySpec]] = {
     # fault summaries (single lamps go to the ``faults`` list of the map)
     "faults.fatal": _b("problem", "Fatální chyba"),
     "faults.compressor_block": _b("problem", "Blokace kompresoru"),
+    "curve.weather_comp": _b(None, "Nádrž podle ekvitermu"),
+    "curve.constant_target": _n("°C", "temperature", "Konstantní cíl nádrže"),
+    "curve.min_water": _n("°C", "temperature", "Minimální teplota topné vody"),
     # heating curve (4 points)
     **{
         f"curve.p{i}_{part}": _n("°C", None, f"Ekviterm bod {i} – {name}")
@@ -115,6 +123,8 @@ DERIVED: Final[dict[str, KeySpec]] = {
 }
 COUNTER_KEYS: Final = frozenset(DERIVED)
 ACTIVITIES: Final = (
+    "off",
+    "dhw_only",
     "idle",
     "heating_tank",
     "heating_dhw",

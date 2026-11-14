@@ -3,6 +3,7 @@ import { navigateTab, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
   Card,
+  Callout,
   Chip,
   EmptyState,
   Pill,
@@ -16,7 +17,9 @@ import {
   HEATING_BREAK_TS,
   RANGE_LABELS,
   activityModel,
+  bannerAlert,
   curveAt,
+  formatChangeLine,
   efficiencyModel,
   fmtDuration,
   fmtHpPower,
@@ -30,6 +33,7 @@ import {
   tankSecondaryChipLabel,
 } from '../model.js';
 import type {
+  HeatingChangeEntry,
   HeatingHistory,
   HeatingSeason,
   HeatingSnapshot,
@@ -57,7 +61,7 @@ const TABS: ReadonlyArray<readonly [TabId, string]> = [
   ['trendy', 'Trendy'],
   ['sezony', 'Sezóny'],
   ['rezimy', 'Režimy'],
-  ['poruchy', 'Poruchy'],
+  ['poruchy', 'Poruchy a upozornění'],
 ];
 const tabFromRoute = (path: string | undefined): TabId => {
   const seg = (path ?? '').split('/').filter(Boolean).pop();
@@ -133,6 +137,31 @@ function ago(iso: string | null): string {
 }
 
 /* ---------- Teď ---------- */
+
+function AlertBanner({ snap, onDetail }: { snap: HeatingSnapshot; onDetail: () => void }) {
+  const alert = bannerAlert(snap);
+  if (!alert) return null;
+  const tone = alert.severity === 'critical' ? 'warn' : 'warn';
+  return (
+    <div
+      className="ht-alert-banner"
+      data-testid="heating-alert-banner"
+      data-severity={alert.severity}
+    >
+      <Callout
+        tone={tone}
+        title={alert.title}
+        action={
+          <button type="button" className="ht-link" onClick={onDetail}>
+            Detail
+          </button>
+        }
+      >
+        {alert.body}
+      </Callout>
+    </div>
+  );
+}
 
 function HpElectricityBar({ snap, className }: { snap: HeatingSnapshot; className?: string }) {
   if (!hpElectricityVisible(snap)) return null;
@@ -237,6 +266,7 @@ function NowTab({
     `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
   return (
     <div className="ht-now">
+      <AlertBanner snap={snap} onDetail={() => go('poruchy')} />
       <Card
         className="ht-hero ht-hero-now"
         tone={act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : 'calm'}
@@ -829,7 +859,43 @@ function SeasonsTab({ api }: { api: HeatingApi }) {
 
 /* ---------- Režimy ---------- */
 
-function ModesTab({ snap }: { snap: HeatingSnapshot }) {
+function ChangesCard({ api }: { api: HeatingApi }) {
+  const [rows, setRows] = useState<HeatingChangeEntry[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!api.changes) return;
+    void api.changes().then(setRows, () => setRows([]));
+  }, [api]);
+  const visible = expanded ? rows.slice(0, 200) : rows.slice(0, 10);
+  if (!rows.length) return null;
+  return (
+    <Card className="ht-card" data-testid="heating-changes-card">
+      <header className="ht-ch">
+        <h3>Změny nastavení</h3>
+      </header>
+      <ul className="ht-changes">
+        {visible.map((e) => (
+          <li key={`${e.ts}-${e.key}`}>
+            <span>{formatChangeLine(e)}</span>
+            {e.late && (
+              <Chip look="soft">
+                zjištěno později
+              </Chip>
+            )}
+          </li>
+        ))}
+      </ul>
+      {rows.length > 10 && (
+        <button type="button" className="ht-link" onClick={() => setExpanded((x) => !x)}>
+          {expanded ? 'Zobrazit méně' : 'Zobrazit vše'}
+        </button>
+      )}
+      <p className="ht-muted">Regulace sama nezaznamenává, kdo změnu udělal.</p>
+    </Card>
+  );
+}
+
+function ModesTab({ snap, api }: { snap: HeatingSnapshot; api: HeatingApi }) {
   const out = snap.curve.outdoor_now ?? snap.outdoor.temp;
   const y = out === null ? null : curveAt(snap.curve.points, out);
   const d = new Date();
@@ -923,16 +989,38 @@ function ModesTab({ snap }: { snap: HeatingSnapshot }) {
           <p className="ht-muted">Regulace nehlásí žádné časové programy.</p>
         )}
       </Card>
+      <ChangesCard api={api} />
     </>
   );
 }
 
-/* ---------- Poruchy ---------- */
+/* ---------- Poruchy a upozornění ---------- */
+
+function alertSince(iso: string): string {
+  return new Date(iso).toLocaleString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+}
 
 function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
   const f = snap.faults;
+  const alerts = snap.alerts ?? [];
   return (
     <>
+      {alerts.length > 0 && (
+        <Card className="ht-card" data-testid="heating-alerts-list">
+          <header className="ht-ch">
+            <h3>Upozornění</h3>
+          </header>
+          <ul className="ht-alerts">
+            {alerts.map((a) => (
+              <li key={a.id} data-severity={a.severity}>
+                <strong>{a.title}</strong>
+                <p>{a.body}</p>
+                <span className="ht-muted">od {alertSince(a.since)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {f.active.length === 0 ? (
         <Card className="ht-hero ht-ok" tone="calm" data-testid="heating-faults-ok">
           <div className="ht-hero-copy">
@@ -1066,7 +1154,7 @@ export default function HeatingView({ connection, route, kiosk }: ModuleViewProp
       ) : tab === 'sezony' ? (
         <SeasonsTab api={api} />
       ) : tab === 'rezimy' ? (
-        <ModesTab snap={snap} />
+        <ModesTab snap={snap} api={api} />
       ) : (
         <FaultsTab snap={snap} />
       );

@@ -371,10 +371,20 @@ async def websocket_heating_import_history(
     )
 
 
+@websocket_api.websocket_command({vol.Required("type"): "homebrain/heating/changes"})
+@callback
+def websocket_heating_changes(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    _require(hass, connection, HEATING_DETAIL_ROLES)
+    poller = _poller(hass)
+    rows = poller.changes() if poller else []
+    connection.send_result(msg["id"], rows)
+
+
 COMMANDS: Final = (
     websocket_heating_get,
     websocket_heating_subscribe,
     websocket_heating_history,
     websocket_heating_seasons,
     websocket_heating_import_history,
+    websocket_heating_changes,
 )

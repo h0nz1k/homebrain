@@ -667,4 +667,54 @@ test.describe('Topení', () => {
     });
     expect(min).toBeGreaterThanOrEqual(11);
   });
+
+  for (const [scenario, width, height] of [
+    ['solar-off-hot', 390, 844],
+    ['solar-off-hot', 1280, 800],
+    ['off', 390, 844],
+    ['off', 1280, 800],
+  ] as const) {
+    test(`Upozornění ${scenario} ${width}×${height}: banner viditelný, bez překryvu hero`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
+      const banner = page.getByTestId('heating-alert-banner');
+      const hero = page.getByTestId('heating-hero');
+      await expect(banner).toBeVisible({ timeout: 20_000 });
+      const geom = await page.evaluate(() => {
+        const b = document.querySelector('[data-testid="heating-alert-banner"]')!;
+        const h = document.querySelector('[data-testid="heating-hero"]')!;
+        const br = b.getBoundingClientRect();
+        const hr = h.getBoundingClientRect();
+        const vh = window.innerHeight;
+        return {
+          bannerFullyVisible: br.top >= 0 && br.bottom <= vh + 1,
+          noOverlap: br.bottom <= hr.top + 2,
+          bannerAboveHero: br.top < hr.top,
+        };
+      });
+      expect(geom.bannerFullyVisible).toBe(true);
+      expect(geom.noOverlap).toBe(true);
+      expect(geom.bannerAboveHero).toBe(true);
+    });
+  }
+
+  test('Vypnuto: pill Vypnuto, ne Klidový režim', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+    await expect(page.getByTestId('heating-pill')).toHaveText('Vypnuto', { timeout: 20_000 });
+    await expect(page.getByTestId('heating-pill')).not.toContainText('Klidový');
+    await expect(page.getByTestId('heating-pill')).not.toContainText('Odpočívá');
+  });
+
+  test('Režimy: karta změn nastavení', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=heating&theme=dark');
+    await page.getByRole('button', { name: 'Režimy' }).click();
+    const card = page.getByTestId('heating-changes-card');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card).toContainText('Solár');
+    await expect(card).toContainText('zapnuto → vypnuto');
+  });
 });

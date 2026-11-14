@@ -62,6 +62,14 @@ export const heatingStyles = `
 .ht-hero { padding: 26px 28px; display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1fr); gap: 20px 28px; align-items: center; overflow: hidden; position: relative;
   background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--ht-heat) 12%, transparent), transparent 60%), var(--hb-s1); }
 .ht-hero[data-state='idle'], .ht-hero[data-state='house'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--hb-ok) 9%, transparent), transparent 60%), var(--hb-s1); }
+.ht-hero[data-state='off'], .ht-hero[data-state='dhw_only'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--hb-t2) 12%, transparent), transparent 60%), var(--hb-s1); }
+.ht-alert-banner { margin-bottom: 4px; }
+.ht-alert-banner[data-severity='critical'] .hb-callout { --hb-callout-bg: color-mix(in srgb, var(--hb-crit) 14%, var(--hb-s1)); }
+.ht-alert-banner[data-severity='warning'] .hb-callout { --hb-callout-bg: color-mix(in srgb, var(--hb-warn) 12%, var(--hb-s1)); }
+.ht-changes, .ht-alerts { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.ht-changes li, .ht-alerts li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ht-alerts li { flex-direction: column; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--hb-t2) 12%, transparent); }
+.ht-alerts li:last-child { border-bottom: 0; }
 .ht-hero[data-state='fault'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--hb-crit) 14%, transparent), transparent 60%), var(--hb-s1); }
 .ht-hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .ht-pills { display: flex; flex-wrap: wrap; gap: 6px; }
