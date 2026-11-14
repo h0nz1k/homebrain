@@ -95,11 +95,16 @@ export function phaseAmps(
 }
 
 /** Phases flowing in opposite directions → what the summing meter counts. Null otherwise. */
+/** Below 5 W a phase is idle for the saldo text (rounds to 0 W). */
+const SALDO_MIN_KW = 0.005;
+
 export function phaseSaldo(powersKw: readonly number[]): PhaseSaldo | null {
   const t = PHASE_THRESHOLDS.activeKw;
-  const importing = powersKw.flatMap((p, i) => (p >= t ? [i] : []));
-  const exporting = powersKw.flatMap((p, i) => (p <= -t ? [i] : []));
-  if (!importing.length || !exporting.length) return null;
+  // Saldo exists only when both directions flow noticeably (≥ 50 W) …
+  if (!powersKw.some((p) => p >= t) || !powersKw.some((p) => p <= -t)) return null;
+  // … but the text lists every flowing phase, so the stated amounts add up to the meter's net.
+  const importing = powersKw.flatMap((p, i) => (p >= SALDO_MIN_KW ? [i] : []));
+  const exporting = powersKw.flatMap((p, i) => (p <= -SALDO_MIN_KW ? [i] : []));
   const importKw = importing.reduce((s, i) => s + powersKw[i]!, 0);
   const exportKw = -exporting.reduce((s, i) => s + powersKw[i]!, 0);
   const netKw = powersKw.reduce((s, p) => s + p, 0);

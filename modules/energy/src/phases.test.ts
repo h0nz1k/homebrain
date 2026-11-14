@@ -92,7 +92,7 @@ describe('phaseSaldo', () => {
   });
   it('small flows read in watts, never three times „0,1 kW“', () => {
     expect(phaseSaldo([-0.047, -0.114, 0.062])?.text).toBe(
-      'L3 odebírá 62\u00a0W, L2 dodává 114\u00a0W → elektroměr počítá dodávku 99\u00a0W',
+      'L3 odebírá 62\u00a0W, L1 a L2 dodávají 161\u00a0W → elektroměr počítá dodávku 99\u00a0W',
     );
   });
   it('ignores tiny opposite flows below 50 W', () => {
