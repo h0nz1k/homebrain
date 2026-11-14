@@ -490,6 +490,7 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                     else "SolarGo",
                 ),
                 binding=key,
+                entity_id=entity_id,
                 connected=bool(state),
                 **{"raw_min": lo, "raw_max": hi, "raw_step": step},
             )

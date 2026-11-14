@@ -16,6 +16,8 @@ export interface EnergySetting {
   max?: number | null;
   step?: number | null;
   binding?: string;
+  /** Bound entity id from integration options, or null when unassigned. */
+  entity_id?: string | null;
   /** Read-only rows: where the value is changed (chip text and sentence). */
   source?: string | null;
   location?: string | null;

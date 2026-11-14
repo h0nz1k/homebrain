@@ -93,13 +93,17 @@ const SOURCE: Record<string, string> = {
   'Home Assistant': 'z Home Assistantu',
   Správce: 'jen správce',
 };
+const BINDING_SETUP =
+  'Přiřaďte v Home Assistantu v Zařízení a služby → HomeBrain → Konfigurovat → Energie.';
 /** Read-only rows: where the value comes from and where it is changed instead. */
-const whereText = (row: EnergySetting) =>
-  row.source === 'Správce'
+const whereText = (row: EnergySetting) => {
+  if (row.binding && row.value === null && !row.entity_id) return BINDING_SETUP;
+  return row.source === 'Správce'
     ? 'Mění jen správce v HomeBrainu.'
     : row.location
       ? `${row.source && SOURCE[row.source] ? `Hodnota je ${SOURCE[row.source]}. ` : ''}Mění se ${row.location}.`
       : undefined;
+};
 /** On/off settings render as a switch; HDO is a tariff state, not a setting, and stays text. */
 const isSwitch = (row: EnergySetting) =>
   (row.value === 'on' || row.value === 'off') && row.key !== 'energy_tariff_hdo';
@@ -109,8 +113,12 @@ const format = (value: number, unit: string) =>
   unit === 'W' || unit === 'kW' ? formatPower(value, unit) : formatQuantity(value, unit);
 
 /** Plain-text value (aria labels, confirm titles). */
-function displayText(row: EnergySetting): string {
-  if (row.value === null) return row.binding ? 'nepřipojeno' : 'nenastaveno';
+export function displayText(row: EnergySetting): string {
+  if (row.value === null) {
+    if (!row.binding) return 'nenastaveno';
+    if (!row.entity_id) return 'nepřiřazeno';
+    return 'nepřipojeno';
+  }
   if (row.key === 'energy_inverter_status') return inverterStatusChip(String(row.value)).label;
   if (row.key === 'energy_inverter_mode' || row.key === 'energy_ems_mode')
     return MODES[String(row.value).toLowerCase()] ?? String(row.value);
@@ -393,12 +401,16 @@ function SettingSheet({
           {whereText(row)}
         </p>
       )}
-      {row.value === null && row.binding && (
+      {row.value === null && row.binding && !row.entity_id && (
         <p className="en-sheet-where">
           <Icon name="info" size={18} />
-          <span>
-            Nastavte vazbu <code>{row.binding}</code> v integraci HomeBrain.
-          </span>
+          <span>{BINDING_SETUP}</span>
+        </p>
+      )}
+      {row.value === null && row.binding && row.entity_id && (
+        <p className="en-sheet-where">
+          <Icon name="info" size={18} />
+          <span>Entita {row.entity_id} není dostupná ve stavu Home Assistantu.</span>
         </p>
       )}
       {error}
