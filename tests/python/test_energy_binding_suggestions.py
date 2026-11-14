@@ -10,7 +10,10 @@ async def test_suggest_when_exactly_one_match(hass):
 
 async def test_suggest_czech_pattern(hass):
     hass.states.async_set("number.demo_maximum_vybiti_v_siti", "90")
-    assert suggest_energy_binding(hass, "energy_battery_dod_ongrid") == "number.demo_maximum_vybiti_v_siti"
+    assert (
+        suggest_energy_binding(hass, "energy_battery_dod_ongrid")
+        == "number.demo_maximum_vybiti_v_siti"
+    )
 
 
 async def test_suggest_none_when_ambiguous(hass):

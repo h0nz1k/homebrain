@@ -93,11 +93,11 @@ const SOURCE: Record<string, string> = {
   'Home Assistant': 'z Home Assistantu',
   Správce: 'jen správce',
 };
-const BINDING_SETUP =
-  'Přiřaďte v Home Assistantu v Zařízení a služby → HomeBrain → Konfigurovat → Energie.';
 /** Read-only rows: where the value comes from and where it is changed instead. */
 const whereText = (row: EnergySetting) => {
-  if (row.binding && row.value === null && !row.entity_id) return BINDING_SETUP;
+  // Unassigned binding: only the admin assigns entities (backend sends who/where).
+  if (row.binding && row.assigned === false)
+    return row.source === 'Správce' ? 'Přiřazuje jen správce.' : `Přiřaďte ${row.location ?? ''}.`;
   return row.source === 'Správce'
     ? 'Mění jen správce v HomeBrainu.'
     : row.location
@@ -116,7 +116,7 @@ const format = (value: number, unit: string) =>
 export function displayText(row: EnergySetting): string {
   if (row.value === null) {
     if (!row.binding) return 'nenastaveno';
-    if (!row.entity_id) return 'nepřiřazeno';
+    if (row.assigned === false) return 'nepřiřazeno';
     return 'nepřipojeno';
   }
   if (row.key === 'energy_inverter_status') return inverterStatusChip(String(row.value)).label;
@@ -401,16 +401,18 @@ function SettingSheet({
           {whereText(row)}
         </p>
       )}
-      {row.value === null && row.binding && !row.entity_id && (
+      {row.value === null && row.binding && row.assigned !== false && (
         <p className="en-sheet-where">
           <Icon name="info" size={18} />
-          <span>{BINDING_SETUP}</span>
-        </p>
-      )}
-      {row.value === null && row.binding && row.entity_id && (
-        <p className="en-sheet-where">
-          <Icon name="info" size={18} />
-          <span>Entita {row.entity_id} není dostupná ve stavu Home Assistantu.</span>
+          <span>
+            {row.entity_id ? (
+              <>
+                Entita <code>{row.entity_id}</code> teď v Home Assistantu nehlásí hodnotu.
+              </>
+            ) : (
+              'Zařízení teď nehlásí hodnotu.'
+            )}
+          </span>
         </p>
       )}
       {error}

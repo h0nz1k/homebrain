@@ -16,7 +16,9 @@ export interface EnergySetting {
   max?: number | null;
   step?: number | null;
   binding?: string;
-  /** Bound entity id from integration options, or null when unassigned. */
+  /** Binding rows: whether an entity is assigned (admin assigns it in HA). */
+  assigned?: boolean;
+  /** Bound entity id; sent to the admin only. */
   entity_id?: string | null;
   /** Read-only rows: where the value is changed (chip text and sentence). */
   source?: string | null;

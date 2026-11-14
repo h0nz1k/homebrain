@@ -17,9 +17,15 @@ const row = (over: Partial<EnergySetting>): EnergySetting => ({
 describe('displayText', () => {
   it('distinguishes option, unassigned binding and disconnected entity', () => {
     expect(displayText(row({ key: 'battery_capacity_kwh' }))).toBe('nenastaveno');
-    expect(displayText(row({ binding: 'energy_fast_charge' }))).toBe('nepřiřazeno');
+    expect(displayText(row({ binding: 'energy_fast_charge', assigned: false }))).toBe(
+      'nepřiřazeno',
+    );
     expect(
-      displayText(row({ binding: 'energy_fast_charge', entity_id: 'switch.demo_fast_charging' })),
+      displayText(
+        row({ binding: 'energy_fast_charge', assigned: true, entity_id: 'switch.demo_fast' }),
+      ),
     ).toBe('nepřipojeno');
+    // Non-admins get no entity id, but an assigned binding is still "nepřipojeno".
+    expect(displayText(row({ binding: 'energy_fast_charge', assigned: true }))).toBe('nepřipojeno');
   });
 });
