@@ -7,6 +7,7 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homebrain.const import DOMAIN
+from custom_components.homebrain.energy.settings import snapshot
 
 
 @pytest.fixture
@@ -50,7 +51,13 @@ async def test_get_reserve_defaults_and_unbound(hass, setup, hass_ws_client):
     assert "DoD" not in rows["energy_battery_dod_ongrid"]["explanation"]
     assert rows["pv_tilt"]["value"] == 35 and rows["pv_tilt"]["assumed"]
     assert rows["energy_fast_charge"]["value"] is None
+    assert rows["energy_fast_charge"]["entity_id"] is None
+    assert rows["energy_fast_charge"]["assigned"] is False
+    assert "HomeBrain → Konfigurovat → Energie" in rows["energy_fast_charge"]["location"]
+    assert rows["energy_fast_charge"]["binding"] == "energy_fast_charge"
+    assert not rows["energy_fast_charge"]["connected"]
     assert not rows["energy_fast_charge"]["editable"]
+    assert rows["energy_battery_dod_ongrid"]["entity_id"] == "number.demo_dod"
 
 
 async def test_options_update_preserves_other_options(hass, setup, hass_ws_client):
@@ -118,7 +125,8 @@ async def test_adult_reads_but_cannot_edit(hass, setup, hass_ws_client, hass_adm
     # Rows the admin can change here never point adults to the original app.
     assert rows["energy_battery_dod_ongrid"]["source"] == "Správce"
     assert rows["pv_tilt"]["source"] == "Správce"
-    assert rows["energy_fast_charge"]["source"] == "SolarGo"
+    # Unassigned binding: adults are told only the admin assigns it.
+    assert rows["energy_fast_charge"]["source"] == "Správce"
 
 
 async def test_where_changed_only_for_read_only_rows(hass, setup, hass_ws_client):
@@ -171,6 +179,30 @@ async def test_reserve_respects_inverter_limits(hass, setup, hass_ws_client):
         await hass_ws_client(hass), "set", key="energy_battery_dod_ongrid", value=20
     )
     assert result["error"]["code"] == "invalid_value"
+
+
+async def test_bound_unavailable_keeps_entity_id(hass, setup):
+    hass.config_entries.async_update_entry(
+        setup,
+        options={
+            **setup.options,
+            "bindings": {"energy": {"energy_fast_charge": "switch.demo_fast"}},
+        },
+    )
+    hass.states.async_set("switch.demo_fast", "unavailable")
+    row = next(r for r in snapshot(hass, setup, True)["rows"] if r["key"] == "energy_fast_charge")
+    assert row["entity_id"] == "switch.demo_fast"
+    assert row["assigned"] is True
+    assert row["value"] is None
+    assert row["connected"]
+    # Entity assignment is admin-only: others see who assigns, never entity ids.
+    rows = {r["key"]: r for r in snapshot(hass, setup, False)["rows"]}
+    assert rows["energy_fast_charge"]["entity_id"] is None
+    assert rows["energy_fast_charge"]["assigned"] is True
+    assert rows["energy_fast_charge"]["source"] == "SolarGo"
+    assert rows["energy_battery_keep_dod"]["assigned"] is False
+    assert rows["energy_battery_keep_dod"]["source"] == "Správce"
+    assert "Konfigurovat" not in rows["energy_battery_keep_dod"]["location"]
 
 
 async def test_backup_reserve_range_uses_entity_bounds(hass, setup, hass_ws_client):

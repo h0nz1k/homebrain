@@ -118,6 +118,7 @@ export const settingsDemo: EnergySettings = {
       max: 50,
       step: 5,
       editable: true,
+      entity_id: 'number.demo_dod_ongrid',
       binding: 'energy_battery_dod_ongrid',
     },
     {
@@ -135,6 +136,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'number.demo_dod_backup',
       binding: 'energy_battery_dod_backup',
     },
     {
@@ -149,6 +151,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'switch.demo_keep_battery_dod',
       binding: 'energy_battery_keep_dod',
     },
     {
@@ -163,6 +166,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'switch.demo_fast_charging',
       binding: 'energy_fast_charge',
     },
     {
@@ -180,6 +184,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'number.demo_fast_charging_power',
       binding: 'energy_fast_charge_power',
     },
     {
@@ -197,6 +202,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'number.demo_fast_charging_soc',
       binding: 'energy_fast_charge_soc',
     },
     {
@@ -214,6 +220,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'number.demo_eco_mode_power',
       binding: 'energy_eco_power',
     },
     {
@@ -231,6 +238,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'number.demo_eco_mode_soc',
       binding: 'energy_eco_soc',
     },
     {
@@ -245,6 +253,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'switch.demo_export_limit_switch',
       binding: 'energy_export_limit_enabled',
     },
     {
@@ -262,6 +271,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'number.demo_grid_export_limit',
       binding: 'energy_export_limit',
     },
     {
@@ -277,6 +287,7 @@ export const settingsDemo: EnergySettings = {
       max: 63.0,
       step: 1.0,
       editable: true,
+      entity_id: 'input_number.demo_main_breaker',
       binding: 'energy_main_breaker',
     },
     {
@@ -292,6 +303,7 @@ export const settingsDemo: EnergySettings = {
       max: 20.0,
       step: 0.01,
       editable: true,
+      entity_id: 'input_number.demo_tariff_vt',
       binding: 'energy_tariff_price_vt',
     },
     {
@@ -307,6 +319,7 @@ export const settingsDemo: EnergySettings = {
       max: 20.0,
       step: 0.01,
       editable: true,
+      entity_id: 'input_number.demo_tariff_nt',
       binding: 'energy_tariff_price_nt',
     },
     {
@@ -322,6 +335,7 @@ export const settingsDemo: EnergySettings = {
       max: 5000.0,
       step: 1.0,
       editable: true,
+      entity_id: 'input_number.demo_tariff_fixed',
       binding: 'energy_tariff_fixed_monthly',
     },
     {
@@ -336,6 +350,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'Home Assistant',
       location: 'v Home Assistantu',
+      entity_id: 'binary_sensor.demo_tariff_hdo',
       binding: 'energy_tariff_hdo',
     },
     {
@@ -350,6 +365,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'Home Assistant',
       location: 'v Home Assistantu',
+      entity_id: 'binary_sensor.demo_tariff_hdo',
       binding: 'energy_tariff_next_change',
     },
     {
@@ -365,6 +381,7 @@ export const settingsDemo: EnergySettings = {
       max: 20.0,
       step: 0.01,
       editable: true,
+      entity_id: 'input_number.demo_spot_markup',
       binding: 'energy_spot_markup',
     },
     {
@@ -380,6 +397,7 @@ export const settingsDemo: EnergySettings = {
       max: 20.0,
       step: 0.01,
       editable: true,
+      entity_id: 'input_number.demo_spot_dist_vt',
       binding: 'energy_spot_distribution_vt',
     },
     {
@@ -395,6 +413,7 @@ export const settingsDemo: EnergySettings = {
       max: 20.0,
       step: 0.01,
       editable: true,
+      entity_id: 'input_number.demo_spot_dist_nt',
       binding: 'energy_spot_distribution_nt',
     },
     {
@@ -410,6 +429,7 @@ export const settingsDemo: EnergySettings = {
       max: 5000.0,
       step: 1.0,
       editable: true,
+      entity_id: 'input_number.demo_spot_fixed',
       binding: 'energy_spot_fixed_monthly',
     },
     {
@@ -424,6 +444,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'select.demo_inverter_operation_mode',
       binding: 'energy_inverter_mode',
     },
     {
@@ -438,6 +459,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'select.demo_ems_mode',
       binding: 'energy_ems_mode',
     },
     {
@@ -452,6 +474,7 @@ export const settingsDemo: EnergySettings = {
       editable: false,
       source: 'SolarGo',
       location: 'v aplikaci SolarGo',
+      entity_id: 'sensor.demo_inverter_status',
       binding: 'energy_inverter_status',
     },
   ],

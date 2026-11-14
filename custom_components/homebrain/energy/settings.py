@@ -389,6 +389,16 @@ def _where(admin: bool, writable: bool, origin: str) -> dict[str, str | None]:
     return {"source": source, "location": LOCATIONS[source]}
 
 
+BINDING_SETUP = "v Home Assistantu: Zařízení a služby → HomeBrain → Konfigurovat → Energie"
+
+
+def _unassigned(admin: bool) -> dict[str, str]:
+    """Unbound rows: entity assignment is admin-only, so others are just told who does it."""
+    if admin:
+        return {"source": "Home Assistant", "location": BINDING_SETUP}
+    return {"source": "Správce", "location": LOCATIONS["Správce"]}
+
+
 def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
     rows = []
     options = entry.options.get(OPTION_KEY) or {}
@@ -482,14 +492,21 @@ def snapshot(hass: HomeAssistant, entry: Any, admin: bool) -> dict[str, Any]:
                 else (100 - lo if reserve and lo is not None else hi),
                 step=5 if key == "energy_battery_dod_ongrid" else step,
                 editable=admin and writable,
-                **_where(
-                    admin,
-                    writable,
-                    "Home Assistant"
-                    if key in HELPERS or key.startswith("energy_tariff_")
-                    else "SolarGo",
+                **(
+                    _where(
+                        admin,
+                        writable,
+                        "Home Assistant"
+                        if key in HELPERS or key.startswith("energy_tariff_")
+                        else "SolarGo",
+                    )
+                    if entity_id
+                    else _unassigned(admin)
                 ),
                 binding=key,
+                assigned=bool(entity_id),
+                # Entity ids are configuration detail; only the admin sees them.
+                entity_id=entity_id if admin else None,
                 connected=bool(state),
                 **{"raw_min": lo, "raw_max": hi, "raw_step": step},
             )

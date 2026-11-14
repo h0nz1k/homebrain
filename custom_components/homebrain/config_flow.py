@@ -10,6 +10,7 @@ from homeassistant.helpers import selector
 
 from .bindings import binding_domains, get_bindings, validate_binding
 from .const import BINDING_MODULES, DOMAIN, MEALS_DISPLAY, MEALS_DISPLAY_MODES, PANEL_TITLE
+from .energy.binding_suggestions import suggest_energy_binding
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
 from .heating.poller import (
     CONF_HEATING,
@@ -636,9 +637,16 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 options = {**self.config_entry.options, "bindings": bindings}
                 return self.async_create_entry(title="", data=options)
 
+        def suggested(key: str) -> str | None:
+            if bound := values.get(key):
+                return bound
+            if module == "energy":
+                return suggest_energy_binding(self.hass, key)
+            return None
+
         schema = vol.Schema(
             {
-                vol.Optional(key, description={"suggested_value": values.get(key)}): (
+                vol.Optional(key, description={"suggested_value": suggested(key)}): (
                     selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=list(binding_domains(key)))
                     )
