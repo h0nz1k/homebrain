@@ -53,6 +53,20 @@ describe('stepConsumers – visibility threshold', () => {
     );
     expect(r.visible.map((c) => c.slot)).toEqual(['dishwasher']);
   });
+  it('dishwasher shows from the program start (fill/pump ~8 W), idle plug stays hidden', () => {
+    expect(stepConsumers({}, [reading('dishwasher', 1.5)], T, true).visible).toEqual([]);
+    let r = stepConsumers({}, [reading('dishwasher', 8)], T);
+    r = stepConsumers(
+      r.tracks,
+      [reading('dishwasher', 8)],
+      T + CONSUMER_RULES.dishwasher.onDelayMs,
+    );
+    expect(r.visible.map((c) => c.slot)).toEqual(['dishwasher']);
+  });
+  it('other appliances keep the 30 W threshold', () => {
+    expect(stepConsumers({}, [reading('dehumidifier', 20)], T, true).visible).toEqual([]);
+    expect(stepConsumers({}, [reading('coffee_maker', 20)], T, true).visible).toEqual([]);
+  });
   it('heat pump idling at tens of watts stays hidden', () => {
     const r = stepConsumers({}, [reading('heat_pump', 60)], T, true);
     expect(r.visible).toEqual([]);
@@ -87,8 +101,8 @@ describe('stepConsumers – debounce + hysteresis', () => {
   it('stays visible inside the hysteresis band and through short dips', () => {
     const rule = CONSUMER_RULES.dishwasher;
     let r = stepConsumers({}, [reading('dishwasher', 2000)], T, true);
-    // Between offW and onW: still running (heating pause at ~20 W).
-    r = stepConsumers(r.tracks, [reading('dishwasher', rule.offW + 5)], T + 60_000);
+    // Between offW and onW: still running.
+    r = stepConsumers(r.tracks, [reading('dishwasher', rule.offW + 1)], T + 60_000);
     expect(r.visible).toHaveLength(1);
     // Below offW, but shorter than offDelay → still shown.
     r = stepConsumers(r.tracks, [reading('dishwasher', 2)], T + 120_000);

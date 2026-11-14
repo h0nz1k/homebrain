@@ -485,11 +485,12 @@ export interface ConsumerRule {
   onDelayMs: number;
   offDelayMs: number;
 }
-/** Owner: show only appliances that really run (> 30 W). Heat pump idles at tens of watts. */
+/** Owner: show only appliances that really run (> 30 W; dishwasher > 5 W). Heat pump idles at tens of watts. */
 export const CONSUMER_RULES: Record<ApplianceSlot, ConsumerRule> = {
   heat_pump: { onW: 100, offW: 60, onDelayMs: 20_000, offDelayMs: 120_000 },
-  // Dishwasher pauses between heating phases at ~40 W: keep it visible through the program.
-  dishwasher: { onW: 30, offW: 15, onDelayMs: 10_000, offDelayMs: 180_000 },
+  // Owner: dishwasher from 5 W – the program starts with ~8–17 W (fill, pump); idle plug reads
+  // 0–1.5 W. Pauses between heating phases (~40 W) and dips are covered by offDelay.
+  dishwasher: { onW: 5, offW: 3, onDelayMs: 10_000, offDelayMs: 180_000 },
   coffee_maker: { onW: 30, offW: 15, onDelayMs: 0, offDelayMs: 45_000 },
   dehumidifier: { onW: 30, offW: 15, onDelayMs: 20_000, offDelayMs: 60_000 },
 };
