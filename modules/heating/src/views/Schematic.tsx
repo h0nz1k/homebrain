@@ -591,9 +591,9 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               />
               <Pump x={362} y={404} on={snap.extras.solar?.pump ?? null} id="solar" horizontal />
               <Label
-                x={332}
-                y={448}
-                anchor="end"
+                x={378}
+                y={408}
+                anchor="start"
                 id="solar-pump"
                 muted={snap.extras.solar?.pump !== true}
               >

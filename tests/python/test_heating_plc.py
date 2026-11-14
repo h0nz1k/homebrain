@@ -228,6 +228,7 @@ async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
         "password": "old",
         "map_path": "/config/homebrain/heating_map.yaml",
         "poll_interval": 45,
+        "alert_recipient": "",
     }
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
