@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@homebrain/ha-client": "workspace:*",
+    "@homebrain/signals": "workspace:*",
     "@homebrain/ui": "workspace:*",
     "zod": "^4.6.7"
   },

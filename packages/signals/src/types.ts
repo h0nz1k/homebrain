@@ -10,6 +10,7 @@ export type ModuleId =
   | 'wine'
   | 'recipes'
   | 'network'
+  | 'heating'
   | 'system';
 export type Tone = 'risk' | 'opportunity' | 'neutral';
 export type Action =

@@ -2,6 +2,7 @@ import type { ConnectionLike } from '@homebrain/ha-client';
 import {
   COUNTER_KEYS,
   type HeatingHistory,
+  type HeatingChangeEntry,
   type HeatingSeason,
   type HeatingSnapshot,
   type HistoryKey,
@@ -14,6 +15,7 @@ export interface HeatingApi {
   get(): Promise<HeatingSnapshot>;
   history(range: HistoryRange, keys: HistoryKey[]): Promise<HeatingHistory>;
   seasons(): Promise<HeatingSeason[]>;
+  changes?(): Promise<HeatingChangeEntry[]>;
   /** Push of the `get` payload on change; returns unsubscribe. */
   subscribe?(onSnapshot: (snap: HeatingSnapshot) => void): () => void;
 }
@@ -54,6 +56,7 @@ export function createWsHeatingApi(connection: ConnectionLike): HeatingApi {
         normalizeHistory(h, keys),
       ),
     seasons: () => call<HeatingSeason[]>('homebrain/heating/seasons'),
+    changes: () => call<HeatingChangeEntry[]>('homebrain/heating/changes'),
   };
   if (connection.subscribeMessage) {
     const subscribeMessage = connection.subscribeMessage.bind(connection);

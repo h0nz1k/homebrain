@@ -805,3 +805,20 @@ export function solarRenderedGeometry(el: HTMLElement) {
     solarHeating,
   };
 }
+
+/** Off state: HP flow/return labels must not overlap the tank shell. */
+export function offSchematicTankLabelClearance(el: HTMLElement): string[] {
+  const errors: string[] = [];
+  const tank = el.querySelector<SVGGraphicsElement>('.ht-c3-shell');
+  if (!tank || el.getAttribute('data-state') !== 'off') return errors;
+  const tankBox = tank.getBoundingClientRect();
+  const intersects = (a: DOMRect, b: DOMRect, margin = 1) =>
+    Math.min(a.right, b.right) - Math.max(a.left, b.left) > margin &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > margin;
+  for (const text of Array.from(el.querySelectorAll<SVGTextElement>('text[data-label]'))) {
+    const id = text.dataset.label;
+    if (!id || id === 'dhw' || id === 'tank') continue;
+    if (intersects(text.getBoundingClientRect(), tankBox)) errors.push(`${id}: overlaps tank`);
+  }
+  return errors;
+}

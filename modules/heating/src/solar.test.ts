@@ -45,6 +45,7 @@ describe('solar mock scenarios', () => {
     const snap = buildMockSnapshot('solar-nogain', 0, now);
     expect(snap.extras.solar?.state).toBe('no_gain');
     const act = activityModel(snap, now);
-    expect(act.solarWarn).toContain('odvzdušnění');
+    expect(act.detail).toContain('odvzdušnění');
+    expect(act.solarWarn).toBeUndefined();
   });
 });

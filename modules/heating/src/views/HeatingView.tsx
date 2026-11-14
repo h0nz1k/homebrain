@@ -3,6 +3,7 @@ import { navigateTab, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
   Card,
+  Callout,
   Chip,
   EmptyState,
   Pill,
@@ -16,7 +17,12 @@ import {
   HEATING_BREAK_TS,
   RANGE_LABELS,
   activityModel,
+  bannerAlert,
+  changeSettingLabel,
   curveAt,
+  formatChangeValue,
+  formatChangeWhen,
+  heroSectionLabel,
   efficiencyModel,
   fmtDuration,
   fmtHpPower,
@@ -30,6 +36,7 @@ import {
   tankSecondaryChipLabel,
 } from '../model.js';
 import type {
+  HeatingChangeEntry,
   HeatingHistory,
   HeatingSeason,
   HeatingSnapshot,
@@ -57,7 +64,7 @@ const TABS: ReadonlyArray<readonly [TabId, string]> = [
   ['trendy', 'Trendy'],
   ['sezony', 'Sezóny'],
   ['rezimy', 'Režimy'],
-  ['poruchy', 'Poruchy'],
+  ['poruchy', 'Poruchy a upozornění'],
 ];
 const tabFromRoute = (path: string | undefined): TabId => {
   const seg = (path ?? '').split('/').filter(Boolean).pop();
@@ -133,6 +140,31 @@ function ago(iso: string | null): string {
 }
 
 /* ---------- Teď ---------- */
+
+function AlertBanner({ snap, onDetail }: { snap: HeatingSnapshot; onDetail: () => void }) {
+  const alert = bannerAlert(snap);
+  if (!alert) return null;
+  const tone = alert.severity === 'critical' ? 'critical' : 'warn';
+  return (
+    <div
+      className="ht-alert-banner"
+      data-testid="heating-alert-banner"
+      data-severity={alert.severity}
+    >
+      <Callout
+        tone={tone}
+        title={alert.title}
+        action={
+          <button type="button" className="ht-link" onClick={onDetail}>
+            Detail
+          </button>
+        }
+      >
+        {alert.body}
+      </Callout>
+    </div>
+  );
+}
 
 function HpElectricityBar({ snap, className }: { snap: HeatingSnapshot; className?: string }) {
   if (!hpElectricityVisible(snap)) return null;
@@ -235,11 +267,15 @@ function NowTab({
   const landHeadline =
     sceneCopy?.[0] ??
     `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
+  const heroCardTone =
+    act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : act.state === 'off' ? 'notice' : 'calm';
+  const showCompressorMeta = act.state !== 'off';
   return (
     <div className="ht-now">
+      <AlertBanner snap={snap} onDetail={() => go('poruchy')} />
       <Card
         className="ht-hero ht-hero-now"
-        tone={act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : 'calm'}
+        tone={heroCardTone}
         data-testid="heating-hero"
         data-state={act.state}
       >
@@ -249,21 +285,25 @@ function NowTab({
               {sceneCopy?.[2] ?? act.pill}
             </Pill>
             <p className="ht-land-strip-head">{landHeadline}</p>
-            <p className="ht-land-strip-meta">
-              <span>{compressorLine}</span>
-              <span className="ht-land-strip-sep" aria-hidden="true">
-                ·
-              </span>
-              <b className={hp.power_w === null ? 'ht-muted' : undefined}>
-                Elektřina TČ {powerLine}
-                {hp.energy_today_kwh !== null ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
-              </b>
-            </p>
+            {showCompressorMeta && (
+              <p className="ht-land-strip-meta">
+                <span>{compressorLine}</span>
+                <span className="ht-land-strip-sep" aria-hidden="true">
+                  ·
+                </span>
+                <b className={hp.power_w === null ? 'ht-muted' : undefined}>
+                  Elektřina TČ {powerLine}
+                  {hp.energy_today_kwh !== null ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
+                </b>
+              </p>
+            )}
             <LandscapePumpChips snap={snap} />
-            {act.solarWarn && <p className="ht-insight ht-land-only">{act.solarWarn}</p>}
+            {act.solarWarn && !bannerAlert(snap) && (
+              <p className="ht-insight ht-land-only">{act.solarWarn}</p>
+            )}
           </header>
           <div className="ht-hero-copy ht-portrait-hero-copy">
-            <span className="ht-k">Zásoba tepla</span>
+            <span className="ht-k">{heroSectionLabel(snap)}</span>
             <Pill tone={act.tone} dot data-testid="heating-pill">
               {sceneCopy?.[2] ?? act.pill}
             </Pill>
@@ -276,21 +316,27 @@ function NowTab({
                 </>
               )}
             </h2>
-            <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
-            {act.solarWarn && (
+            {(sceneCopy?.[1] ?? act.detail) ? (
+              <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+            ) : null}
+            {act.solarWarn && !bannerAlert(snap) && (
               <p className="ht-insight" data-testid="heating-solar-warn">
                 {act.solarWarn}
               </p>
             )}
-            <p className="ht-run-meta">
-              <span>{compressorLine}</span>
-              {hpElectricityVisible(snap) && (
-                <b>
-                  Elektřina TČ {powerLine}
-                  {hp.energy_today_kwh !== null ? ` · ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
-                </b>
-              )}
-            </p>
+            {showCompressorMeta && (
+              <p className="ht-run-meta">
+                <span>{compressorLine}</span>
+                {hpElectricityVisible(snap) && (
+                  <b>
+                    Elektřina TČ {powerLine}
+                    {hp.energy_today_kwh !== null
+                      ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh`
+                      : ''}
+                  </b>
+                )}
+              </p>
+            )}
           </div>
           <div className="ht-now-schematic">
             <HeatingSchematic snap={snap} />
@@ -480,8 +526,8 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
             </Pill>
           </div>
           <p className="ht-big">
-            {fmtNum(h.ref_temp)}
-            <small>°C</small>
+            {fmtT(h.ref_temp).replace(/\u202f°C$/u, '')}
+            <small>{'\u202f°C'}</small>
           </p>
           <p className="ht-hero-sub">
             čidlo regulace TČ · cíl {fmtT(h.ref_target_effective ?? h.ref_target)} · hystereze{' '}
@@ -561,7 +607,7 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
                     <span className="ht-muted">
                       {r.target === null
                         ? 'bez cíle'
-                        : `cíl ${fmtNum(r.target)} · ${r.delta! > 0 ? '+' : ''}${fmtNum(r.delta)}\u202f°C`}
+                        : `cíl ${fmtT(r.target, 0)} · ${r.delta! > 0 ? '+' : ''}${fmtNum(r.delta)}\u202f°C`}
                     </span>
                     <span
                       className="ht-track"
@@ -829,7 +875,52 @@ function SeasonsTab({ api }: { api: HeatingApi }) {
 
 /* ---------- Režimy ---------- */
 
-function ModesTab({ snap }: { snap: HeatingSnapshot }) {
+function ChangesCard({ api }: { api: HeatingApi }) {
+  const [rows, setRows] = useState<HeatingChangeEntry[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!api.changes) return;
+    void api.changes().then(setRows, () => setRows([]));
+  }, [api]);
+  const visible = expanded ? rows.slice(0, 200) : rows.slice(0, 10);
+  if (!rows.length) return null;
+  return (
+    <Card className="ht-card" data-testid="heating-changes-card">
+      <header className="ht-ch">
+        <h3>Změny nastavení</h3>
+      </header>
+      <ul className="ht-changes">
+        {visible.map((e) => (
+          <li key={`${e.ts}-${e.key}`}>
+            <span className="ht-change-line">
+              <span className="ht-change-when">{formatChangeWhen(e.ts)}</span>
+              <span className="ht-muted" aria-hidden="true">
+                {' · '}
+              </span>
+              <span className="ht-change-label">{changeSettingLabel(e)}:</span>{' '}
+              <span className="ht-change-values">
+                {formatChangeValue(e.old, e.key)} → {formatChangeValue(e.new, e.key)}
+              </span>
+            </span>
+            {e.late && (
+              <span className="ht-change-late">
+                zjištěno později – změna proběhla mimo HomeBrain, čas je přibližný
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {rows.length > 10 && (
+        <button type="button" className="ht-link" onClick={() => setExpanded((x) => !x)}>
+          {expanded ? 'Zobrazit méně' : 'Zobrazit vše'}
+        </button>
+      )}
+      <p className="ht-muted">Regulace sama nezaznamenává, kdo změnu udělal.</p>
+    </Card>
+  );
+}
+
+function ModesTab({ snap, api }: { snap: HeatingSnapshot; api: HeatingApi }) {
   const out = snap.curve.outdoor_now ?? snap.outdoor.temp;
   const y = out === null ? null : curveAt(snap.curve.points, out);
   const d = new Date();
@@ -923,16 +1014,38 @@ function ModesTab({ snap }: { snap: HeatingSnapshot }) {
           <p className="ht-muted">Regulace nehlásí žádné časové programy.</p>
         )}
       </Card>
+      <ChangesCard api={api} />
     </>
   );
 }
 
-/* ---------- Poruchy ---------- */
+/* ---------- Poruchy a upozornění ---------- */
+
+function alertSince(iso: string): string {
+  return new Date(iso).toLocaleString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+}
 
 function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
   const f = snap.faults;
+  const alerts = snap.alerts ?? [];
   return (
     <>
+      {alerts.length > 0 && (
+        <Card className="ht-card" data-testid="heating-alerts-list">
+          <header className="ht-ch">
+            <h3>Upozornění</h3>
+          </header>
+          <ul className="ht-alerts">
+            {alerts.map((a) => (
+              <li key={a.id} data-severity={a.severity}>
+                <strong>{a.title}</strong>
+                <p>{a.body}</p>
+                <span className="ht-muted">od {alertSince(a.since)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {f.active.length === 0 ? (
         <Card className="ht-hero ht-ok" tone="calm" data-testid="heating-faults-ok">
           <div className="ht-hero-copy">
@@ -1066,7 +1179,7 @@ export default function HeatingView({ connection, route, kiosk }: ModuleViewProp
       ) : tab === 'sezony' ? (
         <SeasonsTab api={api} />
       ) : tab === 'rezimy' ? (
-        <ModesTab snap={snap} />
+        <ModesTab snap={snap} api={api} />
       ) : (
         <FaultsTab snap={snap} />
       );

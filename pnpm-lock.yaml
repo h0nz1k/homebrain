@@ -283,6 +283,9 @@ importers:
       '@homebrain/ha-client':
         specifier: workspace:*
         version: link:../../packages/ha-client
+      '@homebrain/signals':
+        specifier: workspace:*
+        version: link:../../packages/signals
       '@homebrain/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -127,6 +127,25 @@ fotky robotů). Logo je vycentrované na přední straně TČ, max. cca 72 % š�
 Bez manifestu nebo při neplatném souboru zůstane popisek **TČ**. Stav kompresoru je jen
 malá LED na panelu (zelená pulzující při běhu, šedá při klidu).
 
+## Upozornění
+
+Backend vyhodnocuje pravidla (solár vypnutý a horký kolektor, porucha, výpadek regulace,
+vypnutý hlavní vypínač, …) a vrací je v poli `alerts` v `homebrain/heating/get`. Kiosk
+dostane jen nadpisy. V panelu je na **Teď** pruh nad hero (varování/kritické), záložka
+**Poruchy a upozornění** a signál ve **Dnes** pro nejvyšší závažnost.
+
+Volitelný příjemce v nastavení Topení (`alert_recipient` – slug z centra komunikace) řídí
+push přes `homebrain.notify` (značka `heating.<id>`). Bez služby nebo příjemce zůstávají
+upozornění jen v UI.
+
+## Změny nastavení
+
+Poller sleduje změny mapovaných nastavení (přepínače, žádané teploty, programy) a drží posledních
+200 záznamů v úložišti. WebSocket `homebrain/heating/changes` (stejná role jako historie) vrací
+seznam od nejnovějšího. Případ `late: true` značí změnu zjištěnou až po restartu HA nebo po
+výpadku spojení. Kritické přepínače (hlavní vypínač, topení domu, solár) mohou poslat okamžitou
+notifikaci, pokud je nastaven příjemce.
+
 ## Not in phase 0
 
 Writes of any kind, rooms (`rooms: []` until room bindings exist), annotations (`[]`),

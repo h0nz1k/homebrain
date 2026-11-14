@@ -33,6 +33,9 @@ keys:
   mode.auto_season: {page: 17, var: R7031.3}
   mode.setback_active: {page: 17, var: R7032.0, invert: true}
   mode.main_switch: {page: 17, var: R7031.6}
+  mode.heating_enabled: {page: 17, var: R9000.0}
+  mode.winter_limit: {page: 17, var: R9001}
+  mode.cooling_enabled: {page: 17, var: R9002.0}
   mode.cooling: {page: 17, var: R7033.0}
   mode.hdo_low_tariff: {page: 17, var: X60.5}
   # house (reference room)
@@ -43,6 +46,8 @@ keys:
   house.attic_temp: {page: 17, var: X312}
   house.circuit_on: {page: 17, var: Y50.1}
   house.supply_temp: {page: 17, var: X324}
+  house.setback_drop: {page: 17, var: R9003}
+  house.setback_drop_alt: {page: 26, var: R9004}
   # heat pump
   heat_pump.compressor_on: {page: 17, var: Y50.7}
   heat_pump.condenser_out: {page: 17, var: X336}
@@ -76,6 +81,9 @@ keys:
   faults.fatal: {page: 17, var: R7051.0}
   faults.compressor_block: {page: 17, var: R7050.3}
   # heating curve (outdoor °C → water °C)
+  curve.weather_comp: {page: 3, var: R9005.0}
+  curve.constant_target: {page: 3, var: R9006}
+  curve.min_water: {page: 3, var: R9007}
   curve.p1_outdoor: {page: 3, var: R7120}
   curve.p1_water: {page: 3, var: R7104}
   curve.p2_outdoor: {page: 3, var: R7124}

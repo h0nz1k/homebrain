@@ -35,7 +35,7 @@ const SIGNAL_VISIBILITY: Record<HomeBrainRole, ReadonlySet<ModuleId>> = {
   // Kitchen tablet: the airfryer status („Protřepej“, „Hotovo“) and running kitchen timers
   // (Minutky) belong on the wall.
   // Síť: only the summary headline („Internet nefunguje“), never a device list.
-  kiosk: new Set(['weather', 'energy', 'waste', 'calendar', 'recipes', 'network']),
+  kiosk: new Set(['weather', 'energy', 'waste', 'calendar', 'recipes', 'network', 'heating']),
   guest: new Set(),
 };
 
@@ -94,6 +94,7 @@ const MODULE_PREFIXES: Record<ModuleId, true> = {
   wine: true,
   recipes: true,
   network: true,
+  heating: true,
   system: true,
 };
 
