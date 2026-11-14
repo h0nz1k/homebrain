@@ -83,22 +83,22 @@ function PhaseBar(props: { i: number; a: PhaseAnalysis; delay: number }) {
 function PhaseBars({ a }: { a: PhaseAnalysis }) {
   const dirs = a.phases.map((p) => dirOf(p.kw));
   return (
-      <span
-        className="ef-ph-bars"
-        data-export={dirs.includes('out') || undefined}
-        style={{ '--z': dirs.includes('out') ? 0.5 : 0.18 } as CSSProperties}
-      >
-        <span className="ef-ph-axis" aria-hidden="true">
-          {dirs.includes('out') && <span className="ef-ph-axis-out">← dodávka</span>}
-          <span className="ef-ph-axis-in">odběr →</span>
-          {!dirs.includes('out') && (
-            <span className="ef-ph-axis-max">{nf0.format(a.breakerA)}&nbsp;A</span>
-          )}
-        </span>
-        {[0, 1, 2].map((i) => (
-          <PhaseBar key={i} i={i} a={a} delay={i * 70} />
-        ))}
+    <span
+      className="ef-ph-bars"
+      data-export={dirs.includes('out') || undefined}
+      style={{ '--z': dirs.includes('out') ? 0.5 : 0.18 } as CSSProperties}
+    >
+      <span className="ef-ph-axis" aria-hidden="true">
+        {dirs.includes('out') && <span className="ef-ph-axis-out">← dodávka</span>}
+        <span className="ef-ph-axis-in">odběr →</span>
+        {!dirs.includes('out') && (
+          <span className="ef-ph-axis-max">{nf0.format(a.breakerA)}&nbsp;A</span>
+        )}
       </span>
+      {[0, 1, 2].map((i) => (
+        <PhaseBar key={i} i={i} a={a} delay={i * 70} />
+      ))}
+    </span>
   );
 }
 
@@ -140,8 +140,8 @@ export function PhaseStrip(props: {
   const currents = a.phases.map((p) => Math.abs(p.amps));
   const low = Math.min(...currents);
   const high = Math.max(...currents);
-  const currentText = rowAmps(low) === rowAmps(high)
-    ? `po ${rowAmps(high)}` : `${rowAmps(low)}–${rowAmps(high)}`;
+  const currentText =
+    rowAmps(low) === rowAmps(high) ? `po ${rowAmps(high)}` : `${rowAmps(low)}–${rowAmps(high)}`;
   const hint = phaseHint(
     a,
     props.appliances ?? [],
