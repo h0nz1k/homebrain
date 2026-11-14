@@ -39,7 +39,10 @@ KEYS: Final[dict[str, KeySpec]] = {
     "mode.winter": _b(None, "Zimní režim"),
     "mode.auto_season": _b(None, "Automatické léto/zima"),
     "mode.setback_active": _b(None, "Útlum aktivní"),
-    "mode.main_switch": _b("power", "Hlavní vypínač TČ"),
+    "mode.main_switch": _b("power", "Hlavní vypínač"),
+    "mode.heating_enabled": _b(None, "Topení domu povoleno"),
+    "mode.winter_limit": _n("°C", "temperature", "Mez zimy (venku)"),
+    "mode.cooling_enabled": _b(None, "Chlazení povoleno"),
     "mode.cooling": _b(None, "Chlazení"),
     "mode.hdo_low_tariff": _b(None, "HDO nízký tarif"),
     # house
@@ -51,6 +54,8 @@ KEYS: Final[dict[str, KeySpec]] = {
     "house.circuit_on": _b("running", "Topný okruh domu"),
     "house.mixing_valve_pct": _n("%", None, "Směšovací ventil – otevření"),
     "house.supply_temp": _t("Teplota do topného okruhu"),
+    "house.setback_drop": _n("°C", None, "Útlum – pokles"),
+    "house.setback_drop_alt": _n("°C", None, "Útlum – pokles (druhý registr)"),
     # heat pump
     "heat_pump.compressor_on": _b("running", "Kompresor"),
     "heat_pump.condenser_out": _t("Výstup z kondenzátoru"),
@@ -86,6 +91,9 @@ KEYS: Final[dict[str, KeySpec]] = {
     # fault summaries (single lamps go to the ``faults`` list of the map)
     "faults.fatal": _b("problem", "Fatální chyba"),
     "faults.compressor_block": _b("problem", "Blokace kompresoru"),
+    "curve.weather_comp": _b(None, "Nádrž podle ekvitermu"),
+    "curve.constant_target": _n("°C", "temperature", "Konstantní cíl nádrže"),
+    "curve.min_water": _n("°C", "temperature", "Minimální teplota topné vody"),
     # heating curve (4 points)
     **{
         f"curve.p{i}_{part}": _n("°C", None, f"Ekviterm bod {i} – {name}")
@@ -95,7 +103,7 @@ KEYS: Final[dict[str, KeySpec]] = {
     # extras (side circuits – mapping lives outside the repo)
     "extras.solar_temp": _t("Solární kolektor"),
     "extras.solar_pump": _b("running", "Solár – čerpadlo"),
-    "extras.solar_enabled": _b("power", "Solár zapnut"),
+    "extras.solar_enabled": _b("power", "Solár"),
     "extras.solar_pump_pct": _n("%", None, "Solár – výkon čerpadla"),
     "extras.pool_temp": _t("Bazén – zpátečka"),
     "extras.pool_heating_pump": _b("running", "Bazén – čerpadlo natápění"),
@@ -115,6 +123,8 @@ DERIVED: Final[dict[str, KeySpec]] = {
 }
 COUNTER_KEYS: Final = frozenset(DERIVED)
 ACTIVITIES: Final = (
+    "off",
+    "dhw_only",
     "idle",
     "heating_tank",
     "heating_dhw",

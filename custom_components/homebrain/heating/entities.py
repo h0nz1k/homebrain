@@ -88,6 +88,48 @@ class HeatingBinarySensor(_HeatingEntity, BinarySensorEntity):
         return None if value is None else bool(value)
 
 
+class HeatingAlertsSensor(_HeatingEntity, SensorEntity):
+    def __init__(self, poller: HeatingPoller) -> None:
+        super().__init__(
+            poller,
+            "alerts",
+            "sensor",
+            KeySpec("num", None, None, "Topení – upozornění"),
+        )
+        self.entity_id = "sensor.heating_alerts"
+
+    @property
+    def native_value(self) -> int:
+        count, _items = self._poller.alert_summary()
+        return count
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        _count, items = self._poller.alert_summary()
+        return {"alerts": items}
+
+
+class HeatingProblemBinarySensor(_HeatingEntity, BinarySensorEntity):
+    def __init__(self, poller: HeatingPoller) -> None:
+        super().__init__(
+            poller,
+            "problem",
+            "binary_sensor",
+            KeySpec("bool", None, "problem", "Topení – problém"),
+        )
+        self.entity_id = "binary_sensor.heating_problem"
+        self._attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    @property
+    def is_on(self) -> bool:
+        count, _items = self._poller.alert_summary()
+        return count > 0
+
+    @property
+    def available(self) -> bool:
+        return True
+
+
 def build_entities(poller: HeatingPoller, platform: str) -> list[Entity]:
     out: list[Entity] = []
     for key in poller.entity_keys():
@@ -100,4 +142,7 @@ def build_entities(poller: HeatingPoller, platform: str) -> list[Entity]:
             out.append(HeatingSensor(poller, key, spec))
     if platform == "sensor":
         out.append(HeatingActivitySensor(poller))
+        out.append(HeatingAlertsSensor(poller))
+    if platform == "binary_sensor":
+        out.append(HeatingProblemBinarySensor(poller))
     return out

@@ -4,7 +4,34 @@
  */
 
 export type HeatingActivity =
-  'idle' | 'heating_tank' | 'heating_dhw' | 'house_circuit' | 'cooling' | 'fault' | 'blocked_hdo';
+  | 'off'
+  | 'dhw_only'
+  | 'idle'
+  | 'heating_tank'
+  | 'heating_dhw'
+  | 'house_circuit'
+  | 'cooling'
+  | 'fault'
+  | 'blocked_hdo';
+export type HeatingAlertSeverity = 'info' | 'warning' | 'critical';
+
+export interface HeatingAlert {
+  id: string;
+  severity: HeatingAlertSeverity;
+  title: string;
+  body: string;
+  since: string;
+  value?: string | null;
+}
+
+export interface HeatingChangeEntry {
+  ts: string;
+  key: string;
+  label: string;
+  old: unknown;
+  new: unknown;
+  late: boolean;
+}
 export type HeatingSource = 'ok' | 'auth' | 'unreachable' | 'unconfigured';
 type T = number | null;
 type B = boolean | null;
@@ -40,11 +67,15 @@ export interface HeatingSnapshot {
   stale: boolean;
   source: HeatingSource;
   activity: HeatingActivity;
+  alerts: HeatingAlert[];
   mode: {
     season: 'winter' | 'summer' | null;
     auto_season: B;
     setback_active: B;
     main_switch: B;
+    heating_enabled: B;
+    winter_limit: T;
+    cooling_enabled: B;
     cooling: B;
     hdo_low_tariff: B;
   };
@@ -53,6 +84,8 @@ export interface HeatingSnapshot {
     ref_target: T;
     ref_target_effective: T;
     hysteresis: T;
+    setback_drop: T;
+    setback_drop_alt: T;
     attic_temp: T;
     circuit_on: B;
     supply_temp: T;
@@ -92,7 +125,13 @@ export interface HeatingSnapshot {
     compressor_block: boolean;
     monitored: number;
   };
-  curve: { points: Array<[number, number]>; outdoor_now: T };
+  curve: {
+    points: Array<[number, number]>;
+    outdoor_now: T;
+    weather_comp: B;
+    constant_target: T;
+    min_water: T;
+  };
   schedules: HeatingSchedule[];
   extras: {
     solar?: {
@@ -125,6 +164,7 @@ export interface HeatingKioskSnapshot {
   dhw: Pick<HeatingSnapshot['dhw'], 'temp' | 'target' | 'reheat_below'>;
   outdoor: Pick<HeatingSnapshot['outdoor'], 'temp'>;
   faults: Pick<HeatingSnapshot['faults'], 'active' | 'fatal' | 'compressor_block'>;
+  alerts: Array<Pick<HeatingAlert, 'title'>>;
 }
 
 export type HistoryRange = 'day' | 'week' | 'month' | 'season' | 'all';

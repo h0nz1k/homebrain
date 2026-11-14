@@ -315,6 +315,7 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 "password": user_input.get("password") or current.get("password") or "",
                 "map_path": str(user_input.get("map_path") or default_map).strip(),
                 "poll_interval": int(user_input.get("poll_interval") or DEFAULT_INTERVAL),
+                "alert_recipient": str(user_input.get("alert_recipient") or "").strip(),
             }
             if not url.startswith(("http://", "https://")):
                 errors["url"] = "invalid_url"
@@ -350,6 +351,10 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
+                vol.Optional(
+                    "alert_recipient",
+                    description={"suggested_value": current.get("alert_recipient", "")},
+                ): selector.TextSelector(),
             }
         )
         return self.async_show_form(step_id="heating", data_schema=schema, errors=errors)

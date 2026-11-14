@@ -1,4 +1,4 @@
-import { schematicGeometry } from './heating-geometry.js';
+import { offSchematicTankLabelClearance, schematicGeometry } from './heating-geometry.js';
 import { expect, test, type Page } from '@playwright/test';
 
 // Topení (dev mock: synthetic heat pump with ground collector, `?topeni=` scenario, `&rooms=`).
@@ -640,9 +640,10 @@ test.describe('Topení', () => {
   test('Teď solár bez účinku: varování a scénář landscape', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/homebrain-topeni?topeni=solar-nogain&theme=dark');
-    await expect(page.getByTestId('heating-land-strip')).toContainText('odvzdušnění', {
-      timeout: 20_000,
-    });
+    await expect(page.getByTestId('heating-hero').locator('.ht-hero-detail')).toContainText(
+      'odvzdušnění',
+      { timeout: 20_000 },
+    );
     await expect(page.getByTestId('heating-headline')).toContainText('bez ohřevu');
     await expect(page.getByTestId('heating-land-strip')).toContainText('Elektřina TČ');
   });
@@ -666,5 +667,117 @@ test.describe('Topení', () => {
       );
     });
     expect(min).toBeGreaterThanOrEqual(11);
+  });
+
+  for (const [scenario, width, height] of [
+    ['solar-off-hot', 390, 844],
+    ['solar-off-hot', 1280, 800],
+    ['off', 390, 844],
+    ['off', 1280, 800],
+  ] as const) {
+    test(`Upozornění ${scenario} ${width}×${height}: banner viditelný, bez překryvu hero`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
+      const banner = page.getByTestId('heating-alert-banner');
+      await expect(banner).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('heating-hero')).toBeVisible({ timeout: 20_000 });
+      const geom = await page.evaluate(() => {
+        const b = document.querySelector('[data-testid="heating-alert-banner"]')!;
+        const h = document.querySelector('[data-testid="heating-hero"]')!;
+        const br = b.getBoundingClientRect();
+        const hr = h.getBoundingClientRect();
+        const vh = window.innerHeight;
+        return {
+          bannerFullyVisible: br.top >= 0 && br.bottom <= vh + 1,
+          noOverlap: br.bottom <= hr.top + 2,
+          bannerAboveHero: br.top < hr.top,
+        };
+      });
+      expect(geom.bannerFullyVisible).toBe(true);
+      expect(geom.noOverlap).toBe(true);
+      expect(geom.bannerAboveHero).toBe(true);
+    });
+  }
+
+  test('Vypnuto: pill Vypnuto, ne Klidový režim', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+    await expect(page.getByTestId('heating-pill')).toHaveText('Vypnuto', { timeout: 20_000 });
+    await expect(page.getByTestId('heating-pill')).not.toContainText('Klidový');
+    await expect(page.getByTestId('heating-pill')).not.toContainText('Odpočívá');
+  });
+
+  test('Režimy: karta změn nastavení', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/homebrain-topeni/rezimy?topeni=heating&theme=dark');
+    const card = page.getByTestId('heating-changes-card');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card).toContainText('Solár:');
+    await expect(card.locator('.ht-change-values').first()).toContainText('zapnuto → vypnuto');
+    await expect(card).toContainText('Hlavní vypínač:');
+  });
+
+  test('Upozornění: callout critical vs warning', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
+    const crit = page.getByTestId('heating-alert-banner');
+    await expect(crit).toBeVisible({ timeout: 20_000 });
+    await expect(crit).toHaveAttribute('data-severity', 'critical');
+    await expect(crit.locator('.hb-callout')).toHaveAttribute('data-tone', 'crit');
+
+    await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+    const warn = page.getByTestId('heating-alert-banner');
+    await expect(warn).toBeVisible({ timeout: 20_000 });
+    await expect(warn).toHaveAttribute('data-severity', 'warning');
+    await expect(warn.locator('.hb-callout')).toHaveAttribute('data-tone', 'warn');
+  });
+
+  test('Upozornění solar-off-hot: hero neopakuje banner', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
+    await expect(page.getByTestId('heating-alert-banner')).toBeVisible({ timeout: 20_000 });
+    const hero = page.getByTestId('heating-hero');
+    await expect(hero).not.toContainText('Zapněte solár');
+    await expect(page.getByTestId('heating-solar-warn')).toHaveCount(0);
+    await expect(page.getByTestId('heating-headline')).toContainText('přehřívá, čerpadlo stojí');
+    await expect(page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k')).toHaveText(
+      'Stav',
+    );
+  });
+
+  for (const [width, height] of [
+    [390, 844],
+    [1280, 800],
+  ] as const) {
+    test(`Vypnuto ${width}×${height}: popisky TČ nepřekrývají nádrž`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+      const sch = page.getByTestId('heating-schematic');
+      await expect(sch).toBeVisible({ timeout: 20_000 });
+      await page.evaluate(() => document.fonts.ready);
+      expect(await sch.evaluate(offSchematicTankLabelClearance)).toEqual([]);
+    });
+  }
+
+  test('Vypnuto: schéma bez aktivních potrubí', async ({ page }) => {
+    await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+    const sch = page.getByTestId('heating-schematic');
+    await expect(sch).toBeVisible({ timeout: 20_000 });
+    await expect(sch).toHaveAttribute('data-state', 'off');
+    await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
+    await expect(sch.locator('[data-active].ht-c3-hot')).toHaveCount(0);
+    await expect(page.getByTestId('heating-hero').locator('.ht-run-meta')).toHaveCount(0);
+    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(0);
+  });
+
+  test('Upozornění solar-off-hot: hero jen kolektor v podřádku', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
+    const detail = page.getByTestId('heating-hero').locator('.ht-hero-detail');
+    await expect(detail).toBeVisible({ timeout: 20_000 });
+    await expect(detail).toHaveText(/Kolektor 118\u202f°C/);
+    await expect(detail).not.toContainText('čerpadlo stojí');
   });
 });

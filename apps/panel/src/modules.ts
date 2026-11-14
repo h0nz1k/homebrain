@@ -27,6 +27,7 @@ today.registerTodaySignalSource('recipes', recipes.recipesFryerTodaySignalSource
 today.registerTodaySignalSource('recipes.timers', recipes.recipesTimersTodaySignalSource);
 // Dnes: network problem headline (adults + kitchen kiosk get only this summary).
 today.registerTodaySignalSource('network', network.networkTodaySignalSource);
+today.registerTodaySignalSource('heating', heating.heatingTodaySignalSource);
 const standardModules = [
   today,
   weather,

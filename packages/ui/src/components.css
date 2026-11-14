@@ -2740,6 +2740,22 @@ button.hb-cell-main:focus-visible {
   background: #fff6e0;
   box-shadow: inset 0 0 0 1px #f2d38f;
 }
+.hb-callout[data-tone='crit'] {
+  background: color-mix(in srgb, var(--hb-crit) 12%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-crit) 28%, transparent);
+}
+.hb-callout[data-tone='crit'] .hb-callout-icon {
+  color: var(--hb-crit);
+}
+[data-theme='light'] .hb-callout[data-tone='crit'] {
+  background: color-mix(in srgb, var(--hb-crit) 7%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-crit) 35%, transparent);
+}
+.hb-callout[data-tone='crit'] .hb-callout-action .hb-btn {
+  background: color-mix(in srgb, var(--hb-crit) 14%, transparent);
+  color: var(--hb-t1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-crit) 22%, transparent);
+}
 /* Action in the callout's own tone: clearly a button, never louder than the message. */
 .hb-callout-action .hb-btn {
   background: color-mix(in srgb, var(--hb-tone) 20%, transparent);

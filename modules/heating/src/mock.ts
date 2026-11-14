@@ -21,7 +21,9 @@ export type HeatingScenario =
   | 'unconfigured'
   | 'stale'
   | 'solar'
-  | 'solar-nogain';
+  | 'solar-nogain'
+  | 'solar-off-hot'
+  | 'off';
 export const HEATING_SCENARIOS: readonly HeatingScenario[] = [
   'heating',
   'idle',
@@ -32,6 +34,8 @@ export const HEATING_SCENARIOS: readonly HeatingScenario[] = [
   'stale',
   'solar',
   'solar-nogain',
+  'solar-off-hot',
+  'off',
 ];
 
 const MIN = 60_000;
@@ -170,20 +174,26 @@ export function buildMockSnapshot(
     stale: scenario === 'stale',
     source: scenario === 'unconfigured' ? 'unconfigured' : 'ok',
     activity:
-      scenario === 'heating'
-        ? 'heating_tank'
-        : scenario === 'dhw'
-          ? 'heating_dhw'
-          : scenario === 'fault'
-            ? 'fault'
-            : scenario === 'house'
-              ? 'house_circuit'
-              : 'idle',
+      scenario === 'off'
+        ? 'off'
+        : scenario === 'heating'
+          ? 'heating_tank'
+          : scenario === 'dhw'
+            ? 'heating_dhw'
+            : scenario === 'fault'
+              ? 'fault'
+              : scenario === 'house'
+                ? 'house_circuit'
+                : 'idle',
+    alerts: [],
     mode: {
       season: 'winter',
       auto_season: true,
       setback_active: false,
-      main_switch: true,
+      main_switch: scenario !== 'off',
+      heating_enabled: scenario !== 'off',
+      winter_limit: 12,
+      cooling_enabled: false,
       cooling: null,
       hdo_low_tariff: scenario !== 'idle',
     },
@@ -192,6 +202,8 @@ export function buildMockSnapshot(
       ref_target: 22.5,
       ref_target_effective: 22.5,
       hysteresis: 0.1,
+      setback_drop: 2,
+      setback_drop_alt: null,
       attic_temp: 19.6,
       circuit_on: scenario === 'house',
       supply_temp: 37.8,
@@ -265,6 +277,9 @@ export function buildMockSnapshot(
         [15, 30],
       ],
       outdoor_now: -1.8,
+      weather_comp: true,
+      constant_target: 50,
+      min_water: 25,
     },
     schedules: [
       { key: 'dhw', label: 'Ohřev teplé vody', slots: [['05:00', '22:00']] },
@@ -301,7 +316,10 @@ export function buildMockSnapshot(
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
   };
   const tune: Record<
-    Exclude<HeatingScenario, 'fault' | 'unconfigured' | 'stale' | 'solar' | 'solar-nogain'>,
+    Exclude<
+      HeatingScenario,
+      'fault' | 'unconfigured' | 'stale' | 'solar' | 'solar-nogain' | 'solar-off-hot' | 'off'
+    >,
     Partial<{
       ref: number;
       attic: number;
@@ -445,6 +463,47 @@ export function buildMockSnapshot(
       pump_pct: 78,
       state: null,
     };
+  }
+  if (scenario === 'solar-off-hot') {
+    snap.activity = 'idle';
+    snap.heat_pump.compressor_on = false;
+    snap.heat_pump.running_since = null;
+    snap.heat_pump.power_w = 12;
+    snap.tank.bottom = 39.2;
+    snap.extras.solar = {
+      temp: 118,
+      pump: false,
+      enabled: false,
+      pump_pct: 0,
+      state: 'stagnation',
+    };
+    snap.alerts = [
+      {
+        id: 'solar_off_hot',
+        severity: 'critical',
+        title: 'Solár je vypnutý a kolektor se přehřívá',
+        body:
+          'Kolektor má 118\u202f°C, ale solární ohřev je v regulaci vypnutý – teplo se neukládá a kapalina se přehřívá. Zapněte solární ohřev v regulaci.',
+        since: iso(now - 95 * MIN),
+        value: '118',
+      },
+    ];
+  }
+  if (scenario === 'off') {
+    snap.activity = 'off';
+    snap.mode.main_switch = false;
+    snap.heat_pump.compressor_on = false;
+    snap.heat_pump.running_since = null;
+    snap.heat_pump.power_w = 0;
+    snap.alerts = [
+      {
+        id: 'hp_off',
+        severity: 'warning',
+        title: 'Tepelné čerpadlo je vypnuté',
+        body: 'Hlavní vypínač v regulaci je vypnutý.',
+        since: iso(now - 40 * MIN),
+      },
+    ];
   }
   if (scenario === 'solar-nogain') {
     snap.activity = 'idle';
@@ -682,8 +741,27 @@ export function createMockHeatingApi(
   const rooms = opts.rooms ?? 4;
   const extrasMode = opts.extrasMode ?? 'default';
   const delay = <R>(v: R) => new Promise<R>((resolve) => setTimeout(() => resolve(v), 60));
+  const mockChanges = [
+    {
+      ts: new Date(now() - 3 * HOUR).toISOString(),
+      key: 'extras.solar_enabled',
+      label: 'Solár',
+      old: true,
+      new: false,
+      late: false,
+    },
+    {
+      ts: new Date(now() - 26 * HOUR).toISOString(),
+      key: 'mode.main_switch',
+      label: 'Hlavní vypínač',
+      old: false,
+      new: true,
+      late: true,
+    },
+  ];
   return {
     get: () => delay(buildMockSnapshot(scenario, rooms, now(), extrasMode)),
+    changes: () => delay(scenario === 'unconfigured' ? [] : mockChanges),
     history: (range, keys) => {
       if (scenario === 'unconfigured') return delay(buildMockHistory(range, [], now()));
       const snap = buildMockSnapshot(scenario, rooms, now(), extrasMode);

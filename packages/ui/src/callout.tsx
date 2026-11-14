@@ -9,16 +9,23 @@ export function Callout({
   action,
   icon,
 }: {
-  tone?: 'info' | 'warn';
+  tone?: 'info' | 'warn' | 'critical';
   title?: ReactNode;
   children: ReactNode;
   action?: ReactNode;
   icon?: IconName;
 }) {
   return (
-    <div className="hb-callout" data-tone={tone === 'warn' ? 'warn' : 'accent'} role="note">
+    <div
+      className="hb-callout"
+      data-tone={tone === 'critical' ? 'crit' : tone === 'warn' ? 'warn' : 'accent'}
+      role="note"
+    >
       <span className="hb-callout-icon">
-        <Icon name={icon ?? (tone === 'warn' ? 'alert' : 'info')} size={20} />
+        <Icon
+          name={icon ?? (tone === 'warn' || tone === 'critical' ? 'alert' : 'info')}
+          size={20}
+        />
       </span>
       <div className="hb-callout-body">
         {title && <strong>{title}</strong>}
