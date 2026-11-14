@@ -598,6 +598,32 @@ test.describe('Topení', () => {
     });
   }
 
+  test('Teď solár: hero, elektřina TČ a aktivní solární okruh ve schématu', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
+    await expect(page.getByTestId('heating-solar-compact')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('heating-solar-pill')).toContainText('natápí nádrž');
+    await expect(page.getByTestId('heating-hp-electricity')).toContainText('Elektřina TČ');
+    await expect(page.getByTestId('heating-hp-electricity')).toContainText('W');
+    const sch = page.getByTestId('heating-schematic');
+    await expect(sch.getByTestId('heating-sch-solar-panel')).toBeVisible();
+    await expect(sch.locator('[data-pipe-id="solar-supply"][data-active]')).toHaveCount(1);
+    const bannerTop = await page.getByTestId('heating-solar-compact').evaluate((el) => el.getBoundingClientRect().top);
+    const roomsTop = await page
+      .getByTestId('heating-rooms-mini')
+      .evaluate((el) => el.getBoundingClientRect().top);
+    expect(bannerTop).toBeLessThan(roomsTop);
+  });
+
+  test('Teď solár bez účinku: varování a scénář landscape', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=solar-nogain&theme=dark');
+    await expect(page.getByTestId('heating-solar-warn')).toContainText('odvzdušnění', {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId('heating-land-strip')).toContainText('Elektřina TČ');
+  });
+
   test('Teď portrét: popisky schématu ≥ 11 px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=heating');

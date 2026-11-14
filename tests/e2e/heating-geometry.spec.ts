@@ -251,3 +251,45 @@ for (const [width, height] of [
     }
   }
 }
+
+test('solar thermal schematic geometry', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
+  await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+  await page.evaluate(() => document.fonts.ready);
+  const result = await page.getByTestId('heating-schematic').evaluate(() => {
+    const svg = document.querySelector('[data-testid="heating-schematic"] svg')!;
+    const visible = (node: SVGGraphicsElement) => node.getBoundingClientRect().width > 0;
+    const texts = Array.from(svg.querySelectorAll('text')).filter(visible);
+    const rendered = (node: SVGGraphicsElement) => {
+      const b = node.getBBox();
+      const m = node.getScreenCTM()!;
+      const a = new DOMPoint(b.x, b.y).matrixTransform(m);
+      const z = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
+      return { left: a.x, top: a.y, right: z.x, bottom: z.y, height: z.y - a.y };
+    };
+    const solar = texts.find((t) => t.dataset.label === 'solar-collector');
+    const panel = document.querySelector('[data-testid="heating-sch-solar-panel"]');
+    const panelBox = panel?.getBoundingClientRect();
+    const solarBox = solar?.getBoundingClientRect();
+    const labelInsidePanel =
+      panelBox && solarBox
+        ? solarBox.left >= panelBox.left - 1 &&
+          solarBox.right <= panelBox.right + 1 &&
+          solarBox.top >= panelBox.top - 1 &&
+          solarBox.bottom <= panelBox.bottom + 12
+        : false;
+    return {
+      hasPanel: Boolean(panel),
+      hasSolarLabel: Boolean(solar),
+      minSolarText: solar ? rendered(solar).height : 0,
+      labelInsidePanel,
+      activePipes: document.querySelectorAll('[data-pipe-id^="solar-"][data-active]').length,
+    };
+  });
+  expect(result.hasPanel).toBe(true);
+  expect(result.hasSolarLabel).toBe(true);
+  expect(result.minSolarText).toBeGreaterThanOrEqual(9);
+  expect(result.labelInsidePanel).toBe(true);
+  expect(result.activePipes).toBe(2);
+});

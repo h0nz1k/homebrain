@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { HEATING_LOGO_ROOT, useHeatingLogoManifest, type HeatingLogoManifest } from '../logo.js';
 import { fmtDuration, fmtT as formatTemperature, heroScene } from '../model.js';
+import { solarConfigured } from '../solar.js';
 import type { HeatingSnapshot } from '../types.js';
 
 const HP_W = 66;
@@ -75,7 +76,11 @@ const ROUTES = [
     'M54 443V509Q54 516.5 61.5 516.5H324A8.75 8.75 0 0 1 324 534H40Q33 534 33 527V443',
     'ground',
   ],
+  ['solar-supply', 'M86 42V108H162V362', 'hot'],
+  ['solar-return', 'M176 382H92V54', 'cold'],
 ] as const;
+
+const SOLAR_ROUTE_IDS = new Set(['solar-supply', 'solar-return']);
 
 // Every straight run that can reach 60 CSS px has a persistent flow cue.
 const DIRECTIONS: Record<string, [number, number, number][]> = {
@@ -99,6 +104,15 @@ const DIRECTIONS: Record<string, [number, number, number][]> = {
     [190, 516.5, 0],
     [180, 534, 180],
     [33, 485, -90],
+  ],
+  'solar-supply': [
+    [86, 72, 90],
+    [120, 108, 180],
+    [162, 220, 90],
+  ],
+  'solar-return': [
+    [176, 300, 90],
+    [92, 200, -90],
   ],
   'cold-water': [[228, 300, -90]],
   'dhw-draw': [
@@ -256,9 +270,15 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
     snap.heat_pump.compressor_on,
     snap.pumps.heating,
     snap.house.mixing_valve_pct,
+    snap.extras.solar?.state,
+    snap.extras.solar?.pump,
   ]);
   const uid = useId().replace(/:/g, '');
   const scene = heroScene(snap);
+  const showSolar = solarConfigured(snap);
+  const pipeRoutes = showSolar
+    ? ROUTES
+    : ROUTES.filter(([id]) => !SOLAR_ROUTE_IDS.has(id));
   const hp = snap.heat_pump;
   const logoManifest = useHeatingLogoManifest();
   const [logoFailed, setLogoFailed] = useState(false);
@@ -407,7 +427,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               className="ht-c3-rim"
             />
           </g>
-          {ROUTES.map(([id, d, kind]) => (
+          {pipeRoutes.map(([id, d, kind]) => (
             <g
               key={id}
               data-pipe-id={id}
@@ -515,6 +535,38 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           <Label x={29} y={312.8} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
             vstup <tspan>{fmtT(hp.return_temp)}</tspan>
           </Label>
+          {showSolar && (
+            <g data-testid="heating-sch-solar-panel" className="ht-c3-solar-roof">
+              <rect x={34} y={18} width={92} height={28} rx={5} className="ht-c3-solar-collector" />
+              {[42, 58, 74, 90].map((x) => (
+                <path
+                  key={x}
+                  d={`M${x} 16v22M${x + 8} 16v22`}
+                  className="ht-c3-solar-fin"
+                  aria-hidden="true"
+                />
+              ))}
+              <Label
+                x={80}
+                y={8}
+                anchor="middle"
+                id="solar-collector"
+                muted={snap.extras.solar?.temp === null}
+              >
+                {fmtT(snap.extras.solar?.temp ?? null)}
+              </Label>
+              <Pump x={156} y={362} on={snap.extras.solar?.pump ?? null} id="solar" horizontal />
+              <Label
+                x={124}
+                y={399}
+                id="solar-pump"
+                muted={snap.extras.solar?.pump !== true}
+                anchor="end"
+              >
+                solární čerpadlo
+              </Label>
+            </g>
+          )}
           <Pump x={110} y={383} on={snap.pumps.secondary} id="charge" />
           <Label x={79} y={420.5} id="charge" muted={snap.pumps.secondary !== true}>
             nabíjení

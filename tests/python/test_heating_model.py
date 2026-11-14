@@ -12,9 +12,11 @@ from custom_components.homebrain.heating.mapfile import MapError, parse_map
 from custom_components.homebrain.heating.model import (
     DayCounters,
     Resolved,
+    SolarSample,
     build_payload,
     compute_seasons,
     derive_activity,
+    derive_solar_state,
     kiosk_subset,
     resolve,
     season_of,
@@ -321,7 +323,13 @@ def test_extras_side_circuits_mapped_and_partial():
         "heating_on": True,
         "valve_open": True,
     }
-    assert payload["extras"]["solar"] == {"temp": 12.1, "pump": False}
+    assert payload["extras"]["solar"] == {
+        "temp": 12.1,
+        "pump": False,
+        "enabled": None,
+        "pump_pct": None,
+        "state": "idle",
+    }
     assert payload["extras"]["pool"] == {
         "temp": 27.9,
         "heating_pump": None,
@@ -356,3 +364,46 @@ def test_mixing_valve_resolves_a_mapped_numeric_sensor():
     )
     assert payload["house"]["mixing_valve_pct"] == 21
     assert type(payload["house"]["mixing_valve_pct"]) is int
+
+
+def test_derive_solar_state_priorities():
+    now = datetime(2026, 3, 10, 14, 0, tzinfo=UTC)
+    assert derive_solar_state(48.0, 38.0, True, (), now) == "heating"
+    samples = [
+        SolarSample(now - timedelta(minutes=30), 62.0, 38.0, True),
+        SolarSample(now - timedelta(minutes=1), 62.0, 38.05, True),
+    ]
+    assert derive_solar_state(62.0, 38.05, True, tuple(samples), now) == "no_gain"
+    assert derive_solar_state(112.0, 45.0, False, (), now) == "stagnation"
+    assert derive_solar_state(30.0, 28.0, False, (), now) == "idle"
+
+
+def test_extras_solar_extended_fields_and_state():
+    res = Resolved()
+    res.mapped.update(
+        {
+            "extras.solar_temp",
+            "extras.solar_pump",
+            "extras.solar_enabled",
+            "extras.solar_pump_pct",
+            "tank.bottom",
+        }
+    )
+    res.values.update(
+        {
+            "extras.solar_temp": 56.2,
+            "extras.solar_pump": True,
+            "extras.solar_enabled": True,
+            "extras.solar_pump_pct": 73.4,
+            "tank.bottom": 38.5,
+        }
+    )
+    now = datetime(2026, 3, 10, 14, 0, tzinfo=UTC)
+    payload = build_payload(res, DayCounters(), source="ok", updated_at=now, now=now, stale=False)
+    assert payload["extras"]["solar"] == {
+        "temp": 56.2,
+        "pump": True,
+        "enabled": True,
+        "pump_pct": 73,
+        "state": "heating",
+    }

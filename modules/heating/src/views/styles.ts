@@ -88,6 +88,29 @@ export const heatingStyles = `
 .ht-meter em { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--hb-t1); border-radius: 1px; }
 .ht-extras-compact { padding: 14px 16px; gap: 8px; }
 .ht-extras-compact .ht-ch h3 { font-size: 14px; }
+.ht-hp-electricity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding: 12px 16px;
+}
+.ht-hp-electricity .ht-v { font-size: 20px; font-weight: 500; }
+.ht-hp-electricity .ht-sub { font-size: 13px; color: var(--hb-t2); }
+.ht-solar-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 16px;
+}
+.ht-solar-compact b { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ht-solar-compact-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ht-c3-solar-collector { fill: #1e2a38; stroke: #64748b; stroke-width: 1.2; }
+.ht-c3-solar-fin { stroke: #475569; stroke-width: .8; opacity: .85; }
+[data-theme='light'] .ht-c3-solar-collector { fill: #0f172a; stroke: #334155; }
+[data-theme='light'] .ht-c3-solar-fin { stroke: #64748b; }
 .ht-extras-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .ht-extras-lines li { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr); gap: 8px 12px; align-items: baseline; }
 .ht-extras-lines span { color: var(--hb-t2); }

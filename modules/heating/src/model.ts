@@ -1,4 +1,5 @@
 import { czCount } from '@homebrain/ui';
+import { SOLAR_WARN_COPY, solarConfigured, solarStateOf } from './solar.js';
 import type {
   HeatingRoom,
   HeatingSeason,
@@ -29,6 +30,18 @@ export function fmtNum(v: number | null | undefined, digits = 1): string {
 export const fmtT = (v: number | null | undefined, digits = 1) =>
   v === null || v === undefined ? '–' : `${fmtNum(v, digits)}\u202f°C`;
 
+/** Heat-pump meter: watts below 1 kW, otherwise kW with Czech decimal comma. */
+export function fmtHpPower(w: number | null | undefined): string {
+  if (w === null || w === undefined || !Number.isFinite(w)) return '–';
+  if (w < 1000) return `${fmtNum(w, w < 10 ? 1 : 0)}\u00a0W`;
+  return `${fmtNum(w / 1000, w < 10_000 ? 2 : 1)}\u00a0kW`;
+}
+
+export function hpElectricityVisible(snap: HeatingSnapshot): boolean {
+  const hp = snap.heat_pump;
+  return hp.power_w !== null || hp.energy_today_kwh !== null;
+}
+
 export function fmtDuration(minutes: number): string {
   if (minutes < 60) return `${Math.max(1, Math.round(minutes))}${NBSP}min`;
   const h = Math.floor(minutes / 60);
@@ -56,6 +69,8 @@ export interface ActivityModel {
   /** Sentence split so the verb phrase can be emphasised: [before, bold, after]. */
   headline: [string, string, string];
   detail: string;
+  /** Solar thermal warning (no_gain / stagnation). */
+  solarWarn?: string;
 }
 
 function runningFor(since: string | null, nowMs: number): string | null {
@@ -136,25 +151,31 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
         detail: `Trojcestný ventil posílá teplo do horní části nádrže${snap.dhw.target !== null ? ` až na ${fmtT(snap.dhw.target, 0)}` : ''}. ${houseReason(snap)}`,
       };
     case 'heating_tank':
-      return {
-        state: 'heating',
-        tone: 'accent',
-        pill: since ? `Kompresor běží ${since}` : 'Kompresor běží',
-        headline: [
-          'Tepelné čerpadlo ',
-          'nahřívá nádrž',
-          bottom !== null ? ` – dole má ${fmtT(bottom)}.` : '.',
-        ],
-        detail: `${snap.outdoor.temp !== null ? `Venku ${fmtT(snap.outdoor.temp)} → ekviterm chce ${fmtT(tank.curve_target ?? tank.target, 0)}` : 'Ekviterm chce'}${goal !== null ? `, nahřeje do ${fmtT(goal, 0)}` : ''}. ${houseReason(snap)}`,
-      };
+      return finishActivity(
+        {
+          state: 'heating',
+          tone: 'accent',
+          pill: since ? `Kompresor běží ${since}` : 'Kompresor běží',
+          headline: [
+            'Tepelné čerpadlo ',
+            'nahřívá nádrž',
+            bottom !== null ? ` – dole má ${fmtT(bottom)}.` : '.',
+          ],
+          detail: `${snap.outdoor.temp !== null ? `Venku ${fmtT(snap.outdoor.temp)} → ekviterm chce ${fmtT(tank.curve_target ?? tank.target, 0)}` : 'Ekviterm chce'}${goal !== null ? `, nahřeje do ${fmtT(goal, 0)}` : ''}. ${houseReason(snap)}`,
+        },
+        snap,
+      );
     case 'house_circuit':
-      return {
-        state: 'house',
-        tone: 'ok',
-        pill: 'Topí dům',
-        headline: ['Kompresor stojí, ', 'dům topí z nádrže', '.'],
-        detail: `${houseReason(snap)}${bottom !== null ? ` Nádrž má dole ${fmtT(bottom)}${tank.target !== null ? `, kompresor naskočí pod ${fmtT(tank.target, 0)}` : ''}.` : ''}`,
-      };
+      return finishActivity(
+        {
+          state: 'house',
+          tone: 'ok',
+          pill: 'Topí dům',
+          headline: ['Kompresor stojí, ', 'dům topí z nádrže', '.'],
+          detail: `${houseReason(snap)}${bottom !== null ? ` Nádrž má dole ${fmtT(bottom)}${tank.target !== null ? `, kompresor naskočí pod ${fmtT(tank.target, 0)}` : ''}.` : ''}`,
+        },
+        snap,
+      );
     case 'cooling':
       return {
         state: 'cooling',
@@ -175,19 +196,62 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
       const pre = hp.primary_prerun
         ? ' Rozbíhá se čerpadlo primáru – kompresor naskočí za chvíli.'
         : '';
-      return {
-        state: 'idle',
-        tone: 'ok',
-        pill: snap.mode.season === 'summer' ? 'Léto' : 'Odpočívá',
-        headline: [
-          'Tepelné čerpadlo ',
-          'odpočívá',
-          bottom !== null ? ` – nádrž má dole ${fmtT(bottom)}, to zatím stačí.` : '.',
-        ],
-        detail: `${houseReason(snap)}${pre}`,
-      };
+      return finishActivity(
+        {
+          state: 'idle',
+          tone: 'ok',
+          pill: snap.mode.season === 'summer' ? 'Léto' : 'Odpočívá',
+          headline: [
+            'Tepelné čerpadlo ',
+            'odpočívá',
+            bottom !== null ? ` – nádrž má dole ${fmtT(bottom)}, to zatím stačí.` : '.',
+          ],
+          detail: `${houseReason(snap)}${pre}`,
+        },
+        snap,
+      );
     }
   }
+}
+
+function finishActivity(base: ActivityModel, snap: HeatingSnapshot): ActivityModel {
+  let out = applySolarHero(base, snap);
+  const state = solarStateOf(snap);
+  if (state === 'no_gain' || state === 'stagnation') {
+    out = { ...out, tone: 'warn', solarWarn: SOLAR_WARN_COPY[state] };
+  }
+  return out;
+}
+
+function solarHeatingLine(snap: HeatingSnapshot): string | null {
+  const solar = snap.extras.solar;
+  if (solarStateOf(snap) !== 'heating' || !solar) return null;
+  const parts = ['Solár natápí nádrž'];
+  if (solar.temp !== null) parts.push(fmtT(solar.temp));
+  if (solar.pump_pct !== null) parts.push(`čerpadlo ${fmtNum(solar.pump_pct, 0)}\u00a0%`);
+  return parts.join(' · ');
+}
+
+/** Overlay solar heating / warnings on the compressor-centric hero copy. */
+export function applySolarHero(base: ActivityModel, snap: HeatingSnapshot): ActivityModel {
+  if (solarStateOf(snap) !== 'heating') return base;
+  const line = solarHeatingLine(snap);
+  if (!line) return base;
+  const compressorRuns = snap.heat_pump.compressor_on === true && snap.source === 'ok' && !snap.stale;
+  if (compressorRuns) {
+    return {
+      ...base,
+      pill: `${line} · ${base.pill}`,
+      detail: `${line}. ${base.detail}`,
+    };
+  }
+  return {
+    ...base,
+    tone: 'accent',
+    pill: line,
+    headline: ['Solár ', 'natápí akumulační nádrž', '.'],
+    detail: `${line}. ${houseReason(snap)}`,
+  };
 }
 
 /* ---------- Schematic state ---------- */
@@ -642,6 +706,9 @@ export function heroScene(snap: HeatingSnapshot) {
   )
     activePipes.push('mixing-bypass');
   if (snap.heat_pump.compressor_on === true) activePipes.push('collector');
+  if (solarConfigured(snap) && solarStateOf(snap) === 'heating') {
+    activePipes.push('solar-supply', 'solar-return');
+  }
   return {
     scenario,
     activePipes,

@@ -24,7 +24,8 @@ describe('C3 measured state and routes', () => {
       ).toEqual(expect.arrayContaining(pipes));
       expect(document.querySelectorAll('[data-active]')).toHaveLength(pipes.length);
       expect(document.querySelector('[data-pipe-id="dhw-draw"] circle')).toBeNull();
-      expect(document.querySelectorAll('[data-pump]')).toHaveLength(2);
+      const extraSolar = snap.extras.solar != null ? 1 : 0;
+      expect(document.querySelectorAll('[data-pump]')).toHaveLength(2 + extraSolar);
     });
   }
   it('null values stay unknown, including the diverter output', () => {

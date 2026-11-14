@@ -16,6 +16,12 @@ from .mapfile import HeatingMap, VarSpec
 
 MAX_GAP = timedelta(minutes=20)  # longer gaps (HA down, PLC offline) are not credited
 DEGREE_DAY_BASE = 20.0
+SOLAR_SAMPLE_MAX = timedelta(minutes=35)
+SOLAR_PUMP_WINDOW = timedelta(minutes=30)
+SOLAR_HEATING_DELTA_C = 5.0
+SOLAR_NO_GAIN_DELTA_C = 20.0
+SOLAR_TANK_RISE_EPS_C = 0.3
+SOLAR_STAGNATION_C = 110.0
 
 
 def _index(page: dict[str, str]) -> dict[str, str]:
@@ -245,6 +251,55 @@ def _r(value: Any, digits: int = 1) -> Any:
     return round(value, digits) if isinstance(value, float) else value
 
 
+@dataclass(frozen=True)
+class SolarSample:
+    ts: datetime
+    collector: float | None
+    tank_bottom: float | None
+    pump: bool | None
+
+
+def derive_solar_state(
+    collector: float | None,
+    tank_bottom: float | None,
+    pump: bool | None,
+    samples: tuple[SolarSample, ...],
+    now: datetime,
+) -> str:
+    """Thermal solar OKruh state for ``extras.solar.state`` (solar must already be configured)."""
+    window_start = now - SOLAR_PUMP_WINDOW
+    recent = tuple(s for s in samples if window_start <= s.ts <= now)
+    if (
+        pump is True
+        and collector is not None
+        and tank_bottom is not None
+        and collector >= tank_bottom + SOLAR_NO_GAIN_DELTA_C
+        and recent
+        and (now - recent[0].ts) >= SOLAR_PUMP_WINDOW
+        and all(s.pump is True for s in recent)
+    ):
+        bottoms = [s.tank_bottom for s in recent if s.tank_bottom is not None]
+        if bottoms and tank_bottom - min(bottoms) <= SOLAR_TANK_RISE_EPS_C:
+            return "no_gain"
+    if (
+        pump is True
+        and collector is not None
+        and tank_bottom is not None
+        and collector >= tank_bottom + SOLAR_HEATING_DELTA_C
+    ):
+        return "heating"
+    if pump is False and collector is not None and collector >= SOLAR_STAGNATION_C:
+        return "stagnation"
+    return "idle"
+
+
+def trim_solar_samples(
+    samples: list[SolarSample], now: datetime
+) -> list[SolarSample]:
+    cutoff = now - SOLAR_SAMPLE_MAX
+    return [s for s in samples if s.ts >= cutoff]
+
+
 def build_payload(
     res: Resolved,
     counters: DayCounters,
@@ -256,6 +311,7 @@ def build_payload(
     power_w: float | None = None,
     rooms: list[dict[str, Any]] | None = None,
     monitored: int | None = None,
+    solar_samples: tuple[SolarSample, ...] = (),
 ) -> dict[str, Any]:
     """The full contract payload; every unmapped/unavailable value is ``None``."""
     v = res.values.get
@@ -371,7 +427,38 @@ def build_payload(
         "curve": {"points": curve, "outdoor_now": _r(v("outdoor.temp"))},
         "schedules": res.schedules,
         "extras": {
-            "solar": extra_group("extras.solar_temp", pump="extras.solar_pump"),
+            "solar": (
+                lambda g: (
+                    {
+                        **g,
+                        **(
+                            {
+                                "pump_pct": round(g["pump_pct"])
+                                if isinstance(g.get("pump_pct"), int | float)
+                                else g.get("pump_pct")
+                            }
+                            if g.get("pump_pct") is not None
+                            else {}
+                        ),
+                        "state": derive_solar_state(
+                            v("extras.solar_temp"),
+                            v("tank.bottom"),
+                            v("extras.solar_pump"),
+                            solar_samples,
+                            now,
+                        ),
+                    }
+                    if g is not None
+                    else None
+                )
+            )(
+                extra_group(
+                    "extras.solar_temp",
+                    pump="extras.solar_pump",
+                    enabled="extras.solar_enabled",
+                    pump_pct="extras.solar_pump_pct",
+                )
+            ),
             "pool": extra_group(
                 "extras.pool_temp",
                 heating_pump="extras.pool_heating_pump",

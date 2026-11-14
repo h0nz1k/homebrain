@@ -86,6 +86,9 @@ keys:
   curve.p4_water: {page: 3, var: R7116}
   # extras (optional)
   extras.solar_temp: {page: 28, var: X420}
+  extras.solar_pump: {page: 28, var: X421}
+  extras.solar_enabled: {page: 28, var: X422}
+  extras.solar_pump_pct: {page: 28, var: X423}
   # extras.pool_temp: {page: 28, var: X432}
   # extras.fish_temp: {page: 36, var: X444}
 
