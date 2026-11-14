@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { buildMockSnapshot, type HeatingScenario } from '../mock.js';
 import { heroScene } from '../model.js';
-import { HeatingSchematic } from './Schematic.js';
+import { HeatingSchematic, SCHEMATIC_SOLAR } from './Schematic.js';
 
 afterEach(cleanup);
 const active: Record<string, string[]> = {
@@ -24,7 +24,7 @@ describe('C3 measured state and routes', () => {
       ).toEqual(expect.arrayContaining(pipes));
       expect(document.querySelectorAll('[data-active]')).toHaveLength(pipes.length);
       expect(document.querySelector('[data-pipe-id="dhw-draw"] circle')).toBeNull();
-      const extraSolar = snap.extras.solar != null ? 1 : 0;
+      const extraSolar = SCHEMATIC_SOLAR && snap.extras.solar != null ? 1 : 0;
       expect(document.querySelectorAll('[data-pump]')).toHaveLength(2 + extraSolar);
     });
   }
@@ -88,6 +88,16 @@ describe('C3 measured state and routes', () => {
       expect(heroScene(snap).activePipes).toEqual([]);
     });
   }
+  it('solar scenario: schematic hides collector circuit when SCHEMATIC_SOLAR is off', () => {
+    const snap = buildMockSnapshot('solar', 0);
+    render(<HeatingSchematic snap={snap} />);
+    if (SCHEMATIC_SOLAR) return;
+    expect(document.querySelector('[data-testid="heating-sch-solar-panel"]')).toBeNull();
+    expect(document.querySelector('[data-pipe-id="solar-supply"]')).toBeNull();
+    expect(document.querySelector('[data-pump="solar"]')).toBeNull();
+    expect(document.querySelectorAll('[data-pump]')).toHaveLength(2);
+  });
+
   it('compressor LED replaces the old status panel', () => {
     const snap = buildMockSnapshot('heating', 0);
     const { rerender } = render(<HeatingSchematic snap={snap} />);

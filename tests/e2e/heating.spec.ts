@@ -598,7 +598,9 @@ test.describe('Topení', () => {
     });
   }
 
-  test('Teď solár: hero, elektřina TČ a aktivní solární okruh ve schématu', async ({ page }) => {
+  test('Teď solár: hero a elektřina TČ, schéma bez solárního okruhu (SCHEMATIC_SOLAR)', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
     await expect(page.getByTestId('heating-solar-compact')).toBeVisible({ timeout: 20_000 });
@@ -612,8 +614,13 @@ test.describe('Topení', () => {
     const viewText = await page.getByTestId('heating-view').innerText();
     expect(viewText).not.toMatch(/\\u00a0/);
     const sch = page.getByTestId('heating-schematic');
-    await expect(sch.getByTestId('heating-sch-solar-panel')).toBeVisible();
-    await expect(sch.locator('[data-pipe-id="solar-supply"][data-active]')).toHaveCount(1);
+    await expect(sch.getByTestId('heating-sch-solar-panel')).toHaveCount(0);
+    await expect(sch.getByTestId('heating-sch-solar-coil')).toHaveCount(0);
+    await expect(sch.locator('[data-pipe-id="solar-supply"]')).toHaveCount(0);
+    await expect(sch.locator('[data-pipe-id="solar-return"]')).toHaveCount(0);
+    await expect(sch.locator('[data-pump="solar"]')).toHaveCount(0);
+    await expect(sch.getByTestId('heating-sch-solar-collector')).toHaveCount(0);
+    await expect(sch.getByTestId('heating-sch-solar-pump')).toHaveCount(0);
     const bannerTop = await page.getByTestId('heating-solar-compact').evaluate((el) => el.getBoundingClientRect().top);
     const roomsTop = await page
       .getByTestId('heating-rooms-mini')

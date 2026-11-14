@@ -332,6 +332,7 @@ export function schematicGeometry(
     ['solar', 'solar-supply'],
   ] as const) {
     const pump = q(`[data-pump="${pumpId}"]`);
+    if (!pump) continue;
     const center = new DOMPoint(0, 0).matrixTransform(pump.getScreenCTM()!);
     if (
       pathGap(new DOMRect(center.x, center.y, 0, 0), pipes.find((p) => p.id === pipeId)!.sample) > 0

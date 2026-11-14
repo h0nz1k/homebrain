@@ -4,6 +4,9 @@ import { fmtDuration, fmtT as formatTemperature, heroScene } from '../model.js';
 import { solarConfigured } from '../solar.js';
 import type { HeatingSnapshot } from '../types.js';
 
+/** Solární okruh ve schématu – dokončí se v další fázi. */
+export const SCHEMATIC_SOLAR = false;
+
 const HP_W = 66;
 const LOGO_W = HP_W * 0.72;
 
@@ -278,7 +281,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   ]);
   const uid = useId().replace(/:/g, '');
   const scene = heroScene(snap);
-  const showSolar = solarConfigured(snap);
+  const showSolar = SCHEMATIC_SOLAR && solarConfigured(snap);
   const pipeRoutes = showSolar
     ? ROUTES
     : ROUTES.filter(([id]) => !SOLAR_ROUTE_IDS.has(id));

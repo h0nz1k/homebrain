@@ -259,6 +259,7 @@ for (const [width, height] of [
 ] as const) {
   for (const scenario of ['solar', 'heating'] as const) {
     test(`solar rendered geometry ${scenario} ${width}x${height}`, async ({ page }) => {
+      test.skip(true, 'SCHEMATIC_SOLAR=false – solární okruh ve schématu odložen');
       await page.setViewportSize({ width, height });
       await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
       await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
