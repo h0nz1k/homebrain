@@ -29,6 +29,8 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/weather/alerts": {},
     "homebrain/energy/pv_forecast": {},
     "homebrain/energy/compare": {},
+    "homebrain/energy/settings/get": {},
+    "homebrain/energy/settings/set": {"key": "pv_tilt", "value": 35},
     "homebrain/energy/invoices/list": {},
     "homebrain/energy/invoices/save": {"invoice_id": "0000000000000000", "fields": {}},
     "homebrain/energy/invoices/delete": {"invoice_id": "0000000000000000"},

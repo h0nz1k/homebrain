@@ -210,6 +210,7 @@ def role_ws_commands(role: str) -> frozenset[str]:
     if role in ENERGY_DETAIL_ROLES:
         extra |= {
             "homebrain/energy/compare",
+            "homebrain/energy/settings/get",
             "homebrain/energy/invoices/list",
             "homebrain/energy/invoices/compare",
             "homebrain/energy/offers/get",

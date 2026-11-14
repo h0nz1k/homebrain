@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
+import { Icon } from './icons.js';
 
 /**
  * Shared interactive controls. Until now every module kept its own copy (wine-btn, rc-btn,
@@ -13,19 +14,41 @@ export interface SwitchProps extends Omit<
   'onChange' | 'children'
 > {
   checked: boolean;
-  onChange: (next: boolean) => void;
+  /** Required unless `readOnly`. */
+  onChange?: (next: boolean) => void;
   /** Accessible name (visible label lives next to the switch). */
   label: string;
   tone?: 'accent' | 'warn' | 'ok';
+  size?: 'sm' | 'md';
+  /**
+   * Locked value (read from a device, changed elsewhere): neutral outlined look, not focusable,
+   * and the accessible name states the value („…: zapnuto, jen pro čtení“).
+   */
+  readOnly?: boolean;
 }
 export function Switch({
   checked,
   onChange,
   label,
   tone = 'accent',
+  size = 'md',
+  readOnly,
   className = '',
   ...props
 }: SwitchProps) {
+  if (readOnly)
+    return (
+      <span
+        role="switch"
+        aria-checked={checked}
+        aria-readonly="true"
+        aria-disabled="true"
+        aria-label={`${label}: ${checked ? 'zapnuto' : 'vypnuto'}, jen pro čtení`}
+        data-size={size}
+        data-locked=""
+        className={`hb-switch ${className}`}
+      />
+    );
   return (
     <button
       {...props}
@@ -34,8 +57,9 @@ export function Switch({
       aria-checked={checked}
       aria-label={label}
       data-tone={tone}
+      data-size={size}
       className={`hb-switch ${className}`}
-      onClick={() => onChange(!checked)}
+      onClick={() => onChange?.(!checked)}
     />
   );
 }
@@ -106,6 +130,15 @@ export interface SheetProps {
   stickyFooter?: boolean;
   /** id of the element describing the dialog (aria-describedby), e.g. a confirm's consequence. */
   describedBy?: string;
+  /**
+   * `raised` = light scrim without blur (context stays readable), lifted surface with a top
+   * highlight, grab handle on phones. `default` = the classic dimmed modal.
+   */
+  appearance?: 'default' | 'raised';
+  /** `side` = right-hand side sheet from 900 px (bottom sheet on phones, centred on tablets). */
+  placement?: 'center' | 'side';
+  /** Renders a 44 px close button in the header with this accessible name. */
+  closeLabel?: string;
   'data-testid'?: string;
 }
 const FOCUSABLE =
@@ -122,6 +155,9 @@ export function Sheet({
   dismissOnScrim,
   stickyFooter,
   describedBy,
+  appearance = 'default',
+  placement = 'center',
+  closeLabel,
   ...rest
 }: SheetProps) {
   const titleId = useId();
@@ -164,6 +200,8 @@ export function Sheet({
   return (
     <div
       className="hb-scrim"
+      data-appearance={appearance === 'raised' ? 'raised' : undefined}
+      data-placement={placement === 'side' ? 'side' : undefined}
       role="presentation"
       onClick={(e) => scrimCloses && e.target === e.currentTarget && onClose()}
     >
@@ -180,9 +218,20 @@ export function Sheet({
         aria-describedby={describedBy}
         data-testid={rest['data-testid']}
       >
+        {appearance === 'raised' && <span className="hb-sheet-handle" aria-hidden="true" />}
         <header className="hb-sheet-head">
           <h2 id={titleId}>{title}</h2>
           {aside}
+          {closeLabel && (
+            <button
+              type="button"
+              className="hb-sheet-close"
+              aria-label={closeLabel}
+              onClick={onClose}
+            >
+              <Icon name="close" size={20} />
+            </button>
+          )}
         </header>
         <div className="hb-sheet-body">{children}</div>
         {footer && <footer className="hb-sheet-foot">{footer}</footer>}
