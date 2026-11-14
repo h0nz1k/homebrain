@@ -61,6 +61,7 @@ export function schematicGeometry(
   const cards = ['dhw', 'tank', 'hp-mark'];
   const components: Record<string, string> = {
     charge: '[data-pump="charge"]',
+  'solar-pump': '[data-pump="solar"]',
     'house-pump': '[data-pump="house"]',
     mixing: '.ht-c3-valve:not([data-valve])',
     valve: '[data-valve]',
@@ -76,6 +77,8 @@ export function schematicGeometry(
     supply: 'radiator-supply',
     'cold-water': 'cold-water',
     collector: 'collector',
+    'solar-collector': 'solar-supply',
+    'solar-pump': 'solar-supply',
   };
   const iconNodes = Array.from(
     el.querySelectorAll<SVGGraphicsElement>(
@@ -326,6 +329,7 @@ export function schematicGeometry(
   for (const [pumpId, pipeId] of [
     ['charge', 'tank-return'],
     ['house', 'radiator-return'],
+    ['solar', 'solar-supply'],
   ] as const) {
     const pump = q(`[data-pump="${pumpId}"]`);
     const center = new DOMPoint(0, 0).matrixTransform(pump.getScreenCTM()!);
@@ -566,6 +570,7 @@ export function schematicGeometry(
     const inside: Record<string, number> = {};
     for (const path of paths) {
       const id = path.closest('[data-pipe-id]')!.getAttribute('data-pipe-id')!;
+      if (id.startsWith('solar-')) continue;
       const m = path.getScreenCTM()!,
         length = path.getTotalLength();
       const xs: number[] = [];

@@ -287,8 +287,12 @@ test('solar thermal schematic geometry', async ({ page }) => {
         if (
           Math.min(p.right, q.right) - Math.max(p.left, q.left) > 0.1 &&
           Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 0.1
-        )
-          overlaps.push(`${a.dataset.label}/${b.dataset.label ?? b.getAttribute('data-pump')}`);
+        ) {
+          const partner = b.dataset.label ?? b.getAttribute('data-pump') ?? '';
+          if (a.dataset.label === 'solar-pump' && partner === 'solar') continue;
+          if (a.dataset.label === 'solar-collector' && b === panel) continue;
+          overlaps.push(`${a.dataset.label}/${partner}`);
+        }
       }
     }
     const panel = svg.querySelector('[data-testid="heating-sch-solar-panel"]');

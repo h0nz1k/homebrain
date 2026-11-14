@@ -76,8 +76,8 @@ const ROUTES = [
     'M54 443V509Q54 516.5 61.5 516.5H324A8.75 8.75 0 0 1 324 534H40Q33 534 33 527V443',
     'ground',
   ],
-  ['solar-supply', 'M198 66V118H74V392H188', 'solar'],
-  ['solar-return', 'M202 402H238V118H198V66', 'solar'],
+  ['solar-supply', 'M209 66V118H62V400H188', 'solar'],
+  ['solar-return', 'M202 405H240V118H209V66', 'solar'],
 ] as const;
 
 const SOLAR_ROUTE_IDS = new Set(['solar-supply', 'solar-return']);
@@ -106,14 +106,14 @@ const DIRECTIONS: Record<string, [number, number, number][]> = {
     [33, 485, -90],
   ],
   'solar-supply': [
-    [198, 92, 90],
-    [74, 250, 90],
-    [140, 392, 180],
+    [209, 92, 90],
+    [62, 250, 90],
+    [140, 400, 180],
   ],
   'solar-return': [
-    [202, 370, 90],
-    [238, 250, -90],
-    [198, 90, -90],
+    [202, 385, 90],
+    [240, 250, -90],
+    [209, 90, -90],
   ],
   'cold-water': [[228, 300, -90]],
   'dhw-draw': [
@@ -559,14 +559,13 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               </g>
               <Label
                 x={209}
-                y={24}
+                y={56}
                 anchor="end"
                 id="solar-collector"
                 className="ht-c3-solar-label"
                 muted={snap.extras.solar?.temp === null}
               >
-                Solární kolektor{' '}
-                <tspan className="ht-c3-solar-temp">{fmtT(snap.extras.solar?.temp ?? null)}</tspan>
+                {`Solární kolektor ${fmtT(snap.extras.solar?.temp ?? null)}`}
               </Label>
               <path
                 d="M178 388c8-6 14-14 20-22s12-16 20-22"
@@ -574,11 +573,10 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 data-testid="heating-sch-solar-coil"
                 fill="none"
               />
-              <Pump x={74} y={302} on={snap.extras.solar?.pump ?? null} id="solar" />
+              <Pump x={62} y={396} on={snap.extras.solar?.pump ?? null} id="solar" />
               <Label
-                x={74}
-                y={288}
-                anchor="middle"
+                x={44}
+                y={428}
                 id="solar-pump"
                 muted={snap.extras.solar?.pump !== true}
               >
