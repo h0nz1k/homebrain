@@ -23,13 +23,27 @@ const box = ([x0, y0, x1, y1]: Rect): CSSProperties => ({
   height: `${y1 - y0}%`,
 });
 
-/** A crop of the bottom photo that lies exactly over its own spot (mops, vibrating plate). */
-function Crop({ src, rect, className }: { src: string; rect: Rect; className: string }) {
+/**
+ * A crop of the bottom photo that lies exactly over its own spot (mops, vibrating plate).
+ * `fill`: the crop fills a parent that is already placed at `rect` (plate wrapper) – the image
+ * offset still comes from `rect`, so the parent shows its own part of the photo, not all of it.
+ */
+function Crop({
+  src,
+  rect,
+  className,
+  fill = false,
+}: {
+  src: string;
+  rect: Rect;
+  className: string;
+  fill?: boolean;
+}) {
   const [x0, y0, x1, y1] = rect;
   const w = x1 - x0;
   const h = y1 - y0;
   return (
-    <div className={`rbp-part rbp-crop ${className}`} style={box(rect)}>
+    <div className={`rbp-part rbp-crop ${className}`} style={fill ? undefined : box(rect)}>
       <img
         src={src}
         alt=""
@@ -153,7 +167,7 @@ export function RobotPhoto({
             ))}
             {geo.plate && (
               <div className="rbp-plate-wrap" style={box(geo.plate)}>
-                <Crop src={bottomSrc} rect={[0, 0, 100, 100]} className="rbp-plate" />
+                <Crop src={bottomSrc} rect={geo.plate} className="rbp-plate" fill />
                 <span className="rbp-sheen" />
               </div>
             )}
