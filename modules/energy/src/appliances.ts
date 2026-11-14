@@ -24,7 +24,7 @@ export interface ApplianceSlotConfig {
 
 export const APPLIANCE_SLOTS = [
   { slot: 'heat_pump', label: 'Tepelné čerpadlo', runningW: 100, cyclic: false },
-  { slot: 'dishwasher', label: 'Myčka', runningW: 10, cyclic: true },
+  { slot: 'dishwasher', label: 'Myčka', runningW: 5, cyclic: true },
   { slot: 'coffee_maker', label: 'Kávovar', runningW: 15, cyclic: false },
   { slot: 'dehumidifier', label: 'Odvlhčovač', runningW: 30, cyclic: false },
 ] as const satisfies readonly { slot: string; label: string; runningW: number; cyclic: boolean }[];
