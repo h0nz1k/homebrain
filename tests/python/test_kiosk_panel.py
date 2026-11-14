@@ -143,6 +143,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/heating/subscribe": {},
     "homebrain/heating/history": {"range": "day"},
     "homebrain/heating/seasons": {},
+    "homebrain/heating/changes": {},
     "homebrain/heating/import_history": {"rows": []},
     "homebrain/people/get": {},
     "homebrain/people/subscribe": {},

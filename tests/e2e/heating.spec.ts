@@ -710,8 +710,7 @@ test.describe('Topení', () => {
 
   test('Režimy: karta změn nastavení', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('/homebrain-topeni?topeni=heating&theme=dark');
-    await page.getByRole('button', { name: 'Režimy' }).click();
+    await page.goto('/homebrain-topeni/rezimy?topeni=heating&theme=dark');
     const card = page.getByTestId('heating-changes-card');
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(card).toContainText('Solár');
