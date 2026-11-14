@@ -20,6 +20,21 @@ describe('activityModel off', () => {
     const m = activityModel(snap, NOW);
     expect(m.pill).toBe('Vypnuto');
     expect(m.pill).not.toMatch(/Klidový|Odpočívá/i);
+    expect(m.headline.join('')).toContain('neohřívají');
+    expect(m.detail).toBe('');
+    expect(m.solarWarn).toBeUndefined();
+  });
+});
+
+describe('activityModel with banner', () => {
+  it('solar-off-hot: hero state only, no duplicate warn callout', () => {
+    const snap = buildMockSnapshot('solar-off-hot', 0, NOW);
+    const m = activityModel(snap, NOW);
+    expect(m.headline.join('')).toContain('přehřívá, čerpadlo stojí');
+    expect(m.detail).toMatch(/118.*čerpadlo stojí/);
+    expect(m.tone).toBe('crit');
+    expect(m.solarWarn).toBeUndefined();
+    expect(m.detail).not.toMatch(/Zapněte solár/);
   });
 });
 
@@ -59,6 +74,6 @@ describe('formatChangeLine', () => {
       },
       NOW,
     );
-    expect(line).toMatch(/Solár zapnut: zapnuto → vypnuto/);
+    expect(line).toMatch(/Solár: zapnuto → vypnuto/);
   });
 });

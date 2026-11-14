@@ -39,7 +39,7 @@ KEYS: Final[dict[str, KeySpec]] = {
     "mode.winter": _b(None, "Zimní režim"),
     "mode.auto_season": _b(None, "Automatické léto/zima"),
     "mode.setback_active": _b(None, "Útlum aktivní"),
-    "mode.main_switch": _b("power", "Hlavní vypínač TČ"),
+    "mode.main_switch": _b("power", "Hlavní vypínač"),
     "mode.heating_enabled": _b(None, "Topení domu povoleno"),
     "mode.winter_limit": _n("°C", "temperature", "Mez zimy (venku)"),
     "mode.cooling_enabled": _b(None, "Chlazení povoleno"),
@@ -103,7 +103,7 @@ KEYS: Final[dict[str, KeySpec]] = {
     # extras (side circuits – mapping lives outside the repo)
     "extras.solar_temp": _t("Solární kolektor"),
     "extras.solar_pump": _b("running", "Solár – čerpadlo"),
-    "extras.solar_enabled": _b("power", "Solár zapnut"),
+    "extras.solar_enabled": _b("power", "Solár"),
     "extras.solar_pump_pct": _n("%", None, "Solár – výkon čerpadla"),
     "extras.pool_temp": _t("Bazén – zpátečka"),
     "extras.pool_heating_pump": _b("running", "Bazén – čerpadlo natápění"),

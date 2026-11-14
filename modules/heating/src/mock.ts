@@ -745,7 +745,7 @@ export function createMockHeatingApi(
     {
       ts: new Date(now() - 3 * HOUR).toISOString(),
       key: 'extras.solar_enabled',
-      label: 'Solár zapnut',
+      label: 'Solár',
       old: true,
       new: false,
       late: false,
@@ -753,7 +753,7 @@ export function createMockHeatingApi(
     {
       ts: new Date(now() - 26 * HOUR).toISOString(),
       key: 'mode.main_switch',
-      label: 'Hlavní vypínač TČ',
+      label: 'Hlavní vypínač',
       old: false,
       new: true,
       late: true,

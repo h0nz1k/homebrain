@@ -713,7 +713,43 @@ test.describe('Topení', () => {
     await page.goto('/homebrain-topeni/rezimy?topeni=heating&theme=dark');
     const card = page.getByTestId('heating-changes-card');
     await expect(card).toBeVisible({ timeout: 20_000 });
-    await expect(card).toContainText('Solár');
-    await expect(card).toContainText('zapnuto → vypnuto');
+    await expect(card).toContainText('Solár:');
+    await expect(card.locator('.ht-change-values')).toContainText('zapnuto → vypnuto');
+    await expect(card).toContainText('Hlavní vypínač:');
+  });
+
+  test('Upozornění: callout critical vs warning', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
+    const crit = page.getByTestId('heating-alert-banner');
+    await expect(crit).toBeVisible({ timeout: 20_000 });
+    await expect(crit).toHaveAttribute('data-severity', 'critical');
+    await expect(crit.locator('.hb-callout')).toHaveAttribute('data-tone', 'crit');
+
+    await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+    const warn = page.getByTestId('heating-alert-banner');
+    await expect(warn).toBeVisible({ timeout: 20_000 });
+    await expect(warn).toHaveAttribute('data-severity', 'warning');
+    await expect(warn.locator('.hb-callout')).toHaveAttribute('data-tone', 'warn');
+  });
+
+  test('Upozornění solar-off-hot: hero neopakuje banner', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
+    await expect(page.getByTestId('heating-alert-banner')).toBeVisible({ timeout: 20_000 });
+    const hero = page.getByTestId('heating-hero');
+    await expect(hero).not.toContainText('Zapněte solár');
+    await expect(page.getByTestId('heating-solar-warn')).toHaveCount(0);
+    await expect(page.getByTestId('heating-headline')).toContainText('přehřívá, čerpadlo stojí');
+    await expect(page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k')).toHaveText(
+      'Stav',
+    );
+  });
+
+  test('Vypnuto: schéma bez aktivních potrubí', async ({ page }) => {
+    await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+    const sch = page.getByTestId('heating-schematic');
+    await expect(sch).toBeVisible({ timeout: 20_000 });
+    await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
   });
 });

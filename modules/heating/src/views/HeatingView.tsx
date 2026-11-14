@@ -18,8 +18,11 @@ import {
   RANGE_LABELS,
   activityModel,
   bannerAlert,
+  changeSettingLabel,
   curveAt,
-  formatChangeLine,
+  formatChangeValue,
+  formatChangeWhen,
+  heroSectionLabel,
   efficiencyModel,
   fmtDuration,
   fmtHpPower,
@@ -141,7 +144,7 @@ function ago(iso: string | null): string {
 function AlertBanner({ snap, onDetail }: { snap: HeatingSnapshot; onDetail: () => void }) {
   const alert = bannerAlert(snap);
   if (!alert) return null;
-  const tone = alert.severity === 'critical' ? 'warn' : 'warn';
+  const tone = alert.severity === 'critical' ? 'critical' : 'warn';
   return (
     <div
       className="ht-alert-banner"
@@ -290,10 +293,12 @@ function NowTab({
               </b>
             </p>
             <LandscapePumpChips snap={snap} />
-            {act.solarWarn && <p className="ht-insight ht-land-only">{act.solarWarn}</p>}
+            {act.solarWarn && !bannerAlert(snap) && (
+              <p className="ht-insight ht-land-only">{act.solarWarn}</p>
+            )}
           </header>
           <div className="ht-hero-copy ht-portrait-hero-copy">
-            <span className="ht-k">Zásoba tepla</span>
+            <span className="ht-k">{heroSectionLabel(snap)}</span>
             <Pill tone={act.tone} dot data-testid="heating-pill">
               {sceneCopy?.[2] ?? act.pill}
             </Pill>
@@ -306,8 +311,10 @@ function NowTab({
                 </>
               )}
             </h2>
-            <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
-            {act.solarWarn && (
+            {(sceneCopy?.[1] ?? act.detail) ? (
+              <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+            ) : null}
+            {act.solarWarn && !bannerAlert(snap) && (
               <p className="ht-insight" data-testid="heating-solar-warn">
                 {act.solarWarn}
               </p>
@@ -317,7 +324,9 @@ function NowTab({
               {hpElectricityVisible(snap) && (
                 <b>
                   Elektřina TČ {powerLine}
-                  {hp.energy_today_kwh !== null ? ` · ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
+                  {hp.energy_today_kwh !== null
+                    ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh`
+                    : ''}
                 </b>
               )}
             </p>
@@ -876,11 +885,23 @@ function ChangesCard({ api }: { api: HeatingApi }) {
       <ul className="ht-changes">
         {visible.map((e) => (
           <li key={`${e.ts}-${e.key}`}>
-            <span>{formatChangeLine(e)}</span>
+            <span className="ht-change-line">
+              <span className="ht-change-when">{formatChangeWhen(e.ts)}</span>
+              <span className="ht-muted" aria-hidden="true">
+                {' · '}
+              </span>
+              <span className="ht-change-label">{changeSettingLabel(e)}:</span>{' '}
+              <span className="ht-change-values">
+                {formatChangeValue(e.old, e.key)} → {formatChangeValue(e.new, e.key)}
+              </span>
+            </span>
             {e.late && (
-              <Chip look="soft">
+              <span
+                className="ht-change-late"
+                title="Čas zjištění změny v HomeBrainu, ne nutně okamžik přepnutí na regulaci."
+              >
                 zjištěno později
-              </Chip>
+              </span>
             )}
           </li>
         ))}

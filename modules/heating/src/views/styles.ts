@@ -66,8 +66,19 @@ export const heatingStyles = `
 .ht-alert-banner { margin-bottom: 4px; }
 .ht-alert-banner[data-severity='critical'] .hb-callout { --hb-callout-bg: color-mix(in srgb, var(--hb-crit) 14%, var(--hb-s1)); }
 .ht-alert-banner[data-severity='warning'] .hb-callout { --hb-callout-bg: color-mix(in srgb, var(--hb-warn) 12%, var(--hb-s1)); }
-.ht-changes, .ht-alerts { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
-.ht-changes li, .ht-alerts li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ht-changes, .ht-alerts { display: flex; flex-direction: column; gap: 0; font-size: 14px; }
+.ht-changes li {
+  display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: baseline;
+  padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--hb-t1) 7%, transparent);
+}
+.ht-changes li:last-child { border-bottom: 0; }
+.ht-change-values { white-space: nowrap; }
+.ht-change-late {
+  font-size: 12px; color: var(--hb-t2); cursor: help;
+  text-decoration: underline dotted color-mix(in srgb, var(--hb-t2) 55%, transparent);
+  text-underline-offset: 3px;
+}
+.ht-alerts li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ht-alerts li { flex-direction: column; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--hb-t2) 12%, transparent); }
 .ht-alerts li:last-child { border-bottom: 0; }
 .ht-hero[data-state='fault'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--hb-crit) 14%, transparent), transparent 60%), var(--hb-s1); }

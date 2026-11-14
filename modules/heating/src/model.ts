@@ -107,11 +107,19 @@ export function formatChangeValue(value: unknown, key: string): string {
   return String(value);
 }
 
-/** `dnes 08:51 · Solár zapnut: zapnuto → vypnuto` */
-export function formatChangeLine(entry: HeatingChangeEntry, now = Date.now()): string {
-  const d = new Date(entry.ts);
+const CHANGE_LABELS: Record<string, string> = {
+  'extras.solar_enabled': 'Solár',
+  'mode.main_switch': 'Hlavní vypínač',
+};
+
+export function changeSettingLabel(entry: HeatingChangeEntry): string {
+  return CHANGE_LABELS[entry.key] ?? entry.label;
+}
+
+export function formatChangeWhen(ts: string, now = Date.now()): string {
+  const d = new Date(ts);
   const sameDay = d.toDateString() === new Date(now).toDateString();
-  const when = sameDay
+  return sameDay
     ? `dnes ${d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}`
     : d.toLocaleString('cs-CZ', {
         day: 'numeric',
@@ -119,8 +127,60 @@ export function formatChangeLine(entry: HeatingChangeEntry, now = Date.now()): s
         hour: '2-digit',
         minute: '2-digit',
       });
-  const line = `${entry.label}: ${formatChangeValue(entry.old, entry.key)} → ${formatChangeValue(entry.new, entry.key)}`;
-  return `${when} · ${line}`;
+}
+
+/** `dnes 08:51 · Solár: zapnuto → vypnuto` */
+export function formatChangeLine(entry: HeatingChangeEntry, now = Date.now()): string {
+  const label = changeSettingLabel(entry);
+  const values = `${formatChangeValue(entry.old, entry.key)} → ${formatChangeValue(entry.new, entry.key)}`;
+  return `${formatChangeWhen(entry.ts, now)} · ${label}: ${values}`;
+}
+
+/** Teď hero section title – state vs heat store overview. */
+export function heroSectionLabel(snap: HeatingSnapshot): string {
+  return bannerAlert(snap) ? 'Stav' : 'Zásoba tepla';
+}
+
+function applyBannerHeroCopy(base: ActivityModel, snap: HeatingSnapshot): ActivityModel {
+  const alert = bannerAlert(snap);
+  if (!alert) return base;
+  const solar = snap.extras.solar;
+  const solarState = solarStateOf(snap);
+  const withoutCallout = { ...base, solarWarn: undefined };
+
+  if (snap.activity === 'off' || alert.id === 'hp_off') {
+    return {
+      ...withoutCallout,
+      state: 'off',
+      tone: 'neutral',
+      pill: 'Vypnuto',
+      headline: ['Nádrž ani teplá voda se ', 'neohřívají', '.'],
+      detail: '',
+    };
+  }
+
+  if (solarState === 'stagnation' || alert.id === 'solar_off_hot') {
+    const temp = solar?.temp;
+    return {
+      ...withoutCallout,
+      tone: alert.severity === 'critical' ? 'crit' : 'warn',
+      pill: 'Solár · stagnace',
+      headline: ['Kolektor se ', 'přehřívá, čerpadlo stojí', ''],
+      detail: temp !== null ? `Kolektor ${fmtT(temp)} · čerpadlo stojí.` : 'Čerpadlo soláru stojí.',
+    };
+  }
+
+  if (solarState === 'no_gain') {
+    return {
+      ...withoutCallout,
+      tone: 'warn',
+      pill: 'Solár bez účinku',
+      headline: ['Solár ', 'čerpá bez ohřevu nádrže', '.'],
+      detail: solarHeroDetail(snap) ?? 'Solár čerpá, nádrž se zatím neohřívá.',
+    };
+  }
+
+  return withoutCallout;
 }
 
 export function houseReason(snap: HeatingSnapshot): string {
@@ -194,29 +254,35 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
         detail: `Trojcestný ventil posílá teplo do horní části nádrže${snap.dhw.target !== null ? ` až na ${fmtT(snap.dhw.target, 0)}` : ''}. ${houseReason(snap)}`,
       };
     case 'heating_tank':
-      return finishActivity(
-        {
-          state: 'heating',
-          tone: 'accent',
-          pill: since ? `Kompresor běží ${since}` : 'Kompresor běží',
-          headline: [
-            'Tepelné čerpadlo ',
-            'nahřívá nádrž',
-            bottom !== null ? ` – dole má ${fmtT(bottom)}.` : '.',
-          ],
-          detail: `${snap.outdoor.temp !== null ? `Venku ${fmtT(snap.outdoor.temp)} → ekviterm chce ${fmtT(tank.curve_target ?? tank.target, 0)}` : 'Ekviterm chce'}${goal !== null ? `, nahřeje do ${fmtT(goal, 0)}` : ''}. ${houseReason(snap)}`,
-        },
+      return applyBannerHeroCopy(
+        finishActivity(
+          {
+            state: 'heating',
+            tone: 'accent',
+            pill: since ? `Kompresor běží ${since}` : 'Kompresor běží',
+            headline: [
+              'Tepelné čerpadlo ',
+              'nahřívá nádrž',
+              bottom !== null ? ` – dole má ${fmtT(bottom)}.` : '.',
+            ],
+            detail: `${snap.outdoor.temp !== null ? `Venku ${fmtT(snap.outdoor.temp)} → ekviterm chce ${fmtT(tank.curve_target ?? tank.target, 0)}` : 'Ekviterm chce'}${goal !== null ? `, nahřeje do ${fmtT(goal, 0)}` : ''}. ${houseReason(snap)}`,
+          },
+          snap,
+        ),
         snap,
       );
     case 'house_circuit':
-      return finishActivity(
-        {
-          state: 'house',
-          tone: 'ok',
-          pill: 'Topí dům',
-          headline: ['Kompresor stojí, ', 'dům topí z nádrže', '.'],
-          detail: `${houseReason(snap)}${bottom !== null ? ` Nádrž má dole ${fmtT(bottom)}${tank.target !== null ? `, kompresor naskočí pod ${fmtT(tank.target, 0)}` : ''}.` : ''}`,
-        },
+      return applyBannerHeroCopy(
+        finishActivity(
+          {
+            state: 'house',
+            tone: 'ok',
+            pill: 'Topí dům',
+            headline: ['Kompresor stojí, ', 'dům topí z nádrže', '.'],
+            detail: `${houseReason(snap)}${bottom !== null ? ` Nádrž má dole ${fmtT(bottom)}${tank.target !== null ? `, kompresor naskočí pod ${fmtT(tank.target, 0)}` : ''}.` : ''}`,
+          },
+          snap,
+        ),
         snap,
       );
     case 'cooling':
@@ -236,13 +302,16 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
         detail: `Distributor teď blokuje kompresor (HDO). ${houseReason(snap)}`,
       };
     case 'off':
-      return {
-        state: 'off',
-        tone: 'neutral',
-        pill: 'Vypnuto',
-        headline: ['Tepelné čerpadlo je ', 'vypnuté', ' hlavním vypínačem na regulaci.'],
-        detail: 'Regulace neběží – neohřívá se nádrž ani teplá voda, dokud vypínač nezapnete.',
-      };
+      return applyBannerHeroCopy(
+        {
+          state: 'off',
+          tone: 'neutral',
+          pill: 'Vypnuto',
+          headline: ['Nádrž ani teplá voda se ', 'neohřívají', '.'],
+          detail: '',
+        },
+        snap,
+      );
     case 'dhw_only':
       return {
         state: 'dhw_only',
@@ -255,18 +324,21 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
       const pre = hp.primary_prerun
         ? ' Rozbíhá se čerpadlo primáru – kompresor naskočí za chvíli.'
         : '';
-      return finishActivity(
-        {
-          state: 'idle',
-          tone: 'ok',
-          pill: snap.mode.season === 'summer' ? 'Léto' : 'Odpočívá',
-          headline: [
-            'Tepelné čerpadlo ',
-            'odpočívá',
-            bottom !== null ? ` – nádrž má dole ${fmtT(bottom)}, to zatím stačí.` : '.',
-          ],
-          detail: `${houseReason(snap)}${pre}`,
-        },
+      return applyBannerHeroCopy(
+        finishActivity(
+          {
+            state: 'idle',
+            tone: 'ok',
+            pill: snap.mode.season === 'summer' ? 'Léto' : 'Odpočívá',
+            headline: [
+              'Tepelné čerpadlo ',
+              'odpočívá',
+              bottom !== null ? ` – nádrž má dole ${fmtT(bottom)}, to zatím stačí.` : '.',
+            ],
+            detail: `${houseReason(snap)}${pre}`,
+          },
+          snap,
+        ),
         snap,
       );
     }
@@ -275,19 +347,23 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
 
 function finishActivity(base: ActivityModel, snap: HeatingSnapshot): ActivityModel {
   const state = solarStateOf(snap);
+  const solar = snap.extras.solar;
   if (state === 'no_gain' || state === 'stagnation') {
-    const warn = SOLAR_WARN_COPY[state];
     const pill = state === 'no_gain' ? 'Solár bez účinku' : 'Solár · stagnace';
+    const stagnationCrit =
+      state === 'stagnation' && solar?.enabled === false && (solar?.temp ?? 0) >= 110;
     return {
       ...base,
-      tone: 'warn',
+      tone: stagnationCrit ? 'crit' : 'warn',
       pill,
       headline:
         state === 'stagnation'
-          ? ['Kolektor ', 'přehříván bez čerpání', '.']
+          ? ['Kolektor se ', 'přehřívá, čerpadlo stojí', '']
           : ['Solár ', 'čerpá bez ohřevu nádrže', '.'],
-      detail: warn,
-      solarWarn: warn,
+      detail:
+        state === 'stagnation' && solar != null && solar.temp !== null
+          ? `Kolektor ${fmtT(solar.temp)} · čerpadlo stojí.`
+          : SOLAR_WARN_COPY[state],
     };
   }
   return applySolarHero(base, snap);
@@ -763,9 +839,25 @@ export const minutesOf = (hhmm: string) => {
 
 /** C3 routing follows activity; device indicators always follow their own measured bits. */
 export function heroScene(snap: HeatingSnapshot) {
+  const heatingOff = snap.activity === 'off' || snap.mode.main_switch === false;
   const scenario = ['heating_tank', 'heating_dhw', 'house_circuit'].includes(snap.activity)
     ? snap.activity
     : 'idle';
+  if (heatingOff) {
+    return {
+      scenario: 'idle' as const,
+      activePipes: [] as string[],
+      port:
+        snap.dhw.valve_to_dhw === null
+          ? null
+          : snap.dhw.valve_to_dhw
+            ? ('dhw' as const)
+            : ('tank' as const),
+      hpMuted: true,
+      supplyMuted: true,
+      mixingPct: null,
+    };
+  }
   const charge = scenario === 'heating_tank' || scenario === 'heating_dhw';
   const house = scenario === 'house_circuit';
   const activePipes: string[] = [];

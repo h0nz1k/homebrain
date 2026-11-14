@@ -88,6 +88,13 @@ describe('C3 measured state and routes', () => {
       expect(heroScene(snap).activePipes).toEqual([]);
     });
   }
+  it('off state: no active pipes, HP temps muted', () => {
+    const snap = buildMockSnapshot('off', 0);
+    const scene = heroScene(snap);
+    expect(scene.activePipes).toEqual([]);
+    expect(scene.hpMuted).toBe(true);
+    expect(scene.supplyMuted).toBe(true);
+  });
   it('solar scenario: schematic hides collector circuit when SCHEMATIC_SOLAR is off', () => {
     const snap = buildMockSnapshot('solar', 0);
     render(<HeatingSchematic snap={snap} />);
