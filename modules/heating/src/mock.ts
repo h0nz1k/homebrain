@@ -1,4 +1,5 @@
 import { normalizeHistory, type HeatingApi } from './api.js';
+import { deriveSolarState, type SolarSample } from './solar.js';
 import type {
   HeatingHistory,
   HeatingRoom,
@@ -12,7 +13,15 @@ import type {
 
 /** Dev/e2e scenarios (`?topeni=`). All numbers are SYNTHETIC, only shaped like a real system. */
 export type HeatingScenario =
-  'heating' | 'idle' | 'house' | 'dhw' | 'fault' | 'unconfigured' | 'stale';
+  | 'heating'
+  | 'idle'
+  | 'house'
+  | 'dhw'
+  | 'fault'
+  | 'unconfigured'
+  | 'stale'
+  | 'solar'
+  | 'solar-nogain';
 export const HEATING_SCENARIOS: readonly HeatingScenario[] = [
   'heating',
   'idle',
@@ -21,6 +30,8 @@ export const HEATING_SCENARIOS: readonly HeatingScenario[] = [
   'fault',
   'unconfigured',
   'stale',
+  'solar',
+  'solar-nogain',
 ];
 
 const MIN = 60_000;
@@ -108,6 +119,9 @@ function mockExtras(
       tankBottom !== null && collectorWinter >= tankBottom
         ? scenario === 'heating' || scenario === 'house'
         : false,
+    enabled: true,
+    pump_pct: scenario === 'heating' || scenario === 'house' ? 0 : null,
+    state: null,
   };
   if (scenario === 'heating') {
     return {
@@ -131,7 +145,7 @@ function mockExtras(
         heating_on: true,
         valve_open: false,
       },
-      solar: { temp: 12.6, pump: false },
+      solar: { temp: 12.6, pump: false, enabled: true, pump_pct: 0, state: null },
       pool: winterPool,
     };
   }
@@ -150,6 +164,7 @@ export function buildMockSnapshot(
 ): HeatingSnapshot {
   const iso = (ms: number) => new Date(ms).toISOString();
   const running = scenario === 'heating' || scenario === 'dhw';
+  const solarSamples: SolarSample[] = [];
   const snap: HeatingSnapshot = {
     updated_at: iso(now - (scenario === 'stale' ? 47 * MIN : 12_000)),
     stale: scenario === 'stale',
@@ -286,7 +301,7 @@ export function buildMockSnapshot(
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
   };
   const tune: Record<
-    Exclude<HeatingScenario, 'fault' | 'unconfigured' | 'stale'>,
+    Exclude<HeatingScenario, 'fault' | 'unconfigured' | 'stale' | 'solar' | 'solar-nogain'>,
     Partial<{
       ref: number;
       attic: number;
@@ -415,6 +430,51 @@ export function buildMockSnapshot(
           : snap.tank.bottom;
   }
   if (scenario === 'heating') snap.rooms = snap.rooms.map((r) => ({ ...r }));
+  if (scenario === 'solar') {
+    snap.activity = 'idle';
+    snap.heat_pump.compressor_on = false;
+    snap.heat_pump.running_since = null;
+    snap.heat_pump.power_w = 52;
+    snap.heat_pump.energy_today_kwh = 3.8;
+    snap.pumps.secondary = false;
+    snap.tank.bottom = 38.4;
+    snap.extras.solar = {
+      temp: 54.8,
+      pump: true,
+      enabled: true,
+      pump_pct: 78,
+      state: null,
+    };
+  }
+  if (scenario === 'solar-nogain') {
+    snap.activity = 'idle';
+    snap.heat_pump.compressor_on = false;
+    snap.heat_pump.running_since = null;
+    snap.heat_pump.power_w = 48;
+    snap.tank.bottom = 38.1;
+    snap.extras.solar = {
+      temp: 61.2,
+      pump: true,
+      enabled: true,
+      pump_pct: 82,
+      state: null,
+    };
+    for (let i = 62; i >= 0; i -= 1) {
+      solarSamples.push({
+        ts: now - i * 30_000,
+        collector: 61.2,
+        tankBottom: 38.1,
+        pump: true,
+      });
+    }
+  }
+  const solar = snap.extras.solar;
+  if (solar) {
+    if (solar.enabled === null) solar.enabled = true;
+    if (solar.pump_pct === null && solar.pump === true) solar.pump_pct = 70;
+    if (solar.pump_pct === null && solar.pump === false) solar.pump_pct = 0;
+    solar.state = deriveSolarState(solar.temp, snap.tank.bottom, solar.pump, solarSamples, now);
+  }
   return snap;
 }
 

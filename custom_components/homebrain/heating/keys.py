@@ -95,6 +95,8 @@ KEYS: Final[dict[str, KeySpec]] = {
     # extras (side circuits – mapping lives outside the repo)
     "extras.solar_temp": _t("Solární kolektor"),
     "extras.solar_pump": _b("running", "Solár – čerpadlo"),
+    "extras.solar_enabled": _b("power", "Solár zapnut"),
+    "extras.solar_pump_pct": _n("%", None, "Solár – výkon čerpadla"),
     "extras.pool_temp": _t("Bazén – zpátečka"),
     "extras.pool_heating_pump": _b("running", "Bazén – čerpadlo natápění"),
     "extras.pool_filter_pump": _b("running", "Bazén – filtrace"),

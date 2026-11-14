@@ -61,6 +61,7 @@ export function schematicGeometry(
   const cards = ['dhw', 'tank', 'hp-mark'];
   const components: Record<string, string> = {
     charge: '[data-pump="charge"]',
+  'solar-pump': '[data-pump="solar"]',
     'house-pump': '[data-pump="house"]',
     mixing: '.ht-c3-valve:not([data-valve])',
     valve: '[data-valve]',
@@ -76,6 +77,8 @@ export function schematicGeometry(
     supply: 'radiator-supply',
     'cold-water': 'cold-water',
     collector: 'collector',
+    'solar-collector': 'solar-supply',
+    'solar-pump': 'solar-return',
   };
   const iconNodes = Array.from(
     el.querySelectorAll<SVGGraphicsElement>(
@@ -326,8 +329,10 @@ export function schematicGeometry(
   for (const [pumpId, pipeId] of [
     ['charge', 'tank-return'],
     ['house', 'radiator-return'],
+    ['solar', 'solar-supply'],
   ] as const) {
     const pump = q(`[data-pump="${pumpId}"]`);
+    if (!pump) continue;
     const center = new DOMPoint(0, 0).matrixTransform(pump.getScreenCTM()!);
     if (
       pathGap(new DOMRect(center.x, center.y, 0, 0), pipes.find((p) => p.id === pipeId)!.sample) > 0
@@ -566,6 +571,7 @@ export function schematicGeometry(
     const inside: Record<string, number> = {};
     for (const path of paths) {
       const id = path.closest('[data-pipe-id]')!.getAttribute('data-pipe-id')!;
+      if (id.startsWith('solar-')) continue;
       const m = path.getScreenCTM()!,
         length = path.getTotalLength();
       const xs: number[] = [];
@@ -684,4 +690,118 @@ export function schematicGeometry(
       }
     }
   return [...new Set(errors)];
+}
+
+/** Refs #82 – solar loop geometry on the painted schematic (client coordinates). */
+export function solarRenderedGeometry(el: HTMLElement) {
+  const svg = el.querySelector('svg')!;
+  const panel = el.querySelector('[data-testid="heating-sch-solar-panel"]');
+  const coil = el.querySelector('[data-testid="heating-sch-solar-coil"]');
+  const solarPump = el.querySelector('[data-pump="solar"]');
+  if (!panel || !coil || !solarPump) {
+    return { configured: false as const, overlaps: [] as string[] };
+  }
+  const overlaps: string[] = [];
+  const box = (node: Element) => node.getBoundingClientRect();
+  const intersects = (a: DOMRect, b: DOMRect, margin = 0.1) =>
+    Math.min(a.right, b.right) - Math.max(a.left, b.left) > margin &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > margin;
+
+  const textEls = Array.from(svg.querySelectorAll<SVGTextElement>('text[data-label]')).filter(
+    (t) => t.getBoundingClientRect().width > 0,
+  );
+  for (let i = 0; i < textEls.length; i++) {
+    for (let j = i + 1; j < textEls.length; j++) {
+      if (intersects(box(textEls[i]!), box(textEls[j]!)))
+        overlaps.push(`label:${textEls[i]!.dataset.label}/${textEls[j]!.dataset.label}`);
+    }
+  }
+  const partBox = (part: Element) =>
+    (part.querySelector<SVGGraphicsElement>('rect, path') ?? part).getBoundingClientRect();
+  const solarCollectorLabel = textEls.find((t) => t.dataset.label === 'solar-collector');
+  const solarParts = [
+    { el: panel, key: 'heating-sch-solar-panel' },
+    { el: coil, key: 'heating-sch-solar-coil' },
+    { el: solarPump, key: 'solar' },
+  ];
+  for (const text of textEls) {
+    if (text === solarCollectorLabel) continue;
+    const tb = box(text);
+    for (const part of solarParts) {
+      if (intersects(tb, partBox(part.el), 2))
+        overlaps.push(`label-icon:${text.dataset.label}/${part.key}`);
+    }
+  }
+
+  const parseSegments = (path: SVGPathElement) => {
+    const m = path.getScreenCTM()!;
+    const segments: DOMRect[] = [];
+    let x = 0;
+    let y = 0;
+    for (const command of path.getAttribute('d')!.matchAll(/([MHVL])([^MHVL]+)/g)) {
+      const values = command[2]!.trim().split(/[ ,]+/).map(Number);
+      const nextX = command[1] === 'V' ? x : (values.at(-2) ?? values[0]!);
+      const nextY = command[1] === 'H' ? y : values.at(-1)!;
+      if (['H', 'V', 'L'].includes(command[1]!)) {
+        const a = new DOMPoint(x, y).matrixTransform(m);
+        const b = new DOMPoint(nextX, nextY).matrixTransform(m);
+        const left = Math.min(a.x, b.x) - 1;
+        const right = Math.max(a.x, b.x) + 1;
+        const top = Math.min(a.y, b.y) - 1;
+        const bottom = Math.max(a.y, b.y) + 1;
+        segments.push(new DOMRect(left, top, right - left, bottom - top));
+      }
+      x = nextX;
+      y = nextY;
+    }
+    return segments;
+  };
+
+  for (const id of ['solar-supply', 'solar-return'] as const) {
+    const path = el.querySelector(`[data-pipe-id="${id}"] path`) as SVGPathElement | null;
+    if (!path) continue;
+    for (const seg of parseSegments(path)) {
+      for (const text of textEls) {
+        if (intersects(seg, box(text))) overlaps.push(`pipe:${id}/${text.dataset.label}`);
+      }
+    }
+  }
+
+  const envelope = svg.querySelector('.ht-c3-envelope') as SVGGeometryElement;
+  const shell = el.querySelector('.ht-c3-shell') as SVGGeometryElement;
+  const atticTop = shell.getBoundingClientRect().top;
+  const panelShape = panel.querySelector('rect')!;
+  const panelBox = panelShape.getBoundingClientRect();
+  const envInv = envelope.getScreenCTM()!.inverse();
+  const panelCenter = new DOMPoint(
+    (panelBox.left + panelBox.right) / 2,
+    (panelBox.top + panelBox.bottom) / 2,
+  );
+  const collectorInHouse = envelope.isPointInFill(panelCenter.matrixTransform(envInv));
+  const collectorInRoof =
+    collectorInHouse &&
+    panelBox.bottom <= atticTop + 6 &&
+    panelBox.top >= svg.getBoundingClientRect().top + 4;
+
+  const tank = el.querySelector('[data-floor="tank"]')!.getBoundingClientRect();
+  const coilBox = box(coil);
+  const coilInLower =
+    coilBox.top >= tank.top + tank.height * 0.6 - 2 && coilBox.bottom <= tank.bottom + 2;
+  const badge = el.querySelector('[data-tank-card]')!.getBoundingClientRect();
+  const badgeCoilOverlap = intersects(badge, coilBox);
+
+  const solarHeating = Boolean(
+    el.querySelector('[data-pipe-id="solar-supply"][data-active]') &&
+      el.querySelector('[data-pipe-id="solar-return"][data-active]'),
+  );
+
+  return {
+    configured: true as const,
+    overlaps,
+    collectorInHouse,
+    collectorInRoof,
+    coilInLower,
+    badgeCoilOverlap,
+    solarHeating,
+  };
 }
