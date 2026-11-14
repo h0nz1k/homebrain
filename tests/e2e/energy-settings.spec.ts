@@ -76,7 +76,7 @@ for (const theme of ['dark', 'light']) {
     await plus.click();
     await expect(sheet.getByRole('spinbutton')).toHaveValue('20');
     await shot(page, testInfo, `${theme}-edit-sheet`);
-    await sheet.getByRole('button', { name: 'Pokračovat' }).click();
+    await sheet.getByRole('button', { name: 'Uložit' }).click();
     const confirm = page.getByRole('dialog', { name: 'Změnit rezervu baterie?' });
     await expect(confirm).toContainText(/1,2\skWh míň/);
     await expect(confirm).toContainText('uloží do střídače');

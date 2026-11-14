@@ -118,6 +118,25 @@ describe('RangeStepper', () => {
     expect(screen.getByText(/^teď 20\s%$/)).toBeTruthy();
     expect(document.querySelector('.hb-range-band')).toBeTruthy();
     expect(document.querySelector('.hb-range-tick')).toBeTruthy();
+    expect(document.querySelector('.hb-range-scale [data-covered]')).toBeNull();
+  });
+  it('hides the end label the current-value marker already names', () => {
+    render(
+      <RangeStepper
+        label="Rezerva"
+        value={20}
+        onChange={() => {}}
+        min={10}
+        max={50}
+        step={5}
+        unit="%"
+        current={10}
+      />,
+    );
+    const covered = document.querySelectorAll('.hb-range-scale [data-covered]');
+    expect(covered).toHaveLength(1);
+    expect(covered[0]!.textContent).toMatch(/^10\s%$/);
+    expect(screen.getByText(/^teď 10\s%$/)).toBeTruthy();
   });
   it('drops the slider for fine-grained ranges and disables + at max', () => {
     render(

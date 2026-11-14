@@ -26,7 +26,7 @@ it('opens the reserve in a sheet and confirms the inverter write before sending'
   fireEvent.click(
     within(sheet).getByRole('button', { name: 'Zvýšit: Rezerva při běžném provozu: nová hodnota' }),
   );
-  fireEvent.click(within(sheet).getByRole('button', { name: 'Pokračovat' }));
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Uložit' }));
   const confirm = screen.getByRole('dialog', { name: 'Změnit rezervu baterie?' });
   expect(confirm.textContent).toMatch(/10\s%.*20\s%/);
   expect(confirm.textContent).toMatch(/1,2\skWh míň/);

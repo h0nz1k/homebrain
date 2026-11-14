@@ -684,7 +684,12 @@ export const energyStyles = `
 .en-settings-grid .en-section-lead{grid-row:2;display:grid}
 .en-settings-grid .en-section-lead:not(:empty){margin-top:12px}
 .en-settings-grid .en-cells{grid-row:3;margin-top:12px}
-.en-settings-grid .en-pv-strip{align-content:center}
+.en-settings-grid .en-pv-strip{align-items:stretch;grid-template-rows:minmax(0,1fr)}
+/* Desktop: the strip shares its slot with the Síť warning; text centred, sparkline fills the height. */
+.en-settings-grid .en-pv-text{align-self:center}
+.en-settings-grid .en-pv-chart{display:flex;flex-direction:column;justify-content:center;padding-bottom:0}
+.en-settings-grid .en-pv-plot{flex:1 1 36px;min-height:36px;max-height:80px}
+.en-settings-grid .en-pv-axis{position:relative;flex:none;margin-top:2px}
 }
 .en-settings-section{display:flex;flex-direction:column;gap:12px;padding:var(--en-pad) var(--en-pad) 6px;border-radius:var(--hb-radius-lg,20px);background:var(--en-card);box-shadow:var(--en-card-shadow),0 0 0 1px var(--en-card-edge);min-width:0}
 .en-settings-section>header{display:flex;align-items:center;gap:12px;min-height:36px}
@@ -700,9 +705,6 @@ export const energyStyles = `
 .en-cells .hb-cell-label{font-size:15px;font-weight:400}
 .en-cells .hb-cell-value{font-size:15px;font-weight:600}
 .en-cells .hb-quantity small{font-size:13px;font-weight:500}
-/* Read-only values step back; editable ones lead. */
-.en-cells .hb-cell:has(.hb-cell-trail[data-kind='lock']) .hb-cell-value{font-weight:500;color:var(--hb-t2)}
-.en-cells .hb-cell:has(.hb-cell-trail[data-kind='lock']) .hb-quantity small{color:inherit}
 .en-glyph{display:block;overflow:visible;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .en-glyph-base{stroke:color-mix(in srgb,var(--hb-t1) 28%,transparent);stroke-width:1.5}
 .en-glyph-tick{stroke:var(--hb-t2);stroke-width:1.75}

@@ -335,11 +335,7 @@ function SettingSheet({
               disabled={!valid || (!changed && !verify)}
               onClick={() => (INVERTER_WRITES.has(row.key) ? onStep('confirm') : void save())}
             >
-              {INVERTER_WRITES.has(row.key)
-                ? 'Pokračovat'
-                : !changed && verify
-                  ? 'Potvrdit'
-                  : 'Uložit'}
+              {!INVERTER_WRITES.has(row.key) && !changed && verify ? 'Potvrdit' : 'Uložit'}
             </Button>
           </>
         ) : (

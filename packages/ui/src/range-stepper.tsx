@@ -53,6 +53,9 @@ export function RangeStepper({
   const pct = (v: number) => frac(v) * 100;
   const slider = span > 0 && span / step <= MAX_SLIDER_STEPS;
   const marked = slider && current !== undefined && Number.isFinite(current);
+  // „teď 10 %“ already names the end value; the scale label under it would repeat it.
+  const atMin = marked && clamp(current) === min;
+  const atMax = marked && clamp(current) === max;
   // Fractions place the fill, band and tick on the thumb centre (12 px inset at both ends).
   const style = {
     '--hb-range-f': frac(value),
@@ -125,13 +128,13 @@ export function RangeStepper({
         </div>
       )}
       <div className="hb-range-scale">
-        <span>{formatQuantity(min, unit)}</span>
+        <span data-covered={atMin || undefined}>{formatQuantity(min, unit)}</span>
         {band && (
           <span className="hb-range-band-label">
             {bandLabel} {formatQuantity(band[0])}–{formatQuantity(band[1], unit)}
           </span>
         )}
-        <span>{formatQuantity(max, unit)}</span>
+        <span data-covered={atMax || undefined}>{formatQuantity(max, unit)}</span>
       </div>
     </div>
   );

@@ -2880,7 +2880,7 @@ button.hb-cell-main:focus-visible {
 .hb-range-now {
   position: relative;
   height: 16px;
-  margin-bottom: calc(-1 * var(--hb-sp-3) + 2px);
+  margin-bottom: calc(-1 * var(--hb-sp-3) + 8px);
 }
 .hb-range-now span {
   position: absolute;
@@ -2896,10 +2896,11 @@ button.hb-cell-main:focus-visible {
 .hb-range-tick {
   z-index: 1;
   position: absolute;
-  top: 4px;
+  /* Rises 9 px above the thumb, so it stays visible when the thumb sits on it (also at the ends). */
+  top: -6px;
   left: calc(10.5px + (100% - 24px) * var(--hb-now-f));
   width: 3px;
-  height: 22px;
+  height: 32px;
   border-radius: 1.5px;
   /* Pure white in dark (t1 is too close to the accent fill), t1 in light; halo separates it. */
   background: light-dark(var(--hb-t1), #fff);
@@ -2955,6 +2956,9 @@ button.hb-cell-main:focus-visible {
   font-size: var(--hb-type-caption);
   color: var(--hb-t2);
   font-variant-numeric: tabular-nums;
+}
+.hb-range-scale span[data-covered] {
+  visibility: hidden;
 }
 .hb-range-band-label {
   /* Centred under its band (kept clear of the min/max labels at the ends). */
