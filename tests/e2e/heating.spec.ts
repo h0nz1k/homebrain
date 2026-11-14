@@ -633,10 +633,10 @@ test.describe('Topení', () => {
   test('Teď solár bez účinku: varování a scénář landscape', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/homebrain-topeni?topeni=solar-nogain&theme=dark');
-    await expect(page.getByTestId('heating-solar-warn')).toContainText('odvzdušnění', {
+    await expect(page.getByTestId('heating-land-strip')).toContainText('odvzdušnění', {
       timeout: 20_000,
     });
-    await expect(page.getByTestId('heating-hero')).toContainText('odvzdušnění');
+    await expect(page.getByTestId('heating-headline')).toContainText('bez ohřevu');
     await expect(page.getByTestId('heating-land-strip')).toContainText('Elektřina TČ');
   });
 

@@ -76,8 +76,8 @@ const ROUTES = [
     'M54 443V509Q54 516.5 61.5 516.5H324A8.75 8.75 0 0 1 324 534H40Q33 534 33 527V443',
     'ground',
   ],
-  ['solar-supply', 'M108 62V118H74V392H188', 'solar'],
-  ['solar-return', 'M202 402H228V120H108V62', 'solar'],
+  ['solar-supply', 'M198 66V118H74V392H188', 'solar'],
+  ['solar-return', 'M202 402H238V118H198V66', 'solar'],
 ] as const;
 
 const SOLAR_ROUTE_IDS = new Set(['solar-supply', 'solar-return']);
@@ -106,14 +106,14 @@ const DIRECTIONS: Record<string, [number, number, number][]> = {
     [33, 485, -90],
   ],
   'solar-supply': [
-    [108, 90, 90],
+    [198, 92, 90],
     [74, 250, 90],
     [140, 392, 180],
   ],
   'solar-return': [
     [202, 370, 90],
-    [228, 200, -90],
-    [108, 90, -90],
+    [238, 250, -90],
+    [198, 90, -90],
   ],
   'cold-water': [[228, 300, -90]],
   'dhw-draw': [
@@ -547,20 +547,20 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 className="ht-c3-solar-roof"
                 data-solar-roof=""
               >
-                <rect x={50} y={26} width={116} height={36} rx={6} className="ht-c3-solar-collector" />
-                {[62, 78, 94, 110, 126, 142].map((x) => (
+                <rect x={158} y={28} width={102} height={34} rx={6} className="ht-c3-solar-collector" />
+                {[168, 182, 196, 210, 224, 238].map((x) => (
                   <path
                     key={x}
-                    d={`M${x} 24v32M${x + 7} 24v32`}
+                    d={`M${x} 26v32M${x + 7} 26v32`}
                     className="ht-c3-solar-fin"
                     aria-hidden="true"
                   />
                 ))}
               </g>
               <Label
-                x={108}
-                y={22}
-                anchor="middle"
+                x={209}
+                y={24}
+                anchor="end"
                 id="solar-collector"
                 className="ht-c3-solar-label"
                 muted={snap.extras.solar?.temp === null}
@@ -574,10 +574,10 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 data-testid="heating-sch-solar-coil"
                 fill="none"
               />
-              <Pump x={98} y={392} on={snap.extras.solar?.pump ?? null} id="solar" />
+              <Pump x={74} y={302} on={snap.extras.solar?.pump ?? null} id="solar" />
               <Label
-                x={98}
-                y={378}
+                x={74}
+                y={288}
                 anchor="middle"
                 id="solar-pump"
                 muted={snap.extras.solar?.pump !== true}

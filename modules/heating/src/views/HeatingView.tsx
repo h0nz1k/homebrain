@@ -260,11 +260,7 @@ function NowTab({
               </b>
             </p>
             <LandscapePumpChips snap={snap} />
-            {act.solarWarn && (
-              <p className="ht-insight" data-testid="heating-solar-warn">
-                {act.solarWarn}
-              </p>
-            )}
+            {act.solarWarn && <p className="ht-insight ht-land-only">{act.solarWarn}</p>}
           </header>
           <div className="ht-hero-copy ht-portrait-hero-copy">
             <span className="ht-k">Zásoba tepla</span>
