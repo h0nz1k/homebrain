@@ -202,7 +202,7 @@ const serverApi = createMockServerApi({
   scenario: (recipesQuery.get('server') as ServerScenario | null) ?? 'ok',
 });
 setServerApiFactory(() => serverApi);
-// Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|unconfigured|stale`,
+// Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|solar|solar-nogain|…`,
 // `&rooms=0|4` (bound room sensors/TRVs; default 0 like the current backend),
 // `&extras=none` = side circuits unmapped (null payloads).
 const heatingApi = createMockHeatingApi({

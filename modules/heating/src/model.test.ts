@@ -332,3 +332,13 @@ describe('unmapped dev measurements', () => {
     });
   });
 });
+
+describe('solar thermal hero', () => {
+  it('idle solar heating uses Czech solar story on the hero', () => {
+    const s = snap('solar');
+    const m = activityModel(s, NOW);
+    expect(m.pill).toBe('Solár nabíjí nádrž');
+    expect(m.headline.join('')).toContain('Slunce nahřívá akumulační nádrž');
+    expect(m.detail).toMatch(/54,8.*78\s?%/u);
+  });
+});

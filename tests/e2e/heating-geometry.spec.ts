@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { solarRenderedGeometry } from './heating-geometry.js';
 
 // Refs #82. Check painted SVG geometry, including landscape-only labels.
 for (const [width, height] of [
@@ -251,3 +252,60 @@ for (const [width, height] of [
     }
   }
 }
+
+for (const [width, height] of [
+  [390, 844],
+  [1280, 800],
+] as const) {
+  for (const scenario of ['solar', 'heating'] as const) {
+    test(`solar rendered geometry ${scenario} ${width}x${height}`, async ({ page }) => {
+      test.skip(true, 'SCHEMATIC_SOLAR=false – solární okruh ve schématu odložen');
+      await page.setViewportSize({ width, height });
+      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
+      await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+      await page.evaluate(() => document.fonts.ready);
+      const result = await page.getByTestId('heating-schematic').evaluate(solarRenderedGeometry);
+      expect(result.configured).toBe(true);
+      expect(result.overlaps, 'label and solar pipe layout').toEqual([]);
+      expect(result.collectorInHouse).toBe(true);
+      expect(result.collectorInRoof).toBe(true);
+      expect(result.coilInLower).toBe(true);
+      expect(result.badgeCoilOverlap).toBe(false);
+      if (scenario === 'solar') expect(result.solarHeating).toBe(true);
+    });
+  }
+}
+
+test('landscape Další okruhy: chips clear and inside card', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
+  await expect(page.getByTestId('heating-side-extras')).toBeVisible({ timeout: 20_000 });
+  const result = await page.getByTestId('heating-side-extras').evaluate((card) => {
+    const box = card.getBoundingClientRect();
+    const chips = Array.from(card.querySelectorAll('.hb-chip, .hb-pill'));
+    const rects = chips.map((c) => c.getBoundingClientRect());
+    const overlaps: string[] = [];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i]!;
+        const b = rects[j]!;
+        if (
+          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
+        )
+          overlaps.push(`${i}/${j}`);
+      }
+    }
+    const tempRects = Array.from(card.querySelectorAll('.ht-side-temp')).map((c) =>
+      c.getBoundingClientRect(),
+    );
+    const outside = [...rects, ...tempRects].filter(
+      (r) => r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1,
+    ).length;
+    const overflow = card.scrollHeight > card.clientHeight + 2;
+    return { overlaps, outside, overflow };
+  });
+  expect(result.overlaps).toEqual([]);
+  expect(result.outside).toBe(0);
+  expect(result.overflow).toBe(false);
+});

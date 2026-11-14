@@ -27,6 +27,8 @@ export interface HeatingRoom {
   source: 'trv' | 'sensor';
 }
 
+export type SolarThermalState = 'heating' | 'no_gain' | 'stagnation' | 'idle';
+
 export interface HeatingSchedule {
   key: string;
   label: string;
@@ -93,7 +95,13 @@ export interface HeatingSnapshot {
   curve: { points: Array<[number, number]>; outdoor_now: T };
   schedules: HeatingSchedule[];
   extras: {
-    solar?: { temp: T; pump: B } | null;
+    solar?: {
+      temp: T;
+      pump: B;
+      enabled: B;
+      pump_pct: T;
+      state: SolarThermalState | null;
+    } | null;
     pool?: { temp: T; heating_pump: B; filter_pump: B } | null;
     fish?: {
       temp: T;

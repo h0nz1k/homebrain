@@ -7,6 +7,7 @@ import {
   poolPanelVisible,
   solarPanelVisible,
 } from '../sideCircuits.js';
+import { solarStateOf } from '../solar.js';
 import { fmtNum, fmtT } from '../model.js';
 import type { HeatingSnapshot } from '../types.js';
 
@@ -109,12 +110,78 @@ export function SolarCircuitPanel({ snap }: { snap: HeatingSnapshot }) {
       <div className="ht-side-hero">
         <b className="ht-side-temp">{fmtT(solar.temp)}</b>
       </div>
+      <SolarCircuitChips solar={solar} />
+    </Panel>
+  );
+}
+
+function SolarCircuitChips({ solar }: { solar: NonNullable<HeatingSnapshot['extras']['solar']> }) {
+  const state = solar.state;
+  return (
+    <div className="ht-chips">
+      {state === 'heating' && (
+        <Pill tone="ok" dot>
+          natápí nádrž
+        </Pill>
+      )}
+      {state === 'no_gain' && (
+        <Pill tone="warn" dot>
+          bez účinku
+        </Pill>
+      )}
+      {state === 'stagnation' && (
+        <Pill tone="warn" dot>
+          stagnace
+        </Pill>
+      )}
       {solar.pump !== null && (
         <Chip size="sm" look="soft">
           čerpadlo · {solar.pump ? 'běží' : 'stojí'}
+          {solar.pump_pct !== null ? ` · ${fmtNum(solar.pump_pct, 0)}\u00a0%` : ''}
         </Chip>
       )}
-    </Panel>
+      {solar.enabled !== null && (
+        <Chip size="sm" look="soft">
+          {solar.enabled ? 'solár zapnut' : 'solár vypnut'}
+        </Chip>
+      )}
+    </div>
+  );
+}
+
+/** Portrait: solar status near the top (above rooms / „Další okruhy“). */
+export function SolarPortraitBanner({ snap }: { snap: HeatingSnapshot }) {
+  const solar = snap.extras.solar;
+  if (!solarPanelVisible(solar)) return null;
+  const state = solarStateOf(snap);
+  return (
+    <Card className="ht-solar-compact ht-portrait-only" data-testid="heating-solar-compact">
+      <span className="ht-k">Solár · kolektor</span>
+      <b>{fmtT(solar.temp)}</b>
+      <div className="ht-solar-compact-meta">
+        {state === 'heating' && (
+          <Pill tone="ok" dot data-testid="heating-solar-pill">
+            natápí nádrž
+          </Pill>
+        )}
+        {state === 'no_gain' && (
+          <Pill tone="warn" dot>
+            bez účinku
+          </Pill>
+        )}
+        {state === 'stagnation' && (
+          <Pill tone="warn" dot>
+            stagnace
+          </Pill>
+        )}
+        {solar.pump !== null && (
+          <Chip size="sm" look="soft">
+            čerpadlo {solar.pump ? 'běží' : 'stojí'}
+            {solar.pump_pct !== null ? ` · ${fmtNum(solar.pump_pct, 0)}\u00a0%` : ''}
+          </Chip>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -162,20 +229,32 @@ function ExtrasCompactLandscape({ snap }: { snap: HeatingSnapshot }) {
       <div className="ht-extras-land">
         {showSolar && (
           <div className="ht-extras-land-row" data-testid="heating-side-solar">
-            <span className="ht-extras-land-k">Solár · kolektor</span>
-            <b className="ht-side-temp">{fmtT(solar.temp)}</b>
-            {solar.pump !== null && (
-              <Chip size="sm" look="soft">
-                čerpadlo · {solar.pump ? 'běží' : 'stojí'}
-              </Chip>
-            )}
+            <div className="ht-extras-land-head">
+              <span className="ht-extras-land-k">Solár · kolektor</span>
+              <b className="ht-side-temp">{fmtT(solar!.temp)}</b>
+            </div>
+            <div className="ht-chips" data-testid="heating-side-solar-chips">
+              {solar!.state === 'heating' && (
+                <Pill tone="ok" dot data-testid="heating-side-solar-pill">
+                  nabíjí nádrž
+                </Pill>
+              )}
+              {solar!.pump !== null && (
+                <Chip size="sm" look="soft">
+                  čerpadlo · {solar!.pump ? 'běží' : 'stojí'}
+                  {solar!.pump_pct !== null ? ` · ${fmtNum(solar!.pump_pct, 0)}\u00a0%` : ''}
+                </Chip>
+              )}
+            </div>
           </div>
         )}
         {showPool && (
           <div className="ht-extras-land-row" data-testid="heating-side-pool">
-            <span className="ht-extras-land-k">Bazén · zpátečka</span>
-            <b className="ht-side-temp">{pool!.temp !== null ? fmtT(pool!.temp) : '—'}</b>
-            <div className="ht-chips">
+            <div className="ht-extras-land-head">
+              <span className="ht-extras-land-k">Bazén · zpátečka</span>
+              <b className="ht-side-temp">{pool!.temp !== null ? fmtT(pool!.temp) : '—'}</b>
+            </div>
+            <div className="ht-chips" data-testid="heating-side-pool-chips">
               {pool!.heating_pump !== null && (
                 <Chip size="sm" look="soft">
                   natápění · {pool!.heating_pump ? 'běží' : 'stojí'}
@@ -217,16 +296,7 @@ export function SideCircuitsPortrait({ snap }: { snap: HeatingSnapshot }) {
       </li>,
     );
   }
-  const solar = snap.extras.solar;
-  if (solarPanelVisible(solar)) {
-    rows.push(
-      <li key="solar" data-testid="heating-extras-solar">
-        <span>Solár</span>
-        <b>{fmtT(solar.temp)}</b>
-        <em>{solar.pump === null ? '—' : solar.pump ? 'čerpadlo běží' : 'čerpadlo stojí'}</em>
-      </li>,
-    );
-  }
+  // Solar has a dedicated compact banner higher on the portrait page.
   const pool = snap.extras.pool;
   if (poolPanelVisible(pool)) {
     const parts: string[] = [];

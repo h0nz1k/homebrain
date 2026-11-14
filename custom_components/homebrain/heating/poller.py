@@ -35,7 +35,15 @@ from ..const import DOMAIN
 from .client import TecomatAuthError, TecomatClient, TecomatConfig, TecomatError
 from .keys import DERIVED, KEYS
 from .mapfile import HeatingMap, MapError, load_map_file
-from .model import DayCounters, Resolved, build_payload, empty_payload, resolve
+from .model import (
+    DayCounters,
+    Resolved,
+    SolarSample,
+    build_payload,
+    empty_payload,
+    resolve,
+    trim_solar_samples,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -118,6 +126,7 @@ class HeatingPoller:
         self._session: aiohttp.ClientSession | None = None
         self._client: TecomatClient | None = None
         self._task: asyncio.Task | None = None
+        self._solar_samples: list[SolarSample] = []
 
     # --- lifecycle -------------------------------------------------------------------
     async def async_start(self) -> None:
@@ -257,6 +266,24 @@ class HeatingPoller:
             faults=self._res.active_faults(),
         )
         self._store.async_delay_save(self._counters.as_dict, 30)
+        self._record_solar_sample(now, self._res)
+
+    def _record_solar_sample(self, now, res: Resolved) -> None:
+        if not any(k in res.mapped for k in ("extras.solar_temp", "extras.solar_pump")):
+            return
+        values = res.values
+        collector = values.get("extras.solar_temp")
+        tank = values.get("tank.bottom")
+        pump = values.get("extras.solar_pump")
+        self._solar_samples.append(
+            SolarSample(
+                now,
+                float(collector) if isinstance(collector, int | float) else None,
+                float(tank) if isinstance(tank, int | float) else None,
+                pump if isinstance(pump, bool) else None,
+            )
+        )
+        self._solar_samples = trim_solar_samples(self._solar_samples, now)
 
     # --- read side -------------------------------------------------------------------
     @property
@@ -299,6 +326,7 @@ class HeatingPoller:
             stale=stale,
             power_w=power,
             monitored=len(self.map.faults),
+            solar_samples=tuple(self._solar_samples),
         )
 
     @callback

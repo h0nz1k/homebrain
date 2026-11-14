@@ -8,7 +8,16 @@ import {
   showDhwReheatHint,
   tankGaugeModel,
 } from '../landscape.js';
-import { curveAt, fmtDuration, fmtNum, fmtT, roomsModel } from '../model.js';
+import {
+  curveAt,
+  fmtDuration,
+  fmtHpPower,
+  fmtNum,
+  fmtT,
+  roomsModel,
+  tankSecondaryChipLabel,
+} from '../model.js';
+import { solarStateOf } from '../solar.js';
 import type { HeatingHistory, HeatingSnapshot, HistoryKey } from '../types.js';
 import { CurveChart, TimeChart } from './charts.js';
 import { SideCircuitsLandscape } from './SideCircuits.js';
@@ -233,8 +242,9 @@ export function LandscapeDashboard({
             }
             hide={hp.starts_today === null}
           />
+          <KvRow k="Elektřina TČ" v={fmtHpPower(hp.power_w)} hide={hp.power_w === null} />
           <KvRow
-            k="Elektřina"
+            k="Dnes spotřeba"
             v={`${fmtNum(hp.energy_today_kwh)}\u00a0kWh`}
             hide={hp.energy_today_kwh === null}
           />
@@ -311,11 +321,10 @@ export function LandscapeDashboard({
 }
 
 export function LandscapePumpChips({ snap }: { snap: HeatingSnapshot }) {
+  const showTank = snap.pumps.secondary !== null || solarStateOf(snap) === 'heating';
   return (
     <div className="ht-land-pump-chips" data-testid="heating-land-pumps">
-      {snap.pumps.secondary !== null && (
-        <Chip size="sm">nádrž · {snap.pumps.secondary ? 'běží' : 'stojí'}</Chip>
-      )}
+      {showTank && <Chip size="sm">{tankSecondaryChipLabel(snap)}</Chip>}
       {snap.pumps.heating !== null && (
         <Chip size="sm">topení · {snap.pumps.heating ? 'běží' : 'stojí'}</Chip>
       )}

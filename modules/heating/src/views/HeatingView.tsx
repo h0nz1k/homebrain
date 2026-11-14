@@ -19,12 +19,15 @@ import {
   curveAt,
   efficiencyModel,
   fmtDuration,
+  fmtHpPower,
   fmtNum,
   fmtPctChange,
   fmtSeasonEnergy,
   fmtT,
+  hpElectricityVisible,
   roomsModel,
   seasonsModel,
+  tankSecondaryChipLabel,
 } from '../model.js';
 import type {
   HeatingHistory,
@@ -33,6 +36,7 @@ import type {
   HistoryKey,
   HistoryRange,
 } from '../types.js';
+import { solarStateOf } from '../solar.js';
 import {
   CurveChart,
   Scatter,
@@ -42,7 +46,7 @@ import {
   type ChartSeries,
 } from './charts.js';
 import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js';
-import { SideCircuitsPortrait } from './SideCircuits.js';
+import { SideCircuitsPortrait, SolarPortraitBanner } from './SideCircuits.js';
 import { HeatingSchematic } from './Schematic.js';
 import { heatingStyles } from './styles.js';
 
@@ -130,6 +134,26 @@ function ago(iso: string | null): string {
 
 /* ---------- Teď ---------- */
 
+function HpElectricityBar({ snap, className }: { snap: HeatingSnapshot; className?: string }) {
+  if (!hpElectricityVisible(snap)) return null;
+  const hp = snap.heat_pump;
+  return (
+    <Card
+      className={`ht-hp-electricity${className ? ` ${className}` : ''}`}
+      data-testid="heating-hp-electricity"
+    >
+      <span className="ht-k">Elektřina TČ</span>
+      <b className="ht-v">{fmtHpPower(hp.power_w)}</b>
+      {hp.energy_today_kwh !== null && (
+        <span className="ht-sub">
+          dnes {fmtNum(hp.energy_today_kwh)}
+          {'\u00a0'}kWh
+        </span>
+      )}
+    </Card>
+  );
+}
+
 function Stat({
   id,
   label,
@@ -180,7 +204,16 @@ function NowTab({
     idle: ['Teplo je připravené.', 'Zásoba čeká na další potřebu tepla.', 'Klidový režim'],
   };
   const copy = copies[snap.activity];
-  const sceneCopy = snap.source === 'ok' && !snap.stale ? copy : undefined;
+  const solarStory = solarStateOf(snap);
+  const sceneCopy =
+    snap.source === 'ok' &&
+    !snap.stale &&
+    copy &&
+    solarStory !== 'heating' &&
+    solarStory !== 'no_gain' &&
+    solarStory !== 'stagnation'
+      ? copy
+      : undefined;
   const day = useHistory(api, 'day', DAY_KEYS);
   const rooms = roomsModel(snap);
   const hp = snap.heat_pump;
@@ -198,7 +231,7 @@ function NowTab({
       : hp.compressor_on
         ? `Kompresor běží${hp.running_since && Number.isFinite(Date.parse(hp.running_since)) ? ` ${fmtDuration(Math.max(0, (tick - Date.parse(hp.running_since)) / 60_000))}` : ''}`
         : 'Kompresor stojí';
-  const powerLine = hp.power_w === null ? '—' : `${fmtNum(hp.power_w / 1000)}\u00a0kW`;
+  const powerLine = fmtHpPower(hp.power_w);
   const landHeadline =
     sceneCopy?.[0] ??
     `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
@@ -221,9 +254,13 @@ function NowTab({
               <span className="ht-land-strip-sep" aria-hidden="true">
                 ·
               </span>
-              <b className={hp.power_w === null ? 'ht-muted' : undefined}>příkon {powerLine}</b>
+              <b className={hp.power_w === null ? 'ht-muted' : undefined}>
+                Elektřina TČ {powerLine}
+                {hp.energy_today_kwh !== null ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
+              </b>
             </p>
             <LandscapePumpChips snap={snap} />
+            {act.solarWarn && <p className="ht-insight ht-land-only">{act.solarWarn}</p>}
           </header>
           <div className="ht-hero-copy ht-portrait-hero-copy">
             <span className="ht-k">Zásoba tepla</span>
@@ -240,9 +277,19 @@ function NowTab({
               )}
             </h2>
             <p className="ht-hero-detail">{sceneCopy?.[1] ?? act.detail}</p>
+            {act.solarWarn && (
+              <p className="ht-insight" data-testid="heating-solar-warn">
+                {act.solarWarn}
+              </p>
+            )}
             <p className="ht-run-meta">
               <span>{compressorLine}</span>
-              <b className={hp.power_w === null ? 'ht-muted' : undefined}>{powerLine}</b>
+              {hpElectricityVisible(snap) && (
+                <b>
+                  Elektřina TČ {powerLine}
+                  {hp.energy_today_kwh !== null ? ` · ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
+                </b>
+              )}
             </p>
           </div>
           <div className="ht-now-schematic">
@@ -259,15 +306,7 @@ function NowTab({
           </aside>
         </div>
         <div className="ht-c3-chips ht-portrait-only">
-          <Chip>
-            {snap.pumps.secondary === null
-              ? 'Nádrž · —'
-              : snap.pumps.secondary
-                ? snap.activity === 'heating_dhw'
-                  ? 'Teplá voda · ohřev'
-                  : 'Nádrž · běží'
-                : 'Nádrž · stojí'}
-          </Chip>
+          <Chip>{tankSecondaryChipLabel(snap)}</Chip>
           <Chip>
             Topení · {snap.pumps.heating === null ? '—' : snap.pumps.heating ? 'běží' : 'stojí'}
           </Chip>
@@ -281,6 +320,8 @@ function NowTab({
           )}
         </div>
       </Card>
+      <HpElectricityBar snap={snap} className="ht-card ht-portrait-only" />
+      <SolarPortraitBanner snap={snap} />
       <div className="ht-stats ht-portrait-only">
         <Stat
           id="outdoor"
