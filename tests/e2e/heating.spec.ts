@@ -640,9 +640,10 @@ test.describe('Topení', () => {
   test('Teď solár bez účinku: varování a scénář landscape', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/homebrain-topeni?topeni=solar-nogain&theme=dark');
-    await expect(page.getByTestId('heating-land-strip')).toContainText('odvzdušnění', {
-      timeout: 20_000,
-    });
+    await expect(page.getByTestId('heating-hero').locator('.ht-hero-detail')).toContainText(
+      'odvzdušnění',
+      { timeout: 20_000 },
+    );
     await expect(page.getByTestId('heating-headline')).toContainText('bez ohřevu');
     await expect(page.getByTestId('heating-land-strip')).toContainText('Elektřina TČ');
   });
@@ -714,7 +715,7 @@ test.describe('Topení', () => {
     const card = page.getByTestId('heating-changes-card');
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(card).toContainText('Solár:');
-    await expect(card.locator('.ht-change-values')).toContainText('zapnuto → vypnuto');
+    await expect(card.locator('.ht-change-values').first()).toContainText('zapnuto → vypnuto');
     await expect(card).toContainText('Hlavní vypínač:');
   });
 
