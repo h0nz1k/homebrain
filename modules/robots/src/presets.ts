@@ -11,7 +11,7 @@ import {
   type ServiceCallPlan,
 } from './commands.js';
 import type { RobotModel } from './model.js';
-import { MAX_PASSES_ABSOLUTE, maxPassesForModel } from './passes.js';
+import { MAX_PASSES_ABSOLUTE } from './passes.js';
 
 /**
  * Per-robot default cleaning setup and named presets (backend: `homebrain/robots/presets/*`,
