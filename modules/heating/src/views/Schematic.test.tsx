@@ -100,7 +100,10 @@ describe('C3 measured state and routes', () => {
     expect(root.getAttribute('data-state')).toBe('off');
     expect(root.querySelector('[data-active].ht-c3-hot')).toBeNull();
     expect(root.querySelector('.ht-c3-direction')).toBeNull();
-    expect(screen.getByTestId('heating-sch-hp-out').textContent).toMatch(/naposledy/);
+    expect(screen.getByTestId('heating-sch-off-note').textContent).toBe(
+      'Teploty: naposledy naměřené',
+    );
+    expect(screen.getByTestId('heating-sch-hp-out').textContent).not.toMatch(/naposledy/);
   });
   it('solar scenario: schematic hides collector circuit when SCHEMATIC_SOLAR is off', () => {
     const snap = buildMockSnapshot('solar', 0);

@@ -1,4 +1,4 @@
-import { schematicGeometry } from './heating-geometry.js';
+import { offSchematicTankLabelClearance, schematicGeometry } from './heating-geometry.js';
 import { expect, test, type Page } from '@playwright/test';
 
 // Topení (dev mock: synthetic heat pump with ground collector, `?topeni=` scenario, `&rooms=`).
@@ -746,6 +746,20 @@ test.describe('Topení', () => {
       'Stav',
     );
   });
+
+  for (const [width, height] of [
+    [390, 844],
+    [1280, 800],
+  ] as const) {
+    test(`Vypnuto ${width}×${height}: popisky TČ nepřekrývají nádrž`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto('/homebrain-topeni?topeni=off&theme=dark');
+      const sch = page.getByTestId('heating-schematic');
+      await expect(sch).toBeVisible({ timeout: 20_000 });
+      await page.evaluate(() => document.fonts.ready);
+      expect(await sch.evaluate(offSchematicTankLabelClearance)).toEqual([]);
+    });
+  }
 
   test('Vypnuto: schéma bez aktivních potrubí', async ({ page }) => {
     await page.goto('/homebrain-topeni?topeni=off&theme=dark');

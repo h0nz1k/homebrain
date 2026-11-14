@@ -109,7 +109,14 @@ export function bannerAlert(snap: HeatingSnapshot): HeatingAlert | null {
 export function formatChangeValue(value: unknown, key: string): string {
   if (typeof value === 'boolean') return value ? 'zapnuto' : 'vypnuto';
   if (value === null || value === undefined) return '—';
-  if (typeof value === 'number') return key.includes('hysteresis') ? `${value} °C` : `${value}`;
+  if (typeof value === 'number') {
+    const tempKey =
+      key.includes('hysteresis') ||
+      key.includes('target') ||
+      key.endsWith('.top') ||
+      key.endsWith('.bottom');
+    return tempKey ? fmtT(value) : `${value}`;
+  }
   if (Array.isArray(value)) return 'změna programu';
   return String(value);
 }

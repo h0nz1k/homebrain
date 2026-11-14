@@ -526,8 +526,8 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
             </Pill>
           </div>
           <p className="ht-big">
-            {fmtNum(h.ref_temp)}
-            <small>°C</small>
+            {fmtT(h.ref_temp).replace(/\u202f°C$/u, '')}
+            <small>{'\u202f°C'}</small>
           </p>
           <p className="ht-hero-sub">
             čidlo regulace TČ · cíl {fmtT(h.ref_target_effective ?? h.ref_target)} · hystereze{' '}
@@ -607,7 +607,7 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
                     <span className="ht-muted">
                       {r.target === null
                         ? 'bez cíle'
-                        : `cíl ${fmtNum(r.target)} · ${r.delta! > 0 ? '+' : ''}${fmtNum(r.delta)}\u202f°C`}
+                        : `cíl ${fmtT(r.target, 0)} · ${r.delta! > 0 ? '+' : ''}${fmtNum(r.delta)}\u202f°C`}
                     </span>
                     <span
                       className="ht-track"

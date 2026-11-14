@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { HEATING_LOGO_ROOT, useHeatingLogoManifest, type HeatingLogoManifest } from '../logo.js';
-import { fmtDuration, fmtT, fmtTempView, heroScene } from '../model.js';
+import { fmtDuration, fmtT, heroScene } from '../model.js';
 import { solarConfigured } from '../solar.js';
 import type { HeatingSnapshot } from '../types.js';
 
@@ -294,8 +294,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const off = scene.schematicOff;
   const hpFlowLabel = (prefix: string, temp: number | null) => {
     if (temp === null) return `${prefix} `;
-    const t = fmtSchT(temp);
-    return off ? `${prefix} ${t} (naposledy)` : `${prefix} ${t}`;
+    return `${prefix} ${fmtSchT(temp)}`;
   };
   return (
     <div
@@ -402,7 +401,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               className="ht-c3-value-bg"
               data-vessel-card=""
             />
-            <Label x={206} y={193} anchor="middle" id="dhw" muted={snap.dhw.temp === null}>
+            <Label x={206} y={193} anchor="middle" id="dhw" muted={off || snap.dhw.temp === null}>
               Teplá voda
               <tspan x="206" dy="19" className="ht-c3-dhw-value">
                 {fmtSchT(snap.dhw.temp).slice(0, -3)}
@@ -413,9 +412,9 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               <tspan
                 x="206"
                 dy="17"
-                className={snap.dhw.target === null ? 'ht-c3-muted' : undefined}
+                className={snap.dhw.target === null || off ? 'ht-c3-muted' : undefined}
               >
-                {snap.dhw.target === null ? '' : `cíl ${fmtTempView(snap.dhw.target)}`}
+                {snap.dhw.target === null ? '' : `cíl ${fmtT(snap.dhw.target, 0)}`}
               </tspan>
             </Label>
             <rect
@@ -643,6 +642,11 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           Zemní kolektor
         </Label>
       </svg>
+      {off && (
+        <p className="ht-c3-note" data-testid="heating-sch-off-note">
+          Teploty: naposledy naměřené
+        </p>
+      )}
     </div>
   );
 }
