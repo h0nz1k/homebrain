@@ -279,6 +279,7 @@ test('solar thermal schematic geometry', async ({ page }) => {
         '[data-testid="heating-sch-solar-panel"], [data-pump="solar"], [data-testid="heating-sch-solar-coil"]',
       ),
     ).filter(visible);
+    const panel = svg.querySelector('[data-testid="heating-sch-solar-panel"]');
     const overlaps: string[] = [];
     for (const [i, a] of texts.entries()) {
       for (const b of [...texts.slice(i + 1), ...icons]) {
@@ -295,7 +296,6 @@ test('solar thermal schematic geometry', async ({ page }) => {
         }
       }
     }
-    const panel = svg.querySelector('[data-testid="heating-sch-solar-panel"]');
     const interior = svg.querySelector('.ht-c3-interior');
     const tank = svg.querySelector('[data-floor="tank"]')!;
     const tankBBox = tank.getBoundingClientRect();
