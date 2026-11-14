@@ -11,8 +11,8 @@ import {
 } from '../commands.js';
 import type { RobotModel } from '../model.js';
 import {
-  MAX_PASSES,
-  DEEP_PLUS_HINT,
+  DEEP_ROUTES,
+  DEEP_ROUTES_HINT,
   MAX_PLUS_HINT,
   routesForMode,
   PRESET_NAME_MAX,
@@ -165,7 +165,7 @@ export function CleanSettingsFields({
   const caps = robotCapabilities(robot);
   const mops = modeMops(value.mode ?? robot.mode);
   const [maxPlusHint, setMaxPlusHint] = useState(false);
-  const [deepPlusHint, setDeepPlusHint] = useState(false);
+  const [deepRoutesHint, setDeepRoutesHint] = useState(false);
   const fans = fansForMode(caps.fans, value.mode);
   const routes = routesForMode(caps.routes, value.mode);
   const pick = (option: string) => (option === KEEP ? null : option);
@@ -189,7 +189,7 @@ export function CleanSettingsFields({
               caps.routes,
             );
             setMaxPlusHint(downgradedFan);
-            setDeepPlusHint(downgradedRoute);
+            setDeepRoutesHint(downgradedRoute);
             onChange({ mode: next.mode, fan: next.fan, route: next.route ?? value.route });
           }}
         />
@@ -208,9 +208,12 @@ export function CleanSettingsFields({
           {MAX_PLUS_HINT}
         </p>
       )}
-      {deepPlusHint && (
-        <p className="rb-micro rb-hint" role="status" data-testid="robots-deepplus-hint">
-          {DEEP_PLUS_HINT}
+      {(deepRoutesHint ||
+        (mops &&
+          value.mode === 'both' &&
+          caps.routes.some((r) => DEEP_ROUTES.includes(r as (typeof DEEP_ROUTES)[number])))) && (
+        <p className="rb-micro rb-hint" role="status" data-testid="robots-deep-routes-hint">
+          {DEEP_ROUTES_HINT}
         </p>
       )}
       {mops && caps.water.length > 1 && (
@@ -235,7 +238,7 @@ export function CleanSettingsFields({
         label="Průchody"
         tone="accent"
         value={String(value.passes)}
-        options={Array.from({ length: MAX_PASSES }, (_, i) => [String(i + 1), `${i + 1}×`])}
+        options={Array.from({ length: robot.maxPasses }, (_, i) => [String(i + 1), `${i + 1}×`])}
         onChange={(v) => onChange({ passes: Number(v) })}
       />
     </>

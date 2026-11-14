@@ -16,6 +16,7 @@ import {
   waterChoices,
   type CleanMode,
 } from './commands.js';
+import { maxPassesForModel } from './passes.js';
 
 export const ROBOT_SLOTS = [1, 2, 3] as const;
 
@@ -31,6 +32,9 @@ export interface RobotMeta {
   maps: RobotMap[];
   maps_error: string | null;
   maps_updated_at: string | null;
+  /** HA device model (e.g. ``roborock.vacuum.a144``). */
+  model?: string | null;
+  max_passes?: number;
 }
 
 export interface TankInfo {
@@ -74,6 +78,9 @@ export interface RobotModel {
   mapImage: string | null;
   /** State of the map image entity (changes whenever HA refreshes the map). */
   mapStamp: string | null;
+  /** Max cleaning passes per room for this model. */
+  maxPasses: number;
+  model: string | null;
 }
 
 type Get = (entityId: string | undefined) => EntityStateLike | undefined;
@@ -172,6 +179,10 @@ export function buildRobot(
   const fanList = vacuum?.attributes.fan_speed_list;
   const fan = vacuum?.attributes.fan_speed;
   const errorCode = text(get(b('error')));
+  const model =
+    meta?.model ??
+    (typeof vacuum?.attributes.model === 'string' ? vacuum.attributes.model : null);
+  const maxPasses = meta?.max_passes ?? maxPassesForModel(model);
   return {
     slot,
     name:
@@ -220,6 +231,8 @@ export function buildRobot(
     mapsError: meta ? meta.maps_error : null,
     mapImage: imageUrl(get(b('map_image'))),
     mapStamp: text(get(b('map_image'))),
+    maxPasses,
+    model,
   };
 }
 

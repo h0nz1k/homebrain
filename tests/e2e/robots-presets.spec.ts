@@ -127,7 +127,7 @@ const DEEP_VIEWPORTS = [
 ] as const;
 
 for (const vp of DEEP_VIEWPORTS) {
-  test(`Důkladně+ jen při mopu – nápověda bez překryvu (${vp.width}×${vp.height})`, async ({
+  test(`Důkladné trasy jen při mopu – nápověda bez překryvu (${vp.width}×${vp.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(vp);
@@ -136,16 +136,20 @@ for (const vp of DEEP_VIEWPORTS) {
     const controls = page.getByTestId('robots-controls');
     await controls.getByRole('radio', { name: 'Obojí' }).click();
     await expect(controls.getByRole('radio', { name: 'Důkladně+' })).toHaveCount(0);
+    await expect(controls.getByRole('radio', { name: 'Důkladně', exact: true })).toHaveCount(0);
     await controls.getByRole('radio', { name: 'Mopovat' }).click();
     await controls.getByRole('radio', { name: 'Důkladně+' }).click();
     await controls.getByRole('radio', { name: 'Obojí' }).click();
-    const hint = page.getByTestId('robots-deepplus-hint');
+    const hint = page.getByTestId('robots-deep-routes-hint');
     await expect(hint).toHaveText(
-      'Důkladně+ robot umí jen při samotném vytírání – použije se Důkladně.',
+      'Důkladné trasy robot používá jen při samotném vytírání – při vysávání s vytíráním se použije Standardní.',
     );
+    await expect(controls.getByRole('radio', { name: '3×' })).toHaveCount(0);
     const box = await hint.boundingBox();
     const foot = await page.getByTestId('robots-start').boundingBox();
-    expect(box && foot && box.y + box.height).toBeLessThanOrEqual(foot.y + 1);
+    expect(box).not.toBeNull();
+    expect(foot).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(foot!.y + 1);
   });
 }
 

@@ -16,6 +16,7 @@ from ..const import DOMAIN
 from .config import ROBOT_SLOTS, slot_settings
 from .discovery import discover_floor
 from .map_source import RASTER_PATH, VectorMapCache
+from .models import max_passes_for_model, model_for_vacuum
 from .presets import (
     MAX_PASSES,
     MODES,
@@ -61,6 +62,7 @@ async def websocket_robots_get(
             continue
         rooms = await cache.async_get(vacuum, refresh=msg["refresh"])
         settings = slot_settings(entry.options, slot)
+        model = model_for_vacuum(hass, vacuum)
         robots.append(
             {
                 "slot": slot,
@@ -68,6 +70,8 @@ async def websocket_robots_get(
                 # HA area -> floor of the vacuum's device; the manual floor is the fallback.
                 "floor": discover_floor(hass, vacuum) or settings["floor"],
                 "vacuum": vacuum,
+                "model": model,
+                "max_passes": max_passes_for_model(model),
                 "maps": rooms["maps"],
                 "maps_error": rooms["error"],
                 "maps_updated_at": rooms["updated_at"],

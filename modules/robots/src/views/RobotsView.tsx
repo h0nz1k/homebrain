@@ -42,7 +42,8 @@ import { GuideSheet, useGuides } from './GuideSheet.js';
 import { PresetSheet, type PresetEditorTarget } from './PresetSheet.js';
 import { SchedulesCard } from './SchedulesCard.js';
 import {
-  DEEP_PLUS_HINT,
+  DEEP_ROUTES,
+  DEEP_ROUTES_HINT,
   MAX_PLUS,
   MAX_PLUS_HINT,
   resolvedRoute,
@@ -295,7 +296,6 @@ function RobotPanel({
   // Max+ only in vacuum-only mode (Roborock flips the mode / drops Max+ otherwise).
   const fan = rawFan === MAX_PLUS && mode !== 'vacuum' ? 'max' : rawFan;
   const [maxPlusHint, setMaxPlusHint] = useState(false);
-  const [deepPlusHint, setDeepPlusHint] = useState(false);
   const water = pickOr(
     waterPick,
     robot.water?.choices ?? null,
@@ -313,9 +313,11 @@ function RobotPanel({
     const downgradedFan = fan === MAX_PLUS && next !== 'vacuum';
     setMaxPlusHint(downgradedFan);
     if (downgradedFan) setFan('max');
-    const downgradedRoute = mopRoute === 'deep_plus' && next === 'both';
-    setDeepPlusHint(downgradedRoute);
-    if (downgradedRoute) setMopRoute('deep');
+    const downgradedRoute =
+      !!mopRoute &&
+      DEEP_ROUTES.includes(mopRoute as (typeof DEEP_ROUTES)[number]) &&
+      next === 'both';
+    if (downgradedRoute) setMopRoute('standard');
   };
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
@@ -483,7 +485,7 @@ function RobotPanel({
       notify.dismiss(toastId);
       startCleaning(connection, { slot: robot.slot, preset_id: preset.id })
         .then((result) => {
-          if (result.started === false || result.mode_flipped) {
+          if (result.paused || result.started === false || result.mode_flipped) {
             for (const text of startCleaningToasts(result)) notify.error(text);
             return;
           }
@@ -548,7 +550,7 @@ function RobotPanel({
       // reports them and only then starts the robot (no race with the old suction/water).
       if (confirm.start) {
         const result = await startCleaning(connection, confirm.start);
-        if (result.started === false || result.mode_flipped) {
+        if (result.paused || result.started === false || result.mode_flipped) {
           for (const text of startCleaningToasts(result)) notify.error(text);
         } else {
           notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
@@ -1098,15 +1100,19 @@ function RobotPanel({
                       onChange={setWater}
                     />
                   )}
-                  {deepPlusHint && (
-                    <p
-                      className="rb-micro rb-hint"
-                      role="status"
-                      data-testid="robots-deepplus-hint"
-                    >
-                      {DEEP_PLUS_HINT}
-                    </p>
-                  )}
+                  {mops &&
+                    mode === 'both' &&
+                    robot.mopRoute?.choices.some((r) =>
+                      DEEP_ROUTES.includes(r as (typeof DEEP_ROUTES)[number]),
+                    ) && (
+                      <p
+                        className="rb-micro rb-hint"
+                        role="status"
+                        data-testid="robots-deep-routes-hint"
+                      >
+                        {DEEP_ROUTES_HINT}
+                      </p>
+                    )}
                   {advanced && mops && robot.mopRoute && (
                     <CleaningOptionRow
                       label="Mopování"
@@ -1119,7 +1125,6 @@ function RobotPanel({
                       ])}
                       onChange={(value) => {
                         setMopRoute(value);
-                        setDeepPlusHint(false);
                       }}
                     />
                   )}
@@ -1129,11 +1134,10 @@ function RobotPanel({
                       className="rb-adv"
                       iconKind="passes"
                       value={String(passes)}
-                      options={[
-                        ['1', '1×'],
-                        ['2', '2×'],
-                        ['3', '3×'],
-                      ]}
+                      options={Array.from({ length: robot.maxPasses }, (_, i) => [
+                        String(i + 1),
+                        `${i + 1}×`,
+                      ])}
                       onChange={(value) => setPasses(Number(value))}
                     />
                   )}

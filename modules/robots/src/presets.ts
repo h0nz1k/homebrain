@@ -11,6 +11,7 @@ import {
   type ServiceCallPlan,
 } from './commands.js';
 import type { RobotModel } from './model.js';
+import { MAX_PASSES_ABSOLUTE, maxPassesForModel } from './passes.js';
 
 /**
  * Per-robot default cleaning setup and named presets (backend: `homebrain/robots/presets/*`,
@@ -21,7 +22,7 @@ export interface CleanSettings {
   fan: string | null;
   water: string | null;
   route: string | null;
-  /** Passes per room (Roborock `repeat`, 1–3). */
+  /** Passes per room (Roborock `repeat`; max depends on model, up to 3). */
   passes: number;
 }
 export interface RobotPreset extends CleanSettings {
@@ -43,7 +44,7 @@ export interface StartRequest {
   settings?: Partial<CleanSettings>;
 }
 
-export const MAX_PASSES = 3;
+export const MAX_PASSES = MAX_PASSES_ABSOLUTE;
 export const PRESET_NAME_MAX = 40;
 const SETTING_KEYS = ['mode', 'fan', 'water', 'route', 'passes'] as const;
 
@@ -93,25 +94,35 @@ export function robotCapabilities(robot: RobotModel): RobotCapabilities {
 export const MAX_PLUS = 'max_plus';
 export const MAX_PLUS_HINT = 'Max+ jen při samotném vysávání';
 export const DEEP_PLUS = 'deep_plus';
-export const DEEP_PLUS_HINT =
-  'Důkladně+ robot umí jen při samotném vytírání – použije se Důkladně.';
-export const DEEP_PLUS_SKIPPED_TOAST =
-  'Robot by s Důkladně+ jen vytíral, spustil jsem Důkladně.';
+export const DEEP_ROUTES = ['deep', 'deep_plus'] as const;
+export const DEEP_ROUTES_HINT =
+  'Důkladné trasy robot používá jen při samotném vytírání – při vysávání s vytíráním se použije Standardní.';
+export const DEEP_ROUTES_SKIPPED_TOAST =
+  'Důkladná trasa jen při vytírání – spustil jsem Standardní trasu.';
 export const MODE_FLIPPED_TOAST =
-  'Robot si přepnul režim na jen vytírání – zkontrolujte nastavení v aplikaci robota.';
+  'Robot si přepnul režim – úklid se nespustil. Zkontrolujte nastavení v aplikaci robota.';
+export const PAUSED_TOAST =
+  'Robot má rozpracovaný úklid – nejdřív ho ukončete nebo pokračujte.';
 
 /** Max+ suction is offered only in vacuum-only mode („Ponechat“ + Max+ is not allowed). */
 export function fansForMode(fans: string[], mode: CleanMode | null): string[] {
   return mode === 'vacuum' ? fans : fans.filter((f) => f !== MAX_PLUS);
 }
 
-/** Deep+ mop route is offered only in mop-only mode (vac+mop would flip the robot to mop). */
+/** Deep routes are mop-only; vac+mop keeps fast/standard/smart/custom. */
 export function routesForMode(routes: string[], mode: CleanMode | null): string[] {
-  return mode === 'mop' ? routes : routes.filter((r) => r !== DEEP_PLUS);
+  return mode === 'mop'
+    ? routes
+    : routes.filter((r) => !DEEP_ROUTES.includes(r as (typeof DEEP_ROUTES)[number]));
 }
 
 export function resolvedRoute(route: string | null, mode: CleanMode | null): string | null {
-  if (route === DEEP_PLUS && mode === 'both') return 'deep';
+  if (
+    route &&
+    DEEP_ROUTES.includes(route as (typeof DEEP_ROUTES)[number]) &&
+    mode === 'both'
+  )
+    return 'standard';
   return route;
 }
 
@@ -129,10 +140,13 @@ export function applyMode<
 ): { next: T; downgradedFan: boolean; downgradedRoute: boolean } {
   const downgradedFan = settings.fan === MAX_PLUS && mode !== 'vacuum';
   const fan = downgradedFan ? (fans.includes('max') ? 'max' : null) : settings.fan;
-  const downgradedRoute = settings.route === DEEP_PLUS && mode === 'both';
+  const downgradedRoute =
+    !!settings.route &&
+    DEEP_ROUTES.includes(settings.route as (typeof DEEP_ROUTES)[number]) &&
+    mode === 'both';
   const route = downgradedRoute
-    ? routes.includes('deep')
-      ? 'deep'
+    ? routes.includes('standard')
+      ? 'standard'
       : null
     : (settings.route ?? null);
   return {
@@ -143,7 +157,12 @@ export function applyMode<
 }
 
 /** Drop values the robot does not expose (another model, removed option). */
-export function fitSettings(settings: CleanSettings, caps: RobotCapabilities): CleanSettings {
+export function fitSettings(
+  settings: CleanSettings,
+  caps: RobotCapabilities,
+  maxPasses: number = MAX_PASSES,
+): CleanSettings {
+  const passCap = Math.min(MAX_PASSES, Math.max(1, maxPasses));
   return {
     mode: settings.mode && caps.modes.includes(settings.mode) ? settings.mode : null,
     fan:
@@ -156,10 +175,12 @@ export function fitSettings(settings: CleanSettings, caps: RobotCapabilities): C
     route:
       settings.route && routesForMode(caps.routes, settings.mode).includes(settings.route)
         ? settings.route
-        : settings.route === DEEP_PLUS && caps.routes.includes('deep')
-          ? 'deep'
+        : settings.route &&
+            DEEP_ROUTES.includes(settings.route as (typeof DEEP_ROUTES)[number]) &&
+            caps.routes.includes('standard')
+          ? 'standard'
           : null,
-    passes: Math.min(MAX_PASSES, Math.max(1, Math.round(settings.passes || 1))),
+    passes: Math.min(passCap, Math.max(1, Math.round(settings.passes || 1))),
   };
 }
 
@@ -186,7 +207,7 @@ export function planStart(
   settings: CleanSettings,
   roomIds: number[],
 ): ServiceCallPlan[] {
-  const fitted = fitSettings(settings, robotCapabilities(robot));
+  const fitted = fitSettings(settings, robotCapabilities(robot), robot.maxPasses);
   const runMode = fitted.mode ?? robot.mode;
   const rooms = roomIds
     .map((id) => robot.rooms.find((room) => room.id === id) ?? { id, name: `#${id}` })
@@ -302,13 +323,17 @@ export interface StartCleaningResult {
   skipped: string[];
   unconfirmed?: string[];
   mode_flipped?: boolean;
+  paused?: boolean;
 }
 
 /** Czech toasts after a successful or aborted backend start. */
 export function startCleaningToasts(result: StartCleaningResult): string[] {
   const out: string[] = [];
-  if (result.mode_flipped) out.push(MODE_FLIPPED_TOAST);
-  else if (result.skipped?.includes('deep_plus')) out.push(DEEP_PLUS_SKIPPED_TOAST);
+  if (result.paused) out.push(PAUSED_TOAST);
+  else if (result.mode_flipped) out.push(MODE_FLIPPED_TOAST);
+  else if (result.skipped?.some((s) => DEEP_ROUTES.includes(s as (typeof DEEP_ROUTES)[number])))
+    out.push(DEEP_ROUTES_SKIPPED_TOAST);
+  else if (result.skipped?.includes('passes')) out.push('Počet průchodů byl omezen na maximum pro tento model robota.');
   return out;
 }
 
