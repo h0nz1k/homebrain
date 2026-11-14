@@ -74,10 +74,20 @@ export const heatingStyles = `
 .ht-changes li:last-child { border-bottom: 0; }
 .ht-change-values { white-space: nowrap; }
 .ht-change-late {
-  font-size: 12px; color: var(--hb-t2); cursor: help;
-  text-decoration: underline dotted color-mix(in srgb, var(--hb-t2) 55%, transparent);
-  text-underline-offset: 3px;
+  font-size: 12px; color: var(--hb-t2); line-height: 1.4;
+  flex: 1 1 100%;
 }
+.ht-hero[data-state='off'].hb-card { --hb-signal-tone: var(--hb-t2); }
+.ht-c3[data-state='off'] .ht-c3-window { opacity: 0.52; }
+.ht-c3[data-state='off'] .ht-c3-draw,
+.ht-c3[data-state='off'] .ht-c3-indicator,
+.ht-c3[data-state='off'] .ht-c3-cold-inlet { stroke: var(--ht-c3-inactive); opacity: 0.9; }
+.ht-c3[data-state='off'] .ht-c3-direction { display: none; }
+.ht-c3[data-state='off'] .ht-c3-route.ht-c3-hot > path,
+.ht-c3[data-state='off'] .ht-c3-route.ht-c3-cold > path,
+.ht-c3[data-state='off'] .ht-c3-route.ht-c3-solar > path,
+.ht-c3[data-state='off'] .ht-c3-route.ht-c3-ground > path { stroke: var(--ht-c3-inactive); }
+[data-theme='light'] .ht-c3[data-state='off'] .ht-c3-draw { stroke: var(--ht-c3-inactive); opacity: 0.9; }
 .ht-alerts li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ht-alerts li { flex-direction: column; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--hb-t2) 12%, transparent); }
 .ht-alerts li:last-child { border-bottom: 0; }

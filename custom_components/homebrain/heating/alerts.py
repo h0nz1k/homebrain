@@ -214,9 +214,9 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
             emit(
                 "solar_off_hot",
                 sev,
-                "Solár je vypnutý a kolektor je horký",
-                f"Kolektor má {t} °C, ale solár je na regulaci vypnutý – teplo se neukládá "
-                f"a kapalina se přehřívá. Zapněte solár na regulaci.",
+                "Solár je vypnutý a kolektor se přehřívá",
+                f"Kolektor má {t}\u202f°C, ale solární ohřev je v regulaci vypnutý – teplo se "
+                f"neukládá a kapalina se přehřívá. Zapněte solární ohřev v regulaci.",
                 t,
             )
         elif st.active_since and _debounced(
@@ -345,7 +345,7 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
                 "hp_off",
                 sev,
                 "Tepelné čerpadlo je vypnuté",
-                "Hlavní vypínač na regulaci je vypnutý.",
+                "Hlavní vypínač v regulaci je vypnutý.",
             )
     else:
         clear_rule("hp_off")

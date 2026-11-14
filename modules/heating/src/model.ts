@@ -32,6 +32,13 @@ export function fmtNum(v: number | null | undefined, digits = 1): string {
 export const fmtT = (v: number | null | undefined, digits = 1) =>
   v === null || v === undefined ? '–' : `${fmtNum(v, digits)}\u202f°C`;
 
+/** Alert + hero temperatures – whole degrees when the value is (near) integral. */
+export function fmtTempView(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '–';
+  const digits = Math.abs(v - Math.round(v)) < 0.05 ? 0 : 1;
+  return fmtT(v, digits);
+}
+
 /** Heat-pump meter: watts below 1 kW, otherwise kW with Czech decimal comma. */
 export function fmtHpPower(w: number | null | undefined): string {
   if (w === null || w === undefined || !Number.isFinite(w)) return '–';
@@ -166,7 +173,7 @@ function applyBannerHeroCopy(base: ActivityModel, snap: HeatingSnapshot): Activi
       tone: alert.severity === 'critical' ? 'crit' : 'warn',
       pill: 'Solár · stagnace',
       headline: ['Kolektor se ', 'přehřívá, čerpadlo stojí', ''],
-      detail: temp !== null ? `Kolektor ${fmtT(temp)} · čerpadlo stojí.` : 'Čerpadlo soláru stojí.',
+      detail: temp !== null ? `Kolektor ${fmtTempView(temp)}` : '',
     };
   }
 
@@ -362,7 +369,7 @@ function finishActivity(base: ActivityModel, snap: HeatingSnapshot): ActivityMod
           : ['Solár ', 'čerpá bez ohřevu nádrže', '.'],
       detail:
         state === 'stagnation' && solar != null && solar.temp !== null
-          ? `Kolektor ${fmtT(solar.temp)} · čerpadlo stojí.`
+          ? `Kolektor ${fmtTempView(solar.temp)}`
           : SOLAR_WARN_COPY[state],
     };
   }
@@ -846,6 +853,7 @@ export function heroScene(snap: HeatingSnapshot) {
   if (heatingOff) {
     return {
       scenario: 'idle' as const,
+      schematicOff: true as const,
       activePipes: [] as string[],
       port:
         snap.dhw.valve_to_dhw === null
@@ -882,6 +890,7 @@ export function heroScene(snap: HeatingSnapshot) {
   }
   return {
     scenario,
+    schematicOff: false as const,
     activePipes,
     port:
       snap.dhw.valve_to_dhw === null

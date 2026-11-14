@@ -31,7 +31,8 @@ describe('activityModel with banner', () => {
     const snap = buildMockSnapshot('solar-off-hot', 0, NOW);
     const m = activityModel(snap, NOW);
     expect(m.headline.join('')).toContain('přehřívá, čerpadlo stojí');
-    expect(m.detail).toMatch(/118.*čerpadlo stojí/);
+    expect(m.detail).toMatch(/Kolektor 118\u202f°C/);
+    expect(m.detail).not.toMatch(/čerpadlo stojí/);
     expect(m.tone).toBe('crit');
     expect(m.solarWarn).toBeUndefined();
     expect(m.detail).not.toMatch(/Zapněte solár/);

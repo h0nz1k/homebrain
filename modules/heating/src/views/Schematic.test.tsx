@@ -92,8 +92,15 @@ describe('C3 measured state and routes', () => {
     const snap = buildMockSnapshot('off', 0);
     const scene = heroScene(snap);
     expect(scene.activePipes).toEqual([]);
+    expect(scene.schematicOff).toBe(true);
     expect(scene.hpMuted).toBe(true);
     expect(scene.supplyMuted).toBe(true);
+    render(<HeatingSchematic snap={snap} />);
+    const root = screen.getByTestId('heating-schematic');
+    expect(root.getAttribute('data-state')).toBe('off');
+    expect(root.querySelector('[data-active].ht-c3-hot')).toBeNull();
+    expect(root.querySelector('.ht-c3-direction')).toBeNull();
+    expect(screen.getByTestId('heating-sch-hp-out').textContent).toMatch(/naposledy/);
   });
   it('solar scenario: schematic hides collector circuit when SCHEMATIC_SOLAR is off', () => {
     const snap = buildMockSnapshot('solar', 0);

@@ -750,6 +750,18 @@ test.describe('Topení', () => {
     await page.goto('/homebrain-topeni?topeni=off&theme=dark');
     const sch = page.getByTestId('heating-schematic');
     await expect(sch).toBeVisible({ timeout: 20_000 });
+    await expect(sch).toHaveAttribute('data-state', 'off');
     await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
+    await expect(sch.locator('[data-active].ht-c3-hot')).toHaveCount(0);
+    await expect(page.getByTestId('heating-hero')).not.toContainText('Kompresor stojí');
+  });
+
+  test('Upozornění solar-off-hot: hero jen kolektor v podřádku', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
+    const detail = page.getByTestId('heating-hero').locator('.ht-hero-detail');
+    await expect(detail).toBeVisible({ timeout: 20_000 });
+    await expect(detail).toHaveText(/Kolektor 118\u202f°C/);
+    await expect(detail).not.toContainText('čerpadlo stojí');
   });
 });

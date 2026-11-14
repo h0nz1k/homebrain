@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { HEATING_LOGO_ROOT, useHeatingLogoManifest, type HeatingLogoManifest } from '../logo.js';
-import { fmtDuration, fmtT as formatTemperature, heroScene } from '../model.js';
+import { fmtDuration, fmtT, fmtTempView, heroScene } from '../model.js';
 import { solarConfigured } from '../solar.js';
 import type { HeatingSnapshot } from '../types.js';
 
@@ -51,8 +51,8 @@ function compressorLabel(hp: HeatingSnapshot['heat_pump']): string {
   return base;
 }
 
-const fmtT = (value: number | null, digits = 1) =>
-  value === null ? '' : formatTemperature(value, digits).replace(/\s°C$/u, '\u202f°C');
+const fmtSchT = (value: number | null | undefined, digits = 1) =>
+  value === null || value === undefined ? '' : fmtT(value, digits);
 
 // Tank-in-tank (Refs #82): every pipe meets the outer shell with a short perpendicular stub and
 // runs in its own lane at least 20 CSS px away from the tank, so nothing is drawn along the wall.
@@ -291,11 +291,18 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const pageTheme = usePageTheme();
   const showLogo = logoManifest != null && !logoFailed;
   const compHint = compressorLabel(hp);
+  const off = scene.schematicOff;
+  const hpFlowLabel = (prefix: string, temp: number | null) => {
+    if (temp === null) return `${prefix} `;
+    const t = fmtSchT(temp);
+    return off ? `${prefix} ${t} (naposledy)` : `${prefix} ${t}`;
+  };
   return (
     <div
       ref={root}
       className="ht-c3"
       data-testid="heating-schematic"
+      data-state={off ? 'off' : 'on'}
       data-compressor={
         hp.compressor_on === true ? 'on' : hp.compressor_on === false ? 'off' : 'unknown'
       }
@@ -398,9 +405,9 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             <Label x={206} y={193} anchor="middle" id="dhw" muted={snap.dhw.temp === null}>
               Teplá voda
               <tspan x="206" dy="19" className="ht-c3-dhw-value">
-                {fmtT(snap.dhw.temp).slice(0, -3)}
+                {fmtSchT(snap.dhw.temp).slice(0, -3)}
                 {snap.dhw.temp !== null && (
-                  <tspan className="ht-c3-dhw-unit">{fmtT(snap.dhw.temp).slice(-3)}</tspan>
+                  <tspan className="ht-c3-dhw-unit">{fmtSchT(snap.dhw.temp).slice(-3)}</tspan>
                 )}
               </tspan>
               <tspan
@@ -408,7 +415,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 dy="17"
                 className={snap.dhw.target === null ? 'ht-c3-muted' : undefined}
               >
-                {snap.dhw.target === null ? '' : `cíl ${fmtT(snap.dhw.target, 0)}`}
+                {snap.dhw.target === null ? '' : `cíl ${fmtTempView(snap.dhw.target)}`}
               </tspan>
             </Label>
             <rect
@@ -423,7 +430,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             <Label x={181} y={348} anchor="middle" id="tank" muted={snap.tank.bottom === null}>
               Nádrž dole
               <tspan x="181" dy="27" className="ht-c3-tank-value">
-                {fmtT(snap.tank.bottom).replace(/\s°C$/u, '')}
+                {fmtSchT(snap.tank.bottom).replace(/\s°C$/u, '').replace(/\u202f°C$/u, '')}
                 {snap.tank.bottom !== null && <tspan className="ht-c3-unit">{'\u202f°C'}</tspan>}
               </tspan>
             </Label>
@@ -443,7 +450,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               }`}
             >
               <path d={d} />
-              <Directions id={id} />
+              {!off && <Directions id={id} />}
               {scene.activePipes.includes(id) &&
                 id !== 'mixing-bypass' &&
                 (id.startsWith('solar-') ? snap.extras.solar?.state === 'heating' : true) && (
@@ -454,7 +461,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           {/* Cold mains rise from the ground straight into the bottom of the inner DHW vessel. */}
           <g data-pipe-id="cold-water">
             <path d="M228 506V254" className="ht-c3-cold-inlet" />
-            <Directions id="cold-water" />
+            {!off && <Directions id="cold-water" />}
           </g>
           <Label x={233.5} y={506.3} id="cold-water">
             studená voda
@@ -462,7 +469,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
           {/* Standing hot water: deliberately static, not a simulated draw. */}
           <g data-pipe-id="dhw-draw">
             <path d="M192 146V84Q192 76 184 76H88.4" className="ht-c3-draw" />
-            <Directions id="dhw-draw" />
+            {!off && <Directions id="dhw-draw" />}
           </g>
           <g
             className="ht-c3-tap"
@@ -540,10 +547,10 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             Ventil TUV
           </Label>
           <Label x={21} y={291.3} id="hp-out" muted={scene.hpMuted || hp.condenser_out === null}>
-            výstup <tspan>{fmtT(hp.condenser_out)}</tspan>
+            {hpFlowLabel('výstup', hp.condenser_out)}
           </Label>
           <Label x={29} y={312.8} id="hp-in" muted={scene.hpMuted || hp.return_temp === null}>
-            vstup <tspan>{fmtT(hp.return_temp)}</tspan>
+            {hpFlowLabel('vstup', hp.return_temp)}
           </Label>
           {showSolar && (
             <>

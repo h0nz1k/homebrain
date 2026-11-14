@@ -481,9 +481,9 @@ export function buildMockSnapshot(
       {
         id: 'solar_off_hot',
         severity: 'critical',
-        title: 'Solár je vypnutý a kolektor je horký',
+        title: 'Solár je vypnutý a kolektor se přehřívá',
         body:
-          'Kolektor má 118 °C, ale solár je na regulaci vypnutý – teplo se neukládá a kapalina se přehřívá. Zapněte solár na regulaci.',
+          'Kolektor má 118\u202f°C, ale solární ohřev je v regulaci vypnutý – teplo se neukládá a kapalina se přehřívá. Zapněte solární ohřev v regulaci.',
         since: iso(now - 95 * MIN),
         value: '118',
       },
@@ -500,7 +500,7 @@ export function buildMockSnapshot(
         id: 'hp_off',
         severity: 'warning',
         title: 'Tepelné čerpadlo je vypnuté',
-        body: 'Hlavní vypínač na regulaci je vypnutý.',
+        body: 'Hlavní vypínač v regulaci je vypnutý.',
         since: iso(now - 40 * MIN),
       },
     ];

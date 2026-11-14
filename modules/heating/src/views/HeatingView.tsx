@@ -267,12 +267,15 @@ function NowTab({
   const landHeadline =
     sceneCopy?.[0] ??
     `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
+  const heroCardTone =
+    act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : act.state === 'off' ? 'notice' : 'calm';
+  const showCompressorMeta = act.state !== 'off';
   return (
     <div className="ht-now">
       <AlertBanner snap={snap} onDetail={() => go('poruchy')} />
       <Card
         className="ht-hero ht-hero-now"
-        tone={act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : 'calm'}
+        tone={heroCardTone}
         data-testid="heating-hero"
         data-state={act.state}
       >
@@ -282,16 +285,18 @@ function NowTab({
               {sceneCopy?.[2] ?? act.pill}
             </Pill>
             <p className="ht-land-strip-head">{landHeadline}</p>
-            <p className="ht-land-strip-meta">
-              <span>{compressorLine}</span>
-              <span className="ht-land-strip-sep" aria-hidden="true">
-                ·
-              </span>
-              <b className={hp.power_w === null ? 'ht-muted' : undefined}>
-                Elektřina TČ {powerLine}
-                {hp.energy_today_kwh !== null ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
-              </b>
-            </p>
+            {showCompressorMeta && (
+              <p className="ht-land-strip-meta">
+                <span>{compressorLine}</span>
+                <span className="ht-land-strip-sep" aria-hidden="true">
+                  ·
+                </span>
+                <b className={hp.power_w === null ? 'ht-muted' : undefined}>
+                  Elektřina TČ {powerLine}
+                  {hp.energy_today_kwh !== null ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
+                </b>
+              </p>
+            )}
             <LandscapePumpChips snap={snap} />
             {act.solarWarn && !bannerAlert(snap) && (
               <p className="ht-insight ht-land-only">{act.solarWarn}</p>
@@ -319,17 +324,19 @@ function NowTab({
                 {act.solarWarn}
               </p>
             )}
-            <p className="ht-run-meta">
-              <span>{compressorLine}</span>
-              {hpElectricityVisible(snap) && (
-                <b>
-                  Elektřina TČ {powerLine}
-                  {hp.energy_today_kwh !== null
-                    ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh`
-                    : ''}
-                </b>
-              )}
-            </p>
+            {showCompressorMeta && (
+              <p className="ht-run-meta">
+                <span>{compressorLine}</span>
+                {hpElectricityVisible(snap) && (
+                  <b>
+                    Elektřina TČ {powerLine}
+                    {hp.energy_today_kwh !== null
+                      ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh`
+                      : ''}
+                  </b>
+                )}
+              </p>
+            )}
           </div>
           <div className="ht-now-schematic">
             <HeatingSchematic snap={snap} />
@@ -896,11 +903,8 @@ function ChangesCard({ api }: { api: HeatingApi }) {
               </span>
             </span>
             {e.late && (
-              <span
-                className="ht-change-late"
-                title="Čas zjištění změny v HomeBrainu, ne nutně okamžik přepnutí na regulaci."
-              >
-                zjištěno později
+              <span className="ht-change-late">
+                zjištěno později – změna proběhla mimo HomeBrain, čas je přibližný
               </span>
             )}
           </li>
