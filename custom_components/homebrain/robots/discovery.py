@@ -47,6 +47,15 @@ DEVICE_CLASSES: Final[dict[tuple[str, str], str]] = {("sensor", "battery"): "bat
 DOCK_SUFFIX: Final = "_dock"
 
 
+def vacuum_device_model(hass: HomeAssistant, vacuum: str) -> str | None:
+    """HA device model string for a bound vacuum (e.g. ``roborock.vacuum.a187``)."""
+    if (found := _vacuum_device(hass, vacuum)) is None:
+        return None
+    _, device = found
+    model = device.model
+    return model if isinstance(model, str) and model else None
+
+
 def _vacuum_device(
     hass: HomeAssistant, vacuum: str
 ) -> tuple[er.RegistryEntry, dr.DeviceEntry] | None:

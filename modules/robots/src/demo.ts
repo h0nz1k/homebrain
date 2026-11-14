@@ -1,5 +1,6 @@
 import type { EntityStateLike } from '@homebrain/ha-client';
 import type { RobotMeta } from './model.js';
+import { MODEL_A144, MODEL_A187, MODEL_A27, maxPassesForModel } from './passes.js';
 
 /** Synthetic robots for the dev server, unit tests and e2e (no real house data). */
 export type RobotsScenario = 'default' | 'calm' | 'error' | 'docked' | 'water';
@@ -102,6 +103,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
   const modeKraken = ['vacuum', 'vac_and_mop', 'mop'];
   const robots: {
     slot: number;
+    model: string;
     vacuum: string;
     status: string;
     fan: string;
@@ -116,6 +118,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
   }[] = [
     {
       slot: 1,
+      model: MODEL_A144,
       // `docked`: robot 1 waits in its dock (plan a clean; pair with the map scene `dok`).
       // `water`: segment clean with dock_error water_empty (Kraken-like advanced selects).
       vacuum: scenario === 'docked' ? 'docked' : 'cleaning',
@@ -133,6 +136,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     },
     {
       slot: 2,
+      model: MODEL_A187,
       vacuum: scenario === 'calm' ? 'docked' : 'error',
       status: scenario === 'calm' ? 'charging_complete' : 'error',
       fan: 'max',
@@ -152,6 +156,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
     },
     {
       slot: 3,
+      model: MODEL_A27,
       vacuum: 'docked',
       status: 'charging',
       fan: 'turbo',
@@ -176,6 +181,7 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       last_updated: at,
       attributes: {
         friendly_name: layout.name,
+        model: r.model,
         fan_speed: r.fan,
         fan_speed_list: r.slot === 1 ? fanKraken : r.slot === 3 ? fanKraken.filter((f) => f !== 'smart_mode') : fanKraken,
       },
@@ -212,11 +218,19 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       options: r.slot === 1 ? modeKraken : ['vacuum', 'vac_and_mop', 'mop', 'custom'],
     });
     if (r.slot !== 3) {
+      const waterOpts =
+        r.slot === 1
+          ? waterKraken
+          : r.slot === 2
+            ? ['off', 'low', 'medium', 'high', 'custom_water_flow']
+            : ['off', 'mild', 'standard', 'intense', 'custom'];
       put(r.slot, 'mop_intensity', 'select', r.slot === 1 ? 'moderate' : 'moderate', {
-        options: r.slot === 1 ? waterKraken : ['off', 'mild', 'moderate', 'intense', 'custom'],
+        options: waterOpts,
       });
+      const routeOpts =
+        r.slot === 1 ? mopKraken : r.slot === 2 ? ['fast', 'standard', 'deep', 'deep_plus'] : ['standard', 'deep', 'deep_plus', 'fast'];
       put(r.slot, 'mop_mode', 'select', 'standard', {
-        options: r.slot === 1 ? mopKraken : ['standard', 'deep', 'deep_plus', 'custom'],
+        options: routeOpts,
       });
     }
     put(
@@ -234,6 +248,8 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       floor: layout.floor,
       image: '',
       vacuum: vacuumId,
+      model: r.model,
+      max_passes: maxPassesForModel(r.model),
       maps: [
         {
           flag: r.slot === 3 ? 1 : 0,

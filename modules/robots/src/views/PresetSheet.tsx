@@ -11,8 +11,10 @@ import {
 } from '../commands.js';
 import type { RobotModel } from '../model.js';
 import {
-  MAX_PASSES,
+  DEEP_ROUTES,
+  DEEP_ROUTES_HINT,
   MAX_PLUS_HINT,
+  routesForMode,
   PRESET_NAME_MAX,
   applyMode,
   fansForMode,
@@ -163,7 +165,9 @@ export function CleanSettingsFields({
   const caps = robotCapabilities(robot);
   const mops = modeMops(value.mode ?? robot.mode);
   const [maxPlusHint, setMaxPlusHint] = useState(false);
+  const [deepRoutesHint, setDeepRoutesHint] = useState(false);
   const fans = fansForMode(caps.fans, value.mode);
+  const routes = routesForMode(caps.routes, value.mode);
   const pick = (option: string) => (option === KEEP ? null : option);
   const withKeep = (options: [string, string][]) => [
     [KEEP, 'Ponechat'] as [string, string],
@@ -178,9 +182,15 @@ export function CleanSettingsFields({
           value={value.mode ?? KEEP}
           options={withKeep(caps.modes.map((m) => [m, CLEAN_MODE_LABELS[m]]))}
           onChange={(v) => {
-            const { next, downgraded } = applyMode(value, pick(v) as CleanMode | null, caps.fans);
-            setMaxPlusHint(downgraded);
-            onChange({ mode: next.mode, fan: next.fan });
+            const { next, downgradedFan, downgradedRoute } = applyMode(
+              value,
+              pick(v) as CleanMode | null,
+              caps.fans,
+              caps.routes,
+            );
+            setMaxPlusHint(downgradedFan);
+            setDeepRoutesHint(downgradedRoute);
+            onChange({ mode: next.mode, fan: next.fan, route: next.route ?? value.route });
           }}
         />
       )}
@@ -198,6 +208,14 @@ export function CleanSettingsFields({
           {MAX_PLUS_HINT}
         </p>
       )}
+      {(deepRoutesHint ||
+        (mops &&
+          value.mode === 'both' &&
+          caps.routes.some((r) => DEEP_ROUTES.includes(r as (typeof DEEP_ROUTES)[number])))) && (
+        <p className="rb-micro rb-hint" role="status" data-testid="robots-deep-routes-hint">
+          {DEEP_ROUTES_HINT}
+        </p>
+      )}
       {mops && caps.water.length > 1 && (
         <SegmentedControl
           label="Voda"
@@ -212,7 +230,7 @@ export function CleanSettingsFields({
           label="Mopování"
           tone="accent"
           value={value.route ?? KEEP}
-          options={withKeep(caps.routes.map((r) => [r, MOP_ROUTE_LABELS[r] ?? r]))}
+          options={withKeep(routes.map((r) => [r, MOP_ROUTE_LABELS[r] ?? r]))}
           onChange={(v) => onChange({ route: pick(v) })}
         />
       )}
@@ -220,7 +238,7 @@ export function CleanSettingsFields({
         label="Průchody"
         tone="accent"
         value={String(value.passes)}
-        options={Array.from({ length: MAX_PASSES }, (_, i) => [String(i + 1), `${i + 1}×`])}
+        options={Array.from({ length: robot.maxPasses }, (_, i) => [String(i + 1), `${i + 1}×`])}
         onChange={(v) => onChange({ passes: Number(v) })}
       />
     </>
