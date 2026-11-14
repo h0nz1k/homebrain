@@ -104,7 +104,14 @@ def test_incident_replay_notify_three_calls():
     for m in range(0, 55, 5):
         temp = min(140, 20 + m * 3)
         step(m, **{"extras.solar_temp": float(temp)})
-    step(60, **{"extras.solar_enabled": True, "extras.solar_pump": True, "extras.solar_temp": 135.0})
+    step(
+        60,
+        **{
+            "extras.solar_enabled": True,
+            "extras.solar_pump": True,
+            "extras.solar_temp": 135.0,
+        },
+    )
     for m, temp in ((70, 80.0), (80, 60.0), (90, 44.0)):
         step(m, **{"extras.solar_temp": temp})
     tags = [c["tag"] for c in calls]
@@ -117,7 +124,12 @@ def test_incident_replay_notify_three_calls():
 async def test_dispatch_notify_silent_without_service():
     hass = MagicMock()
     hass.services.has_service.return_value = False
-    await dispatch_notify(hass, "owner", [{"title": "t", "message": "m"}], has_service=hass.services.has_service)
+    await dispatch_notify(
+        hass,
+        "owner",
+        [{"title": "t", "message": "m"}],
+        has_service=hass.services.has_service,
+    )
     hass.services.async_call.assert_not_called()
 
 

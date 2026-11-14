@@ -139,7 +139,11 @@ def test_resolve_and_payload_shape():
             "dhw_only",
         ),
         ({"heat_pump.compressor_on": True, "faults.fatal": True}, False, "fault"),
-        ({"heat_pump.compressor_on": False, "mode.main_switch": False, "faults.fatal": True}, False, "fault"),
+        (
+            {"heat_pump.compressor_on": False, "mode.main_switch": False, "faults.fatal": True},
+            False,
+            "fault",
+        ),
         ({"heat_pump.compressor_on": False}, True, "fault"),
         ({}, False, "idle"),
     ],

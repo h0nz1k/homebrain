@@ -32,8 +32,6 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
-from .client import TecomatAuthError, TecomatClient, TecomatConfig, TecomatError
-from .keys import DERIVED, KEYS
 from .alerts import (
     ActiveAlert,
     AlertState,
@@ -43,7 +41,9 @@ from .alerts import (
     format_change_notify,
     plan_notifications,
 )
-from .changes import ChangeLog, IMMEDIATE_NOTIFY_KEYS
+from .changes import IMMEDIATE_NOTIFY_KEYS, ChangeLog
+from .client import TecomatAuthError, TecomatClient, TecomatConfig, TecomatError
+from .keys import DERIVED, KEYS
 from .mapfile import HeatingMap, MapError, load_map_file
 from .model import (
     DayCounters,

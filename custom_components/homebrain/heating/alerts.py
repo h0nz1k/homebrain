@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -379,7 +380,11 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
     dhw_t = v("dhw.temp")
     dhw_tgt = v("dhw.target")
     dhw_h = v("dhw.hysteresis")
-    if isinstance(dhw_t, int | float) and isinstance(dhw_tgt, int | float) and isinstance(dhw_h, int | float):
+    if (
+        isinstance(dhw_t, int | float)
+        and isinstance(dhw_tgt, int | float)
+        and isinstance(dhw_h, int | float)
+    ):
         lim = float(dhw_tgt) - float(dhw_h) - 3
         st = state.rule("dhw_cold")
         cold = float(dhw_t) < lim
@@ -418,8 +423,14 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
             t = f"{float(fish_t):.1f}" if isinstance(fish_t, int | float) else "?"
             tgt = f"{float(fish_tgt):.1f}" if isinstance(fish_tgt, int | float) else "?"
             emit("fish_cold", sev, "Rybárna chladne", f"Vzduch {t} °C, má držet {tgt} °C.", t)
-        elif st.active_since and isinstance(fish_t, int | float) and isinstance(fish_tgt, int | float):
-            if isinstance(fish_h, int | float) and float(fish_t) >= float(fish_tgt) - float(fish_h):
+        elif (
+            st.active_since
+            and isinstance(fish_t, int | float)
+            and isinstance(fish_tgt, int | float)
+        ):
+            if isinstance(fish_h, int | float) and float(fish_t) >= float(fish_tgt) - float(
+                fish_h
+            ):
                 clear_rule("fish_cold")
 
     # --- hdo_long ---
