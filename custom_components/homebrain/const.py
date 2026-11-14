@@ -33,6 +33,18 @@ HEALTH_BINDING_KEYS = (
     "health_flex_meal_token",
 )
 ENERGY_BINDING_KEYS = (
+    "energy_battery_dod_ongrid",
+    "energy_battery_dod_backup",
+    "energy_battery_keep_dod",
+    "energy_fast_charge",
+    "energy_fast_charge_power",
+    "energy_fast_charge_soc",
+    "energy_eco_power",
+    "energy_eco_soc",
+    "energy_export_limit_enabled",
+    "energy_export_limit",
+    "energy_inverter_mode",
+    "energy_ems_mode",
     "energy_pv_power",
     "energy_pv1_power",
     "energy_pv2_power",
@@ -174,6 +186,18 @@ HEALTH_BINARY_BINDING_KEYS = (
 )
 # Entity domain(s) allowed per logical key (first = primary); unlisted keys default to "sensor".
 BINDING_DOMAINS: dict[str, str | tuple[str, ...]] = {
+    "energy_battery_dod_ongrid": "number",
+    "energy_battery_dod_backup": "number",
+    "energy_battery_keep_dod": "switch",
+    "energy_fast_charge": "switch",
+    "energy_fast_charge_power": "number",
+    "energy_fast_charge_soc": "number",
+    "energy_eco_power": "number",
+    "energy_eco_soc": "number",
+    "energy_export_limit_enabled": "switch",
+    "energy_export_limit": "number",
+    "energy_inverter_mode": "select",
+    "energy_ems_mode": "select",
     **{key: ("binary_sensor", "sensor") for key in HEALTH_BINARY_BINDING_KEYS},
     "waste_calendar": "calendar",
     "family_calendar_family": "calendar",
