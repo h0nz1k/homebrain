@@ -9,6 +9,8 @@
  *            PPDS příloha 4) or one phase carries ≥ 80 % of the main breaker.
  */
 
+import { formatPower } from '@homebrain/ui';
+
 export type PhaseState = 'ok' | 'notice' | 'warn';
 export type Triple<T> = [T, T, T];
 
@@ -63,7 +65,9 @@ const nf = (digits: number) =>
   new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 export const kw1 = (kw: number) => nf(1).format(Math.abs(kw)).replace('−', '');
 const label = (i: number) => `L${i + 1}`;
-const joinPhases = (idx: number[]) => idx.map(label).join(' + ');
+const joinPhases = (idx: number[]) => idx.map(label).join(' a ');
+/** Saldo amounts like the rest of Energie: watts under 1 kW, so small flows never read „0,1 kW“ thrice. */
+const power = (kw: number) => formatPower(Math.abs(kw), 'kW');
 
 /** Main breaker in A from an optional reading; non-sense values fall back to 25 A. */
 export function breakerAmps(value: number | null | undefined): number {
@@ -103,7 +107,7 @@ export function phaseSaldo(powersKw: readonly number[]): PhaseSaldo | null {
   const result =
     Math.abs(netKw) < t
       ? 'elektroměr fáze sečte na nulu'
-      : `elektroměr počítá ${netKw > 0 ? 'odběr' : 'dodávku'} ${kw1(netKw)} kW`;
+      : `elektroměr počítá ${netKw > 0 ? 'odběr' : 'dodávku'} ${power(netKw)}`;
   return {
     importing,
     exporting,
@@ -111,8 +115,8 @@ export function phaseSaldo(powersKw: readonly number[]): PhaseSaldo | null {
     exportKw,
     netKw,
     text:
-      `${joinPhases(importing)} ${verb(importing, 'odebírá', 'odebírají')} ${kw1(importKw)} kW, ` +
-      `${joinPhases(exporting)} ${verb(exporting, 'dodává', 'dodávají')} ${kw1(exportKw)} kW → ${result}`,
+      `${joinPhases(importing)} ${verb(importing, 'odebírá', 'odebírají')} ${power(importKw)}, ` +
+      `${joinPhases(exporting)} ${verb(exporting, 'dodává', 'dodávají')} ${power(exportKw)} → ${result}`,
   };
 }
 

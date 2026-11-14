@@ -187,8 +187,7 @@ export function PhaseStrip(props: {
       >
         {a.saldo ? (
           <>
-            <b>Saldování fází</b>
-            {a.saldo.text}
+            <b>Saldování fází</b> {a.saldo.text}
           </>
         ) : (
           <>
