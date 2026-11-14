@@ -27,6 +27,7 @@ import {
   hpElectricityVisible,
   roomsModel,
   seasonsModel,
+  tankSecondaryChipLabel,
 } from '../model.js';
 import type {
   HeatingHistory,
@@ -35,6 +36,7 @@ import type {
   HistoryKey,
   HistoryRange,
 } from '../types.js';
+import { solarStateOf } from '../solar.js';
 import {
   CurveChart,
   Scatter,
@@ -143,7 +145,10 @@ function HpElectricityBar({ snap, className }: { snap: HeatingSnapshot; classNam
       <span className="ht-k">Elektřina TČ</span>
       <b className="ht-v">{fmtHpPower(hp.power_w)}</b>
       {hp.energy_today_kwh !== null && (
-        <span className="ht-sub">dnes {fmtNum(hp.energy_today_kwh)}\u00a0kWh</span>
+        <span className="ht-sub">
+          dnes {fmtNum(hp.energy_today_kwh)}
+          {'\u00a0'}kWh
+        </span>
       )}
     </Card>
   );
@@ -199,7 +204,16 @@ function NowTab({
     idle: ['Teplo je připravené.', 'Zásoba čeká na další potřebu tepla.', 'Klidový režim'],
   };
   const copy = copies[snap.activity];
-  const sceneCopy = snap.source === 'ok' && !snap.stale ? copy : undefined;
+  const solarStory = solarStateOf(snap);
+  const sceneCopy =
+    snap.source === 'ok' &&
+    !snap.stale &&
+    copy &&
+    solarStory !== 'heating' &&
+    solarStory !== 'no_gain' &&
+    solarStory !== 'stagnation'
+      ? copy
+      : undefined;
   const day = useHistory(api, 'day', DAY_KEYS);
   const rooms = roomsModel(snap);
   const hp = snap.heat_pump;
@@ -296,15 +310,7 @@ function NowTab({
           </aside>
         </div>
         <div className="ht-c3-chips ht-portrait-only">
-          <Chip>
-            {snap.pumps.secondary === null
-              ? 'Nádrž · —'
-              : snap.pumps.secondary
-                ? snap.activity === 'heating_dhw'
-                  ? 'Teplá voda · ohřev'
-                  : 'Nádrž · běží'
-                : 'Nádrž · stojí'}
-          </Chip>
+          <Chip>{tankSecondaryChipLabel(snap)}</Chip>
           <Chip>
             Topení · {snap.pumps.heating === null ? '—' : snap.pumps.heating ? 'běží' : 'stojí'}
           </Chip>

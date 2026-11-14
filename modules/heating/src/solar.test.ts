@@ -36,7 +36,9 @@ describe('solar mock scenarios', () => {
     expect(snap.extras.solar?.state).toBe('heating');
     expect(snap.heat_pump.compressor_on).toBe(false);
     const act = activityModel(snap, now);
-    expect(act.pill).toContain('Solár natápí nádrž');
+    expect(act.pill).toBe('Solár nabíjí nádrž');
+    expect(act.headline.join('')).toContain('Slunce nahřívá akumulační nádrž');
+    expect(act.detail).toMatch(/kolektor.*čerpadlo/u);
   });
 
   it('solar-nogain exposes Czech warning', () => {

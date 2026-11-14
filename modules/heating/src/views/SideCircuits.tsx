@@ -229,26 +229,32 @@ function ExtrasCompactLandscape({ snap }: { snap: HeatingSnapshot }) {
       <div className="ht-extras-land">
         {showSolar && (
           <div className="ht-extras-land-row" data-testid="heating-side-solar">
-            <span className="ht-extras-land-k">Solár · kolektor</span>
-            <b className="ht-side-temp">{fmtT(solar!.temp)}</b>
-            {solar!.state === 'heating' && (
-              <Pill tone="ok" dot>
-                natápí nádrž
-              </Pill>
-            )}
-            {solar!.pump !== null && (
-              <Chip size="sm" look="soft">
-                čerpadlo · {solar!.pump ? 'běží' : 'stojí'}
-                {solar!.pump_pct !== null ? ` · ${fmtNum(solar!.pump_pct, 0)}\u00a0%` : ''}
-              </Chip>
-            )}
+            <div className="ht-extras-land-head">
+              <span className="ht-extras-land-k">Solár · kolektor</span>
+              <b className="ht-side-temp">{fmtT(solar!.temp)}</b>
+            </div>
+            <div className="ht-chips" data-testid="heating-side-solar-chips">
+              {solar!.state === 'heating' && (
+                <Pill tone="ok" dot data-testid="heating-side-solar-pill">
+                  nabíjí nádrž
+                </Pill>
+              )}
+              {solar!.pump !== null && (
+                <Chip size="sm" look="soft">
+                  čerpadlo · {solar!.pump ? 'běží' : 'stojí'}
+                  {solar!.pump_pct !== null ? ` · ${fmtNum(solar!.pump_pct, 0)}\u00a0%` : ''}
+                </Chip>
+              )}
+            </div>
           </div>
         )}
         {showPool && (
           <div className="ht-extras-land-row" data-testid="heating-side-pool">
-            <span className="ht-extras-land-k">Bazén · zpátečka</span>
-            <b className="ht-side-temp">{pool!.temp !== null ? fmtT(pool!.temp) : '—'}</b>
-            <div className="ht-chips">
+            <div className="ht-extras-land-head">
+              <span className="ht-extras-land-k">Bazén · zpátečka</span>
+              <b className="ht-side-temp">{pool!.temp !== null ? fmtT(pool!.temp) : '—'}</b>
+            </div>
+            <div className="ht-chips" data-testid="heating-side-pool-chips">
               {pool!.heating_pump !== null && (
                 <Chip size="sm" look="soft">
                   natápění · {pool!.heating_pump ? 'běží' : 'stojí'}

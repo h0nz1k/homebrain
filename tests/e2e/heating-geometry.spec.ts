@@ -258,7 +258,8 @@ test('solar thermal schematic geometry', async ({ page }) => {
   await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
   await page.evaluate(() => document.fonts.ready);
   const result = await page.getByTestId('heating-schematic').evaluate(() => {
-    const svg = document.querySelector('[data-testid="heating-schematic"] svg')!;
+    const root = document.querySelector('[data-testid="heating-schematic"]')!;
+    const svg = root.querySelector('svg')!;
     const visible = (node: SVGGraphicsElement) => node.getBoundingClientRect().width > 0;
     const texts = Array.from(svg.querySelectorAll('text')).filter(visible);
     const rendered = (node: SVGGraphicsElement) => {
@@ -268,28 +269,105 @@ test('solar thermal schematic geometry', async ({ page }) => {
       const z = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
       return { left: a.x, top: a.y, right: z.x, bottom: z.y, height: z.y - a.y };
     };
-    const solar = texts.find((t) => t.dataset.label === 'solar-collector');
-    const panel = document.querySelector('[data-testid="heating-sch-solar-panel"]');
+    const gap = (p: ReturnType<typeof rendered>, q: ReturnType<typeof rendered>) =>
+      Math.hypot(
+        Math.max(p.left - q.right, q.left - p.right, 0),
+        Math.max(p.top - q.bottom, q.top - p.bottom, 0),
+      );
+    const icons = Array.from(
+      svg.querySelectorAll<SVGGraphicsElement>(
+        '[data-testid="heating-sch-solar-panel"], [data-pump="solar"], [data-testid="heating-sch-solar-coil"]',
+      ),
+    ).filter(visible);
+    const overlaps: string[] = [];
+    for (const [i, a] of texts.entries()) {
+      for (const b of [...texts.slice(i + 1), ...icons]) {
+        const p = rendered(a);
+        const q = rendered(b);
+        if (
+          Math.min(p.right, q.right) - Math.max(p.left, q.left) > 0.1 &&
+          Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 0.1
+        )
+          overlaps.push(`${a.dataset.label}/${b.dataset.label ?? b.getAttribute('data-pump')}`);
+      }
+    }
+    const panel = svg.querySelector('[data-testid="heating-sch-solar-panel"]');
+    const interior = svg.querySelector('.ht-c3-interior');
+    const tank = svg.querySelector('[data-floor="tank"]')!;
+    const tankBBox = tank.getBoundingClientRect();
+    const tankBottom = tankBBox.top + tankBBox.height * 0.55;
+    const supplyPath = svg.querySelector(
+      '[data-pipe-id="solar-supply"] path',
+    ) as SVGPathElement | null;
+    let supplyEnd: DOMPoint | null = null;
+    if (supplyPath) {
+      const pt = supplyPath.getPointAtLength(supplyPath.getTotalLength());
+      supplyEnd = new DOMPoint(pt.x, pt.y).matrixTransform(supplyPath.getScreenCTM()!);
+    }
     const panelBox = panel?.getBoundingClientRect();
-    const solarBox = solar?.getBoundingClientRect();
-    const labelInsidePanel =
-      panelBox && solarBox
-        ? solarBox.left >= panelBox.left - 1 &&
-          solarBox.right <= panelBox.right + 1 &&
-          solarBox.top >= panelBox.top - 1 &&
-          solarBox.bottom <= panelBox.bottom + 12
+    const interiorBox = interior?.getBoundingClientRect();
+    const collectorInsideRoof =
+      panelBox && interiorBox
+        ? panelBox.left >= interiorBox.left - 2 &&
+          panelBox.right <= interiorBox.right + 2 &&
+          panelBox.top >= interiorBox.top - 2 &&
+          panelBox.bottom <= interiorBox.bottom + 2
         : false;
+    const solar = texts.find((t) => t.dataset.label === 'solar-collector');
     return {
       hasPanel: Boolean(panel),
       hasSolarLabel: Boolean(solar),
       minSolarText: solar ? rendered(solar).height : 0,
-      labelInsidePanel,
+      collectorInsideRoof,
       activePipes: document.querySelectorAll('[data-pipe-id^="solar-"][data-active]').length,
+      overlaps,
+      labelClearance: solar
+        ? Math.min(
+            ...texts
+              .filter((t) => t !== solar)
+              .map((t) => gap(rendered(solar), rendered(t))),
+          )
+        : 0,
+      supplyInTankLower: supplyEnd ? supplyEnd.y >= tankBottom - 2 : false,
     };
   });
   expect(result.hasPanel).toBe(true);
   expect(result.hasSolarLabel).toBe(true);
   expect(result.minSolarText).toBeGreaterThanOrEqual(9);
-  expect(result.labelInsidePanel).toBe(true);
+  expect(result.collectorInsideRoof).toBe(true);
   expect(result.activePipes).toBe(2);
+  expect(result.overlaps).toEqual([]);
+  expect(result.labelClearance).toBeGreaterThanOrEqual(4);
+  expect(result.supplyInTankLower).toBe(true);
+});
+
+test('landscape Další okruhy: chips clear and inside card', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
+  await expect(page.getByTestId('heating-side-extras')).toBeVisible({ timeout: 20_000 });
+  const result = await page.getByTestId('heating-side-extras').evaluate((card) => {
+    const box = card.getBoundingClientRect();
+    const chips = Array.from(card.querySelectorAll('.hb-chip, .hb-pill'));
+    const rects = chips.map((c) => c.getBoundingClientRect());
+    const overlaps: string[] = [];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i]!;
+        const b = rects[j]!;
+        if (
+          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
+        )
+          overlaps.push(`${i}/${j}`);
+      }
+    }
+    const outside = rects.filter(
+      (r) => r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1,
+    ).length;
+    const overflow = card.scrollHeight > card.clientHeight + 2;
+    return { overlaps, outside, overflow };
+  });
+  expect(result.overlaps).toEqual([]);
+  expect(result.outside).toBe(0);
+  expect(result.overflow).toBe(false);
 });

@@ -215,42 +215,62 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
 }
 
 function finishActivity(base: ActivityModel, snap: HeatingSnapshot): ActivityModel {
-  let out = applySolarHero(base, snap);
   const state = solarStateOf(snap);
   if (state === 'no_gain' || state === 'stagnation') {
-    out = { ...out, tone: 'warn', solarWarn: SOLAR_WARN_COPY[state] };
+    const warn = SOLAR_WARN_COPY[state];
+    const pill = state === 'no_gain' ? 'Solár bez účinku' : 'Solár · stagnace';
+    return {
+      ...base,
+      tone: 'warn',
+      pill,
+      headline:
+        state === 'stagnation'
+          ? ['Kolektor ', 'přehříván bez čerpání', '.']
+          : ['Solár ', 'čerpá bez ohřevu nádrže', '.'],
+      detail: warn,
+      solarWarn: warn,
+    };
   }
-  return out;
+  return applySolarHero(base, snap);
 }
 
-function solarHeatingLine(snap: HeatingSnapshot): string | null {
+/** Collector + pump line for the solar hero detail (e.g. „kolektor 54,8 °C · čerpadlo 78 %“). */
+export function solarHeroDetail(snap: HeatingSnapshot): string | null {
   const solar = snap.extras.solar;
-  if (solarStateOf(snap) !== 'heating' || !solar) return null;
-  const parts = ['Solár natápí nádrž'];
-  if (solar.temp !== null) parts.push(fmtT(solar.temp));
-  if (solar.pump_pct !== null) parts.push(`čerpadlo ${fmtNum(solar.pump_pct, 0)}\u00a0%`);
-  return parts.join(' · ');
+  if (!solar) return null;
+  const parts: string[] = [];
+  if (solar.temp !== null) parts.push(`kolektor ${fmtT(solar.temp)}`);
+  if (solar.pump_pct !== null) parts.push(`čerpadlo ${fmtNum(solar.pump_pct, 0)}${NBSP}%`);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/** Portrait / landscape chip when the secondary loop charges from solar thermal. */
+export function tankSecondaryChipLabel(snap: HeatingSnapshot): string {
+  if (solarStateOf(snap) === 'heating') return 'nádrž · nabíjí solár';
+  if (snap.pumps.secondary === null) return 'nádrž · —';
+  if (!snap.pumps.secondary) return 'nádrž · stojí';
+  return snap.activity === 'heating_dhw' ? 'Teplá voda · ohřev' : 'nádrž · běží';
 }
 
 /** Overlay solar heating / warnings on the compressor-centric hero copy. */
 export function applySolarHero(base: ActivityModel, snap: HeatingSnapshot): ActivityModel {
-  if (solarStateOf(snap) !== 'heating') return base;
-  const line = solarHeatingLine(snap);
-  if (!line) return base;
+  const state = solarStateOf(snap);
+  const solar = snap.extras.solar;
+  if (!solar || state !== 'heating') return base;
+  const detail = solarHeroDetail(snap);
   const compressorRuns = snap.heat_pump.compressor_on === true && snap.source === 'ok' && !snap.stale;
   if (compressorRuns) {
     return {
       ...base,
-      pill: `${line} · ${base.pill}`,
-      detail: `${line}. ${base.detail}`,
+      detail: detail ? `${base.detail} Solár: ${detail}.` : base.detail,
     };
   }
   return {
     ...base,
     tone: 'accent',
-    pill: line,
-    headline: ['Solár ', 'natápí akumulační nádrž', '.'],
-    detail: `${line}. ${houseReason(snap)}`,
+    pill: 'Solár nabíjí nádrž',
+    headline: ['Slunce ', 'nahřívá akumulační nádrž', '.'],
+    detail: detail ?? 'Solární okruh běží.',
   };
 }
 

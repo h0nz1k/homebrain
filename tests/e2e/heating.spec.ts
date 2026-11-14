@@ -602,9 +602,15 @@ test.describe('Topení', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
     await expect(page.getByTestId('heating-solar-compact')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('heating-solar-pill')).toContainText('natápí nádrž');
+    await expect(page.getByTestId('heating-pill')).toContainText('Solár nabíjí nádrž');
+    await expect(page.getByTestId('heating-headline')).toContainText(
+      'Slunce nahřívá akumulační nádrž',
+    );
+    await expect(page.getByTestId('heating-hero')).toContainText(/kolektor.*čerpadlo/u);
     await expect(page.getByTestId('heating-hp-electricity')).toContainText('Elektřina TČ');
     await expect(page.getByTestId('heating-hp-electricity')).toContainText('W');
+    const viewText = await page.getByTestId('heating-view').innerText();
+    expect(viewText).not.toMatch(/\\u00a0/);
     const sch = page.getByTestId('heating-schematic');
     await expect(sch.getByTestId('heating-sch-solar-panel')).toBeVisible();
     await expect(sch.locator('[data-pipe-id="solar-supply"][data-active]')).toHaveCount(1);
@@ -615,12 +621,22 @@ test.describe('Topení', () => {
     expect(bannerTop).toBeLessThan(roomsTop);
   });
 
+  test('Teď kompresor: hero beze solární věty', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=heating&theme=dark');
+    await expect(page.getByTestId('heating-headline')).toContainText('nahříváme nádrž', {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId('heating-pill')).not.toContainText('Solár nabíjí nádrž');
+  });
+
   test('Teď solár bez účinku: varování a scénář landscape', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/homebrain-topeni?topeni=solar-nogain&theme=dark');
     await expect(page.getByTestId('heating-solar-warn')).toContainText('odvzdušnění', {
       timeout: 20_000,
     });
+    await expect(page.getByTestId('heating-hero')).toContainText('odvzdušnění');
     await expect(page.getByTestId('heating-land-strip')).toContainText('Elektřina TČ');
   });
 

@@ -293,9 +293,7 @@ def derive_solar_state(
     return "idle"
 
 
-def trim_solar_samples(
-    samples: list[SolarSample], now: datetime
-) -> list[SolarSample]:
+def trim_solar_samples(samples: list[SolarSample], now: datetime) -> list[SolarSample]:
     cutoff = now - SOLAR_SAMPLE_MAX
     return [s for s in samples if s.ts >= cutoff]
 
