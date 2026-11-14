@@ -270,6 +270,8 @@ def test_compute_seasons_math():
     assert row["energy_kwh"] is None and row["energy_measured"] is False
     assert row["coverage"] == pytest.approx(1.0)
     assert row["backup_heater_h"] is None
+    assert row["counter_reset"] is False
+    assert row["compressor_unavailable"] is None
     est = compute_seasons(days, today=date(2025, 8, 1), kwh_per_run_hour=2.0)[0]
     assert est["energy_kwh"] == pytest.approx(row["compressor_h"] * 2.0)
     measured = [{**d, "energy_kwh": 1.0} for d in days]
@@ -277,6 +279,38 @@ def test_compute_seasons_math():
     assert m["energy_kwh"] == pytest.approx(365.0) and m["energy_measured"] is True
     partial = compute_seasons(days[:100], today=start + timedelta(days=99), kwh_per_run_hour=None)
     assert partial[0]["partial"] is True and partial[0]["coverage"] == pytest.approx(1.0)
+    assert partial[0]["counter_reset"] is False
+
+
+def test_compute_seasons_ignores_counter_reset_day():
+    """Synthetic repro: one negative daily change must not flip the whole season negative."""
+    days = [
+        {
+            "date": date(2026, 7, 1),
+            "runtime_h": 2.0,
+            "starts": 5,
+            "outdoor_mean": 12.0,
+        },
+        {
+            "date": date(2026, 11, 9),
+            "runtime_h": -10_096.75,
+            "starts": -23_787,
+            "outdoor_mean": 8.0,
+        },
+        {
+            "date": date(2026, 11, 10),
+            "runtime_h": 1.5,
+            "starts": 3,
+            "outdoor_mean": 9.0,
+        },
+    ]
+    row = compute_seasons(days, today=date(2026, 11, 14), kwh_per_run_hour=None)[0]
+    assert row["season"] == "2026/27"
+    assert row["compressor_h"] == pytest.approx(3.5)
+    assert row["starts"] == 8
+    assert row["compressor_h"] > 0 and row["starts"] > 0
+    assert row["counter_reset"] is True
+    assert row["compressor_unavailable"] is None
 
 
 @pytest.mark.parametrize("opening, expected", [(None, None), (72.4, 72), (99.8, 100), (0, 0)])

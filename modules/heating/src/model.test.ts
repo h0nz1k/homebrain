@@ -259,6 +259,29 @@ describe('rooms', () => {
 });
 
 describe('seasons', () => {
+  it('treats counter reset without negative display values', () => {
+    const rows: import('./types').HeatingSeason[] = [
+      {
+        season: '2026/27',
+        partial: true,
+        compressor_h: 70,
+        starts: 181,
+        counter_reset: true,
+        median_run_min: 28,
+        degree_days: 755,
+        h_per_100dd: 9.3,
+        energy_kwh: 368,
+        energy_measured: true,
+        coverage: 1,
+        outdoor_mean: 15.5,
+        backup_heater_h: null,
+      },
+    ];
+    const { cards } = seasonsModel(rows);
+    expect(cards[0]!.counter_reset).toBe(true);
+    expect(cards[0]!.compressor_h).toBe(70);
+    expect(cards[0]!.share).toBe(1);
+  });
   it('newest first, change vs previous, approximate energy marker, frontend 2018/19 note', () => {
     const { cards } = seasonsModel(buildMockSeasons(NOW));
     expect(cards).toHaveLength(10);
