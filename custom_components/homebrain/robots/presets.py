@@ -558,9 +558,7 @@ async def _settle_after_apply(
     if await _wait_settled(hass, bindings, slot, settings, skipped, loop.time() + SETTLE_TIMEOUT):
         return False
 
-    retry, _ = build_plan(
-        bindings, slot, hass.states.get, settings, [], max_passes=max_passes
-    )
+    retry, _ = build_plan(bindings, slot, hass.states.get, settings, [], max_passes=max_passes)
     setting_steps = [s for s in retry if s["field"] != "start"]
     await _apply_steps(hass, setting_steps, verify_limit, applied, unconfirmed)
     return not await _wait_settled(

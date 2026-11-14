@@ -474,9 +474,7 @@ def _flip_on_route_mock(hass: HomeAssistant, persistent: bool = False):
                 if persistent and entity == "vacuum.robot_a":
                     mode = hass.states.get("select.robot_a_mode")
                     hass.states.async_set("select.robot_a_mode", "mop", mode.attributes)
-                    hass.states.async_set(
-                        entity, vac.state, {**vac.attributes, "fan_speed": "off"}
-                    )
+                    hass.states.async_set(entity, vac.state, {**vac.attributes, "fan_speed": "off"})
 
     for domain, service in (
         ("select", "select_option"),
@@ -527,9 +525,7 @@ async def test_start_aborts_on_persistent_mode_flip(
         mode = hass.states.get("select.robot_a_mode")
         hass.states.async_set("select.robot_a_mode", "mop", mode.attributes)
         vac = hass.states.get("vacuum.robot_a")
-        hass.states.async_set(
-            "vacuum.robot_a", vac.state, {**vac.attributes, "fan_speed": "off"}
-        )
+        hass.states.async_set("vacuum.robot_a", vac.state, {**vac.attributes, "fan_speed": "off"})
 
     monkeypatch.setattr(presets_mod, "_apply_steps", flip_after_apply)
     monkeypatch.setattr(presets_mod, "SETTLE_TIMEOUT", 0.08)
@@ -549,9 +545,7 @@ async def test_start_aborts_on_persistent_mode_flip(
     assert not any(c.service in ("start", "send_command") for c in calls)
 
 
-async def test_start_paused_robot_no_apply(
-    hass: HomeAssistant, setup, hass_ws_client, monkeypatch
-):
+async def test_start_paused_robot_no_apply(hass: HomeAssistant, setup, hass_ws_client, monkeypatch):
     _states(hass, mode="vac_and_mop", fan="balanced")
     hass.states.async_set("vacuum.robot_a", "paused", hass.states.get("vacuum.robot_a").attributes)
     calls = _mock_services(hass)
@@ -572,13 +566,9 @@ async def test_start_paused_robot_no_apply(
 
 def test_passes_clamped_per_model(hass: HomeAssistant):
     _states(hass)
-    _, skipped = build_plan(
-        BINDINGS, 1, hass.states.get, {"passes": 3}, [1], max_passes=2
-    )
+    _, skipped = build_plan(BINDINGS, 1, hass.states.get, {"passes": 3}, [1], max_passes=2)
     assert "passes" in skipped
-    steps, _ = build_plan(
-        BINDINGS, 1, hass.states.get, {"passes": 2}, [1], max_passes=2
-    )
+    steps, _ = build_plan(BINDINGS, 1, hass.states.get, {"passes": 2}, [1], max_passes=2)
     cmd = next(s for s in steps if s["field"] == "start")
     assert cmd["data"]["params"][0]["repeat"] == 2
 
