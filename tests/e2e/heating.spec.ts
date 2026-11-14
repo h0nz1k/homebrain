@@ -754,7 +754,8 @@ test.describe('Topení', () => {
     await expect(sch).toHaveAttribute('data-state', 'off');
     await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
     await expect(sch.locator('[data-active].ht-c3-hot')).toHaveCount(0);
-    await expect(page.getByTestId('heating-hero')).not.toContainText('Kompresor stojí');
+    await expect(page.getByTestId('heating-hero').locator('.ht-run-meta')).toHaveCount(0);
+    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(0);
   });
 
   test('Upozornění solar-off-hot: hero jen kolektor v podřádku', async ({ page }) => {
