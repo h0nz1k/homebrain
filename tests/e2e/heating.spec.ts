@@ -680,8 +680,8 @@ test.describe('Topení', () => {
       await page.setViewportSize({ width, height });
       await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
       const banner = page.getByTestId('heating-alert-banner');
-      const hero = page.getByTestId('heating-hero');
       await expect(banner).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('heating-hero')).toBeVisible({ timeout: 20_000 });
       const geom = await page.evaluate(() => {
         const b = document.querySelector('[data-testid="heating-alert-banner"]')!;
         const h = document.querySelector('[data-testid="heating-hero"]')!;

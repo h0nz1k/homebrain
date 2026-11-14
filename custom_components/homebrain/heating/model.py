@@ -94,11 +94,7 @@ def derive_activity(values: dict[str, Any], *, any_fault: bool) -> str:
         return "off"
     winter = values.get("mode.winter")
     heating_on = values.get("mode.heating_enabled")
-    if (
-        winter is True
-        and heating_on is False
-        and not values.get("heat_pump.compressor_on")
-    ):
+    if winter is True and heating_on is False and not values.get("heat_pump.compressor_on"):
         return "dhw_only"
     if values.get("heat_pump.compressor_on"):
         if values.get("dhw.valve_to_dhw"):

@@ -222,8 +222,7 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
         elif st.active_since and _debounced(
             st,
             ctx.now,
-            solar_en is True
-            or (isinstance(solar_t, int | float) and float(solar_t) < 50),
+            solar_en is True or (isinstance(solar_t, int | float) and float(solar_t) < 50),
             SOLAR_OFF_HOT_CLEAR,
             clear=True,
         ):
@@ -428,9 +427,7 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
             and isinstance(fish_t, int | float)
             and isinstance(fish_tgt, int | float)
         ):
-            if isinstance(fish_h, int | float) and float(fish_t) >= float(fish_tgt) - float(
-                fish_h
-            ):
+            if isinstance(fish_h, int | float) and float(fish_t) >= float(fish_tgt) - float(fish_h):
                 clear_rule("fish_cold")
 
     # --- hdo_long ---

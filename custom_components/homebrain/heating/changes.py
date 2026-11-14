@@ -18,13 +18,7 @@ IMMEDIATE_NOTIFY_KEYS = frozenset(
 CHANGE_LOG_KEYS: frozenset[str] = frozenset(
     k
     for k in KEYS
-    if (
-        k.startswith("mode.")
-        and k
-        not in (
-            "mode.cooling",
-        )
-    )
+    if (k.startswith("mode.") and k not in ("mode.cooling",))
     or k
     in (
         "mode.winter_limit",
