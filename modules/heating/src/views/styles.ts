@@ -111,7 +111,11 @@ export const heatingStyles = `
 .ht-c3-solar-fin { stroke: #e6b422; stroke-width: .9; opacity: .9; }
 .ht-c3-solar-label { font-size: 10.5px; }
 .ht-c3-solar-temp { font-weight: 600; }
-.ht-c3-solar-coil { stroke: var(--ht-c3-solar); stroke-width: 3.5; stroke-linecap: round; opacity: .9; }
+.ht-c3-solar-coil { fill: none; stroke: var(--ht-c3-solar); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+.ht-c3-route.ht-c3-solar-return > path { stroke-dasharray: 8 6; }
+.ht-c3-route.ht-c3-solar-return[data-active] > path { stroke: color-mix(in srgb, var(--ht-c3-solar) 72%, #1a1208); }
+.ht-c3-route.ht-c3-solar:not([data-active]) > path { stroke: color-mix(in srgb, var(--ht-c3-solar) 38%, var(--ht-c3-inactive)); }
+.ht-c3-route.ht-c3-solar-return:not([data-active]) > path { stroke-dasharray: 8 6; }
 [data-theme='light'] .ht-c3-solar-collector { fill: #1c1912; stroke: #c2920a; }
 [data-theme='light'] .ht-c3-solar-fin { stroke: #daa520; }
 .ht-extras-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
@@ -326,11 +330,16 @@ export const heatingStyles = `
 [data-theme="light"] .ht-c3-title-bg { fill:#eef1f4; }
 [data-theme="light"] .ht-c3-label[data-label="tank-title"] { fill:#202735; }
 .ht-c3-value-bg { fill:rgba(24,32,43,.68); }
-.ht-c3-label { fill:var(--hb-t2); font-size:13.3px; font-family:var(--hb-font, inherit); }
-.ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; }
+.ht-c3-label {
+  fill:var(--hb-t2); font-size:13.3px; font-family:var(--hb-font, inherit);
+  paint-order: stroke fill; stroke: var(--ht-c3-room); stroke-width: 5px; stroke-linejoin: round;
+}
+.ht-c3-label[data-label='dhw'], .ht-c3-label[data-label='tank'] { fill:#fff; stroke: rgba(24,32,43,.92); }
+.ht-c3-label[data-label='tank-title'] { stroke: #1b2026; }
 .ht-c3-label[data-label='dhw'] { font-size:12px; letter-spacing:-1px; }
 [data-theme='light'] .ht-c3-value-bg { fill:rgba(255,255,255,.68); }
-[data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; }
+[data-theme='light'] .ht-c3-label:is([data-label='dhw'],[data-label='tank']) { fill:#202735; stroke: rgba(255,255,255,.92); }
+[data-theme='light'] .ht-c3-label[data-label='tank-title'] { stroke: #eef1f4; }
 [data-theme='light'] .ht-c3-vessel { stroke:#35434e; }
 .ht-c3-dhw-value { font-size:15px; font-weight:500; }
 .ht-c3-unit { font-size:13px; }
@@ -423,7 +432,11 @@ export const heatingStyles = `
 .ht-extras-land-row { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
 .ht-extras-land-head { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 8px 10px; min-width: 0; width: 100%; }
 .ht-extras-land-head .ht-extras-land-k { flex: 0 0 auto; white-space: nowrap; }
-.ht-extras-land-head .ht-side-temp { flex: 0 0 auto; }
+.ht-extras-land-head .ht-side-temp { flex: 0 0 auto; max-width: 100%; font-size: 22px; letter-spacing: -0.02em; }
+.ht-land-panel.ht-side-extras-merge .ht-extras-land-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; width: 100%;
+}
+.ht-land-panel.ht-side-extras-merge .ht-extras-land-head .ht-side-temp { justify-self: end; min-width: 0; }
 .ht-extras-land-row .ht-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
 .ht-extras-land-k { font-size: 12px; color: var(--hb-t2); }
 .ht-land-panel.ht-side-extras-merge { overflow: visible; align-content: start; }
@@ -578,6 +591,7 @@ export const heatingStyles = `
   .ht-land-day .ht-chart { height: 80px !important; }
   .ht-land-day .ht-legend { margin-bottom: 0; }
   .ht-side-temp { font-size: 24px; }
+  .ht-land-panel.ht-side-extras-merge .ht-extras-land-head .ht-side-temp { font-size: 19px; }
   .ht-land-panel.ht-side-circuit { gap: 6px; }
   .ht-land-panel.ht-side-circuit .ht-ch { margin-bottom: 0; }
   .ht-extras-land { gap: 6px; }

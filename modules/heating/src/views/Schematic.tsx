@@ -76,8 +76,8 @@ const ROUTES = [
     'M54 443V509Q54 516.5 61.5 516.5H324A8.75 8.75 0 0 1 324 534H40Q33 534 33 527V443',
     'ground',
   ],
-  ['solar-supply', 'M209 66V118H62V400H188', 'solar'],
-  ['solar-return', 'M202 405H240V118H209V66', 'solar'],
+  ['solar-supply', 'M350 47H362V390H295V390', 'solar'],
+  ['solar-return', 'M295 408V428H362V52H336V47', 'solar'],
 ] as const;
 
 const SOLAR_ROUTE_IDS = new Set(['solar-supply', 'solar-return']);
@@ -106,14 +106,14 @@ const DIRECTIONS: Record<string, [number, number, number][]> = {
     [33, 485, -90],
   ],
   'solar-supply': [
-    [209, 92, 90],
-    [62, 250, 90],
-    [140, 400, 180],
+    [355, 48, 0],
+    [362, 235, 90],
+    [328, 390, 180],
   ],
   'solar-return': [
-    [202, 385, 90],
-    [240, 250, -90],
-    [209, 90, -90],
+    [295, 418, 90],
+    [362, 250, -90],
+    [334, 50, -90],
   ],
   'cold-water': [[228, 300, -90]],
   'dhw-draw': [
@@ -435,7 +435,9 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
               key={id}
               data-pipe-id={id}
               data-active={scene.activePipes.includes(id) ? '' : undefined}
-              className={`ht-c3-route ht-c3-${kind}${id === 'mixing-bypass' ? ' ht-c3-bypass' : ''}`}
+              className={`ht-c3-route ht-c3-${kind}${id === 'mixing-bypass' ? ' ht-c3-bypass' : ''}${
+                id === 'solar-return' ? ' ht-c3-solar-return' : ''
+              }`}
             >
               <path d={d} />
               <Directions id={id} />
@@ -546,37 +548,49 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                 data-testid="heating-sch-solar-panel"
                 className="ht-c3-solar-roof"
                 data-solar-roof=""
+                transform="translate(346 28) rotate(22)"
               >
-                <rect x={158} y={28} width={102} height={34} rx={6} className="ht-c3-solar-collector" />
-                {[168, 182, 196, 210, 224, 238].map((x) => (
+                <rect
+                  x={-32}
+                  y={-7}
+                  width={64}
+                  height={14}
+                  rx={4}
+                  className="ht-c3-solar-collector"
+                />
+                {[-28, -14, 0, 14, 28].map((x) => (
                   <path
                     key={x}
-                    d={`M${x} 26v32M${x + 7} 26v32`}
+                    d={`M${x} -10v19M${x + 6} -10v19`}
                     className="ht-c3-solar-fin"
                     aria-hidden="true"
                   />
                 ))}
               </g>
               <Label
-                x={209}
-                y={56}
+                x={252}
+                y={100}
                 anchor="end"
                 id="solar-collector"
                 className="ht-c3-solar-label"
                 muted={snap.extras.solar?.temp === null}
               >
-                {`Solární kolektor ${fmtT(snap.extras.solar?.temp ?? null)}`}
+                Solární kolektor
+                <tspan x={252} dy={14}>
+                  {fmtT(snap.extras.solar?.temp ?? null)}
+                </tspan>
               </Label>
               <path
-                d="M178 388c8-6 14-14 20-22s12-16 20-22"
+                d="M295 390H252V402H272V414H292V402H312V414H295 408"
                 className="ht-c3-solar-coil"
                 data-testid="heating-sch-solar-coil"
                 fill="none"
               />
-              <Pump x={62} y={396} on={snap.extras.solar?.pump ?? null} id="solar" />
+              <Pump x={362} y={404} on={snap.extras.solar?.pump ?? null} id="solar" horizontal />
               <Label
-                x={44}
-                y={428}
+                x={332}
+                y={448}
+                anchor="end"
                 id="solar-pump"
                 muted={snap.extras.solar?.pump !== true}
               >

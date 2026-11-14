@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { solarRenderedGeometry } from './heating-geometry.js';
 
 // Refs #82. Check painted SVG geometry, including landscape-only labels.
 for (const [width, height] of [
@@ -252,98 +253,27 @@ for (const [width, height] of [
   }
 }
 
-test('solar thermal schematic geometry', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
-  await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
-  await page.evaluate(() => document.fonts.ready);
-  const result = await page.getByTestId('heating-schematic').evaluate(() => {
-    const root = document.querySelector('[data-testid="heating-schematic"]')!;
-    const svg = root.querySelector('svg')!;
-    const visible = (node: SVGGraphicsElement) => node.getBoundingClientRect().width > 0;
-    const texts = Array.from(svg.querySelectorAll('text')).filter(visible);
-    const rendered = (node: SVGGraphicsElement) => {
-      const b = node.getBBox();
-      const m = node.getScreenCTM()!;
-      const a = new DOMPoint(b.x, b.y).matrixTransform(m);
-      const z = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
-      return { left: a.x, top: a.y, right: z.x, bottom: z.y, height: z.y - a.y };
-    };
-    const gap = (p: ReturnType<typeof rendered>, q: ReturnType<typeof rendered>) =>
-      Math.hypot(
-        Math.max(p.left - q.right, q.left - p.right, 0),
-        Math.max(p.top - q.bottom, q.top - p.bottom, 0),
-      );
-    const icons = Array.from(
-      svg.querySelectorAll<SVGGraphicsElement>(
-        '[data-testid="heating-sch-solar-panel"], [data-pump="solar"], [data-testid="heating-sch-solar-coil"]',
-      ),
-    ).filter(visible);
-    const panel = svg.querySelector('[data-testid="heating-sch-solar-panel"]');
-    const overlaps: string[] = [];
-    for (const [i, a] of texts.entries()) {
-      for (const b of [...texts.slice(i + 1), ...icons]) {
-        const p = rendered(a);
-        const q = rendered(b);
-        if (
-          Math.min(p.right, q.right) - Math.max(p.left, q.left) > 0.1 &&
-          Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 0.1
-        ) {
-          const partner = b.dataset.label ?? b.getAttribute('data-pump') ?? '';
-          if (a.dataset.label === 'solar-pump' && partner === 'solar') continue;
-          if (a.dataset.label === 'solar-collector' && b === panel) continue;
-          overlaps.push(`${a.dataset.label}/${partner}`);
-        }
-      }
-    }
-    const interior = svg.querySelector('.ht-c3-interior');
-    const tank = svg.querySelector('[data-floor="tank"]')!;
-    const tankBBox = tank.getBoundingClientRect();
-    const tankBottom = tankBBox.top + tankBBox.height * 0.55;
-    const supplyPath = svg.querySelector(
-      '[data-pipe-id="solar-supply"] path',
-    ) as SVGPathElement | null;
-    let supplyEnd: DOMPoint | null = null;
-    if (supplyPath) {
-      const pt = supplyPath.getPointAtLength(supplyPath.getTotalLength());
-      supplyEnd = new DOMPoint(pt.x, pt.y).matrixTransform(supplyPath.getScreenCTM()!);
-    }
-    const panelBox = panel?.getBoundingClientRect();
-    const interiorBox = interior?.getBoundingClientRect();
-    const collectorInsideRoof =
-      panelBox && interiorBox
-        ? panelBox.left >= interiorBox.left - 2 &&
-          panelBox.right <= interiorBox.right + 2 &&
-          panelBox.top >= interiorBox.top - 2 &&
-          panelBox.bottom <= interiorBox.bottom + 2
-        : false;
-    const solar = texts.find((t) => t.dataset.label === 'solar-collector');
-    return {
-      hasPanel: Boolean(panel),
-      hasSolarLabel: Boolean(solar),
-      minSolarText: solar ? rendered(solar).height : 0,
-      collectorInsideRoof,
-      activePipes: document.querySelectorAll('[data-pipe-id^="solar-"][data-active]').length,
-      overlaps,
-      labelClearance: solar
-        ? Math.min(
-            ...texts
-              .filter((t) => t !== solar)
-              .map((t) => gap(rendered(solar), rendered(t))),
-          )
-        : 0,
-      supplyInTankLower: supplyEnd ? supplyEnd.y >= tankBottom - 2 : false,
-    };
-  });
-  expect(result.hasPanel).toBe(true);
-  expect(result.hasSolarLabel).toBe(true);
-  expect(result.minSolarText).toBeGreaterThanOrEqual(9);
-  expect(result.collectorInsideRoof).toBe(true);
-  expect(result.activePipes).toBe(2);
-  expect(result.overlaps).toEqual([]);
-  expect(result.labelClearance).toBeGreaterThanOrEqual(4);
-  expect(result.supplyInTankLower).toBe(true);
-});
+for (const [width, height] of [
+  [390, 844],
+  [1280, 800],
+] as const) {
+  for (const scenario of ['solar', 'heating'] as const) {
+    test(`solar rendered geometry ${scenario} ${width}x${height}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
+      await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+      await page.evaluate(() => document.fonts.ready);
+      const result = await page.getByTestId('heating-schematic').evaluate(solarRenderedGeometry);
+      expect(result.configured).toBe(true);
+      expect(result.overlaps, 'label and solar pipe layout').toEqual([]);
+      expect(result.collectorInHouse).toBe(true);
+      expect(result.collectorInRoof).toBe(true);
+      expect(result.coilInLower).toBe(true);
+      expect(result.badgeCoilOverlap).toBe(false);
+      if (scenario === 'solar') expect(result.solarHeating).toBe(true);
+    });
+  }
+}
 
 test('landscape Další okruhy: chips clear and inside card', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -365,7 +295,10 @@ test('landscape Další okruhy: chips clear and inside card', async ({ page }) =
           overlaps.push(`${i}/${j}`);
       }
     }
-    const outside = rects.filter(
+    const tempRects = Array.from(card.querySelectorAll('.ht-side-temp')).map((c) =>
+      c.getBoundingClientRect(),
+    );
+    const outside = [...rects, ...tempRects].filter(
       (r) => r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1,
     ).length;
     const overflow = card.scrollHeight > card.clientHeight + 2;
