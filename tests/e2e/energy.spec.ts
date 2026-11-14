@@ -2,7 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('obrazovka Energie na mockových datech', async ({ page }, testInfo) => {
   await page.goto('/homebrain-energie');
-  await expect(page.getByRole('heading', { name: 'Energie', exact: true, level: 1 })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Energie', exact: true, level: 1 })).toHaveCount(
+    0,
+  );
   await expect(page.getByTestId('energy-flow')).toBeVisible();
   await expect(page.getByTestId('energy-price')).toBeVisible();
   await expect(page.getByTestId('energy-flow')).toContainText('Baterie');
@@ -49,7 +51,9 @@ test('karta Spotřebiče a dokončená myčka', async ({ page }) => {
   const card = page.getByTestId('energy-appliances');
   await expect(card).toBeVisible();
   await expect(card.getByRole('listitem')).toHaveCount(4);
-  await expect(page.getByTestId('energy-appliance-heat_pump').getByLabel('Běží', { exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId('energy-appliance-heat_pump').getByLabel('Běží', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByTestId('energy-appliance-heat_pump')).toContainText('% dne');
   await expect(page.getByTestId('energy-appliance-dishwasher')).toContainText('Dokončeno');
   await expect(page.getByTestId('energy-appliance-coffee_maker')).toContainText('Pohotovost');
@@ -360,7 +364,7 @@ test.describe('Fáze: tři fáze, nesymetrie a saldování', () => {
     await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
     await page.goto('/homebrain-energie?flow=mixed');
     await expect(page.getByTestId('energy-phases-saldo')).toContainText(
-      'L1 odebírá 0,8 kW, L2 + L3 dodávají 2,1 kW → elektroměr počítá dodávku 1,3 kW',
+      'L1 odebírá 800\u00a0W, L2 a L3 dodávají 2,1\u00a0kW → elektroměr počítá dodávku 1,3\u00a0kW',
     );
     await expect(page.getByTestId('energy-phase-l1')).toHaveAttribute('data-dir', 'in');
     await expect(page.getByTestId('energy-phase-l2')).toHaveAttribute('data-dir', 'out');
@@ -1004,7 +1008,11 @@ test('spotřebiče tvoří řádky s oddělovači a jednotnou jednotkou kW', asy
       const s = getComputedStyle(el);
       return { border: s.borderBottomWidth, radius: s.borderRadius, background: s.backgroundColor };
     });
-    expect(style).toEqual({ border: i < 3 ? '1px' : '0px', radius: '0px', background: 'rgba(0, 0, 0, 0)' });
+    expect(style).toEqual({
+      border: i < 3 ? '1px' : '0px',
+      radius: '0px',
+      background: 'rgba(0, 0, 0, 0)',
+    });
     if (i) {
       const prev = (await rows[i - 1]!.boundingBox())!;
       const next = (await row.boundingBox())!;
@@ -1035,7 +1043,9 @@ test('úsporné hero a čitelné malé zatížení fází v obou motivech', asyn
       await expect(sheet).toBeVisible();
       for (const i of [1, 2, 3]) {
         const bar = page.getByTestId(`energy-phase-l${i}`);
-        await expect.poll(async () => (await bar.locator('.ef-ph-fill').boundingBox())!.width).toBeGreaterThanOrEqual(6);
+        await expect
+          .poll(async () => (await bar.locator('.ef-ph-fill').boundingBox())!.width)
+          .toBeGreaterThanOrEqual(6);
         const track = (await bar.locator('.ef-ph-track').boundingBox())!;
         const fill = (await bar.locator('.ef-ph-fill').boundingBox())!;
         expect(fill.x).toBeGreaterThanOrEqual(track.x);
@@ -1049,13 +1059,15 @@ test('úsporné hero a čitelné malé zatížení fází v obou motivech', asyn
             ctx.fillRect(0, 0, 1, 1);
             const rgb = [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((c) => {
               const s = c / 255;
-              return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4;
+              return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
             });
-            return rgb[0]! * .2126 + rgb[1]! * .7152 + rgb[2]! * .0722;
+            return rgb[0]! * 0.2126 + rgb[1]! * 0.7152 + rgb[2]! * 0.0722;
           };
-          const track = luminance(getComputedStyle(el.querySelector('.ef-ph-track')!).backgroundColor);
+          const track = luminance(
+            getComputedStyle(el.querySelector('.ef-ph-track')!).backgroundColor,
+          );
           const surface = luminance(getComputedStyle(el.closest('.ef-sheet')!).backgroundColor);
-          return (Math.max(track, surface) + .05) / (Math.min(track, surface) + .05);
+          return (Math.max(track, surface) + 0.05) / (Math.min(track, surface) + 0.05);
         });
         expect(contrast).toBeGreaterThanOrEqual(3);
       }

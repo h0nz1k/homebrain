@@ -76,7 +76,7 @@ describe('analyzePhases', () => {
   it('mixed directions → saldo of a summing meter', () => {
     const a = analyzePhases({ powersKw: [0.8, -1.05, -1.05] });
     expect(a.saldo?.text).toBe(
-      'L1 odebírá 0,8 kW, L2 + L3 dodávají 2,1 kW → elektroměr počítá dodávku 1,3 kW',
+      'L1 odebírá 800\u00a0W, L2 a L3 dodávají 2,1\u00a0kW → elektroměr počítá dodávku 1,3\u00a0kW',
     );
     expect(a.spreadA).toBeCloseTo(8.04, 2);
     expect(a.state).toBe('notice');
@@ -86,9 +86,14 @@ describe('analyzePhases', () => {
 describe('phaseSaldo', () => {
   it('handles net import and a zero net', () => {
     expect(phaseSaldo([1.5, 1.2, -0.4])?.text).toBe(
-      'L1 + L2 odebírají 2,7 kW, L3 dodává 0,4 kW → elektroměr počítá odběr 2,3 kW',
+      'L1 a L2 odebírají 2,7\u00a0kW, L3 dodává 400\u00a0W → elektroměr počítá odběr 2,3\u00a0kW',
     );
     expect(phaseSaldo([1, -0.5, -0.5])?.text).toMatch(/sečte na nulu$/);
+  });
+  it('small flows read in watts, never three times „0,1 kW“', () => {
+    expect(phaseSaldo([-0.047, -0.114, 0.062])?.text).toBe(
+      'L3 odebírá 62\u00a0W, L1 a L2 dodávají 161\u00a0W → elektroměr počítá dodávku 99\u00a0W',
+    );
   });
   it('ignores tiny opposite flows below 50 W', () => {
     expect(phaseSaldo([1, 0.5, -0.02])).toBeNull();
@@ -164,7 +169,7 @@ describe('phase analysis on the dev scenarios', () => {
   });
   it('mixed: saldo line', () => {
     expect(run('mixed').a.saldo?.text).toBe(
-      'L1 odebírá 0,8 kW, L2 + L3 dodávají 2,1 kW → elektroměr počítá dodávku 1,3 kW',
+      'L1 odebírá 800\u00a0W, L2 a L3 dodávají 2,1\u00a0kW → elektroměr počítá dodávku 1,3\u00a0kW',
     );
   });
   it('demo history has a realistic asymmetry (heat pump L1, oven L2)', () => {

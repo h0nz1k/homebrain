@@ -9,6 +9,8 @@
  *            PPDS příloha 4) or one phase carries ≥ 80 % of the main breaker.
  */
 
+import { formatPower } from '@homebrain/ui';
+
 export type PhaseState = 'ok' | 'notice' | 'warn';
 export type Triple<T> = [T, T, T];
 
@@ -63,7 +65,9 @@ const nf = (digits: number) =>
   new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 export const kw1 = (kw: number) => nf(1).format(Math.abs(kw)).replace('−', '');
 const label = (i: number) => `L${i + 1}`;
-const joinPhases = (idx: number[]) => idx.map(label).join(' + ');
+const joinPhases = (idx: number[]) => idx.map(label).join(' a ');
+/** Saldo amounts like the rest of Energie: watts under 1 kW, so small flows never read „0,1 kW“ thrice. */
+const power = (kw: number) => formatPower(Math.abs(kw), 'kW');
 
 /** Main breaker in A from an optional reading; non-sense values fall back to 25 A. */
 export function breakerAmps(value: number | null | undefined): number {
@@ -91,11 +95,16 @@ export function phaseAmps(
 }
 
 /** Phases flowing in opposite directions → what the summing meter counts. Null otherwise. */
+/** Below 5 W a phase is idle for the saldo text (rounds to 0 W). */
+const SALDO_MIN_KW = 0.005;
+
 export function phaseSaldo(powersKw: readonly number[]): PhaseSaldo | null {
   const t = PHASE_THRESHOLDS.activeKw;
-  const importing = powersKw.flatMap((p, i) => (p >= t ? [i] : []));
-  const exporting = powersKw.flatMap((p, i) => (p <= -t ? [i] : []));
-  if (!importing.length || !exporting.length) return null;
+  // Saldo exists only when both directions flow noticeably (≥ 50 W) …
+  if (!powersKw.some((p) => p >= t) || !powersKw.some((p) => p <= -t)) return null;
+  // … but the text lists every flowing phase, so the stated amounts add up to the meter's net.
+  const importing = powersKw.flatMap((p, i) => (p >= SALDO_MIN_KW ? [i] : []));
+  const exporting = powersKw.flatMap((p, i) => (p <= -SALDO_MIN_KW ? [i] : []));
   const importKw = importing.reduce((s, i) => s + powersKw[i]!, 0);
   const exportKw = -exporting.reduce((s, i) => s + powersKw[i]!, 0);
   const netKw = powersKw.reduce((s, p) => s + p, 0);
@@ -103,7 +112,7 @@ export function phaseSaldo(powersKw: readonly number[]): PhaseSaldo | null {
   const result =
     Math.abs(netKw) < t
       ? 'elektroměr fáze sečte na nulu'
-      : `elektroměr počítá ${netKw > 0 ? 'odběr' : 'dodávku'} ${kw1(netKw)} kW`;
+      : `elektroměr počítá ${netKw > 0 ? 'odběr' : 'dodávku'} ${power(netKw)}`;
   return {
     importing,
     exporting,
@@ -111,8 +120,8 @@ export function phaseSaldo(powersKw: readonly number[]): PhaseSaldo | null {
     exportKw,
     netKw,
     text:
-      `${joinPhases(importing)} ${verb(importing, 'odebírá', 'odebírají')} ${kw1(importKw)} kW, ` +
-      `${joinPhases(exporting)} ${verb(exporting, 'dodává', 'dodávají')} ${kw1(exportKw)} kW → ${result}`,
+      `${joinPhases(importing)} ${verb(importing, 'odebírá', 'odebírají')} ${power(importKw)}, ` +
+      `${joinPhases(exporting)} ${verb(exporting, 'dodává', 'dodávají')} ${power(exportKw)} → ${result}`,
   };
 }
 
