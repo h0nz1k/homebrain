@@ -71,6 +71,8 @@ class PresetError(Exception):
 
 
 MAX_PLUS: Final = "max_plus"
+DEEP_PLUS: Final = "deep_plus"
+MODE_FAN_VERIFY_TIMEOUT: Final = 2.5
 
 
 def check_max_plus(settings: Mapping[str, Any] | None) -> None:
@@ -338,7 +340,11 @@ def build_plan(
     # Water and mop route only matter when the run mops (unknown current mode = apply).
     if run_mode in ("mop", "both", None):
         select_step("water", "mop_intensity", settings.get("water"))
-        select_step("route", "mop_mode", settings.get("route"))
+        route = settings.get("route")
+        if route == DEEP_PLUS and run_mode == "both":
+            route = "deep"  # Deep+ is mop-only; vac+mop would flip the robot to mop-only
+            skipped.append("deep_plus")
+        select_step("route", "mop_mode", route)
     passes = int(settings.get("passes") or 1)
     if rooms:
         steps.append(
@@ -390,6 +396,138 @@ def _reached(hass: HomeAssistant, verify: tuple[str, str | None, Any]) -> bool:
     return (state.attributes.get(attr) if attr else state.state) == value
 
 
+def _resolved_fan(settings: Mapping[str, Any], run_mode: str | None) -> str | None:
+    fan = settings.get("fan")
+    if fan == MAX_PLUS and run_mode != "vacuum":
+        return "max"
+    return fan if isinstance(fan, str) else None
+
+
+def _intended_run_mode(
+    settings: Mapping[str, Any],
+    skipped: list[str],
+    get_state: Callable[[str], State | None],
+    mode_entity: str | None,
+) -> str | None:
+    mode = settings.get("mode")
+    if mode and "mode" not in skipped and mode in MODES:
+        return mode
+    if mode_entity:
+        mode_state = get_state(mode_entity)
+        return next(
+            (m for m, o in MODE_OPTION.items() if mode_state and mode_state.state == o),
+            None,
+        )
+    return None
+
+
+def _mode_fan_mismatch(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    settings: Mapping[str, Any],
+    skipped: list[str],
+    intended_mode: str | None,
+) -> bool:
+    """True when HA reports a mode/fan the user did not ask for (firmware flip after mop route)."""
+    if not intended_mode or intended_mode not in MODE_OPTION or "mode" in skipped:
+        return False
+    mode_entity = bindings.get(f"robot{slot}_cleaning_mode")
+    vacuum = bindings.get(f"robot{slot}_vacuum")
+    expected_option = MODE_OPTION[intended_mode]
+    mode_state = hass.states.get(mode_entity) if mode_entity else None
+    vac_state = hass.states.get(vacuum) if vacuum else None
+    if mode_state is None or mode_state.state in ("unknown", "unavailable"):
+        return False
+    if mode_state.state != expected_option:
+        return True
+    if intended_mode not in ("vacuum", "both"):
+        return False
+    fan = _resolved_fan(settings, intended_mode)
+    if fan in (None, "off"):
+        return False
+    actual_fan = vac_state.attributes.get("fan_speed") if vac_state else None
+    return actual_fan == "off"
+
+
+async def _apply_steps(
+    hass: HomeAssistant,
+    steps: list[dict[str, Any]],
+    verify_limit: float,
+    applied: list[str],
+    unconfirmed: list[str],
+) -> None:
+    for step in steps:
+        await hass.services.async_call(
+            step["domain"],
+            step["service"],
+            step["data"],
+            target={"entity_id": step["entity_id"]},
+            blocking=True,
+        )
+        if step["verify"]:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + verify_limit
+            while not _reached(hass, step["verify"]):
+                if loop.time() >= deadline:
+                    current = hass.states.get(step["verify"][0])
+                    if (
+                        current is not None
+                        and step["verify"][1] is None
+                        and current.state
+                        in (
+                            "unknown",
+                            "unavailable",
+                        )
+                    ):
+                        unconfirmed.append(step["field"])
+                        break
+                    raise PresetError(
+                        "apply_timeout", f"Robot did not confirm {step['field']} in time"
+                    )
+                await asyncio.sleep(VERIFY_STEP)
+        applied.append(step["field"])
+
+
+async def _stabilise_mode_fan(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    settings: Mapping[str, Any],
+    skipped: list[str],
+    verify_limit: float,
+    applied: list[str],
+    unconfirmed: list[str],
+) -> bool:
+    """Re-apply mode + fan once if the robot flipped; return True if still wrong (do not start)."""
+    mode_entity = bindings.get(f"robot{slot}_cleaning_mode")
+    intended = _intended_run_mode(settings, skipped, hass.states.get, mode_entity)
+    if not _mode_fan_mismatch(hass, bindings, slot, settings, skipped, intended):
+        return False
+
+    retry, _ = build_plan(bindings, slot, hass.states.get, settings, [])
+    retry_steps = [s for s in retry if s["field"] in ("mode", "fan")]
+    if retry_steps:
+        # One fire-and-forget retry: firmware may fight the mode select; final poll decides.
+        for step in retry_steps:
+            await hass.services.async_call(
+                step["domain"],
+                step["service"],
+                step["data"],
+                target={"entity_id": step["entity_id"]},
+                blocking=True,
+            )
+            applied.append(step["field"])
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + MODE_FAN_VERIFY_TIMEOUT
+    while loop.time() < deadline:
+        if not _mode_fan_mismatch(hass, bindings, slot, settings, skipped, intended):
+            return False
+        await asyncio.sleep(VERIFY_STEP)
+    return True
+
+
 async def async_apply_and_start(
     hass: HomeAssistant,
     bindings: Mapping[str, str],
@@ -405,41 +543,23 @@ async def async_apply_and_start(
         raise PresetError("unavailable", "Robot is unavailable")
     steps, skipped = build_plan(bindings, slot, hass.states.get, settings, rooms)
     check_allowlist(steps, bindings, slot)
-    timeout = VERIFY_TIMEOUT if verify_timeout is None else verify_timeout
+    verify_limit = VERIFY_TIMEOUT if verify_timeout is None else verify_timeout
     applied: list[str] = []
     unconfirmed: list[str] = []
-    for step in steps:
-        await hass.services.async_call(
-            step["domain"],
-            step["service"],
-            step["data"],
-            target={"entity_id": step["entity_id"]},
-            blocking=True,
-        )
-        if step["verify"]:
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + timeout
-            while not _reached(hass, step["verify"]):
-                if loop.time() >= deadline:
-                    current = hass.states.get(step["verify"][0])
-                    if (
-                        current is not None
-                        and step["verify"][1] is None
-                        and current.state
-                        in (
-                            "unknown",
-                            "unavailable",
-                        )
-                    ):
-                        # Some models never report this select (state stays unknown):
-                        # the command was accepted, nothing contradicts it → go on.
-                        unconfirmed.append(step["field"])
-                        break
-                    raise PresetError(
-                        "apply_timeout", f"Robot did not confirm {step['field']} in time"
-                    )
-                await asyncio.sleep(VERIFY_STEP)
-        applied.append(step["field"])
+    setting_steps = [s for s in steps if s["field"] != "start"]
+    start_steps = [s for s in steps if s["field"] == "start"]
+    await _apply_steps(hass, setting_steps, verify_limit, applied, unconfirmed)
+    if await _stabilise_mode_fan(
+        hass, bindings, slot, settings, skipped, verify_limit, applied, unconfirmed
+    ):
+        return {
+            "started": False,
+            "applied": applied,
+            "skipped": skipped,
+            "unconfirmed": unconfirmed,
+            "mode_flipped": True,
+        }
+    await _apply_steps(hass, start_steps, verify_limit, applied, unconfirmed)
     return {"started": True, "applied": applied, "skipped": skipped, "unconfirmed": unconfirmed}
 
 

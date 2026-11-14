@@ -92,24 +92,54 @@ export function robotCapabilities(robot: RobotModel): RobotCapabilities {
 
 export const MAX_PLUS = 'max_plus';
 export const MAX_PLUS_HINT = 'Max+ jen při samotném vysávání';
+export const DEEP_PLUS = 'deep_plus';
+export const DEEP_PLUS_HINT =
+  'Důkladně+ robot umí jen při samotném vytírání – použije se Důkladně.';
+export const DEEP_PLUS_SKIPPED_TOAST =
+  'Robot by s Důkladně+ jen vytíral, spustil jsem Důkladně.';
+export const MODE_FLIPPED_TOAST =
+  'Robot si přepnul režim na jen vytírání – zkontrolujte nastavení v aplikaci robota.';
 
 /** Max+ suction is offered only in vacuum-only mode („Ponechat“ + Max+ is not allowed). */
 export function fansForMode(fans: string[], mode: CleanMode | null): string[] {
   return mode === 'vacuum' ? fans : fans.filter((f) => f !== MAX_PLUS);
 }
 
+/** Deep+ mop route is offered only in mop-only mode (vac+mop would flip the robot to mop). */
+export function routesForMode(routes: string[], mode: CleanMode | null): string[] {
+  return mode === 'mop' ? routes : routes.filter((r) => r !== DEEP_PLUS);
+}
+
+export function resolvedRoute(route: string | null, mode: CleanMode | null): string | null {
+  if (route === DEEP_PLUS && mode === 'both') return 'deep';
+  return route;
+}
+
 /**
  * Switch mode; Max+ becomes Max when the new mode mops (the robot would flip back to vacuum
  * or drop to balanced otherwise). `downgraded` drives the „Max+ jen při…“ hint.
  */
-export function applyMode<T extends { mode: CleanMode | null; fan: string | null }>(
+export function applyMode<
+  T extends { mode: CleanMode | null; fan: string | null; route?: string | null },
+>(
   settings: T,
   mode: CleanMode | null,
   fans: string[],
-): { next: T; downgraded: boolean } {
-  const downgraded = settings.fan === MAX_PLUS && mode !== 'vacuum';
-  const fan = downgraded ? (fans.includes('max') ? 'max' : null) : settings.fan;
-  return { next: { ...settings, mode, fan }, downgraded };
+  routes: string[] = [],
+): { next: T; downgradedFan: boolean; downgradedRoute: boolean } {
+  const downgradedFan = settings.fan === MAX_PLUS && mode !== 'vacuum';
+  const fan = downgradedFan ? (fans.includes('max') ? 'max' : null) : settings.fan;
+  const downgradedRoute = settings.route === DEEP_PLUS && mode === 'both';
+  const route = downgradedRoute
+    ? routes.includes('deep')
+      ? 'deep'
+      : null
+    : (settings.route ?? null);
+  return {
+    next: { ...settings, mode, fan, route } as T,
+    downgradedFan,
+    downgradedRoute,
+  };
 }
 
 /** Drop values the robot does not expose (another model, removed option). */
@@ -123,7 +153,12 @@ export function fitSettings(settings: CleanSettings, caps: RobotCapabilities): C
           ? 'max'
           : null,
     water: settings.water && caps.water.includes(settings.water) ? settings.water : null,
-    route: settings.route && caps.routes.includes(settings.route) ? settings.route : null,
+    route:
+      settings.route && routesForMode(caps.routes, settings.mode).includes(settings.route)
+        ? settings.route
+        : settings.route === DEEP_PLUS && caps.routes.includes('deep')
+          ? 'deep'
+          : null,
     passes: Math.min(MAX_PASSES, Math.max(1, Math.round(settings.passes || 1))),
   };
 }
@@ -169,7 +204,11 @@ export function planStart(
       ? { entity: robot.water.entity, value: fitted.water, current: robot.water.value }
       : undefined,
     mopRoute: robot.mopRoute
-      ? { entity: robot.mopRoute.entity, value: fitted.route, current: robot.mopRoute.value }
+      ? {
+          entity: robot.mopRoute.entity,
+          value: resolvedRoute(fitted.route, fitted.mode),
+          current: robot.mopRoute.value,
+        }
       : undefined,
   });
   if (!rooms.length)
@@ -257,10 +296,26 @@ export async function saveDefaults(
   const res = await connection.sendMessagePromise<{ defaults: CleanSettings | null }>(message);
   return res.defaults;
 }
+export interface StartCleaningResult {
+  started?: boolean;
+  applied: string[];
+  skipped: string[];
+  unconfirmed?: string[];
+  mode_flipped?: boolean;
+}
+
+/** Czech toasts after a successful or aborted backend start. */
+export function startCleaningToasts(result: StartCleaningResult): string[] {
+  const out: string[] = [];
+  if (result.mode_flipped) out.push(MODE_FLIPPED_TOAST);
+  else if (result.skipped?.includes('deep_plus')) out.push(DEEP_PLUS_SKIPPED_TOAST);
+  return out;
+}
+
 export async function startCleaning(
   connection: ConnectionLike,
   request: StartRequest,
-): Promise<{ applied: string[]; skipped: string[] }> {
+): Promise<StartCleaningResult> {
   const message = { type: 'homebrain/robots/start', ...request };
   return connection.sendMessagePromise(message);
 }

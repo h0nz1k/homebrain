@@ -173,9 +173,18 @@ export function planCleanRooms(input: CleanPlanInput): ServiceCallPlan[] {
     });
   // Water + mop route only matter when the run mops.
   const mops = modeMops(input.mode ?? input.currentMode);
+  const runMode = input.mode ?? input.currentMode;
+  const mopRouteValue =
+    input.mopRoute?.value === 'deep_plus' && runMode === 'both'
+      ? 'deep'
+      : input.mopRoute?.value;
+  const mopRoute =
+    input.mopRoute && mopRouteValue !== input.mopRoute.value
+      ? { ...input.mopRoute, value: mopRouteValue ?? input.mopRoute.value }
+      : input.mopRoute;
   for (const [change, title, labels] of [
     [input.water, 'Voda', WATER_LABELS],
-    [input.mopRoute, 'Mopování', MOP_ROUTE_LABELS],
+    [mopRoute, 'Mopování', MOP_ROUTE_LABELS],
   ] as const)
     if (mops && change?.entity && change.value && change.value !== change.current)
       plan.push({

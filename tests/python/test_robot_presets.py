@@ -384,3 +384,128 @@ async def test_max_plus_requires_vacuum_and_fan_reapplied_after_mode(hass: HomeA
     )
     fan = next(s for s in steps if s["field"] == "fan")
     assert fan["data"] == {"fan_speed": "max"} and "max_plus" in skipped
+
+
+def test_both_deep_plus_downgraded_to_deep(hass: HomeAssistant):
+    _states(hass, mode="vac_and_mop", fan="balanced")
+    steps, skipped = build_plan(
+        BINDINGS,
+        1,
+        hass.states.get,
+        {"mode": "both", "route": "deep_plus", "passes": 1},
+        [],
+    )
+    route = next(s for s in steps if s["field"] == "route")
+    assert route["data"] == {"option": "deep"}
+    assert "deep_plus" in skipped
+
+
+def test_mop_deep_plus_unchanged(hass: HomeAssistant):
+    _states(hass, mode="mop", fan="off")
+    steps, skipped = build_plan(
+        BINDINGS,
+        1,
+        hass.states.get,
+        {"mode": "mop", "route": "deep_plus", "passes": 1},
+        [],
+    )
+    route = next(s for s in steps if s["field"] == "route")
+    assert route["data"] == {"option": "deep_plus"}
+    assert "deep_plus" not in skipped
+
+
+def _flip_on_route_mock(hass: HomeAssistant, persistent: bool = False):
+    calls: list[ServiceCall] = []
+
+    async def handler(call: ServiceCall) -> None:
+        calls.append(call)
+        entities = call.data.get("entity_id", [])
+        for entity in [entities] if isinstance(entities, str) else entities:
+            state = hass.states.get(entity)
+            if call.service == "select_option":
+                hass.states.async_set(entity, call.data["option"], state.attributes)
+                if entity == "select.robot_a_route" and call.data["option"] in ("deep", "deep_plus"):
+                    mode = hass.states.get("select.robot_a_mode")
+                    vac = hass.states.get("vacuum.robot_a")
+                    hass.states.async_set("select.robot_a_mode", "mop", mode.attributes)
+                    hass.states.async_set(
+                        "vacuum.robot_a",
+                        vac.state,
+                        {**vac.attributes, "fan_speed": "off"},
+                    )
+                elif entity == "select.robot_a_mode":
+                    if persistent and call.data["option"] == "vac_and_mop":
+                        hass.states.async_set(
+                            "select.robot_a_mode", "mop", hass.states.get("select.robot_a_mode").attributes
+                        )
+                        vac = hass.states.get("vacuum.robot_a")
+                        hass.states.async_set(
+                            "vacuum.robot_a",
+                            vac.state,
+                            {**vac.attributes, "fan_speed": "off"},
+                        )
+                    elif not persistent and call.data["option"] == "vac_and_mop":
+                        vac = hass.states.get("vacuum.robot_a")
+                        hass.states.async_set(
+                            "vacuum.robot_a",
+                            vac.state,
+                            {**vac.attributes, "fan_speed": "balanced"},
+                        )
+            elif call.service == "set_fan_speed":
+                vac = hass.states.get(entity)
+                hass.states.async_set(
+                    entity, vac.state, {**vac.attributes, "fan_speed": call.data["fan_speed"]}
+                )
+
+    for domain, service in (
+        ("select", "select_option"),
+        ("vacuum", "set_fan_speed"),
+        ("vacuum", "send_command"),
+        ("vacuum", "start"),
+    ):
+        hass.services.async_register(domain, service, handler)
+    return calls
+
+
+async def test_start_recovers_mode_flip_after_route(hass: HomeAssistant, setup, hass_ws_client, monkeypatch):
+    from custom_components.homebrain.robots import presets as presets_mod
+
+    _states(hass, mode="vac_and_mop", fan="balanced")
+    calls = _flip_on_route_mock(hass, persistent=False)
+    monkeypatch.setattr(presets_mod, "MODE_FAN_VERIFY_TIMEOUT", 0.6)
+    monkeypatch.setattr(presets_mod, "VERIFY_STEP", 0.05)
+    client = await hass_ws_client(hass)
+    res = await _ws(
+        client,
+        {
+            "type": "homebrain/robots/start",
+            "slot": 1,
+            "settings": {"mode": "both", "fan": "balanced", "route": "deep"},
+        },
+    )
+    assert res["success"], res
+    assert res["result"]["started"] is True
+    assert res["result"].get("mode_flipped") is not True
+    assert any(c.service == "start" for c in calls)
+
+
+async def test_start_aborts_on_persistent_mode_flip(hass: HomeAssistant, setup, hass_ws_client, monkeypatch):
+    from custom_components.homebrain.robots import presets as presets_mod
+
+    _states(hass, mode="vac_and_mop", fan="balanced")
+    calls = _flip_on_route_mock(hass, persistent=True)
+    monkeypatch.setattr(presets_mod, "MODE_FAN_VERIFY_TIMEOUT", 0.5)
+    monkeypatch.setattr(presets_mod, "VERIFY_STEP", 0.05)
+    client = await hass_ws_client(hass)
+    res = await _ws(
+        client,
+        {
+            "type": "homebrain/robots/start",
+            "slot": 1,
+            "settings": {"mode": "both", "fan": "balanced", "route": "deep"},
+        },
+    )
+    assert res["success"], res
+    assert res["result"]["started"] is False
+    assert res["result"]["mode_flipped"] is True
+    assert not any(c.service in ("start", "send_command") for c in calls)

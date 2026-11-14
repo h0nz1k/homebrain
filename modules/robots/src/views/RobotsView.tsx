@@ -42,8 +42,12 @@ import { GuideSheet, useGuides } from './GuideSheet.js';
 import { PresetSheet, type PresetEditorTarget } from './PresetSheet.js';
 import { SchedulesCard } from './SchedulesCard.js';
 import {
+  DEEP_PLUS_HINT,
   MAX_PLUS,
   MAX_PLUS_HINT,
+  resolvedRoute,
+  routesForMode,
+  startCleaningToasts,
   fansForMode,
   PRESET_START_DELAY_MS,
   delayedStart,
@@ -291,12 +295,7 @@ function RobotPanel({
   // Max+ only in vacuum-only mode (Roborock flips the mode / drops Max+ otherwise).
   const fan = rawFan === MAX_PLUS && mode !== 'vacuum' ? 'max' : rawFan;
   const [maxPlusHint, setMaxPlusHint] = useState(false);
-  const chooseMode = (next: CleanMode) => {
-    setMode(next);
-    const downgraded = fan === MAX_PLUS && next !== 'vacuum';
-    setMaxPlusHint(downgraded);
-    if (downgraded) setFan('max');
-  };
+  const [deepPlusHint, setDeepPlusHint] = useState(false);
   const water = pickOr(
     waterPick,
     robot.water?.choices ?? null,
@@ -309,6 +308,15 @@ function RobotPanel({
     defaults?.route,
     robot.mopRoute?.value,
   );
+  const chooseMode = (next: CleanMode) => {
+    setMode(next);
+    const downgradedFan = fan === MAX_PLUS && next !== 'vacuum';
+    setMaxPlusHint(downgradedFan);
+    if (downgradedFan) setFan('max');
+    const downgradedRoute = mopRoute === 'deep_plus' && next === 'both';
+    setDeepPlusHint(downgradedRoute);
+    if (downgradedRoute) setMopRoute('deep');
+  };
   const passes = passesPick ?? defaults?.passes ?? 1;
   const [advanced, setAdvanced] = useState(false);
   const [presetIdPick, setPresetIdPick] = useState<string | null>(null);
@@ -474,7 +482,14 @@ function RobotPanel({
     const cancel = delayedStart(() => {
       notify.dismiss(toastId);
       startCleaning(connection, { slot: robot.slot, preset_id: preset.id })
-        .then(() => notify.success(`Úklid „${preset.name}“ spuštěn. Čekám na stav robota.`))
+        .then((result) => {
+          if (result.started === false || result.mode_flipped) {
+            for (const text of startCleaningToasts(result)) notify.error(text);
+            return;
+          }
+          notify.success(`Úklid „${preset.name}“ spuštěn. Čekám na stav robota.`);
+          for (const text of startCleaningToasts(result)) notify.info(text);
+        })
         .catch((error: unknown) =>
           notify.error(
             `Spuštění „${preset.name}“ se nepodařilo${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
@@ -531,10 +546,19 @@ function RobotPanel({
     try {
       // Cleaning starts go through the backend: it applies the settings, waits until HA
       // reports them and only then starts the robot (no race with the old suction/water).
-      if (confirm.start) await startCleaning(connection, confirm.start);
-      else await runPlan(connection, confirm.plan, [robot.vacuum]);
-      notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
-      if (confirm.start) setOrder([]);
+      if (confirm.start) {
+        const result = await startCleaning(connection, confirm.start);
+        if (result.started === false || result.mode_flipped) {
+          for (const text of startCleaningToasts(result)) notify.error(text);
+        } else {
+          notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
+          for (const text of startCleaningToasts(result)) notify.info(text);
+          setOrder([]);
+        }
+      } else {
+        await runPlan(connection, confirm.plan, [robot.vacuum]);
+        notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
+      }
     } catch (error) {
       notify.error(
         `Příkaz se nepodařilo odeslat${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
@@ -1074,14 +1098,29 @@ function RobotPanel({
                       onChange={setWater}
                     />
                   )}
+                  {deepPlusHint && (
+                    <p
+                      className="rb-micro rb-hint"
+                      role="status"
+                      data-testid="robots-deepplus-hint"
+                    >
+                      {DEEP_PLUS_HINT}
+                    </p>
+                  )}
                   {advanced && mops && robot.mopRoute && (
                     <CleaningOptionRow
                       label="Mopování"
                       className="rb-adv"
                       iconKind="mop"
                       value={mopRoute}
-                      options={robot.mopRoute.choices.map((m) => [m, MOP_ROUTE_LABELS[m] ?? m])}
-                      onChange={setMopRoute}
+                      options={routesForMode(robot.mopRoute.choices, mode).map((m) => [
+                        m,
+                        MOP_ROUTE_LABELS[m] ?? m,
+                      ])}
+                      onChange={(value) => {
+                        setMopRoute(value);
+                        setDeepPlusHint(false);
+                      }}
                     />
                   )}
                   {advanced && (
@@ -1129,7 +1168,9 @@ function RobotPanel({
                             mode,
                             fan,
                             water: modeMops(mode ?? robot.mode) ? water : null,
-                            route: modeMops(mode ?? robot.mode) ? mopRoute : null,
+                            route: modeMops(mode ?? robot.mode)
+                              ? resolvedRoute(mopRoute, mode)
+                              : null,
                             passes,
                           },
                         },

@@ -75,6 +75,10 @@ function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
         }
         return result as T;
       }
+      if (message.type === 'homebrain/robots/start') {
+        sent.push(message as Record<string, unknown>);
+        return { started: true, applied: ['start'], skipped: [] } as T;
+      }
       sent.push(message as Record<string, unknown>);
       return undefined as T;
     },

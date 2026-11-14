@@ -121,6 +121,34 @@ test('editor předvolby: poslední místnost není schovaná pod patičkou', asy
   expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(footBox.y + 1);
 });
 
+const DEEP_VIEWPORTS = [
+  { width: 390, height: 844 },
+  { width: 1280, height: 800 },
+] as const;
+
+for (const vp of DEEP_VIEWPORTS) {
+  test(`Důkladně+ jen při mopu – nápověda bez překryvu (${vp.width}×${vp.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(vp);
+    await page.goto('/homebrain-roboti');
+    await page.getByRole('radio', { name: 'Pokročilé' }).click();
+    const controls = page.getByTestId('robots-controls');
+    await controls.getByRole('radio', { name: 'Obojí' }).click();
+    await expect(controls.getByRole('radio', { name: 'Důkladně+' })).toHaveCount(0);
+    await controls.getByRole('radio', { name: 'Mopovat' }).click();
+    await controls.getByRole('radio', { name: 'Důkladně+' }).click();
+    await controls.getByRole('radio', { name: 'Obojí' }).click();
+    const hint = page.getByTestId('robots-deepplus-hint');
+    await expect(hint).toHaveText(
+      'Důkladně+ robot umí jen při samotném vytírání – použije se Důkladně.',
+    );
+    const box = await hint.boundingBox();
+    const foot = await page.getByTestId('robots-start').boundingBox();
+    expect(box && foot && box.y + box.height).toBeLessThanOrEqual(foot.y + 1);
+  });
+}
+
 test('Max+ jen při samotném vysávání', async ({ page }) => {
   await page.goto('/homebrain-roboti');
   await page.getByTestId('robots-defaults-edit').click();

@@ -354,3 +354,31 @@ async def test_schedule_inline_max_plus_requires_vacuum(hass: HomeAssistant, env
     assert err.value.code == "max_plus_requires_vacuum"
     ok = await _schedule(manager, at("08:00"), settings={**bad, "mode": "vacuum"})
     assert ok["settings"]["fan"] == "max_plus"
+
+
+def test_schedule_inline_both_deep_plus_matches_preset_apply(hass: HomeAssistant):
+    """Schedules call the same ``build_plan`` path as ``robots/start`` (inline settings)."""
+    from custom_components.homebrain.robots.presets import build_plan
+
+    bindings = {
+        **BINDINGS,
+        "robot1_cleaning_mode": "select.robot_a_mode",
+        "robot1_mop_mode": "select.robot_a_route",
+    }
+    hass.states.async_set("vacuum.robot_a", "docked", {"fan_speed": "balanced", "fan_speed_list": ["quiet", "max"]})
+    hass.states.async_set(
+        "select.robot_a_mode", "vac_and_mop", {"options": ["vacuum", "vac_and_mop", "mop"]}
+    )
+    hass.states.async_set(
+        "select.robot_a_route", "standard", {"options": ["standard", "deep", "deep_plus"]}
+    )
+    steps, skipped = build_plan(
+        bindings,
+        1,
+        hass.states.get,
+        {"mode": "both", "route": "deep_plus", "passes": 1},
+        [],
+    )
+    route = next(s for s in steps if s["field"] == "route")
+    assert route["data"] == {"option": "deep"}
+    assert "deep_plus" in skipped
