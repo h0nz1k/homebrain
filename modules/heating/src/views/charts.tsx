@@ -325,7 +325,7 @@ export function Scatter({
 /** Seasons as columns (run hours); a column with a note gets a marker + caption. */
 export function SeasonBars({ cards }: { cards: SeasonCard[] }) {
   const ordered = cards.slice().reverse();
-  const ticks = niceTicks(0, Math.max(...ordered.map((c) => c.compressor_h)), 3);
+  const ticks = niceTicks(0, Math.max(...ordered.map((c) => c.compressor_h ?? 0)), 3);
   const top = ticks[ticks.length - 1] ?? 1;
   return (
     <div className="ht-sbars" data-testid="heating-season-bars">
@@ -341,19 +341,23 @@ export function SeasonBars({ cards }: { cards: SeasonCard[] }) {
           </em>
         </span>
       ))}
-      {ordered.map((c) => (
-        <div
-          key={c.season}
-          className="ht-sbar"
-          data-partial={c.partial ? '' : undefined}
-          data-note={c.note ? '' : undefined}
-        >
-          <b>{fmtNum(c.compressor_h, 0)}</b>
-          <i style={{ height: `calc((100% - 56px) * ${c.compressor_h / top})` }} />
-          <span>{c.season}</span>
-          {c.note && <small className="ht-sbar-note">zlom</small>}
-        </div>
-      ))}
+      {ordered.map((c) => {
+        const h = c.compressor_h ?? 0;
+        return (
+          <div
+            key={c.season}
+            className="ht-sbar"
+            data-partial={c.partial ? '' : undefined}
+            data-note={c.note ? '' : undefined}
+            data-unavailable={c.compressor_unavailable ? '' : undefined}
+          >
+            <b>{c.compressor_unavailable ? '–' : fmtNum(h, 0)}</b>
+            <i style={{ height: `calc((100% - 56px) * ${h / top})` }} />
+            <span>{c.season}</span>
+            {c.note && <small className="ht-sbar-note">zlom</small>}
+          </div>
+        );
+      })}
     </div>
   );
 }
