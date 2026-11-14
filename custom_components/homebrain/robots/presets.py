@@ -30,6 +30,7 @@ from homeassistant.helpers.storage import Store
 
 from ..const import DOMAIN
 from .config import ROBOT_SLOTS, clean_text
+from .models import DEEP_ROUTES, MAX_PASSES_ABSOLUTE, max_passes_for_model, model_for_vacuum
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,9 +39,10 @@ STORAGE_VERSION: Final = 1
 STORAGE_MINOR_VERSION: Final = 1
 MAX_PRESETS: Final = 12
 MAX_ROOMS: Final = 64
-MAX_PASSES: Final = 3
+MAX_PASSES: Final = MAX_PASSES_ABSOLUTE
 VERIFY_TIMEOUT: Final = 6.0
 VERIFY_STEP: Final = 0.25
+SETTLE_TIMEOUT: Final = 4.0
 
 MODES: Final = ("vacuum", "mop", "both")
 # Roborock ``select.*_cleaning_mode`` options per HomeBrain mode.
@@ -71,6 +73,7 @@ class PresetError(Exception):
 
 
 MAX_PLUS: Final = "max_plus"
+DEEP_PLUS: Final = "deep_plus"
 
 
 def check_max_plus(settings: Mapping[str, Any] | None) -> None:
@@ -87,19 +90,20 @@ def _option(value: Any) -> str | None:
     return value if isinstance(value, str) and _OPTION_RE.match(value) else None
 
 
-def clean_settings(raw: Any) -> dict[str, Any]:
+def clean_settings(raw: Any, *, max_passes: int | None = None) -> dict[str, Any]:
     """Validated settings; unknown/invalid values become ``None`` (= keep robot as is)."""
     raw = raw if isinstance(raw, Mapping) else {}
     mode = raw.get("mode")
     passes = raw.get("passes", 1)
     if isinstance(passes, bool) or not isinstance(passes, int):
         passes = 1
+    cap = max_passes if max_passes is not None else MAX_PASSES
     return {
         "mode": mode if mode in MODES else None,
         "fan": _option(raw.get("fan")),
         "water": _option(raw.get("water")),
         "route": _option(raw.get("route")),
-        "passes": min(MAX_PASSES, max(1, passes)),
+        "passes": min(cap, max(1, passes)),
     }
 
 
@@ -270,6 +274,8 @@ def build_plan(
     get_state: Callable[[str], State | None],
     settings: Mapping[str, Any],
     rooms: list[int],
+    *,
+    max_passes: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Service steps in apply order (mode → suction → water → route → start) + skipped fields.
 
@@ -338,8 +344,16 @@ def build_plan(
     # Water and mop route only matter when the run mops (unknown current mode = apply).
     if run_mode in ("mop", "both", None):
         select_step("water", "mop_intensity", settings.get("water"))
-        select_step("route", "mop_mode", settings.get("route"))
-    passes = int(settings.get("passes") or 1)
+        route = settings.get("route")
+        if route in DEEP_ROUTES and run_mode == "both":
+            skipped.append(route)
+            route = "standard"
+        select_step("route", "mop_mode", route)
+    pass_cap = max_passes if max_passes is not None else MAX_PASSES
+    requested = int(settings.get("passes") or 1)
+    passes = min(pass_cap, max(1, requested))
+    if requested > pass_cap:
+        skipped.append("passes")
     if rooms:
         steps.append(
             {
@@ -390,6 +404,168 @@ def _reached(hass: HomeAssistant, verify: tuple[str, str | None, Any]) -> bool:
     return (state.attributes.get(attr) if attr else state.state) == value
 
 
+def _resolved_fan(settings: Mapping[str, Any], run_mode: str | None) -> str | None:
+    fan = settings.get("fan")
+    if fan == MAX_PLUS and run_mode != "vacuum":
+        return "max"
+    return fan if isinstance(fan, str) else None
+
+
+def _resolved_route(settings: Mapping[str, Any], run_mode: str | None) -> str | None:
+    route = settings.get("route")
+    if route in DEEP_ROUTES and run_mode == "both":
+        return "standard"
+    return route if isinstance(route, str) else None
+
+
+def _actual_select(hass: HomeAssistant, entity: str | None) -> str | None:
+    if not entity:
+        return None
+    state = hass.states.get(entity)
+    if state is None or state.state in ("unavailable",):
+        return None
+    return state.state
+
+
+def _intended_run_mode(
+    settings: Mapping[str, Any],
+    skipped: list[str],
+    get_state: Callable[[str], State | None],
+    mode_entity: str | None,
+) -> str | None:
+    mode = settings.get("mode")
+    if mode and "mode" not in skipped and mode in MODES:
+        return mode
+    if mode_entity:
+        mode_state = get_state(mode_entity)
+        return next(
+            (m for m, o in MODE_OPTION.items() if mode_state and mode_state.state == o),
+            None,
+        )
+    return None
+
+
+def _settings_mismatch(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    settings: Mapping[str, Any],
+    skipped: list[str],
+) -> bool:
+    """True when HA reports mode/fan/water/route unlike what we applied (post-settle check)."""
+    intended_mode = _intended_run_mode(
+        settings,
+        skipped,
+        hass.states.get,
+        bindings.get(f"robot{slot}_cleaning_mode"),
+    )
+    if not intended_mode:
+        return False
+    mode_entity = bindings.get(f"robot{slot}_cleaning_mode")
+    vacuum = bindings.get(f"robot{slot}_vacuum")
+    if "mode" not in skipped and intended_mode in MODE_OPTION:
+        actual_mode = _actual_select(hass, mode_entity)
+        expected_mode = MODE_OPTION[intended_mode]
+        if actual_mode and actual_mode not in ("unknown",) and actual_mode != expected_mode:
+            return True
+    fan = _resolved_fan(settings, intended_mode)
+    if fan and intended_mode in ("vacuum", "both") and "fan" not in skipped:
+        vac_state = hass.states.get(vacuum) if vacuum else None
+        actual_fan = vac_state.attributes.get("fan_speed") if vac_state else None
+        if actual_fan and actual_fan != fan and not (actual_fan == "off" and fan == "off"):
+            return True
+    if intended_mode in ("mop", "both", None):
+        water = settings.get("water")
+        if water and "water" not in skipped:
+            actual_water = _actual_select(hass, bindings.get(f"robot{slot}_mop_intensity"))
+            if actual_water and actual_water not in ("unknown",) and actual_water != water:
+                return True
+        route = _resolved_route(settings, intended_mode)
+        if route and "route" not in skipped:
+            actual_route = _actual_select(hass, bindings.get(f"robot{slot}_mop_mode"))
+            if actual_route and actual_route not in ("unknown",) and actual_route != route:
+                return True
+    return False
+
+
+async def _apply_steps(
+    hass: HomeAssistant,
+    steps: list[dict[str, Any]],
+    verify_limit: float,
+    applied: list[str],
+    unconfirmed: list[str],
+) -> None:
+    for step in steps:
+        await hass.services.async_call(
+            step["domain"],
+            step["service"],
+            step["data"],
+            target={"entity_id": step["entity_id"]},
+            blocking=True,
+        )
+        if step["verify"]:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + verify_limit
+            while not _reached(hass, step["verify"]):
+                if loop.time() >= deadline:
+                    current = hass.states.get(step["verify"][0])
+                    if (
+                        current is not None
+                        and step["verify"][1] is None
+                        and current.state
+                        in (
+                            "unknown",
+                            "unavailable",
+                        )
+                    ):
+                        unconfirmed.append(step["field"])
+                        break
+                    raise PresetError(
+                        "apply_timeout", f"Robot did not confirm {step['field']} in time"
+                    )
+                await asyncio.sleep(VERIFY_STEP)
+        applied.append(step["field"])
+
+
+async def _wait_settled(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    settings: Mapping[str, Any],
+    skipped: list[str],
+    deadline: float,
+) -> bool:
+    """Return True when settings still match after the settle window (late firmware flips)."""
+    loop = asyncio.get_running_loop()
+    while loop.time() < deadline:  # noqa: ASYNC110
+        await asyncio.sleep(VERIFY_STEP)
+    return not _settings_mismatch(hass, bindings, slot, settings, skipped)
+
+
+async def _settle_after_apply(
+    hass: HomeAssistant,
+    bindings: Mapping[str, str],
+    slot: int,
+    settings: Mapping[str, Any],
+    skipped: list[str],
+    max_passes: int,
+    verify_limit: float,
+    applied: list[str],
+    unconfirmed: list[str],
+) -> bool:
+    """Poll mode/fan/water/route; re-apply once on mismatch. True = still wrong → do not start."""
+    loop = asyncio.get_running_loop()
+    if await _wait_settled(hass, bindings, slot, settings, skipped, loop.time() + SETTLE_TIMEOUT):
+        return False
+
+    retry, _ = build_plan(bindings, slot, hass.states.get, settings, [], max_passes=max_passes)
+    setting_steps = [s for s in retry if s["field"] != "start"]
+    await _apply_steps(hass, setting_steps, verify_limit, applied, unconfirmed)
+    return not await _wait_settled(
+        hass, bindings, slot, settings, skipped, loop.time() + SETTLE_TIMEOUT
+    )
+
+
 async def async_apply_and_start(
     hass: HomeAssistant,
     bindings: Mapping[str, str],
@@ -403,43 +579,44 @@ async def async_apply_and_start(
     state = hass.states.get(vacuum) if vacuum else None
     if state is None or state.state in ("unavailable", "unknown"):
         raise PresetError("unavailable", "Robot is unavailable")
-    steps, skipped = build_plan(bindings, slot, hass.states.get, settings, rooms)
+    if state.state == "paused":
+        return {
+            "started": False,
+            "applied": [],
+            "skipped": [],
+            "unconfirmed": [],
+            "paused": True,
+        }
+    pass_cap = max_passes_for_model(model_for_vacuum(hass, vacuum))
+    steps, skipped = build_plan(
+        bindings, slot, hass.states.get, settings, rooms, max_passes=pass_cap
+    )
     check_allowlist(steps, bindings, slot)
-    timeout = VERIFY_TIMEOUT if verify_timeout is None else verify_timeout
+    verify_limit = VERIFY_TIMEOUT if verify_timeout is None else verify_timeout
     applied: list[str] = []
     unconfirmed: list[str] = []
-    for step in steps:
-        await hass.services.async_call(
-            step["domain"],
-            step["service"],
-            step["data"],
-            target={"entity_id": step["entity_id"]},
-            blocking=True,
-        )
-        if step["verify"]:
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + timeout
-            while not _reached(hass, step["verify"]):
-                if loop.time() >= deadline:
-                    current = hass.states.get(step["verify"][0])
-                    if (
-                        current is not None
-                        and step["verify"][1] is None
-                        and current.state
-                        in (
-                            "unknown",
-                            "unavailable",
-                        )
-                    ):
-                        # Some models never report this select (state stays unknown):
-                        # the command was accepted, nothing contradicts it → go on.
-                        unconfirmed.append(step["field"])
-                        break
-                    raise PresetError(
-                        "apply_timeout", f"Robot did not confirm {step['field']} in time"
-                    )
-                await asyncio.sleep(VERIFY_STEP)
-        applied.append(step["field"])
+    setting_steps = [s for s in steps if s["field"] != "start"]
+    start_steps = [s for s in steps if s["field"] == "start"]
+    await _apply_steps(hass, setting_steps, verify_limit, applied, unconfirmed)
+    if await _settle_after_apply(
+        hass,
+        bindings,
+        slot,
+        settings,
+        skipped,
+        pass_cap,
+        verify_limit,
+        applied,
+        unconfirmed,
+    ):
+        return {
+            "started": False,
+            "applied": applied,
+            "skipped": skipped,
+            "unconfirmed": unconfirmed,
+            "mode_flipped": True,
+        }
+    await _apply_steps(hass, start_steps, verify_limit, applied, unconfirmed)
     return {"started": True, "applied": applied, "skipped": skipped, "unconfirmed": unconfirmed}
 
 

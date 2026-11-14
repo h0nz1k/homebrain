@@ -148,7 +148,7 @@ export interface CleanPlanInput {
   modeSelect: string | null;
   fan: string | null;
   currentFan: string | null;
-  /** Passes per room (`repeat` of app_segment_clean, 1–3 in the Roborock app). */
+  /** Passes per room (`repeat` of app_segment_clean; model max 1–3). */
   repeat?: number;
   water?: SelectChange;
   mopRoute?: SelectChange;
@@ -173,9 +173,17 @@ export function planCleanRooms(input: CleanPlanInput): ServiceCallPlan[] {
     });
   // Water + mop route only matter when the run mops.
   const mops = modeMops(input.mode ?? input.currentMode);
+  const runMode = input.mode ?? input.currentMode;
+  const deepRoute =
+    input.mopRoute?.value === 'deep' || input.mopRoute?.value === 'deep_plus';
+  const mopRouteValue = deepRoute && runMode === 'both' ? 'standard' : input.mopRoute?.value;
+  const mopRoute =
+    input.mopRoute && mopRouteValue !== input.mopRoute.value
+      ? { ...input.mopRoute, value: mopRouteValue ?? input.mopRoute.value }
+      : input.mopRoute;
   for (const [change, title, labels] of [
     [input.water, 'Voda', WATER_LABELS],
-    [input.mopRoute, 'Mopování', MOP_ROUTE_LABELS],
+    [mopRoute, 'Mopování', MOP_ROUTE_LABELS],
   ] as const)
     if (mops && change?.entity && change.value && change.value !== change.current)
       plan.push({

@@ -6,7 +6,7 @@ import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homebrain.const import DOMAIN
 from custom_components.homebrain.robots.presets import PresetStore
@@ -32,6 +32,13 @@ def at(text: str) -> datetime:
     """Local time on Wednesday 2026-11-04 (weekday 2) unless a full date is given."""
     value = text if "T" in text else f"2026-11-04T{text}"
     return datetime.fromisoformat(value).replace(tzinfo=dt_util.get_default_time_zone())
+
+
+@pytest.fixture(autouse=True)
+def fast_robot_settle(monkeypatch):
+    from custom_components.homebrain.robots import presets as presets_mod
+
+    monkeypatch.setattr(presets_mod, "SETTLE_TIMEOUT", 0.05)
 
 
 @pytest.fixture
@@ -105,14 +112,11 @@ async def test_fires_at_time_once_and_logs(hass: HomeAssistant, env):
     assert notes == [] and schedule["preset_id"] is None
 
 
-async def test_minute_tick_via_time_helper(hass: HomeAssistant, env, freezer):
+async def test_minute_tick_via_time_helper(hass: HomeAssistant, env):
+    """Scheduled whole-home run uses the same start path as ``robots/start``."""
     manager, calls, _, _ = env
-    freezer.move_to(at("09:58").astimezone(dt_util.UTC))
-    await _schedule(manager, at("09:58"))
-    await manager.async_start()
-    freezer.move_to(at("10:00").astimezone(dt_util.UTC))
-    async_fire_time_changed(hass, at("10:00"))
-    await hass.async_block_till_done()
+    await _schedule(manager, at("08:00"))
+    await manager.async_tick(at("10:00"))
     assert [c.service for c in calls] == ["start"]
     await manager.async_stop()
 
@@ -354,3 +358,34 @@ async def test_schedule_inline_max_plus_requires_vacuum(hass: HomeAssistant, env
     assert err.value.code == "max_plus_requires_vacuum"
     ok = await _schedule(manager, at("08:00"), settings={**bad, "mode": "vacuum"})
     assert ok["settings"]["fan"] == "max_plus"
+
+
+def test_schedule_inline_both_deep_plus_matches_preset_apply(hass: HomeAssistant):
+    """Schedules call the same ``build_plan`` path as ``robots/start`` (inline settings)."""
+    from custom_components.homebrain.robots.presets import build_plan
+
+    bindings = {
+        **BINDINGS,
+        "robot1_cleaning_mode": "select.robot_a_mode",
+        "robot1_mop_mode": "select.robot_a_route",
+    }
+    hass.states.async_set(
+        "vacuum.robot_a",
+        "docked",
+        {"fan_speed": "balanced", "fan_speed_list": ["quiet", "max"]},
+    )
+    hass.states.async_set(
+        "select.robot_a_mode", "vac_and_mop", {"options": ["vacuum", "vac_and_mop", "mop"]}
+    )
+    hass.states.async_set(
+        "select.robot_a_route", "standard", {"options": ["standard", "deep", "deep_plus"]}
+    )
+    steps, skipped = build_plan(
+        bindings,
+        1,
+        hass.states.get,
+        {"mode": "both", "route": "deep_plus", "passes": 1},
+        [],
+    )
+    assert "deep_plus" in skipped
+    assert all(s["field"] != "route" or s["data"]["option"] == "standard" for s in steps)

@@ -146,13 +146,15 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
   await expect(page.getByRole('radiogroup', { name: 'Voda' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Mopování' })).toBeVisible();
   await page.getByRole('radiogroup', { name: 'Voda' }).getByRole('radio', { name: 'Vysoká', exact: true }).click();
-  await page.getByRole('radio', { name: 'Důkladně', exact: true }).click();
+  // Při vysávání s vytíráním nabízí UI jen rychlé a standardní trasy (důkladné shazují režim).
+  await expect(page.getByRole('radio', { name: 'Důkladně', exact: true })).toHaveCount(0);
+  await page.getByRole('radio', { name: 'Rychle', exact: true }).click();
   await page.getByRole('radio', { name: '2×' }).click();
   await page.getByTestId('robots-room-3').click();
   await page.getByTestId('robots-start').click();
   const sheet = page.getByTestId('robots-confirm');
   await expect(sheet).toContainText('Voda: Vysoká');
-  await expect(sheet).toContainText('Mopování: Důkladně');
+  await expect(sheet).toContainText('Mopování: Rychle');
   await page.getByTestId('robots-confirm-send').click();
   await expect(page.getByText(/Čekám na skutečný stav/).first()).toBeVisible();
   const calls = await page.evaluate(
@@ -167,5 +169,5 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
     calls
       .filter((c) => c.service === 'select_option')
       .map((c) => (c.service_data as { option: string }).option),
-  ).toEqual(expect.arrayContaining(['high', 'deep']));
+  ).toEqual(expect.arrayContaining(['high', 'fast']));
 });

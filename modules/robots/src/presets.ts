@@ -11,6 +11,7 @@ import {
   type ServiceCallPlan,
 } from './commands.js';
 import type { RobotModel } from './model.js';
+import { MAX_PASSES_ABSOLUTE } from './passes.js';
 
 /**
  * Per-robot default cleaning setup and named presets (backend: `homebrain/robots/presets/*`,
@@ -21,7 +22,7 @@ export interface CleanSettings {
   fan: string | null;
   water: string | null;
   route: string | null;
-  /** Passes per room (Roborock `repeat`, 1–3). */
+  /** Passes per room (Roborock `repeat`; max depends on model, up to 3). */
   passes: number;
 }
 export interface RobotPreset extends CleanSettings {
@@ -43,7 +44,7 @@ export interface StartRequest {
   settings?: Partial<CleanSettings>;
 }
 
-export const MAX_PASSES = 3;
+export const MAX_PASSES = MAX_PASSES_ABSOLUTE;
 export const PRESET_NAME_MAX = 40;
 const SETTING_KEYS = ['mode', 'fan', 'water', 'route', 'passes'] as const;
 
@@ -92,28 +93,76 @@ export function robotCapabilities(robot: RobotModel): RobotCapabilities {
 
 export const MAX_PLUS = 'max_plus';
 export const MAX_PLUS_HINT = 'Max+ jen při samotném vysávání';
+export const DEEP_PLUS = 'deep_plus';
+export const DEEP_ROUTES = ['deep', 'deep_plus'] as const;
+export const DEEP_ROUTES_HINT =
+  'Důkladné trasy robot používá jen při samotném vytírání – při vysávání s vytíráním se použije Standardní.';
+export const DEEP_ROUTES_SKIPPED_TOAST =
+  'Důkladná trasa jen při vytírání – spustil jsem Standardní trasu.';
+export const MODE_FLIPPED_TOAST =
+  'Robot si přepnul režim – úklid se nespustil. Zkontrolujte nastavení v aplikaci robota.';
+export const PAUSED_TOAST =
+  'Robot má rozpracovaný úklid – nejdřív ho ukončete nebo pokračujte.';
 
 /** Max+ suction is offered only in vacuum-only mode („Ponechat“ + Max+ is not allowed). */
 export function fansForMode(fans: string[], mode: CleanMode | null): string[] {
   return mode === 'vacuum' ? fans : fans.filter((f) => f !== MAX_PLUS);
 }
 
+/** Deep routes are mop-only; vac+mop keeps fast/standard/smart/custom. */
+export function routesForMode(routes: string[], mode: CleanMode | null): string[] {
+  return mode === 'mop'
+    ? routes
+    : routes.filter((r) => !DEEP_ROUTES.includes(r as (typeof DEEP_ROUTES)[number]));
+}
+
+export function resolvedRoute(route: string | null, mode: CleanMode | null): string | null {
+  if (
+    route &&
+    DEEP_ROUTES.includes(route as (typeof DEEP_ROUTES)[number]) &&
+    mode === 'both'
+  )
+    return 'standard';
+  return route;
+}
+
 /**
  * Switch mode; Max+ becomes Max when the new mode mops (the robot would flip back to vacuum
  * or drop to balanced otherwise). `downgraded` drives the „Max+ jen při…“ hint.
  */
-export function applyMode<T extends { mode: CleanMode | null; fan: string | null }>(
+export function applyMode<
+  T extends { mode: CleanMode | null; fan: string | null; route?: string | null },
+>(
   settings: T,
   mode: CleanMode | null,
   fans: string[],
-): { next: T; downgraded: boolean } {
-  const downgraded = settings.fan === MAX_PLUS && mode !== 'vacuum';
-  const fan = downgraded ? (fans.includes('max') ? 'max' : null) : settings.fan;
-  return { next: { ...settings, mode, fan }, downgraded };
+  routes: string[] = [],
+): { next: T; downgradedFan: boolean; downgradedRoute: boolean } {
+  const downgradedFan = settings.fan === MAX_PLUS && mode !== 'vacuum';
+  const fan = downgradedFan ? (fans.includes('max') ? 'max' : null) : settings.fan;
+  const downgradedRoute =
+    !!settings.route &&
+    DEEP_ROUTES.includes(settings.route as (typeof DEEP_ROUTES)[number]) &&
+    mode === 'both';
+  const route = downgradedRoute
+    ? routes.includes('standard')
+      ? 'standard'
+      : null
+    : (settings.route ?? null);
+  return {
+    next: { ...settings, mode, fan, route } as T,
+    downgradedFan,
+    downgradedRoute,
+  };
 }
 
 /** Drop values the robot does not expose (another model, removed option). */
-export function fitSettings(settings: CleanSettings, caps: RobotCapabilities): CleanSettings {
+export function fitSettings(
+  settings: CleanSettings,
+  caps: RobotCapabilities,
+  maxPasses: number = MAX_PASSES,
+): CleanSettings {
+  const passCap = Math.min(MAX_PASSES, Math.max(1, maxPasses));
   return {
     mode: settings.mode && caps.modes.includes(settings.mode) ? settings.mode : null,
     fan:
@@ -123,8 +172,15 @@ export function fitSettings(settings: CleanSettings, caps: RobotCapabilities): C
           ? 'max'
           : null,
     water: settings.water && caps.water.includes(settings.water) ? settings.water : null,
-    route: settings.route && caps.routes.includes(settings.route) ? settings.route : null,
-    passes: Math.min(MAX_PASSES, Math.max(1, Math.round(settings.passes || 1))),
+    route:
+      settings.route && routesForMode(caps.routes, settings.mode).includes(settings.route)
+        ? settings.route
+        : settings.route &&
+            DEEP_ROUTES.includes(settings.route as (typeof DEEP_ROUTES)[number]) &&
+            caps.routes.includes('standard')
+          ? 'standard'
+          : null,
+    passes: Math.min(passCap, Math.max(1, Math.round(settings.passes || 1))),
   };
 }
 
@@ -151,7 +207,7 @@ export function planStart(
   settings: CleanSettings,
   roomIds: number[],
 ): ServiceCallPlan[] {
-  const fitted = fitSettings(settings, robotCapabilities(robot));
+  const fitted = fitSettings(settings, robotCapabilities(robot), robot.maxPasses);
   const runMode = fitted.mode ?? robot.mode;
   const rooms = roomIds
     .map((id) => robot.rooms.find((room) => room.id === id) ?? { id, name: `#${id}` })
@@ -169,7 +225,11 @@ export function planStart(
       ? { entity: robot.water.entity, value: fitted.water, current: robot.water.value }
       : undefined,
     mopRoute: robot.mopRoute
-      ? { entity: robot.mopRoute.entity, value: fitted.route, current: robot.mopRoute.value }
+      ? {
+          entity: robot.mopRoute.entity,
+          value: resolvedRoute(fitted.route, fitted.mode),
+          current: robot.mopRoute.value,
+        }
       : undefined,
   });
   if (!rooms.length)
@@ -257,10 +317,30 @@ export async function saveDefaults(
   const res = await connection.sendMessagePromise<{ defaults: CleanSettings | null }>(message);
   return res.defaults;
 }
+export interface StartCleaningResult {
+  started?: boolean;
+  applied: string[];
+  skipped: string[];
+  unconfirmed?: string[];
+  mode_flipped?: boolean;
+  paused?: boolean;
+}
+
+/** Czech toasts after a successful or aborted backend start. */
+export function startCleaningToasts(result: StartCleaningResult): string[] {
+  const out: string[] = [];
+  if (result.paused) out.push(PAUSED_TOAST);
+  else if (result.mode_flipped) out.push(MODE_FLIPPED_TOAST);
+  else if (result.skipped?.some((s) => DEEP_ROUTES.includes(s as (typeof DEEP_ROUTES)[number])))
+    out.push(DEEP_ROUTES_SKIPPED_TOAST);
+  else if (result.skipped?.includes('passes')) out.push('Počet průchodů byl omezen na maximum pro tento model robota.');
+  return out;
+}
+
 export async function startCleaning(
   connection: ConnectionLike,
   request: StartRequest,
-): Promise<{ applied: string[]; skipped: string[] }> {
+): Promise<StartCleaningResult> {
   const message = { type: 'homebrain/robots/start', ...request };
   return connection.sendMessagePromise(message);
 }
