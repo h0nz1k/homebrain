@@ -532,6 +532,36 @@ def season_of(day: date) -> str:
     return f"{start}/{(start + 1) % 100:02d}"
 
 
+def _counter_day_delta(value: Any) -> float | None:
+    """Daily recorder ``change`` for a total-increasing counter; drops negative resets."""
+    if value is None:
+        return None
+    try:
+        delta = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, delta)
+
+
+def _sum_counter_increments(rows: list[dict[str, Any]], field: str) -> tuple[float, bool]:
+    """Total increments in ``field`` across daily rows; ``True`` if a counter reset was seen."""
+    total = 0.0
+    saw_reset = False
+    for row in rows:
+        raw = row.get(field)
+        if raw is None:
+            continue
+        try:
+            delta = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if delta < 0:
+            saw_reset = True
+            continue
+        total += delta
+    return total, saw_reset
+
+
 def compute_seasons(
     days: list[dict[str, Any]], *, today: date, kwh_per_run_hour: float | None
 ) -> list[dict[str, Any]]:
@@ -548,13 +578,16 @@ def compute_seasons(
         first = int(season[:4])
         start, end = date(first, 7, 1), date(first + 1, 6, 30)
         elapsed = max(1, (min(today, end) - start).days + 1)
-        hours = sum(r.get("runtime_h") or 0.0 for r in rows)
-        starts = int(sum(r.get("starts") or 0 for r in rows))
-        runs = [
-            r["runtime_h"] * 60 / r["starts"]
-            for r in rows
-            if (r.get("starts") or 0) > 0 and r.get("runtime_h") is not None
-        ]
+        hours, reset_h = _sum_counter_increments(rows, "runtime_h")
+        starts_f, reset_s = _sum_counter_increments(rows, "starts")
+        starts = int(starts_f)
+        counter_reset = reset_h or reset_s
+        runs = []
+        for r in rows:
+            day_h = _counter_day_delta(r.get("runtime_h"))
+            day_s = _counter_day_delta(r.get("starts"))
+            if day_h is not None and day_s is not None and day_s > 0:
+                runs.append(day_h * 60 / day_s)
         means = [r["outdoor_mean"] for r in rows if r.get("outdoor_mean") is not None]
         dd = sum(max(0.0, DEGREE_DAY_BASE - m) for m in means)
         measured = [r["energy_kwh"] for r in rows if r.get("energy_kwh") is not None]
@@ -564,15 +597,24 @@ def compute_seasons(
             energy = hours * kwh_per_run_hour
         else:
             energy = None
+        compressor_h = round(hours, 2) if hours >= 0 else None
+        starts_out = starts if starts >= 0 else None
+        unavailable: str | None = None
+        if compressor_h is None or starts_out is None:
+            unavailable = "statistiky počítadla obsahují nesouvislý pokles"
         out.append(
             {
                 "season": season,
                 "partial": today <= end,
-                "compressor_h": round(hours, 2),
-                "starts": starts,
+                "compressor_h": compressor_h,
+                "starts": starts_out,
+                "compressor_unavailable": unavailable,
+                "counter_reset": counter_reset,
                 "median_run_min": round(statistics.median(runs), 1) if runs else None,
                 "degree_days": round(dd, 1),
-                "h_per_100dd": round(hours / dd * 100, 2) if dd > 0 else None,
+                "h_per_100dd": (
+                    round(hours / dd * 100, 2) if dd > 0 and compressor_h is not None else None
+                ),
                 "energy_kwh": round(energy, 1) if energy is not None else None,
                 "energy_measured": bool(measured),
                 "coverage": round(min(1.0, len(means) / elapsed), 3),

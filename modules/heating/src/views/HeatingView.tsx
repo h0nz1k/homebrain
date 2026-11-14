@@ -839,10 +839,17 @@ function SeasonsTab({ api }: { api: HeatingApi }) {
                 <Pill size="sm">zlom</Pill>
               ) : null}
             </header>
-            <p className="ht-v">
-              {fmtNum(c.compressor_h, 0)}
-              <small>&nbsp;h běhu</small>
-            </p>
+            {c.compressor_unavailable ? (
+              <p className="ht-v" data-testid="heating-season-unavailable">
+                Nedostupné
+                <small> – {c.compressor_unavailable}</small>
+              </p>
+            ) : (
+              <p className="ht-v">
+                {fmtNum(c.compressor_h, 0)}
+                <small>&nbsp;h běhu</small>
+              </p>
+            )}
             <span className="ht-share" aria-hidden="true">
               <i style={{ transform: `scaleX(${c.share})` }} />
             </span>
@@ -850,7 +857,7 @@ function SeasonsTab({ api }: { api: HeatingApi }) {
               <dt>Elektřina</dt>
               <dd>{fmtSeasonEnergy(c)}</dd>
               <dt>Starty</dt>
-              <dd>{fmtNum(c.starts, 0)}</dd>
+              <dd>{c.starts === null ? '–' : fmtNum(c.starts, 0)}</dd>
               <dt>Medián délky běhu (hodinová data, orientační)</dt>
               <dd>{c.median_run_min === null ? '–' : `${c.median_run_min}\u00a0min`}</dd>
               <dt>Na 100 denostupňů</dt>
@@ -865,6 +872,11 @@ function SeasonsTab({ api }: { api: HeatingApi }) {
               <dt>Data</dt>
               <dd>{fmtNum(c.coverage * 100, 1)}&nbsp;%</dd>
             </dl>
+            {c.counter_reset && !c.compressor_unavailable && (
+              <p className="ht-season-note" data-testid="heating-season-reset">
+                Počítadlo v historii bylo vynulováno – součet zahrnuje jen platné denní přírůstky.
+              </p>
+            )}
             {c.note && <p className="ht-season-note">{c.note}</p>}
           </Card>
         ))}

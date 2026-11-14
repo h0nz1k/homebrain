@@ -695,7 +695,7 @@ export interface SeasonCard extends HeatingSeason {
 
 export function seasonsModel(rows: HeatingSeason[]): { cards: SeasonCard[]; maxH: number } {
   const sorted = rows.slice().sort((a, b) => b.season.localeCompare(a.season));
-  const maxH = Math.max(1, ...sorted.map((r) => r.compressor_h));
+  const maxH = Math.max(1, ...sorted.map((r) => r.compressor_h ?? 0));
   const cards = sorted.map((r, i) => {
     const prev = sorted[i + 1];
     const vsPrev =
@@ -703,7 +703,12 @@ export function seasonsModel(rows: HeatingSeason[]): { cards: SeasonCard[]; maxH
         ? // from the DISPLAYED (rounded) values so the card arithmetic adds up
           +(Math.round(r.h_per_100dd) / Math.max(1, Math.round(prev.h_per_100dd)) - 1).toFixed(3)
         : null;
-    return { ...r, vsPrev, share: r.compressor_h / maxH, note: SEASON_NOTES[r.season] ?? null };
+    return {
+      ...r,
+      vsPrev,
+      share: (r.compressor_h ?? 0) / maxH,
+      note: SEASON_NOTES[r.season] ?? null,
+    };
   });
   return { cards, maxH };
 }

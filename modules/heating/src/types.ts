@@ -208,8 +208,12 @@ export interface HeatingHistory {
 export interface HeatingSeason {
   season: string;
   partial: boolean;
-  compressor_h: number;
-  starts: number;
+  compressor_h: number | null;
+  starts: number | null;
+  /** Set when hourly/daily counter totals cannot be shown (recorder inconsistency). */
+  compressor_unavailable?: string | null;
+  /** Recorder saw a decreasing total (odometer reset); increments after that are still counted. */
+  counter_reset?: boolean;
   median_run_min: number | null;
   degree_days: number | null;
   h_per_100dd: number | null;
