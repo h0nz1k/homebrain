@@ -26,7 +26,7 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-day')).toHaveCount(7);
     await expect(page.getByTestId('family-kid')).toHaveCount(2);
     await expect(page.getByTestId('family-total').first()).toContainText('128');
-    await expect(page.getByTestId('family-pending-points')).toHaveText('+4 čeká');
+    await expect(page.getByTestId('family-pending-points').first()).toHaveText('+4 čeká');
     await expect(page.getByTestId('family-shop-item')).toHaveCount(6);
     await noSidewaysScroll(page);
   });
@@ -64,7 +64,7 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-approve')).toHaveCount(0);
     await expect(page.getByTestId('family-clock')).toBeVisible();
     await expect(page.getByTestId('family-day')).toHaveCount(7);
-    await expect(page.getByTestId('family-chores')).toContainText('Schválí rodič');
+    await expect(page.getByTestId('family-chores')).toContainText('Ke schválení');
     const check = await page.getByTestId('family-chore-check').first().boundingBox();
     expect(check!.width).toBeGreaterThanOrEqual(48);
     const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
@@ -89,8 +89,8 @@ test.describe('Rodina', () => {
     await page.getByTestId('family-add-chore-save').click();
     await page.getByTestId('family-total').first().click();
     await expect(page.getByTestId('family-points-sheet')).toBeVisible();
-    await page.getByTestId('family-swap-approve').click();
-    await expect(page.getByText('za Dcera')).toBeVisible();
+    await page.getByTestId('family-swap-approve').first().click();
+    await expect(page.getByText('za Dcera').first()).toBeVisible();
   });
 
   test('nic nenastaveno: neutrální text, žádná chyba', async ({ page }) => {

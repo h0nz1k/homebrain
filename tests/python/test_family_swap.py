@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -12,7 +12,6 @@ from custom_components.homebrain.family import swap_model
 from custom_components.homebrain.family.swap_store import FamilySwapStore
 from custom_components.homebrain.roles import role_ws_commands
 
-UTC = timezone.utc
 
 
 def test_request_expires_at_midnight():
