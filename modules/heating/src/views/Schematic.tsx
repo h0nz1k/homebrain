@@ -594,10 +594,15 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             <path d="M22 296V315M57 296V315" className="ht-c3-plates" />
             <rect x="31" y="294" width="21" height="24" rx="8" className="ht-c3-compressor" />
           </g>
-          <Label x={24} y={291} id="hp">
-            Tepelné čerpadlo
+          <Label x={22} y={265} id="hp">
+            <tspan x={22} dy={0}>
+              Tepelné
+            </tspan>
+            <tspan x={22} dy="16">
+              čerpadlo
+            </tspan>
           </Label>
-          <Label x={24} y={309} id="hp-state" muted={off || hp.compressor_on === null}>
+          <Label x={22} y={309} id="hp-state" muted={off || hp.compressor_on === null}>
             {hpStateLine(snap, off)}
           </Label>
           <g

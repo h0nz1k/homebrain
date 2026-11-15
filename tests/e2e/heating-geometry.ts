@@ -59,7 +59,65 @@ export const TOKY_SCHEMATIC_MODEL = {
 type Model = typeof TOKY_SCHEMATIC_MODEL;
 
 /** Refs #82 Toky r5 – geometric QA on the painted schematic (client coordinates). */
-export function tokySchematicGeometry(el: HTMLElement, model: Model = TOKY_SCHEMATIC_MODEL) {
+export function tokySchematicGeometry(el: HTMLElement, model?: Model) {
+  if (!model) {
+    model = {
+      tank: { x0: 136, x1: 258, top: 101.5, bottom: 446 },
+      lower_third_y: 331.16666666666663,
+      ports: {
+        'hp-supply': [
+          [14, 354],
+          [136, 270],
+        ],
+        'hp-return': [
+          [136, 400],
+          [50, 354],
+        ],
+        'heat-supply': [
+          [258, 200],
+          [272, 200],
+        ],
+        'heat-return': [
+          [285, 225],
+          [258, 290],
+        ],
+        'solar-supply': [
+          [342, 14.4],
+          [258, 338],
+        ],
+        'solar-return': [
+          [258, 393],
+          [356, 20.0],
+        ],
+        'dhw-draw': [
+          [192, 146],
+          [88.4, 76],
+        ],
+      },
+      coil: {
+        start: [258, 338],
+        end: [258, 393],
+        x_min: 229,
+        x_max: 245,
+        rows: [338, 393],
+      },
+      window: { x0: 139, x1: 255 },
+      card_right: 219,
+      panel_corners_global: [
+        [289.4, 21.9],
+        [281.25, 42.33],
+        [363.71, 51.54],
+        [355.55, 71.98],
+      ],
+      roof: { x0: 184, y0: 3, x1: 372, y1: 78, margin: 6 },
+      panel: {
+        centre_global: [322.85, 46.01],
+        angle: 21.75,
+        low_end: [360.0, 10.8],
+        low_bottom: [342.0, 14.4],
+      },
+    };
+  }
   const fails: string[] = [];
   const fail = (c: string, m: string) => fails.push(`${c}: ${m}`);
   const svg = el.querySelector('svg[data-toky-schematic], svg')! as SVGSVGElement;
@@ -313,10 +371,8 @@ export function tokySchematicGeometry(el: HTMLElement, model: Model = TOKY_SCHEM
   return fails;
 }
 
-/** Legacy entry – Toky r5 geometry checks. */
-export function schematicGeometry(el: HTMLElement | SVGElement) {
-  return tokySchematicGeometry(el as HTMLElement);
-}
+/** Legacy entry – same self-contained geometry fn (safe for `locator.evaluate`). */
+export const schematicGeometry = tokySchematicGeometry;
 
 /** Off state: flow labels must not overlap the tank shell. */
 export function offSchematicTankLabelClearance(el: HTMLElement): string[] {

@@ -75,7 +75,7 @@ describe('C3 measured state and routes', () => {
     expect(screen.queryByTestId('heating-sch-charge')).toBeNull();
     expect(screen.queryByTestId('heating-sch-house-pump')).toBeNull();
     expect(screen.getByTestId('heating-sch-tap').textContent).toBe('Odběr teplé vody');
-    expect(screen.getByTestId('heating-sch-hp').textContent).toBe('Tepelné čerpadlo');
+    expect(screen.getByTestId('heating-sch-hp').textContent).toBe('Tepelnéčerpadlo');
     expect(screen.getByTestId('heating-sch-heat').textContent).toBe('Topení');
     expect(screen.queryByText('Nádrž nahoře')).toBeNull();
   });
