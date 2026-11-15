@@ -150,10 +150,38 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/cooking/subscribe": {},
     "homebrain/family/chore/claim": {"kid": "nobody", "chore": "sensor.nothing"},
     "homebrain/family/chore/approve": {"kid": "nobody", "chore": "sensor.nothing"},
+    "homebrain/family/chore/create": {
+        "client_request_id": "testcreate1",
+        "name": "Test",
+        "points": 5,
+        "assignees": ["kid-a"],
+        "recurrence": "once",
+        "first_date": "2026-11-15",
+        "due_time": "18:00",
+    },
     "homebrain/family/shopping/add": {"summary": "Mléko"},
     "homebrain/family/shopping/update": {"uid": "u1", "done": True},
     "homebrain/family/settings/get": {},
     "homebrain/family/settings/set": {},
+    "homebrain/family/swap/options": {"direction": "give"},
+    "homebrain/family/swap/request": {
+        "client_request_id": "testswap01",
+        "chore": "sensor.nothing",
+        "from_kid": "kid-a",
+        "to_kid": "kid-b",
+        "local_date": "2026-11-15",
+    },
+    "homebrain/family/swap/decide": {"request_id": "testreq01", "decision": "reject"},
+    "homebrain/family/swap/reassign": {
+        "client_request_id": "testswap02",
+        "chore": "sensor.nothing",
+        "from_kid": "kid-a",
+        "to_kid": "kid-b",
+        "local_date": "2026-11-15",
+    },
+    "homebrain/family/swap/cancel": {"request_id": "testreq01"},
+    "homebrain/family/points/get": {"kid": "nobody"},
+    "homebrain/family/points/history": {"kid": "nobody"},
 }
 
 
