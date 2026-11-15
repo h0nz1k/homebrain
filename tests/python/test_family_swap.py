@@ -13,7 +13,6 @@ from custom_components.homebrain.family.swap_store import FamilySwapStore
 from custom_components.homebrain.roles import role_ws_commands
 
 
-
 def test_request_expires_at_midnight():
     from zoneinfo import ZoneInfo
 

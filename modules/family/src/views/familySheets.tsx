@@ -35,7 +35,7 @@ export function ApprovalsBlock({
   items: FamilyApproval[];
   busy: string | null;
   onApproveCompletion: (item: FamilyApproval) => void;
-  onRejectCompletion: () => void;
+  onRejectCompletion: (item: FamilyApproval) => void;
   onApproveSwap: (item: FamilyApproval) => void;
   onRejectSwap: (item: FamilyApproval) => void;
 }) {

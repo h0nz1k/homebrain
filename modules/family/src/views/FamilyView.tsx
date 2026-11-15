@@ -604,7 +604,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const approvalHandlers = {
     approveCompletion: (item: import('../types.js').FamilyApproval) =>
       void run(`${item.kid_id}/${item.chore_id}`, () => api.approve(item.kid_id!, item.chore_id!)),
-    rejectCompletion: () => undefined,
+    rejectCompletion: (item: import('../types.js').FamilyApproval) => void item,
     approveSwap: (item: import('../types.js').FamilyApproval) =>
       item.request_id &&
       void run(`swap-${item.request_id}`, async () => {
