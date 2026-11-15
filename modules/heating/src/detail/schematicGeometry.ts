@@ -1,0 +1,183 @@
+import type { DetailSchematicModel, SchematicLabel, SchematicPipe } from './types.js';
+
+export type GeometryFailCode =
+  | 'endpoint'
+  | 'device-off-pipe'
+  | 'non-orthogonal'
+  | 'parallel-spacing'
+  | 'label-label'
+  | 'undeclared-bridge';
+
+export interface GeometryFail {
+  code: GeometryFailCode;
+  id: string;
+}
+
+function distanceToPolyline(x: number, y: number, points: [number, number][]): number {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    best = Math.min(best, Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy));
+  }
+  return best;
+}
+
+function parseSegments(d: string, pipe: SchematicPipe): Array<{ a: [number, number]; b: [number, number] }> {
+  const segs: Array<{ a: [number, number]; b: [number, number] }> = [];
+  const tokens = [...d.matchAll(/([MLQ])([^MLQ]+)/g)];
+  let prev: [number, number] | null = null;
+  for (const m of tokens) {
+    const nums = m[2]!.trim().split(/[ ,]+/).map(Number);
+    if (m[1] === 'Q') {
+      if (!pipe.bridges?.length) return segs;
+      prev = [nums[nums.length - 2]!, nums[nums.length - 1]!];
+      continue;
+    }
+    const v: [number, number] = [nums[0]!, nums[1]!];
+    if (m[1] === 'L' && prev) {
+      if (Math.abs(v[0] - prev[0]) > 0.01 && Math.abs(v[1] - prev[1]) > 0.01) {
+        throw new Error(`non-orthogonal:${pipe.id}`);
+      }
+      segs.push({ a: prev, b: v });
+    }
+    prev = v;
+  }
+  return segs;
+}
+
+function portsShare(startA: string, endA: string, startB: string, endB: string, ports: DetailSchematicModel['ports']) {
+  const endsA = [startA, endA];
+  const endsB = [startB, endB];
+  return endsA.some((x) =>
+    endsB.some((y) => Math.hypot(ports[x]!.x - ports[y]!.x, ports[x]!.y - ports[y]!.y) < 0.1),
+  );
+}
+
+function approxChipBox(label: SchematicLabel): { left: number; right: number; top: number; bottom: number } {
+  const w = Math.max(80, label.caption.length * 7 + (label.value ? label.value.length * 6 : 0));
+  const h = label.value ? 44 : 28;
+  return {
+    left: label.x - w / 2 - 14,
+    right: label.x + w / 2 + 14,
+    top: label.y - h / 2 - 10,
+    bottom: label.y + h / 2 + 10,
+  };
+}
+
+export function auditSchematicGeometry(model: DetailSchematicModel): GeometryFail[] {
+  const fails: GeometryFail[] = [];
+  const fail = (code: GeometryFailCode, id: string) => fails.push({ code, id });
+
+  const segs: Array<{ p: string; a: [number, number]; b: [number, number] }> = [];
+  for (const p of model.pipes) {
+    try {
+      for (const { a, b } of parseSegments(p.d, p)) segs.push({ p: p.id, a, b });
+    } catch {
+      fail('non-orthogonal', p.id);
+    }
+    for (const key of ['start', 'end'] as const) {
+      const port = model.ports[p[key]];
+      const pt = key === 'start' ? p.points[0]! : p.points.at(-1)!;
+      if (!port || Math.hypot(port.x - pt[0], port.y - pt[1]) > 1) fail('endpoint', `${p.id}:${key}`);
+    }
+  }
+
+  for (let i = 0; i < segs.length; i++) {
+    for (let j = i + 1; j < segs.length; j++) {
+      const a = segs[i]!;
+      const b = segs[j]!;
+      const ah = Math.abs(a.a[1] - a.b[1]) < 0.01;
+      const bh = Math.abs(b.a[1] - b.b[1]) < 0.01;
+      if (ah !== bh) continue;
+      const c = ah ? 1 : 0;
+      const k = 1 - c;
+      const overlap =
+        Math.min(Math.max(a.a[k]!, a.b[k]!), Math.max(b.a[k]!, b.b[k]!)) -
+        Math.max(Math.min(a.a[k]!, a.b[k]!), Math.min(b.a[k]!, b.b[k]!));
+      const gap = Math.abs(a.a[c] - b.a[c]);
+      if (
+        overlap > 1 &&
+        gap < 12 - 0.01 &&
+        !(gap < 0.01 && a.p === b.p) &&
+        !portsShare(
+          model.pipes.find((p) => p.id === a.p)!.start,
+          model.pipes.find((p) => p.id === a.p)!.end,
+          model.pipes.find((p) => p.id === b.p)!.start,
+          model.pipes.find((p) => p.id === b.p)!.end,
+          model.ports,
+        )
+      ) {
+        fail('parallel-spacing', `${a.p}/${b.p}:${gap.toFixed(2)}`);
+      }
+    }
+  }
+
+  for (const d of model.devices) {
+    const pipe = model.pipes.find((p) => p.id === d.pipe);
+    if (!pipe || distanceToPolyline(d.x, d.y, pipe.points) > 1) fail('device-off-pipe', d.id);
+  }
+
+  const tier0 = model.labels.filter((l) => l.tier === 0);
+  for (let i = 0; i < tier0.length; i++) {
+    for (let j = i + 1; j < tier0.length; j++) {
+      const a = approxChipBox(tier0[i]!);
+      const b = approxChipBox(tier0[j]!);
+      if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+        fail('label-label', `${tier0[i]!.id}/${tier0[j]!.id}`);
+      }
+    }
+  }
+
+  return fails;
+}
+
+export function mutateModel(model: DetailSchematicModel, kind: GeometryFailCode): DetailSchematicModel {
+  const m = structuredClone(model);
+  if (kind === 'endpoint') {
+    const p = m.pipes.find((x) => x.id === 'hp-supply');
+    if (p) p.points[0] = [140, 740];
+    m.pipes = m.pipes.map((pipe) => (pipe.id === 'hp-supply' ? { ...p!, d: 'M140 740L-20 760L-20 550L300 550' } : pipe));
+  }
+  if (kind === 'device-off-pipe') {
+    const d = m.devices.find((x) => x.id === 'Nabíjení');
+    if (d) d.x = 280;
+  }
+  if (kind === 'non-orthogonal') {
+    const p = m.pipes.find((x) => x.id === 'tank-charge');
+    if (p) {
+      p.points = [
+        [300, 550],
+        [360, 565],
+        [430, 550],
+      ];
+      p.d = 'M300 550L360 565L430 550';
+    }
+  }
+  if (kind === 'parallel-spacing') {
+    const p = m.pipes.find((x) => x.id === 'pool-return');
+    if (p) {
+      p.points = [
+        [825, 754],
+        [810, 754],
+        [810, 724],
+        [665, 724],
+        [665, 754],
+        [649.6, 754],
+      ];
+      p.d = 'M825 754L810 754L810 724L665 724L665 754L649.6 754';
+    }
+  }
+  if (kind === 'label-label') {
+    const l = m.labels.find((x) => x.id === 'pool');
+    const o = m.labels.find((x) => x.id === 'fish');
+    if (l && o) {
+      l.x = o.x;
+      l.y = o.y;
+    }
+  }
+  return m;
+}

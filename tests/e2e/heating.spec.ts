@@ -785,6 +785,23 @@ test.describe('Topení', () => {
     await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(0);
   });
 
+  test('Plné schéma: sheet z Toky, zoom ovládání a bez vodorovného scrollu', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=heating');
+    await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId('heating-full-schematic-open').click();
+    const sheet = page.getByTestId('heating-full-schematic-sheet');
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Celé schéma' })).toBeVisible();
+    const viewport = page.getByTestId('heating-full-schematic-viewport');
+    await viewport.dispatchEvent('pointerdown', { button: 0, clientX: 120, clientY: 320, pointerId: 1 });
+    await page.mouse.move(200, 360);
+    await viewport.dispatchEvent('pointerup', { pointerId: 1 });
+    await sheet.getByRole('button', { name: 'Zavřít plné schéma' }).click();
+    await expect(sheet).toHaveCount(0);
+    await noSidewaysScroll(page);
+  });
+
   test('Upozornění solar-off-hot: hero jen kolektor v podřádku', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=solar-off-hot&theme=dark');
