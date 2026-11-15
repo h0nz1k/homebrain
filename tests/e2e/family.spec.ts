@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { join } from 'node:path';
 
 // Rodina (dev mock: synthetic household „Dcera“ + „Syn“, `?role=` role, `?rodina=empty`).
 
@@ -98,4 +99,33 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-no-calendar')).toContainText('zatím není nastaven');
     await expect(page.getByTestId('family-chores')).toHaveCount(0);
   });
+});
+
+const evidenceDir = process.env.HB_FAMILY_SCREENSHOT_DIR;
+const evidenceSizes = [
+  { width: 360, height: 800, label: '360x800' },
+  { width: 800, height: 1280, label: '800x1280' },
+  { width: 1440, height: 900, label: '1440x900' },
+] as const;
+
+test.describe('Rodina – vizuální důkaz (lokálně)', () => {
+  test.skip(!evidenceDir, 'nastav HB_FAMILY_SCREENSHOT_DIR');
+
+  for (const size of evidenceSizes) {
+    test(`snímek ${size.label}`, async ({ page }) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await open(page);
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({
+        path: join(evidenceDir!, `family-overview-${size.label}.png`),
+        fullPage: true,
+      });
+      await page.getByTestId('family-total').first().click();
+      await expect(page.getByTestId('family-points-sheet')).toBeVisible();
+      await page.screenshot({
+        path: join(evidenceDir!, `family-points-${size.label}.png`),
+        fullPage: true,
+      });
+    });
+  }
 });
