@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { solarRenderedGeometry } from './heating-geometry.js';
+import {
+  TOKY_SCHEMATIC_MODEL,
+  solarRenderedGeometry,
+  tokySchematicGeometry,
+} from './heating-geometry.js';
 
 // Refs #82. Check painted SVG geometry, including landscape-only labels.
 for (const [width, height] of [
@@ -36,7 +40,7 @@ for (const [width, height] of [
           const texts = Array.from(svg.querySelectorAll('text')).filter(visible);
           const icons = Array.from(
             svg.querySelectorAll<SVGGraphicsElement>(
-              '.ht-c3-tap, .ht-c3-radiator, .ht-c3-hp, .ht-c3-water-valve, [data-pump], .ht-c3-valve, image, [data-testid="heating-sch-compressor-led"]',
+              '.ht-c3-tap, .ht-c3-radiator, .ht-c3-hp, [data-pump], image, [data-testid="heating-sch-compressor-led"]',
             ),
           ).filter(visible);
           const gap = (a: ReturnType<typeof rendered>, b: ReturnType<typeof rendered>) =>
@@ -49,21 +53,12 @@ for (const [width, height] of [
             for (const b of [...texts.slice(i + 1), ...icons]) {
               const p = rendered(a),
                 q = rendered(b);
-              if (
-                Math.min(p.right, q.right) - Math.max(p.left, q.left) > 0.1 &&
-                Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 0.1
-              )
+              if (gap(p, q) < 1)
                 overlaps.push(
                   `${a.dataset.label}/${b.dataset.label ?? b.getAttribute('class') ?? b.tagName}`,
                 );
             }
           }
-          const cold = texts.find((t) => t.dataset.label === 'cold-water')!;
-          const coldGap = Math.min(
-            ...[...texts.filter((t) => t !== cold), ...icons].map((t) =>
-              gap(rendered(cold), rendered(t)),
-            ),
-          );
           const dash = document.querySelector('.ht-land-dash-inner')!;
           const d = dash.getBoundingClientRect();
           const cards = Array.from(dash.querySelectorAll('.ht-land-panel')).map((n) =>
@@ -170,7 +165,7 @@ for (const [width, height] of [
             markerError,
             contrastIssues,
             minTextHeight: Math.min(...texts.map((t) => rendered(t).height)),
-            coldGap,
+            coldGap: 999,
             holes,
             width: sb.width,
             minText: Math.min(
@@ -214,7 +209,6 @@ for (const [width, height] of [
           .soft(result.minTextHeight, 'rendered text bbox height')
           .toBeGreaterThanOrEqual(height! < 600 ? 9 : 11);
         expect.soft(result.overlaps, 'all text/text and text/icon BBoxes').toEqual([]);
-        expect.soft(result.coldGap, 'cold-water glyph clearance').toBeGreaterThanOrEqual(6);
         expect.soft(result.tankTitleUnder, 'buffer nameplate right under tank').toBe(true);
         expect.soft(result.holes, 'every grid track interior covered by a card').toEqual([]);
         expect
@@ -257,22 +251,43 @@ for (const [width, height] of [
   [390, 844],
   [1280, 800],
 ] as const) {
-  for (const scenario of ['solar', 'heating'] as const) {
-    test(`solar rendered geometry ${scenario} ${width}x${height}`, async ({ page }) => {
-      test.skip(true, 'SCHEMATIC_SOLAR=false – solární okruh ve schématu odložen');
-      await page.setViewportSize({ width, height });
-      await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=dark`);
-      await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
-      await page.evaluate(() => document.fonts.ready);
-      const result = await page.getByTestId('heating-schematic').evaluate(solarRenderedGeometry);
-      expect(result.configured).toBe(true);
-      expect(result.overlaps, 'label and solar pipe layout').toEqual([]);
-      expect(result.collectorInHouse).toBe(true);
-      expect(result.collectorInRoof).toBe(true);
-      expect(result.coilInLower).toBe(true);
-      expect(result.badgeCoilOverlap).toBe(false);
-      if (scenario === 'solar') expect(result.solarHeating).toBe(true);
-    });
+  for (const theme of ['dark', 'light'] as const) {
+    for (const [scenario, solar] of [
+      ['solar', true],
+      ['heating', true],
+      ['heating', false],
+    ] as const) {
+      const extras = solar ? '' : '&extras=none';
+      test(`Toky r5 geometry ${scenario}${solar ? '' : '-nosolar'} ${width}x${height} ${theme}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto(`/homebrain-topeni?topeni=${scenario}${extras}&theme=${theme}`);
+        await expect(page.getByTestId('heating-schematic')).toBeVisible({ timeout: 20_000 });
+        await page.evaluate(() => document.fonts.ready);
+        const fails = await page
+          .getByTestId('heating-schematic')
+          .evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL);
+        const relevant = solar
+          ? fails
+          : fails.filter(
+              (f) =>
+                !f.startsWith('5-port:solar') &&
+                !f.startsWith('6-solar') &&
+                !f.startsWith('6b-') &&
+                !f.startsWith('6c-') &&
+                !f.startsWith('5-panel'),
+            );
+        expect(relevant, `geometry QA ${width}×${height} ${theme}`).toEqual([]);
+        if (solar) {
+          const result = await page.getByTestId('heating-schematic').evaluate(solarRenderedGeometry);
+          expect(result.configured).toBe(true);
+          expect(result.coilInLower).toBe(true);
+          expect(result.badgeCoilOverlap).toBe(false);
+          if (scenario === 'solar') expect(result.solarHeating).toBe(true);
+        }
+      });
+    }
   }
 }
 

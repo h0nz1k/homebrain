@@ -461,7 +461,7 @@ export function buildMockSnapshot(
       pump: true,
       enabled: true,
       pump_pct: 78,
-      state: null,
+      state: 'heating',
     };
   }
   if (scenario === 'solar-off-hot') {

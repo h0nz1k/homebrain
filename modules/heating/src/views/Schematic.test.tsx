@@ -2,21 +2,29 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { buildMockSnapshot, type HeatingScenario } from '../mock.js';
 import { heroScene } from '../model.js';
-import { HeatingSchematic, SCHEMATIC_SOLAR } from './Schematic.js';
+import { HeatingSchematic } from './Schematic.js';
 
 afterEach(cleanup);
 const active: Record<string, string[]> = {
-  heating: ['compressor-outlet', 'tank-inlet', 'tank-return', 'collector'],
-  dhw: ['compressor-outlet', 'dhw-inlet', 'tank-return', 'collector'],
-  house: ['mixing-hot', 'radiator-supply', 'radiator-return', 'house-tank-return', 'mixing-bypass'],
+  heating: ['hp-supply', 'hp-return', 'collector'],
+  dhw: ['hp-supply', 'hp-return', 'collector'],
+  house: ['heat-supply', 'heat-return'],
   idle: [],
+  solar: ['solar-supply', 'solar-return'],
 };
+
 describe('C3 measured state and routes', () => {
   for (const [scenario, pipes] of Object.entries(active)) {
     it(`${scenario}: only the approved pipes carry heat`, () => {
       const snap = buildMockSnapshot(scenario as HeatingScenario, 0);
       render(<HeatingSchematic snap={snap} />);
-      expect(heroScene(snap).activePipes).toEqual(pipes);
+      const scenePipes = heroScene(snap).activePipes;
+      if (scenario === 'solar') {
+        expect(scenePipes).toEqual(expect.arrayContaining(pipes));
+        expect(scenePipes).toHaveLength(pipes.length);
+      } else {
+        expect(scenePipes).toEqual(pipes);
+      }
       expect(
         Array.from(document.querySelectorAll('[data-active]'), (el) =>
           el.getAttribute('data-pipe-id'),
@@ -24,95 +32,52 @@ describe('C3 measured state and routes', () => {
       ).toEqual(expect.arrayContaining(pipes));
       expect(document.querySelectorAll('[data-active]')).toHaveLength(pipes.length);
       expect(document.querySelector('[data-pipe-id="dhw-draw"] circle')).toBeNull();
-      const extraSolar = SCHEMATIC_SOLAR && snap.extras.solar != null ? 1 : 0;
+      const extraSolar = snap.extras.solar != null ? 1 : 0;
       expect(document.querySelectorAll('[data-pump]')).toHaveLength(2 + extraSolar);
     });
   }
-  it('null values stay unknown, including the diverter output', () => {
+
+  it('without solar mapping: panel, coil, solar pipes and pump hidden', () => {
+    const snap = buildMockSnapshot('heating', 0);
+    snap.extras.solar = null;
+    render(<HeatingSchematic snap={snap} />);
+    expect(document.querySelector('[data-testid="heating-sch-solar-panel"]')).toBeNull();
+    expect(document.querySelector('[data-pipe-id="solar-supply"]')).toBeNull();
+    expect(document.querySelector('[data-pipe-id="solar-return"]')).toBeNull();
+    expect(document.querySelector('[data-pump="solar"]')).toBeNull();
+    expect(document.querySelectorAll('[data-pump]')).toHaveLength(2);
+    expect(document.querySelector('[data-solar]')).toBeNull();
+  });
+
+  it('null values stay unknown with muted cards', () => {
     const snap = buildMockSnapshot('heating', 0);
     snap.heat_pump.compressor_on = null;
-    snap.heat_pump.condenser_out = null;
-    snap.heat_pump.return_temp = null;
+    snap.heat_pump.power_w = null;
     snap.house.supply_temp = null;
-    snap.house.mixing_valve_pct = null;
-    snap.dhw.valve_to_dhw = null;
     snap.dhw.temp = null;
     snap.dhw.target = null;
     snap.tank.bottom = null;
     render(<HeatingSchematic snap={snap} />);
-    for (const id of ['hp-out', 'hp-in', 'dhw', 'tank']) {
-      expect(screen.getByTestId(`heating-sch-${id}`).textContent).not.toContain('—');
+    for (const id of ['dhw', 'tank', 'hp-state']) {
       expect(screen.getByTestId(`heating-sch-${id}`).classList.contains('ht-c3-muted')).toBe(true);
     }
-    expect(document.querySelector('[data-valve]')?.getAttribute('data-valve')).toBe('unknown');
     expect(heroScene(snap).activePipes).not.toContain('collector');
   });
-  it('stopped compressor and heating pump mute last measurements and hide mixing percentage', () => {
-    const snap = buildMockSnapshot('idle', 0);
-    render(<HeatingSchematic snap={snap} />);
-    for (const id of ['hp-out', 'hp-in', 'supply'])
-      expect(screen.getByTestId(`heating-sch-${id}`).classList.contains('ht-c3-muted')).toBe(true);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovací ventil');
-    expect(screen.getByTestId('heating-sch-supply').textContent).toBe('do topení');
-    expect(screen.getByTestId('heating-sch-hp-in').textContent).toContain('29,7');
-  });
-  it('mixing percentage requires a running pump and a mapped value; 100 closes bypass', () => {
+
+  it('simplified schematic has no valve, mixing, cold inlet or legacy labels', () => {
     const snap = buildMockSnapshot('house', 0);
-    const { rerender } = render(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toContain('72 %');
-    snap.house.mixing_valve_pct = 100;
-    rerender(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toContain('100 %');
-    expect(heroScene(snap).activePipes).not.toContain('mixing-bypass');
-    snap.house.mixing_valve_pct = null;
-    rerender(<HeatingSchematic snap={snap} />);
-    expect(screen.getByTestId('heating-sch-mixing').textContent).toBe('Směšovací ventil');
-    expect(screen.getByTestId('heating-sch-supply').textContent).toContain('37,8');
-  });
-  it('diverter follows the output even when it disagrees with activity', () => {
-    const snap = buildMockSnapshot('dhw', 0);
-    snap.dhw.valve_to_dhw = false;
-    const { rerender } = render(<HeatingSchematic snap={snap} />);
-    expect(document.querySelector('[data-valve]')?.getAttribute('data-valve')).toBe('tank');
-    snap.dhw.valve_to_dhw = true;
-    rerender(<HeatingSchematic snap={snap} />);
-    expect(document.querySelector('[data-valve]')?.getAttribute('data-valve')).toBe('dhw');
-    expect(screen.getByTestId('heating-sch-dhw-port').textContent).toBe('→ teplá voda');
-    expect(screen.getByTestId('heating-sch-tank-port').textContent).toBe('→ nádrž');
-  });
-  for (const activity of ['cooling', 'fault', 'blocked_hdo'] as const) {
-    it(`${activity} keeps an idle drawing`, () => {
-      const snap = buildMockSnapshot('idle', 0);
-      snap.activity = activity;
-      expect(heroScene(snap).scenario).toBe('idle');
-      expect(heroScene(snap).activePipes).toEqual([]);
-    });
-  }
-  it('off state: no active pipes, HP temps muted', () => {
-    const snap = buildMockSnapshot('off', 0);
-    const scene = heroScene(snap);
-    expect(scene.activePipes).toEqual([]);
-    expect(scene.schematicOff).toBe(true);
-    expect(scene.hpMuted).toBe(true);
-    expect(scene.supplyMuted).toBe(true);
     render(<HeatingSchematic snap={snap} />);
-    const root = screen.getByTestId('heating-schematic');
-    expect(root.getAttribute('data-state')).toBe('off');
-    expect(root.querySelector('[data-active].ht-c3-hot')).toBeNull();
-    expect(root.querySelector('.ht-c3-direction')).toBeNull();
-    expect(screen.getByTestId('heating-sch-off-note').textContent).toBe(
-      'Teploty: naposledy naměřené',
-    );
-    expect(screen.getByTestId('heating-sch-hp-out').textContent).not.toMatch(/naposledy/);
-  });
-  it('solar scenario: schematic hides collector circuit when SCHEMATIC_SOLAR is off', () => {
-    const snap = buildMockSnapshot('solar', 0);
-    render(<HeatingSchematic snap={snap} />);
-    if (SCHEMATIC_SOLAR) return;
-    expect(document.querySelector('[data-testid="heating-sch-solar-panel"]')).toBeNull();
-    expect(document.querySelector('[data-pipe-id="solar-supply"]')).toBeNull();
-    expect(document.querySelector('[data-pump="solar"]')).toBeNull();
-    expect(document.querySelectorAll('[data-pump]')).toHaveLength(2);
+    expect(document.querySelector('[data-valve]')).toBeNull();
+    expect(document.querySelector('[data-pipe-id="cold-water"]')).toBeNull();
+    expect(screen.queryByTestId('heating-sch-valve')).toBeNull();
+    expect(screen.queryByTestId('heating-sch-mixing')).toBeNull();
+    expect(screen.queryByTestId('heating-sch-hp-out')).toBeNull();
+    expect(screen.queryByTestId('heating-sch-charge')).toBeNull();
+    expect(screen.queryByTestId('heating-sch-house-pump')).toBeNull();
+    expect(screen.getByTestId('heating-sch-tap').textContent).toBe('Odběr teplé vody');
+    expect(screen.getByTestId('heating-sch-hp').textContent).toBe('Tepelnéčerpadlo');
+    expect(screen.getByTestId('heating-sch-heat').textContent).toBe('Topení');
+    expect(screen.queryByText('Nádrž nahoře')).toBeNull();
   });
 
   it('compressor LED replaces the old status panel', () => {
@@ -127,5 +92,29 @@ describe('C3 measured state and routes', () => {
     expect(
       document.querySelector('[data-testid="heating-sch-compressor-led"]')!.classList,
     ).toContain('ht-c3-comp-led-off');
+  });
+
+  for (const activity of ['cooling', 'fault', 'blocked_hdo'] as const) {
+    it(`${activity} keeps an idle drawing`, () => {
+      const snap = buildMockSnapshot('idle', 0);
+      snap.activity = activity;
+      expect(heroScene(snap).scenario).toBe('idle');
+      expect(heroScene(snap).activePipes).toEqual([]);
+    });
+  }
+
+  it('off state: no active pipes, muted HP state', () => {
+    const snap = buildMockSnapshot('off', 0);
+    const scene = heroScene(snap);
+    expect(scene.activePipes).toEqual([]);
+    expect(scene.schematicOff).toBe(true);
+    render(<HeatingSchematic snap={snap} />);
+    const root = screen.getByTestId('heating-schematic');
+    expect(root.getAttribute('data-state')).toBe('off');
+    expect(root.querySelector('[data-active].ht-c3-hot')).toBeNull();
+    expect(root.querySelector('.ht-c3-direction')).toBeNull();
+    expect(screen.getByTestId('heating-sch-off-note').textContent).toBe(
+      'Teploty: naposledy naměřené',
+    );
   });
 });
