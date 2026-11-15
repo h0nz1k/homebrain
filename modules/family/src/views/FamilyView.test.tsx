@@ -22,7 +22,10 @@ describe('FamilyView', () => {
   it('owner: chores of both kids, approve calls the API', async () => {
     const api = await mount('owner');
     expect(screen.getAllByTestId('family-kid')).toHaveLength(2);
-    const row = screen.getByText('Vyluxovat pokoj').closest('.fam-approval') as HTMLElement;
+    const approvals = screen.getByTestId('family-approvals');
+    const row = within(approvals)
+      .getByText('Vyluxovat pokoj')
+      .closest('.fam-approval') as HTMLElement;
     await act(async () =>
       fireEvent.click(within(row).getByTestId('family-approve')),
     );
