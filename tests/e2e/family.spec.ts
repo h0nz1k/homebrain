@@ -54,7 +54,7 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-event-detail')).toHaveCount(0);
     const todo = page.locator('[data-testid="family-chore"][data-state="todo"]').first();
     await todo.getByTestId('family-chore-check').click();
-    await expect(page.locator('[data-testid="family-chore"][data-state="claimed"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="family-chore"][data-state="claimed"]')).toHaveCount(2);
   });
 
   test('kuchyňský tablet: tři sloupce bez scrollu, dítě odškrtne povinnost', async ({ page }) => {
