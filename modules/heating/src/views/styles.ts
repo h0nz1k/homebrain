@@ -379,8 +379,10 @@ export const heatingStyles = `
 .ht-c3-dhw-unit { font-size:12px; }
 .ht-c3-tank-value { font-size:24px; font-weight:500; }
 .ht-c3-label.ht-c3-muted, .ht-c3-muted { fill:#929ba6; font-weight:400; }
-.ht-c3-label:is([data-label='hp-out'],[data-label='hp-in'],[data-label='supply'],[data-label='mixing']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
-.ht-c3-label[data-label="mixing"]:not(.ht-c3-muted) tspan { font-weight:700; }
+.ht-c3-nw-v { fill:var(--hb-t1); font-weight:500; }
+.ht-c3-nw-solar-v { fill:var(--ht-c3-solar); font-weight:600; }
+.ht-c3-nw-head { fill:var(--hb-t1); font-weight:500; }
+.ht-c3-label:is([data-label='hp-state'],[data-label='heat-state'],[data-label='solar-pump']):not(.ht-c3-muted) tspan { fill:var(--hb-t1); font-weight:500; }
 [data-theme='light'] .ht-c3-label { fill:#48525d; }
 [data-theme='light'] .ht-c3-label:is([data-label='collector'],[data-label='cold-water']) { fill:#343d46; }
 [data-theme='light'] .ht-c3-label.ht-c3-muted, [data-theme='light'] .ht-c3-muted { fill:#606b77; }
