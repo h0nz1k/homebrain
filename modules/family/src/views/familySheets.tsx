@@ -68,6 +68,7 @@ export function ApprovalsBlock({
                   <>
                     <Button
                       size="md"
+                      variant="primary"
                       data-testid="family-swap-approve"
                       disabled={busy === key}
                       onClick={() => onApproveSwap(item)}
@@ -87,6 +88,7 @@ export function ApprovalsBlock({
                   <>
                     <Button
                       size="md"
+                      variant="primary"
                       data-testid="family-approve"
                       disabled={busy === key}
                       onClick={() => onApproveCompletion(item)}

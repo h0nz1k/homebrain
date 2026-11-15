@@ -87,10 +87,10 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-add-chore-sheet')).toBeVisible();
     await page.locator('#fam-add-chore input').first().fill('Vytřít chodbu');
     await page.getByTestId('family-add-chore-save').click();
-    await page.getByTestId('family-total').first().click();
-    await expect(page.getByTestId('family-points-sheet')).toBeVisible();
     await page.getByTestId('family-swap-approve').first().click();
     await expect(page.getByText('za Dcera').first()).toBeVisible();
+    await page.getByTestId('family-total').first().click();
+    await expect(page.getByTestId('family-points-sheet')).toBeVisible();
   });
 
   test('nic nenastaveno: neutrální text, žádná chyba', async ({ page }) => {

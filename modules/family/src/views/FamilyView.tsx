@@ -396,8 +396,8 @@ function ChoresCard({
     rejectSwap: (item: import('../types.js').FamilyApproval) => void;
   };
 }) {
-  if (snap.kids.length === 0) return null;
   const approvals = useApprovals(snap);
+  if (snap.kids.length === 0) return null;
   const waiting = approvals.length;
   const parent = snap.role === 'owner' || snap.role === 'adult';
   return (
