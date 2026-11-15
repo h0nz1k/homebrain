@@ -18,7 +18,7 @@ function cloneBase(): DetailSchematicModel {
   return {
     architectures: b.architectures.map((a) => ({
       ...a,
-      evidence: a.evidence ? [...a.evidence] : undefined,
+      evidence: 'evidence' in a && a.evidence ? [...a.evidence] : undefined,
     })),
     circuitLegend: { ...b.circuitLegend },
     bounds: { ...b.bounds },
@@ -30,9 +30,16 @@ function cloneBase(): DetailSchematicModel {
       bridges: 'bridges' in p && p.bridges ? p.bridges.map((br) => [...br] as [number, number]) : undefined,
     })),
     bodies: b.bodies.map((x) => {
-      const body = { ...x };
+      const { id, bx, by, bw, bh } = {
+        id: x.id,
+        bx: x.x,
+        by: x.y,
+        bw: x.w,
+        bh: x.h,
+      };
+      const body: SchematicBody = { id, x: bx, y: by, w: bw, h: bh };
       if ('polygon' in x && x.polygon) {
-        return { ...body, polygon: x.polygon.map((pt) => [...pt] as [number, number]) };
+        body.polygon = x.polygon.map((pt) => [pt[0], pt[1]] as [number, number]);
       }
       return body;
     }),

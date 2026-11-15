@@ -85,8 +85,8 @@ export function DetailSchematic({
       animations = [];
       if (reduced.matches) return;
       for (const particle of particles) {
-        const path = particle.parentElement?.querySelector('path.ht-d1-pipe');
-        if (!path || typeof path.getTotalLength !== 'function') continue;
+        const path = particle.parentElement?.querySelector<SVGPathElement>('path.ht-d1-pipe');
+        if (!path) continue;
         const length = path.getTotalLength();
         if (length < 160) continue;
         const frames = Array.from({ length: 80 }, (_, i) => {
