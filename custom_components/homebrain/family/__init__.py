@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
-from zoneinfo import ZoneInfo
 
 from ..const import DOMAIN
 from .swap_store import FamilySwapStore

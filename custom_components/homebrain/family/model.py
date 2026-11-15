@@ -144,7 +144,9 @@ def _swap_block_reason(attrs: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _enrich_chore_row(row: Mapping[str, Any], sensor: Any, kid: Mapping[str, Any]) -> dict[str, Any]:
+def _enrich_chore_row(
+    row: Mapping[str, Any], sensor: Any, kid: Mapping[str, Any]
+) -> dict[str, Any]:
     attrs = sensor.attributes if sensor else {}
     state = _chore_state(str(row.get("state") or ""))
     block = _swap_block_reason(attrs)
@@ -202,9 +204,9 @@ def apply_swap_overlays(
             if not isinstance(op, Mapping) or op.get("status") not in {"applying", "active"}:
                 continue
             snap = op.get("source_snapshot") or {}
-            if snap.get("chore_id") != chore.get("chore_uuid") and snap.get("chore_id") != chore.get(
-                "opaque_id"
-            ):
+            chore_uuid = chore.get("chore_uuid")
+            opaque = chore.get("opaque_id")
+            if snap.get("chore_id") not in {chore_uuid, opaque}:
                 continue
             if op.get("from_kid_id") == kid_uuid:
                 to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
@@ -224,7 +226,9 @@ def apply_swap_overlays(
     return out
 
 
-def pending_approvals(snapshot: Mapping[str, Any], store_data: Mapping[str, Any]) -> list[dict[str, Any]]:
+def pending_approvals(
+    snapshot: Mapping[str, Any], store_data: Mapping[str, Any]
+) -> list[dict[str, Any]]:
     """Unified parent queue: completion claims + swap requests."""
     items: list[dict[str, Any]] = []
     for kid in snapshot.get("kids") or []:
@@ -325,7 +329,9 @@ def kid_payload(
     approve = role in ("owner", "adult")
     chores = kid_chores(get_state, kid)
     if store_data and kids_by_uuid:
-        chores = apply_swap_overlays(chores, kid=kid, store_data=store_data, kids_by_uuid=kids_by_uuid)
+        chores = apply_swap_overlays(
+            chores, kid=kid, store_data=store_data, kids_by_uuid=kids_by_uuid
+        )
     chores = [
         {
             **c,
@@ -354,7 +360,9 @@ def kid_payload(
         )
     swap_labels = [c["swap_today"]["label"] for c in chores if c.get("swap_today")]
     if swap_labels:
-        payload["swap_badge"] = swap_labels[0] if len(swap_labels) == 1 else f"Dnes {len(swap_labels)} předání"
+        payload["swap_badge"] = (
+            swap_labels[0] if len(swap_labels) == 1 else f"Dnes {len(swap_labels)} předání"
+        )
     return payload
 
 

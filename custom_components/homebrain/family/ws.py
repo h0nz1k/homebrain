@@ -22,12 +22,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.util import dt as dt_util
 
-from ..const import DOMAIN
 from ..roles import FAMILY_APPROVE_ROLES
 from . import model
 from .swap_store import FamilySwapStore
-from .ws_swap import SWAP_COMMANDS
-
 from .ws_common import (
     CONF_FAMILY,
     _bindings,
@@ -37,6 +34,7 @@ from .ws_common import (
     _visible_kids,
     family_options,
 )
+from .ws_swap import SWAP_COMMANDS
 
 DAYS: Final = 8  # today + the next 7 days
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Final, Mapping
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Final
 from zoneinfo import ZoneInfo
 
 REQUEST_TERMINAL: Final = frozenset({"rejected", "cancelled", "expired"})
@@ -40,13 +41,13 @@ def kid_key(kid: Mapping[str, Any]) -> str:
 
 def local_today(now: datetime, tz: ZoneInfo) -> date:
     if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=UTC)
     return now.astimezone(tz).date()
 
 
 def day_end_utc(local_day: date, tz: ZoneInfo) -> datetime:
     start = datetime(local_day.year, local_day.month, local_day.day, tzinfo=tz) + timedelta(days=1)
-    return start.astimezone(timezone.utc)
+    return start.astimezone(UTC)
 
 
 def expires_at(local_day: date, tz: ZoneInfo) -> datetime:
@@ -60,7 +61,7 @@ def request_expired(req: Mapping[str, Any], now: datetime) -> bool:
     if not isinstance(exp, str):
         return False
     try:
-        return datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now.astimezone(timezone.utc)
+        return datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now.astimezone(UTC)
     except ValueError:
         return True
 

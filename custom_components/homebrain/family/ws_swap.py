@@ -236,7 +236,6 @@ async def websocket_family_swap_reassign(
 ) -> None:
     role = _role(hass, connection)
     _require_adult(role)
-    decide = dict(msg, type="homebrain/family/swap/decide", decision="approve")
     # Direct path: create approved operation without pending request.
     store = _store(hass)
     now = dt_util.now()
@@ -299,7 +298,10 @@ async def websocket_family_swap_reassign(
     except swap_model.DomainError as err:
         connection.send_error(msg["id"], err.code, str(err))
         return
-    connection.send_result(msg["id"], {"operation": {"id": op_id, **op}, "revision": store.revision})
+    connection.send_result(
+        msg["id"],
+        {"operation": {"id": op_id, **op}, "revision": store.revision},
+    )
 
 
 @websocket_api.websocket_command(
@@ -430,7 +432,11 @@ async def websocket_family_points_get(
     ps = hass.states.get(kid.get("points_entity") or "")
     balance = model._float(ps.state) if ps else None
     summary = (
-        points_model.build_points_summary(dict(ps.attributes) if ps else {}, kid_name=kid["name"], balance=balance)
+        points_model.build_points_summary(
+            dict(ps.attributes) if ps else {},
+            kid_name=kid["name"],
+            balance=balance,
+        )
         if ps
         else {"kid_name": kid["name"], "balance": balance}
     )

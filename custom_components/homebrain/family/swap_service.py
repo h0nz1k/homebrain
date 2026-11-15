@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -56,7 +55,8 @@ async def execute_operation_step(
     next_op = swap_model.advance_operation(dict(op), observed)
     store.upsert_operation(operation_id, next_op)
     await store.async_save()
-    if next_op.get("step") in {"skip_intent", "delete_clone"} and next_op.get("status") == "applying":
+    step = next_op.get("step")
+    if step in {"skip_intent", "delete_clone"} and next_op.get("status") == "applying":
         return await execute_operation_step(hass, store, operation_id, context=context)
     return next_op
 

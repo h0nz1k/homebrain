@@ -187,13 +187,13 @@ export function PointsSheet({
           </ul>
         )}
         <SegmentedControl
-          value={String(days)}
-          onChange={(v) => setDays(Number(v) as 7 | 30)}
+          label="Období grafu"
+          value={String(days) as '7' | '30'}
+          onChange={(v: string) => setDays(Number(v) as 7 | 30)}
           options={[
-            { value: '7', label: '7 dní' },
-            { value: '30', label: '30 dní' },
+            ['7', '7 dní'],
+            ['30', '30 dní'],
           ]}
-          ariaLabel="Období grafu"
         />
         {history?.chart && (
           <p className="fam-chart" data-testid="family-points-chart" aria-hidden="true">
@@ -316,14 +316,14 @@ export function AddChoreSheet({
           </div>
         </fieldset>
         <SegmentedControl
+          label="Opakování"
           value={recurrence}
-          onChange={(v) => setRecurrence(v as Recurrence)}
+          onChange={(v: string) => setRecurrence(v as Recurrence)}
           options={[
-            { value: 'once', label: 'Jednou' },
-            { value: 'daily', label: 'Denně' },
-            { value: 'weekly', label: 'Týdně' },
+            ['once', 'Jednou'],
+            ['daily', 'Denně'],
+            ['weekly', 'Týdně'],
           ]}
-          ariaLabel="Opakování"
         />
         {recurrence === 'weekly' && (
           <div className="fam-chips">
