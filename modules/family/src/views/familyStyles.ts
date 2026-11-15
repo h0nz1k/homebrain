@@ -166,4 +166,25 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-ev[data-past] time small { display: none; }
 .fam[data-kiosk] .fam-ev[data-past] i { min-height: 20px; }
 .fam[data-kiosk] .fam-avatar.fam-avatar-sm { width: 24px; height: 24px; flex-basis: 24px; }
+.fam-chore { min-height: 88px; }
+.fam-chore[data-muted] { opacity: 0.55; }
+.fam-chore-meta small[data-tone='warn'] { color: var(--hb-warn); font-weight: 650; }
+.fam-overflow { min-width: 44px; min-height: 44px; color: color-mix(in srgb, var(--hb-t1) 72%, transparent); font-size: 22px; letter-spacing: 2px; }
+.fam-total-link { background: none; border: 0; padding: 0; color: var(--hb-ac); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.fam-approvals { margin-bottom: 12px; padding: 12px; border-radius: var(--hb-radius-md); background: var(--hb-s2); }
+.fam-approvals h3 { font-size: var(--hb-type-body); margin-bottom: 8px; font-weight: 650; }
+.fam-approval { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--hb-edge); }
+.fam-approval:first-child { border-top: 0; }
+.fam-approval-type { font-size: var(--hb-type-caption); color: var(--hb-t2); font-weight: 650; }
+.fam-approval-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.fam-points-sheet .fam-points-sticky { position: sticky; top: 0; background: var(--hb-s1); padding-bottom: 8px; z-index: 1; }
+.fam-points-hero { font-size: 28px; font-weight: 700; }
+.fam-points-month span { display: block; color: var(--hb-t2); font-size: var(--hb-type-caption); }
+.fam-chart { display: flex; align-items: flex-end; gap: 4px; min-height: 120px; margin-top: 12px; }
+.fam-chart span { flex: 1; background: var(--hb-ac); border-radius: 4px 4px 0 0; min-height: 4px; }
+.fam-chart span[data-today] { background: var(--hb-ok); }
+.fam-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fam-chip { min-height: 44px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--hb-edge); background: transparent; }
+.fam-chip[data-pressed] { background: color-mix(in srgb, var(--hb-ac) 16%, transparent); border-color: var(--hb-ac); }
+.fam-suffix { margin-left: 6px; color: var(--hb-t2); }
 `;

@@ -30,7 +30,12 @@ export interface MealsSnapshot {
 
 /** The part of `homebrain/family/get` the Dnes summary needs (server filters per role). */
 export interface FamilyLike {
-  kids: Array<{ id: string; name: string; chores: Array<{ state: string }> }>;
+  kids: Array<{
+    id: string;
+    name: string;
+    chores: Array<{ state: string }>;
+    swap_badge?: string;
+  }>;
 }
 
 export interface KidChores {
@@ -40,6 +45,7 @@ export interface KidChores {
   done: number;
   total: number;
   overdue: number;
+  swap_badge?: string;
 }
 
 export function summarizeChores(family: FamilyLike | null | undefined): KidChores[] {
@@ -49,6 +55,7 @@ export function summarizeChores(family: FamilyLike | null | undefined): KidChore
     done: kid.chores.filter((c) => c.state === 'done' || c.state === 'claimed').length,
     total: kid.chores.length,
     overdue: kid.chores.filter((c) => c.state === 'overdue').length,
+    swap_badge: kid.swap_badge,
   }));
 }
 

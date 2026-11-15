@@ -99,6 +99,12 @@ export function TodayHome({ api, kiosk }: { api: HomeApi | null; kiosk: boolean 
                 {kid.overdue > 0 && (
                   <small className="today-chore-late">{kid.overdue} po termínu</small>
                 )}
+                {/* non-interactive swap hint only (Dnes kiosk/tablet fit) */}
+                {kid.swap_badge && (
+                  <small className="today-chore-swap" data-testid="today-chore-swap">
+                    {kid.swap_badge}
+                  </small>
+                )}
                 <span className="today-chore-bar" aria-hidden="true">
                   <span style={{ width: `${kid.total ? (100 * kid.done) / kid.total : 0}%` }} />
                 </span>

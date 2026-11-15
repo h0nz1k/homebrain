@@ -34,9 +34,9 @@ test.describe('Rodina', () => {
   test('rodič schválí povinnost, odškrtne a přidá nákup', async ({ page }) => {
     await open(page);
     const claimed = page.locator('[data-testid="family-chore"][data-state="claimed"]');
-    await expect(claimed).toHaveCount(1);
-    await page.getByTestId('family-approve').click();
-    await expect(claimed).toHaveCount(0);
+    await expect(claimed).toHaveCount(2);
+    await page.getByTestId('family-approve').first().click();
+    await expect(page.locator('[data-testid="family-chore"][data-state="claimed"]')).toHaveCount(1);
     await page.getByTestId('family-shop-input').fill('Chleba');
     await page.getByTestId('family-shop-add').click();
     await expect(page.getByTestId('family-shopping')).toContainText('Chleba');
@@ -79,6 +79,18 @@ test.describe('Rodina', () => {
     expect(await top('family-shopping')).toBeLessThan(await top('family-chores'));
     expect(await top('family-today')).toBeLessThan(await top('family-shopping'));
     await noSidewaysScroll(page);
+  });
+
+  test('rodič: přidá úkol, otevře přehled bodů a schválí předání', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('family-add-chore').click();
+    await expect(page.getByTestId('family-add-chore-sheet')).toBeVisible();
+    await page.locator('#fam-add-chore input').first().fill('Vytřít chodbu');
+    await page.getByTestId('family-add-chore-save').click();
+    await page.getByTestId('family-total').first().click();
+    await expect(page.getByTestId('family-points-sheet')).toBeVisible();
+    await page.getByTestId('family-swap-approve').click();
+    await expect(page.getByText('za Dcera')).toBeVisible();
   });
 
   test('nic nenastaveno: neutrální text, žádná chyba', async ({ page }) => {

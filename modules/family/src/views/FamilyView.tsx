@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { usePeople, type ModuleViewProps } from '@homebrain/ha-client';
-import { Card, EmptyState, ErrorState, PresenceStrip, Skeleton, czCount } from '@homebrain/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  PresenceStrip,
+  Sheet,
+  Skeleton,
+  czCount,
+} from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
 import {
   choreNote,
@@ -19,10 +28,17 @@ import {
 } from '../format.js';
 import type { FamilyEvent, FamilyKid, FamilySnapshot } from '../types.js';
 import { familyStyles } from './familyStyles.js';
+import {
+  AddChoreSheet,
+  ApprovalsBlock,
+  PointsSheet,
+  SwapSheet,
+  useApprovals,
+} from './familySheets.js';
 
 const POLL_MS = 60_000;
 const SRC_COLOR = { family: '#3d8bff', school: '#a970ff' } as const;
-const KID_COLORS = ['#f472b6', '#22b8a6', '#f59e0b', '#60a5fa'];
+const KID_COLORS = ['#e879a8', '#2dd4bf', '#f59e0b', '#a78bfa'];
 
 function Check() {
   return (
@@ -227,8 +243,9 @@ function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; mem
 
 interface Actions {
   claim(kid: string, chore: string): void;
-  approve(kid: string, chore: string): void;
   busy: string | null;
+  onPoints: () => void;
+  onMenu?: (kid: string, chore: string) => void;
 }
 
 function KidCard({
@@ -242,7 +259,8 @@ function KidCard({
   now: Date;
   act: Actions;
 }) {
-  const t = choreTally(kid.chores);
+  const active = kid.chores.filter((c) => c.counts_today !== false);
+  const t = choreTally(active.length ? active : kid.chores);
   return (
     <article
       className="fam-kid"
@@ -259,13 +277,23 @@ function KidCard({
           <small>
             <span>{t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic'}</span>
             {kid.points !== null && (
-              <span data-testid="family-total"> · celkem {Math.round(kid.points)} b.</span>
+              <button
+                type="button"
+                className="fam-total-link"
+                data-testid="family-total"
+                onClick={act.onPoints}
+              >
+                {' '}
+                · celkem {Math.round(kid.points)} b. ›
+              </button>
             )}
           </small>
         </div>
         {kid.points !== null && (
           <div className="fam-points" data-testid="family-points">
-            <strong data-testid="family-today-points">{pointsLabel(t.earned)}</strong>
+            <strong data-testid="family-today-points">
+              {pointsLabel(kid.points_today ?? t.earned)}
+            </strong>
             <small>
               dnes
               {t.waiting > 0 && (
@@ -293,8 +321,19 @@ function KidCard({
           const note = choreNote(c, now, { parentApproves: !c.can_approve });
           const ui = c.state === 'overdue' ? 'todo' : c.state;
           const key = `${kid.id}/${c.id}`;
+          const pendingSwap = c.swap_today?.kind === 'pending_give';
+          const swapLabel =
+            c.swap_today?.kind === 'pending_give'
+              ? 'Čeká na předání'
+              : c.swap_today?.label;
           return (
-            <li key={c.id} className="fam-chore" data-state={ui} data-testid="family-chore">
+            <li
+              key={c.id}
+              className="fam-chore"
+              data-state={ui}
+              data-muted={c.swap_today?.muted || undefined}
+              data-testid="family-chore"
+            >
               <button
                 type="button"
                 className="fam-check"
@@ -307,22 +346,26 @@ function KidCard({
               </button>
               <div className="fam-chore-t">
                 <b>{c.name}</b>
-                <div>
-                  <small data-tone={note.tone}>{note.text}</small>
-                  {c.can_approve && (
-                    <button
-                      type="button"
-                      className="fam-approve"
-                      data-testid="family-approve"
-                      disabled={act.busy === key}
-                      onClick={() => act.approve(kid.id, c.id)}
-                    >
-                      Schválit
-                    </button>
-                  )}
+                <div className="fam-chore-meta">
+                  <small data-tone={pendingSwap || c.state === 'claimed' ? 'warn' : note.tone}>
+                    {swapLabel ?? (c.state === 'claimed' ? 'Ke schválení' : note.text)}
+                  </small>
                 </div>
               </div>
               <span className="fam-pts">{pointsLabel(c.points)}</span>
+              {(c.can_request_swap || act.onMenu) && (
+                <div className="fam-chore-menu">
+                  <button
+                    type="button"
+                    className="fam-overflow"
+                    data-testid="family-chore-menu"
+                    aria-label={`Akce: ${c.name}`}
+                    onClick={() => act.onMenu?.(kid.id, c.id)}
+                  >
+                    ···
+                  </button>
+                </div>
+              )}
             </li>
           );
         })}
@@ -336,28 +379,52 @@ function ChoresCard({
   now,
   act,
   members,
+  onAdd,
+  onApproval,
+  kidAct,
 }: {
   snap: FamilySnapshot;
   now: Date;
   act: Actions;
   members: Member[];
+  onAdd: () => void;
+  kidAct: (kid: FamilyKid) => Actions;
+  onApproval: {
+    approveCompletion: (item: import('../types.js').FamilyApproval) => void;
+    rejectCompletion: (item: import('../types.js').FamilyApproval) => void;
+    approveSwap: (item: import('../types.js').FamilyApproval) => void;
+    rejectSwap: (item: import('../types.js').FamilyApproval) => void;
+  };
 }) {
   if (snap.kids.length === 0) return null;
-  // Only parents (who can approve) get the counter; others see „Schválí rodič“ per chore.
-  const waiting = snap.kids.reduce(
-    (n, k) => n + k.chores.filter((c) => c.state === 'claimed' && c.can_approve).length,
-    0,
-  );
+  const approvals = useApprovals(snap);
+  const waiting = approvals.length;
+  const parent = snap.role === 'owner' || snap.role === 'adult';
   return (
     <Card className="fam-card" data-testid="family-chores">
       <div className="fam-card-h">
         <h2>{snap.role === 'child' ? 'Moje povinnosti' : 'Povinnosti dětí'}</h2>
+        {snap.capabilities?.can_create_chore && parent && (
+          <Button size="md" variant="secondary" data-testid="family-add-chore" onClick={onAdd}>
+            + Úkol
+          </Button>
+        )}
         {waiting > 0 && (
           <span className="fam-meta" data-tone="warn">
             {czCount(waiting, 'čeká na schválení', 'čekají na schválení', 'čeká na schválení')}
           </span>
         )}
       </div>
+      {parent && (
+        <ApprovalsBlock
+          items={approvals}
+          busy={act.busy}
+          onApproveCompletion={onApproval.approveCompletion}
+          onRejectCompletion={onApproval.rejectCompletion}
+          onApproveSwap={onApproval.approveSwap}
+          onRejectSwap={onApproval.rejectSwap}
+        />
+      )}
       <div className="fam-kids">
         {snap.kids.map((kid, i) => (
           <KidCard
@@ -365,7 +432,7 @@ function ChoresCard({
             kid={kid}
             color={members[i]?.color ?? KID_COLORS[0]!}
             now={now}
-            act={act}
+            act={kidAct(kid)}
           />
         ))}
       </div>
@@ -459,6 +526,14 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [clock, setClock] = useState(() => new Date());
+  const [pointsKid, setPointsKid] = useState<FamilyKid | null>(null);
+  const [addChore, setAddChore] = useState(false);
+  const [swap, setSwap] = useState<{
+    kid: string;
+    chore: string;
+    mode: 'give' | 'reassign';
+  } | null>(null);
+  const [menu, setMenu] = useState<{ kid: string; chore: string } | null>(null);
 
   useEffect(() => {
     if (!kiosk) return;
@@ -515,10 +590,31 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     );
 
   const admin = snap.role === 'owner' && !kiosk;
+  const parent = snap.role === 'owner' || snap.role === 'adult';
   const act: Actions = {
     busy,
     claim: (kid, chore) => void run(`${kid}/${chore}`, () => api.claim(kid, chore)),
-    approve: (kid, chore) => void run(`${kid}/${chore}`, () => api.approve(kid, chore)),
+    onPoints: () => undefined,
+    onMenu: parent || snap.role === 'child' ? (kid, chore) => setMenu({ kid, chore }) : undefined,
+  };
+  const makeKidAct = (kid: FamilyKid): Actions => ({
+    ...act,
+    onPoints: () => setPointsKid(kid),
+  });
+  const approvalHandlers = {
+    approveCompletion: (item: import('../types.js').FamilyApproval) =>
+      void run(`${item.kid_id}/${item.chore_id}`, () => api.approve(item.kid_id!, item.chore_id!)),
+    rejectCompletion: (_item: import('../types.js').FamilyApproval) => undefined,
+    approveSwap: (item: import('../types.js').FamilyApproval) =>
+      item.request_id &&
+      void run(`swap-${item.request_id}`, async () => {
+        await api.swapDecide(item.request_id!, 'approve', item.revision);
+      }),
+    rejectSwap: (item: import('../types.js').FamilyApproval) =>
+      item.request_id &&
+      void run(`swap-${item.request_id}`, async () => {
+        await api.swapDecide(item.request_id!, 'reject', item.revision);
+      }),
   };
   const members = membersOf(snap);
   const slot = (name: string, node: React.ReactNode) => (
@@ -528,7 +624,18 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   );
   const today = slot('today', <TodayCard snap={snap} now={now} admin={admin} members={members} />);
   const week = slot('week', <WeekCard snap={snap} now={now} members={members} />);
-  const chores = slot('chores', <ChoresCard snap={snap} now={now} act={act} members={members} />);
+  const chores = slot(
+    'chores',
+    <ChoresCard
+      snap={snap}
+      now={now}
+      act={act}
+      members={members}
+      onAdd={() => setAddChore(true)}
+      kidAct={makeKidAct}
+      onApproval={approvalHandlers}
+    />,
+  );
   const shop = slot(
     'shop',
     <ShoppingCard
@@ -576,6 +683,65 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
             {shop}
           </div>
         </div>
+      )}
+      {pointsKid && api && (
+        <PointsSheet kid={pointsKid} api={api} onClose={() => setPointsKid(null)} />
+      )}
+      {addChore && api && (
+        <AddChoreSheet
+          kids={snap.kids}
+          api={api}
+          onClose={() => setAddChore(false)}
+          onCreated={() => void load()}
+        />
+      )}
+      {swap && api && (
+        <SwapSheet
+          api={api}
+          snap={snap}
+          choreId={swap.chore}
+          kidId={swap.kid}
+          mode={swap.mode}
+          onClose={() => setSwap(null)}
+          onDone={() => void load()}
+        />
+      )}
+      {menu && (
+        <Sheet
+          title="Akce"
+          onClose={() => setMenu(null)}
+          appearance="raised"
+          data-testid="family-chore-menu-sheet"
+        >
+          <ul className="fam-menu-list">
+            {snap.role === 'child' && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSwap({ kid: menu.kid, chore: menu.chore, mode: 'give' });
+                    setMenu(null);
+                  }}
+                >
+                  Předat na dnes…
+                </button>
+              </li>
+            )}
+            {parent && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSwap({ kid: menu.kid, chore: menu.chore, mode: 'reassign' });
+                    setMenu(null);
+                  }}
+                >
+                  Přeřadit na dnes…
+                </button>
+              </li>
+            )}
+          </ul>
+        </Sheet>
       )}
     </div>
   );
