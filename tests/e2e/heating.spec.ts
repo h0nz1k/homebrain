@@ -1,4 +1,8 @@
-import { offSchematicTankLabelClearance, schematicGeometry } from './heating-geometry.js';
+import {
+  offSchematicTankLabelClearance,
+  TOKY_SCHEMATIC_MODEL,
+  tokySchematicGeometry,
+} from './heating-geometry.js';
 import { expect, test, type Page } from '@playwright/test';
 
 // Topení (dev mock: synthetic heat pump with ground collector, `?topeni=` scenario, `&rooms=`).
@@ -94,10 +98,7 @@ test.describe('Topení', () => {
       });
       await expect(page.getByTestId('heating-sch-collector')).toHaveText('Zemní kolektor');
       await expect(page.getByText('Chlazení', { exact: true })).toHaveCount(0);
-      await expect(sch.locator('[data-valve]')).toHaveAttribute(
-        'data-valve',
-        scenario === 'dhw' ? 'dhw' : 'tank',
-      );
+      await expect(sch.locator('[data-valve]')).toHaveCount(0);
       if (scenario !== 'dhw') {
         await expect(sch.locator('[data-pipe-id="collector"][data-active]')).toHaveCount(0);
       }
@@ -233,7 +234,7 @@ test.describe('Topení', () => {
           const sch = page.getByTestId('heating-schematic');
           await expect(sch).toBeVisible({ timeout: 20_000 });
           await page.evaluate(() => document.fonts.ready);
-          expect(await sch.evaluate(schematicGeometry)).toEqual([]);
+          expect(await sch.evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL)).toEqual([]);
           await noSidewaysScroll(page);
         });
       }
@@ -384,7 +385,7 @@ test.describe('Topení', () => {
             }
           }
           const stickyTopGap = vh <= 450 && vh >= 360 ? sch.top - dash.top : null;
-          const schSvgTexts = ['tank-title', 'cold-water'];
+          const schSvgTexts = ['tank-title', 'hp-state'];
           const svgLabelPipeHits: string[] = [];
           if (vh >= 600) {
             const schRoot = document.querySelector('[data-testid="heating-schematic"]')!;
@@ -510,7 +511,7 @@ test.describe('Topení', () => {
     expect(await infiniteAnimations(page)).toBeGreaterThan(0);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await expect.poll(() => infiniteAnimations(page)).toBe(0);
-    await expect(page.locator('[data-pipe-id="tank-inlet"]')).toHaveAttribute('data-active', '');
+    await expect(page.locator('[data-pipe-id="hp-supply"]')).toHaveAttribute('data-active', '');
   });
 
   test.describe('omezený pohyb', () => {
@@ -522,7 +523,9 @@ test.describe('Topení', () => {
       expect(await infiniteAnimations(page)).toBe(0);
       const chevrons = page.locator('.ht-c3-direction');
       await expect(chevrons).toHaveCount(16);
-      expect(await page.getByTestId('heating-schematic').evaluate(schematicGeometry)).toEqual([]);
+      expect(
+        await page.getByTestId('heating-schematic').evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
+      ).toEqual([]);
       for (const chevron of await chevrons.all()) await expect(chevron).toBeVisible();
     });
   });
@@ -598,9 +601,7 @@ test.describe('Topení', () => {
     });
   }
 
-  test('Teď solár: hero a elektřina TČ, schéma bez solárního okruhu (SCHEMATIC_SOLAR)', async ({
-    page,
-  }) => {
+  test('Teď solár: hero a elektřina TČ, schéma se solárním okruhem', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/homebrain-topeni?topeni=solar&theme=dark');
     await expect(page.getByTestId('heating-solar-compact')).toBeVisible({ timeout: 20_000 });
@@ -614,18 +615,30 @@ test.describe('Topení', () => {
     const viewText = await page.getByTestId('heating-view').innerText();
     expect(viewText).not.toMatch(/\\u00a0/);
     const sch = page.getByTestId('heating-schematic');
-    await expect(sch.getByTestId('heating-sch-solar-panel')).toHaveCount(0);
-    await expect(sch.getByTestId('heating-sch-solar-coil')).toHaveCount(0);
-    await expect(sch.locator('[data-pipe-id="solar-supply"]')).toHaveCount(0);
-    await expect(sch.locator('[data-pipe-id="solar-return"]')).toHaveCount(0);
-    await expect(sch.locator('[data-pump="solar"]')).toHaveCount(0);
-    await expect(sch.getByTestId('heating-sch-solar-collector')).toHaveCount(0);
-    await expect(sch.getByTestId('heating-sch-solar-pump')).toHaveCount(0);
+    await expect(sch.getByTestId('heating-sch-solar-panel')).toHaveCount(1);
+    await expect(sch.getByTestId('heating-sch-solar-coil')).toHaveCount(1);
+    await expect(sch.locator('[data-pipe-id="solar-supply"]')).toHaveCount(1);
+    await expect(sch.locator('[data-pipe-id="solar-return"]')).toHaveCount(1);
+    await expect(sch.locator('[data-pump="solar"]')).toHaveCount(1);
+    await expect(sch.getByTestId('heating-sch-solar-collector')).toBeVisible();
+    await expect(sch.getByTestId('heating-sch-solar-pump')).toBeVisible();
     const bannerTop = await page.getByTestId('heating-solar-compact').evaluate((el) => el.getBoundingClientRect().top);
     const roomsTop = await page
       .getByTestId('heating-rooms-mini')
       .evaluate((el) => el.getBoundingClientRect().top);
     expect(bannerTop).toBeLessThan(roomsTop);
+  });
+
+  test('Teď bez solárního mapování: schéma bez panelu a solárních potrubí', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/homebrain-topeni?topeni=heating&extras=none&theme=dark');
+    const sch = page.getByTestId('heating-schematic');
+    await expect(sch).toBeVisible({ timeout: 20_000 });
+    await expect(sch).not.toHaveAttribute('data-solar', '');
+    await expect(sch.getByTestId('heating-sch-solar-panel')).toHaveCount(0);
+    await expect(sch.locator('[data-pipe-id="solar-supply"]')).toHaveCount(0);
+    await expect(sch.locator('[data-pump="solar"]')).toHaveCount(0);
+    await expect(sch.locator('[data-pipe-id="hp-supply"]')).toHaveCount(1);
   });
 
   test('Teď kompresor: hero beze solární věty', async ({ page }) => {

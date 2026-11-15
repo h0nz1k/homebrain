@@ -881,21 +881,8 @@ export function heroScene(snap: HeatingSnapshot) {
   const charge = scenario === 'heating_tank' || scenario === 'heating_dhw';
   const house = scenario === 'house_circuit';
   const activePipes: string[] = [];
-  if (charge)
-    activePipes.push(
-      'compressor-outlet',
-      scenario === 'heating_dhw' ? 'dhw-inlet' : 'tank-inlet',
-      'tank-return',
-    );
-  if (house)
-    activePipes.push('mixing-hot', 'radiator-supply', 'radiator-return', 'house-tank-return');
-  if (
-    house &&
-    snap.pumps.heating === true &&
-    snap.house.mixing_valve_pct !== null &&
-    snap.house.mixing_valve_pct < 100
-  )
-    activePipes.push('mixing-bypass');
+  if (charge) activePipes.push('hp-supply', 'hp-return');
+  if (house) activePipes.push('heat-supply', 'heat-return');
   if (snap.heat_pump.compressor_on === true) activePipes.push('collector');
   if (solarConfigured(snap) && solarStateOf(snap) === 'heating') {
     activePipes.push('solar-supply', 'solar-return');
