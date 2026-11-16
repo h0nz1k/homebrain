@@ -27,15 +27,16 @@ export function clampPan(
   viewportH: number,
   world: ViewBounds,
 ): Pick<PanZoomState, 'tx' | 'ty'> {
-  const { scale, margin } = { scale: state.scale, margin: PAN_ZOOM_LIMITS.margin };
-  const tx = Math.max(
-    margin - (world.x + world.w) * scale,
-    Math.min(viewportW - margin - world.x * scale, state.tx),
-  );
-  const ty = Math.max(
-    margin - (world.y + world.h) * scale,
-    Math.min(viewportH - margin - world.y * scale, state.ty),
-  );
+  const axis = (offset: number, extent: number, start: number, length: number) => {
+    const scaled = length * state.scale;
+    if (scaled <= extent) return (extent - scaled) / 2 - start * state.scale;
+    return Math.max(
+      extent - (start + length) * state.scale,
+      Math.min(-start * state.scale, offset),
+    );
+  };
+  const tx = axis(state.tx, viewportW, world.x, world.w);
+  const ty = axis(state.ty, viewportH, world.y, world.h);
   return { tx, ty };
 }
 

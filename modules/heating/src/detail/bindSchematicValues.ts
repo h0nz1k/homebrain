@@ -12,7 +12,11 @@ function hpState(snap: HeatingSnapshot): string {
   const hp = snap.heat_pump;
   if (snap.mode.main_switch === false) return 'Vypnuto';
   const run =
-    hp.compressor_on === null ? '—' : hp.compressor_on ? `Běží · ${fmtHpPower(hp.power_w)}` : 'Stojí · 0 W';
+    hp.compressor_on === null
+      ? '—'
+      : hp.compressor_on
+        ? `Běží · ${fmtHpPower(hp.power_w)}`
+        : 'Stojí · 0 W';
   return run;
 }
 
@@ -39,11 +43,17 @@ export function bindSchematicValues(
   const showSolar = solarConfigured(snap);
   const hp = snap.heat_pump;
 
-  const values: Record<string, { caption: string; value: string; statusDot?: 'on' | 'off' | 'unknown' }> = {};
+  const values: Record<
+    string,
+    { caption: string; value: string; statusDot?: 'on' | 'off' | 'unknown' }
+  > = {};
   for (const label of model.labels) {
     values[label.id] = { caption: label.caption, value: label.value };
   }
 
+  values['tank-title'] = { caption: 'Akumulační nádrž', value: fmtT(snap.tank.top) };
+  values.ground = { caption: 'Zemní kolektor', value: 'Primární okruh' };
+  values['cold-water'] = { caption: 'Studená voda', value: 'Přívod do nádrže' };
   values.outdoor = { caption: 'Venku', value: fmtT(snap.outdoor.temp) };
   values.tap = { caption: 'Odběr teplé vody', value: fmtT(snap.dhw.temp) };
   values.dhw = { caption: 'Teplá voda', value: fmtT(snap.dhw.temp) };
@@ -52,8 +62,7 @@ export function bindSchematicValues(
   values.hp = {
     caption: 'Tepelné čerpadlo',
     value: hpState(snap),
-    statusDot:
-      hp.compressor_on === true ? 'on' : hp.compressor_on === false ? 'off' : 'unknown',
+    statusDot: hp.compressor_on === true ? 'on' : hp.compressor_on === false ? 'off' : 'unknown',
   };
   values.heat = { caption: 'Topení', value: heatLabel(snap) };
   values.div = { caption: 'Přepínací ventil', value: divValve(snap) };
@@ -78,10 +87,10 @@ export function bindSchematicValues(
   }
   if (pool) {
     values.pool = { caption: 'Voda v bazénu', value: pool.temp !== null ? fmtT(pool.temp) : '—' };
-    values['pool-hall-title'] = { caption: 'Bazén', value: '' };
+
     values['pool-floor'] = {
       caption: 'Podlahovka haly',
-      value: pool.heating_pump === true ? 'Zapnuto' : pool.heating_pump === false ? 'Stojí' : '—',
+      value: 'Topný okruh',
     };
   }
   if (fish) {
@@ -105,4 +114,19 @@ export function schematicScenarioId(snap: HeatingSnapshot): number {
   if (snap.activity === 'heating_dhw' || snap.activity === 'dhw_only') return 2;
   if (snap.extras.solar?.state === 'heating') return 1;
   return 3;
+}
+
+/** Each circuit follows its own measured pump bit, including simultaneous activity. */
+export function schematicPipeActive(id: string, snap: HeatingSnapshot): boolean {
+  if (snap.mode.main_switch === false) return false;
+  if (id === 'cold-water' || id === 'dhw-draw') return true;
+  if (id.startsWith('solar-')) return solarConfigured(snap) && snap.extras.solar?.pump === true;
+  if (id === 'pool-water') return snap.extras.pool?.filter_pump === true;
+  if (id.startsWith('pool-floor')) return snap.pumps.heating === true;
+  if (id.startsWith('pool-')) return snap.extras.pool?.heating_pump === true;
+  if (id.startsWith('fish-')) return snap.extras.fish?.heating_on === true;
+  if (id.startsWith('hp-') || id === 'ground-loop') return snap.heat_pump.compressor_on === true;
+  if (id === 'tank-charge') return snap.pumps.secondary === true && snap.dhw.valve_to_dhw === false;
+  if (id === 'dhw-charge') return snap.pumps.secondary === true && snap.dhw.valve_to_dhw === true;
+  return snap.pumps.heating === true;
 }

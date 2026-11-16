@@ -1,7 +1,11 @@
-import { useEffect, useId, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useId, useMemo, useRef } from 'react';
 import { solarConfigured } from '../solar.js';
 import type { HeatingSnapshot } from '../types.js';
-import { bindSchematicValues, schematicScenarioId } from './bindSchematicValues.js';
+import {
+  bindSchematicValues,
+  schematicScenarioId,
+  schematicPipeActive,
+} from './bindSchematicValues.js';
 import { DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
 import {
   DetailArchitecture,
@@ -34,7 +38,10 @@ function pipeClass(kind: CircuitKind, id: string): string {
   return base;
 }
 
-function flowMarkers(points: [number, number][], minGap = 40): Array<{ x: number; y: number; angle: number }> {
+function flowMarkers(
+  points: [number, number][],
+  minGap = 40,
+): Array<{ x: number; y: number; angle: number }> {
   const markers: Array<{ x: number; y: number; angle: number }> = [];
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
@@ -67,18 +74,29 @@ export function DetailSchematic({
   const showSolar = solarConfigured(snap);
   const pool = snap.extras.pool;
 
-  const activeKinds = useMemo(() => {
-    const kinds = new Set<CircuitKind>();
-    for (const p of model.pipes) {
-      if (p.states.includes(scenario)) kinds.add(p.kind);
-    }
-    return kinds;
-  }, [model.pipes, scenario]);
+  useLayoutEffect(() => {
+    const measure = () => {
+      for (const chip of root.current?.querySelectorAll<SVGGElement>('.ht-d1-chip') ?? []) {
+        const text = chip.querySelector('text');
+        const rect = chip.querySelector('rect');
+        if (!text || !rect) continue;
+        const box = text.getBBox();
+        rect.setAttribute('x', String(box.x - 14));
+        rect.setAttribute('y', String(box.y - 10));
+        rect.setAttribute('width', String(box.width + 28));
+        rect.setAttribute('height', String(box.height + 20));
+      }
+    };
+    measure();
+    void document.fonts.ready.then(measure);
+  }, [values, scale, minScale]);
 
   useEffect(() => {
     if (!root.current || typeof matchMedia === 'undefined') return;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-    const particles = Array.from(root.current.querySelectorAll<SVGCircleElement>('.ht-d1-particle'));
+    const particles = Array.from(
+      root.current.querySelectorAll<SVGCircleElement>('.ht-d1-particle'),
+    );
     let animations: Animation[] = [];
     const update = () => {
       animations.forEach((a) => a.cancel());
@@ -86,7 +104,7 @@ export function DetailSchematic({
       if (reduced.matches) return;
       for (const particle of particles) {
         const path = particle.parentElement?.querySelector<SVGPathElement>('path.ht-d1-pipe');
-        if (!path) continue;
+        if (!path || !particle.parentElement?.hasAttribute('data-active')) continue;
         const length = path.getTotalLength();
         if (length < 160) continue;
         const frames = Array.from({ length: 80 }, (_, i) => {
@@ -94,9 +112,7 @@ export function DetailSchematic({
           const point = path.getPointAtLength(t * length);
           return { transform: `translate(${point.x}px, ${point.y}px)`, opacity: 1, offset: i / 79 };
         });
-        animations.push(
-          particle.animate(frames, { duration: 2800, iterations: Infinity }),
-        );
+        animations.push(particle.animate(frames, { duration: 2800, iterations: Infinity }));
       }
     };
     update();
@@ -105,7 +121,7 @@ export function DetailSchematic({
       animations.forEach((a) => a.cancel());
       reduced.removeEventListener('change', update);
     };
-  }, [scenario, snap.updated_at]);
+  }, [scenario, snap]);
 
   const deviceOn = (id: string): boolean | null => {
     if (id === 'Nabíjení') return snap.pumps.secondary;
@@ -122,6 +138,9 @@ export function DetailSchematic({
       xmlns="http://www.w3.org/2000/svg"
       viewBox={`${model.bounds.x} ${model.bounds.y} ${model.bounds.w} ${model.bounds.h}`}
       className="ht-d1-svg"
+      width={model.bounds.w}
+      height={model.bounds.h}
+      style={{ left: model.bounds.x, top: model.bounds.y }}
       role="img"
       aria-label="Plné schéma topení a přípravy teplé vody"
       data-detail-schematic=""
@@ -131,61 +150,99 @@ export function DetailSchematic({
       <DetailTankGlyph />
       <DetailHpGlyph snap={snap} />
       <DetailTapGlyph />
-      <DetailRadiatorGlyph transform="translate(-16 -88) scale(3)" />
+      <DetailRadiatorGlyph transform="translate(-76 -655) scale(3)" />
       <DetailSolarPanel show={showSolar} />
-      <DetailRadiatorGlyph id="fish" transform="translate(14 332) scale(3)" />
+      <DetailRadiatorGlyph id="fish" transform="translate(-46 -155) scale(3)" />
       <PoolBasinGlyph uid={uid} />
       <PoolExchangerGlyph />
       <FloorHeatingLoop />
-      <path d="M635 1000V670H600V653" className="ht-d1-internal" data-internal="dhw-cold" />
-      <path d="M540 460V380" className="ht-d1-internal ht-d1-internal-hot" data-internal="dhw-hot" />
+      <path
+        d="M540 380V430H600V450H490V470H600V490H540"
+        className="ht-d1-internal ht-d1-internal-hot"
+        data-internal="dhw-coil"
+      />
       <path d="M649.6 938H616V954H632V970H649.6" className="ht-c3-solar-coil" />
 
-      {model.pipes.map((pipe) => {
-        const active = pipe.states.includes(scenario);
-        const markers = active ? flowMarkers(pipe.points) : [];
-        return (
-          <g
-            key={pipe.id}
-            data-pipe={pipe.id}
-            data-circuit={pipe.kind}
-            className={pipeClass(pipe.kind, pipe.id)}
-            data-active={active ? '' : undefined}
-          >
-            <path className="ht-d1-pipe" d={pipe.d} style={{ strokeWidth: (PIPE_WEIGHT[pipe.kind] ?? 5) * (pipe.id === 'mix-bypass' ? 0.5 : pipe.id === 'cold-water' ? 0.3 : pipe.id === 'dhw-draw' ? 0.6 : 1) }} />
-            <g className="ht-d1-arrows" aria-hidden>
-              {markers.map((m, i) => (
-                <path
-                  key={i}
-                  transform={`translate(${m.x} ${m.y}) rotate(${m.angle})`}
-                  d="M-3 -2L0 0L-3 2"
-                  className="ht-d1-direction"
-                />
-              ))}
+      {model.pipes
+        .filter((p) => showSolar || !p.id.startsWith('solar-'))
+        .map((pipe) => {
+          const active = schematicPipeActive(pipe.id, snap);
+          const markers = active ? flowMarkers(pipe.points) : [];
+          return (
+            <g
+              key={pipe.id}
+              data-pipe={pipe.id}
+              data-circuit={pipe.kind}
+              className={pipeClass(pipe.kind, pipe.id)}
+              data-active={active ? '' : undefined}
+            >
+              <path
+                className="ht-d1-pipe"
+                d={pipe.d}
+                style={{
+                  strokeWidth:
+                    (PIPE_WEIGHT[pipe.kind] ?? 5) *
+                    (pipe.id === 'mix-bypass'
+                      ? 0.5
+                      : pipe.id === 'cold-water'
+                        ? 0.3
+                        : pipe.id === 'dhw-draw'
+                          ? 0.6
+                          : 1),
+                }}
+              />
+              <g className="ht-d1-arrows" aria-hidden>
+                {markers.map((m, i) => (
+                  <path
+                    key={i}
+                    transform={`translate(${m.x} ${m.y}) rotate(${m.angle})`}
+                    d="M-3 -2L0 0L-3 2"
+                    className="ht-d1-direction"
+                  />
+                ))}
+              </g>
+              <circle
+                className="ht-d1-particle"
+                r={3.5}
+                style={{ display: active ? undefined : 'none', opacity: 0 }}
+              />
             </g>
-            <circle className="ht-d1-particle" r={3.5} style={{ display: active ? undefined : 'none' }} />
-          </g>
-        );
-      })}
+          );
+        })}
 
-      {model.devices.map((d) => (
-        <DeviceGlyph
-          key={d.id}
-          id={d.id}
-          x={d.x}
-          y={d.y}
-          angle={d.angle}
-          kind={d.kind}
-          on={deviceOn(d.id)}
-        />
-      ))}
+      {model.devices
+        .filter((d) => showSolar || d.id !== 'Solár')
+        .map((d) => (
+          <DeviceGlyph
+            key={d.id}
+            id={d.id}
+            x={d.x}
+            y={d.y}
+            angle={d.angle}
+            kind={d.kind}
+            on={deviceOn(d.id)}
+          />
+        ))}
 
       {model.labels.map((label) => {
         if (!labelTierVisible(label.tier, scale, minScale)) return null;
         if (label.id.startsWith('solar') && !showSolar) return null;
+        if (label.tier === 2)
+          return (
+            <text
+              key={label.id}
+              x={label.x}
+              y={label.y}
+              textAnchor="middle"
+              className="ht-d1-sensor-id"
+              data-tier="2"
+            >
+              {label.caption}
+            </text>
+          );
         const chip = values[label.id] ?? { caption: label.caption, value: label.value };
         const hideLeader =
-          label.owner === 'tank' || label.tier === 2 || label.id === 'outdoor' || label.id === 'pool-hall-title';
+          label.owner === 'tank' || label.id === 'outdoor' || label.id === 'pool-hall-title';
         const [ax, ay] = label.anchor;
         const leader = `M${ax - label.x} ${ay - label.y}L0 0`;
         const isHp = label.id === 'hp';
@@ -198,7 +255,14 @@ export function DetailSchematic({
             transform={`translate(${label.x} ${label.y})`}
           >
             {!hideLeader ? <path className="ht-d1-chip-leader" d={leader} /> : null}
-            <rect className="ht-d1-chip-bg" rx={10} x={-72} y={-26} width={144} height={isHp ? 110 : chip.value ? 54 : 36} />
+            <rect
+              className="ht-d1-chip-bg"
+              rx={10}
+              x={-119}
+              y={-26}
+              width={238}
+              height={isHp ? 114 : 66}
+            />
             {chip.statusDot ? (
               <circle
                 className={`ht-d1-chip-dot ht-d1-chip-dot-${chip.statusDot}`}
@@ -208,11 +272,11 @@ export function DetailSchematic({
               />
             ) : null}
             <text textAnchor="middle" className="ht-d1-chip-text">
-              <tspan className="ht-d1-caption" x={0} dy={chip.value ? -6 : 4}>
+              <tspan className="ht-d1-caption" x={0} dy={-2}>
                 {chip.caption}
               </tspan>
               {chip.value ? (
-                <tspan className="ht-d1-value" x={0} dy={22}>
+                <tspan className="ht-d1-value" x={0} dy={26}>
                   {chip.value}
                 </tspan>
               ) : null}
@@ -221,7 +285,7 @@ export function DetailSchematic({
                   <tspan className="ht-d1-caption" x={0} dy={28}>
                     {values['hp-pair'].caption}
                   </tspan>
-                  <tspan className="ht-d1-value" x={0} dy={22}>
+                  <tspan className="ht-d1-value" x={0} dy={26}>
                     {values['hp-pair'].value}
                   </tspan>
                 </>
@@ -230,39 +294,6 @@ export function DetailSchematic({
           </g>
         );
       })}
-
-      <g className="ht-d1-legend" transform={`translate(${model.bounds.x + 16} ${model.bounds.y + model.bounds.h - 40})`}>
-        {(
-          [
-            ['hot', 'Topná / teplá'],
-            ['cold', 'Zpátečka / studená'],
-            ['solar', 'Solár'],
-            ['ground', 'Země'],
-            ['pool', 'Bazén'],
-          ] as const
-        ).map(([kind, name]) => (
-          <g key={kind} transform={`translate(${kind === 'hot' ? 0 : kind === 'cold' ? 150 : kind === 'solar' ? 320 : kind === 'ground' ? 430 : 560} 0)`}>
-            <rect
-              className="ht-d1-legend-swatch"
-              data-kind={kind}
-              width={28}
-              height={4}
-              rx={2}
-              style={{
-                fill: activeKinds.has(kind)
-                  ? `var(--ht-c3-${kind})`
-                  : `color-mix(in srgb, var(--ht-c3-${kind}) 35%, transparent)`,
-              }}
-            />
-            <text x={36} y={4} className="ht-d1-legend-label">
-              {name}
-            </text>
-          </g>
-        ))}
-        <text x={720} y={4} className="ht-d1-legend-hint">
-          Slabá barva = neaktivní
-        </text>
-      </g>
     </svg>
   );
 }

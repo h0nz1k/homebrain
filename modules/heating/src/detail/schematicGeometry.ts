@@ -1,6 +1,7 @@
 import type { DetailSchematicModel, SchematicLabel, SchematicPipe } from './types.js';
 
 export type GeometryFailCode =
+  | 'pipe-body'
   | 'endpoint'
   | 'device-off-pipe'
   | 'non-orthogonal'
@@ -20,13 +21,19 @@ function distanceToPolyline(x: number, y: number, points: [number, number][]): n
     const b = points[i]!;
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
-    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    const t = Math.max(
+      0,
+      Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)),
+    );
     best = Math.min(best, Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy));
   }
   return best;
 }
 
-function parseSegments(d: string, pipe: SchematicPipe): Array<{ a: [number, number]; b: [number, number] }> {
+function parseSegments(
+  d: string,
+  pipe: SchematicPipe,
+): Array<{ a: [number, number]; b: [number, number] }> {
   const segs: Array<{ a: [number, number]; b: [number, number] }> = [];
   const tokens = [...d.matchAll(/([MLQ])([^MLQ]+)/g)];
   let prev: [number, number] | null = null;
@@ -49,7 +56,13 @@ function parseSegments(d: string, pipe: SchematicPipe): Array<{ a: [number, numb
   return segs;
 }
 
-function portsShare(startA: string, endA: string, startB: string, endB: string, ports: DetailSchematicModel['ports']) {
+function portsShare(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string,
+  ports: DetailSchematicModel['ports'],
+) {
   const endsA = [startA, endA];
   const endsB = [startB, endB];
   return endsA.some((x) =>
@@ -57,14 +70,17 @@ function portsShare(startA: string, endA: string, startB: string, endB: string, 
   );
 }
 
-function approxChipBox(label: SchematicLabel): { left: number; right: number; top: number; bottom: number } {
-  const w = Math.max(80, label.caption.length * 7 + (label.value ? label.value.length * 6 : 0));
-  const h = label.value ? 44 : 28;
+function approxChipBox(label: SchematicLabel): {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+} {
   return {
-    left: label.x - w / 2 - 14,
-    right: label.x + w / 2 + 14,
-    top: label.y - h / 2 - 10,
-    bottom: label.y + h / 2 + 10,
+    left: label.x - 119,
+    right: label.x + 119,
+    top: label.y - 26,
+    bottom: label.y - 26 + (label.id === 'hp' ? 114 : 66),
   };
 }
 
@@ -79,10 +95,34 @@ export function auditSchematicGeometry(model: DetailSchematicModel): GeometryFai
     } catch {
       fail('non-orthogonal', p.id);
     }
+    if (p.d.includes('Q') && !p.bridges?.length) fail('undeclared-bridge', p.id);
+    // Building envelopes and flat glyph bounds contain empty space. Check solid bodies only.
+    for (const body of model.bodies.filter((b) =>
+      ['tank', 'hp', 'radiator', 'fish', 'pool', 'pool-exch'].includes(b.id),
+    )) {
+      for (let i = 1; i < p.points.length; i++) {
+        const a = p.points[i - 1]!;
+        const b = p.points[i]!;
+        const horizontal = a[1] === b[1];
+        const vertical = a[0] === b[0];
+        const inside = horizontal
+          ? a[1] > body.y + 0.1 &&
+            a[1] < body.y + body.h - 0.1 &&
+            Math.max(Math.min(a[0], b[0]), body.x + 0.1) <
+              Math.min(Math.max(a[0], b[0]), body.x + body.w - 0.1)
+          : vertical &&
+            a[0] > body.x + 0.1 &&
+            a[0] < body.x + body.w - 0.1 &&
+            Math.max(Math.min(a[1], b[1]), body.y + 0.1) <
+              Math.min(Math.max(a[1], b[1]), body.y + body.h - 0.1);
+        if (inside) fail('pipe-body', `${p.id}/${body.id}`);
+      }
+    }
     for (const key of ['start', 'end'] as const) {
       const port = model.ports[p[key]];
       const pt = key === 'start' ? p.points[0]! : p.points.at(-1)!;
-      if (!port || Math.hypot(port.x - pt[0], port.y - pt[1]) > 1) fail('endpoint', `${p.id}:${key}`);
+      if (!port || Math.hypot(port.x - pt[0], port.y - pt[1]) > 1)
+        fail('endpoint', `${p.id}:${key}`);
     }
   }
 
@@ -121,7 +161,7 @@ export function auditSchematicGeometry(model: DetailSchematicModel): GeometryFai
     if (!pipe || distanceToPolyline(d.x, d.y, pipe.points) > 1) fail('device-off-pipe', d.id);
   }
 
-  const tier0 = model.labels.filter((l) => l.tier === 0);
+  const tier0 = model.labels.filter((l) => l.tier < 2);
   for (let i = 0; i < tier0.length; i++) {
     for (let j = i + 1; j < tier0.length; j++) {
       const a = approxChipBox(tier0[i]!);
@@ -135,12 +175,25 @@ export function auditSchematicGeometry(model: DetailSchematicModel): GeometryFai
   return fails;
 }
 
-export function mutateModel(model: DetailSchematicModel, kind: GeometryFailCode): DetailSchematicModel {
+export function mutateModel(
+  model: DetailSchematicModel,
+  kind: GeometryFailCode,
+): DetailSchematicModel {
   const m = structuredClone(model);
+  if (kind === 'pipe-body') {
+    const p = m.pipes.find((p) => p.id === 'tank-charge')!;
+    p.points.splice(1, 0, [540, 550]);
+  }
+  if (kind === 'undeclared-bridge') {
+    const p = m.pipes.find((p) => p.bridges?.length)!;
+    p.bridges = [];
+  }
   if (kind === 'endpoint') {
     const p = m.pipes.find((x) => x.id === 'hp-supply');
     if (p) p.points[0] = [140, 740];
-    m.pipes = m.pipes.map((pipe) => (pipe.id === 'hp-supply' ? { ...p!, d: 'M140 740L-20 760L-20 550L300 550' } : pipe));
+    m.pipes = m.pipes.map((pipe) =>
+      pipe.id === 'hp-supply' ? { ...p!, d: 'M140 740L-20 760L-20 550L300 550' } : pipe,
+    );
   }
   if (kind === 'device-off-pipe') {
     const d = m.devices.find((x) => x.id === 'Nabíjení');

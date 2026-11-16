@@ -50,6 +50,8 @@ export interface SchematicLabel {
 export interface DetailLayoutParams {
   /** When true, the pool hall shares a wall with the main house (assumption – owner to confirm). */
   poolHallAttached: boolean;
+  /** Left edge of the hall in world coordinates. */
+  poolHallX: number;
   /** World Y where the floor-heating branch leaves the main heating riser (tunable). */
   floorBranchY: number;
 }

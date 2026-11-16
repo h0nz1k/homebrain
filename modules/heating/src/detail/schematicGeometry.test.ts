@@ -1,22 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
+import { buildDetailSchematicModel, DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
 import { auditSchematicGeometry, mutateModel } from './schematicGeometry.js';
 
 describe('detail schematic geometry', () => {
   it('production model passes wiring checks', () => {
     const fails = auditSchematicGeometry(DETAIL_SCHEMATIC_MODEL);
-    const critical = fails.filter((f) =>
-      ['endpoint', 'device-off-pipe', 'non-orthogonal'].includes(f.code),
-    );
-    expect(critical, fails.map((f) => `${f.code}:${f.id}`).join(', ')).toEqual([]);
+    expect(fails, fails.map((f) => `${f.code}:${f.id}`).join(', ')).toEqual([]);
+  });
+
+  it('moves the hall and its branch without disconnecting any ports', () => {
+    const m = buildDetailSchematicModel({
+      poolHallAttached: false,
+      poolHallX: 840,
+      floorBranchY: 800,
+    });
+    expect(m.ports['floor.in']).toMatchObject({ x: 1210, y: 800 });
+    expect(
+      auditSchematicGeometry(m).filter((f) =>
+        ['endpoint', 'device-off-pipe', 'non-orthogonal'].includes(f.code),
+      ),
+    ).toEqual([]);
   });
 
   it('flags tight parallel spacing on synthetic pipes', () => {
     const synthetic = structuredClone(DETAIL_SCHEMATIC_MODEL);
+    synthetic.ports['probe.a0'] = { x: 50, y: 200, owner: 'probe-a' };
+    synthetic.ports['probe.a1'] = { x: 200, y: 200, owner: 'probe-a' };
+    synthetic.ports['probe.b0'] = { x: 50, y: 206, owner: 'probe-b' };
+    synthetic.ports['probe.b1'] = { x: 200, y: 206, owner: 'probe-b' };
     synthetic.pipes.push({
       id: 'spacing-probe-a',
-      start: 'hp.hot',
-      end: 'hp.cold',
+      start: 'probe.a0',
+      end: 'probe.a1',
       points: [
         [50, 200],
         [200, 200],
@@ -27,8 +42,8 @@ describe('detail schematic geometry', () => {
     });
     synthetic.pipes.push({
       id: 'spacing-probe-b',
-      start: 'hp.hot',
-      end: 'hp.cold',
+      start: 'probe.b0',
+      end: 'probe.b1',
       points: [
         [50, 206],
         [200, 206],
@@ -42,6 +57,8 @@ describe('detail schematic geometry', () => {
   });
 
   const cases = [
+    ['pipe-body', 'pipe-body'],
+    ['undeclared-bridge', 'undeclared-bridge'],
     ['endpoint', 'endpoint'],
     ['device-off-pipe', 'device-off-pipe'],
     ['non-orthogonal', 'non-orthogonal'],

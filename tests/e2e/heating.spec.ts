@@ -524,7 +524,9 @@ test.describe('Topení', () => {
       const chevrons = page.locator('.ht-c3-direction');
       await expect(chevrons).toHaveCount(16);
       expect(
-        await page.getByTestId('heating-schematic').evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
+        await page
+          .getByTestId('heating-schematic')
+          .evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
       ).toEqual([]);
       for (const chevron of await chevrons.all()) await expect(chevron).toBeVisible();
     });
@@ -622,7 +624,9 @@ test.describe('Topení', () => {
     await expect(sch.locator('[data-pump="solar"]')).toHaveCount(1);
     await expect(sch.getByTestId('heating-sch-solar-collector')).toBeVisible();
     await expect(sch.getByTestId('heating-sch-solar-pump')).toBeVisible();
-    const bannerTop = await page.getByTestId('heating-solar-compact').evaluate((el) => el.getBoundingClientRect().top);
+    const bannerTop = await page
+      .getByTestId('heating-solar-compact')
+      .evaluate((el) => el.getBoundingClientRect().top);
     const roomsTop = await page
       .getByTestId('heating-rooms-mini')
       .evaluate((el) => el.getBoundingClientRect().top);
@@ -755,9 +759,9 @@ test.describe('Topení', () => {
     await expect(hero).not.toContainText('Zapněte solár');
     await expect(page.getByTestId('heating-solar-warn')).toHaveCount(0);
     await expect(page.getByTestId('heating-headline')).toContainText('přehřívá, čerpadlo stojí');
-    await expect(page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k')).toHaveText(
-      'Stav',
-    );
+    await expect(
+      page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k'),
+    ).toHaveText('Stav');
   });
 
   for (const [width, height] of [
@@ -782,7 +786,137 @@ test.describe('Topení', () => {
     await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
     await expect(sch.locator('[data-active].ht-c3-hot')).toHaveCount(0);
     await expect(page.getByTestId('heating-hero').locator('.ht-run-meta')).toHaveCount(0);
-    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(0);
+    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(
+      0,
+    );
+  });
+
+  for (const theme of ['dark', 'light']) {
+    for (const [width, height] of [
+      [360, 800],
+      [1280, 800],
+      [800, 1280],
+      [1440, 900],
+    ]) {
+      test(`Plné schéma: viditelné okruhy a stabilní zoom ${width}×${height} ${theme}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width: width!, height: height! });
+        await page.goto(`/homebrain-topeni?topeni=heating&theme=${theme}`);
+        await page.getByTestId('heating-full-schematic-open').click();
+        const sheet = page.getByTestId('heating-full-schematic-sheet');
+        await expect(sheet).toBeVisible();
+        expect((await sheet.boundingBox())!.width).toBe(width);
+        const svg = sheet.locator('[data-detail-schematic]');
+        const badPipes = await svg.locator('[data-pipe] > .ht-d1-pipe').evaluateAll((pipes) =>
+          pipes
+            .filter((pipe) => {
+              const s = getComputedStyle(pipe);
+              const c = document.createElement('canvas').getContext('2d')!;
+              c.strokeStyle = s.stroke;
+              c.lineWidth = 2;
+              c.beginPath();
+              c.moveTo(0, 1);
+              c.lineTo(2, 1);
+              c.stroke();
+              return (
+                s.stroke === 'none' ||
+                s.stroke === 'transparent' ||
+                Number(s.opacity) < 0.3 ||
+                c.getImageData(1, 1, 1, 1).data[3]! < 76
+              );
+            })
+            .map((p) => p.parentElement!.getAttribute('data-pipe')),
+        );
+        expect(badPipes).toEqual([]);
+        expect(
+          await svg
+            .locator('[data-architecture="main-house"]')
+            .evaluate((p) => getComputedStyle(p).fill),
+        ).not.toBe('rgb(0, 0, 0)');
+        for (const selector of [
+          '[data-architecture="rybarna"]',
+          '[data-architecture="pool-hall"]',
+          '[data-floor-loop]',
+          '[data-pipe="pool-floor-loop"]',
+        ])
+          await expect(svg.locator(selector)).toHaveCount(1);
+        const visibleFraction = async () =>
+          svg.evaluate((el) => {
+            const viewport = el
+              .closest('[data-testid="heating-full-schematic-viewport"]')!
+              .getBoundingClientRect();
+            const content = el.getBoundingClientRect();
+            const area =
+              Math.max(
+                0,
+                Math.min(viewport.right, content.right) - Math.max(viewport.left, content.left),
+              ) *
+              Math.max(
+                0,
+                Math.min(viewport.bottom, content.bottom) - Math.max(viewport.top, content.top),
+              );
+            return (
+              area / Math.min(viewport.width * viewport.height, content.width * content.height)
+            );
+          });
+        for (let i = 0; i < 3; i++)
+          await sheet.getByRole('button', { name: 'Přiblížit', exact: true }).click();
+        expect(await visibleFraction()).toBeGreaterThanOrEqual(0.5);
+        const viewport = page.getByTestId('heating-full-schematic-viewport');
+        const box = (await viewport.boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 10000, box.y + 10000, { steps: 3 });
+        await page.mouse.up();
+        expect(await visibleFraction()).toBeGreaterThanOrEqual(0.5);
+        await sheet.getByRole('button', { name: 'Celé schéma', exact: true }).click();
+        await noSidewaysScroll(page);
+      });
+    }
+  }
+
+  test('Plné schéma: skutečný pinch, dvojité klepnutí a zpět', async ({ page, context }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=heating');
+    await page.getByTestId('heating-full-schematic-open').click();
+    const viewport = page.getByTestId('heating-full-schematic-viewport');
+    const surface = viewport.locator('[data-panzoom-scale]');
+    const initial = Number(await surface.getAttribute('data-panzoom-scale'));
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    const box = (await viewport.boundingBox())!;
+    const cy = box.y + box.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [
+        { x: 140, y: cy, id: 1 },
+        { x: 220, y: cy, id: 2 },
+      ],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [
+        { x: 90, y: cy, id: 1 },
+        { x: 270, y: cy, id: 2 },
+      ],
+    });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect
+      .poll(async () => Number(await surface.getAttribute('data-panzoom-scale')))
+      .toBeGreaterThan(initial * 1.4);
+    for (let i = 0; i < 2; i++) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: 180, y: cy, id: 1 }],
+      });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    }
+    await expect
+      .poll(async () => Number(await surface.getAttribute('data-panzoom-scale')))
+      .toBeCloseTo(initial, 3);
+    await page.goBack();
+    await expect(page.getByTestId('heating-full-schematic-sheet')).toHaveCount(0);
   });
 
   test('Plné schéma: sheet z Toky, zoom ovládání a bez vodorovného scrollu', async ({ page }) => {
@@ -794,7 +928,12 @@ test.describe('Topení', () => {
     await expect(sheet).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Celé schéma' })).toBeVisible();
     const viewport = page.getByTestId('heating-full-schematic-viewport');
-    await viewport.dispatchEvent('pointerdown', { button: 0, clientX: 120, clientY: 320, pointerId: 1 });
+    await viewport.dispatchEvent('pointerdown', {
+      button: 0,
+      clientX: 120,
+      clientY: 320,
+      pointerId: 1,
+    });
     await page.mouse.move(200, 360);
     await viewport.dispatchEvent('pointerup', { pointerId: 1 });
     await sheet.getByRole('button', { name: 'Zavřít plné schéma' }).click();
