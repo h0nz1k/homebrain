@@ -247,3 +247,14 @@ it('isolated Sheet keeps its labelled header and footer and closes with Escape',
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(close).toHaveBeenCalledTimes(1);
 });
+
+it('opts a primary Button into the shared high-contrast fill', () => {
+  render(
+    <Button variant="primary" contrast="high">
+      Schválit předání
+    </Button>,
+  );
+  expect(
+    screen.getByRole('button', { name: 'Schválit předání' }).getAttribute('data-contrast'),
+  ).toBe('high');
+});

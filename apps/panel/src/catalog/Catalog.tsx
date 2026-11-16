@@ -410,6 +410,7 @@ const specs: Spec[] = [
     importName: 'Button',
     states: [
       'primary',
+      'contrast="high"',
       'secondary',
       'strong',
       'ghost',
@@ -427,6 +428,9 @@ const specs: Spec[] = [
     render: () => (
       <div className="cat-row">
         <Button variant="primary">Začít vařit</Button>
+        <Button variant="primary" contrast="high">
+          Vyšší kontrast
+        </Button>
         <Button>Pozastavit</Button>
         <Button variant="ghost">Zrušit</Button>
         <Button variant="strong">Otevřít</Button>

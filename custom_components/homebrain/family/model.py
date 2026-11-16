@@ -207,10 +207,11 @@ def apply_swap_overlays(
             chore_uuid = chore.get("chore_uuid")
             opaque = chore.get("opaque_id")
             source_matches = snap.get("chore_id") in {chore_uuid, opaque, chore.get("id")}
-            clone_matches = (
-                op.get("clone_id") is not None
-                and op.get("clone_id") in {chore_uuid, opaque, chore.get("id")}
-            )
+            clone_matches = op.get("clone_id") is not None and op.get("clone_id") in {
+                chore_uuid,
+                opaque,
+                chore.get("id"),
+            }
             if op.get("from_kid_id") == kid_uuid and source_matches:
                 to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
                 row["swap_today"] = {
@@ -259,7 +260,8 @@ def pending_approvals(
             original = by_uuid.get(str(req.get("from_kid_id")), {})
             source = next(
                 (
-                    c for c in original.get("chores", [])
+                    c
+                    for c in original.get("chores", [])
                     if req.get("source_chore_id")
                     in {c.get("id"), c.get("opaque_id"), c.get("chore_uuid")}
                 ),

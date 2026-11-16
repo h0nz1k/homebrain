@@ -61,6 +61,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * `danger` = destructive action (Smazat).
    */
   variant?: ButtonVariant;
+  /** Primary fill with at least 4.5:1 label contrast in every theme. */
+  contrast?: 'high';
   /** `sm` = dense rows (36 px), `md` = 44 px touch target, `lg` = 52 px hero CTA. */
   size?: 'sm' | 'md' | 'lg';
   /** Full width of the parent. */
@@ -73,6 +75,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /** Shared pill button with HomeBrain tokens (replaces per-module .x-btn copies). */
 export function Button({
   variant = 'secondary',
+  contrast,
   size = 'md',
   block,
   icon,
@@ -90,6 +93,7 @@ export function Button({
       type={type}
       className={`hb-btn ${className}`}
       data-variant={variant}
+      data-contrast={contrast}
       data-size={size}
       data-block={block ? '' : undefined}
       data-icon-only={children === undefined || children === null ? 'true' : undefined}

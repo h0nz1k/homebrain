@@ -91,6 +91,7 @@ export function ApprovalsBlock({
                     <Button
                       size="md"
                       variant="primary"
+                      contrast="high"
                       data-testid="family-swap-approve"
                       disabled={busy === key}
                       onClick={() => onApproveSwap(item)}
@@ -111,6 +112,7 @@ export function ApprovalsBlock({
                     <Button
                       size="md"
                       variant="primary"
+                      contrast="high"
                       data-testid="family-approve"
                       disabled={busy === key}
                       onClick={() => onApproveCompletion(item)}
@@ -464,6 +466,7 @@ export function AddChoreSheet({
           {!valid && <p className="fam-hint">Vyplň název, příjemce a budoucí termín.</p>}
           <Button
             variant="primary"
+            contrast="high"
             type="submit"
             form="fam-add-chore"
             disabled={busy || !valid}
@@ -730,6 +733,7 @@ export function SwapSheet({
       footer={
         <Button
           variant="primary"
+          contrast="high"
           disabled={!target || target === (fromKid?.kid_uuid ?? kidId) || busy}
           onClick={() => void submit()}
           data-testid="family-swap-submit"

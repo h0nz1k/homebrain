@@ -3095,3 +3095,13 @@ button.hb-cell-main:focus-visible {
 .hb-scrim[data-isolation='strong'] .hb-sheet-foot > * {
   width: 100%;
 }
+
+.hb-btn[data-variant='primary'][data-contrast='high'] {
+  background: var(--hb-ac-solid);
+}
+.hb-btn[data-variant='primary'][data-contrast='high']:hover:not(:disabled) {
+  background: var(--hb-ac-solid-hover);
+}
+.hb-btn[data-variant='primary'][data-contrast='high']:disabled:not([aria-busy='true']) {
+  background: var(--hb-fill-strong);
+}
