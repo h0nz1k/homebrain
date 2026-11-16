@@ -168,6 +168,33 @@ Zamítnuto vlastníkem 2026-10-31 (směny mimo rozsah, D7). ID ponechána kvůli
 
 Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_map`, `family_shift_types`.
 
+## Rozhodnutí vlastníka (2026-11-15, issue #123)
+
+| # | oblast | rozhodnutí |
+| --- | --- | --- |
+| D8 | Přidání úkolů | pouze `owner` / `adult`; minimální formulář → ChoreOps `create_chore` |
+| D9 | Předání úkolu | **jen dnešní výskyt**; dítě žádá nebo přebírá u sourozence → schválí rodič; rodič může přeřadit přímo |
+| D10 | Body | přehled z ChoreOps senzorů; historie/graf volitelně z read-only `get_ledger` |
+| D11 | Série ChoreOps | nativní série po `skip_chore_due_date` není plně chráněna (ChoreOps 1.6.0) — UI to neslibuje |
+
+### FAM-020 – Přidat úkol (rodič)
+
+- **Popis:** Sheet s názvem, body, přiřazenými dětmi, opakováním a časem splnění; zápis přes WS `homebrain/family/chore/create`.
+- **Priorita:** MVP+ (#123)
+- **Akceptace:** Dítě/kiosk tlačítko nevidí; po úspěchu se úkol objeví v dnešním seznamu; chyba zachová formulář.
+
+### FAM-021 – Předání na dnes
+
+- **Popis:** Skip původního výskytu + jednorázový klon u náhradníka; perzistentní Store + sága; sdílené/rotační úkoly blokované.
+- **Priorita:** MVP+ (#123)
+- **Akceptace:** Pytest role/expire/reconcile; e2e kid request → parent approve; parent direct reassign.
+
+### FAM-022 – Přehled bodů
+
+- **Popis:** Otevření z „celkem X b.“; hero zůstatek, měsíční čistá změna, zdroje, graf 7/30 dní.
+- **Priorita:** MVP+ (#123)
+- **Akceptace:** Dítě jen vlastní; mock konzistentní s progress; truncated historie ukáže „Zobrazit vše“.
+
 ## Mimo rozsah
 
 Směny (D7); zápisy do externích kalendářů z UI; náhrada HA todo vlastní aplikací; odvozování přítomnosti ze síťových trackerů; sledování polohy mimo HA zóny; nádražní tabule.

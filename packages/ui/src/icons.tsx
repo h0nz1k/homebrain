@@ -2,6 +2,39 @@ import type { ReactElement } from 'react';
 
 /** Line icons (24 px grid, currentColor stroke) shared by modules; decorative by default. */
 const PATHS = {
+  trash: (
+    <>
+      <path d="M4.5 7h15M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 10v7M14 10v7" />
+    </>
+  ),
+  // Household waste bin with a lid and handle: „Vynést koš“ without the destructive trash look.
+  bin: (
+    <>
+      <path d="M4.5 8.5h15M6 8.5l1-3h10l1 3M10 5.5V4h4v1.5M7 8.5l1.2 11h7.6l1.2-11M9.5 13h5" />
+    </>
+  ),
+  school: (
+    <>
+      <path d="M2.5 9 12 4.5 21.5 9 12 13.5 2.5 9ZM6.5 11v4.5c1.5 1.6 3.4 2.5 5.5 2.5s4-.9 5.5-2.5V11M21.5 9v5" />
+    </>
+  ),
+  flower: (
+    <>
+      <path d="M12 21v-7m0 5c-4 0-6-2-6-4 4 0 6 2 6 4m0-2c4 0 6-2 6-4-4 0-6 2-6 4" />
+      <circle cx="12" cy="8" r="2" />
+      <path d="M10 6C6 2 3 8 8 9c-3 5 4 7 4 2 3 5 8 0 4-2 5-3 0-8-2-4 0-5-6-4-4 1z" />
+    </>
+  ),
+  broom: (
+    <>
+      <path d="m13 12 6-9M13 12l-5-2-5 8 9 3 4-8-3-1M6 14l7 3M6 19l2-4M9 20l2-4" />
+    </>
+  ),
+  food: (
+    <>
+      <path d="M5 3v6c0 3 5 3 5 0V3M7.5 3v18M19 3c-4 3-5 9-1 10h1V3Zm0 10v8" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="8.5" />
@@ -26,6 +59,27 @@ const PATHS = {
   arrow: <path d="M4.5 12h15m-6-6 6 6-6 6" />,
   plus: <path d="M12 5.5v13M5.5 12h13" />,
   minus: <path d="M5.5 12h13" />,
+  more: (
+    <>
+      <circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </>
+  ),
+  swap: <path d="M4.5 8.5h14m-3.5-4 4 4-4 4M19.5 15.5h-14m3.5-4-4 4 4 4" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </>
+  ),
   alert: (
     <>
       <path d="M10.3 4.6 3.4 17a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0z" />

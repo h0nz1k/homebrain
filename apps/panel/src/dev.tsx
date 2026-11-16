@@ -120,10 +120,10 @@ const peopleNow: PersonPresence[] =
         [
           ['jan', 'Jan', 'blue', 'home'],
           ['maminka', 'Mamínka', 'pink', 'home'],
-          ['adamek', 'Adámek', 'teal', 'away'],
-          ['valinka', 'Valinka', 'purple', 'home'],
+          ['syn', 'Syn', 'teal', 'away'],
+          ['dcera', 'Dcera', 'purple', 'home'],
           ['babi', 'Babi', 'amber', 'away'],
-          ['deda', 'Děda', 'indigo', 'unknown'],
+          ['deda', 'Děda', 'slate', 'unknown'],
         ] as const
       ).map(([id, name, color, status]) => ({
         id: `person.${id}`,

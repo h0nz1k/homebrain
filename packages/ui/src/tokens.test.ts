@@ -84,3 +84,16 @@ it('has one name per token: --hb-sp-* for spacing, --hb-radius-<size> for radii 
   const offenders = files.filter((f) => retired.test(readFileSync(join(root, f), 'utf8')));
   expect(offenders).toEqual([]);
 });
+
+it('keeps high-contrast primary labels at least 4.5:1 in all themes and hover states', () => {
+  for (const [, block] of css.matchAll(/\{([^{}]*--hb-bg:[^{}]*)\}/g)) {
+    const tokens = Object.fromEntries(
+      [...block!.matchAll(/--hb-([\w-]+):\s*(#[\da-f]{6})/gi)].map(([, key, value]) => [
+        key,
+        value,
+      ]),
+    );
+    expect(contrast(tokens['on-ac']!, tokens['ac-solid']!)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens['on-ac']!, tokens['ac-solid-hover']!)).toBeGreaterThanOrEqual(4.5);
+  }
+});

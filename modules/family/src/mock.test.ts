@@ -16,3 +16,15 @@ describe('family mock', () => {
     }
   });
 });
+
+it('keeps each child’s complete weekly chart consistent with earned points', async () => {
+  const api = createMockFamilyApi();
+  for (const kid of (await api.get()).kids) {
+    const summary = await api.pointsGet(kid.id);
+    const history = await api.pointsHistory(kid.id, 7);
+    expect(history.chart.earned.reduce((total, value) => total + value, 0)).toBe(
+      summary.earned_week,
+    );
+    expect(history.chart.earned.at(-1)).toBe(summary.earned_today);
+  }
+});

@@ -27,6 +27,8 @@
   --hb-t2: #a3acb9;
   --hb-t3: #8c96a5;
   --hb-ac: #3d8bff;
+  --hb-ac-solid: #2563eb;
+  --hb-ac-solid-hover: #1d4ed8;
   --hb-ok: #34d399;
   --hb-warn: #f5a524;
   --hb-crit: #f2555a;
@@ -87,6 +89,8 @@
   --hb-t2: #4a5361;
   --hb-t3: #5f6875;
   --hb-ac: #2563eb;
+  --hb-ac-solid: #2563eb;
+  --hb-ac-solid-hover: #1d4ed8;
   --hb-ok: #047857;
   --hb-warn: #b45309;
   --hb-crit: #dc2626;
@@ -146,6 +150,8 @@
     --hb-t2: #a3acb9;
     --hb-t3: #8c96a5;
     --hb-ac: #3d8bff;
+    --hb-ac-solid: #2563eb;
+    --hb-ac-solid-hover: #1d4ed8;
     --hb-ok: #34d399;
     --hb-warn: #f5a524;
     --hb-crit: #f2555a;

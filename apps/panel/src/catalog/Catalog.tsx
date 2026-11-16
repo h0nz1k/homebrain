@@ -75,13 +75,14 @@ function RaisedSheetDemo() {
       {open && (
         <Sheet
           title="Rezerva při běžném provozu"
+          isolation="strong"
           appearance="raised"
           placement="side"
           closeLabel="Zavřít"
           onClose={() => setOpen(false)}
           footer={<Button onClick={() => setOpen(false)}>Hotovo</Button>}
         >
-          Lehké ztmavení bez rozostření, zvednutý povrch, úchyt jen na telefonu.
+          Silné ztmavení a rozostření pro soustředěný formulář; hlavička a patička zůstávají pevné.
         </Sheet>
       )}
     </>
@@ -182,10 +183,11 @@ const specs: Spec[] = [
   {
     id: 'sheet-raised',
     name: 'Sheet (raised, side)',
-    summary: 'Detail/úprava: lehké ztmavení, zvednutý povrch, na desktopu boční panel.',
+    summary: 'Detail/úprava: zvednutý povrch, volitelně silné ztmavení a pevná hlavička.',
     importName: 'Sheet',
-    states: ['appearance="raised"', 'placement="side"', 'closeLabel'],
-    doText: 'Detail řádku nastavení, kde má zůstat vidět kontext pod ním.',
+    states: ['appearance="raised"', 'placement="side"', 'isolation="strong"', 'closeLabel'],
+    doText:
+      'Soustředěný formulář s isolation=strong; scrolluje pouze obsah mezi hlavičkou a patičkou.',
     dontText: 'Dlouhé průvodce – ty patří do centrovaného dialogu.',
     notes: 'Zavírací tlačítko 44 px; úchyt jen pod 600 px.',
     render: () => <RaisedSheetDemo />,
@@ -408,6 +410,7 @@ const specs: Spec[] = [
     importName: 'Button',
     states: [
       'primary',
+      'contrast="high"',
       'secondary',
       'strong',
       'ghost',
@@ -425,6 +428,9 @@ const specs: Spec[] = [
     render: () => (
       <div className="cat-row">
         <Button variant="primary">Začít vařit</Button>
+        <Button variant="primary" contrast="high">
+          Vyšší kontrast
+        </Button>
         <Button>Pozastavit</Button>
         <Button variant="ghost">Zrušit</Button>
         <Button variant="strong">Otevřít</Button>
@@ -802,8 +808,8 @@ const specs: Spec[] = [
     summary:
       'Kdo je doma: čip na osobu se zelenou (doma) / červenou (pryč) tečkou – Dnes, kiosk, Rodina.',
     importName: 'PresenceStrip',
-    states: ['doma', 'pryč', 'nevím (šedá, menší)', 'md', 'lg (kiosk)'],
-    doText: 'Jen doma / pryč / nevím + jméno + barva avataru; stav vždy i textem a v aria-label.',
+    states: ['doma', 'pryč', 'neznámo (šedá)', 'md', 'lg (kiosk)'],
+    doText: 'Jen doma / pryč / neznámo + jméno + barva avataru; stav vždy i textem a v aria-label.',
     dontText: 'Zóny, poloha, ETA, baterie, časová osa – vlastník chce jen jednoduchý indikátor.',
     notes: 'Bez osob nevykreslí nic. Data: usePeople(connection) z @homebrain/ha-client (živě).',
     render: () => (
@@ -812,7 +818,7 @@ const specs: Spec[] = [
           people={[
             { id: 'a', name: 'Jan', color: 'blue', status: 'home' },
             { id: 'b', name: 'Adámek', color: 'teal', status: 'away' },
-            { id: 'c', name: 'Děda', color: 'indigo', status: 'unknown' },
+            { id: 'c', name: 'Děda', color: 'slate', status: 'unknown' },
           ]}
         />
         <PresenceStrip

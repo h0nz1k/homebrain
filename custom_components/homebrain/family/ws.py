@@ -22,56 +22,21 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.util import dt as dt_util
 
-from ..const import DOMAIN
-from ..roles import FAMILY_APPROVE_ROLES, entry_roles, resolve_role
+from ..roles import FAMILY_APPROVE_ROLES
 from . import model
+from .swap_store import FamilySwapStore
+from .ws_common import (
+    CONF_FAMILY,
+    _bindings,
+    _entry,
+    _role,
+    _service,
+    _visible_kids,
+    family_options,
+)
+from .ws_swap import SWAP_COMMANDS
 
-CONF_FAMILY: Final = "family"
 DAYS: Final = 8  # today + the next 7 days
-
-
-def _entry(hass: HomeAssistant):
-    entries = hass.config_entries.async_entries(DOMAIN)
-    return entries[0] if entries else None
-
-
-def family_options(hass: HomeAssistant) -> dict[str, Any]:
-    entry = _entry(hass)
-    raw = entry.options.get(CONF_FAMILY) if entry else None
-    return dict(raw) if isinstance(raw, dict) else {}
-
-
-def _bindings(hass: HomeAssistant) -> dict[str, Any]:
-    entry = _entry(hass)
-    raw = (entry.options.get("bindings") or {}).get("family") if entry else None
-    return dict(raw) if isinstance(raw, dict) else {}
-
-
-def _role(hass: HomeAssistant, connection: Any) -> str:
-    role = resolve_role(connection.user, entry_roles(hass))
-    if role == "guest":
-        raise Unauthorized
-    return role
-
-
-def _visible_kids(hass: HomeAssistant, connection: Any, role: str) -> list[dict[str, Any]]:
-    kids = model.discover_kids(hass.states.async_all(), family_options(hass))
-    if role == "child":
-        uid = getattr(connection.user, "id", None)
-        return [k for k in kids if uid and k.get("user_id") == uid]
-    return kids
-
-
-async def _service(hass, connection, msg, domain, service, data, target=None, response=False):
-    return await hass.services.async_call(
-        domain,
-        service,
-        data,
-        target=target,
-        blocking=True,
-        context=connection.context(msg),
-        return_response=response,
-    )
 
 
 @websocket_api.websocket_command({vol.Required("type"): "homebrain/family/get"})
@@ -129,22 +94,56 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         except (HomeAssistantError, vol.Invalid):
             errors.append(eid)
     uid = getattr(connection.user, "id", None)
+    from ..const import DOMAIN as HB_DOMAIN
+
+    store: FamilySwapStore | None = hass.data.get(HB_DOMAIN, {}).get("family_swap")
+    store_data = store.data if isinstance(store, FamilySwapStore) else {}
+    all_kids = model.discover_kids(states, opts)
+    kids_by_uuid = {str(k.get("kid_uuid") or k["id"]): k for k in all_kids}
+    include_detail = role in ("owner", "adult")
     kids = [
-        model.kid_payload(hass.states.get, k, role, bool(uid and k.get("user_id") == uid))
+        model.kid_payload(
+            hass.states.get,
+            k,
+            role,
+            bool(uid and k.get("user_id") == uid),
+            store_data=store_data,
+            kids_by_uuid=kids_by_uuid,
+            include_points_detail=include_detail and role != "kiosk",
+        )
         for k in _visible_kids(hass, connection, role)
     ]
-    connection.send_result(
-        msg["id"],
-        {
-            "role": role,
-            "calendars": [{k: c[k] for k in ("entity_id", "name", "kind")} for c in calendars],
-            "events": model.build_events(raw, calendars, role),
-            "kids": kids,
-            "shopping": shopping,
-            "errors": errors,
-            "generated_at": dt_util.now().isoformat(),
+    payload: dict[str, Any] = {
+        "role": role,
+        "revision": int(store_data.get("revision") or 0),
+        "calendars": [{k: c[k] for k in ("entity_id", "name", "kind")} for c in calendars],
+        "events": model.build_events(raw, calendars, role),
+        "kids": kids,
+        "shopping": shopping,
+        "errors": errors,
+        "generated_at": dt_util.now().isoformat(),
+        "capabilities": {
+            "can_create_chore": role in ("owner", "adult"),
+            "can_swap": role in ("owner", "adult", "child"),
+            "can_view_points": role in ("owner", "adult", "child"),
         },
-    )
+    }
+    if role in ("owner", "adult"):
+        payload["pending_approvals"] = model.pending_approvals({"kids": kids}, store_data)
+        payload["swap_requests"] = [
+            r for r in (store_data.get("requests") or {}).values() if r.get("status") == "pending"
+        ]
+    if role == "kiosk":
+        payload["swap_badges"] = [
+            {
+                "text": c.get("swap_today", {}).get("label"),
+                "kid": k["name"],
+            }
+            for k in kids
+            for c in k.get("chores") or []
+            if c.get("swap_today")
+        ][:3]
+    connection.send_result(msg["id"], payload)
 
 
 def _find_chore(hass, connection, role, msg) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -360,4 +359,5 @@ COMMANDS: Final = (
     websocket_family_shopping_update,
     websocket_family_settings_get,
     websocket_family_settings_set,
+    *SWAP_COMMANDS,
 )
