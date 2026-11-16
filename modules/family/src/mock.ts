@@ -276,9 +276,13 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   const chore = (kid: string, id: string) =>
     state.kids.find((k) => k.id === kid)?.chores.find((c) => c.id === id);
 
-  const chart = (days: number): PointsHistory['chart'] => {
+  const chart = (days: number, kid: string): PointsHistory['chart'] => {
     const earned =
-      days === 7 ? [4, 6, 3, 8, 5, 10, 6] : Array.from({ length: 30 }, (_, i) => (i % 5) + 2);
+      days === 7
+        ? kid === 'syn'
+          ? [2, 4, 1, 6, 3, 4, 4]
+          : [4, 6, 3, 8, 5, 10, 6]
+        : Array.from({ length: 30 }, (_, i) => (i % 5) + 2);
     const d = now();
     const keys = Array.from({ length: days }, (_, i) => {
       const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() - (days - 1 - i));
@@ -354,7 +358,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     },
     pointsHistory: async (kid, days = 7) => ({
       entries: [],
-      chart: chart(days),
+      chart: chart(days, kid),
       truncated: days === 30,
       generated_at: now().toISOString(),
     }),
