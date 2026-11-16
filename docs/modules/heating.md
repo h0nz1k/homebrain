@@ -150,3 +150,13 @@ notifikaci, pokud je nastaven příjemce.
 
 Writes of any kind, rooms (`rooms: []` until room bindings exist), annotations (`[]`),
 the backup heater runtime (`backup_heater_h: null`).
+
+### Plné schéma – předpoklady geometrie (Refs #126)
+
+Schéma zachovává geometrii domu, rybárny, nádrže a tras prototypu r3.
+V domě i rybárně jsou radiátory. Podlahové vytápění je pouze v bazénové hale;
+nemá vlastní teplotní čidlo a schéma pro ně nevytváří měření ani stav podle čerpadla bazénu.
+Připojená hala a odbočka z topného okruhu jsou předpoklady k potvrzení vlastníkem.
+Model uchovává `poolHallAttached`, `poolHallX` a `floorBranchY`; poloha haly a její odbočka
+se mění bez zásahu do původních tras r3. Bazénový výměník je mimo vodu,
+filtrační smyčka je samostatná a zásobování výměníku končí na jeho portech.

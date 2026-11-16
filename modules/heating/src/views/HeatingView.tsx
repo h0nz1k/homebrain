@@ -54,6 +54,7 @@ import {
 } from './charts.js';
 import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js';
 import { SideCircuitsPortrait, SolarPortraitBanner } from './SideCircuits.js';
+import { FullSchematicSheet } from '../detail/FullSchematicSheet.js';
 import { HeatingSchematic } from './Schematic.js';
 import { heatingStyles } from './styles.js';
 
@@ -270,6 +271,7 @@ function NowTab({
   const heroCardTone =
     act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : act.state === 'off' ? 'notice' : 'calm';
   const showCompressorMeta = act.state !== 'off';
+  const [fullSchematicOpen, setFullSchematicOpen] = useState(false);
   return (
     <div className="ht-now">
       <AlertBanner snap={snap} onDetail={() => go('poruchy')} />
@@ -340,6 +342,16 @@ function NowTab({
           </div>
           <div className="ht-now-schematic">
             <HeatingSchematic snap={snap} />
+            <div className="ht-d1-entry">
+              <Button
+                type="button"
+                variant="ghost"
+                data-testid="heating-full-schematic-open"
+                onClick={() => setFullSchematicOpen(true)}
+              >
+                Plné schéma
+              </Button>
+            </div>
           </div>
           <aside className="ht-land-dash" data-testid="heating-land-dash">
             <LandscapeDashboard
@@ -366,6 +378,11 @@ function NowTab({
           )}
         </div>
       </Card>
+      <FullSchematicSheet
+        snap={snap}
+        open={fullSchematicOpen}
+        onClose={() => setFullSchematicOpen(false)}
+      />
       <HpElectricityBar snap={snap} className="ht-card ht-portrait-only" />
       <SolarPortraitBanner snap={snap} />
       <div className="ht-stats ht-portrait-only">
