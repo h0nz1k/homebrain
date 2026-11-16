@@ -15,7 +15,7 @@ function hpState(snap: HeatingSnapshot): string {
     hp.compressor_on === null
       ? '—'
       : hp.compressor_on
-        ? `Běží · ${fmtHpPower(hp.power_w)}`
+        ? `Běží · ${hp.power_w !== null && hp.power_w >= 1000 ? `${(hp.power_w / 1000).toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} kW` : fmtHpPower(hp.power_w)}`
         : 'Stojí · 0 W';
   return run;
 }
@@ -51,9 +51,9 @@ export function bindSchematicValues(
     values[label.id] = { caption: label.caption, value: label.value };
   }
 
-  values['tank-title'] = { caption: 'Akumulační nádrž', value: fmtT(snap.tank.top) };
+  values['tank-title'] = { caption: 'Nádrž nahoře', value: fmtT(snap.tank.top) };
   values.ground = { caption: 'Zemní kolektor', value: 'Primární okruh' };
-  values['cold-water'] = { caption: 'Studená voda', value: 'Přívod do nádrže' };
+  values['cold-water'] = { caption: 'Studená voda', value: 'Přívod' };
   values.outdoor = { caption: 'Venku', value: fmtT(snap.outdoor.temp) };
   values.tap = { caption: 'Odběr teplé vody', value: fmtT(snap.dhw.temp) };
   values.dhw = { caption: 'Teplá voda', value: fmtT(snap.dhw.temp) };
@@ -100,7 +100,10 @@ export function bindSchematicValues(
     };
   }
 
-  const pair = `${fmtT(hp.condenser_out)} / ${fmtT(hp.return_temp)}`.replace('— / —', '—');
+  const pair = `${fmtT(hp.condenser_out).replace(/\s*°C$/u, '')} / ${fmtT(hp.return_temp)}`.replace(
+    '— / —',
+    '—',
+  );
   values['hp-pair'] = { caption: 'Výstup / zpátečka', value: pair };
 
   return values;

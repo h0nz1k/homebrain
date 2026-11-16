@@ -2,7 +2,7 @@ import { useBackClosable } from '@homebrain/ha-client';
 import { Button, Sheet } from '@homebrain/ui';
 import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { HeatingSnapshot } from '../types.js';
-import { DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
+import { DETAIL_SCHEMATIC_MODEL, WIDE_SCHEMATIC_MODEL } from './buildDetailModel.js';
 import { DetailSchematic } from './DetailSchematic.js';
 import {
   fitAllTransform,
@@ -32,26 +32,33 @@ export function FullSchematicSheet({
   });
   const [state, setState] = useState<PanZoomState>({ scale: 1, tx: 0, ty: 0, minScale: 0.1 });
   const titleId = useId();
+  const [wide, setWide] = useState(() => window.innerWidth > window.innerHeight);
+  const model = wide ? WIDE_SCHEMATIC_MODEL : DETAIL_SCHEMATIC_MODEL;
+  const [region, setRegion] = useState<string | null>(null);
 
   const safeRect = useCallback(() => {
     const el = viewportRef.current;
     if (!el) return { x: 16, y: 62, w: 360, h: 600 };
-    return { x: 8, y: 8, w: el.clientWidth - 16, h: el.clientHeight - 16 };
+    return { x: 8, y: 8, w: el.clientWidth - 16, h: el.clientHeight - 76 };
   }, []);
 
   const applyLayout = useCallback(() => {
     const el = viewportRef.current;
     if (!el) return;
     const safe = safeRect();
-    const world = DETAIL_SCHEMATIC_MODEL.bounds;
+    const world = model.bounds;
     const fitted = fitAllTransform(safe, world);
     setState(fitted);
-  }, [safeRect]);
+    setRegion(null);
+  }, [safeRect, model]);
 
   useLayoutEffect(() => {
     if (!open) return;
     applyLayout();
-    const onResize = () => applyLayout();
+    const onResize = () => {
+      setWide(window.innerWidth > window.innerHeight);
+      applyLayout();
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [applyLayout, open]);
@@ -77,7 +84,7 @@ export function FullSchematicSheet({
         factor,
         el.clientWidth,
         el.clientHeight,
-        DETAIL_SCHEMATIC_MODEL.bounds,
+        model.bounds,
       ),
     );
   };
@@ -89,10 +96,63 @@ export function FullSchematicSheet({
       title="Plné schéma"
       onClose={onClose}
       width="lg"
-      stickyFooter
       closeLabel="Zavřít plné schéma"
       data-testid="heating-full-schematic-sheet"
-      footer={
+    >
+      <div className="ht-d1-shell" aria-label="Topné okruhy">
+        <div className="ht-d1-legend" aria-label="Legenda okruhů">
+          {(
+            [
+              ['hot', 'Topná voda'],
+              ['cold', 'Zpátečka'],
+              ['solar', 'Solár'],
+              ['ground', 'Země'],
+              ['pool', 'Bazén'],
+              ['dhw', 'Teplá voda'],
+              ['mains', 'Studená voda'],
+            ] as const
+          ).map(([kind, name]) => (
+            <span key={kind}>
+              <i style={{ background: `var(--ht-c3-${kind})` }} />
+              {name}
+            </span>
+          ))}
+          <span className="ht-d1-legend-note">Čárkovaně = neaktivní</span>
+        </div>
+        <p
+          className="ht-d1-hint"
+          id={`${titleId}-hint`}
+          aria-hidden={hintHidden}
+          style={{ visibility: hintHidden ? 'hidden' : undefined }}
+        >
+          Tažením posunete, dvěma prsty přiblížíte. Dvojité klepnutí vrátí přehled.
+        </p>
+        <div
+          ref={viewportRef}
+          className="ht-d1-viewport"
+          data-testid="heating-full-schematic-viewport"
+          style={{ touchAction: 'none' }}
+          tabIndex={0}
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            hideHint();
+          }}
+        >
+          <PanZoomSurface
+            viewportRef={viewportRef}
+            state={state}
+            setState={setState}
+            onGesture={hideHint}
+            world={model.bounds}
+          >
+            <DetailSchematic
+              model={model}
+              snap={snap}
+              scale={state.scale}
+              minScale={state.minScale}
+            />
+          </PanZoomSurface>
+        </div>
         <div className="ht-d1-controls" role="toolbar" aria-label="Lupa a přehled">
           <Button type="button" variant="ghost" onClick={() => zoom(0.8)} aria-label="Oddálit">
             −
@@ -111,52 +171,6 @@ export function FullSchematicSheet({
             Celé schéma
           </Button>
         </div>
-      }
-    >
-      <div className="ht-d1-shell" aria-label="Topné okruhy">
-        <div className="ht-d1-legend" aria-label="Legenda okruhů">
-          {(
-            [
-              ['hot', 'Topná voda'],
-              ['cold', 'Zpátečka'],
-              ['solar', 'Solár'],
-              ['ground', 'Země'],
-              ['pool', 'Bazén'],
-            ] as const
-          ).map(([kind, name]) => (
-            <span key={kind}>
-              <i style={{ background: `var(--ht-c3-${kind})` }} />
-              {name}
-            </span>
-          ))}
-          <span className="ht-d1-legend-note">Slabá barva = neaktivní</span>
-        </div>
-        {!hintHidden ? (
-          <p className="ht-d1-hint" id={`${titleId}-hint`}>
-            Tažením posunete, dvěma prsty přiblížíte. Dvojité klepnutí vrátí přehled.
-          </p>
-        ) : null}
-        <div
-          ref={viewportRef}
-          className="ht-d1-viewport"
-          data-testid="heating-full-schematic-viewport"
-          style={{ touchAction: 'none' }}
-          tabIndex={0}
-          onPointerDown={(e) => {
-            if ((e.target as HTMLElement).closest('button')) return;
-            hideHint();
-          }}
-        >
-          <PanZoomSurface
-            viewportRef={viewportRef}
-            state={state}
-            setState={setState}
-            onGesture={hideHint}
-            world={DETAIL_SCHEMATIC_MODEL.bounds}
-          >
-            <DetailSchematic snap={snap} scale={state.scale} minScale={state.minScale} />
-          </PanZoomSurface>
-        </div>
         <nav className="ht-d1-regions" aria-label="Detail části schématu">
           {(
             [
@@ -167,25 +181,22 @@ export function FullSchematicSheet({
           ).map(([id, name]) => (
             <Button
               key={id}
+              aria-pressed={region === id}
               variant="ghost"
               onClick={() => {
                 hideHint();
+                setRegion(id);
                 const el = viewportRef.current!;
                 const focused = focusBoxTransform(
                   safeRect(),
-                  DETAIL_SCHEMATIC_MODEL.focusBoxes[id]!,
+                  model.focusBoxes[id]!,
                   state.minScale,
                   4,
                 );
                 setState((s) => ({
                   ...s,
                   ...focused,
-                  ...clampPan(
-                    { ...s, ...focused },
-                    el.clientWidth,
-                    el.clientHeight,
-                    DETAIL_SCHEMATIC_MODEL.bounds,
-                  ),
+                  ...clampPan({ ...s, ...focused }, el.clientWidth, el.clientHeight, model.bounds),
                 }));
               }}
             >
@@ -286,7 +297,7 @@ function PanZoomSurface({
   const reset = () => {
     const el = viewportRef.current!;
     setState(
-      fitAllTransform({ x: 8, y: 8, w: el.clientWidth - 16, h: el.clientHeight - 16 }, world),
+      fitAllTransform({ x: 8, y: 8, w: el.clientWidth - 16, h: el.clientHeight - 76 }, world),
     );
   };
 
@@ -360,7 +371,7 @@ function PanZoomSurface({
         };
         if (e.key === '0')
           setState(
-            fitAllTransform({ x: 8, y: 8, w: el.clientWidth - 16, h: el.clientHeight - 16 }, world),
+            fitAllTransform({ x: 8, y: 8, w: el.clientWidth - 16, h: el.clientHeight - 76 }, world),
           );
         else if (['+', '=', '-'].includes(e.key))
           setState((s) =>

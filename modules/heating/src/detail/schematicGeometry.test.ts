@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { buildDetailSchematicModel, DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
+import {
+  buildDetailSchematicModel,
+  DETAIL_SCHEMATIC_MODEL,
+  WIDE_SCHEMATIC_MODEL,
+} from './buildDetailModel.js';
 import { auditSchematicGeometry, mutateModel } from './schematicGeometry.js';
 
 describe('detail schematic geometry', () => {
-  it('production model passes wiring checks', () => {
-    const fails = auditSchematicGeometry(DETAIL_SCHEMATIC_MODEL);
-    expect(fails, fails.map((f) => `${f.code}:${f.id}`).join(', ')).toEqual([]);
-  });
+  it.each([DETAIL_SCHEMATIC_MODEL, WIDE_SCHEMATIC_MODEL])(
+    'production layout passes wiring checks',
+    (model) => {
+      const fails = auditSchematicGeometry(model);
+      expect(fails, fails.map((f) => `${f.code}:${f.id}`).join(', ')).toEqual([]);
+    },
+  );
 
   it('moves the hall and its branch without disconnecting any ports', () => {
     const m = buildDetailSchematicModel({
@@ -14,7 +21,8 @@ describe('detail schematic geometry', () => {
       poolHallX: 840,
       floorBranchY: 800,
     });
-    expect(m.ports['floor.in']).toMatchObject({ x: 1210, y: 800 });
+    expect(m.ports['floor.in']).toMatchObject({ x: 865, y: 1290 });
+    expect(m.pipes.find((p) => p.id === 'pool-floor-supply')!.points).toContainEqual([865, 800]);
     expect(
       auditSchematicGeometry(m).filter((f) =>
         ['endpoint', 'device-off-pipe', 'non-orthogonal'].includes(f.code),

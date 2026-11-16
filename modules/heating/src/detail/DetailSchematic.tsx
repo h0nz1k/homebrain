@@ -6,7 +6,7 @@ import {
   schematicScenarioId,
   schematicPipeActive,
 } from './bindSchematicValues.js';
-import { DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
+import type { DetailSchematicModel } from './types.js';
 import {
   DetailArchitecture,
   DetailHpGlyph,
@@ -23,11 +23,13 @@ import { labelTierVisible } from './panZoomMath.js';
 import type { CircuitKind } from './types.js';
 
 const PIPE_WEIGHT: Record<CircuitKind, number> = {
-  hot: 9,
-  cold: 9,
-  solar: 9,
-  ground: 7.2,
-  pool: 9,
+  hot: 5,
+  cold: 5,
+  solar: 5,
+  ground: 4,
+  pool: 5,
+  dhw: 6,
+  mains: 6,
 };
 
 function pipeClass(kind: CircuitKind, id: string): string {
@@ -61,14 +63,16 @@ export function DetailSchematic({
   snap,
   scale,
   minScale,
+  model,
 }: {
   snap: HeatingSnapshot;
   scale: number;
   minScale: number;
+  model: DetailSchematicModel;
 }) {
   const uid = useId().replace(/:/g, '');
   const root = useRef<SVGSVGElement>(null);
-  const model = DETAIL_SCHEMATIC_MODEL;
+
   const scenario = schematicScenarioId(snap);
   const values = useMemo(() => bindSchematicValues(model, snap), [model, snap]);
   const showSolar = solarConfigured(snap);
@@ -81,10 +85,10 @@ export function DetailSchematic({
         const rect = chip.querySelector('rect');
         if (!text || !rect) continue;
         const box = text.getBBox();
-        rect.setAttribute('x', String(box.x - 14));
-        rect.setAttribute('y', String(box.y - 10));
-        rect.setAttribute('width', String(box.width + 28));
-        rect.setAttribute('height', String(box.height + 20));
+        rect.setAttribute('x', String(box.x - 8));
+        rect.setAttribute('y', String(box.y - 6));
+        rect.setAttribute('width', String(box.width + 16));
+        rect.setAttribute('height', String(box.height + 12));
       }
     };
     measure();
@@ -146,22 +150,19 @@ export function DetailSchematic({
       data-detail-schematic=""
       data-scenario={scenario}
     >
-      <DetailArchitecture />
-      <DetailTankGlyph />
-      <DetailHpGlyph snap={snap} />
-      <DetailTapGlyph />
-      <DetailRadiatorGlyph transform="translate(-76 -655) scale(3)" />
-      <DetailSolarPanel show={showSolar} />
-      <DetailRadiatorGlyph id="fish" transform="translate(-46 -155) scale(3)" />
-      <PoolBasinGlyph uid={uid} />
-      <PoolExchangerGlyph />
-      <FloorHeatingLoop />
-      <path
-        d="M540 380V430H600V450H490V470H600V490H540"
-        className="ht-d1-internal ht-d1-internal-hot"
-        data-internal="dhw-coil"
+      <DetailArchitecture model={model} />
+      <DetailTankGlyph body={model.bodies.find((b) => b.id === 'tank')!} />
+      <DetailHpGlyph
+        body={model.bodies.find((b) => b.id === 'hp')!}
+        on={snap.heat_pump.compressor_on}
       />
-      <path d="M649.6 938H616V954H632V970H649.6" className="ht-c3-solar-coil" />
+      <DetailTapGlyph model={model} />
+      <DetailRadiatorGlyph body={model.bodies.find((b) => b.id === 'radiator')!} />
+      <DetailSolarPanel model={model} show={showSolar} />
+      <DetailRadiatorGlyph body={model.bodies.find((b) => b.id === 'fish')!} />
+      <PoolBasinGlyph body={model.bodies.find((b) => b.id === 'pool')!} uid={uid} />
+      <PoolExchangerGlyph body={model.bodies.find((b) => b.id === 'pool-exch')!} />
+      <FloorHeatingLoop model={model} />
 
       {model.pipes
         .filter((p) => showSolar || !p.id.startsWith('solar-'))
@@ -185,9 +186,9 @@ export function DetailSchematic({
                     (pipe.id === 'mix-bypass'
                       ? 0.5
                       : pipe.id === 'cold-water'
-                        ? 0.3
+                        ? 1
                         : pipe.id === 'dhw-draw'
-                          ? 0.6
+                          ? 1
                           : 1),
                 }}
               />
@@ -209,6 +210,20 @@ export function DetailSchematic({
             </g>
           );
         })}
+
+      {(['fish.branch', 'fish.return', 'heat.junction'] as const).map((id) => {
+        const p = model.ports[id]!;
+        return (
+          <circle
+            key={id}
+            data-junction={id}
+            cx={p.x}
+            cy={p.y}
+            r={5}
+            fill={`var(--ht-c3-${id === 'fish.branch' ? 'hot' : 'cold'})`}
+          />
+        );
+      })}
 
       {model.devices
         .filter((d) => showSolar || d.id !== 'Solár')
@@ -241,20 +256,28 @@ export function DetailSchematic({
             </text>
           );
         const chip = values[label.id] ?? { caption: label.caption, value: label.value };
-        const hideLeader =
-          label.owner === 'tank' || label.id === 'outdoor' || label.id === 'pool-hall-title';
         const [ax, ay] = label.anchor;
-        const leader = `M${ax - label.x} ${ay - label.y}L0 0`;
         const isHp = label.id === 'hp';
+        const caption =
+          scale < 0.6 && label.id === 'tank-title'
+            ? 'Nahoře'
+            : scale < 0.6 && label.id === 'bottom'
+              ? 'Dole'
+              : chip.caption;
+        const chipScale = Math.max(1, 1 / scale);
+        const leader = `M${(ax - label.x) / chipScale} ${(ay - label.y) / chipScale}L0 0`;
         return (
           <g
             key={label.id}
             className="ht-d1-chip"
             data-label={label.id}
             data-tier={label.tier}
-            transform={`translate(${label.x} ${label.y})`}
+            transform={`translate(${label.x} ${label.y}) scale(${chipScale})`}
           >
-            {!hideLeader ? <path className="ht-d1-chip-leader" d={leader} /> : null}
+            <title>{`${chip.caption}: ${chip.value}`}</title>
+            {label.id !== 'tank-title' && label.id !== 'bottom' && label.id !== 'outdoor' ? (
+              <path className="ht-d1-chip-leader" d={leader} />
+            ) : null}
             <rect
               className="ht-d1-chip-bg"
               rx={10}
@@ -263,33 +286,13 @@ export function DetailSchematic({
               width={238}
               height={isHp ? 114 : 66}
             />
-            {chip.statusDot ? (
-              <circle
-                className={`ht-d1-chip-dot ht-d1-chip-dot-${chip.statusDot}`}
-                cx={58}
-                cy={-14}
-                r={4}
-              />
-            ) : null}
             <text textAnchor="middle" className="ht-d1-chip-text">
-              <tspan className="ht-d1-caption" x={0} dy={-2}>
-                {chip.caption}
+              <tspan className={isHp ? 'ht-d1-value' : 'ht-d1-caption'} x={0} dy={-3}>
+                {isHp ? chip.value : caption}
               </tspan>
-              {chip.value ? (
-                <tspan className="ht-d1-value" x={0} dy={26}>
-                  {chip.value}
-                </tspan>
-              ) : null}
-              {isHp && values['hp-pair'] ? (
-                <>
-                  <tspan className="ht-d1-caption" x={0} dy={28}>
-                    {values['hp-pair'].caption}
-                  </tspan>
-                  <tspan className="ht-d1-value" x={0} dy={26}>
-                    {values['hp-pair'].value}
-                  </tspan>
-                </>
-              ) : null}
+              <tspan className="ht-d1-value" x={0} dy={17}>
+                {isHp ? values['hp-pair']?.value : chip.value}
+              </tspan>
             </text>
           </g>
         );

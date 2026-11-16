@@ -24,5 +24,6 @@ describe('full schematic live values', () => {
       expect(values[label.id]?.value, label.id).toBeTruthy();
     }
     expect(DETAIL_SCHEMATIC_MODEL.labels.some((l) => l.id === 'pool-floor')).toBe(false);
+    expect(values['hp-pair']!.value.match(/°C/g)).toHaveLength(1);
   });
 });

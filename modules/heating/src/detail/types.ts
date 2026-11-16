@@ -1,4 +1,4 @@
-export type CircuitKind = 'hot' | 'cold' | 'solar' | 'ground' | 'pool';
+export type CircuitKind = 'hot' | 'cold' | 'solar' | 'ground' | 'pool' | 'dhw' | 'mains';
 
 export interface SchematicPort {
   x: number;
@@ -48,7 +48,7 @@ export interface SchematicLabel {
 }
 
 export interface DetailLayoutParams {
-  /** When true, the pool hall shares a wall with the main house (assumption – owner to confirm). */
+  /** Retained assumption marker; the hall is shown separately per owner feedback. */
   poolHallAttached: boolean;
   /** Left edge of the hall in world coordinates. */
   poolHallX: number;

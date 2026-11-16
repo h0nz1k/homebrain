@@ -77,10 +77,10 @@ function approxChipBox(label: SchematicLabel): {
   bottom: number;
 } {
   return {
-    left: label.x - 119,
-    right: label.x + 119,
+    left: label.x - 85,
+    right: label.x + 85,
     top: label.y - 26,
-    bottom: label.y - 26 + (label.id === 'hp' ? 114 : 66),
+    bottom: label.y - 26 + 52,
   };
 }
 
@@ -182,7 +182,8 @@ export function mutateModel(
   const m = structuredClone(model);
   if (kind === 'pipe-body') {
     const p = m.pipes.find((p) => p.id === 'tank-charge')!;
-    p.points.splice(1, 0, [540, 550]);
+    const tank = m.bodies.find((b) => b.id === 'tank')!;
+    p.points.splice(1, 0, [tank.x + 100, 400]);
   }
   if (kind === 'undeclared-bridge') {
     const p = m.pipes.find((p) => p.bridges?.length)!;
@@ -211,18 +212,10 @@ export function mutateModel(
     }
   }
   if (kind === 'parallel-spacing') {
-    const p = m.pipes.find((x) => x.id === 'pool-return');
-    if (p) {
-      p.points = [
-        [825, 754],
-        [810, 754],
-        [810, 724],
-        [665, 724],
-        [665, 754],
-        [649.6, 754],
-      ];
-      p.d = 'M825 754L810 754L810 724L665 724L665 754L649.6 754';
-    }
+    const p = m.pipes.find((x) => x.id === 'solar-return')!;
+    const other = m.pipes.find((x) => x.id === 'solar-supply')!;
+    p.points = other.points.map(([x, y]) => [x + 5, y]);
+    p.d = p.points.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
   }
   if (kind === 'label-label') {
     const l = m.labels.find((x) => x.id === 'pool');

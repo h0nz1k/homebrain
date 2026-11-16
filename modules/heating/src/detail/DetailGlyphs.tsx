@@ -1,234 +1,187 @@
 import type { ReactNode } from 'react';
 import { useId } from 'react';
-import { DETAIL_SCHEMATIC_MODEL } from './buildDetailModel.js';
-import type { HeatingSnapshot } from '../types.js';
+import type { DetailSchematicModel, SchematicBody } from './types.js';
 
-const hallOffset =
-  DETAIL_SCHEMATIC_MODEL.layout.poolHallX -
-  800 +
-  (DETAIL_SCHEMATIC_MODEL.layout.poolHallAttached ? 0 : 360);
-
-export function DetailArchitecture() {
+export function DetailArchitecture({ model }: { model: DetailSchematicModel }) {
+  const ratio = model.bodies.find((b) => b.id === 'tank')!.h / 420;
+  const ground = model.bodies.find((b) => b.id === 'main-house')!;
+  const groundY = ground.y + ground.h;
   return (
     <>
-      <path
-        d="M-60 280L530 60L1150 340V1100H-60Z"
-        className="ht-d1-house"
-        data-architecture="main-house"
+      {['main-house', 'fish-house', 'pool-hall'].map((id) => {
+        const b = model.bodies.find((b) => b.id === id)!;
+        const roof = (id === 'main-house' ? 90 : 45) * ratio;
+        return (
+          <path
+            key={id}
+            data-architecture={id === 'fish-house' ? 'rybarna' : id}
+            d={`M${b.x} ${b.y + roof}L${b.x + b.w / 2} ${b.y}L${b.x + b.w} ${b.y + roof}V${b.y + b.h}H${b.x}Z`}
+            className="ht-d1-house"
+          />
+        );
+      })}
+      <text
+        x={model.layout.poolHallX + 150}
+        y={model.bodies.find((b) => b.id === 'pool-hall')!.y + 65 * ratio}
+        className="ht-d1-arch-label"
+        textAnchor="middle"
+      >
+        Bazén
+      </text>
+      <rect
+        data-ground-line={groundY}
+        x={20}
+        y={groundY}
+        width={model.bodies.find((b) => b.id === 'main-house')!.w}
+        height={95 * ratio}
+        className="ht-d1-ground-band"
       />
-      <rect x={-60} y={1100} width={1225} height={100} rx={8} className="ht-d1-ground-band" />
-      <path
-        data-architecture="rybarna"
-        d="M800 955L910 900L1020 955V1095H800Z"
-        className="ht-d1-house ht-d1-house-secondary"
-      />
-      <g transform={`translate(${hallOffset} 0)`}>
-        <path
-          data-architecture="pool-hall"
-          d="M800 675L945 635L1090 675V870H800Z"
-          className="ht-d1-house ht-d1-pool-hall"
-        />
-        <text x={940} y={860} className="ht-d1-arch-label" textAnchor="middle">
-          Podlahové vytápění
-        </text>
-      </g>
     </>
   );
 }
 
-export function DetailTankGlyph() {
+export function DetailTankGlyph({ body: b }: { body: SchematicBody }) {
   const uid = useId().replace(/:/g, '');
   return (
-    <g transform="translate(185.2 197.3) scale(1.8)" data-node="tank">
+    <g data-node="tank" transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 420})`}>
       <defs>
-        <linearGradient id={`${uid}-water`} x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor="#ba6970" />
-          <stop offset=".27" stopColor="#bb7b80" />
-          <stop offset=".52" stopColor="#9a9da3" />
-          <stop offset=".75" stopColor="#739abb" />
-          <stop offset="1" stopColor="#4e88b9" />
-        </linearGradient>
-        <linearGradient id={`${uid}-shell`}>
-          <stop stopColor="var(--ht-c3-jacket)" />
-          <stop offset=".2" stopColor="var(--ht-c3-jacket-light)" />
-          <stop offset=".6" stopColor="var(--ht-c3-jacket)" />
-          <stop offset="1" stopColor="var(--ht-c3-jacket-end)" />
-        </linearGradient>
-        <linearGradient id={`${uid}-rim`} x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor="#858d99" />
-          <stop offset="1" stopColor="#6b7280" />
+        <linearGradient id={uid} x1="0%" x2="0%" y1="0%" y2="100%">
+          <stop stopColor="#ca7370" />
+          <stop offset=".5" stopColor="#ac989d" />
+          <stop offset="1" stopColor="#4d91bd" />
         </linearGradient>
       </defs>
-      <path
-        d="M136 112Q197 93 258 112V446H136Z"
-        fill={`url(#${uid}-shell)`}
-        className="ht-c3-shell"
-      />
-      <ellipse
-        cx={197}
-        cy={112}
-        rx={61}
-        ry={10.5}
-        fill={`url(#${uid}-rim)`}
-        className="ht-c3-rim"
-      />
       <rect
-        x={139}
-        y={134}
-        width={116}
-        height={284}
-        rx={17}
-        fill={`url(#${uid}-water)`}
-        className="ht-c3-window"
-      />
-
-      <path d="M136 436Q197 418 258 436V446H136Z" fill={`url(#${uid}-rim)`} className="ht-c3-rim" />
-    </g>
-  );
-}
-
-export function DetailHpGlyph({ snap }: { snap: HeatingSnapshot }) {
-  const on = snap.heat_pump.compressor_on;
-  const led =
-    on === true
-      ? 'ht-c3-comp-led-on'
-      : on === false
-        ? 'ht-c3-comp-led-off'
-        : 'ht-c3-comp-led-unknown';
-  return (
-    <g transform="translate(95.6 122.8) scale(1.8)" data-node="hp">
-      <g transform="translate(0 111)" className="ht-c3-hp" role="img" aria-label="Tepelné čerpadlo">
-        <rect x={8} y={243} width={66} height={88} rx={9} className="ht-c3-cabinet" />
-        <path d="M17 331V335M63 331V335" className="ht-c3-metal-pipe" />
-        <circle
-          cx={20}
-          cy={252}
-          r={4.5}
-          className={led}
-          data-pulse={on === true ? '' : undefined}
-        />
-        <rect x={16} y={290} width={49} height={29} rx={4} className="ht-c3-cutaway" />
-        <path d="M22 296V315M57 296V315" className="ht-c3-plates" />
-        <rect x={31} y={294} width={21} height={24} rx={8} className="ht-c3-compressor" />
-      </g>
-    </g>
-  );
-}
-
-export function DetailRadiatorGlyph({
-  id = 'radiator',
-  transform,
-}: {
-  id?: string;
-  transform: string;
-}) {
-  return (
-    <g transform={transform} data-node={id}>
-      <path d="M292 389H297M305 408V414" className="ht-c3-metal-pipe" />
-      <rect x={297} y={385} width={50} height={23} rx={3} className="ht-c3-ceramic" />
-      {[302, 310, 318, 326, 334, 342].map((x) => (
-        <rect key={x} x={x} y={388} width={4} height={17} rx={1} className="ht-c3-fin" />
-      ))}
-    </g>
-  );
-}
-
-export function DetailSolarPanel({ show }: { show: boolean }) {
-  if (!show) return null;
-  return (
-    <g
-      className="ht-c3-solar-roof"
-      data-node="solar-panel"
-      transform="translate(1020 253) rotate(24.3045) scale(2.6)"
-    >
-      <path d="M-26 10V12M16 10V12" className="ht-c3-metal-pipe" style={{ strokeWidth: 3 }} />
-      <rect x={-40} y={-10} width={80} height={20} rx={3} className="ht-c3-metal" />
-      <rect
-        x={-37.5}
-        y={-7.5}
-        width={75}
-        height={15}
-        rx={1.5}
-        className="ht-c3-solar-collector"
-        style={{ strokeWidth: 1 }}
-      />
-      <path
-        d="M-18 -7V7M0 -7V7M18 -7V7"
-        className="ht-c3-solar-fin"
-        style={{ strokeWidth: 1, fill: 'none' }}
-      />
-    </g>
-  );
-}
-
-export function PoolBasinGlyph({ uid }: { uid: string }) {
-  return (
-    <g data-node="pool-basin" transform={`translate(${925 + hallOffset} 670) scale(.625 1)`}>
-      <defs>
-        <linearGradient id={`${uid}-pool-water`} x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor="#6ec5e8" stopOpacity={0.85} />
-          <stop offset="1" stopColor="#2f7fa8" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M0 30V90Q0 108 18 108H182Q200 108 200 90V30Z"
-        fill={`url(#${uid}-pool-water)`}
-        stroke="#89979d"
+        width={b.w}
+        height={420}
+        rx={24}
+        fill={`url(#${uid})`}
+        stroke="var(--ht-c3-wall)"
         strokeWidth={3}
       />
-      <path d="M0 30H200" stroke="#d8eef8" strokeWidth={2.5} opacity={0.9} />
-      <path d="M12 30V12H28V24H12" fill="none" stroke="#b7c8d0" strokeWidth={3} />
-      <path d="M168 20V46M186 20V46M168 30H186" fill="none" stroke="#b7c8d0" strokeWidth={3} />
-      <rect
-        x={186}
-        y={24}
-        width={22}
-        height={64}
-        rx={4}
-        fill="#89979d"
-        stroke="#b4bec3"
-        opacity={0.85}
+      <path
+        d="M10 24Q70 42 130 24M10 396Q70 380 130 396"
+        fill="none"
+        stroke="var(--ht-c3-wall)"
+        strokeWidth={2}
       />
+      <path
+        d="M40 0V65H110V85H30V105H110V125H100V420"
+        className="ht-d1-internal ht-d1-potable-coil"
+      />
+      <path d="M140 340H115V350H70V365H115V370H140" className="ht-c3-solar-coil" />
     </g>
   );
 }
 
-export function PoolExchangerGlyph() {
+export function DetailHpGlyph({ body: b, on }: { body: SchematicBody; on: boolean | null }) {
   return (
-    <g transform={`translate(${830 + hallOffset} 706)`} data-node="pool-exch">
-      <rect x={0} y={0} width={36} height={60} rx={4} className="ht-c3-metal" />
-      {[8, 20, 32].map((y) => (
-        <path key={y} d={`M4 ${y}H32`} className="ht-c3-plates" style={{ strokeWidth: 2 }} />
+    <g
+      data-node="hp"
+      aria-label="Tepelné čerpadlo"
+      transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 130})`}
+    >
+      <rect width={b.w} height={130} rx={12} className="ht-c3-cabinet" />
+      <circle
+        data-hp-status-dot=""
+        cx={15}
+        cy={15}
+        r={4}
+        fill={on === true ? 'var(--hb-ok)' : 'var(--hb-t2)'}
+      />
+      <rect x={20} y={40} width={60} height={65} rx={6} className="ht-c3-cutaway" />
+      <path d="M29 48V96M71 48V96" className="ht-c3-plates" />
+      <rect x={40} y={56} width={22} height={36} rx={9} className="ht-c3-compressor" />
+      <path d="M24 25H76" className="ht-c3-plates" />
+      <path d="M15 140V130M85 140V130" className="ht-c3-metal-pipe" />
+    </g>
+  );
+}
+export function DetailRadiatorGlyph({ body: b }: { body: SchematicBody }) {
+  return (
+    <g data-node={b.id} transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 65})`}>
+      <rect width={b.w} height={65} rx={6} className="ht-c3-ceramic" />
+      {[12, 28, 44, 60, 76, 92, 108].map((x) => (
+        <path key={x} d={`M${x} 8V57`} className="ht-c3-fin" style={{ strokeWidth: 5 }} />
       ))}
     </g>
   );
 }
-
-export function FloorHeatingLoop() {
-  const branchY = DETAIL_SCHEMATIC_MODEL.layout.floorBranchY;
+export function DetailSolarPanel({ model, show }: { model: DetailSchematicModel; show: boolean }) {
+  if (!show) return null;
+  const b = model.bodies.find((b) => b.id === 'main-house')!;
+  const x = model.ports['solar.in']!.x;
+  const ratio = model.bodies.find((b) => b.id === 'tank')!.h / 420;
+  // Panel feet sit on the right roof slope; the active surface remains above it.
+  const y = b.y + ((x - (b.x + b.w / 2)) * 180 * ratio) / b.w;
+  return (
+    <g
+      data-node="solar-panel"
+      transform={`translate(${x} ${y - 12 * ratio}) rotate(${(Math.atan2(90 * ratio, b.w / 2) * 180) / Math.PI})`}
+    >
+      <path d={`M-65 0V${12 * ratio}M65 0V${12 * ratio}`} className="ht-c3-metal-pipe" />
+      <rect x={-90} y={-28} width={180} height={28} rx={4} className="ht-c3-solar-collector" />
+      <path d="M-45 -26V-2M0 -26V-2M45 -26V-2" className="ht-c3-solar-fin" />
+    </g>
+  );
+}
+export function PoolBasinGlyph({ body: b, uid }: { body: SchematicBody; uid: string }) {
+  return (
+    <g data-node="pool-basin" transform={`translate(${b.x} ${b.y})`}>
+      <defs>
+        <linearGradient id={`${uid}-water`} x1="0%" x2="0%" y1="0%" y2="100%">
+          <stop stopColor="#77d7ef" />
+          <stop offset="1" stopColor="#277fae" />
+        </linearGradient>
+      </defs>
+      <path
+        d={`M0 0V${b.h}H${b.w}V0`}
+        fill={`url(#${uid}-water)`}
+        stroke="var(--ht-c3-wall)"
+        strokeWidth={4}
+      />
+      <path d={`M0 8Q22 3 45 8T90 8T135 8T180 8`} stroke="#d5f8ff" strokeWidth={3} fill="none" />
+      <path
+        d={`M145 -10V${b.h - 5}M163 -10V${b.h - 5}M145 ${b.h * 0.4}H163M145 ${b.h * 0.7}H163`}
+        stroke="#e5eaf0"
+        strokeWidth={3}
+        fill="none"
+      />
+    </g>
+  );
+}
+export function PoolExchangerGlyph({ body: b }: { body: SchematicBody }) {
+  return (
+    <g data-node="pool-exch" transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 60})`}>
+      <rect width={b.w} height={60} rx={5} className="ht-c3-metal" />
+      {[10, 22, 34, 46].map((y) => (
+        <path key={y} d={`M5 ${y}H31`} className="ht-c3-plates" />
+      ))}
+    </g>
+  );
+}
+export function FloorHeatingLoop({ model }: { model: DetailSchematicModel }) {
   return (
     <rect
       data-floor-loop=""
-      x={805 + hallOffset}
-      y={branchY - 8}
-      width={260}
-      height={70}
-      rx={6}
+      x={model.layout.poolHallX + 15}
+      y={model.ports['floor.in']!.y - model.bodies.find((b) => b.id === 'tank')!.h / 42}
+      width={470}
+      height={model.bodies.find((b) => b.id === 'tank')!.h / 6}
+      rx={8}
       className="ht-d1-floor-area"
     />
   );
 }
-
-export function DetailTapGlyph() {
+export function DetailTapGlyph({ model }: { model: DetailSchematicModel }) {
+  const p = model.ports['tap.in']!;
   return (
-    <g transform="translate(137 260) scale(1.8)" data-node="tap">
-      <g className="ht-c3-tap" transform="translate(-169 21) scale(.8)">
-        <path d="M277 61V39Q282 35 287 39V61M287 46H311V51H307V49H287M281 37V32L298 30V33L285 35V37" />
-        <path d="M273 61H322V65H273Z" />
-        <path d="M273 65H317Q317 76 306 76H284Q273 76 273 65Z" />
-        <path d="M319 65V75" />
-      </g>
-    </g>
+    <path
+      data-node="tap"
+      transform={`translate(${p.x} ${p.y})`}
+      d="M0 -10V0H30V14H20V10H-10V-10ZM-5 20H45L35 38H5ZM-5 -15H15M5 -15V-20"
+      className="ht-c3-tap"
+    />
   );
 }
 

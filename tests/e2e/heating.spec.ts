@@ -808,6 +808,7 @@ test.describe('Topení', () => {
         await expect(sheet).toBeVisible();
         expect((await sheet.boundingBox())!.width).toBe(width);
         const svg = sheet.locator('[data-detail-schematic]');
+        await expect(svg.locator('[data-label="hp"] tspan')).toHaveCount(2);
         const badPipes = await svg.locator('[data-pipe] > .ht-d1-pipe').evaluateAll((pipes) =>
           pipes
             .filter((pipe) => {
@@ -841,6 +842,78 @@ test.describe('Topení', () => {
           '[data-pipe="pool-floor-loop"]',
         ])
           await expect(svg.locator(selector)).toHaveCount(1);
+        await expect(sheet.getByText('Podlahové vytápění', { exact: true })).toHaveCount(0);
+        await expect(svg.locator('[data-hp-status-dot]')).toHaveCount(1);
+        const inspectLayout = () =>
+          svg.evaluate((node) => {
+            const el = node as SVGSVGElement;
+            const viewport = el
+              .closest('[data-testid="heating-full-schematic-viewport"]')!
+              .getBoundingClientRect();
+            const content = el.getBBox();
+            const matrix = el.getScreenCTM()!;
+            const chips = Array.from(el.querySelectorAll('.ht-d1-chip-bg')).map((chip) =>
+              chip.getBoundingClientRect(),
+            );
+            const overlap = (a: DOMRect, b: DOMRect) =>
+              a.left < b.right - 1 &&
+              a.right > b.left + 1 &&
+              a.top < b.bottom - 1 &&
+              a.bottom > b.top + 1;
+            const dots = Array.from(el.querySelectorAll('[data-hp-status-dot]')).map((dot) =>
+              dot.getBoundingClientRect(),
+            );
+            const buildings = Array.from(el.querySelectorAll('[data-architecture]')).map((b) => ({
+              id: b.getAttribute('data-architecture'),
+              box: b.getBoundingClientRect(),
+            }));
+            const pool = buildings.find((b) => b.id === 'pool-hall')!.box;
+            const ground = Number(
+              el.querySelector('[data-ground-line]')!.getAttribute('data-ground-line'),
+            );
+            const solarBelowGround = Array.from(
+              el.querySelectorAll('[data-circuit="solar"] > path'),
+            ).some((path) => {
+              const box = (path as SVGGraphicsElement).getBBox();
+              return box.y + box.height > ground;
+            });
+            const captions = Array.from(el.querySelectorAll('.ht-d1-caption')).map(
+              (t) =>
+                Number.parseFloat(getComputedStyle(t).fontSize) *
+                (t as SVGGraphicsElement).getScreenCTM()!.a,
+            );
+            const values = Array.from(el.querySelectorAll('.ht-d1-value')).map(
+              (t) =>
+                Number.parseFloat(getComputedStyle(t).fontSize) *
+                (t as SVGGraphicsElement).getScreenCTM()!.a,
+            );
+            return {
+              fillsCanvas:
+                (content.width * matrix.a) / viewport.width >= 0.8 ||
+                (content.height * matrix.d) / viewport.height >= 0.8,
+              chipsCollide: chips.some((a, i) => chips.slice(i + 1).some((b) => overlap(a, b))),
+              dotCollides: chips.some((a) => dots.some((b) => overlap(a, b))),
+              poolLowest: buildings.every((b) => b.id === 'pool-hall' || b.box.bottom < pool.top),
+              solarBelowGround,
+              minCaption: Math.min(...captions),
+              minValue: Math.min(...values),
+            };
+          });
+        const layout = await inspectLayout();
+        expect(layout).toMatchObject({
+          fillsCanvas: true,
+          chipsCollide: false,
+          dotCollides: false,
+          poolLowest: true,
+          solarBelowGround: false,
+        });
+        expect(layout.minCaption).toBeGreaterThanOrEqual(10.99);
+        expect(layout.minValue).toBeGreaterThanOrEqual(12.99);
+        for (const button of await sheet.getByRole('button').all()) {
+          const box = (await button.boundingBox())!;
+          expect(box.width).toBeGreaterThanOrEqual(44);
+          expect(box.height).toBeGreaterThanOrEqual(44);
+        }
         const visibleFraction = async () =>
           svg.evaluate((el) => {
             const viewport = el
@@ -863,6 +936,9 @@ test.describe('Topení', () => {
         for (let i = 0; i < 3; i++)
           await sheet.getByRole('button', { name: 'Přiblížit', exact: true }).click();
         expect(await visibleFraction()).toBeGreaterThanOrEqual(0.5);
+        const zoomed = await inspectLayout();
+        expect(zoomed.chipsCollide).toBe(false);
+        expect(zoomed.dotCollides).toBe(false);
         const viewport = page.getByTestId('heating-full-schematic-viewport');
         const box = (await viewport.boundingBox())!;
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -927,6 +1003,16 @@ test.describe('Topení', () => {
     const sheet = page.getByTestId('heating-full-schematic-sheet');
     await expect(sheet).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Celé schéma' })).toBeVisible();
+    await sheet.getByRole('button', { name: 'Nádrž', exact: true }).click();
+    await expect(sheet.getByRole('button', { name: 'Nádrž', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await sheet.getByRole('button', { name: 'Celé schéma', exact: true }).click();
+    await expect(sheet.getByRole('button', { name: 'Nádrž', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     const viewport = page.getByTestId('heating-full-schematic-viewport');
     await viewport.dispatchEvent('pointerdown', {
       button: 0,

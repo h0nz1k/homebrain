@@ -1,93 +1,59 @@
-import { SCHEMATIC_MODEL_BASE } from './schematicModelBase.js';
 import { computeBridges } from './pipePath.js';
-import type {
-  DetailLayoutParams,
-  DetailSchematicModel,
-  SchematicBody,
-  SchematicPipe,
-} from './types.js';
+import type { DetailLayoutParams, DetailSchematicModel, SchematicPipe } from './types.js';
 
-const DEFAULT_LAYOUT: DetailLayoutParams = {
-  poolHallAttached: true,
-  poolHallX: 800,
-  floorBranchY: 790,
-};
-
-function cloneBase(): DetailSchematicModel {
-  const b = SCHEMATIC_MODEL_BASE;
-  return {
-    architectures: b.architectures.map((a) => ({
-      ...a,
-      evidence: 'evidence' in a && a.evidence ? [...a.evidence] : undefined,
-    })),
-    circuitLegend: { ...b.circuitLegend },
-    bounds: { ...b.bounds },
-    ports: Object.fromEntries(Object.entries(b.ports).map(([k, v]) => [k, { ...v }])),
-    pipes: b.pipes.map((p) => ({
-      ...p,
-      states: [...p.states],
-      points: p.points.map((pt) => [...pt] as [number, number]),
-      bridges:
-        'bridges' in p && p.bridges
-          ? p.bridges.map((br) => [...br] as [number, number])
-          : undefined,
-    })),
-    bodies: b.bodies.map((x) => {
-      const { id, bx, by, bw, bh } = {
-        id: x.id,
-        bx: x.x,
-        by: x.y,
-        bw: x.w,
-        bh: x.h,
-      };
-      const body: SchematicBody = { id, x: bx, y: by, w: bw, h: bh };
-      if ('polygon' in x && x.polygon) {
-        body.polygon = x.polygon.map((pt) => [pt[0], pt[1]] as [number, number]);
-      }
-      return body;
-    }),
-    devices: b.devices.map((d) => ({ ...d })),
-    labels: b.labels.map((l) => ({ ...l, anchor: [...l.anchor] as [number, number] })),
-    regions: Object.fromEntries(
-      Object.entries(b.regions).map(([k, v]) => [k, [...v] as [number, number]]),
-    ),
-    layout: { ...DEFAULT_LAYOUT },
-    focusBoxes: {
-      tank: { x: 410, y: 275, w: 260, h: 740 },
-      hp: { x: -5, y: 385, w: 425, h: 610 },
-      pool: { x: 745, y: 555, w: 360, h: 500 },
-    },
-  };
-}
-
-function upsertPipe(model: DetailSchematicModel, pipe: SchematicPipe) {
-  const i = model.pipes.findIndex((p) => p.id === pipe.id);
-  if (i >= 0) model.pipes[i] = pipe;
-  else model.pipes.push(pipe);
-}
-
-function upsertBody(model: DetailSchematicModel, body: SchematicBody) {
-  const i = model.bodies.findIndex((b) => b.id === body.id);
-  if (i >= 0) model.bodies[i] = body;
-  else model.bodies.push(body);
-}
-
-/** Owner-facing assumptions documented in design-notes.md; tunable via layout params. */
+/** Two arrangements share the same hydraulic graph; buildings stay distinct in both. */
 export function buildDetailSchematicModel(
   layout: Partial<DetailLayoutParams> = {},
+  wide = false,
 ): DetailSchematicModel {
-  const model = cloneBase();
-  model.layout = { ...DEFAULT_LAYOUT, ...layout };
-  const branchY = model.layout.floorBranchY;
-
-  model.architectures.push({
-    id: 'pool-hall',
-    kind: 'heated-building',
-    label: 'Bazén',
-    evidence: ['owner-2026-11-15-floor-heat'],
-  });
-
-  // Preserve r3's tank, house, rybárna and risers. The hall occupies the pool region.
+  const tank = { x: wide ? 490 : 290, y: 240, w: 140, h: 420 };
+  const hp = { x: wide ? 200 : 65, y: 480, w: 100, h: 130 };
+  const rad = { x: wide ? 800 : 530, y: 370, w: 120, h: 65 };
+  const fish = { x: wide ? 1090 : 565, y: wide ? 480 : 830, w: 120, h: 65 };
+  const hallX = layout.poolHallX ?? (wide ? 500 : 120);
+  const hallY = wide ? 850 : 1070;
+  const branchY = layout.floorBranchY ?? hallY - 55;
+  const floorY = hallY + 220;
+  const pool = { x: hallX + 250, y: hallY + 125, w: 180, h: 65 };
+  const exch = { x: hallX + 125, y: hallY + 125, w: 36, h: 60 };
+  const houseW = wide ? 970 : 710;
+  const groundY = 730;
+  const model: DetailSchematicModel = {
+    architectures: [
+      { id: 'main-house', kind: 'heated-building', label: 'Dům' },
+      { id: 'fish-house', kind: 'heated-building', label: 'Rybárna' },
+      {
+        id: 'pool-hall',
+        kind: 'heated-building',
+        label: 'Bazén',
+        evidence: ['owner-2026-11-16-pool-bottom'],
+      },
+    ],
+    circuitLegend: {},
+    ports: {},
+    pipes: [],
+    devices: [],
+    labels: [],
+    bodies: [
+      { id: 'tank', ...tank },
+      { id: 'hp', ...hp },
+      { id: 'radiator', ...rad },
+      { id: 'fish', ...fish },
+      { id: 'pool', ...pool },
+      { id: 'pool-exch', ...exch },
+      { id: 'main-house', x: 20, y: 150, w: houseW - 20, h: groundY - 150 },
+      { id: 'fish-house', x: fish.x - 30, y: fish.y - 80, w: 185, h: 175 },
+      { id: 'pool-hall', x: hallX, y: hallY, w: 500, h: 300 },
+    ],
+    bounds: { x: 0, y: 0, w: wide ? 1280 : 740, h: wide ? 1180 : 1400 },
+    regions: {},
+    layout: { poolHallAttached: false, poolHallX: hallX, floorBranchY: branchY, ...layout },
+    focusBoxes: {
+      tank: { x: tank.x - 100, y: tank.y - 80, w: 340, h: 570 },
+      hp: { x: hp.x - 45, y: hp.y - 100, w: 300, h: 430 },
+      pool: { x: hallX - 30, y: hallY - 60, w: 560, h: 390 },
+    },
+  };
   const port = (id: string, x: number, y: number, owner: string) => {
     model.ports[id] = { x, y, owner };
   };
@@ -97,156 +63,296 @@ export function buildDetailSchematicModel(
     end: string,
     via: [number, number][],
     kind: SchematicPipe['kind'],
-    states = [4],
   ) => {
     const a = model.ports[start]!;
     const b = model.ports[end]!;
-    upsertPipe(model, {
+    model.pipes.push({
       id,
       start,
       end,
       points: [[a.x, a.y], ...via, [b.x, b.y]],
       kind,
-      states,
+      states: [1, 2, 3, 4],
       d: '',
     });
   };
-  port('pool.exch.in', 830, 718, 'pool-exch');
-  port('pool.exch.out', 830, 754, 'pool-exch');
-  port('pool.exch.waterin', 866, 754, 'pool-exch');
-  port('pool.exch.waterout', 866, 718, 'pool-exch');
-  port('pool.waterin', 925, 718, 'pool');
-  port('pool.waterout', 925, 754, 'pool');
-  port('pool.filterin', 1050, 754, 'pool');
-  port('pool.filterout', 1050, 718, 'pool');
-  port('floor.in', 810, branchY, 'floor');
-  port('floor.out', 1060, branchY, 'floor');
-  route('pool-supply', 'tank.pool', 'pool.exch.in', [], 'pool');
-  route('pool-return', 'pool.exch.out', 'tank.poolret', [], 'pool');
-  route('pool-exchange-supply', 'pool.exch.waterout', 'pool.waterin', [], 'pool');
+  const tx = tank.x;
+  const right = tx + tank.w;
+  port('tank.in', tx, 400, 'tank');
+  port('tank.dhwheat', tx, 320, 'tank');
+  port('tank.ret', tx, 620, 'tank');
+  port('tank.draw', tx + 40, 240, 'tank');
+  port('tank.water', tx + 100, 660, 'tank');
+  for (const [name, y] of [
+    ['heat', 370],
+    ['heatret', 460],
+    ['pool', 500],
+    ['poolret', 530],
+    ['solar', 580],
+    ['solarret', 610],
+  ] as const)
+    port(`tank.${name}`, right, y, 'tank');
+  port('hp.hot', hp.x + 20, 480, 'hp');
+  port('hp.cold', hp.x + 80, 480, 'hp');
+  port('hp.gout', hp.x + 25, 610, 'hp');
+  port('hp.gin', hp.x + 75, 610, 'hp');
+  port('div.in', tx - 65, 400, 'div');
+  port('div.out', tx - 65, 400, 'div');
+  port('div.top', tx - 65, 400, 'div');
+  route('hp-supply', 'hp.hot', 'div.in', [[hp.x + 20, 400]], 'hot');
+  route('tank-charge', 'div.out', 'tank.in', [], 'hot');
+  route('dhw-charge', 'div.top', 'tank.dhwheat', [[tx - 65, 320]], 'hot');
   route(
-    'pool-exchange-return',
-    'pool.waterout',
-    'pool.exch.waterin',
+    'hp-return',
+    'tank.ret',
+    'hp.cold',
     [
-      [890, 754],
-      [890, 778],
-      [866, 778],
+      [tx - 25, 620],
+      [tx - 25, 455],
+      [hp.x + 80, 455],
+    ],
+    'cold',
+  );
+  route(
+    'ground-loop',
+    'hp.gout',
+    'hp.gin',
+    [
+      [hp.x + 25, 780],
+      [hp.x + 175, 780],
+      [hp.x + 175, 810],
+      [hp.x + 75, 810],
+    ],
+    'ground',
+  );
+  port('tap.in', tx - 110, 270, 'tap');
+  route(
+    'dhw-draw',
+    'tank.draw',
+    'tap.in',
+    [
+      [tx + 40, 210],
+      [tx - 110, 210],
+    ],
+    'dhw',
+  );
+  port('mains.out', tx + 100, 800, 'mains');
+  route('cold-water', 'mains.out', 'tank.water', [], 'mains');
+  port('mix.in', right + 45, 370, 'mix');
+  port('mix.out', right + 45, 370, 'mix');
+  port('mix.bottom', right + 45, 370, 'mix');
+  port('fish.branch', right + 75, 370, 'junction');
+  port('heat.junction', right + 45, 460, 'junction');
+  port('fish.return', right + 120, 460, 'junction');
+  port('rad.in', rad.x, 385, 'radiator');
+  port('rad.out', rad.x + 120, 420, 'radiator');
+  route('heat-in', 'tank.heat', 'mix.in', [], 'hot');
+  route('heat-supply', 'mix.out', 'fish.branch', [], 'hot');
+  route(
+    'rad-supply',
+    'fish.branch',
+    'rad.in',
+    [
+      [rad.x - 15, 370],
+      [rad.x - 15, 385],
+    ],
+    'hot',
+  );
+  route(
+    'heat-return',
+    'rad.out',
+    'fish.return',
+    [
+      [rad.x + 125, 420],
+      [rad.x + 125, 460],
+    ],
+    'cold',
+  );
+  route('return-branch', 'fish.return', 'heat.junction', [], 'cold');
+  route('heat-tank-return', 'heat.junction', 'tank.heatret', [], 'cold');
+  route('mix-bypass', 'heat.junction', 'mix.bottom', [], 'cold');
+  port('fish.in', fish.x, fish.y + 25, 'fish');
+  port('fish.out', fish.x + 120, fish.y + 50, 'fish');
+  const fishLane = wide ? 1010 : 675;
+  const fishReturnLane = wide ? 1240 : 720;
+  route(
+    'fish-supply',
+    'fish.branch',
+    'fish.in',
+    [
+      [right + 75, 345],
+      [fishLane, 345],
+      [fishLane, fish.y - 30],
+      [fish.x - 30, fish.y - 30],
+      [fish.x - 30, fish.y + 25],
+    ],
+    'hot',
+  );
+  route(
+    'fish-return',
+    'fish.out',
+    'fish.return',
+    [
+      [fishReturnLane, fish.y + 50],
+      [fishReturnLane, 480],
+      [right + 120, 480],
+    ],
+    'cold',
+  );
+  // Solar descends inside the wall, directly to the lower coil, never into the soil.
+  port(
+    'solar.in',
+    right + 10,
+    138 + ((right + 10 - (20 + (houseW - 20) / 2)) * 180) / (houseW - 20),
+    'solar',
+  );
+  port(
+    'solar.out',
+    right + 30,
+    138 + ((right + 30 - (20 + (houseW - 20) / 2)) * 180) / (houseW - 20),
+    'solar',
+  );
+  route('solar-supply', 'solar.in', 'tank.solar', [[right + 10, 580]], 'solar');
+  route('solar-return', 'tank.solarret', 'solar.out', [[right + 30, 610]], 'solar');
+  port('pool.exch.in', exch.x, exch.y + 12, 'pool-exch');
+  port('pool.exch.out', exch.x, exch.y + 48, 'pool-exch');
+  port('pool.exch.waterout', exch.x + 36, exch.y + 12, 'pool-exch');
+  port('pool.exch.waterin', exch.x + 36, exch.y + 48, 'pool-exch');
+  port('pool.waterin', pool.x, pool.y + 12, 'pool');
+  port('pool.waterout', pool.x, pool.y + 48, 'pool');
+  port('pool.filterout', pool.x + 180, pool.y + 12, 'pool');
+  port('pool.filterin', pool.x + 180, pool.y + 48, 'pool');
+  route(
+    'pool-supply',
+    'tank.pool',
+    'pool.exch.in',
+    [
+      [right + 60, 500],
+      [right + 60, hallY - 35],
+      [hallX + 60, hallY - 35],
+      [hallX + 60, exch.y + 12],
     ],
     'pool',
   );
+  route(
+    'pool-return',
+    'pool.exch.out',
+    'tank.poolret',
+    [
+      [hallX + 105, exch.y + 48],
+      [hallX + 105, hallY - 15],
+      [right + 90, hallY - 15],
+      [right + 90, 530],
+    ],
+    'pool',
+  );
+  route('pool-exchange-supply', 'pool.exch.waterout', 'pool.waterin', [], 'pool');
+  route('pool-exchange-return', 'pool.waterout', 'pool.exch.waterin', [], 'pool');
   route(
     'pool-water',
     'pool.filterout',
     'pool.filterin',
     [
-      [1080, 718],
-      [1080, 778],
-      [1050, 778],
+      [pool.x + 210, pool.y + 12],
+      [pool.x + 210, pool.y + 48],
     ],
     'pool',
   );
+  port('floor.in', hallX + 25, floorY, 'floor');
+  port('floor.out', hallX + 475, floorY + 48, 'floor');
   route(
     'pool-floor-supply',
     'fish.branch',
     'floor.in',
     [
-      [769, 500],
-      [769, branchY],
+      [right + 75, branchY],
+      [hallX + 25, branchY],
     ],
     'hot',
-    [3, 4],
-  );
-  route(
-    'pool-floor-return',
-    'floor.out',
-    'heat.junction',
-    [
-      [1076, branchY],
-      [1076, 890],
-      [700, 890],
-      [700, 625],
-    ],
-    'cold',
-    [3, 4],
   );
   route(
     'pool-floor-loop',
     'floor.in',
     'floor.out',
     [
-      [810, branchY + 18],
-      [1040, branchY + 18],
-      [1040, branchY + 36],
-      [810, branchY + 36],
-      [810, branchY + 54],
-      [1060, branchY + 54],
+      [hallX + 475, floorY],
+      [hallX + 475, floorY + 24],
+      [hallX + 25, floorY + 24],
+      [hallX + 25, floorY + 48],
     ],
     'hot',
-    [3, 4],
   );
-  upsertBody(model, { id: 'pool-hall', x: 800, y: 645, w: 290, h: 225 });
-  upsertBody(model, { id: 'pool', x: 925, y: 700, w: 125, h: 70 });
-  upsertBody(model, { id: 'pool-exch', x: 830, y: 706, w: 36, h: 60 });
-
-  // Titles always carry existing values; the floor loop has no dedicated sensor.
-  const place = (id: string, x: number, y: number, anchor?: [number, number]) => {
-    const label = model.labels.find((l) => l.id === id)!;
-    Object.assign(label, { x, y, ...(anchor ? { anchor } : {}) });
-  };
-  place('pool', 985, 655, [985, 700]);
-  place('fish', 915, 930, [915, 1000]);
-  place('heat', 925, 430, [890, 500]);
-  place('charge', 160, 1000, [240, 855]);
-  place('ground', 360, 1230, [330, 1170]);
-  place('cold-water', 540, 1085, [580, 1080]);
-  place('solar-pump', 980, 1150, [965, 1070]);
-  place('mix', 790, 350, [725, 500]);
-  model.regions.pool = [950, 750];
-  model.devices = model.devices.map((d) => {
-    if (d.id === 'Natápění bazénu') return { ...d, x: 710, y: 718, pipe: 'pool-supply' };
-    if (d.id === 'Filtrace') return { ...d, x: 1080, y: 750, pipe: 'pool-water' };
-    return d;
-  });
-  // Keep the hall and the second building visibly separate.
-  for (const key of ['fish.in', 'fish.out']) model.ports[key]!.y += 80;
-  for (const pipe of model.pipes) {
-    if (pipe.id === 'fish-supply' || pipe.id === 'fish-return') {
-      pipe.points = pipe.points.map(([x, y]) => [x, y >= 900 ? y + 80 : y]);
-    }
-    if (pipe.id === 'solar-supply' || pipe.id === 'solar-return') {
-      pipe.points = pipe.points.map(([x, y]) => [x, y === 1040 || y === 1070 ? y + 80 : y]);
-    }
-  }
-  model.devices = model.devices.map((d) =>
-    d.id === 'Ventil rybárny' || d.id === 'Solár' ? { ...d, y: d.y + 80 } : d,
+  route(
+    'pool-floor-return',
+    'floor.out',
+    'fish.return',
+    [
+      [hallX + 490, floorY + 48],
+      [hallX + 490, floorY + 75],
+      [right + 120, floorY + 75],
+      [right + 120, 460],
+    ],
+    'cold',
   );
-  const fishBody = model.bodies.find((b) => b.id === 'fish')!;
-  fishBody.y += 80;
-  place('solar-pump', 980, 1210, [965, 1150]);
-
-  // Bounds include the collector chip and legend, with unchanged r3 building geometry.
-  model.bounds = { x: -60, y: 60, w: 1225, h: 1300 };
-
-  const hallOffset = model.layout.poolHallX - 800 + (model.layout.poolHallAttached ? 0 : 360);
-  if (hallOffset) {
-    for (const p of Object.values(model.ports)) {
-      if (p.owner.startsWith('pool') || p.owner === 'floor') p.x += hallOffset;
+  const device = (
+    id: string,
+    x: number,
+    y: number,
+    pipe: string,
+    kind: 'pump' | 'valve' = 'pump',
+    angle = 0,
+  ) => model.devices.push({ id, x, y, pipe, kind, angle });
+  device('Přepínání TUV / nádrž', tx - 65, 400, 'hp-supply', 'valve');
+  device('Směšování', right + 45, 370, 'heat-in', 'valve');
+  device('Nabíjení', tx - 25, 550, 'hp-return', 'pump', 90);
+  device('Primární okruh', hp.x + 75, 700, 'ground-loop', 'pump', 90);
+  device('Topení', rad.x + 110, 460, 'heat-return');
+  device('Solár', right + 30, 565, 'solar-return', 'pump', 90);
+  device('Natápění bazénu', hallX + 60, hallY + 15, 'pool-supply', 'pump', 90);
+  device('Filtrace', pool.x + 210, pool.y + 30, 'pool-water', 'pump', 90);
+  device('Ventil rybárny', fish.x - 10, fish.y + 25, 'fish-supply', 'valve');
+  const label = (id: string, x: number, y: number, anchor: [number, number], tier: 0 | 1 = 0) =>
+    model.labels.push({ id, x, y, anchor, tier, caption: '', value: '', owner: null });
+  label('outdoor', 110, 40, [110, 150]);
+  label('solar', right - 15, 40, [right + 15, 170]);
+  label('tap', tx - 110, 160, [tx - 110, 270]);
+  label('tank-title', tx + 70, 285, [tx + 70, 285]);
+  label('bottom', tx + 70, 545, [tx + 70, 545]);
+  label('hp', hp.x + 40, 350, [hp.x + 50, 480]);
+  label('heat', rad.x + 60, 290, [rad.x + 60, 370]);
+  label('fish', fish.x + 60, fish.y + 160, [fish.x + 60, fish.y + 65]);
+  label('pool', pool.x + 60, hallY + 65, [pool.x + 60, pool.y]);
+  label('ground', hp.x + 45, 890, [hp.x + 125, 780]);
+  label('cold-water', wide ? tx - 50 : tx + 70, 905, [tx + 100, 800]);
+  label('solar-pump', right + 170, 660, [right + 30, 565], 1);
+  label('div', 110, 240, [tx - 65, 400], 1);
+  label('charge', 110, 670, [tx - 25, 550], 1);
+  label('mix', rad.x + 60, 545, [right + 45, 370], 1);
+  model.bounds.w = Math.max(model.bounds.w, hallX + 520);
+  // Landscape has a shorter building section, leaving room for the hall below.
+  // Compress geometry (rather than the SVG) so pumps and text retain their proportions.
+  if (wide) {
+    const ratio = 0.6;
+    for (const p of Object.values(model.ports)) p.y *= ratio;
+    for (const p of model.pipes) p.points = p.points.map(([x, y]) => [x, y * ratio]);
+    for (const b of model.bodies) {
+      b.y *= ratio;
+      b.h *= ratio;
     }
-    for (const pipe of model.pipes) {
-      if (pipe.id.startsWith('pool'))
-        pipe.points = pipe.points.map(([x, y]) => [x >= 800 ? x + hallOffset : x, y]);
+    for (const d of model.devices) d.y *= ratio;
+    for (const l of model.labels) {
+      l.y *= ratio;
+      l.anchor[1] *= ratio;
     }
-    for (const body of model.bodies) if (body.id.startsWith('pool')) body.x += hallOffset;
-    for (const d of model.devices) if (d.id === 'Filtrace') d.x += hallOffset;
-    const label = model.labels.find((l) => l.id === 'pool')!;
-    label.x += hallOffset;
-    label.anchor[0] += hallOffset;
-    model.bounds.w += Math.max(0, hallOffset);
-    model.focusBoxes.pool!.x += hallOffset;
+    for (const b of Object.values(model.focusBoxes)) {
+      b.y *= ratio;
+      b.h *= ratio;
+    }
+    model.layout.floorBranchY *= ratio;
+    model.bounds.h *= ratio;
   }
   model.pipes = computeBridges(model.pipes);
   return model;
 }
-
 export const DETAIL_SCHEMATIC_MODEL = buildDetailSchematicModel();
+export const WIDE_SCHEMATIC_MODEL = buildDetailSchematicModel({}, true);
