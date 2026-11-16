@@ -201,26 +201,29 @@ def apply_swap_overlays(
                         "partner_name": to.get("name"),
                     }
         for op in operations.values():
-            if not isinstance(op, Mapping) or op.get("status") not in {"applying", "active"}:
+            if not isinstance(op, Mapping) or op.get("status") != "active":
                 continue
             snap = op.get("source_snapshot") or {}
             chore_uuid = chore.get("chore_uuid")
             opaque = chore.get("opaque_id")
-            if snap.get("chore_id") not in {chore_uuid, opaque}:
-                continue
-            if op.get("from_kid_id") == kid_uuid:
+            source_matches = snap.get("chore_id") in {chore_uuid, opaque, chore.get("id")}
+            clone_matches = (
+                op.get("clone_id") is not None
+                and op.get("clone_id") in {chore_uuid, opaque, chore.get("id")}
+            )
+            if op.get("from_kid_id") == kid_uuid and source_matches:
                 to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
                 row["swap_today"] = {
                     "kind": "transferred_out",
-                    "label": f"Dnes {to.get('name', 'někdo')}",
+                    "label": f"→ dnes {to.get('name', 'někdo')}",
                     "muted": True,
                 }
                 row["counts_today"] = False
-            elif op.get("to_kid_id") == kid_uuid and op.get("clone_id"):
+            elif op.get("to_kid_id") == kid_uuid and clone_matches:
                 from_k = kids_by_uuid.get(str(op.get("from_kid_id") or ""), {})
                 row["swap_today"] = {
                     "kind": "transferred_in",
-                    "label": f"za {from_k.get('name', 'někdo')}",
+                    "label": f"za: {from_k.get('name', 'někdo')}",
                 }
         out.append(row)
     return out
@@ -233,7 +236,10 @@ def pending_approvals(
     items: list[dict[str, Any]] = []
     for kid in snapshot.get("kids") or []:
         for chore in kid.get("chores") or []:
-            if chore.get("can_approve"):
+            if (
+                chore.get("can_approve")
+                and (chore.get("swap_today") or {}).get("kind") != "pending_give"
+            ):
                 items.append(
                     {
                         "kind": "completion",
@@ -246,13 +252,31 @@ def pending_approvals(
                         "due": chore.get("due"),
                     }
                 )
+    kids = snapshot.get("kids") or []
+    by_uuid = {str(k.get("kid_uuid") or k["id"]): k for k in kids}
     for req in (store_data.get("requests") or {}).values():
         if isinstance(req, Mapping) and req.get("status") == "pending":
+            original = by_uuid.get(str(req.get("from_kid_id")), {})
+            source = next(
+                (
+                    c for c in original.get("chores", [])
+                    if req.get("source_chore_id")
+                    in {c.get("id"), c.get("opaque_id"), c.get("chore_uuid")}
+                ),
+                {},
+            )
+            requester = by_uuid.get(str(req.get("requester_user_id")), {})
             items.append(
                 {
                     "kind": "swap",
                     "type_label": "Předání na dnes",
                     "request_id": req.get("id"),
+                    "requester_name": (
+                        req.get("requester_name") or requester.get("name") or original.get("name")
+                    ),
+                    "chore_name": source.get("name"),
+                    "points": source.get("points"),
+                    "due": source.get("due"),
                     "from_kid_id": req.get("from_kid_id"),
                     "to_kid_id": req.get("to_kid_id"),
                     "chore_id": req.get("source_chore_id"),

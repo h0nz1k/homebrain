@@ -226,3 +226,24 @@ describe('controls', () => {
     expect(screen.queryByText('teď')).toBeNull();
   });
 });
+
+// Strong task isolation must preserve the shared dialog's close and focus behavior.
+it('isolated Sheet keeps its labelled header and footer and closes with Escape', () => {
+  const close = vi.fn();
+  const { container } = render(
+    <Sheet
+      title="Nový úkol"
+      isolation="strong"
+      closeLabel="Zavřít"
+      onClose={close}
+      footer={<Button>Uložit</Button>}
+    >
+      <input aria-label="Název" />
+    </Sheet>,
+  );
+  expect(container.querySelector('.hb-scrim')?.getAttribute('data-isolation')).toBe('strong');
+  expect(screen.getByRole('dialog', { name: 'Nový úkol' })).toBeTruthy();
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Název' }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(close).toHaveBeenCalledTimes(1);
+});

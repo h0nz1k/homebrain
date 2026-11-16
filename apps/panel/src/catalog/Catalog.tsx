@@ -75,13 +75,14 @@ function RaisedSheetDemo() {
       {open && (
         <Sheet
           title="Rezerva při běžném provozu"
+          isolation="strong"
           appearance="raised"
           placement="side"
           closeLabel="Zavřít"
           onClose={() => setOpen(false)}
           footer={<Button onClick={() => setOpen(false)}>Hotovo</Button>}
         >
-          Lehké ztmavení bez rozostření, zvednutý povrch, úchyt jen na telefonu.
+          Silné ztmavení a rozostření pro soustředěný formulář; hlavička a patička zůstávají pevné.
         </Sheet>
       )}
     </>
@@ -182,10 +183,11 @@ const specs: Spec[] = [
   {
     id: 'sheet-raised',
     name: 'Sheet (raised, side)',
-    summary: 'Detail/úprava: lehké ztmavení, zvednutý povrch, na desktopu boční panel.',
+    summary: 'Detail/úprava: zvednutý povrch, volitelně silné ztmavení a pevná hlavička.',
     importName: 'Sheet',
-    states: ['appearance="raised"', 'placement="side"', 'closeLabel'],
-    doText: 'Detail řádku nastavení, kde má zůstat vidět kontext pod ním.',
+    states: ['appearance="raised"', 'placement="side"', 'isolation="strong"', 'closeLabel'],
+    doText:
+      'Soustředěný formulář s isolation=strong; scrolluje pouze obsah mezi hlavičkou a patičkou.',
     dontText: 'Dlouhé průvodce – ty patří do centrovaného dialogu.',
     notes: 'Zavírací tlačítko 44 px; úchyt jen pod 600 px.',
     render: () => <RaisedSheetDemo />,

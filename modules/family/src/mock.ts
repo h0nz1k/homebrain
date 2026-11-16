@@ -87,7 +87,7 @@ function pointsSummary(name: string, balance: number): PointsSummary {
     kid_name: name,
     balance,
     earned_today: name === 'Dcera' ? 6 : 4,
-    earned_week: name === 'Dcera' ? 22 : 14,
+    earned_week: name === 'Dcera' ? 42 : 24,
     earned_month: name === 'Dcera' ? 156 : 68,
     spent_month: name === 'Dcera' ? 40 : 20,
     net_month: name === 'Dcera' ? 116 : 48,
@@ -97,7 +97,7 @@ function pointsSummary(name: string, balance: number): PointsSummary {
     top_chore_month: name === 'Dcera' ? 'Ustlat postel' : 'Nakrmit kočku',
     sources_month: {
       Úkoly: name === 'Dcera' ? 144 : 64,
-      Bonusy: 12,
+      Bonusy: name === 'Dcera' ? 12 : 4,
       Odměny: name === 'Dcera' ? 40 : 20,
       Sankce: 0,
       Ostatní: 0,
@@ -136,11 +136,11 @@ function kids(now: Date): FamilyKid[] {
         c('postel', 'Ustlat postel', 'done', 2, 9),
         c('kytky', 'Zalít květiny', 'done', 4, 17),
         c('kos', 'Vynést koš', 'todo', 3, 19, {
-          swap_today: { kind: 'transferred_out', label: 'Dnes Syn', muted: true },
+          swap_today: { kind: 'transferred_out', label: '→ dnes Syn', muted: true },
           counts_today: false,
           can_request_swap: false,
         }),
-        c('luxovat', 'Vyluxovat pokoj', 'claimed', 4, 20, {
+        c('luxovat', 'Vyluxovat pokoj', 'todo', 4, 20, {
           swap_today: { kind: 'pending_give', label: 'Čeká na předání', partner_name: 'Syn' },
         }),
       ],
@@ -155,7 +155,7 @@ function kids(now: Date): FamilyKid[] {
       chores: [
         c('kocka', 'Nakrmit kočku', 'done', 4, 12),
         c('kos-in', 'Vynést koš', 'todo', 3, 19, {
-          swap_today: { kind: 'transferred_in', label: 'za Dcera' },
+          swap_today: { kind: 'transferred_in', label: 'za: Dcera' },
         }),
         c('boty', 'Uklidit boty', 'claimed', 2, 18),
       ],
@@ -229,21 +229,37 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       kids: visibleKids,
       pending_approvals: detail
         ? [
-            {
-              kind: 'swap',
-              type_label: 'Předání na dnes',
-              request_id: state.swapPending,
-              revision: 1,
-            },
-            {
-              kind: 'completion',
-              type_label: 'Hotovo ke kontrole',
-              kid_id: 'syn',
-              kid_name: 'Syn',
-              chore_id: 'sensor.demo_boty',
-              chore_name: 'Uklidit boty',
-              points: 2,
-            },
+            ...(state.swapPending
+              ? [
+                  {
+                    kind: 'swap' as const,
+                    type_label: 'Předání na dnes',
+                    request_id: state.swapPending,
+                    requester_name: 'Dcera',
+                    from_kid_id: 'dcera',
+                    to_kid_id: 'syn',
+                    chore_id: 'sensor.demo_luxovat',
+                    chore_name: 'Vyluxovat pokoj',
+                    points: 4,
+                    revision: 1,
+                  },
+                ]
+              : []),
+            ...(state.kids
+              .find((k) => k.id === 'syn')
+              ?.chores.find((c) => c.id === 'sensor.demo_boty')?.state === 'claimed'
+              ? [
+                  {
+                    kind: 'completion' as const,
+                    type_label: 'Hotovo ke kontrole',
+                    kid_id: 'syn',
+                    kid_name: 'Syn',
+                    chore_id: 'sensor.demo_boty',
+                    chore_name: 'Uklidit boty',
+                    points: 2,
+                  },
+                ]
+              : []),
           ]
         : [],
       shopping: empty
@@ -261,7 +277,8 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     state.kids.find((k) => k.id === kid)?.chores.find((c) => c.id === id);
 
   const chart = (days: number): PointsHistory['chart'] => {
-    const earned = days === 7 ? [4, 6, 3, 8, 5, 10, 6] : Array.from({ length: 30 }, (_, i) => (i % 5) + 2);
+    const earned =
+      days === 7 ? [4, 6, 3, 8, 5, 10, 6] : Array.from({ length: 30 }, (_, i) => (i % 5) + 2);
     const d = now();
     const keys = Array.from({ length: days }, (_, i) => {
       const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() - (days - 1 - i));
@@ -303,12 +320,20 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     },
     swapDecide: async (request_id, decision) => {
       log.push({ kind: 'swapDecide', request_id, decision });
-      if (decision === 'approve') {
-        const kos = chore('dcera', 'sensor.demo_kos');
-        const clone = chore('syn', 'sensor.demo_kos-in');
-        if (kos) kos.swap_today = { kind: 'transferred_out', label: 'Dnes Syn', muted: true };
-        if (clone) clone.state = 'todo';
+      const original = chore('dcera', 'sensor.demo_luxovat');
+      if (original) {
+        if (decision === 'approve') {
+          original.swap_today = { kind: 'transferred_out', label: '→ dnes Syn', muted: true };
+          original.counts_today = false;
+          state.kids[1]!.chores.push({
+            ...original,
+            id: 'sensor.demo_luxovat-in',
+            counts_today: true,
+            swap_today: { kind: 'transferred_in', label: 'za: Dcera' },
+          });
+        } else original.swap_today = null;
       }
+      state.swapPending = '';
       return { ok: true };
     },
     swapReassign: async (input) => {

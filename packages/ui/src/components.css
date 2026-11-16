@@ -3061,3 +3061,37 @@ button.hb-cell-main:focus-visible {
     background: color-mix(in srgb, var(--hb-t1) 22%, transparent);
   }
 }
+
+/* Isolated task flows: opaque fixed header, independent content scrollport. */
+.hb-scrim[data-isolation='strong'] {
+  background: rgb(0 0 0 / 84%);
+  backdrop-filter: blur(8px);
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet {
+  overflow: hidden;
+  gap: 0;
+  padding: 0;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-head {
+  flex-shrink: 0;
+  padding: 22px 20px;
+  border-bottom: 1px solid var(--hb-edge);
+  background: var(--hb-s1);
+  align-items: center;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-body {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 20px;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-foot {
+  flex-shrink: 0;
+  position: static;
+  margin: 0;
+  padding: 16px 20px max(28px, env(safe-area-inset-bottom));
+  background: var(--hb-s1);
+  border-top: 1px solid var(--hb-edge);
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-foot > * {
+  width: 100%;
+}

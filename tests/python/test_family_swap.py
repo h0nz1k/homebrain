@@ -100,3 +100,54 @@ async def test_integration_store_loaded(hass):
     assert await async_setup_component(hass, DOMAIN, {})
     await hass.async_block_till_done()
     assert "family_swap" in hass.data[DOMAIN]
+
+
+def test_pending_approval_contains_requester_chore_points_and_target():
+    from custom_components.homebrain.family import model
+
+    snapshot = {'kids': [{'id': 'a',
+               'kid_uuid': 'a',
+               'name': 'Dcera',
+               'chores': [{'id': 'chore',
+                           'name': 'Zalít květiny',
+                           'points': 4,
+                           'due': '2026-11-16T18:00:00+01:00'}]},
+              {'id': 'b', 'kid_uuid': 'b', 'name': 'Syn', 'chores': []}]}
+    store = {'requests': {'r': {'id': 'r',
+                        'status': 'pending',
+                        'source_chore_id': 'chore',
+                        'from_kid_id': 'a',
+                        'to_kid_id': 'b',
+                        'requester_name': 'Syn'}}}
+    approval = model.pending_approvals(snapshot, store)[0]
+    assert approval["requester_name"] == "Syn"
+    assert approval["chore_name"] == "Zalít květiny"
+    assert approval["points"] == 4
+    assert approval["from_kid_id"] == "a"
+    assert approval["to_kid_id"] == "b"
+
+
+def test_only_active_swap_mutes_source_and_decorates_actual_clone():
+    from custom_components.homebrain.family import model
+
+    original = {'id': 'original',
+     'opaque_id': 'source',
+     'chore_uuid': 'source',
+     'name': 'Vynést koš'}
+    clone = {"id": "clone-row", "opaque_id": "clone", "chore_uuid": "clone", "name": "Vynést koš"}
+    kids = {"a": {"id": "a", "name": "Dcera"}, "b": {"id": "b", "name": "Syn"}}
+    op = {'status': 'applying',
+     'source_snapshot': {'chore_id': 'source'},
+     'from_kid_id': 'a',
+     'to_kid_id': 'b',
+     'clone_id': 'clone'}
+    store = {"operations": {"o": op}}
+    pending = model.apply_swap_overlays([original], kid=kids["a"], store_data=store, kids_by_uuid=kids)[0]
+    assert pending["swap_today"] is None
+    assert pending.get("counts_today") is not False
+    op["status"] = "active"
+    applied = model.apply_swap_overlays([original], kid=kids["a"], store_data=store, kids_by_uuid=kids)[0]
+    assert applied["swap_today"]["label"] == "→ dnes Syn"
+    assert applied["counts_today"] is False
+    received = model.apply_swap_overlays([clone], kid=kids["b"], store_data=store, kids_by_uuid=kids)[0]
+    assert received["swap_today"] == {"kind": "transferred_in", "label": "za: Dcera"}

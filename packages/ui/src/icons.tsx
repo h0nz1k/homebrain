@@ -2,6 +2,28 @@ import type { ReactElement } from 'react';
 
 /** Line icons (24 px grid, currentColor stroke) shared by modules; decorative by default. */
 const PATHS = {
+  trash: (
+    <>
+      <path d="M4.5 7h15M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 10v7M14 10v7" />
+    </>
+  ),
+  flower: (
+    <>
+      <path d="M12 21v-7m0 5c-4 0-6-2-6-4 4 0 6 2 6 4m0-2c4 0 6-2 6-4-4 0-6 2-6 4" />
+      <circle cx="12" cy="8" r="2" />
+      <path d="M10 6C6 2 3 8 8 9c-3 5 4 7 4 2 3 5 8 0 4-2 5-3 0-8-2-4 0-5-6-4-4 1z" />
+    </>
+  ),
+  broom: (
+    <>
+      <path d="m13 12 6-9M13 12l-5-2-5 8 9 3 4-8-3-1M6 14l7 3M6 19l2-4M9 20l2-4" />
+    </>
+  ),
+  food: (
+    <>
+      <path d="M5 3v6c0 3 5 3 5 0V3M7.5 3v18M19 3c-4 3-5 9-1 10h1V3Zm0 10v8" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="8.5" />

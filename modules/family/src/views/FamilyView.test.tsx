@@ -23,13 +23,9 @@ describe('FamilyView', () => {
     const api = await mount('owner');
     expect(screen.getAllByTestId('family-kid')).toHaveLength(2);
     const approvals = screen.getByTestId('family-approvals');
-    const row = within(approvals)
-      .getByText('Vyluxovat pokoj')
-      .closest('.fam-approval') as HTMLElement;
-    await act(async () =>
-      fireEvent.click(within(row).getByTestId('family-approve')),
-    );
-    expect(api.log).toContainEqual({ kind: 'approve', kid: 'dcera', id: 'sensor.demo_luxovat' });
+    const row = within(approvals).getByText('Uklidit boty').closest('.fam-approval') as HTMLElement;
+    await act(async () => fireEvent.click(within(row).getByTestId('family-approve')));
+    expect(api.log).toContainEqual({ kind: 'approve', kid: 'syn', id: 'sensor.demo_boty' });
   });
 
   it('child: only own chores, no approval, no event details', async () => {
@@ -48,7 +44,7 @@ describe('FamilyView', () => {
       .find(
         (li) =>
           li.dataset.state === 'todo' &&
-          !(li.querySelector('[data-testid="family-chore-check"]') as HTMLButtonElement)?.disabled,
+          !!li.querySelector('[data-testid="family-chore-check"]:not(:disabled)'),
       )!;
     await act(async () =>
       fireEvent.click(todo.querySelector('[data-testid="family-chore-check"]')!),
@@ -70,14 +66,12 @@ describe('FamilyView', () => {
     await mount('owner');
     const dcera = screen.getAllByTestId('family-kid').find((k) => k.dataset.kid === 'dcera')!;
     expect(dcera.querySelector('[data-testid="family-today-points"]')!.textContent).toContain('+6');
-    expect(dcera.querySelector('[data-testid="family-pending-points"]')!.textContent).toContain(
-      '+4',
-    );
+    expect(dcera.querySelector('[data-testid="family-pending-points"]')).toBeNull();
     expect(dcera.querySelector('[data-testid="family-total"]')!.textContent).toContain('128');
     const states = Array.from(
       dcera.querySelectorAll<HTMLElement>('[data-testid="family-chore"]'),
     ).map((li) => li.dataset.state);
-    expect(states).toEqual(['todo', 'claimed', 'done', 'done']);
+    expect(states).toEqual(['todo', 'todo', 'done', 'done']);
   });
 
   it('calendar: next event is highlighted once and events show who they belong to', async () => {
@@ -96,7 +90,7 @@ describe('FamilyView', () => {
     await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family-clock')).toBeTruthy();
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
-    expect(screen.getByTestId('family-chores').textContent).toContain('Ke schválení');
-    expect(screen.getByTestId('family-chores').textContent).not.toContain('čeká na schválení');
+    expect(screen.getByTestId('family-chores').textContent).toContain('Čeká na schválení');
+    expect(screen.queryByTestId('family-approvals')).toBeNull();
   });
 });

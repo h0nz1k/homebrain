@@ -135,6 +135,7 @@ async def websocket_family_swap_request(
     req = {
         "id": rid,
         "requester_user_id": actor,
+        "requester_name": (to_k if msg["direction"] == "take" else from_k)["name"],
         "source_chore_id": msg["chore"],
         "from_kid_id": msg["from_kid"],
         "to_kid_id": msg["to_kid"],

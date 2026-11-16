@@ -8,8 +8,8 @@ import { expect, test, type Page } from '@playwright/test';
 const EXPECTED = [
   'Jan: doma',
   'Mamínka: doma',
-  'Adámek: pryč',
-  'Valinka: doma',
+  'Syn: pryč',
+  'Dcera: doma',
   'Babi: pryč',
   'Děda: nevím',
 ];
@@ -56,13 +56,13 @@ test.describe('Kdo je doma', () => {
 
     await page.evaluate(() =>
       (window as unknown as { __hbPeople: { set(id: string, s: string): void } }).__hbPeople.set(
-        'person.adamek',
+        'person.syn',
         'home',
       ),
     );
     await expect(page.getByTestId('presence-person').nth(2)).toHaveAttribute(
       'aria-label',
-      'Adámek: doma',
+      'Syn: doma',
     );
     // Privacy: no places, times or ETA anywhere in the strip.
     await expect(strip).not.toContainText(/Práce|Škola|min|:\d\d/);

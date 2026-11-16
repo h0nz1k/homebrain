@@ -66,6 +66,7 @@ export interface FamilyApproval {
   points?: number | null;
   due?: string | null;
   request_id?: string;
+  requester_name?: string;
   from_kid_id?: string;
   to_kid_id?: string;
   revision?: number;
