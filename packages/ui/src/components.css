@@ -1510,6 +1510,12 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   color: var(--hb-sel-ink);
   box-shadow: inset 0 0 0 1.5px var(--hb-ac);
 }
+.hb-seg-wrap[data-tone='solid'] .hb-seg button[aria-checked='true'] {
+  background: var(--hb-ac-solid, var(--hb-ac));
+  color: #fff;
+  font-weight: 650;
+  box-shadow: none;
+}
 .hb-seg button:disabled {
   cursor: default;
   opacity: 0.55;
@@ -2275,37 +2281,13 @@ button.hb-tile[data-empty] .hb-tile-status {
   box-sizing: border-box;
 }
 .hb-presence-person[data-status='away'] {
-  --hb-presence-status: var(--hb-crit);
+  /* Neutral warm grey, not red: being away is normal, not an alert. */
+  --hb-presence-status: color-mix(in srgb, var(--hb-warn) 45%, var(--hb-t2));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
 }
 .hb-presence-person[data-status='unknown'] {
   --hb-presence-status: color-mix(in srgb, var(--hb-t1) 55%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
-}
-.hb-presence-person[data-color='blue'] {
-  --hb-presence-c: #3b82f6;
-}
-.hb-presence-person[data-color='teal'] {
-  --hb-presence-c: #0d9488;
-}
-.hb-presence-person[data-color='purple'] {
-  --hb-presence-c: #8b5cf6;
-}
-.hb-presence-person[data-color='pink'] {
-  /* Fuchsia, not rose: avatar hues must not read as the red 'pryč' ring. */
-  --hb-presence-c: #c026d3;
-}
-.hb-presence-person[data-color='amber'] {
-  --hb-presence-c: #d97706;
-}
-.hb-presence-person[data-color='orange'] {
-  --hb-presence-c: #ea580c;
-}
-.hb-presence-person[data-color='indigo'] {
-  --hb-presence-c: #6366f1;
-}
-.hb-presence-person[data-color='slate'] {
-  --hb-presence-c: #64748b;
 }
 .hb-presence-avatar {
   display: inline-grid;
@@ -2330,16 +2312,8 @@ button.hb-tile[data-empty] .hb-tile-status {
 .hb-presence-person[data-status='unknown'] .hb-presence-avatar {
   outline-style: dashed;
 }
-/* Muted avatar via colour mixing, not filter/opacity: those would also wash out the status ring. */
-.hb-presence-person[data-status='away'] .hb-presence-avatar,
-.hb-presence-person[data-status='unknown'] .hb-presence-avatar {
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklch, var(--hb-presence-c, #64748b) 28%, #6b7280),
-    color-mix(in oklch, var(--hb-presence-c, #64748b) 22%, #374151)
-  );
-  color: rgb(255 255 255 / 0.82);
-}
+/* Away/unknown keep the person's own hue (one identity colour across modules); the status ring,
+   status word, dimmed name and outline-only chip carry the state, never the avatar hue. */
 .hb-presence-text {
   display: inline-flex;
   align-items: baseline;
@@ -2370,6 +2344,21 @@ button.hb-tile[data-empty] .hb-tile-status {
   border-radius: 50%;
   background: var(--hb-presence-status);
   vertical-align: 0.08em;
+}
+/* Balanced equal-width grid (columns set by PresenceStrip from the measured width). */
+.hb-presence-list[data-cols] {
+  display: grid;
+}
+.hb-presence-list[data-cols] .hb-presence-person {
+  width: 100%;
+}
+.hb-presence-list[data-stack] .hb-presence-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.hb-presence-text > * {
+  max-width: 100%;
 }
 .hb-presence[data-size='lg'] {
   --hb-presence-avatar: 44px;
@@ -3011,6 +3000,22 @@ button.hb-cell-main:focus-visible {
 .hb-sheet-handle {
   display: none;
 }
+/* Isolated sheets have no padding: the handle floats inside the opaque header, and the close
+   button keeps the same 20 px inset as the title on the left. */
+.hb-scrim[data-isolation='strong'] .hb-sheet {
+  position: relative;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-handle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 3;
+  margin: 0;
+  translate: -50% 0;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-close {
+  margin: -10px 0;
+}
 .hb-sheet-close {
   display: grid;
   place-items: center;
@@ -3060,4 +3065,48 @@ button.hb-cell-main:focus-visible {
     border-radius: var(--hb-radius-pill);
     background: color-mix(in srgb, var(--hb-t1) 22%, transparent);
   }
+}
+
+/* Isolated task flows: opaque fixed header, independent content scrollport. */
+.hb-scrim[data-isolation='strong'] {
+  background: rgb(0 0 0 / 84%);
+  backdrop-filter: blur(8px);
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet {
+  overflow: hidden;
+  gap: 0;
+  padding: 0;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-head {
+  flex-shrink: 0;
+  padding: 22px 20px;
+  border-bottom: 1px solid var(--hb-edge);
+  background: var(--hb-s1);
+  align-items: center;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-body {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 20px;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-foot {
+  flex-shrink: 0;
+  position: static;
+  margin: 0;
+  padding: 16px 20px max(28px, env(safe-area-inset-bottom));
+  background: var(--hb-s1);
+  border-top: 1px solid var(--hb-edge);
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-foot > * {
+  width: 100%;
+}
+
+.hb-btn[data-variant='primary'][data-contrast='high'] {
+  background: var(--hb-ac-solid);
+}
+.hb-btn[data-variant='primary'][data-contrast='high']:hover:not(:disabled) {
+  background: var(--hb-ac-solid-hover);
+}
+.hb-btn[data-variant='primary'][data-contrast='high']:disabled:not([aria-busy='true']) {
+  background: var(--hb-fill-strong);
 }

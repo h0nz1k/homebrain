@@ -1,4 +1,4 @@
-"""Kdo je doma: HA ``person.*`` → doma / pryč / nevím, privacy, roles, live push, options.
+"""Kdo je doma: HA ``person.*`` → doma / pryč / neznámo, privacy, roles, live push, options.
 
 Synthetic data only (dev-mock names, a big-city centre as coordinates).
 """

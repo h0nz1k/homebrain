@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setFamilyApiFactory } from '../api.js';
 import { createMockFamilyApi } from '../mock.js';
@@ -22,8 +22,10 @@ describe('FamilyView', () => {
   it('owner: chores of both kids, approve calls the API', async () => {
     const api = await mount('owner');
     expect(screen.getAllByTestId('family-kid')).toHaveLength(2);
-    await act(async () => fireEvent.click(screen.getByTestId('family-approve')));
-    expect(api.log).toContainEqual({ kind: 'approve', kid: 'dcera', id: 'sensor.demo_luxovat' });
+    const approvals = screen.getByTestId('family-approvals');
+    const row = within(approvals).getByText('Uklidit boty').closest('.fam-approval') as HTMLElement;
+    await act(async () => fireEvent.click(within(row).getByTestId('family-approve')));
+    expect(api.log).toContainEqual({ kind: 'approve', kid: 'syn', id: 'sensor.demo_boty' });
   });
 
   it('child: only own chores, no approval, no event details', async () => {
@@ -37,8 +39,16 @@ describe('FamilyView', () => {
   it('kiosk: ticks a chore and adds a shopping item', async () => {
     const api = await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family').dataset.kiosk).toBe('true');
-    const todo = screen.getAllByTestId('family-chore').find((li) => li.dataset.state === 'todo')!;
-    await act(async () => fireEvent.click(todo.querySelector('button')!));
+    const todo = screen
+      .getAllByTestId('family-chore')
+      .find(
+        (li) =>
+          li.dataset.state === 'todo' &&
+          !!li.querySelector('[data-testid="family-chore-check"]:not(:disabled)'),
+      )!;
+    await act(async () =>
+      fireEvent.click(todo.querySelector('[data-testid="family-chore-check"]')!),
+    );
     fireEvent.change(screen.getByTestId('family-shop-input'), { target: { value: 'Chleba' } });
     await act(async () => fireEvent.click(screen.getByTestId('family-shop-add')));
     expect(api.log).toContainEqual({ kind: 'add', summary: 'Chleba' });
@@ -55,15 +65,13 @@ describe('FamilyView', () => {
   it('owner: today points count only done chores, pending shown separately, done last', async () => {
     await mount('owner');
     const dcera = screen.getAllByTestId('family-kid').find((k) => k.dataset.kid === 'dcera')!;
-    expect(dcera.querySelector('[data-testid="family-today-points"]')!.textContent).toContain('+2');
-    expect(dcera.querySelector('[data-testid="family-pending-points"]')!.textContent).toBe(
-      '+4 čeká',
-    );
+    expect(dcera.querySelector('[data-testid="family-today-points"]')!.textContent).toContain('+6');
+    expect(dcera.querySelector('[data-testid="family-pending-points"]')).toBeNull();
     expect(dcera.querySelector('[data-testid="family-total"]')!.textContent).toContain('128');
     const states = Array.from(
       dcera.querySelectorAll<HTMLElement>('[data-testid="family-chore"]'),
     ).map((li) => li.dataset.state);
-    expect(states).toEqual(['todo', 'claimed', 'done']);
+    expect(states).toEqual(['todo', 'todo', 'done', 'done']);
   });
 
   it('calendar: next event is highlighted once and events show who they belong to', async () => {
@@ -82,7 +90,43 @@ describe('FamilyView', () => {
     await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family-clock')).toBeTruthy();
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
-    expect(screen.getByTestId('family-chores').textContent).toContain('Schválí rodič');
-    expect(screen.getByTestId('family-chores').textContent).not.toContain('čeká na schválení');
+    const pills = screen.getAllByTestId('family-pending-pill');
+    expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
+    expect(pills.every((p) => p.textContent?.endsWith('Čeká na schválení'))).toBe(true);
+    expect(screen.getAllByTestId('family-done-summary')[0]!.textContent).toContain('Hotovo: 2');
+    expect(screen.queryByTestId('family-approvals')).toBeNull();
+  });
+
+  it('handover tags decline names; done rows carry no extra „Hotovo“ text', async () => {
+    await mount('owner');
+    const notes = screen.getAllByTestId('family-swap-note').map((n) => n.textContent);
+    expect(notes).toContain('Předáno Synovi · jen dnes');
+    expect(notes).toContain('Převzato od Dcery · jen dnes');
+    expect(notes.some((t) => t?.includes(':'))).toBe(false);
+    const done = screen.getAllByTestId('family-chore').filter((li) => li.dataset.state === 'done');
+    expect(done.length).toBeGreaterThan(0);
+    for (const li of done) expect(li.querySelector('.fam-chore-meta')).toBeNull();
+    expect(screen.getByTestId('family-pending-points').textContent).toBe(
+      '+2\u00a0b. čeká na schválení',
+    );
+    expect(screen.getByTestId('family-pending-swaps').textContent).toBe(
+      'Předání čeká na schválení',
+    );
+  });
+
+  it('child: kid-facing unit spelled out („3 body“), no abbreviations', async () => {
+    await mount('child');
+    const pts = Array.from(document.querySelectorAll('.fam-pts')).map((n) => n.textContent);
+    expect(pts.length).toBeGreaterThan(0);
+    expect(pts.every((t) => /\+\d+\u00a0bod(y|ů)?$/.test(t ?? ''))).toBe(true);
+    expect(screen.getByTestId('family-today-points').textContent).toBe('+4\u00a0body');
+  });
+
+  it('parent: kid section collapses from its header', async () => {
+    await mount('owner');
+    const toggle = screen.getAllByTestId('family-kid-toggle')[0]!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
   });
 });

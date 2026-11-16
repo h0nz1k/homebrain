@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   choreNote,
   choreTally,
+  czDate,
   eventWho,
   isPast,
+  monthPoints,
   nextDays,
   nextEvent,
   pointsLabel,
@@ -37,7 +39,7 @@ describe('family format', () => {
     expect(todayEvents(events, now).map((e) => e.id)).toEqual(['rano', 'trenink']);
     const days = nextDays(events, now);
     expect(days).toHaveLength(7);
-    expect(days[0]).toMatchObject({ day: 'St', date: '3. 6.' });
+    expect(days[0]).toMatchObject({ day: 'St', date: '3.\u00a06.' });
     expect(days[0]!.events.map((e) => e.id)).toEqual(['vylet']);
     expect(days[1]!.events.map((e) => e.id)).toEqual(['zubar']);
     expect(days[2]!.events).toEqual([]);
@@ -126,5 +128,41 @@ describe('family format', () => {
     expect(eventWho(ownCal, members)).toEqual({ who: ['dcera'], title: 'Klavír' });
     const nobody = { ...events[1]!, summary: 'Babička: oběd' };
     expect(eventWho(nobody, members)).toEqual({ who: [], title: 'Babička: oběd' });
+  });
+
+  it('formats Czech dates with no-break spaces only (never wraps inside a date)', () => {
+    const d = new Date(2026, 10, 17, 12);
+    expect(czDate(d)).toBe('17.\u00a011.');
+    expect(czDate(d, { year: true })).toBe('17.\u00a011.\u00a02026');
+    for (const out of [czDate(d), czDate(d, { year: true }), nextDays([], now)[0]!.date]) {
+      expect(out).toContain('\u00a0');
+      expect(out).not.toMatch(/ /);
+    }
+  });
+
+  it('derives monthly points from one helper: net = earned − spent, reconciling with the sources', () => {
+    const m = monthPoints({
+      earned_month: 156,
+      spent_month: 40,
+      sources_month: { Úkoly: 144, Bonusy: 12, Odměny: 40, Sankce: 0, Ostatní: 0 },
+    });
+    expect(m).toMatchObject({ earned: 156, spent: 40, net: 116 });
+    expect(m.earnedSources).toEqual([
+      ['Úkoly', 144],
+      ['Bonusy', 12],
+    ]);
+    expect(m.spentSources).toEqual([['Odměny', 40]]);
+    const sum = (xs: [string, number][]) => xs.reduce((a, [, v]) => a + v, 0);
+    expect(sum(m.earnedSources) - sum(m.spentSources)).toBe(m.net);
+    // Negative sources (penalties) count as spent; without sources the summary fields are used.
+    expect(
+      monthPoints({ earned_month: 0, spent_month: 0, sources_month: { Úkoly: 10, Sankce: -3 } }),
+    ).toMatchObject({ earned: 10, spent: 3, net: 7 });
+    expect(monthPoints({ earned_month: 20, spent_month: 5, sources_month: {} })).toMatchObject({
+      earned: 20,
+      spent: 5,
+      net: 15,
+    });
+    expect(monthPoints(null)).toMatchObject({ earned: null, net: null });
   });
 });

@@ -74,8 +74,9 @@ export interface SegmentedControlProps<T extends string = string> {
   hideLabel?: boolean;
   disabled?: boolean;
   size?: 'sm' | 'md';
-  /** `accent`: the chosen option is tinted with the accent, like pressed Chips next to it. */
-  tone?: 'neutral' | 'accent';
+  /** `accent`: the chosen option is tinted with the accent, like pressed Chips next to it.
+   * `solid`: filled accent + white ink, matching solid pressed Chips (forms, chart ranges). */
+  tone?: 'neutral' | 'accent' | 'solid';
 }
 /** Single choice from 2–5 short options (radiogroup with a sliding thumb look). */
 export function SegmentedControl<T extends string = string>({
@@ -93,7 +94,7 @@ export function SegmentedControl<T extends string = string>({
     <div
       className={`hb-seg-wrap ${className}`}
       data-size={size}
-      data-tone={tone === 'accent' ? tone : undefined}
+      data-tone={tone === 'neutral' ? undefined : tone}
     >
       <span className={hideLabel ? 'hb-visually-hidden' : 'hb-seg-label'}>{label}</span>
       <div className="hb-seg" role="radiogroup" aria-label={label}>
@@ -135,6 +136,8 @@ export interface SheetProps {
    * highlight, grab handle on phones. `default` = the classic dimmed modal.
    */
   appearance?: 'default' | 'raised';
+  /** Strong modal isolation with blur; keep a fixed header and scroll only the body. */
+  isolation?: 'strong';
   /** `side` = right-hand side sheet from 900 px (bottom sheet on phones, centred on tablets). */
   placement?: 'center' | 'side';
   /** Renders a 44 px close button in the header with this accessible name. */
@@ -157,6 +160,7 @@ export function Sheet({
   describedBy,
   appearance = 'default',
   placement = 'center',
+  isolation,
   closeLabel,
   ...rest
 }: SheetProps) {
@@ -201,6 +205,7 @@ export function Sheet({
     <div
       className="hb-scrim"
       data-appearance={appearance === 'raised' ? 'raised' : undefined}
+      data-isolation={isolation}
       data-placement={placement === 'side' ? 'side' : undefined}
       role="presentation"
       onClick={(e) => scrimCloses && e.target === e.currentTarget && onClose()}

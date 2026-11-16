@@ -1,5 +1,11 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
-import type { FamilySnapshot } from './types.js';
+import type {
+  CreateChoreInput,
+  FamilySnapshot,
+  PointsHistory,
+  PointsSummary,
+  SwapRequestInput,
+} from './types.js';
 
 export interface FamilyApi {
   get(): Promise<FamilySnapshot>;
@@ -7,6 +13,21 @@ export interface FamilyApi {
   approve(kid: string, chore: string): Promise<void>;
   addItem(summary: string): Promise<void>;
   setItemDone(uid: string, done: boolean): Promise<void>;
+  swapOptions(direction: 'give' | 'take', chore?: string): Promise<{
+    occurrences: Array<Record<string, unknown>>;
+    partners: Array<{ id: string; name: string }>;
+  }>;
+  swapRequest(input: SwapRequestInput): Promise<{ request: Record<string, unknown>; revision: number }>;
+  swapDecide(
+    request_id: string,
+    decision: 'approve' | 'reject',
+    expected_revision?: number,
+  ): Promise<Record<string, unknown>>;
+  swapReassign(input: SwapRequestInput): Promise<Record<string, unknown>>;
+  swapCancel(request_id: string, expected_revision?: number): Promise<Record<string, unknown>>;
+  createChore(input: CreateChoreInput): Promise<Record<string, unknown>>;
+  pointsGet(kid: string): Promise<PointsSummary>;
+  pointsHistory(kid: string, days?: 7 | 30, limit?: number): Promise<PointsHistory>;
 }
 
 export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
@@ -20,6 +41,21 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
     addItem: async (summary) => void (await call('homebrain/family/shopping/add', { summary })),
     setItemDone: async (uid, done) =>
       void (await call('homebrain/family/shopping/update', { uid, done })),
+    swapOptions: (direction, chore) =>
+      call('homebrain/family/swap/options', { direction, ...(chore ? { chore } : {}) }),
+    swapRequest: (input) =>
+      call('homebrain/family/swap/request', { ...input } as Record<string, unknown>),
+    swapDecide: (request_id, decision, expected_revision = 0) =>
+      call('homebrain/family/swap/decide', { request_id, decision, expected_revision }),
+    swapReassign: (input) =>
+      call('homebrain/family/swap/reassign', { ...input } as Record<string, unknown>),
+    swapCancel: (request_id, expected_revision = 0) =>
+      call('homebrain/family/swap/cancel', { request_id, expected_revision }),
+    createChore: (input) =>
+      call('homebrain/family/chore/create', { ...input } as Record<string, unknown>),
+    pointsGet: (kid) => call('homebrain/family/points/get', { kid }),
+    pointsHistory: (kid, days = 7, limit = 30) =>
+      call('homebrain/family/points/history', { kid, days, limit }),
   };
 }
 

@@ -76,6 +76,21 @@ describe('controls', () => {
     );
     expect(container.querySelector('.hb-seg-wrap')?.getAttribute('data-tone')).toBe('accent');
   });
+  it('SegmentedControl tone=solid marks the wrapper for the filled selected look', () => {
+    const { container } = render(
+      <SegmentedControl
+        label="Období"
+        tone="solid"
+        value="7"
+        onChange={() => {}}
+        options={[
+          ['7', '7 dní'],
+          ['30', '30 dní'],
+        ]}
+      />,
+    );
+    expect(container.querySelector('.hb-seg-wrap')?.getAttribute('data-tone')).toBe('solid');
+  });
   it('SegmentedControl is a radiogroup and reports only a changed value', () => {
     const onChange = vi.fn();
     render(
@@ -225,4 +240,36 @@ describe('controls', () => {
     expect(screen.getByRole('button', { name: 'Levá' })).toBeDefined();
     expect(screen.queryByText('teď')).toBeNull();
   });
+});
+
+// Strong task isolation must preserve the shared dialog's close and focus behavior.
+it('isolated Sheet keeps its labelled header and footer and closes with Escape', () => {
+  const close = vi.fn();
+  const { container } = render(
+    <Sheet
+      title="Nový úkol"
+      isolation="strong"
+      closeLabel="Zavřít"
+      onClose={close}
+      footer={<Button>Uložit</Button>}
+    >
+      <input aria-label="Název" />
+    </Sheet>,
+  );
+  expect(container.querySelector('.hb-scrim')?.getAttribute('data-isolation')).toBe('strong');
+  expect(screen.getByRole('dialog', { name: 'Nový úkol' })).toBeTruthy();
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Název' }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(close).toHaveBeenCalledTimes(1);
+});
+
+it('opts a primary Button into the shared high-contrast fill', () => {
+  render(
+    <Button variant="primary" contrast="high">
+      Schválit předání
+    </Button>,
+  );
+  expect(
+    screen.getByRole('button', { name: 'Schválit předání' }).getAttribute('data-contrast'),
+  ).toBe('high');
 });

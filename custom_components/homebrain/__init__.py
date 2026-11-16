@@ -39,6 +39,7 @@ from .energy.offers import ws as offers_ws
 from .energy.pv_forecast import PvForecastManager
 from .energy.settings import websocket_settings_get, websocket_settings_set
 from .energy.ws import websocket_compare, websocket_pv_forecast
+from .family import async_setup_family
 from .family import ws as family_ws
 from .heating import setup as heating_setup
 from .heating import ws as heating_ws
@@ -316,6 +317,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     # Topení (read-only Tecomat poller + entities). Own isolation until it is a MODULES entry.
     await heating_setup.async_setup_heating(hass, entry)
+    await async_setup_family(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
 

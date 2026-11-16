@@ -387,6 +387,8 @@ def test_role_matrix_lists_family_commands():
         assert "homebrain/family/get" in role_ws_commands(role)
         assert "homebrain/family/shopping/update" in role_ws_commands(role)
     assert "homebrain/family/chore/approve" in role_ws_commands("adult")
+    assert "homebrain/family/chore/create" in role_ws_commands("adult")
+    assert "homebrain/family/swap/request" in role_ws_commands("child")
     assert "homebrain/family/chore/approve" not in role_ws_commands("kiosk")
     assert "homebrain/family/chore/approve" not in role_ws_commands("child")
     assert "homebrain/family/get" not in role_ws_commands("guest")
