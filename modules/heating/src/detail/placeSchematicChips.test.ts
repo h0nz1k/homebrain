@@ -25,4 +25,13 @@ describe('measured chip clearance', () => {
     expect(placed).not.toEqual({ x: 100, y: 80, w: 180, h: 60 });
     expect(schematicObstacles(model).length).toBeGreaterThan(model.pipes.length);
   });
+  it('uses a narrow nearby slot that falls between grid samples', () => {
+    const preferred = { x: 703.86, y: 67.73, w: 126.27, h: 93.54 };
+    const occupied = [{ x: 500, y: 50, w: 195, h: 130 }];
+    const placed = placeSchematicChip(preferred, occupied, DETAIL_SCHEMATIC_MODEL, [], 0.3929);
+    expect(placed.y).toBe(preferred.y);
+    expect(placed.x).toBeGreaterThan(714);
+    expect(placed.x + placed.w).toBeLessThanOrEqual(DETAIL_SCHEMATIC_MODEL.bounds.w);
+    expect(Math.hypot(placed.x - preferred.x, placed.y - preferred.y)).toBeLessThan(15);
+  });
 });

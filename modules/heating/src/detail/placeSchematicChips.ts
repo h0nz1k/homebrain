@@ -74,6 +74,16 @@ export function placeSchematicChip(
     { x: hall.x + hall.w * 0.26 - 55, y: hall.y + 100 * ratio - 30, w: 110, h: 40 },
   ];
   const candidates: ChipBox[] = [preferred];
+  // An 8 px sampling grid can skip a valid narrow slot beside another chip.
+  // Include exact edge placements so nearby labels never jump across the scene.
+  for (const box of occupied) {
+    candidates.push(
+      { ...preferred, x: box.x + box.w + pad + 0.01 },
+      { ...preferred, x: box.x - preferred.w - pad - 0.01 },
+      { ...preferred, y: box.y + box.h + pad + 0.01 },
+      { ...preferred, y: box.y - preferred.h - pad - 0.01 },
+    );
+  }
   const step = 8 / scale;
   for (let y = 12 / scale; y + preferred.h < model.bounds.h - 12 / scale; y += step)
     for (let x = 12 / scale; x + preferred.w < model.bounds.w - 12 / scale; x += step)
