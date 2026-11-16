@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 /** „Kdo je doma“: one chip per household member with a green (doma) / red (pryč) dot. */
 
 export type PresenceStatus = 'home' | 'away' | 'unknown';
@@ -20,6 +22,24 @@ export const PRESENCE_COLORS = [
   'indigo',
   'slate',
 ] as const;
+
+/** Hex value per colour token – the one per-person colour source (avatars, progress, chips). */
+export const PRESENCE_HEX: Record<(typeof PRESENCE_COLORS)[number], string> = {
+  blue: '#3b82f6',
+  teal: '#0d9488',
+  purple: '#8b5cf6',
+  // Fuchsia, not rose: avatar hues must not read as the red 'pryč' ring.
+  pink: '#c026d3',
+  amber: '#d97706',
+  orange: '#ea580c',
+  indigo: '#6366f1',
+  slate: '#64748b',
+};
+
+/** Hex colour for a server colour token; unknown tokens fall back to slate. */
+export function presenceHex(token: string | null | undefined): string {
+  return PRESENCE_HEX[token as keyof typeof PRESENCE_HEX] ?? PRESENCE_HEX.slate;
+}
 
 const LABEL: Record<PresenceStatus, string> = { home: 'doma', away: 'pryč', unknown: 'nevím' };
 
@@ -63,6 +83,7 @@ export function PresenceStrip({ people, size = 'md', className }: PresenceStripP
               className="hb-presence-person"
               data-status={status}
               data-color={color}
+              style={{ '--hb-presence-c': presenceHex(color) } as CSSProperties}
               data-testid="presence-person"
               aria-label={`${person.name}: ${LABEL[status]}`}
             >

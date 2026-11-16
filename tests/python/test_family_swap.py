@@ -171,9 +171,14 @@ def test_only_active_swap_mutes_source_and_decorates_actual_clone():
     applied = model.apply_swap_overlays(
         [original], kid=kids["a"], store_data=store, kids_by_uuid=kids
     )[0]
-    assert applied["swap_today"]["label"] == "→ dnes Syn"
+    assert applied["swap_today"]["label"] == "Předáno: Syn · jen dnes"
+    assert applied["swap_today"]["partner_name"] == "Syn"
     assert applied["counts_today"] is False
     received = model.apply_swap_overlays(
         [clone], kid=kids["b"], store_data=store, kids_by_uuid=kids
     )[0]
-    assert received["swap_today"] == {"kind": "transferred_in", "label": "za: Dcera"}
+    assert received["swap_today"] == {
+        "kind": "transferred_in",
+        "label": "Převzato od: Dcera · jen dnes",
+        "partner_name": "Dcera",
+    }

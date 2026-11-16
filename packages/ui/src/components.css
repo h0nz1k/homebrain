@@ -2282,31 +2282,6 @@ button.hb-tile[data-empty] .hb-tile-status {
   --hb-presence-status: color-mix(in srgb, var(--hb-t1) 55%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
 }
-.hb-presence-person[data-color='blue'] {
-  --hb-presence-c: #3b82f6;
-}
-.hb-presence-person[data-color='teal'] {
-  --hb-presence-c: #0d9488;
-}
-.hb-presence-person[data-color='purple'] {
-  --hb-presence-c: #8b5cf6;
-}
-.hb-presence-person[data-color='pink'] {
-  /* Fuchsia, not rose: avatar hues must not read as the red 'pryč' ring. */
-  --hb-presence-c: #c026d3;
-}
-.hb-presence-person[data-color='amber'] {
-  --hb-presence-c: #d97706;
-}
-.hb-presence-person[data-color='orange'] {
-  --hb-presence-c: #ea580c;
-}
-.hb-presence-person[data-color='indigo'] {
-  --hb-presence-c: #6366f1;
-}
-.hb-presence-person[data-color='slate'] {
-  --hb-presence-c: #64748b;
-}
 .hb-presence-avatar {
   display: inline-grid;
   flex: 0 0 auto;
@@ -2330,16 +2305,8 @@ button.hb-tile[data-empty] .hb-tile-status {
 .hb-presence-person[data-status='unknown'] .hb-presence-avatar {
   outline-style: dashed;
 }
-/* Muted avatar via colour mixing, not filter/opacity: those would also wash out the status ring. */
-.hb-presence-person[data-status='away'] .hb-presence-avatar,
-.hb-presence-person[data-status='unknown'] .hb-presence-avatar {
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklch, var(--hb-presence-c, #64748b) 28%, #6b7280),
-    color-mix(in oklch, var(--hb-presence-c, #64748b) 22%, #374151)
-  );
-  color: rgb(255 255 255 / 0.82);
-}
+/* Away/unknown keep the person's own hue (one identity colour across modules); the status ring,
+   status word, dimmed name and outline-only chip carry the state, never the avatar hue. */
 .hb-presence-text {
   display: inline-flex;
   align-items: baseline;

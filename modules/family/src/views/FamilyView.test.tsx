@@ -90,7 +90,7 @@ describe('FamilyView', () => {
     await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family-clock')).toBeTruthy();
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
-    expect(screen.getByTestId('family-chores').textContent).toContain('Čeká na schválení');
+    expect(screen.getByTestId('family-chores').textContent).toContain('Splnění čeká na schválení');
     expect(screen.queryByTestId('family-approvals')).toBeNull();
   });
 });

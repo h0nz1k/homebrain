@@ -136,12 +136,21 @@ function kids(now: Date): FamilyKid[] {
         c('postel', 'Ustlat postel', 'done', 2, 9),
         c('kytky', 'Zalít květiny', 'done', 4, 17),
         c('kos', 'Vynést koš', 'todo', 3, 19, {
-          swap_today: { kind: 'transferred_out', label: '→ dnes Syn', muted: true },
+          swap_today: {
+            kind: 'transferred_out',
+            label: 'Předáno: Syn · jen dnes',
+            partner_name: 'Syn',
+            muted: true,
+          },
           counts_today: false,
           can_request_swap: false,
         }),
         c('luxovat', 'Vyluxovat pokoj', 'todo', 4, 20, {
-          swap_today: { kind: 'pending_give', label: 'Čeká na předání', partner_name: 'Syn' },
+          swap_today: {
+            kind: 'pending_give',
+            label: 'Předání čeká na schválení',
+            partner_name: 'Syn',
+          },
         }),
       ],
     },
@@ -155,7 +164,11 @@ function kids(now: Date): FamilyKid[] {
       chores: [
         c('kocka', 'Nakrmit kočku', 'done', 4, 12),
         c('kos-in', 'Vynést koš', 'todo', 3, 19, {
-          swap_today: { kind: 'transferred_in', label: 'za: Dcera' },
+          swap_today: {
+            kind: 'transferred_in',
+            label: 'Převzato od: Dcera · jen dnes',
+            partner_name: 'Dcera',
+          },
         }),
         c('boty', 'Uklidit boty', 'claimed', 2, 18),
       ],
@@ -251,7 +264,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
               ? [
                   {
                     kind: 'completion' as const,
-                    type_label: 'Hotovo ke kontrole',
+                    type_label: 'Splnění ke kontrole',
                     kid_id: 'syn',
                     kid_name: 'Syn',
                     chore_id: 'sensor.demo_boty',
@@ -327,13 +340,22 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       const original = chore('dcera', 'sensor.demo_luxovat');
       if (original) {
         if (decision === 'approve') {
-          original.swap_today = { kind: 'transferred_out', label: '→ dnes Syn', muted: true };
+          original.swap_today = {
+            kind: 'transferred_out',
+            label: 'Předáno: Syn · jen dnes',
+            partner_name: 'Syn',
+            muted: true,
+          };
           original.counts_today = false;
           state.kids[1]!.chores.push({
             ...original,
             id: 'sensor.demo_luxovat-in',
             counts_today: true,
-            swap_today: { kind: 'transferred_in', label: 'za: Dcera' },
+            swap_today: {
+              kind: 'transferred_in',
+              label: 'Převzato od: Dcera · jen dnes',
+              partner_name: 'Dcera',
+            },
           });
         } else original.swap_today = null;
       }

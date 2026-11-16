@@ -197,7 +197,7 @@ def apply_swap_overlays(
                     to = kids_by_uuid.get(str(req.get("to_kid_id") or ""), {})
                     row["swap_today"] = {
                         "kind": "pending_give",
-                        "label": "Čeká na předání",
+                        "label": "Předání čeká na schválení",
                         "partner_name": to.get("name"),
                     }
         for op in operations.values():
@@ -216,7 +216,8 @@ def apply_swap_overlays(
                 to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
                 row["swap_today"] = {
                     "kind": "transferred_out",
-                    "label": f"→ dnes {to.get('name', 'někdo')}",
+                    "label": f"Předáno: {to.get('name', 'někdo')} · jen dnes",
+                    "partner_name": to.get("name"),
                     "muted": True,
                 }
                 row["counts_today"] = False
@@ -224,7 +225,8 @@ def apply_swap_overlays(
                 from_k = kids_by_uuid.get(str(op.get("from_kid_id") or ""), {})
                 row["swap_today"] = {
                     "kind": "transferred_in",
-                    "label": f"za: {from_k.get('name', 'někdo')}",
+                    "label": f"Převzato od: {from_k.get('name', 'někdo')} · jen dnes",
+                    "partner_name": from_k.get("name"),
                 }
         out.append(row)
     return out
@@ -244,7 +246,7 @@ def pending_approvals(
                 items.append(
                     {
                         "kind": "completion",
-                        "type_label": "Hotovo ke kontrole",
+                        "type_label": "Splnění ke kontrole",
                         "kid_id": kid["id"],
                         "kid_name": kid["name"],
                         "chore_id": chore["id"],

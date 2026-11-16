@@ -1,8 +1,24 @@
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
-import { Button, Chip, Icon, SegmentedControl, Sheet, type IconName } from '@homebrain/ui';
+import {
+  Button,
+  Chip,
+  Icon,
+  SegmentedControl,
+  Sheet,
+  czPlural,
+  type IconName,
+} from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
-import { localKey, timeLabel } from '../format.js';
+import { fmtPoints, localKey, timeLabel } from '../format.js';
 import type {
   CreateChoreInput,
   FamilyApproval,
@@ -59,19 +75,29 @@ export function ApprovalsBlock({
           const choreName = item.chore_name ?? source?.name ?? 'Úkol není dostupný';
           const points = item.points ?? source?.points;
           const due = item.due ? timeLabel(item.due) : null;
+          const swap = item.kind === 'swap';
           return (
             <li key={key} className="fam-approval" data-kind={item.kind}>
-              <span className="fam-approval-type">{item.type_label}</span>
+              <div className="fam-approval-top">
+                <span className="fam-approval-type" data-kind={item.kind}>
+                  <Icon name={swap ? 'swap' : 'check'} size={16} />
+                  {swap ? 'Předání na dnes' : 'Splnění ke kontrole'}
+                </span>
+                {points != null && (
+                  <span className="fam-approval-pts" data-testid="family-approval-points">
+                    +{points} b.
+                  </span>
+                )}
+              </div>
               <div className="fam-approval-body">
                 <strong>{choreName}</strong>
                 <small>
-                  {item.kind === 'swap'
-                    ? `Žádá ${item.requester_name ?? from?.name ?? 'dítě'} · jen dnes`
-                    : item.kid_name}
-                  {due ? ` · Splnit do ${due}` : ''}
-                  {points != null ? ` · ${points} b.` : ''}
+                  {swap
+                    ? `Žádá ${item.requester_name ?? from?.name ?? 'dítě'}`
+                    : `Hotovo hlásí ${item.kid_name ?? 'dítě'}`}
+                  {due ? ` · splnit do ${due}` : ''}
                 </small>
-                {item.kind === 'swap' && (
+                {swap && (
                   <div className="fam-transfer">
                     <span className="fam-person-pill">
                       <i style={{ background: colors[from?.id ?? ''] }}>{from?.name[0]}</i>
@@ -188,10 +214,10 @@ export function PointsSheet({
             {net == null ? '—' : `${net >= 0 ? '+' : '−'}${Math.abs(net)}`} čistě tento měsíc
           </p>
           <p className="fam-hint">
-            +{earned ?? '—'} získáno · −{spent ?? '—'} využito
+            +{earned ?? '—'} získáno · −{spent ?? '—'} utraceno
           </p>
           <p className="fam-hint">
-            Celkem získáno {summary?.earned_all_time ?? '—'} b. · využito{' '}
+            Celkem získáno {summary?.earned_all_time ?? '—'} b. · utraceno{' '}
             {summary?.spent_all_time ?? '—'} b.
           </p>
         </header>
@@ -214,10 +240,15 @@ export function PointsSheet({
               +{earned ?? '—'} <small>b.</small>
             </dd>
           </div>
-          <div>
-            <dt>Nejdelší série · celkově</dt>
-            <dd>
-              {summary?.longest_streak ?? '—'} <small>splnění</small>
+          <div data-kind="streak">
+            <dt>Nejdelší série</dt>
+            <dd data-testid="family-points-streak">
+              {summary?.longest_streak ?? '—'}{' '}
+              <small>
+                {summary?.longest_streak == null
+                  ? 'dní v řadě'
+                  : `${czPlural(summary.longest_streak, 'den', 'dny', 'dní')} v řadě`}
+              </small>
             </dd>
           </div>
         </dl>
@@ -237,33 +268,41 @@ export function PointsSheet({
         </div>
         {history?.chart ? (
           <figure className="fam-chart-wrap" data-testid="family-points-chart">
-            <div className="fam-chart-axis">
-              <span>{history.chart.max} b.</span>
-              <span>{history.chart.max / 2}</span>
-              <span>0</span>
+            <div className="fam-chart-axis" data-testid="family-points-axis">
+              <span>{fmtPoints(history.chart.max)} b.</span>
+              <span>{fmtPoints(history.chart.max / 2)} b.</span>
+              <span>0 b.</span>
             </div>
             <div
               className="fam-chart"
               role="img"
               aria-label={`Získané body po dnech: ${history.chart.earned.join(', ')}`}
             >
-              {history.chart.earned.map((v, i) => (
-                <div className="fam-chart-column" key={history.chart.days[i]}>
-                  <span
-                    style={{ height: `${history.chart.max ? (100 * v) / history.chart.max : 0}%` }}
-                    data-today={history.chart.days[i] === localKey(new Date()) ? '' : undefined}
-                  />
-                  <small>
-                    {days === 7
-                      ? new Date(`${history.chart.days[i]}T12:00:00`).toLocaleDateString('cs-CZ', {
-                          weekday: 'short',
-                        })
-                      : i % 7 === 0
-                        ? new Date(`${history.chart.days[i]}T12:00:00`).getDate()
-                        : ''}
-                  </small>
-                </div>
-              ))}
+              {history.chart.earned.map((v, i) => {
+                const today = history.chart.days[i] === localKey(new Date()) ? '' : undefined;
+                return (
+                  <div className="fam-chart-column" key={history.chart.days[i]} data-today={today}>
+                    <span
+                      style={{
+                        height: `${history.chart.max ? (100 * v) / history.chart.max : 0}%`,
+                      }}
+                      data-today={today}
+                    />
+                    <small>
+                      {days === 7
+                        ? new Date(`${history.chart.days[i]}T12:00:00`).toLocaleDateString(
+                            'cs-CZ',
+                            {
+                              weekday: 'short',
+                            },
+                          )
+                        : i % 7 === 0
+                          ? new Date(`${history.chart.days[i]}T12:00:00`).getDate()
+                          : ''}
+                    </small>
+                  </div>
+                );
+              })}
             </div>
             <figcaption>
               <i /> Dnes{!history.chart.coverage_complete && ' · Za část období chybí data'}
@@ -278,8 +317,13 @@ export function PointsSheet({
           </h3>
           {(['Získáno', 'Utraceno'] as const).map((group) => (
             <div key={group}>
-              <h4>{group}</h4>
-              <ul className="fam-points-sources">
+              <h4>
+                {group} <span>{group === 'Získáno' ? '(+)' : '(−)'}</span>
+              </h4>
+              <ul
+                className="fam-points-sources"
+                data-testid={`family-points-${group === 'Získáno' ? 'earned' : 'spent'}`}
+              >
                 {Object.entries(summary?.sources_month ?? {})
                   .filter(
                     ([label, value]) =>
@@ -412,18 +456,26 @@ export function AddChoreSheet({
     localKey(new Date(`${firstDate}T12:00:00`)) === firstDate &&
     /^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime) &&
     new Date(`${firstDate}T${dueTime}`).getTime() > openedAt;
-  const summaryText = `${kids
-    .filter((k) => assignees.includes(k.kid_uuid ?? k.id))
-    .map((k) => k.name)
-    .join(', ')} · ${
+  const startLabel = /^\d{4}-\d{2}-\d{2}$/.test(firstDate)
+    ? new Date(`${firstDate}T12:00:00`).toLocaleDateString('cs-CZ', {
+        day: 'numeric',
+        month: 'numeric',
+      })
+    : '—';
+  const dayList = WEEKDAYS.filter((d) => weekdays.includes(d.id)).map((d) => d.label);
+  const summaryText = [
+    kids
+      .filter((k) => assignees.includes(k.kid_uuid ?? k.id))
+      .map((k) => k.name)
+      .join(' a ') || 'Nikdo',
     recurrence === 'weekly'
-      ? WEEKDAYS.filter((d) => weekdays.includes(d.id))
-          .map((d) => d.label)
-          .join(' a ')
+      ? `${dayList.length > 1 ? `${dayList.slice(0, -1).join(', ')} a ${dayList.at(-1)}` : (dayList[0] ?? '—')} od\u00a0${startLabel}`
       : recurrence === 'daily'
-        ? 'Denně'
-        : 'Jednou'
-  } v ${dueTime} · ${points} b.`;
+        ? `denně od\u00a0${startLabel}`
+        : `jednou ${startLabel}`,
+    `do\u00a0${dueTime}`,
+    `${points}\u00a0b.`,
+  ].join(' · ');
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!valid || busy || new Date(`${firstDate}T${dueTime}`).getTime() <= new Date().getTime()) {
@@ -463,7 +515,28 @@ export function AddChoreSheet({
       closeLabel="Zavřít formulář"
       footer={
         <div>
-          {!valid && <p className="fam-hint">Vyplň název, příjemce a budoucí termín.</p>}
+          <div className="fam-summary">
+            <Icon name="calendar" size={18} />
+            <div>
+              <strong data-testid="family-chore-summary">{summaryText}</strong>
+              <p className="fam-hint">
+                {assignees.length > 1
+                  ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
+                  : 'Splnění schvaluje rodič.'}
+              </p>
+            </div>
+          </div>
+          {!valid && (
+            <p className="fam-hint fam-invalid" data-testid="family-add-chore-hint">
+              {!name.trim()
+                ? 'Doplň název úkolu.'
+                : !assignees.length
+                  ? 'Vyber, komu úkol patří.'
+                  : recurrence === 'weekly' && !weekdays.length
+                    ? 'Vyber aspoň jeden den.'
+                    : 'Zkontroluj body a budoucí termín.'}
+            </p>
+          )}
           <Button
             variant="primary"
             contrast="high"
@@ -471,6 +544,7 @@ export function AddChoreSheet({
             form="fam-add-chore"
             disabled={busy || !valid}
             data-testid="family-add-chore-save"
+            className="fam-cta"
           >
             {busy ? 'Ukládám…' : 'Uložit úkol'}
           </Button>
@@ -493,12 +567,13 @@ export function AddChoreSheet({
           <label htmlFor="fam-chore-points">Body</label>
           <div className="fam-stepper">
             <Button
-              variant="ghost"
+              variant="secondary"
+              size="sm"
+              icon={<Icon name="minus" size={18} />}
               aria-label="Ubrat bod"
+              disabled={!(Number(points) > 0)}
               onClick={() => setPoints(String(Math.max(0, Number(points) - 1)))}
-            >
-              −
-            </Button>
+            />
             <input
               id="fam-chore-points"
               aria-describedby={error ? errId : undefined}
@@ -508,12 +583,12 @@ export function AddChoreSheet({
             />
             <span>b.</span>
             <Button
-              variant="ghost"
+              variant="secondary"
+              size="sm"
+              icon={<Icon name="plus" size={18} />}
               aria-label="Přidat bod"
-              onClick={() => setPoints(String(Math.min(1000, Number(points) + 1)))}
-            >
-              +
-            </Button>
+              onClick={() => setPoints(String(Math.min(1000, (Number(points) || 0) + 1)))}
+            />
           </div>
         </div>
         <fieldset>
@@ -578,6 +653,18 @@ export function AddChoreSheet({
             </div>
           </details>
         </fieldset>
+        <div className="fam-chips fam-presets" role="group" aria-label="Rychlá volba bodů">
+          {['1', '2', '3', '5'].map((v) => (
+            <Chip
+              key={v}
+              className="fam-chip fam-preset"
+              onPress={() => setPoints(v)}
+              pressed={points === v}
+            >
+              {v} b.
+            </Chip>
+          ))}
+        </div>
         <fieldset>
           <legend>Komu</legend>
           <div className="fam-chips">
@@ -585,13 +672,7 @@ export function AddChoreSheet({
               const id = k.kid_uuid ?? k.id;
               const on = assignees.includes(id);
               return (
-                <Chip
-                  key={id}
-                  className="fam-chip"
-                  onPress={() => toggleAssignee(id)}
-                  look="soft"
-                  pressed={on}
-                >
+                <Chip key={id} className="fam-chip" onPress={() => toggleAssignee(id)} pressed={on}>
                   <span className="fam-partner-avatar" style={{ background: colors[k.id] }}>
                     {k.name[0]}
                   </span>
@@ -613,13 +694,12 @@ export function AddChoreSheet({
           ]}
         />
         {recurrence === 'weekly' && (
-          <div className="fam-chips">
+          <div className="fam-chips fam-weekdays" role="group" aria-label="Dny v týdnu">
             {WEEKDAYS.map((d) => (
               <Chip
                 key={d.id}
                 className="fam-chip"
                 onPress={() => toggleDay(d.id)}
-                look="soft"
                 pressed={weekdays.includes(d.id)}
               >
                 {d.label}
@@ -630,33 +710,32 @@ export function AddChoreSheet({
         <div className="fam-form-dates">
           <label>
             {recurrence === 'once' ? 'Den splnění' : 'První den'}
-            <input
-              aria-label="První den"
-              placeholder="DD. MM. RRRR"
-              value={firstDateText}
-              onChange={(e) => setFirstDateText(e.target.value)}
-              onBlur={() => chooseSchedule(recurrence, weekdays)}
-            />
+            <span className="fam-input-icon">
+              <input
+                aria-label="První den"
+                placeholder="DD. MM. RRRR"
+                inputMode="numeric"
+                value={firstDateText}
+                onChange={(e) => setFirstDateText(e.target.value)}
+                onBlur={() => chooseSchedule(recurrence, weekdays)}
+              />
+              <Icon name="calendar" size={20} />
+            </span>
           </label>
           <label>
             Splnit do
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="18:00"
-              value={dueTime}
-              onChange={(e) => setDueTime(e.target.value)}
-            />
+            <span className="fam-input-icon">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="18:00"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+              <Icon name="clock" size={20} />
+            </span>
           </label>
         </div>
-        <p className="fam-hint" data-testid="family-chore-summary">
-          {summaryText}
-        </p>
-        <p className="fam-hint">
-          {assignees.length > 1
-            ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
-            : 'Splnění schvaluje rodič.'}
-        </p>
         {error && (
           <p id={errId} className="fam-err" role="alert">
             {error}
@@ -737,6 +816,7 @@ export function SwapSheet({
           disabled={!target || target === (fromKid?.kid_uuid ?? kidId) || busy}
           onClick={() => void submit()}
           data-testid="family-swap-submit"
+          className="fam-cta"
         >
           {mode === 'reassign' ? 'Přeřadit' : 'Poslat rodiči ke schválení'}
         </Button>
@@ -745,20 +825,30 @@ export function SwapSheet({
     >
       <div className="fam-swap-sheet">
         <div className="fam-swap-chore">
-          <Icon
-            name={chore?.name.toLocaleLowerCase('cs').includes('koš') ? 'trash' : 'broom'}
-            size={26}
-          />
+          <span
+            className="fam-icon-tile"
+            style={{ '--fam-kid': colors[fromKid?.id ?? ''] } as CSSProperties}
+          >
+            <Icon
+              name={chore?.name.toLocaleLowerCase('cs').includes('koš') ? 'trash' : 'broom'}
+              size={24}
+            />
+          </span>
           <div>
             <strong>{chore?.name}</strong>
-            <p className="fam-hint">
-              {fromKid?.name} · {chore?.points} b.
-              {chore?.due ? ` · Splnit do ${timeLabel(chore.due)}` : ''}
+            <p className="fam-hint" data-testid="family-swap-chore-meta">
+              {[
+                mode === 'reassign' ? fromKid?.name : null,
+                chore?.due ? `dnes do ${timeLabel(chore.due)}` : 'dnes',
+                chore?.points != null ? `${chore.points} b.` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           </div>
         </div>
         <h3>Komu?</h3>
-        <div className="fam-chips">
+        <div className="fam-chips fam-person-chips" role="group" aria-label="Komu">
           {partners.map((p) => (
             <Chip
               key={p.id}
@@ -774,22 +864,24 @@ export function SwapSheet({
                 {p.name[0]}
               </span>
               {p.name}
-              {target === p.id && <Icon name="arrow" size={18} />}
+              {target === p.id && <Icon name="check" size={18} className="fam-chip-check" />}
             </Chip>
           ))}
         </div>
-        <div className="fam-info">
-          <Icon name="info" size={20} />
+        <div className="fam-info" data-tone="accent">
+          <span className="fam-info-icon">
+            <Icon name="info" size={20} />
+          </span>
           <div>
             <strong>{mode === 'reassign' ? 'Jen pro dnešek' : 'Nejdřív schválí rodič'}</strong>
             <p>
               {mode === 'reassign'
                 ? 'Přeřazení platí ihned. Zítra má úkol původní přiřazení.'
-                : 'Jen na dnes. Dokud to rodič neschválí, úkol zůstává tobě.'}
+                : 'Jen na dnes. Dokud to rodič neschválí, úkol zůstává tobě.'}{' '}
+              Body dostane ten, kdo úkol splní.
             </p>
           </div>
         </div>
-        <p className="fam-hint">Body dostane ten, kdo úkol splní.</p>
         {!target && <p className="fam-hint">Vyber, komu chceš úkol předat.</p>}
       </div>
     </Sheet>
@@ -811,7 +903,7 @@ export function useApprovals(snap: FamilySnapshot): FamilyApproval[] {
                 (c) =>
                   ({
                     kind: 'completion',
-                    type_label: 'Hotovo ke kontrole',
+                    type_label: 'Splnění ke kontrole',
                     kid_id: kid.id,
                     kid_name: kid.name,
                     chore_id: c.id,

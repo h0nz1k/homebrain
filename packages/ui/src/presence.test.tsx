@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { PresenceStrip, presenceInitials, type PresencePerson } from './presence.js';
+import {
+  PresenceStrip,
+  presenceHex,
+  presenceInitials,
+  type PresencePerson,
+} from './presence.js';
 
 const people: PresencePerson[] = [
   { id: 'person.jan', name: 'Jan', color: 'blue', status: 'home' },
@@ -30,6 +35,14 @@ describe('PresenceStrip', () => {
     expect(items.map((li) => li.dataset.status)).toEqual(['home', 'away', 'unknown']);
     expect(items[0]!.textContent).toContain('doma');
     expect(items[1]!.textContent).toContain('pryč');
+  });
+
+  it('exposes one hex per colour token, kept for away people too', () => {
+    expect(presenceHex('teal')).toBe('#0d9488');
+    expect(presenceHex('nonsense')).toBe(presenceHex('slate'));
+    render(<PresenceStrip people={people} />);
+    const items = screen.getAllByTestId('presence-person');
+    expect(items[1]!.style.getPropertyValue('--hb-presence-c')).toBe('#0d9488');
   });
 
   it('accepts only known colour tokens and sizes', () => {

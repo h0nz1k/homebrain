@@ -5,10 +5,12 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  Icon,
   PresenceStrip,
   Pill,
   Skeleton,
   czCount,
+  presenceHex,
 } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
 import {
@@ -257,19 +259,85 @@ interface Actions {
   onMenu?: (kid: string, chore: string) => void;
 }
 
+type ChoreRow = FamilyKid['chores'][number];
+
+/** Swap/pending meta under the chore name; deadline stays its own nowrap unit, never splits a pill. */
+function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: string } }) {
+  const swap = c.swap_today;
+  if (swap?.kind === 'pending_give')
+    return (
+      <div className="fam-chore-meta">
+        <Pill
+          size="sm"
+          tone="accent"
+          icon={<Icon name="swap" size={14} />}
+          data-testid="family-pending-pill"
+          data-pending="swap"
+        >
+          Předání čeká na schválení
+        </Pill>
+      </div>
+    );
+  if (c.state === 'claimed')
+    return (
+      <div className="fam-chore-meta">
+        <Pill
+          size="sm"
+          tone="warn"
+          icon={<Icon name="clock" size={14} />}
+          data-testid="family-pending-pill"
+          data-pending="completion"
+        >
+          Splnění čeká na schválení
+        </Pill>
+      </div>
+    );
+  if (swap?.kind === 'transferred_out')
+    return (
+      <div className="fam-chore-meta">
+        <small className="fam-swap-note" data-testid="family-swap-note">
+          <Icon name="swap" size={14} />
+          <span>Předáno: {swap.partner_name ?? '—'}</span>
+          <span>· jen dnes</span>
+        </small>
+      </div>
+    );
+  return (
+    <div className="fam-chore-meta">
+      <small data-tone={note.tone}>{note.text}</small>
+      {swap?.kind === 'transferred_in' && (
+        <span className="fam-swap-tag" data-testid="family-swap-note">
+          <Icon name="swap" size={14} />
+          Převzato od: {swap.partner_name ?? '—'} · jen dnes
+        </span>
+      )}
+    </div>
+  );
+}
+
 function KidCard({
   kid,
   color,
   now,
   act,
+  compact,
+  self,
 }: {
   kid: FamilyKid;
   color: string;
   now: Date;
   act: Actions;
+  /** Kiosk: finished chores fold into one „+N hotovo“ line so the card fits the screen. */
+  compact?: boolean;
+  /** Child's own view: the card header already names the viewer. */
+  self?: boolean;
 }) {
   const active = kid.chores.filter((c) => c.counts_today !== false);
   const t = choreTally(active.length ? active : kid.chores);
+  const sorted = sortChores(kid.chores);
+  const doneRows = compact ? sorted.filter((c) => c.state === 'done') : [];
+  const rows = compact ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const progress = t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic';
   return (
     <article
       className="fam-kid"
@@ -278,25 +346,14 @@ function KidCard({
       data-kid={kid.id}
     >
       <div className="fam-kid-h">
-        <span className="fam-avatar" aria-hidden="true">
-          {kid.name.slice(0, 1)}
-        </span>
+        {!self && (
+          <span className="fam-avatar" aria-hidden="true" data-testid="family-kid-avatar">
+            {kid.name.slice(0, 1)}
+          </span>
+        )}
         <div>
-          <b>{kid.name}</b>
-          <small>
-            <span>{t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic'}</span>
-            {kid.points !== null && act.onPoints && (
-              <button
-                type="button"
-                className="fam-total-link"
-                data-testid="family-total"
-                onClick={act.onPoints}
-              >
-                {' '}
-                celkem {Math.round(kid.points)} b. ›
-              </button>
-            )}
-          </small>
+          <b>{self ? progress : kid.name}</b>
+          {!self && <small>{progress}</small>}
         </div>
         {kid.points !== null && (
           <div className="fam-points" data-testid="family-points">
@@ -306,7 +363,10 @@ function KidCard({
             <small>
               dnes
               {t.waiting > 0 && (
-                <em data-testid="family-pending-points">+{fmtPoints(t.waiting)} čeká</em>
+                <>
+                  {' · '}
+                  <em data-testid="family-pending-points">+{fmtPoints(t.waiting)} čeká</em>
+                </>
               )}
             </small>
           </div>
@@ -325,37 +385,60 @@ function KidCard({
           <i data-pending style={{ width: `${(t.pending / t.total) * 100}%` }} />
         </div>
       )}
-      {act.onAdd && (
-        <Button
-          size="md"
-          variant="ghost"
-          data-testid="family-add-chore"
-          aria-label={`Přidat úkol: ${kid.name}`}
-          onClick={act.onAdd}
-        >
-          + Úkol
-        </Button>
+      {((kid.points !== null && act.onPoints) || act.onAdd) && (
+        <div className="fam-kid-tools">
+          {kid.points !== null && act.onPoints && (
+            <button
+              type="button"
+              className="fam-total-link"
+              data-testid="family-total"
+              onClick={act.onPoints}
+            >
+              celkem {Math.round(kid.points)} b.
+              <Icon name="chevron" size={16} />
+            </button>
+          )}
+          {act.onAdd && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="fam-add-chore-btn"
+              icon={<Icon name="plus" size={18} />}
+              data-testid="family-add-chore"
+              aria-label={`Přidat úkol: ${kid.name}`}
+              onClick={act.onAdd}
+            >
+              Úkol
+            </Button>
+          )}
+        </div>
       )}
       <ul className="fam-chores">
-        {sortChores(kid.chores).map((c) => {
+        {rows.map((c) => {
           const note = choreNote(c, now, { parentApproves: !c.can_approve });
           const ui = c.state === 'overdue' ? 'todo' : c.state;
           const key = `${kid.id}/${c.id}`;
-          const pendingSwap = c.swap_today?.kind === 'pending_give';
-          const swapLabel =
-            c.swap_today?.kind === 'pending_give' ? 'Čeká na předání' : c.swap_today?.label;
+          const out = c.swap_today?.kind === 'transferred_out';
+          const showMenu =
+            act.onMenu &&
+            (!self ||
+              (c.can_request_swap &&
+                c.state !== 'done' &&
+                c.state !== 'claimed' &&
+                c.swap_today?.kind !== 'pending_give' &&
+                c.swap_today?.kind !== 'transferred_out'));
           return (
             <li
               key={c.id}
               className="fam-chore"
               data-state={ui}
-              data-muted={c.swap_today?.kind === 'transferred_out' || undefined}
+              data-muted={out || undefined}
               data-swap={c.swap_today?.kind}
               data-testid="family-chore"
             >
-              {c.swap_today?.kind === 'transferred_out' ? (
+              {out ? (
                 <span className="fam-transferred-icon" aria-hidden="true">
-                  ↔
+                  <Icon name="swap" size={20} />
                 </span>
               ) : (
                 <button
@@ -371,37 +454,41 @@ function KidCard({
               )}
               <div className="fam-chore-t">
                 <b>{c.name}</b>
-                <div className="fam-chore-meta">
-                  <small data-tone={pendingSwap || c.state === 'claimed' ? 'warn' : note.tone}>
-                    {pendingSwap || c.state === 'claimed' ? (
-                      <Pill size="sm" tone="warn" icon={<span aria-hidden="true">◷</span>}>
-                        Čeká na schválení
-                      </Pill>
-                    ) : (
-                      (swapLabel ?? note.text)
-                    )}
-                    {pendingSwap && c.due ? ` do ${timeLabel(c.due)}` : ''}
-                  </small>
-                </div>
+                <ChoreMeta c={c} note={note} />
               </div>
               <span className="fam-pts">{pointsLabel(c.points)}</span>
-              {act.onMenu && (
-                <div className="fam-chore-menu">
+              {act.onMenu &&
+                (showMenu ? (
                   <Button
-                    type="button"
                     variant="ghost"
                     className="fam-overflow"
+                    icon={<Icon name="more" size={22} />}
                     data-testid="family-chore-menu"
                     aria-label={`Akce: ${c.name}`}
                     onClick={() => act.onMenu?.(kid.id, c.id)}
-                  >
-                    ···
-                  </Button>
-                </div>
-              )}
+                  />
+                ) : (
+                  <span className="fam-overflow-spacer" aria-hidden="true" />
+                ))}
             </li>
           );
         })}
+        {doneRows.length > 0 && (
+          <li className="fam-chore fam-done-sum" data-testid="family-done-summary">
+            <span className="fam-done-sum-i" aria-hidden="true">
+              <Check />
+            </span>
+            <div className="fam-chore-t">
+              <b>+{doneRows.length} hotovo</b>
+              <div className="fam-chore-meta">
+                <small>{doneRows.map((c) => c.name).join(' · ')}</small>
+              </div>
+            </div>
+            <span className="fam-pts">
+              {pointsLabel(doneRows.reduce((sum, c) => sum + (c.points ?? 0), 0))}
+            </span>
+          </li>
+        )}
       </ul>
     </article>
   );
@@ -433,10 +520,27 @@ function ChoresCard({
   if (snap.kids.length === 0) return null;
   const waiting = approvals.length;
   const parent = snap.role === 'owner' || snap.role === 'adult';
+  const child = snap.role === 'child';
+  const viewer = child && snap.kids.length === 1 ? snap.kids[0]! : null;
+  const viewerColor = viewer
+    ? (members.find((m) => m.id === viewer.id)?.color ?? KID_COLORS[0]!)
+    : '';
   return (
     <Card className="fam-card" data-testid="family-chores">
       <div className="fam-card-h">
-        <h2>{snap.role === 'child' ? 'Moje povinnosti' : 'Povinnosti dětí'}</h2>
+        <h2>{child ? 'Moje povinnosti' : 'Povinnosti dětí'}</h2>
+        {viewer && (
+          <span
+            className="fam-viewer"
+            data-testid="family-viewer"
+            style={{ '--fam-kid': viewerColor } as React.CSSProperties}
+          >
+            <span className="fam-avatar fam-avatar-sm" aria-hidden="true">
+              {viewer.name.slice(0, 1)}
+            </span>
+            {viewer.name}
+          </span>
+        )}
         {waiting > 0 && (
           <span className="fam-meta" data-tone="warn">
             {czCount(waiting, 'čeká na schválení', 'čekají na schválení', 'čeká na schválení')}
@@ -462,6 +566,8 @@ function ChoresCard({
             kid={kid}
             color={members[i]?.color ?? KID_COLORS[0]!}
             now={now}
+            compact={snap.role === 'kiosk'}
+            self={!!viewer}
             act={{
               ...kidAct(kid),
               onAdd: snap.capabilities?.can_create_chore && parent ? () => onAdd(kid) : undefined,
@@ -654,33 +760,21 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         await api.swapDecide(item.request_id!, 'reject', item.revision);
       }),
   };
-  const presenceColors: Record<string, string> = {
-    blue: '#3b82f6',
-    teal: '#0d9488',
-    purple: '#8b5cf6',
-    pink: '#c026d3',
-    amber: '#d97706',
-    orange: '#ea580c',
-    indigo: '#6366f1',
-    slate: '#64748b',
-  };
   const members = membersOf(snap).map((member) => ({
     ...member,
-    color:
-      presenceColors[
-        people?.find((person) => person.id === member.id || person.name === member.name)?.color ??
-          ''
-      ] ?? member.color,
+    color: (() => {
+      const person = people?.find(
+        (p) => p.id === member.id || p.id === `person.${member.id}` || p.name === member.name,
+      );
+      return person ? presenceHex(person.color) : member.color;
+    })(),
   }));
   const identityColors = Object.fromEntries([
     ...members.flatMap((member) => [
       [member.id, member.color],
       [member.name, member.color],
     ]),
-    ...(people ?? []).map((person) => [
-      person.name,
-      presenceColors[person.color] ?? KID_COLORS[0]!,
-    ]),
+    ...(people ?? []).map((person) => [person.name, presenceHex(person.color)]),
   ]);
   const slot = (name: string, node: React.ReactNode) => (
     <div className="fam-slot" data-slot={name}>

@@ -68,7 +68,11 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-total')).toHaveCount(0);
     await expect(page.getByTestId('family-chore-menu')).toHaveCount(0);
     await expect(page.getByTestId('family-day')).toHaveCount(7);
-    await expect(page.getByTestId('family-chores')).toContainText('Čeká na schválení');
+    await expect(page.getByTestId('family-chores')).toContainText('Splnění čeká na schválení');
+    // The chores card fits the 800 px kiosk: bottom edge (with its padding) inside the viewport.
+    const card = await page.getByTestId('family-chores').boundingBox();
+    expect(card!.y + card!.height).toBeLessThanOrEqual(800);
+    await expect(page.getByTestId('family-done-summary').first()).toContainText('+2 hotovo');
     const check = await page.getByTestId('family-chore-check').first().boundingBox();
     expect(check!.width).toBeGreaterThanOrEqual(48);
     const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
@@ -92,7 +96,7 @@ test.describe('Rodina', () => {
     await page.locator('#fam-add-chore input').first().fill('Vytřít chodbu');
     await page.getByTestId('family-add-chore-save').click();
     await page.getByTestId('family-swap-approve').first().click();
-    await expect(page.getByText('za: Dcera').first()).toBeVisible();
+    await expect(page.getByText('Převzato od: Dcera').first()).toBeVisible();
     await page.getByTestId('family-total').first().click();
     await expect(page.getByTestId('family-points-sheet')).toBeVisible();
   });
@@ -102,23 +106,30 @@ test.describe('Rodina', () => {
     const approval = page.locator('.fam-approval[data-kind="swap"]');
     await expect(approval).toContainText('Žádá Dcera');
     await expect(approval).toContainText('Vyluxovat pokoj');
-    await expect(approval).toContainText('4 b.');
+    await expect(approval.getByTestId('family-approval-points')).toHaveText('+4 b.');
     await expect(approval).toContainText('Syn');
-    await expect(approval).toContainText('jen dnes');
     const original = page
       .locator('[data-kid="dcera"] [data-testid="family-chore"]')
       .filter({ hasText: 'Vyluxovat pokoj' });
     await expect(original).toHaveAttribute('data-swap', 'pending_give');
     await expect(original).not.toHaveAttribute('data-muted');
-    await expect(original).toContainText('Čeká na schválení');
+    await expect(original.getByTestId('family-pending-pill')).toHaveText(
+      'Předání čeká na schválení',
+    );
+    await expect(
+      page
+        .locator('[data-kid="syn"] [data-testid="family-chore"]')
+        .filter({ hasText: 'Uklidit boty' })
+        .getByTestId('family-pending-pill'),
+    ).toHaveText('Splnění čeká na schválení');
     await approval.getByTestId('family-swap-approve').click();
     await expect(original).toHaveAttribute('data-swap', 'transferred_out');
-    await expect(original).toContainText('→ dnes Syn');
+    await expect(original.getByTestId('family-swap-note')).toHaveText(/Předáno: Syn\s*· jen dnes/);
     await expect(
       page
         .locator('[data-kid="syn"] [data-testid="family-chore"]')
         .filter({ hasText: 'Vyluxovat pokoj' }),
-    ).toContainText('za: Dcera');
+    ).toContainText('Převzato od: Dcera · jen dnes');
     await expect(approval).toHaveCount(0);
   });
 
@@ -132,11 +143,14 @@ test.describe('Rodina', () => {
       'true',
     );
     await expect(page.getByRole('button', { name: 'Ne', exact: true })).toBeVisible();
-    await expect(page.getByTestId('family-chore-summary')).toHaveText(
-      'Dcera · Po a Čt v 18:00 · 2 b.',
-    );
+    const summary = page.getByTestId('family-chore-summary');
+    await expect(summary).toContainText('Dcera · Po a Čt od');
+    await expect(summary).toContainText('do\u00a018:00');
+    await expect(summary).toContainText('2\u00a0b.');
+    await expect(page.getByTestId('family-add-chore-hint')).toHaveText('Doplň název úkolu.');
     await page.locator('#fam-add-chore input').first().fill('Zalít květiny');
     await expect(page.getByTestId('family-add-chore-save')).toBeEnabled();
+    await expect(page.getByTestId('family-add-chore-hint')).toHaveCount(0);
   });
 
   test('body: graf je vidět po otevření na telefonu', async ({ page }) => {
@@ -148,6 +162,37 @@ test.describe('Rodina', () => {
     expect(chart!.y).toBeGreaterThan(0);
     expect(chart!.y + chart!.height).toBeLessThan(844);
     await expect(page.getByTestId('family-points-sheet')).toContainText('+116 čistě');
+  });
+
+  test('jedna barva osoby: přítomnost i povinnosti', async ({ page }) => {
+    await open(page);
+    const presence = await page
+      .locator('[data-testid="presence-person"]', { hasText: 'Syn' })
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--hb-presence-c').trim());
+    const chores = await page
+      .locator('[data-kid="syn"]')
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--fam-kid').trim());
+    expect(presence).toBe('#0d9488');
+    expect(chores).toBe(presence);
+  });
+
+  test('dítě: bez ⋯ u hotových a čekajících úkolů, vidí, kdo se dívá', async ({ page }) => {
+    await open(page, '?role=child');
+    await expect(page.getByTestId('family-viewer')).toHaveText(/Syn/);
+    for (const state of ['done', 'claimed']) {
+      await expect(
+        page.locator(`[data-testid="family-chore"][data-state="${state}"]`).first(),
+      ).toBeVisible();
+      await expect(
+        page.locator(
+          `[data-testid="family-chore"][data-state="${state}"] [data-testid="family-chore-menu"]`,
+        ),
+      ).toHaveCount(0);
+    }
+    const menu = page.getByTestId('family-chore-menu').first();
+    const box = await menu.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
   });
 
   test('nic nenastaveno: neutrální text, žádná chyba', async ({ page }) => {
