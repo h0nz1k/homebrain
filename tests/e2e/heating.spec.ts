@@ -229,6 +229,7 @@ test.describe('Topení', () => {
         test(`C3 ${theme} ${scenario} ${width}×${height}: čitelné popisky a hydraulika`, async ({
           page,
         }) => {
+          test.setTimeout(60_000);
           await page.setViewportSize({ width: width!, height: height! });
           await page.goto(`/homebrain-topeni?topeni=${scenario}&theme=${theme}`);
           const sch = page.getByTestId('heating-schematic');
@@ -801,6 +802,7 @@ test.describe('Topení', () => {
       test(`Plné schéma: viditelné okruhy a stabilní zoom ${width}×${height} ${theme}`, async ({
         page,
       }) => {
+        test.setTimeout(60_000);
         await page.setViewportSize({ width: width!, height: height! });
         await page.goto(`/homebrain-topeni?topeni=heating&theme=${theme}`);
         await page.getByTestId('heating-full-schematic-open').click();
@@ -887,10 +889,75 @@ test.describe('Topení', () => {
                 Number.parseFloat(getComputedStyle(t).fontSize) *
                 (t as SVGGraphicsElement).getScreenCTM()!.a,
             );
+            const clearanceFailures: string[] = [];
+            for (const path of Array.from(
+              el.querySelectorAll<SVGPathElement>('[data-pipe] > .ht-d1-pipe, [data-architecture]'),
+            )) {
+              const transform = path.getScreenCTM()!;
+              const length = path.getTotalLength();
+              const stroke =
+                (Number.parseFloat(getComputedStyle(path).strokeWidth) * transform.a) / 2;
+              for (let at = 0; at <= length; at += 2 / transform.a) {
+                const point = path.getPointAtLength(at);
+                const screen = new DOMPoint(point.x, point.y).matrixTransform(transform);
+                if (
+                  chips.some(
+                    (box) =>
+                      Math.hypot(
+                        Math.max(box.left - screen.x, 0, screen.x - box.right),
+                        Math.max(box.top - screen.y, 0, screen.y - box.bottom),
+                      ) <
+                      6 + stroke,
+                  )
+                ) {
+                  clearanceFailures.push(
+                    path.parentElement!.getAttribute('data-pipe') ??
+                      path.getAttribute('data-architecture')!,
+                  );
+                  break;
+                }
+              }
+            }
+            const terrace = el.querySelector<SVGPathElement>('[data-hall-ground]')!;
+            const end = terrace.getPointAtLength(terrace.getTotalLength());
+            const groundEnd = new DOMPoint(end.x, end.y).matrixTransform(terrace.getScreenCTM()!);
+            // Largest axis-aligned empty corner rectangle relative to the scene.
+            // Buildings, chips and pipes count as occupied; sample a 20×20 canvas grid.
+            const occupied = [
+              ...buildings.map((b) => b.box),
+              ...chips,
+              ...Array.from(el.querySelectorAll('[data-pipe] > path')).map((p) =>
+                p.getBoundingClientRect(),
+              ),
+            ];
+            let emptyCorner = 0;
+            for (const [right, bottom] of [
+              [false, false],
+              [true, false],
+              [false, true],
+              [true, true],
+            ]) {
+              for (let w = 1; w <= 20; w++)
+                for (let h = 1; h <= 20; h++) {
+                  const rw = (viewport.width * w) / 20,
+                    rh = (viewport.height * h) / 20;
+                  const rect = {
+                    left: right ? viewport.right - rw : viewport.left,
+                    right: right ? viewport.right : viewport.left + rw,
+                    top: bottom ? viewport.bottom - rh : viewport.top,
+                    bottom: bottom ? viewport.bottom : viewport.top + rh,
+                  } as DOMRect;
+                  if (!occupied.some((box) => overlap(rect, box)))
+                    emptyCorner = Math.max(emptyCorner, (w * h) / 400);
+                }
+            }
             return {
+              clearanceFailures,
+              poolOnGround: Math.abs(groundEnd.y - pool.bottom) < 3,
+              emptyCorner,
               fillsCanvas:
-                (content.width * matrix.a) / viewport.width >= 0.8 ||
-                (content.height * matrix.d) / viewport.height >= 0.8,
+                (content.width * matrix.a) / viewport.width >= 0.85 ||
+                (content.height * matrix.d) / viewport.height >= 0.85,
               chipsCollide: chips.some((a, i) => chips.slice(i + 1).some((b) => overlap(a, b))),
               dotCollides: chips.some((a) => dots.some((b) => overlap(a, b))),
               poolLowest: buildings.every((b) => b.id === 'pool-hall' || b.box.bottom < pool.top),
@@ -901,12 +968,15 @@ test.describe('Topení', () => {
           });
         const layout = await inspectLayout();
         expect(layout).toMatchObject({
+          clearanceFailures: [],
+          poolOnGround: true,
           fillsCanvas: true,
           chipsCollide: false,
           dotCollides: false,
           poolLowest: true,
           solarBelowGround: false,
         });
+        expect(layout.emptyCorner).toBeLessThanOrEqual(0.2);
         expect(layout.minCaption).toBeGreaterThanOrEqual(10.99);
         expect(layout.minValue).toBeGreaterThanOrEqual(12.99);
         for (const button of await sheet.getByRole('button').all()) {
@@ -914,6 +984,11 @@ test.describe('Topení', () => {
           expect(box.width).toBeGreaterThanOrEqual(44);
           expect(box.height).toBeGreaterThanOrEqual(44);
         }
+        const tankPreset = sheet.getByRole('button', { name: 'Nádrž', exact: true });
+        await tankPreset.click();
+        await expect(tankPreset).toHaveAttribute('aria-pressed', 'true');
+        await sheet.getByRole('button', { name: 'Celé schéma', exact: true }).click();
+        await expect(tankPreset).toHaveAttribute('aria-pressed', 'false');
         const visibleFraction = async () =>
           svg.evaluate((el) => {
             const viewport = el

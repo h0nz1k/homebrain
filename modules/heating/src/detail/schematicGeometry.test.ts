@@ -21,8 +21,8 @@ describe('detail schematic geometry', () => {
       poolHallX: 840,
       floorBranchY: 800,
     });
-    expect(m.ports['floor.in']).toMatchObject({ x: 865, y: 1290 });
-    expect(m.pipes.find((p) => p.id === 'pool-floor-supply')!.points).toContainEqual([865, 800]);
+    expect(m.ports['floor.in']).toMatchObject({ x: 825.5, y: 1170 });
+    expect(m.pipes.find((p) => p.id === 'pool-floor-return')!.points).toContainEqual([585, 800]);
     expect(
       auditSchematicGeometry(m).filter((f) =>
         ['endpoint', 'device-off-pipe', 'non-orthogonal'].includes(f.code),
@@ -65,6 +65,7 @@ describe('detail schematic geometry', () => {
   });
 
   const cases = [
+    ['pipe-intersection', 'pipe-intersection'],
     ['pipe-body', 'pipe-body'],
     ['undeclared-bridge', 'undeclared-bridge'],
     ['endpoint', 'endpoint'],

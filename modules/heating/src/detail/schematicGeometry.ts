@@ -1,6 +1,7 @@
 import type { DetailSchematicModel, SchematicLabel, SchematicPipe } from './types.js';
 
 export type GeometryFailCode =
+  | 'pipe-intersection'
   | 'pipe-body'
   | 'endpoint'
   | 'device-off-pipe'
@@ -70,6 +71,7 @@ function portsShare(
   );
 }
 
+/** Preferred anchors may move during measured packing; rendered bboxes are audited in e2e. */
 function approxChipBox(label: SchematicLabel): {
   left: number;
   right: number;
@@ -80,7 +82,7 @@ function approxChipBox(label: SchematicLabel): {
     left: label.x - 85,
     right: label.x + 85,
     top: label.y - 26,
-    bottom: label.y - 26 + 52,
+    bottom: label.y + 26,
   };
 }
 
@@ -156,6 +158,54 @@ export function auditSchematicGeometry(model: DetailSchematicModel): GeometryFai
     }
   }
 
+  for (let i = 0; i < model.pipes.length; i++) {
+    const a = model.pipes[i]!;
+    for (const b of model.pipes.slice(i + 1)) {
+      for (let j = 1; j < a.points.length; j++)
+        for (let k = 1; k < b.points.length; k++) {
+          const p = a.points[j - 1]!,
+            q = a.points[j]!;
+          const r = b.points[k - 1]!,
+            t = b.points[k]!;
+          const ah = p[1] === q[1],
+            bh = r[1] === t[1];
+          if (ah === bh) {
+            const axis = ah ? 0 : 1,
+              fixed = 1 - axis;
+            if (p[fixed] === r[fixed]) {
+              const overlap =
+                Math.min(Math.max(p[axis]!, q[axis]!), Math.max(r[axis]!, t[axis]!)) -
+                Math.max(Math.min(p[axis]!, q[axis]!), Math.min(r[axis]!, t[axis]!));
+              if (overlap > 0.01) fail('pipe-intersection', `${a.id}/${b.id}:overlap`);
+            }
+            continue;
+          }
+          const h0 = ah ? p : r,
+            h1 = ah ? q : t;
+          const v0 = ah ? r : p,
+            v1 = ah ? t : q;
+          const x = v0[0],
+            y = h0[1];
+          if (
+            x < Math.min(h0[0], h1[0]) ||
+            x > Math.max(h0[0], h1[0]) ||
+            y < Math.min(v0[1], v1[1]) ||
+            y > Math.max(v0[1], v1[1])
+          )
+            continue;
+          // A permitted connection must be the very same declared component port,
+          // not just two routes that happen to share some other endpoint.
+          const ownersAt = (pipe: SchematicPipe) =>
+            [pipe.start, pipe.end].flatMap((id) => {
+              const port = model.ports[id]!;
+              return Math.abs(port.x - x) < 0.01 && Math.abs(port.y - y) < 0.01 ? [port.owner] : [];
+            });
+          if (!ownersAt(a).some((owner) => ownersAt(b).includes(owner)))
+            fail('pipe-intersection', `${a.id}/${b.id}@${x},${y}`);
+        }
+    }
+  }
+
   for (const d of model.devices) {
     const pipe = model.pipes.find((p) => p.id === d.pipe);
     if (!pipe || distanceToPolyline(d.x, d.y, pipe.points) > 1) fail('device-off-pipe', d.id);
@@ -180,13 +230,17 @@ export function mutateModel(
   kind: GeometryFailCode,
 ): DetailSchematicModel {
   const m = structuredClone(model);
+  if (kind === 'pipe-intersection') {
+    m.pipes[0]!.points.push([0, 500], [600, 500]);
+  }
   if (kind === 'pipe-body') {
     const p = m.pipes.find((p) => p.id === 'tank-charge')!;
     const tank = m.bodies.find((b) => b.id === 'tank')!;
-    p.points.splice(1, 0, [tank.x + 100, 400]);
+    p.points.splice(1, 0, [tank.x + 70, 420]);
   }
   if (kind === 'undeclared-bridge') {
-    const p = m.pipes.find((p) => p.bridges?.length)!;
+    const p = m.pipes[0]!;
+    p.d += 'Q1 2 3 4';
     p.bridges = [];
   }
   if (kind === 'endpoint') {

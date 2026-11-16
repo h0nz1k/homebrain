@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useId, useMemo, useRef } from 'react';
+import { placeSchematicChip, schematicObstacles, type ChipBox } from './placeSchematicChips.js';
 import { solarConfigured } from '../solar.js';
 import type { HeatingSnapshot } from '../types.js';
 import {
@@ -80,20 +81,49 @@ export function DetailSchematic({
 
   useLayoutEffect(() => {
     const measure = () => {
-      for (const chip of root.current?.querySelectorAll<SVGGElement>('.ht-d1-chip') ?? []) {
+      const occupied: ChipBox[] = [];
+      const obstacles = schematicObstacles(model);
+      const chips = Array.from(root.current?.querySelectorAll<SVGGElement>('.ht-d1-chip') ?? []);
+      // Reserve the widest status card before placing the smaller temperature pills.
+      chips.sort((a, b) => Number(b.dataset.label === 'hp') - Number(a.dataset.label === 'hp'));
+      for (const chip of chips) {
         const text = chip.querySelector('text');
         const rect = chip.querySelector('rect');
         if (!text || !rect) continue;
         const box = text.getBBox();
-        rect.setAttribute('x', String(box.x - 8));
-        rect.setAttribute('y', String(box.y - 6));
-        rect.setAttribute('width', String(box.width + 16));
-        rect.setAttribute('height', String(box.height + 12));
+        rect.setAttribute('x', String(box.x - 3));
+        rect.setAttribute('y', String(box.y - 3));
+        rect.setAttribute('width', String(box.width + 6));
+        rect.setAttribute('height', String(box.height + 6));
+        const label = model.labels.find((l) => l.id === chip.dataset.label)!;
+        const chipScale = Math.max(1, 1 / scale);
+        const placed = placeSchematicChip(
+          {
+            x: label.x + (box.x - 3) * chipScale,
+            y: label.y + (box.y - 3) * chipScale,
+            w: (box.width + 6) * chipScale,
+            h: (box.height + 6) * chipScale,
+          },
+          occupied,
+          model,
+          obstacles,
+          scale,
+        );
+        occupied.push(placed);
+        const x = placed.x - (box.x - 3) * chipScale;
+        const y = placed.y - (box.y - 3) * chipScale;
+        chip.setAttribute('transform', `translate(${x} ${y}) scale(${chipScale})`);
+        chip
+          .querySelector('path')
+          ?.setAttribute(
+            'd',
+            `M${(label.anchor[0] - x) / chipScale} ${(label.anchor[1] - y) / chipScale}L0 0`,
+          );
       }
     };
     measure();
     void document.fonts.ready.then(measure);
-  }, [values, scale, minScale]);
+  }, [values, scale, minScale, model]);
 
   useEffect(() => {
     if (!root.current || typeof matchMedia === 'undefined') return;
@@ -125,7 +155,7 @@ export function DetailSchematic({
       animations.forEach((a) => a.cancel());
       reduced.removeEventListener('change', update);
     };
-  }, [scenario, snap]);
+  }, [scenario, snap, model]);
 
   const deviceOn = (id: string): boolean | null => {
     if (id === 'Nabíjení') return snap.pumps.secondary;
@@ -263,7 +293,17 @@ export function DetailSchematic({
             ? 'Nahoře'
             : scale < 0.6 && label.id === 'bottom'
               ? 'Dole'
-              : chip.caption;
+              : scale < 0.6
+                ? ((
+                    {
+                      solar: 'Solár',
+                      tap: 'Teplá voda',
+                      pool: 'Bazén',
+                      ground: 'Země',
+                      'cold-water': 'Studená',
+                    } as Record<string, string>
+                  )[label.id] ?? chip.caption)
+                : chip.caption;
         const chipScale = Math.max(1, 1 / scale);
         const leader = `M${(ax - label.x) / chipScale} ${(ay - label.y) / chipScale}L0 0`;
         return (
@@ -275,9 +315,7 @@ export function DetailSchematic({
             transform={`translate(${label.x} ${label.y}) scale(${chipScale})`}
           >
             <title>{`${chip.caption}: ${chip.value}`}</title>
-            {label.id !== 'tank-title' && label.id !== 'bottom' && label.id !== 'outdoor' ? (
-              <path className="ht-d1-chip-leader" d={leader} />
-            ) : null}
+            {label.id !== 'outdoor' ? <path className="ht-d1-chip-leader" d={leader} /> : null}
             <rect
               className="ht-d1-chip-bg"
               rx={10}
@@ -291,7 +329,11 @@ export function DetailSchematic({
                 {isHp ? chip.value : caption}
               </tspan>
               <tspan className="ht-d1-value" x={0} dy={17}>
-                {isHp ? values['hp-pair']?.value : chip.value}
+                {isHp
+                  ? values['hp-pair']?.value.replace(' / ', '/')
+                  : scale < 0.6 && label.id === 'ground'
+                    ? 'Kolektor'
+                    : chip.value}
               </tspan>
             </text>
           </g>

@@ -758,4 +758,24 @@ export const heatingStyles = `
  .ht-d1-controls .hb-btn, .ht-d1-regions .hb-btn { padding:0 8px; font-size:12px; }
  .ht-d1-controls .hb-btn:nth-child(-n+2) { font-size:18px; }
 }
+
+.ht-d1-shell { --ht-c3-ground:#9bbe61; }
+[data-theme="light"] .ht-d1-shell { --ht-c3-ground:#586f19; --ht-c3-solar:#7b5400; --ht-c3-mains:#007baf; }
+.ht-d1-arrows { display:none; }
+.ht-d1-controls { gap:4px; padding:3px; overflow:visible; }
+.ht-d1-controls .hb-btn { border-radius:9px; }
+.ht-d1-controls .hb-btn + .hb-btn { border-left:0; }
+.ht-d1-mouse-hint { display:none; }
+@media(pointer:fine) { .ht-d1-touch-hint { display:none; } .ht-d1-mouse-hint { display:inline; } }
+@media(max-width:599px) {
+ .ht-d1-legend { display:grid; grid-template-columns:repeat(12, 1fr); gap:6px 8px; }
+ .ht-d1-legend span { grid-column:span 3; justify-content:center; white-space:nowrap; }
+ .ht-d1-legend span:nth-child(n+5) { grid-column:span 4; }
+}
+
+.ht-d1-controls .hb-btn:nth-child(-n+2) { background:var(--hb-s1); border:1px solid var(--hb-border, #77838f40); }
+@media(max-width:599px) {
+ .ht-d1-controls .hb-btn:nth-child(3) { font-size:11px; padding:0 6px; }
+ .ht-d1-regions .hb-btn { padding:0 5px; }
+}
 `;

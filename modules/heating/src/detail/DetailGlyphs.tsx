@@ -6,8 +6,18 @@ export function DetailArchitecture({ model }: { model: DetailSchematicModel }) {
   const ratio = model.bodies.find((b) => b.id === 'tank')!.h / 420;
   const ground = model.bodies.find((b) => b.id === 'main-house')!;
   const groundY = ground.y + ground.h;
+  const hall = model.bodies.find((b) => b.id === 'pool-hall')!;
+
   return (
     <>
+      <rect
+        data-soil=""
+        x={ground.x}
+        y={groundY}
+        width={ground.w}
+        height={hall.y + hall.h - groundY + 24 * ratio}
+        fill="var(--ht-c3-soil)"
+      />
       {['main-house', 'fish-house', 'pool-hall'].map((id) => {
         const b = model.bodies.find((b) => b.id === id)!;
         const roof = (id === 'main-house' ? 90 : 45) * ratio;
@@ -15,22 +25,33 @@ export function DetailArchitecture({ model }: { model: DetailSchematicModel }) {
           <path
             key={id}
             data-architecture={id === 'fish-house' ? 'rybarna' : id}
-            d={`M${b.x} ${b.y + roof}L${b.x + b.w / 2} ${b.y}L${b.x + b.w} ${b.y + roof}V${b.y + b.h}H${b.x}Z`}
+            d={
+              id === 'pool-hall'
+                ? `M${b.x} ${b.y}H${b.x + b.w}V${b.y + b.h}H${b.x}Z`
+                : `M${b.x} ${b.y + roof}L${b.x + b.w / 2} ${b.y}L${b.x + b.w} ${b.y + roof}V${b.y + b.h}H${b.x}Z`
+            }
             className="ht-d1-house"
           />
         );
       })}
       <text
-        x={model.layout.poolHallX + 150}
-        y={model.bodies.find((b) => b.id === 'pool-hall')!.y + 65 * ratio}
+        x={model.layout.poolHallX + model.bodies.find((b) => b.id === 'pool-hall')!.w * 0.26}
+        y={model.bodies.find((b) => b.id === 'pool-hall')!.y + 100 * ratio}
         className="ht-d1-arch-label"
         textAnchor="middle"
       >
         Bazén
       </text>
+      <path
+        data-hall-ground=""
+        d={`M${hall.x + hall.w} ${hall.y + hall.h}H${hall.x}`}
+        fill="none"
+        stroke="var(--ht-c3-wall)"
+        strokeWidth={5}
+      />
       <rect
         data-ground-line={groundY}
-        x={20}
+        x={ground.x}
         y={groundY}
         width={model.bodies.find((b) => b.id === 'main-house')!.w}
         height={95 * ratio}
@@ -43,7 +64,7 @@ export function DetailArchitecture({ model }: { model: DetailSchematicModel }) {
 export function DetailTankGlyph({ body: b }: { body: SchematicBody }) {
   const uid = useId().replace(/:/g, '');
   return (
-    <g data-node="tank" transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 420})`}>
+    <g data-node="tank" transform={`translate(${b.x} ${b.y}) scale(${b.w / 140} ${b.h / 420})`}>
       <defs>
         <linearGradient id={uid} x1="0%" x2="0%" y1="0%" y2="100%">
           <stop stopColor="#ca7370" />
@@ -52,7 +73,7 @@ export function DetailTankGlyph({ body: b }: { body: SchematicBody }) {
         </linearGradient>
       </defs>
       <rect
-        width={b.w}
+        width={140}
         height={420}
         rx={24}
         fill={`url(#${uid})`}
@@ -66,10 +87,10 @@ export function DetailTankGlyph({ body: b }: { body: SchematicBody }) {
         strokeWidth={2}
       />
       <path
-        d="M40 0V65H110V85H30V105H110V125H100V420"
+        d="M40 0V65H110V85H30V105H110V125H100V380H80V420"
         className="ht-d1-internal ht-d1-potable-coil"
       />
-      <path d="M140 340H115V350H70V365H115V370H140" className="ht-c3-solar-coil" />
+      <path d="M0 340H25V350H70V365H25V370H0" className="ht-c3-solar-coil" />
     </g>
   );
 }
@@ -79,9 +100,9 @@ export function DetailHpGlyph({ body: b, on }: { body: SchematicBody; on: boolea
     <g
       data-node="hp"
       aria-label="Tepelné čerpadlo"
-      transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 130})`}
+      transform={`translate(${b.x} ${b.y}) scale(${b.w / 100} ${b.h / 130})`}
     >
-      <rect width={b.w} height={130} rx={12} className="ht-c3-cabinet" />
+      <rect width={100} height={130} rx={12} className="ht-c3-cabinet" />
       <circle
         data-hp-status-dot=""
         cx={15}
@@ -99,8 +120,8 @@ export function DetailHpGlyph({ body: b, on }: { body: SchematicBody; on: boolea
 }
 export function DetailRadiatorGlyph({ body: b }: { body: SchematicBody }) {
   return (
-    <g data-node={b.id} transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 65})`}>
-      <rect width={b.w} height={65} rx={6} className="ht-c3-ceramic" />
+    <g data-node={b.id} transform={`translate(${b.x} ${b.y}) scale(${b.w / 120} ${b.h / 65})`}>
+      <rect width={120} height={65} rx={6} className="ht-c3-ceramic" />
       {[12, 28, 44, 60, 76, 92, 108].map((x) => (
         <path key={x} d={`M${x} 8V57`} className="ht-c3-fin" style={{ strokeWidth: 5 }} />
       ))}
@@ -110,14 +131,14 @@ export function DetailRadiatorGlyph({ body: b }: { body: SchematicBody }) {
 export function DetailSolarPanel({ model, show }: { model: DetailSchematicModel; show: boolean }) {
   if (!show) return null;
   const b = model.bodies.find((b) => b.id === 'main-house')!;
-  const x = model.ports['solar.in']!.x;
+  const x = (model.ports['solar.in']!.x + model.ports['solar.out']!.x) / 2;
   const ratio = model.bodies.find((b) => b.id === 'tank')!.h / 420;
-  // Panel feet sit on the right roof slope; the active surface remains above it.
-  const y = b.y + ((x - (b.x + b.w / 2)) * 180 * ratio) / b.w;
+  // Panel feet sit on the left roof slope; the active surface remains above it.
+  const y = b.y + (Math.abs(x - (b.x + b.w / 2)) * 180 * ratio) / b.w;
   return (
     <g
       data-node="solar-panel"
-      transform={`translate(${x} ${y - 12 * ratio}) rotate(${(Math.atan2(90 * ratio, b.w / 2) * 180) / Math.PI})`}
+      transform={`translate(${x} ${y - 12 * ratio}) rotate(${(Math.atan2(-90 * ratio, b.w / 2) * 180) / Math.PI}) scale(${model.bodies.find((b) => b.id === 'tank')!.w / 140} 1)`}
     >
       <path d={`M-65 0V${12 * ratio}M65 0V${12 * ratio}`} className="ht-c3-metal-pipe" />
       <rect x={-90} y={-28} width={180} height={28} rx={4} className="ht-c3-solar-collector" />
@@ -127,7 +148,7 @@ export function DetailSolarPanel({ model, show }: { model: DetailSchematicModel;
 }
 export function PoolBasinGlyph({ body: b, uid }: { body: SchematicBody; uid: string }) {
   return (
-    <g data-node="pool-basin" transform={`translate(${b.x} ${b.y})`}>
+    <g data-node="pool-basin" transform={`translate(${b.x} ${b.y}) scale(${b.w / 180} 1)`}>
       <defs>
         <linearGradient id={`${uid}-water`} x1="0%" x2="0%" y1="0%" y2="100%">
           <stop stopColor="#77d7ef" />
@@ -135,7 +156,7 @@ export function PoolBasinGlyph({ body: b, uid }: { body: SchematicBody; uid: str
         </linearGradient>
       </defs>
       <path
-        d={`M0 0V${b.h}H${b.w}V0`}
+        d={`M0 0V${b.h}H180V0`}
         fill={`url(#${uid}-water)`}
         stroke="var(--ht-c3-wall)"
         strokeWidth={4}
@@ -152,8 +173,8 @@ export function PoolBasinGlyph({ body: b, uid }: { body: SchematicBody; uid: str
 }
 export function PoolExchangerGlyph({ body: b }: { body: SchematicBody }) {
   return (
-    <g data-node="pool-exch" transform={`translate(${b.x} ${b.y}) scale(1 ${b.h / 60})`}>
-      <rect width={b.w} height={60} rx={5} className="ht-c3-metal" />
+    <g data-node="pool-exch" transform={`translate(${b.x} ${b.y}) scale(${b.w / 36} ${b.h / 60})`}>
+      <rect width={36} height={60} rx={5} className="ht-c3-metal" />
       {[10, 22, 34, 46].map((y) => (
         <path key={y} d={`M5 ${y}H31`} className="ht-c3-plates" />
       ))}
@@ -166,7 +187,7 @@ export function FloorHeatingLoop({ model }: { model: DetailSchematicModel }) {
       data-floor-loop=""
       x={model.layout.poolHallX + 15}
       y={model.ports['floor.in']!.y - model.bodies.find((b) => b.id === 'tank')!.h / 42}
-      width={470}
+      width={model.bodies.find((b) => b.id === 'pool-hall')!.w * 0.94}
       height={model.bodies.find((b) => b.id === 'tank')!.h / 6}
       rx={8}
       className="ht-d1-floor-area"

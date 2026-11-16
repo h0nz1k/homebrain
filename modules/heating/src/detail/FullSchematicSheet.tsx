@@ -125,7 +125,12 @@ export function FullSchematicSheet({
           aria-hidden={hintHidden}
           style={{ visibility: hintHidden ? 'hidden' : undefined }}
         >
-          Tažením posunete, dvěma prsty přiblížíte. Dvojité klepnutí vrátí přehled.
+          <span className="ht-d1-touch-hint">
+            Tažením posunete, dvěma prsty přiblížíte. Dvojité klepnutí vrátí přehled.
+          </span>
+          <span className="ht-d1-mouse-hint">
+            Tažením posunete, kolečkem myši přiblížíte, dvojklik vrátí přehled.
+          </span>
         </p>
         <div
           ref={viewportRef}
@@ -336,29 +341,7 @@ function PanZoomSurface({
         const x = e.clientX - r.left;
         const y = e.clientY - r.top;
         setState((s) =>
-          e.ctrlKey || e.metaKey
-            ? zoomAtPoint(
-                s,
-                x,
-                y,
-                Math.exp(-e.deltaY * 0.008),
-                el.clientWidth,
-                el.clientHeight,
-                world,
-              )
-            : {
-                ...s,
-                ...clampPan(
-                  {
-                    ...s,
-                    tx: s.tx - (e.shiftKey ? e.deltaY : e.deltaX),
-                    ty: s.ty - (e.shiftKey ? 0 : e.deltaY),
-                  },
-                  el.clientWidth,
-                  el.clientHeight,
-                  world,
-                ),
-              },
+          zoomAtPoint(s, x, y, Math.exp(-e.deltaY * 0.008), el.clientWidth, el.clientHeight, world),
         );
       }}
       onKeyDown={(e) => {
