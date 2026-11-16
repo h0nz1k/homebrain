@@ -463,6 +463,18 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-day li > span.fam-wk-time { font-size: 14px; }
 .fam[data-kiosk] .fam-day li[data-allday] > span.fam-wk-time { font-size: 12px; }
 .fam-day li em { flex: 0 1 auto; }
+.fam-day li em .fam-wk-school { display: inline-flex; vertical-align: -2px; }
+/* one „needs a parent“ colour for every pending state (handover + completion); blue only for done handovers */
+.fam { --fam-pending: color-mix(in srgb, var(--hb-warn) 82%, var(--hb-t1)); }
+.fam [data-status='pending']:not(i) { color: var(--fam-pending) !important; }
+.fam .hb-pill[data-status='pending'], .fam .fam-wait-chip[data-status='pending'] { background: color-mix(in srgb, var(--hb-warn) 14%, transparent); }
+.fam .hb-pill[data-status='pending'] .hb-icon, .fam [data-status='pending'] svg { color: var(--fam-pending); }
+.fam .fam-bar i[data-status='pending'] { background: var(--fam-pending); opacity: 0.6; }
+.fam-approval-type svg { color: var(--fam-pending); }
+/* fixed trailing slot on every chore row: the points column ends at the same x */
+.fam-menu-slot { flex: 0 0 44px; width: 44px; min-width: 44px; display: grid; place-items: center; }
+.fam-menu-slot > .fam-overflow.hb-btn, .fam-menu-slot > .fam-done-more { margin: 0; }
+@media (max-width: 760px) { .fam-menu-slot { margin-right: -8px; } }
 .fam[data-kiosk] .fam-grid { grid-template-rows: minmax(0, 1fr); }
 /* sheets: one selected style (solid fill) for chips, segments and toggles */
 .fam .fam-chips .fam-chip.hb-chip[aria-pressed='true'] { background: var(--hb-ac-solid, var(--hb-ac)); color: #fff; border-color: transparent; box-shadow: none; font-weight: 650; }

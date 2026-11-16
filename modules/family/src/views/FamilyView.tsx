@@ -78,12 +78,9 @@ function Check() {
   );
 }
 
-/** One ownership convention: a kid's event takes that kid's colour (+ avatar), others the category hue. */
-function srcStyle(ev: FamilyEvent, who: string[] = [], members: Member[] = []) {
-  const owner = who.length === 1 ? members.find((m) => m.id === who[0]) : undefined;
-  return {
-    '--fam-src': owner?.color ?? SRC_COLOR[ev.kind] ?? SRC_COLOR.family,
-  } as React.CSSProperties;
+/** Calendar colour is always the category (legend); the person is shown only by the avatar. */
+function srcStyle(ev: FamilyEvent) {
+  return { '--fam-src': SRC_COLOR[ev.kind] ?? SRC_COLOR.family } as React.CSSProperties;
 }
 
 function SchoolTag({ ev }: { ev: FamilyEvent }) {
@@ -187,11 +184,7 @@ function TodayCard({
       ) : (
         <>
           {next && nextWho && (
-            <div
-              className="fam-next"
-              style={srcStyle(next, nextWho.who, members)}
-              data-testid="family-next"
-            >
+            <div className="fam-next" style={srcStyle(next)} data-testid="family-next">
               <small>{relLabel(next, now)}</small>
               <div className="fam-next-t">
                 <Who ids={nextWho.who} members={members} />
@@ -218,7 +211,7 @@ function TodayCard({
                   <li
                     key={ev.id}
                     className="fam-ev"
-                    style={srcStyle(ev, who, members)}
+                    style={srcStyle(ev)}
                     data-testid="family-event"
                     data-past={past || undefined}
                   >
@@ -283,7 +276,7 @@ function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; mem
                   return (
                     <li
                       key={ev.id}
-                      style={srcStyle(ev, who, members)}
+                      style={srcStyle(ev)}
                       data-allday={ev.all_day || undefined}
                       data-testid="family-week-event"
                     >
@@ -293,12 +286,21 @@ function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; mem
                       <i aria-hidden="true" />
                       <span className="fam-wk-t">
                         <Who ids={who} members={members} />
-                        <em>{title}</em>
-                        {ev.kind === 'school' && (
-                          <span className="fam-wk-school" title="Škola">
-                            <Icon name="school" size={16} label="Škola" />
-                          </span>
-                        )}
+                        <em>
+                          {title}
+                          {ev.kind === 'school' && (
+                            <>
+                              {'\u00a0'}
+                              <span
+                                className="fam-wk-school"
+                                title="Škola"
+                                data-testid="family-school-cap"
+                              >
+                                <Icon name="school" size={16} label="Škola" />
+                              </span>
+                            </>
+                          )}
+                        </em>
                       </span>
                     </li>
                   );
@@ -354,10 +356,11 @@ function PendingPill({ kind }: { kind: 'swap' | 'completion' }) {
   return (
     <Pill
       size="sm"
-      tone={kind === 'swap' ? 'accent' : 'warn'}
+      tone="warn"
       icon={<Icon name={kind === 'swap' ? 'swap' : 'clock'} size={14} />}
       data-testid="family-pending-pill"
       data-pending={kind}
+      data-status="pending"
       className="fam-pending-pill"
     >
       <span className="hb-sr-only">{kind === 'swap' ? 'Předání: ' : 'Splnění: '}</span>
@@ -432,7 +435,9 @@ function KidCard({
   const swapsPending = kid.chores.filter((c) => c.swap_today?.kind === 'pending_give').length;
   const progress = t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic';
   const unit = { words };
-  const anyMenu = !!act.onMenu && kid.chores.some(canTransferChore);
+  // Every row reserves the same trailing slot (menu button, done-expander or an empty
+  // spacer) whenever any row can have one, so the points column lines up in each list.
+  const menuSlot = !!act.onMenu || (!!collapseDone && !compact);
   const head = (
     <>
       {!self && (
@@ -489,20 +494,34 @@ function KidCard({
           aria-label={`${kid.name}: hotovo ${t.done} z ${t.total}`}
         >
           <i style={{ width: `${(t.done / t.total) * 100}%` }} />
-          <i data-pending style={{ width: `${(t.pending / t.total) * 100}%` }} />
+          <i
+            data-pending
+            data-status="pending"
+            style={{ width: `${(t.pending / t.total) * 100}%` }}
+          />
         </div>
       )}
       {(t.waiting > 0 || swapsPending > 0) && (
         <div className="fam-kid-pending" data-testid="family-kid-pending">
           {t.waiting > 0 && (
-            <span className="fam-wait-chip" data-tone="warn" data-testid="family-pending-points">
+            <span
+              className="fam-wait-chip"
+              data-tone="warn"
+              data-status="pending"
+              data-testid="family-pending-points"
+            >
               <Icon name="clock" size={14} />
               {pointsLabel(t.waiting, unit)}{' '}
               {words ? czPlural(t.waiting, 'čeká', 'čekají', 'čeká') : 'čeká'} na schválení
             </span>
           )}
           {swapsPending > 0 && (
-            <span className="fam-wait-chip" data-tone="accent" data-testid="family-pending-swaps">
+            <span
+              className="fam-wait-chip"
+              data-tone="warn"
+              data-status="pending"
+              data-testid="family-pending-swaps"
+            >
               <Icon name="swap" size={14} />
               {swapsPending === 1
                 ? 'Předání čeká na schválení'
@@ -592,20 +611,21 @@ function KidCard({
                   <ChoreMeta c={c} note={note} />
                 </div>
                 <span className="fam-pts">{pointsLabel(c.points, unit)}</span>
-                {anyMenu &&
-                  (showMenu ? (
-                    <Button
-                      variant="ghost"
-                      className="fam-overflow"
-                      icon={<Icon name="more" size={22} />}
-                      data-testid="family-chore-menu"
-                      aria-label="Další akce"
-                      aria-describedby={nameId}
-                      onClick={() => act.onMenu?.(kid.id, c.id)}
-                    />
-                  ) : (
-                    <span className="fam-overflow-spacer" aria-hidden="true" />
-                  ))}
+                {menuSlot && (
+                  <span className="fam-menu-slot" data-testid="family-menu-slot">
+                    {showMenu && (
+                      <Button
+                        variant="ghost"
+                        className="fam-overflow"
+                        icon={<Icon name="more" size={22} />}
+                        data-testid="family-chore-menu"
+                        aria-label="Další akce"
+                        aria-describedby={nameId}
+                        onClick={() => act.onMenu?.(kid.id, c.id)}
+                      />
+                    )}
+                  </span>
+                )}
               </li>
             );
           })}
@@ -626,20 +646,21 @@ function KidCard({
                   unit,
                 )}
               </span>
-              {collapseDone && !compact && (
-                <button
-                  type="button"
-                  className="fam-done-more"
-                  aria-expanded={false}
-                  data-testid="family-done-expand"
-                  onClick={() => setShowDone(true)}
-                >
-                  <span className="hb-sr-only">Ukázat hotové úkoly</span>
-                  <Icon name="chevron" size={18} />
-                </button>
-              )}
-              {anyMenu && !collapseDone && (
-                <span className="fam-overflow-spacer" aria-hidden="true" />
+              {menuSlot && (
+                <span className="fam-menu-slot" data-testid="family-menu-slot">
+                  {collapseDone && !compact && (
+                    <button
+                      type="button"
+                      className="fam-done-more"
+                      aria-expanded={false}
+                      data-testid="family-done-expand"
+                      onClick={() => setShowDone(true)}
+                    >
+                      <span className="hb-sr-only">Ukázat hotové úkoly</span>
+                      <Icon name="chevron" size={18} />
+                    </button>
+                  )}
+                </span>
               )}
             </li>
           )}
@@ -699,7 +720,12 @@ function ChoresCard({
           </span>
         )}
         {waiting > 0 && (
-          <span className="fam-meta" data-tone="warn">
+          <span
+            className="fam-meta"
+            data-tone="warn"
+            data-status="pending"
+            data-testid="family-pending-badge"
+          >
             {czCount(waiting, 'čeká na schválení', 'čekají na schválení', 'čeká na schválení')}
           </span>
         )}

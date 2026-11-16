@@ -1,5 +1,5 @@
 import { pointsWord } from './czech.js';
-import type { FamilyChore, FamilyEvent } from './types.js';
+import type { FamilyChore, FamilyEvent, PointsSummary } from './types.js';
 
 const DAY = ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'];
 const DAY_LONG = ['neděle', 'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota'];
@@ -32,6 +32,12 @@ export function timeLabel(iso: string): string {
   return `${d.getHours()}:${pad(d.getMinutes())}`;
 }
 
+/** Czech numeric date with no-break spaces so it never wraps: „17.\u00a011.“ / „17.\u00a011.\u00a02026“. */
+export function czDate(d: Date, opts: { year?: boolean } = {}): string {
+  const dm = `${d.getDate()}.\u00a0${d.getMonth() + 1}.`;
+  return opts.year ? `${dm}\u00a0${d.getFullYear()}` : dm;
+}
+
 export function longDate(now: Date): string {
   return `${DAY_LONG[now.getDay()]} ${now.getDate()}. ${MONTH_GEN[now.getMonth()]}`;
 }
@@ -60,7 +66,7 @@ export function nextDays(events: FamilyEvent[], now: Date, count = 7): WeekDay[]
     out.push({
       key,
       day: DAY[d.getDay()] ?? '',
-      date: `${d.getDate()}. ${d.getMonth() + 1}.`,
+      date: czDate(d),
       events: events.filter((e) => eventDay(e) === key),
     });
   }
@@ -118,6 +124,42 @@ export function pointsLabel(points: number | null, opts: { words?: boolean } = {
 /** Same unit rule without the sign: „128 b.“ / „128 bodů“. */
 export function pointsAmount(points: number, opts: { words?: boolean } = {}): string {
   return `${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
+}
+
+const SPENT_SOURCES = ['Odměny', 'Sankce'];
+
+export interface MonthPoints {
+  /** Points earned this month (sum of the „Získáno“ sources). */
+  earned: number | null;
+  /** Points spent this month, positive (sum of the „Utraceno“ sources). */
+  spent: number | null;
+  /** earned − spent: the one net figure shown as „Tento měsíc čistě“. */
+  net: number | null;
+  earnedSources: [string, number][];
+  spentSources: [string, number][];
+}
+
+/**
+ * One source of truth for the monthly numbers of the points sheet: the header (net), the
+ * „Měsíc získáno“ tile and the „Odkud jsou body“ breakdown all come from here, so
+ * earned − spent = net always reconciles.
+ */
+export function monthPoints(
+  s: Pick<PointsSummary, 'earned_month' | 'spent_month' | 'sources_month'> | null | undefined,
+): MonthPoints {
+  const earnedSources: [string, number][] = [];
+  const spentSources: [string, number][] = [];
+  for (const [label, value] of Object.entries(s?.sources_month ?? {})) {
+    if (value == null || value === 0) continue;
+    if (SPENT_SOURCES.includes(label) || value < 0) spentSources.push([label, Math.abs(value)]);
+    else earnedSources.push([label, value]);
+  }
+  const sum = (xs: [string, number][]) => xs.reduce((a, [, v]) => a + v, 0);
+  const fromSources = earnedSources.length + spentSources.length > 0;
+  const earned = fromSources ? sum(earnedSources) : (s?.earned_month ?? null);
+  const spent = fromSources ? sum(spentSources) : (s?.spent_month ?? null);
+  const net = earned == null ? null : earned - (spent ?? 0);
+  return { earned, spent, net, earnedSources, spentSources };
 }
 
 export interface ChoreTally {

@@ -192,7 +192,9 @@ test.describe('Rodina', () => {
     const chart = await page.getByTestId('family-points-chart').boundingBox();
     expect(chart!.y).toBeGreaterThan(0);
     expect(chart!.y + chart!.height).toBeLessThan(844);
-    await expect(page.getByTestId('family-points-month')).toHaveText('Tento měsíc +116\u00a0b.');
+    await expect(page.getByTestId('family-points-month')).toHaveText(
+      'Tento měsíc čistě +116\u00a0b.',
+    );
     await expect(page.getByTestId('family-points-sheet')).not.toContainText('k dispozici ·');
   });
 
@@ -277,6 +279,138 @@ test.describe('Rodina', () => {
       .locator('[data-testid="presence-person"]', { hasText: 'Děda' })
       .evaluate((el) => getComputedStyle(el).getPropertyValue('--hb-presence-c').trim());
     for (const kid of hex.kids) expect(dE(kid, deda)).toBeGreaterThanOrEqual(20);
+  });
+
+  for (const [label, query] of [
+    ['rodič', ''],
+    ['dítě', '?role=child'],
+    ['kiosk', '?kiosk=1'],
+  ] as const) {
+    test(`kalendář (${label}): tečka = kategorie, nikdy barva osoby; čepice za názvem`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(
+        query === '?kiosk=1' ? { width: 1280, height: 800 } : { width: 360, height: 800 },
+      );
+      await open(page, query);
+      const res = await page.evaluate(() => {
+        const probe = document.createElement('i');
+        document.body.append(probe);
+        const rgb = (c: string) => ((probe.style.color = c), getComputedStyle(probe).color);
+        const cats = Array.from(
+          document.querySelectorAll('[data-testid="family-legend"] > span'),
+        ).map((el) => rgb(getComputedStyle(el).getPropertyValue('--fam-src').trim()));
+        const members = [
+          ...Array.from(document.querySelectorAll('[data-kid], .fam-avatar')).map((el) =>
+            getComputedStyle(el).getPropertyValue('--fam-kid').trim(),
+          ),
+          ...Array.from(document.querySelectorAll('[data-testid="presence-person"]')).map((el) =>
+            getComputedStyle(el).getPropertyValue('--hb-presence-c').trim(),
+          ),
+        ]
+          .filter(Boolean)
+          .map(rgb);
+        const dots = Array.from(
+          document.querySelectorAll('[data-testid="family-week-event"] > i'),
+        ).map((el) => getComputedStyle(el).backgroundColor);
+        const caps = Array.from(document.querySelectorAll('[data-testid="family-school-cap"]')).map(
+          (el) => el.parentElement?.tagName,
+        );
+        probe.remove();
+        return { cats, members: [...new Set(members)], dots, caps };
+      });
+      expect(res.cats).toHaveLength(2);
+      expect(res.members.length).toBeGreaterThan(1);
+      expect(res.dots.length).toBeGreaterThan(5);
+      for (const dot of res.dots) {
+        expect(res.cats).toContain(dot);
+        expect(res.members).not.toContain(dot);
+      }
+      // The school cap sits inline in the title, never pinned to the right edge.
+      expect(res.caps.length).toBeGreaterThan(0);
+      for (const tag of res.caps) expect(tag).toBe('EM');
+    });
+  }
+
+  for (const query of ['', '?role=child', '?kiosk=1']) {
+    test(`čeká na rodiče: jedna (jantarová) barva pro všechny čekající stavy ${query}`, async ({
+      page,
+    }) => {
+      await open(page, query);
+      const res = await page.evaluate(() => {
+        const els = Array.from(document.querySelectorAll('[data-status="pending"]'));
+        return {
+          kinds: els.map((el) => el.getAttribute('data-testid') ?? el.tagName),
+          colors: els.map((el) =>
+            el.tagName === 'I' ? getComputedStyle(el).backgroundColor : getComputedStyle(el).color,
+          ),
+          done: Array.from(document.querySelectorAll('[data-testid="family-swap-note"]')).map(
+            (el) => getComputedStyle(el).color,
+          ),
+        };
+      });
+      expect(res.kinds).toEqual(expect.arrayContaining(['family-pending-pill', 'I']));
+      if (!query) expect(res.kinds).toEqual(expect.arrayContaining(['family-pending-swaps']));
+      expect(new Set(res.colors).size).toBe(1);
+      // Completed handover tags keep the blue accent, distinct from „needs a parent“.
+      for (const c of res.done) expect(c).not.toBe(res.colors[0]);
+    });
+  }
+
+  test('body: hlavička čistě a dlaždice získáno sedí s rozpisem (získáno − utraceno)', async ({
+    page,
+  }) => {
+    await open(page);
+    await page.getByTestId('family-total').first().click();
+    await expect(page.getByTestId('family-points-month')).toHaveText(
+      'Tento měsíc čistě +116\u00a0b.',
+    );
+    await expect(page.getByTestId('family-points-month-earned')).toHaveText('+156 b.');
+    const sum = async (id: string) =>
+      (await page.getByTestId(id).locator('strong').allInnerTexts())
+        .map((t) => Number(t.replace(/[^\d]/g, '')))
+        .reduce((a, b) => a + b, 0);
+    expect(await sum('family-points-earned')).toBe(156);
+    expect((await sum('family-points-earned')) - (await sum('family-points-spent'))).toBe(116);
+  });
+
+  for (const [label, query, width] of [
+    ['dítě 360', '?role=child', 360],
+    ['rodič 360', '', 360],
+    ['rodič 1280', '', 1280],
+    ['kiosk 1280', '?kiosk=1', 1280],
+  ] as const) {
+    test(`řádky úkolů (${label}): sloupec bodů končí na stejném místě`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await open(page, query);
+      const lists = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.fam-chores')).map((ul) =>
+          Array.from(ul.querySelectorAll(':scope > li .fam-pts')).map(
+            (el) => el.getBoundingClientRect().right,
+          ),
+        ),
+      );
+      expect(lists.length).toBeGreaterThan(0);
+      for (const rights of lists) {
+        expect(rights.length).toBeGreaterThan(1);
+        expect(Math.max(...rights) - Math.min(...rights)).toBeLessThanOrEqual(1);
+      }
+    });
+  }
+
+  test('datum v souhrnu nového úkolu se nezalomí (360 px)', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await open(page);
+    await page.getByTestId('family-add-chore').first().click();
+    await page.getByRole('radio', { name: 'Vybrané dny' }).click();
+    for (const d of ['St', 'Pá', 'So'])
+      await page.getByRole('button', { name: d, exact: true }).click();
+    const tokens = page.getByTestId('family-summary-token');
+    await expect(tokens.filter({ hasText: /^od\u00a0\d{1,2}\.\u00a0\d{1,2}\.$/ })).toHaveCount(1);
+    for (let i = 0; i < (await tokens.count()); i += 1) {
+      const rects = await tokens.nth(i).evaluate((el) => el.getClientRects().length);
+      expect(rects).toBe(1);
+    }
   });
 
   test('nic nenastaveno: neutrální text, žádná chyba', async ({ page }) => {

@@ -19,7 +19,15 @@ import {
 } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
 import { pointsWord } from '../czech.js';
-import { fmtPoints, localKey, pointsAmount, pointsLabel, timeLabel } from '../format.js';
+import {
+  czDate,
+  fmtPoints,
+  localKey,
+  monthPoints,
+  pointsAmount,
+  pointsLabel,
+  timeLabel,
+} from '../format.js';
 import type {
   CreateChoreInput,
   FamilyApproval,
@@ -200,8 +208,8 @@ export function PointsSheet({
       .then(setHistory)
       .catch(() => undefined);
   }, [api, kid.id, kid.kid_uuid, days, showAll]);
-  const net = summary?.net_month;
-  const earned = summary?.earned_month;
+  const month = monthPoints(summary);
+  const { net, earned } = month;
   const unit = { words };
   const ceiling = history?.chart ? chartCeiling(history.chart.max) : 0;
   const signed = (v: number | null | undefined) =>
@@ -225,7 +233,7 @@ export function PointsSheet({
             <small>{words && summary?.balance != null ? pointsWord(summary.balance) : 'b.'}</small>
           </p>
           <p className="fam-earned" data-testid="family-points-month">
-            Tento měsíc {signed(net)}
+            Tento měsíc čistě {signed(net)}
           </p>
           <p className="fam-hint">
             Celkem získáno {summary?.earned_all_time ?? '—'} · utraceno{' '}
@@ -248,8 +256,8 @@ export function PointsSheet({
             </dd>
           </div>
           <div>
-            <dt>Měsíc</dt>
-            <dd>
+            <dt>Měsíc získáno</dt>
+            <dd data-testid="family-points-month-earned">
               +{earned ?? '—'} <small>{words ? pointsWord(earned ?? 0) : 'b.'}</small>
             </dd>
           </div>
@@ -341,24 +349,18 @@ export function PointsSheet({
                 className="fam-points-sources"
                 data-testid={`family-points-${group === 'Získáno' ? 'earned' : 'spent'}`}
               >
-                {Object.entries(summary?.sources_month ?? {})
-                  .filter(
-                    ([label, value]) =>
-                      value != null &&
-                      value !== 0 &&
-                      (['Odměny', 'Sankce'].includes(label) || value < 0) ===
-                        (group === 'Utraceno'),
-                  )
-                  .map(([label, value]) => (
+                {(group === 'Získáno' ? month.earnedSources : month.spentSources).map(
+                  ([label, value]) => (
                     <li key={label} data-source={label}>
                       <i />
                       {label}
                       <strong className={group === 'Získáno' ? 'fam-earned' : 'fam-spent'}>
                         {group === 'Získáno' ? '+' : '−'}
-                        {pointsAmount(Math.abs(value!), unit)}
+                        {pointsAmount(value, unit)}
                       </strong>
                     </li>
-                  ))}
+                  ),
+                )}
               </ul>
             </div>
           ))}
@@ -375,7 +377,7 @@ export function PointsSheet({
                 <li key={i}>
                   <span>
                     {String(entry.item_name ?? 'Pohyb bodů')}
-                    <small>{new Date(String(entry.timestamp)).toLocaleDateString('cs-CZ')}</small>
+                    <small>{czDate(new Date(String(entry.timestamp)), { year: true })}</small>
                   </span>
                   <strong className={Number(entry.amount) >= 0 ? 'fam-earned' : 'fam-spent'}>
                     {Number(entry.amount) >= 0 ? '+' : '−'}
@@ -499,25 +501,40 @@ export function AddChoreSheet({
   };
   const valid = !Object.values(problems).some(Boolean);
   const showName = (nameTouched || submitted) && problems.name;
-  const startLabel = dateOk
-    ? new Date(`${firstDate}T12:00:00`).toLocaleDateString('cs-CZ', {
-        day: 'numeric',
-        month: 'numeric',
-      })
-    : '—';
+  const startLabel = dateOk ? czDate(new Date(`${firstDate}T12:00:00`)) : '—';
   const dayList = WEEKDAYS.filter((d) => weekdays.includes(d.id)).map((d) => d.label);
   const who =
     kids
       .filter((k) => assignees.includes(k.kid_uuid ?? k.id))
       .map((k) => k.name)
       .join(' a ') || 'Nikdo';
+  // Date/time tokens stay on one line (no-break spaces + nowrap span).
+  const tok = (text: string) => (
+    <span className="fam-nowrap" data-testid="family-summary-token">
+      {text}
+    </span>
+  );
+  const due = tok(`do\u00a0${dueTime}`);
+  const since = tok(`od\u00a0${startLabel}`);
   const scheduleText =
-    recurrence === 'weekly'
-      ? `${joinCz(dayList)} do\u00a0${dueTime} · od\u00a0${startLabel}`
-      : recurrence === 'daily'
-        ? `každý den do\u00a0${dueTime} · od\u00a0${startLabel}`
-        : `${startLabel} do\u00a0${dueTime}`;
-  const summaryText = [who, `${points}\u00a0b.`, scheduleText].join(' · ');
+    recurrence === 'weekly' ? (
+      <>
+        {joinCz(dayList)} {due} · {since}
+      </>
+    ) : recurrence === 'daily' ? (
+      <>
+        každý den {due} · {since}
+      </>
+    ) : (
+      <>
+        {tok(startLabel)} {due}
+      </>
+    );
+  const summaryText = (
+    <>
+      {who} · {`${points}\u00a0b.`} · {scheduleText}
+    </>
+  );
   const dueLabel =
     recurrence === 'daily'
       ? 'Každý den do'
