@@ -808,8 +808,8 @@ const specs: Spec[] = [
     summary:
       'Kdo je doma: čip na osobu se zelenou (doma) / červenou (pryč) tečkou – Dnes, kiosk, Rodina.',
     importName: 'PresenceStrip',
-    states: ['doma', 'pryč', 'nevím (šedá, menší)', 'md', 'lg (kiosk)'],
-    doText: 'Jen doma / pryč / nevím + jméno + barva avataru; stav vždy i textem a v aria-label.',
+    states: ['doma', 'pryč', 'neznámo (šedá)', 'md', 'lg (kiosk)'],
+    doText: 'Jen doma / pryč / neznámo + jméno + barva avataru; stav vždy i textem a v aria-label.',
     dontText: 'Zóny, poloha, ETA, baterie, časová osa – vlastník chce jen jednoduchý indikátor.',
     notes: 'Bez osob nevykreslí nic. Data: usePeople(connection) z @homebrain/ha-client (živě).',
     render: () => (
@@ -818,7 +818,7 @@ const specs: Spec[] = [
           people={[
             { id: 'a', name: 'Jan', color: 'blue', status: 'home' },
             { id: 'b', name: 'Adámek', color: 'teal', status: 'away' },
-            { id: 'c', name: 'Děda', color: 'indigo', status: 'unknown' },
+            { id: 'c', name: 'Děda', color: 'slate', status: 'unknown' },
           ]}
         />
         <PresenceStrip

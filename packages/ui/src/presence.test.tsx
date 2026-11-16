@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import {
   PresenceStrip,
+  presenceColumns,
   presenceHex,
   presenceInitials,
   type PresencePerson,
@@ -30,7 +31,7 @@ describe('PresenceStrip', () => {
     expect(items.map((li) => li.getAttribute('aria-label'))).toEqual([
       'Jan: doma',
       'Adámek: pryč',
-      'Babi Nová: nevím',
+      'Babi Nová: neznámo',
     ]);
     expect(items.map((li) => li.dataset.status)).toEqual(['home', 'away', 'unknown']);
     expect(items[0]!.textContent).toContain('doma');
@@ -57,5 +58,13 @@ describe('PresenceStrip', () => {
     expect(presenceInitials('Jan')).toBe('J');
     expect(presenceInitials('babi nová')).toBe('BN');
     expect(presenceInitials('  ')).toBe('?');
+  });
+
+  it('balances chips into equal rows instead of a ragged grid', () => {
+    expect(presenceColumns(6, 1220)).toBe(6);
+    expect(presenceColumns(6, 750)).toBe(3);
+    expect(presenceColumns(6, 328)).toBe(2);
+    expect(presenceColumns(5, 600)).toBe(3);
+    expect(presenceColumns(0, 300)).toBe(1);
   });
 });

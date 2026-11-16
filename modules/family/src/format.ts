@@ -1,3 +1,4 @@
+import { pointsWord } from './czech.js';
 import type { FamilyChore, FamilyEvent } from './types.js';
 
 const DAY = ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'];
@@ -93,7 +94,8 @@ export function choreNote(
   now: Date,
   opts: { parentApproves?: boolean } = {},
 ): { text: string; tone?: 'warn' | 'crit' } {
-  if (chore.state === 'done') return { text: 'Hotovo' };
+  // Done rows carry one signal only (green check + muted, struck-through name): no extra text.
+  if (chore.state === 'done') return { text: '' };
   if (chore.state === 'claimed')
     return { text: opts.parentApproves ? 'Schválí rodič' : 'Čeká na schválení', tone: 'warn' };
   const due = chore.due ? new Date(chore.due) : null;
@@ -107,9 +109,15 @@ export function fmtPoints(points: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1).replace('.', ',');
 }
 
-export function pointsLabel(points: number | null): string {
+/** „+3 b.“ for parents and the kiosk; kid-facing views spell it out („+3 body“, „+5 bodů“). */
+export function pointsLabel(points: number | null, opts: { words?: boolean } = {}): string {
   if (points === null) return '';
-  return `+${fmtPoints(points)}\u00a0b.`;
+  return `+${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
+}
+
+/** Same unit rule without the sign: „128 b.“ / „128 bodů“. */
+export function pointsAmount(points: number, opts: { words?: boolean } = {}): string {
+  return `${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
 }
 
 export interface ChoreTally {

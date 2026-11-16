@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import { usePeople, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
@@ -10,6 +10,7 @@ import {
   Pill,
   Skeleton,
   czCount,
+  czPlural,
   presenceHex,
 } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
@@ -17,7 +18,7 @@ import {
   choreNote,
   choreTally,
   eventWho,
-  fmtPoints,
+  pointsAmount,
   isPast,
   longDate,
   nextDays,
@@ -28,6 +29,7 @@ import {
   timeLabel,
   todayEvents,
 } from '../format.js';
+import { handedToLabel, takenFromLabel } from '../czech.js';
 import type { FamilyEvent, FamilyKid, FamilySnapshot } from '../types.js';
 import { familyStyles } from './familyStyles.js';
 import {
@@ -40,8 +42,25 @@ import {
 } from './familySheets.js';
 
 const POLL_MS = 60_000;
-const SRC_COLOR = { family: '#3d8bff', school: '#a970ff' } as const;
+/** Calendar categories use non-person hues (blue-grey, amber) so they never read as a kid. */
+export const SRC_COLOR = { family: '#8a9bb8', school: '#e0a23a' } as const;
 const KID_COLORS = ['#e879a8', '#2dd4bf', '#f59e0b', '#a78bfa'];
+
+/** Phone layout (same breakpoint as the stacked grid in familyStyles). */
+function usePhone(): boolean {
+  const query = '(max-width: 760px)';
+  const [phone, setPhone] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const on = () => setPhone(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return phone;
+}
 
 function Check() {
   return (
@@ -59,8 +78,22 @@ function Check() {
   );
 }
 
-function srcStyle(ev: FamilyEvent) {
-  return { '--fam-src': SRC_COLOR[ev.kind] ?? SRC_COLOR.family } as React.CSSProperties;
+/** One ownership convention: a kid's event takes that kid's colour (+ avatar), others the category hue. */
+function srcStyle(ev: FamilyEvent, who: string[] = [], members: Member[] = []) {
+  const owner = who.length === 1 ? members.find((m) => m.id === who[0]) : undefined;
+  return {
+    '--fam-src': owner?.color ?? SRC_COLOR[ev.kind] ?? SRC_COLOR.family,
+  } as React.CSSProperties;
+}
+
+function SchoolTag({ ev }: { ev: FamilyEvent }) {
+  if (ev.kind !== 'school') return null;
+  return (
+    <span className="fam-src" data-testid="family-school-tag" title={ev.source}>
+      <Icon name="school" size={14} />
+      Škola
+    </span>
+  );
 }
 
 interface Member {
@@ -154,14 +187,22 @@ function TodayCard({
       ) : (
         <>
           {next && nextWho && (
-            <div className="fam-next" style={srcStyle(next)} data-testid="family-next">
+            <div
+              className="fam-next"
+              style={srcStyle(next, nextWho.who, members)}
+              data-testid="family-next"
+            >
               <small>{relLabel(next, now)}</small>
               <div className="fam-next-t">
                 <Who ids={nextWho.who} members={members} />
                 <strong>{nextWho.title}</strong>
               </div>
               <span>
-                {timeLabel(next.start)} – {timeLabel(next.end)}
+                <span className="fam-nowrap">
+                  {timeLabel(next.start)}
+                  {'\u00a0–\u00a0'}
+                  {timeLabel(next.end)}
+                </span>
                 {nextDetail ? ` · ${nextDetail}` : ''}
               </span>
             </div>
@@ -177,14 +218,21 @@ function TodayCard({
                   <li
                     key={ev.id}
                     className="fam-ev"
-                    style={srcStyle(ev)}
+                    style={srcStyle(ev, who, members)}
                     data-testid="family-event"
                     data-past={past || undefined}
                   >
-                    <time>
-                      {ev.all_day ? 'Celý den' : timeLabel(ev.start)}
-                      {!ev.all_day && <small>– {timeLabel(ev.end)}</small>}
-                    </time>
+                    {ev.all_day ? (
+                      <time data-allday>celý den</time>
+                    ) : (
+                      <time
+                        aria-label={`${timeLabel(ev.start)} až ${timeLabel(ev.end)}`}
+                        data-testid="family-event-time"
+                      >
+                        {timeLabel(ev.start)}
+                        <small>{timeLabel(ev.end)}</small>
+                      </time>
+                    )}
                     <i />
                     <div className="fam-ev-t">
                       <Who ids={who} members={members} />
@@ -198,7 +246,7 @@ function TodayCard({
                         {past && <p className="fam-detail fam-ev-past-note">Proběhlo</p>}
                       </div>
                     </div>
-                    {ev.kind === 'school' ? <span className="fam-src">{ev.source}</span> : <span />}
+                    {ev.kind === 'school' ? <SchoolTag ev={ev} /> : <span />}
                   </li>
                 );
               })}
@@ -233,16 +281,31 @@ function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; mem
                 {day.events.map((ev) => {
                   const { who, title } = eventWho(ev, members);
                   return (
-                    <li key={ev.id} style={srcStyle(ev)} data-allday={ev.all_day || undefined}>
-                      {!ev.all_day && <span>{timeLabel(ev.start)}</span>}
-                      <Who ids={who} members={members} />
-                      <em>{title}</em>
+                    <li
+                      key={ev.id}
+                      style={srcStyle(ev, who, members)}
+                      data-allday={ev.all_day || undefined}
+                      data-testid="family-week-event"
+                    >
+                      <span className="fam-wk-time">
+                        {ev.all_day ? 'celý den' : timeLabel(ev.start)}
+                      </span>
+                      <i aria-hidden="true" />
+                      <span className="fam-wk-t">
+                        <Who ids={who} members={members} />
+                        <em>{title}</em>
+                        {ev.kind === 'school' && (
+                          <span className="fam-wk-school" title="Škola">
+                            <Icon name="school" size={16} label="Škola" />
+                          </span>
+                        )}
+                      </span>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="fam-free">Volno</p>
+              <p className="fam-free">Nic v plánu</p>
             )}
           </div>
         ))}
@@ -261,56 +324,70 @@ interface Actions {
 
 type ChoreRow = FamilyKid['chores'][number];
 
-/** Swap/pending meta under the chore name; deadline stays its own nowrap unit, never splits a pill. */
-function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: string } }) {
+/** A chore the viewer can hand over / reassign for today (the only „⋯“ action). */
+export function canTransferChore(c: ChoreRow | null | undefined): boolean {
+  return (
+    !!c?.can_request_swap &&
+    c.state !== 'done' &&
+    c.state !== 'claimed' &&
+    c.swap_today?.kind !== 'pending_give' &&
+    c.swap_today?.kind !== 'transferred_out'
+  );
+}
+
+/** Handover tag – the same small tag for „Předáno“ and „Převzato“ (rows and kiosk). */
+function SwapTag({ swap }: { swap: NonNullable<ChoreRow['swap_today']> }) {
+  const text =
+    swap.kind === 'transferred_out'
+      ? handedToLabel(swap.partner_name)
+      : takenFromLabel(swap.partner_name);
+  return (
+    <span className="fam-swap-tag" data-testid="family-swap-note" data-kind={swap.kind}>
+      <Icon name="swap" size={14} />
+      {text}
+    </span>
+  );
+}
+
+/** Pending: one short single-line pill (icon says which kind); deadline is its own meta. */
+function PendingPill({ kind }: { kind: 'swap' | 'completion' }) {
+  return (
+    <Pill
+      size="sm"
+      tone={kind === 'swap' ? 'accent' : 'warn'}
+      icon={<Icon name={kind === 'swap' ? 'swap' : 'clock'} size={14} />}
+      data-testid="family-pending-pill"
+      data-pending={kind}
+      className="fam-pending-pill"
+    >
+      <span className="hb-sr-only">{kind === 'swap' ? 'Předání: ' : 'Splnění: '}</span>
+      Čeká na schválení
+    </Pill>
+  );
+}
+
+function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'warn' | 'crit' } }) {
   const swap = c.swap_today;
-  if (swap?.kind === 'pending_give')
-    return (
-      <div className="fam-chore-meta">
-        <Pill
-          size="sm"
-          tone="accent"
-          icon={<Icon name="swap" size={14} />}
-          data-testid="family-pending-pill"
-          data-pending="swap"
-        >
-          Předání čeká na schválení
-        </Pill>
-      </div>
-    );
-  if (c.state === 'claimed')
-    return (
-      <div className="fam-chore-meta">
-        <Pill
-          size="sm"
-          tone="warn"
-          icon={<Icon name="clock" size={14} />}
-          data-testid="family-pending-pill"
-          data-pending="completion"
-        >
-          Splnění čeká na schválení
-        </Pill>
-      </div>
-    );
+  const deadline =
+    note.text && c.state !== 'claimed' && c.state !== 'done' ? (
+      <small data-tone={note.tone} className="fam-due">
+        {note.text.replace(/^Do /, 'do ')}
+      </small>
+    ) : null;
   if (swap?.kind === 'transferred_out')
     return (
       <div className="fam-chore-meta">
-        <small className="fam-swap-note" data-testid="family-swap-note">
-          <Icon name="swap" size={14} />
-          <span>Předáno: {swap.partner_name ?? '—'}</span>
-          <span>· jen dnes</span>
-        </small>
+        <SwapTag swap={swap} />
       </div>
     );
+  const pending =
+    swap?.kind === 'pending_give' ? 'swap' : c.state === 'claimed' ? 'completion' : null;
+  if (!pending && !deadline && !swap) return null;
   return (
     <div className="fam-chore-meta">
-      <small data-tone={note.tone}>{note.text}</small>
-      {swap?.kind === 'transferred_in' && (
-        <span className="fam-swap-tag" data-testid="family-swap-note">
-          <Icon name="swap" size={14} />
-          Převzato od: {swap.partner_name ?? '—'} · jen dnes
-        </span>
-      )}
+      {pending && <PendingPill kind={pending} />}
+      {deadline}
+      {swap?.kind === 'transferred_in' && <SwapTag swap={swap} />}
     </div>
   );
 }
@@ -321,57 +398,87 @@ function KidCard({
   now,
   act,
   compact,
+  collapseDone,
+  collapsible,
   self,
+  words,
+  members,
 }: {
   kid: FamilyKid;
   color: string;
   now: Date;
   act: Actions;
-  /** Kiosk: finished chores fold into one „+N hotovo“ line so the card fits the screen. */
+  /** Kiosk: finished chores fold into one static „Hotovo: N“ line so the card fits the screen. */
   compact?: boolean;
+  /** Phone: finished chores fold into an expandable „Hotovo: N“ line (shorter page). */
+  collapseDone?: boolean;
+  /** Parent views: the kid section folds via its header (default expanded). */
+  collapsible?: boolean;
   /** Child's own view: the card header already names the viewer. */
   self?: boolean;
+  /** Kid-facing unit („3 body“) instead of „3 b.“. */
+  words?: boolean;
+  members: Member[];
 }) {
+  const [open, setOpen] = useState(true);
+  const [showDone, setShowDone] = useState(false);
+  const bodyId = useId();
   const active = kid.chores.filter((c) => c.counts_today !== false);
   const t = choreTally(active.length ? active : kid.chores);
   const sorted = sortChores(kid.chores);
-  const doneRows = compact ? sorted.filter((c) => c.state === 'done') : [];
-  const rows = compact ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const fold = compact || (collapseDone && !showDone);
+  const doneRows = sorted.filter((c) => c.state === 'done');
+  const rows = fold ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const swapsPending = kid.chores.filter((c) => c.swap_today?.kind === 'pending_give').length;
   const progress = t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic';
+  const unit = { words };
+  const anyMenu = !!act.onMenu && kid.chores.some(canTransferChore);
+  const head = (
+    <>
+      {!self && (
+        <span className="fam-avatar" aria-hidden="true" data-testid="family-kid-avatar">
+          {kid.name.slice(0, 1)}
+        </span>
+      )}
+      <div>
+        <b>{self ? progress : kid.name}</b>
+        {!self && <small>{progress}</small>}
+      </div>
+      {kid.points !== null && (
+        <div className="fam-points" data-testid="family-points">
+          <strong data-testid="family-today-points">
+            {pointsLabel(kid.points_today ?? t.earned, unit)}
+          </strong>
+          <small>dnes</small>
+        </div>
+      )}
+    </>
+  );
   return (
     <article
       className="fam-kid"
       style={{ '--fam-kid': color } as React.CSSProperties}
       data-testid="family-kid"
       data-kid={kid.id}
+      data-collapsed={(collapsible && !open) || undefined}
     >
-      <div className="fam-kid-h">
-        {!self && (
-          <span className="fam-avatar" aria-hidden="true" data-testid="family-kid-avatar">
-            {kid.name.slice(0, 1)}
+      {collapsible ? (
+        <button
+          type="button"
+          className="fam-kid-h fam-kid-toggle"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          data-testid="family-kid-toggle"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {head}
+          <span className="fam-kid-chev" aria-hidden="true">
+            <Icon name="chevron" size={18} />
           </span>
-        )}
-        <div>
-          <b>{self ? progress : kid.name}</b>
-          {!self && <small>{progress}</small>}
-        </div>
-        {kid.points !== null && (
-          <div className="fam-points" data-testid="family-points">
-            <strong data-testid="family-today-points">
-              {pointsLabel(kid.points_today ?? t.earned)}
-            </strong>
-            <small>
-              dnes
-              {t.waiting > 0 && (
-                <>
-                  {' · '}
-                  <em data-testid="family-pending-points">+{fmtPoints(t.waiting)} čeká</em>
-                </>
-              )}
-            </small>
-          </div>
-        )}
-      </div>
+        </button>
+      ) : (
+        <div className="fam-kid-h">{head}</div>
+      )}
       {t.total > 0 && (
         <div
           className="fam-bar"
@@ -385,111 +492,159 @@ function KidCard({
           <i data-pending style={{ width: `${(t.pending / t.total) * 100}%` }} />
         </div>
       )}
-      {((kid.points !== null && act.onPoints) || act.onAdd) && (
-        <div className="fam-kid-tools">
-          {kid.points !== null && act.onPoints && (
-            <button
-              type="button"
-              className="fam-total-link"
-              data-testid="family-total"
-              onClick={act.onPoints}
-            >
-              celkem {Math.round(kid.points)} b.
-              <Icon name="chevron" size={16} />
-            </button>
+      {(t.waiting > 0 || swapsPending > 0) && (
+        <div className="fam-kid-pending" data-testid="family-kid-pending">
+          {t.waiting > 0 && (
+            <span className="fam-wait-chip" data-tone="warn" data-testid="family-pending-points">
+              <Icon name="clock" size={14} />
+              {pointsLabel(t.waiting, unit)}{' '}
+              {words ? czPlural(t.waiting, 'čeká', 'čekají', 'čeká') : 'čeká'} na schválení
+            </span>
           )}
-          {act.onAdd && (
-            <Button
-              size="sm"
-              variant="secondary"
-              className="fam-add-chore-btn"
-              icon={<Icon name="plus" size={18} />}
-              data-testid="family-add-chore"
-              aria-label={`Přidat úkol: ${kid.name}`}
-              onClick={act.onAdd}
-            >
-              Úkol
-            </Button>
+          {swapsPending > 0 && (
+            <span className="fam-wait-chip" data-tone="accent" data-testid="family-pending-swaps">
+              <Icon name="swap" size={14} />
+              {swapsPending === 1
+                ? 'Předání čeká na schválení'
+                : `${swapsPending} předání čekají na schválení`}
+            </span>
           )}
         </div>
       )}
-      <ul className="fam-chores">
-        {rows.map((c) => {
-          const note = choreNote(c, now, { parentApproves: !c.can_approve });
-          const ui = c.state === 'overdue' ? 'todo' : c.state;
-          const key = `${kid.id}/${c.id}`;
-          const out = c.swap_today?.kind === 'transferred_out';
-          const showMenu =
-            act.onMenu &&
-            (!self ||
-              (c.can_request_swap &&
-                c.state !== 'done' &&
-                c.state !== 'claimed' &&
-                c.swap_today?.kind !== 'pending_give' &&
-                c.swap_today?.kind !== 'transferred_out'));
-          return (
-            <li
-              key={c.id}
-              className="fam-chore"
-              data-state={ui}
-              data-muted={out || undefined}
-              data-swap={c.swap_today?.kind}
-              data-testid="family-chore"
-            >
-              {out ? (
-                <span className="fam-transferred-icon" aria-hidden="true">
-                  <Icon name="swap" size={20} />
-                </span>
-              ) : (
+      <div id={bodyId} className="fam-kid-body" hidden={collapsible && !open}>
+        {((kid.points !== null && act.onPoints) || act.onAdd) && (
+          <div className="fam-kid-tools">
+            {kid.points !== null && act.onPoints && (
+              <button
+                type="button"
+                className="fam-total-link"
+                data-testid="family-total"
+                onClick={act.onPoints}
+              >
+                celkem {pointsAmount(Math.round(kid.points), unit)}
+                <Icon name="chevron" size={16} />
+              </button>
+            )}
+            {act.onAdd && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="fam-add-chore-btn"
+                icon={<Icon name="plus" size={18} />}
+                data-testid="family-add-chore"
+                aria-label={`Přidat úkol: ${kid.name}`}
+                onClick={act.onAdd}
+              >
+                Úkol
+              </Button>
+            )}
+          </div>
+        )}
+        <ul className="fam-chores">
+          {rows.map((c) => {
+            const note = choreNote(c, now, { parentApproves: !c.can_approve });
+            const ui = c.state === 'overdue' ? 'todo' : c.state;
+            const key = `${kid.id}/${c.id}`;
+            const out = c.swap_today?.kind === 'transferred_out';
+            const partner = out
+              ? members.find((m) => m.name === c.swap_today?.partner_name)
+              : undefined;
+            const showMenu = act.onMenu && canTransferChore(c);
+            const nameId = `${bodyId}-${c.id}`;
+            return (
+              <li
+                key={c.id}
+                className="fam-chore"
+                data-state={ui}
+                data-muted={out || undefined}
+                data-swap={c.swap_today?.kind}
+                data-testid="family-chore"
+              >
+                {out ? (
+                  <span
+                    className="fam-avatar fam-avatar-sm fam-handed-avatar"
+                    style={
+                      partner ? ({ '--fam-kid': partner.color } as React.CSSProperties) : undefined
+                    }
+                    data-testid="family-handed-avatar"
+                    aria-hidden="true"
+                  >
+                    {(c.swap_today?.partner_name ?? '?').slice(0, 1)}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="fam-check"
+                    data-testid="family-chore-check"
+                    disabled={!c.can_claim || act.busy === key}
+                    aria-label={
+                      c.can_claim
+                        ? `Hotovo: ${c.name}`
+                        : `${c.name}: ${note.text || (c.state === 'done' ? 'hotovo' : '')}`
+                    }
+                    onClick={() => act.claim(kid.id, c.id)}
+                  >
+                    <Check />
+                  </button>
+                )}
+                <div className="fam-chore-t">
+                  <b id={nameId}>{c.name}</b>
+                  <ChoreMeta c={c} note={note} />
+                </div>
+                <span className="fam-pts">{pointsLabel(c.points, unit)}</span>
+                {anyMenu &&
+                  (showMenu ? (
+                    <Button
+                      variant="ghost"
+                      className="fam-overflow"
+                      icon={<Icon name="more" size={22} />}
+                      data-testid="family-chore-menu"
+                      aria-label="Další akce"
+                      aria-describedby={nameId}
+                      onClick={() => act.onMenu?.(kid.id, c.id)}
+                    />
+                  ) : (
+                    <span className="fam-overflow-spacer" aria-hidden="true" />
+                  ))}
+              </li>
+            );
+          })}
+          {fold && doneRows.length > 0 && (
+            <li className="fam-chore fam-done-sum" data-testid="family-done-summary">
+              <span className="fam-done-sum-i" aria-hidden="true">
+                <Check />
+              </span>
+              <div className="fam-chore-t">
+                <b>Hotovo: {doneRows.length}</b>
+                <div className="fam-chore-meta">
+                  <small>{doneRows.map((c) => c.name).join(' · ')}</small>
+                </div>
+              </div>
+              <span className="fam-pts">
+                {pointsLabel(
+                  doneRows.reduce((sum, c) => sum + (c.points ?? 0), 0),
+                  unit,
+                )}
+              </span>
+              {collapseDone && !compact && (
                 <button
                   type="button"
-                  className="fam-check"
-                  data-testid="family-chore-check"
-                  disabled={!c.can_claim || act.busy === key}
-                  aria-label={c.can_claim ? `Hotovo: ${c.name}` : `${c.name}: ${note.text}`}
-                  onClick={() => act.claim(kid.id, c.id)}
+                  className="fam-done-more"
+                  aria-expanded={false}
+                  data-testid="family-done-expand"
+                  onClick={() => setShowDone(true)}
                 >
-                  <Check />
+                  <span className="hb-sr-only">Ukázat hotové úkoly</span>
+                  <Icon name="chevron" size={18} />
                 </button>
               )}
-              <div className="fam-chore-t">
-                <b>{c.name}</b>
-                <ChoreMeta c={c} note={note} />
-              </div>
-              <span className="fam-pts">{pointsLabel(c.points)}</span>
-              {act.onMenu &&
-                (showMenu ? (
-                  <Button
-                    variant="ghost"
-                    className="fam-overflow"
-                    icon={<Icon name="more" size={22} />}
-                    data-testid="family-chore-menu"
-                    aria-label={`Akce: ${c.name}`}
-                    onClick={() => act.onMenu?.(kid.id, c.id)}
-                  />
-                ) : (
-                  <span className="fam-overflow-spacer" aria-hidden="true" />
-                ))}
+              {anyMenu && !collapseDone && (
+                <span className="fam-overflow-spacer" aria-hidden="true" />
+              )}
             </li>
-          );
-        })}
-        {doneRows.length > 0 && (
-          <li className="fam-chore fam-done-sum" data-testid="family-done-summary">
-            <span className="fam-done-sum-i" aria-hidden="true">
-              <Check />
-            </span>
-            <div className="fam-chore-t">
-              <b>+{doneRows.length} hotovo</b>
-              <div className="fam-chore-meta">
-                <small>{doneRows.map((c) => c.name).join(' · ')}</small>
-              </div>
-            </div>
-            <span className="fam-pts">
-              {pointsLabel(doneRows.reduce((sum, c) => sum + (c.points ?? 0), 0))}
-            </span>
-          </li>
-        )}
-      </ul>
+          )}
+        </ul>
+      </div>
     </article>
   );
 }
@@ -502,11 +657,13 @@ function ChoresCard({
   onAdd,
   onApproval,
   kidAct,
+  phone,
 }: {
   snap: FamilySnapshot;
   now: Date;
   act: Actions;
   members: Member[];
+  phone?: boolean;
   onAdd: (kid: FamilyKid) => void;
   kidAct: (kid: FamilyKid) => Actions;
   onApproval: {
@@ -567,7 +724,11 @@ function ChoresCard({
             color={members[i]?.color ?? KID_COLORS[0]!}
             now={now}
             compact={snap.role === 'kiosk'}
+            collapseDone={parent && phone}
+            collapsible={parent}
             self={!!viewer}
+            words={child}
+            members={members}
             act={{
               ...kidAct(kid),
               onAdd: snap.capabilities?.can_create_chore && parent ? () => onAdd(kid) : undefined,
@@ -673,6 +834,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     mode: 'give' | 'reassign';
   } | null>(null);
   const [menu, setMenu] = useState<{ kid: string; chore: string } | null>(null);
+  const phone = usePhone();
 
   useEffect(() => {
     if (!kiosk) return;
@@ -769,6 +931,13 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       return person ? presenceHex(person.color) : member.color;
     })(),
   }));
+  // Calendar ownership resolves against the whole household (a child's snapshot only lists itself).
+  const calendarMembers: Member[] = [
+    ...members,
+    ...(people ?? [])
+      .filter((p) => !members.some((m) => m.name === p.name))
+      .map((p) => ({ id: p.id, name: p.name, color: presenceHex(p.color) })),
+  ];
   const identityColors = Object.fromEntries([
     ...members.flatMap((member) => [
       [member.id, member.color],
@@ -781,8 +950,11 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       {node}
     </div>
   );
-  const today = slot('today', <TodayCard snap={snap} now={now} admin={admin} members={members} />);
-  const week = slot('week', <WeekCard snap={snap} now={now} members={members} />);
+  const today = slot(
+    'today',
+    <TodayCard snap={snap} now={now} admin={admin} members={calendarMembers} />,
+  );
+  const week = slot('week', <WeekCard snap={snap} now={now} members={calendarMembers} />);
   const chores = slot(
     'chores',
     <ChoresCard
@@ -793,6 +965,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       onAdd={(kid) => setAddChore(kid.kid_uuid ?? kid.id)}
       kidAct={makeKidAct}
       onApproval={approvalHandlers}
+      phone={phone}
     />,
   );
   const shop = slot(
@@ -807,10 +980,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const menuChore = menu
     ? snap.kids.find((k) => k.id === menu.kid)?.chores.find((c) => c.id === menu.chore)
     : null;
-  const canTransfer =
-    menuChore?.can_request_swap &&
-    !menuChore.swap_today?.kind.startsWith('pending') &&
-    menuChore.swap_today?.kind !== 'transferred_out';
+  const canTransfer = canTransferChore(menuChore);
   return (
     <div className="fam" data-kiosk={kiosk || undefined} data-testid="family" data-role={snap.role}>
       <style>{familyStyles}</style>
@@ -822,7 +992,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </time>
         )}
         <p>{longDate(kiosk ? clock : now)}</p>
-        <PresenceStrip people={people} className="fam-presence" />
+        <PresenceStrip people={people} layout="grid" className="fam-presence" />
       </header>
       {error && (
         <p className="fam-err" role="alert">
@@ -851,7 +1021,12 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         </div>
       )}
       {pointsKid && api && (
-        <PointsSheet kid={pointsKid} api={api} onClose={() => setPointsKid(null)} />
+        <PointsSheet
+          kid={pointsKid}
+          api={api}
+          words={snap.role === 'child'}
+          onClose={() => setPointsKid(null)}
+        />
       )}
       {addChore && api && (
         <AddChoreSheet

@@ -7,6 +7,17 @@ const PATHS = {
       <path d="M4.5 7h15M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 10v7M14 10v7" />
     </>
   ),
+  // Household waste bin with a lid and handle: „Vynést koš“ without the destructive trash look.
+  bin: (
+    <>
+      <path d="M4.5 8.5h15M6 8.5l1-3h10l1 3M10 5.5V4h4v1.5M7 8.5l1.2 11h7.6l1.2-11M9.5 13h5" />
+    </>
+  ),
+  school: (
+    <>
+      <path d="M2.5 9 12 4.5 21.5 9 12 13.5 2.5 9ZM6.5 11v4.5c1.5 1.6 3.4 2.5 5.5 2.5s4-.9 5.5-2.5V11M21.5 9v5" />
+    </>
+  ),
   flower: (
     <>
       <path d="M12 21v-7m0 5c-4 0-6-2-6-4 4 0 6 2 6 4m0-2c4 0 6-2 6-4-4 0-6 2-6 4" />

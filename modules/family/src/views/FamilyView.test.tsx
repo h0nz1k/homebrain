@@ -90,7 +90,43 @@ describe('FamilyView', () => {
     await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family-clock')).toBeTruthy();
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
-    expect(screen.getByTestId('family-chores').textContent).toContain('Splnění čeká na schválení');
+    const pills = screen.getAllByTestId('family-pending-pill');
+    expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
+    expect(pills.every((p) => p.textContent?.endsWith('Čeká na schválení'))).toBe(true);
+    expect(screen.getAllByTestId('family-done-summary')[0]!.textContent).toContain('Hotovo: 2');
     expect(screen.queryByTestId('family-approvals')).toBeNull();
+  });
+
+  it('handover tags decline names; done rows carry no extra „Hotovo“ text', async () => {
+    await mount('owner');
+    const notes = screen.getAllByTestId('family-swap-note').map((n) => n.textContent);
+    expect(notes).toContain('Předáno Synovi · jen dnes');
+    expect(notes).toContain('Převzato od Dcery · jen dnes');
+    expect(notes.some((t) => t?.includes(':'))).toBe(false);
+    const done = screen.getAllByTestId('family-chore').filter((li) => li.dataset.state === 'done');
+    expect(done.length).toBeGreaterThan(0);
+    for (const li of done) expect(li.querySelector('.fam-chore-meta')).toBeNull();
+    expect(screen.getByTestId('family-pending-points').textContent).toBe(
+      '+2\u00a0b. čeká na schválení',
+    );
+    expect(screen.getByTestId('family-pending-swaps').textContent).toBe(
+      'Předání čeká na schválení',
+    );
+  });
+
+  it('child: kid-facing unit spelled out („3 body“), no abbreviations', async () => {
+    await mount('child');
+    const pts = Array.from(document.querySelectorAll('.fam-pts')).map((n) => n.textContent);
+    expect(pts.length).toBeGreaterThan(0);
+    expect(pts.every((t) => /\+\d+\u00a0bod(y|ů)?$/.test(t ?? ''))).toBe(true);
+    expect(screen.getByTestId('family-today-points').textContent).toBe('+4\u00a0body');
+  });
+
+  it('parent: kid section collapses from its header', async () => {
+    await mount('owner');
+    const toggle = screen.getAllByTestId('family-kid-toggle')[0]!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
   });
 });

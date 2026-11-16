@@ -138,7 +138,7 @@ function kids(now: Date): FamilyKid[] {
         c('kos', 'Vynést koš', 'todo', 3, 19, {
           swap_today: {
             kind: 'transferred_out',
-            label: 'Předáno: Syn · jen dnes',
+            label: 'Předáno Synovi · jen dnes',
             partner_name: 'Syn',
             muted: true,
           },
@@ -166,7 +166,7 @@ function kids(now: Date): FamilyKid[] {
         c('kos-in', 'Vynést koš', 'todo', 3, 19, {
           swap_today: {
             kind: 'transferred_in',
-            label: 'Převzato od: Dcera · jen dnes',
+            label: 'Převzato od Dcery · jen dnes',
             partner_name: 'Dcera',
           },
         }),
@@ -342,7 +342,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         if (decision === 'approve') {
           original.swap_today = {
             kind: 'transferred_out',
-            label: 'Předáno: Syn · jen dnes',
+            label: 'Předáno Synovi · jen dnes',
             partner_name: 'Syn',
             muted: true,
           };
@@ -353,7 +353,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
             counts_today: true,
             swap_today: {
               kind: 'transferred_in',
-              label: 'Převzato od: Dcera · jen dnes',
+              label: 'Převzato od Dcery · jen dnes',
               partner_name: 'Dcera',
             },
           });

@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 /**
  * „Kdo je doma“ – synthetic dev household (`?lide=none|home`, default mixed: 4 doma, 2 pryč,
- * 1 nevím… see dev.tsx). Only doma / pryč / nevím, never places or times.
+ * 1 neznámo… see dev.tsx). Only doma / pryč / neznámo, never places or times.
  */
 const EXPECTED = [
   'Jan: doma',
@@ -11,7 +11,7 @@ const EXPECTED = [
   'Syn: pryč',
   'Dcera: doma',
   'Babi: pryč',
-  'Děda: nevím',
+  'Děda: neznámo',
 ];
 
 async function labels(page: Page) {
@@ -104,7 +104,7 @@ test.describe('Kdo je doma', () => {
     const stripBox = (await strip.boundingBox())!;
     const clockBox = (await page.getByTestId('today-clock').boundingBox())!;
     expect(stripBox.y).toBeGreaterThanOrEqual(clockBox.y + clockBox.height);
-    // The red 'pryč' ring stays at full strength (no filter/opacity on the avatar).
+    // The neutral 'pryč' ring stays at full strength (no filter/opacity on the avatar).
     const away = await page
       .locator('.hb-presence-person[data-status="away"] .hb-presence-avatar')
       .first()

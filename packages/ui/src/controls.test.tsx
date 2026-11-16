@@ -76,6 +76,21 @@ describe('controls', () => {
     );
     expect(container.querySelector('.hb-seg-wrap')?.getAttribute('data-tone')).toBe('accent');
   });
+  it('SegmentedControl tone=solid marks the wrapper for the filled selected look', () => {
+    const { container } = render(
+      <SegmentedControl
+        label="Období"
+        tone="solid"
+        value="7"
+        onChange={() => {}}
+        options={[
+          ['7', '7 dní'],
+          ['30', '30 dní'],
+        ]}
+      />,
+    );
+    expect(container.querySelector('.hb-seg-wrap')?.getAttribute('data-tone')).toBe('solid');
+  });
   it('SegmentedControl is a radiogroup and reports only a changed value', () => {
     const onChange = vi.fn();
     render(

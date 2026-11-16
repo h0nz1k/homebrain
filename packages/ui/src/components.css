@@ -1510,6 +1510,12 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   color: var(--hb-sel-ink);
   box-shadow: inset 0 0 0 1.5px var(--hb-ac);
 }
+.hb-seg-wrap[data-tone='solid'] .hb-seg button[aria-checked='true'] {
+  background: var(--hb-ac-solid, var(--hb-ac));
+  color: #fff;
+  font-weight: 650;
+  box-shadow: none;
+}
 .hb-seg button:disabled {
   cursor: default;
   opacity: 0.55;
@@ -2275,7 +2281,8 @@ button.hb-tile[data-empty] .hb-tile-status {
   box-sizing: border-box;
 }
 .hb-presence-person[data-status='away'] {
-  --hb-presence-status: var(--hb-crit);
+  /* Neutral warm grey, not red: being away is normal, not an alert. */
+  --hb-presence-status: color-mix(in srgb, var(--hb-warn) 45%, var(--hb-t2));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent);
 }
 .hb-presence-person[data-status='unknown'] {
@@ -2337,6 +2344,21 @@ button.hb-tile[data-empty] .hb-tile-status {
   border-radius: 50%;
   background: var(--hb-presence-status);
   vertical-align: 0.08em;
+}
+/* Balanced equal-width grid (columns set by PresenceStrip from the measured width). */
+.hb-presence-list[data-cols] {
+  display: grid;
+}
+.hb-presence-list[data-cols] .hb-presence-person {
+  width: 100%;
+}
+.hb-presence-list[data-stack] .hb-presence-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.hb-presence-text > * {
+  max-width: 100%;
 }
 .hb-presence[data-size='lg'] {
   --hb-presence-avatar: 44px;
@@ -2977,6 +2999,22 @@ button.hb-cell-main:focus-visible {
 }
 .hb-sheet-handle {
   display: none;
+}
+/* Isolated sheets have no padding: the handle floats inside the opaque header, and the close
+   button keeps the same 20 px inset as the title on the left. */
+.hb-scrim[data-isolation='strong'] .hb-sheet {
+  position: relative;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-handle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 3;
+  margin: 0;
+  translate: -50% 0;
+}
+.hb-scrim[data-isolation='strong'] .hb-sheet-close {
+  margin: -10px 0;
 }
 .hb-sheet-close {
   display: grid;

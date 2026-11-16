@@ -18,7 +18,8 @@ import {
   type IconName,
 } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
-import { fmtPoints, localKey, timeLabel } from '../format.js';
+import { pointsWord } from '../czech.js';
+import { fmtPoints, localKey, pointsAmount, pointsLabel, timeLabel } from '../format.js';
 import type {
   CreateChoreInput,
   FamilyApproval,
@@ -164,14 +165,23 @@ export function ApprovalsBlock({
   );
 }
 
+/** Chart ceiling with ~20 % headroom on an even number, so the mid tick stays whole. */
+export function chartCeiling(max: number): number {
+  if (!(max > 0)) return 2;
+  return Math.max(2, Math.ceil((max * 1.2) / 2) * 2);
+}
+
 export function PointsSheet({
   kid,
   api,
   onClose,
+  words,
 }: {
   kid: FamilyKid;
   api: FamilyApi;
   onClose: () => void;
+  /** Kid-facing unit („128 bodů“) when a child looks at their own points. */
+  words?: boolean;
 }) {
   useBackClosable(onClose);
   const [days, setDays] = useState<7 | 30>(7);
@@ -192,7 +202,10 @@ export function PointsSheet({
   }, [api, kid.id, kid.kid_uuid, days, showAll]);
   const net = summary?.net_month;
   const earned = summary?.earned_month;
-  const spent = summary?.spent_month;
+  const unit = { words };
+  const ceiling = history?.chart ? chartCeiling(history.chart.max) : 0;
+  const signed = (v: number | null | undefined) =>
+    v == null ? '—' : v >= 0 ? pointsLabel(v, unit) : `−${pointsAmount(Math.abs(v), unit)}`;
   return (
     <Sheet
       title={`Body · ${kid.name}`}
@@ -206,38 +219,38 @@ export function PointsSheet({
     >
       <div className="fam-points-sheet">
         <header className="fam-points-intro">
-          <p className="fam-hint">{kid.name} · k dispozici</p>
+          <p className="fam-points-label">K dispozici</p>
           <p className="fam-points-hero" data-testid="family-points-balance">
-            {summary?.balance ?? '—'} <small>b.</small>
+            {summary?.balance ?? '—'}{' '}
+            <small>{words && summary?.balance != null ? pointsWord(summary.balance) : 'b.'}</small>
           </p>
-          <p className="fam-earned">
-            {net == null ? '—' : `${net >= 0 ? '+' : '−'}${Math.abs(net)}`} čistě tento měsíc
-          </p>
-          <p className="fam-hint">
-            +{earned ?? '—'} získáno · −{spent ?? '—'} utraceno
+          <p className="fam-earned" data-testid="family-points-month">
+            Tento měsíc {signed(net)}
           </p>
           <p className="fam-hint">
-            Celkem získáno {summary?.earned_all_time ?? '—'} b. · utraceno{' '}
-            {summary?.spent_all_time ?? '—'} b.
+            Celkem získáno {summary?.earned_all_time ?? '—'} · utraceno{' '}
+            {summary?.spent_all_time ?? '—'}
           </p>
         </header>
         <dl className="fam-points-stats">
           <div>
             <dt>Dnes</dt>
             <dd>
-              +{summary?.earned_today ?? '—'} <small>b.</small>
+              +{summary?.earned_today ?? '—'}{' '}
+              <small>{words ? pointsWord(summary?.earned_today ?? 0) : 'b.'}</small>
             </dd>
           </div>
           <div>
-            <dt>Týden</dt>
+            <dt>7 dní</dt>
             <dd>
-              +{summary?.earned_week ?? '—'} <small>b.</small>
+              +{summary?.earned_week ?? '—'}{' '}
+              <small>{words ? pointsWord(summary?.earned_week ?? 0) : 'b.'}</small>
             </dd>
           </div>
           <div>
             <dt>Měsíc</dt>
             <dd>
-              +{earned ?? '—'} <small>b.</small>
+              +{earned ?? '—'} <small>{words ? pointsWord(earned ?? 0) : 'b.'}</small>
             </dd>
           </div>
           <div data-kind="streak">
@@ -257,7 +270,7 @@ export function PointsSheet({
           <SegmentedControl
             label="Období grafu"
             hideLabel
-            tone="accent"
+            tone="solid"
             value={String(days)}
             onChange={(v: string) => setDays(Number(v) as 7 | 30)}
             options={[
@@ -269,9 +282,9 @@ export function PointsSheet({
         {history?.chart ? (
           <figure className="fam-chart-wrap" data-testid="family-points-chart">
             <div className="fam-chart-axis" data-testid="family-points-axis">
-              <span>{fmtPoints(history.chart.max)} b.</span>
-              <span>{fmtPoints(history.chart.max / 2)} b.</span>
-              <span>0 b.</span>
+              <span>{fmtPoints(ceiling)}</span>
+              <span>{fmtPoints(ceiling / 2)}</span>
+              <span>0</span>
             </div>
             <div
               className="fam-chart"
@@ -283,11 +296,15 @@ export function PointsSheet({
                 return (
                   <div className="fam-chart-column" key={history.chart.days[i]} data-today={today}>
                     <span
-                      style={{
-                        height: `${history.chart.max ? (100 * v) / history.chart.max : 0}%`,
-                      }}
+                      style={{ height: `${ceiling ? (100 * v) / ceiling : 0}%` }}
                       data-today={today}
-                    />
+                    >
+                      {today !== undefined && (
+                        <b className="fam-chart-value" data-testid="family-points-today-value">
+                          +{fmtPoints(v)}
+                        </b>
+                      )}
+                    </span>
                     <small>
                       {days === 7
                         ? new Date(`${history.chart.days[i]}T12:00:00`).toLocaleDateString(
@@ -304,9 +321,9 @@ export function PointsSheet({
                 );
               })}
             </div>
-            <figcaption>
-              <i /> Dnes{!history.chart.coverage_complete && ' · Za část období chybí data'}
-            </figcaption>
+            {!history.chart.coverage_complete && (
+              <figcaption>Za část období chybí data.</figcaption>
+            )}
           </figure>
         ) : (
           <p className="fam-info">Denní historie zatím není dostupná.</p>
@@ -338,7 +355,7 @@ export function PointsSheet({
                       {label}
                       <strong className={group === 'Získáno' ? 'fam-earned' : 'fam-spent'}>
                         {group === 'Získáno' ? '+' : '−'}
-                        {Math.abs(value!)} b.
+                        {pointsAmount(Math.abs(value!), unit)}
                       </strong>
                     </li>
                   ))}
@@ -362,7 +379,7 @@ export function PointsSheet({
                   </span>
                   <strong className={Number(entry.amount) >= 0 ? 'fam-earned' : 'fam-spent'}>
                     {Number(entry.amount) >= 0 ? '+' : '−'}
-                    {Math.abs(Number(entry.amount))} b.
+                    {pointsAmount(Math.abs(Number(entry.amount)), unit)}
                   </strong>
                 </li>
               ))}
@@ -384,6 +401,20 @@ export function PointsSheet({
   );
 }
 
+const ICONS: ReadonlyArray<readonly [string, string, IconName]> = [
+  ['mdi:broom', 'Úklid', 'broom'],
+  ['mdi:delete-empty-outline', 'Koš', 'bin'],
+  ['mdi:flower', 'Květina', 'flower'],
+  ['mdi:food', 'Jídlo', 'food'],
+];
+
+/** „Po, St a Pá“ */
+function joinCz(items: string[]): string {
+  return items.length > 1
+    ? `${items.slice(0, -1).join(', ')} a ${items.at(-1)}`
+    : (items[0] ?? '—');
+}
+
 export function AddChoreSheet({
   kids,
   api,
@@ -401,8 +432,9 @@ export function AddChoreSheet({
 }) {
   useBackClosable(onClose);
   const errId = useId();
+  const nameErrId = useId();
   const [name, setName] = useState('');
-  const [points, setPoints] = useState('2');
+  const [points, setPoints] = useState(2);
   const [assignees, setAssignees] = useState<string[]>(
     initialKid ? [initialKid] : kids[0] ? [kids[0].kid_uuid ?? kids[0].id] : [],
   );
@@ -417,11 +449,15 @@ export function AddChoreSheet({
     .reverse()
     .map((v, i) => (i === 0 ? v : v.padStart(2, '0')))
     .join('-');
-  const [icon, setIcon] = useState('mdi:broom');
+  const [icon, setIcon] = useState('');
+  const [iconOpen, setIconOpen] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
   const [dueTime, setDueTime] = useState('18:00');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
+  const [nameDirty, setNameDirty] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [openedAt] = useState(() => Date.now());
   const chooseSchedule = (nextRecurrence: Recurrence, nextDays: Weekday[]) => {
     setRecurrence(nextRecurrence);
@@ -443,55 +479,68 @@ export function AddChoreSheet({
       recurrence,
       weekdays.includes(d) ? weekdays.filter((x) => x !== d) : [...weekdays, d],
     );
-  const valid =
-    !!name.trim() &&
-    assignees.length > 0 &&
-    Number.isFinite(Number(points)) &&
-    Number(points) >= 0 &&
-    Number(points) <= 1000 &&
-    /^(?:\d+)(?:\.\d{1,2})?$/.test(points) &&
-    (recurrence !== 'weekly' || weekdays.length > 0) &&
+  const dateOk =
     /^\d{4}-\d{2}-\d{2}$/.test(firstDate) &&
     !Number.isNaN(new Date(`${firstDate}T12:00:00`).getTime()) &&
-    localKey(new Date(`${firstDate}T12:00:00`)) === firstDate &&
-    /^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime) &&
-    new Date(`${firstDate}T${dueTime}`).getTime() > openedAt;
-  const startLabel = /^\d{4}-\d{2}-\d{2}$/.test(firstDate)
+    localKey(new Date(`${firstDate}T12:00:00`)) === firstDate;
+  const timeOk = /^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime);
+  const futureOk = dateOk && timeOk && new Date(`${firstDate}T${dueTime}`).getTime() > openedAt;
+  const problems = {
+    name: !name.trim() ? 'Doplň název úkolu.' : '',
+    who: !assignees.length ? 'Vyber, komu úkol patří.' : '',
+    days: recurrence === 'weekly' && !weekdays.length ? 'Vyber aspoň jeden den.' : '',
+    when: !dateOk
+      ? 'Zadej datum ve tvaru 17. 11. 2026.'
+      : !timeOk
+        ? 'Zadej čas ve tvaru 18:00.'
+        : !futureOk
+          ? 'Termín musí být v budoucnu.'
+          : '',
+  };
+  const valid = !Object.values(problems).some(Boolean);
+  const showName = (nameTouched || submitted) && problems.name;
+  const startLabel = dateOk
     ? new Date(`${firstDate}T12:00:00`).toLocaleDateString('cs-CZ', {
         day: 'numeric',
         month: 'numeric',
       })
     : '—';
   const dayList = WEEKDAYS.filter((d) => weekdays.includes(d.id)).map((d) => d.label);
-  const summaryText = [
+  const who =
     kids
       .filter((k) => assignees.includes(k.kid_uuid ?? k.id))
       .map((k) => k.name)
-      .join(' a ') || 'Nikdo',
+      .join(' a ') || 'Nikdo';
+  const scheduleText =
     recurrence === 'weekly'
-      ? `${dayList.length > 1 ? `${dayList.slice(0, -1).join(', ')} a ${dayList.at(-1)}` : (dayList[0] ?? '—')} od\u00a0${startLabel}`
+      ? `${joinCz(dayList)} do\u00a0${dueTime} · od\u00a0${startLabel}`
       : recurrence === 'daily'
-        ? `denně od\u00a0${startLabel}`
-        : `jednou ${startLabel}`,
-    `do\u00a0${dueTime}`,
-    `${points}\u00a0b.`,
-  ].join(' · ');
+        ? `každý den do\u00a0${dueTime} · od\u00a0${startLabel}`
+        : `${startLabel} do\u00a0${dueTime}`;
+  const summaryText = [who, `${points}\u00a0b.`, scheduleText].join(' · ');
+  const dueLabel =
+    recurrence === 'daily'
+      ? 'Každý den do'
+      : recurrence === 'weekly'
+        ? 'V tyto dny do'
+        : 'Splnit do';
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    setSubmitted(true);
     if (!valid || busy || new Date(`${firstDate}T${dueTime}`).getTime() <= new Date().getTime()) {
-      setError('Vyplňte název a komu úkol patří.');
+      if (problems.name) document.getElementById('fam-chore-name')?.focus();
       return;
     }
     const payload: CreateChoreInput = {
       client_request_id: requestId,
       name: name.trim(),
-      points: Number(points),
+      points,
       assignees,
       recurrence,
       weekdays: recurrence === 'weekly' ? weekdays : undefined,
       first_date: firstDate,
       due_time: dueTime,
-      icon,
+      icon: icon || undefined,
     };
     setBusy(true);
     setError('');
@@ -505,6 +554,13 @@ export function AddChoreSheet({
       setBusy(false);
     }
   };
+  const chosenIcon = ICONS.find(([value]) => value === icon);
+  const fieldErr = (text: string, testid?: string) =>
+    submitted && text ? (
+      <p className="fam-field-err" data-testid={testid}>
+        {text}
+      </p>
+    ) : null;
   return (
     <Sheet
       title="Přidat úkol"
@@ -514,55 +570,51 @@ export function AddChoreSheet({
       stickyFooter
       closeLabel="Zavřít formulář"
       footer={
-        <div>
-          <div className="fam-summary">
-            <Icon name="calendar" size={18} />
-            <div>
-              <strong data-testid="family-chore-summary">{summaryText}</strong>
-              <p className="fam-hint">
-                {assignees.length > 1
-                  ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
-                  : 'Splnění schvaluje rodič.'}
-              </p>
-            </div>
-          </div>
-          {!valid && (
-            <p className="fam-hint fam-invalid" data-testid="family-add-chore-hint">
-              {!name.trim()
-                ? 'Doplň název úkolu.'
-                : !assignees.length
-                  ? 'Vyber, komu úkol patří.'
-                  : recurrence === 'weekly' && !weekdays.length
-                    ? 'Vyber aspoň jeden den.'
-                    : 'Zkontroluj body a budoucí termín.'}
-            </p>
-          )}
-          <Button
-            variant="primary"
-            contrast="high"
-            type="submit"
-            form="fam-add-chore"
-            disabled={busy || !valid}
-            data-testid="family-add-chore-save"
-            className="fam-cta"
-          >
-            {busy ? 'Ukládám…' : 'Uložit úkol'}
-          </Button>
-        </div>
+        <Button
+          variant="primary"
+          contrast="high"
+          type="submit"
+          form="fam-add-chore"
+          disabled={busy}
+          aria-describedby={submitted && !valid ? errId : undefined}
+          data-testid="family-add-chore-save"
+          data-invalid={!valid || undefined}
+          className="fam-cta"
+        >
+          {busy ? 'Ukládám…' : 'Uložit úkol'}
+        </Button>
       }
       data-testid="family-add-chore-sheet"
     >
-      <form id="fam-add-chore" className="fam-add-chore" onSubmit={(e) => void submit(e)}>
-        <label>
-          Název
+      <form
+        id="fam-add-chore"
+        className="fam-add-chore"
+        noValidate
+        onSubmit={(e) => void submit(e)}
+      >
+        <div className="fam-field">
+          <label htmlFor="fam-chore-name">Název</label>
           <input
+            id="fam-chore-name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameDirty(true);
+            }}
+            // Blur validates only an edited field: tabbing through an untouched form must not
+            // insert errors (and shift the layout under the pointer).
+            onBlur={() => nameDirty && setNameTouched(true)}
             maxLength={80}
             placeholder="Např. Zalít květiny"
-            required
+            aria-invalid={showName ? true : undefined}
+            aria-describedby={showName ? nameErrId : undefined}
           />
-        </label>
+          {showName && (
+            <p id={nameErrId} className="fam-field-err" data-testid="family-name-error">
+              {problems.name}
+            </p>
+          )}
+        </div>
         <div className="fam-form-points">
           <label htmlFor="fam-chore-points">Body</label>
           <div className="fam-stepper">
@@ -571,120 +623,94 @@ export function AddChoreSheet({
               size="sm"
               icon={<Icon name="minus" size={18} />}
               aria-label="Ubrat bod"
-              disabled={!(Number(points) > 0)}
-              onClick={() => setPoints(String(Math.max(0, Number(points) - 1)))}
+              disabled={points <= 0}
+              onClick={() => setPoints((p) => Math.max(0, p - 1))}
             />
-            <input
+            <output
               id="fam-chore-points"
-              aria-describedby={error ? errId : undefined}
-              value={points}
-              onChange={(e) => setPoints(e.target.value)}
-              inputMode="decimal"
-            />
-            <span>b.</span>
+              className="fam-stepper-val"
+              aria-live="polite"
+              data-testid="family-points-value"
+            >
+              <b>{points}</b>
+              <span>b.</span>
+            </output>
             <Button
               variant="secondary"
               size="sm"
               icon={<Icon name="plus" size={18} />}
               aria-label="Přidat bod"
-              onClick={() => setPoints(String(Math.min(1000, (Number(points) || 0) + 1)))}
+              disabled={points >= 100}
+              onClick={() => setPoints((p) => Math.min(100, p + 1))}
             />
           </div>
         </div>
-        <fieldset>
-          <legend>Ikona · volitelné</legend>
-          <details className="fam-icon-picker">
-            <summary>
-              <Icon
-                name={
-                  (
-                    {
-                      'mdi:broom': 'broom',
-                      'mdi:trash-can-outline': 'trash',
-                      'mdi:flower': 'flower',
-                      'mdi:food': 'food',
-                    } as Record<string, IconName>
-                  )[icon]!
-                }
-                size={20}
-              />
-              {
-                (
-                  {
-                    'mdi:broom': 'Úklid',
-                    'mdi:trash-can-outline': 'Koš',
-                    'mdi:flower': 'Květina',
-                    'mdi:food': 'Jídlo',
-                  } as Record<string, string>
-                )[icon]
-              }
-              <Icon name="chevron" size={16} />
-            </summary>
-            <div className="fam-chips">
-              {[
-                ['mdi:broom', 'Úklid'],
-                ['mdi:trash-can-outline', 'Koš'],
-                ['mdi:flower', 'Květina'],
-                ['mdi:food', 'Jídlo'],
-              ].map(([value, label]) => (
-                <Chip
-                  className="fam-chip"
-                  key={value}
-                  onPress={() => setIcon(value!)}
-                  look="soft"
-                  pressed={icon === value}
-                >
-                  <Icon
-                    name={
-                      (
-                        {
-                          'mdi:broom': 'broom',
-                          'mdi:trash-can-outline': 'trash',
-                          'mdi:flower': 'flower',
-                          'mdi:food': 'food',
-                        } as Record<string, IconName>
-                      )[value!]!
-                    }
-                    size={18}
-                  />
-                  {label}
-                </Chip>
-              ))}
-            </div>
-          </details>
-        </fieldset>
-        <div className="fam-chips fam-presets" role="group" aria-label="Rychlá volba bodů">
-          {['1', '2', '3', '5'].map((v) => (
-            <Chip
-              key={v}
-              className="fam-chip fam-preset"
-              onPress={() => setPoints(v)}
-              pressed={points === v}
-            >
-              {v} b.
-            </Chip>
-          ))}
+        <div className="fam-form-icon">
+          <span className="fam-label" id="fam-icon-label">
+            Ikona <small>· volitelné</small>
+          </span>
+          <button
+            type="button"
+            className="fam-icon-pick"
+            aria-expanded={iconOpen}
+            aria-labelledby="fam-icon-label fam-icon-value"
+            data-testid="family-icon-pick"
+            onClick={() => setIconOpen((v) => !v)}
+          >
+            {chosenIcon && <Icon name={chosenIcon[2]} size={20} />}
+            <span id="fam-icon-value" data-empty={!chosenIcon || undefined}>
+              {chosenIcon ? chosenIcon[1] : 'Vybrat'}
+            </span>
+            <Icon name="chevron" size={16} />
+          </button>
         </div>
+        {iconOpen && (
+          <div className="fam-chips fam-icon-chips" role="group" aria-label="Ikona">
+            {ICONS.map(([value, label, glyph]) => (
+              <Chip
+                className="fam-chip"
+                key={value}
+                onPress={() => {
+                  setIcon(icon === value ? '' : value);
+                  setIconOpen(false);
+                }}
+                pressed={icon === value}
+              >
+                <Icon name={glyph} size={18} />
+                {label}
+              </Chip>
+            ))}
+          </div>
+        )}
         <fieldset>
-          <legend>Komu</legend>
+          <legend>Komu {kids.length > 1 && <small>· můžeš vybrat víc dětí</small>}</legend>
           <div className="fam-chips">
             {kids.map((k) => {
               const id = k.kid_uuid ?? k.id;
               const on = assignees.includes(id);
               return (
-                <Chip key={id} className="fam-chip" onPress={() => toggleAssignee(id)} pressed={on}>
+                <Chip
+                  key={id}
+                  className="fam-chip fam-who-chip"
+                  onPress={() => toggleAssignee(id)}
+                  pressed={on}
+                >
                   <span className="fam-partner-avatar" style={{ background: colors[k.id] }}>
                     {k.name[0]}
                   </span>
                   {k.name}
+                  <span className="fam-chip-tick" aria-hidden="true">
+                    {on && <Icon name="check" size={16} />}
+                  </span>
                 </Chip>
               );
             })}
           </div>
+          {fieldErr(problems.who)}
         </fieldset>
         <SegmentedControl
           label="Opakování"
-          tone="accent"
+          tone="solid"
           value={recurrence}
           onChange={(v: string) => chooseSchedule(v as Recurrence, weekdays)}
           options={[
@@ -694,25 +720,28 @@ export function AddChoreSheet({
           ]}
         />
         {recurrence === 'weekly' && (
-          <div className="fam-chips fam-weekdays" role="group" aria-label="Dny v týdnu">
-            {WEEKDAYS.map((d) => (
-              <Chip
-                key={d.id}
-                className="fam-chip"
-                onPress={() => toggleDay(d.id)}
-                pressed={weekdays.includes(d.id)}
-              >
-                {d.label}
-              </Chip>
-            ))}
+          <div className="fam-weekdays-wrap">
+            <div className="fam-chips fam-weekdays" role="group" aria-label="Dny v týdnu">
+              {WEEKDAYS.map((d) => (
+                <Chip
+                  key={d.id}
+                  className="fam-chip"
+                  onPress={() => toggleDay(d.id)}
+                  pressed={weekdays.includes(d.id)}
+                >
+                  {d.label}
+                </Chip>
+              ))}
+            </div>
+            {fieldErr(problems.days)}
           </div>
         )}
         <div className="fam-form-dates">
           <label>
-            {recurrence === 'once' ? 'Den splnění' : 'První den'}
+            {recurrence === 'once' ? 'Den splnění' : 'Od kdy'}
             <span className="fam-input-icon">
               <input
-                aria-label="První den"
+                aria-label={recurrence === 'once' ? 'Den splnění' : 'První den'}
                 placeholder="DD. MM. RRRR"
                 inputMode="numeric"
                 value={firstDateText}
@@ -723,7 +752,7 @@ export function AddChoreSheet({
             </span>
           </label>
           <label>
-            Splnit do
+            {dueLabel}
             <span className="fam-input-icon">
               <input
                 type="text"
@@ -731,13 +760,31 @@ export function AddChoreSheet({
                 placeholder="18:00"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
+                data-testid="family-due-time"
               />
               <Icon name="clock" size={20} />
             </span>
           </label>
+          {fieldErr(problems.when)}
         </div>
+        <div className="fam-summary" data-testid="family-chore-summary-box">
+          <Icon name="calendar" size={18} />
+          <div>
+            <strong data-testid="family-chore-summary">{summaryText}</strong>
+            <p className="fam-hint">
+              {assignees.length > 1
+                ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
+                : 'Splnění schvaluje rodič.'}
+            </p>
+          </div>
+        </div>
+        {submitted && !valid && (
+          <p id={errId} className="hb-sr-only">
+            {Object.values(problems).filter(Boolean).join(' ')}
+          </p>
+        )}
         {error && (
-          <p id={errId} className="fam-err" role="alert">
+          <p className="fam-err" role="alert">
             {error}
           </p>
         )}
@@ -830,7 +877,7 @@ export function SwapSheet({
             style={{ '--fam-kid': colors[fromKid?.id ?? ''] } as CSSProperties}
           >
             <Icon
-              name={chore?.name.toLocaleLowerCase('cs').includes('koš') ? 'trash' : 'broom'}
+              name={chore?.name.toLocaleLowerCase('cs').includes('koš') ? 'bin' : 'broom'}
               size={24}
             />
           </span>
@@ -840,34 +887,51 @@ export function SwapSheet({
               {[
                 mode === 'reassign' ? fromKid?.name : null,
                 chore?.due ? `dnes do ${timeLabel(chore.due)}` : 'dnes',
-                chore?.points != null ? `${chore.points} b.` : null,
+                chore?.points != null
+                  ? pointsAmount(chore.points, { words: mode === 'give' })
+                  : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
           </div>
         </div>
-        <h3>Komu?</h3>
-        <div className="fam-chips fam-person-chips" role="group" aria-label="Komu">
-          {partners.map((p) => (
-            <Chip
-              key={p.id}
-              className="fam-chip"
-              onPress={() => setTarget(p.id)}
-              look="soft"
-              pressed={target === p.id}
+        {partners.length === 1 ? (
+          <div className="fam-recipient" data-testid="family-swap-recipient">
+            <span className="fam-recipient-label">Komu</span>
+            <span
+              className="fam-partner-avatar"
+              style={{ background: colors[partners[0]!.id] ?? colors[partners[0]!.name] }}
+              aria-hidden="true"
             >
-              <span
-                className="fam-partner-avatar"
-                style={{ background: colors[p.id] ?? colors[p.name] }}
-              >
-                {p.name[0]}
-              </span>
-              {p.name}
-              {target === p.id && <Icon name="check" size={18} className="fam-chip-check" />}
-            </Chip>
-          ))}
-        </div>
+              {partners[0]!.name[0]}
+            </span>
+            <strong>{partners[0]!.name}</strong>
+          </div>
+        ) : (
+          <>
+            <h3>Komu?</h3>
+            <div className="fam-chips fam-person-chips" role="group" aria-label="Komu">
+              {partners.map((p) => (
+                <Chip
+                  key={p.id}
+                  className="fam-chip"
+                  onPress={() => setTarget(p.id)}
+                  pressed={target === p.id}
+                >
+                  <span
+                    className="fam-partner-avatar"
+                    style={{ background: colors[p.id] ?? colors[p.name] }}
+                  >
+                    {p.name[0]}
+                  </span>
+                  {p.name}
+                  {target === p.id && <Icon name="check" size={18} className="fam-chip-check" />}
+                </Chip>
+              ))}
+            </div>
+          </>
+        )}
         <div className="fam-info" data-tone="accent">
           <span className="fam-info-icon">
             <Icon name="info" size={20} />
@@ -876,13 +940,15 @@ export function SwapSheet({
             <strong>{mode === 'reassign' ? 'Jen pro dnešek' : 'Nejdřív schválí rodič'}</strong>
             <p>
               {mode === 'reassign'
-                ? 'Přeřazení platí ihned. Zítra má úkol původní přiřazení.'
-                : 'Jen na dnes. Dokud to rodič neschválí, úkol zůstává tobě.'}{' '}
+                ? 'Přeřazení platí hned. Zítra má úkol zase původní přiřazení.'
+                : 'Dokud to rodič neschválí, úkol zůstává na tobě.'}{' '}
               Body dostane ten, kdo úkol splní.
             </p>
           </div>
         </div>
-        {!target && <p className="fam-hint">Vyber, komu chceš úkol předat.</p>}
+        {!target && partners.length > 1 && (
+          <p className="fam-hint">Vyber, komu chceš úkol předat.</p>
+        )}
       </div>
     </Sheet>
   );
