@@ -392,3 +392,114 @@ def test_role_matrix_lists_family_commands():
     assert "homebrain/family/chore/approve" not in role_ws_commands("kiosk")
     assert "homebrain/family/chore/approve" not in role_ws_commands("child")
     assert "homebrain/family/get" not in role_ws_commands("guest")
+
+
+# ChoreOps 1.6 validates create_chore with a strict vol.Schema (extra keys rejected).
+# Mirror its public field set so a stray key (e.g. ``return_response``) fails here
+# exactly like on the real install.
+CHOREOPS_CREATE_FIELDS = (
+    "config_entry_id",
+    "config_entry_title",
+    "name",
+    "assigned_user_names",
+    "assigned_user_ids",
+    "points",
+    "description",
+    "icon",
+    "labels",
+    "frequency",
+    "custom_interval",
+    "custom_interval_unit",
+    "applicable_days",
+    "completion_criteria",
+    "standby_claim_mode",
+    "approval_reset_type",
+    "pending_claims",
+    "overdue_handling",
+    "chore_claim_lock_until_window",
+    "auto_approve",
+    "due_date",
+    "due_window_offset",
+    "due_reminder_offset",
+    "notification_channel",
+    "notification_importance",
+    "notify_on_claim",
+    "notify_on_approval",
+    "notify_on_disapproval",
+    "notify_on_overdue",
+    "notify_on_due_window",
+    "notify_due_reminder",
+    "show_on_calendar",
+)
+
+
+def _strict_create_chore(hass: HomeAssistant, recorded: list[dict[str, Any]]) -> None:
+    import voluptuous as vol
+
+    schema = vol.Schema(
+        {vol.Required("name"): str, **{vol.Optional(k): object for k in CHOREOPS_CREATE_FIELDS}}
+    )
+
+    async def handler(call: ServiceCall):
+        recorded.append(dict(call.data))
+        return {"chore_id": "chore-new-1"}
+
+    hass.services.async_register(
+        "choreops",
+        "create_chore",
+        handler,
+        schema=schema,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    MockConfigEntry(domain="choreops", data={}, entry_id="choreops-entry").add_to_hass(hass)
+
+
+async def test_adult_creates_chore_via_strict_choreops_schema(
+    hass, entry, hass_ws_client, hass_admin_user
+):
+    recorded: list[dict[str, Any]] = []
+    _strict_create_chore(hass, recorded)
+    await _as(hass, entry, hass_admin_user, "adult")
+    client = await hass_ws_client(hass)
+    msg = await _ws(
+        client,
+        {
+            "type": "homebrain/family/chore/create",
+            "client_request_id": "req-12345678",
+            "name": "Zalít květiny",
+            "points": 2,
+            "assignees": ["dcera"],
+            "recurrence": "weekly",
+            "weekdays": ["mon", "thu"],
+            "first_date": "2026-11-19",
+            "due_time": "18:00",
+            "icon": "mdi:flower",
+        },
+    )
+    assert msg["success"], msg
+    assert msg["result"]["chore_id"] == "chore-new-1"
+    assert msg["result"]["status"] == "created"
+    assert len(recorded) == 1
+    data = recorded[0]
+    assert "return_response" not in data
+    assert data["assigned_user_names"] == ["Dcera"]
+    assert data["applicable_days"] == ["mon", "thu"]
+    assert data["due_date"] == "2026-11-19T18:00:00"
+
+
+def test_swap_create_effect_has_only_choreops_fields():
+    from custom_components.homebrain.family import swap_model
+
+    effect = swap_model.plan_next_effect(
+        {
+            "step": "create_intent",
+            "status": "applying",
+            "config_entry_id": "choreops-entry",
+            "operation_token": "op-test",
+            "assignee_name": "Syn",
+            "from_kid_name": "Dcera",
+            "source_snapshot": {"name": "Zalít květiny", "points": 2, "due": "2026-11-19T18:00:00"},
+        }
+    )
+    assert effect is not None and effect.service == "create_chore"
+    assert set(effect.data) <= set(CHOREOPS_CREATE_FIELDS)

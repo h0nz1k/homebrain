@@ -172,7 +172,6 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
                 "approval_reset_type": "manual",
                 "pending_claims": "hold_pending",
                 "overdue_handling": "never_overdue",
-                "return_response": True,
             },
         )
     if step == "skip_intent":
