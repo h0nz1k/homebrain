@@ -127,6 +127,22 @@ def test_integration_down_rolls_up_devices(history, baselines):
     assert final[0].tier == Tier.CONFIRMED and len(final[0].entities) == 8
 
 
+@pytest.mark.parametrize("delay", [0, 40])
+def test_two_whole_devices_share_a_report_only_for_simultaneous_silence(history, baselines, delay):
+    eng = _engine(history, baselines)
+    start = T0 + timedelta(hours=1)
+    live = synth.stream(T0, T0 + timedelta(hours=4))
+    for room, minutes in (("living", 0), ("cellar", delay)):
+        entities = {m.entity_id for m in synth.house() if m.device_id == f"dev_{room}_climate"}
+        live = synth.drop(live, entities, start + timedelta(minutes=minutes))
+    _, reports = _run(eng, live, 4)[-1]
+    assert {r.key for r in reports} == (
+        {"integration:demo_zigbee"}
+        if delay == 0
+        else {"device:dev_living_climate", "device:dev_cellar_climate"}
+    )
+
+
 def test_mass_outage_is_one_system_note_not_n_alarms(history, baselines):
     periodic = {e for e, b in baselines.items() if b.periodic}
     eng = _engine(history, baselines)

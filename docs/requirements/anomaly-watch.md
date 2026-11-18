@@ -13,8 +13,9 @@ a několik výchozích prahů, ne kód (viz `THIRD_PARTY_NOTICES.md`).
 každé zařízení obvykle chová (jak často posílá data, jaké hodnoty mívá v kterou hodinu, jak dlouho
 bývají otevřené dveře nebo rozsvícené světlo), a během dne si všímá, když se něco výrazně liší.
 
-**Jak to hlásí.** Ne záplavou upozornění, ale **po zařízeních**: místo 17 hlášení „Myčka neodpovídá
-(17 entit)“. Každé hlášení má jednu ze tří úrovní:
+**Jak to hlásí.** HomeBrain sdruží související hodnoty do jednoho hlášení, například „Myčka neodpovídá.
+Všech 17 hodnot mlčí.“ Při společném výpadku více zařízení upozorní na jejich integraci nebo bránu.
+Každé hlášení má jednu ze tří úrovní.
 
 | Úroveň | Kdy | Kde je vidět |
 | --- | --- | --- |
@@ -90,8 +91,9 @@ baselinem nehlídají.
    je titulek „{Zařízení} neodpovídá ({N} entit)“ a úroveň se zvedá o stupeň (podezření → porucha):
    mlčící celé zařízení je porucha zařízení, ne šum. Počet entit v titulku zahrnuje i sourozence,
    kteří ještě nepřekročili práh, a nikdy neklesá (žádné 2 → 7 → 17).
-3. **Seskupení po integraci**: ≥ 3 zařízení jedné integrace jen mlčí → „Integrace X neodpovídá
-   (N zařízení)“.
+3. **Seskupení po integraci**: pokud mlčí ≥ 3 zařízení jedné integrace, vznikne jedno společné hlášení.
+   Stačí i dvě zařízení, pokud mlčí všechny jejich hlídané hodnoty a poslední aktualizace zařízení
+   dělí nejvýše 15 minut. Hlášení směřuje kontrolu na integraci nebo její bránu.
 4. **Hromadný výpadek**: ≥ 50 % periodických zařízení napříč ≥ 2 integracemi je potichu → jen jedno
    systémové pozorování, žádné poruchy, nic na telefon.
 5. **Telefon**: jen úroveň *Porucha*, jednou za 24 h na stejné hlášení; v tichých hodinách (výchozí
@@ -196,10 +198,11 @@ vyřešených). WebSocket: `homebrain/anomaly/list` (read-only, role `owner`/`ad
 
 ### ANW-006 – Seskupení po zařízení a integraci
 
-- **Popis:** Jedno hlášení na zařízení („Myčka neodpovídá (17 entit)“), na integraci při ≥ 3 zařízeních.
+- **Popis:** Jedno hlášení na zařízení („Myčka neodpovídá (17 entit)“), na integraci při ≥ 3 zařízeních nebo při souběžném výpadku dvou celých zařízení.
 - **Zdroj:** issue #128
 - **Priorita:** MVP
-- **Akceptace:** `test_dishwasher_silent_is_one_grouped_report_and_one_notification`, `test_integration_down_rolls_up_devices`.
+- **Akceptace:** `test_dishwasher_silent_is_one_grouped_report_and_one_notification`, `test_integration_down_rolls_up_devices`,
+  `test_two_whole_devices_share_a_report_only_for_simultaneous_silence`.
 
 ### ANW-007 – Odolnost vůči restartu, DST, dovolené a výměně senzoru
 
@@ -245,20 +248,32 @@ vyřešených). WebSocket: `homebrain/anomaly/list` (read-only, role `owner`/`ad
 
 ## UI (mockupy)
 
-Mockupy renderují **skutečný výstup prototypu** (`python -m scripts.anomaly_watch_spike.demo`).
+Mockupy vykreslují syntetická data a hlášení z prototypu. Zdroj a generátor jsou v
+`scripts/anomaly_watch_spike/mockup/`. PNG se ukládají do samostatného adresáře mimo Git.
 
-- **Dnes**: klid / pozorování = čip „Dům v pořádku“ / „Dům · N pozorování“ v řadě „Ostatní v pořádku“;
-  podezření / porucha = karta *Hlídání domu* (nejzávažnější hlášení jako titulek, další jako řádky,
-  „Otevřít hlídání“).
-- **Detail „Hlídání domu“**: souhrn (počty úrovní + pás posledních 24 h), filtr, karty hlášení
-  (vysvětlení „proč“, dotčené entity, graf „obvykle × dnes“ u baseline, žebřík úrovní, akce),
-  hlídaná zařízení, panel *Na telefon* (náhled oznámení, tichý režim), *Jak hlídám*, *Nedávno vyřešené*.
+- **Dnes** zobrazuje čip v klidu a při pozorování. Při podezření nebo poruše se zobrazí karta
+  *Hlídání domu*. Další podezření jsou ve vlastní skupině. Potvrzená porucha má na kiosku širokou kartu s velkým titulkem.
+- **Detail** obsahuje souhrn s vysvětlivkami k pásu posledních 24 hodin, filtr, přehled zařízení
+  a náhled oznámení. U výpadku časová osa ukazuje poslední hodnotu, první očekávanou chybějící hodnotu
+  a aktuální čas. U teploty končí dnešní křivka v čase snímku. Hlavní akcí u poruchy je „Vyřešeno“.
 - **Použité komponenty `@homebrain/ui`:** `Card`, `SignalCard`, `Pill`, `Chip`, `Button`, `StatusRow`,
   `Stepper`, `SegmentedControl`, `Tile`, `ListCell`, `Switch`, `Icon`; tokeny `--hb-*`.
 - **Navržené nové:** `TonedIcon` (tónovaný čtverec s ikonou), `HealthStrip` (24 h pás),
-  `BaselineBand` (pásmo obvyklých hodnot + dnešní křivka), `TierPill` (tenký wrapper nad `Pill`),
+  `BaselineBand` (pásmo obvyklých hodnot + dnešní křivka), `SilenceTimeline` (časová osa výpadku),
+  `TierPill` (tenký wrapper nad `Pill`),
   ikony `dishwasher`, `thermo`, `drop`, `snow`, `bolt`, `washer`, `door`, `window`, `bulb`, `plug`,
   `shield`, `pulse`, `phone`, `home`.
+
+Pro nové snímky spusťte z kořene repozitáře po instalaci závislostí a Chromia pro Playwright:
+
+```sh
+python -m scripts.anomaly_watch_spike.demo > scripts/anomaly_watch_spike/mockup/anomaly-demo.json
+pnpm --dir apps/panel exec vite build --configLoader runner --config ../../scripts/anomaly_watch_spike/mockup/vite.config.mjs
+python -m http.server 8768 --bind localhost --directory scripts/anomaly_watch_spike/mockup/dist
+```
+
+V druhém terminálu spusťte `node scripts/anomaly_watch_spike/mockup/render.mjs http://localhost:8768 /absolutni/cesta/ke/snimkum`.
+Všechny interakce jsou lokální v mockupu.
 
 ## Otázky pro vlastníka
 

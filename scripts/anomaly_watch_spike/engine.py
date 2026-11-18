@@ -32,6 +32,7 @@ from .model import (
 SILENT_KINDS = frozenset({"silent", "unavailable"})
 AVAILABILITY_WINDOW = timedelta(hours=1)
 AVAILABILITY_FLAPS = 4
+SHARED_OUTAGE_WINDOW = timedelta(minutes=15)
 
 
 @dataclass
@@ -362,6 +363,22 @@ class Engine:
         )
 
     # -------------------------------------------------------------- grouping
+    def _simultaneous_device_outage(self, group: list[Report]) -> bool:
+        if len(group) != 2:
+            return False
+        last_updates = []
+        for r in group:
+            device_id = r.findings[0].device_id
+            monitored = {
+                e for e, m in self.metas.items() if m.device_id == device_id and self._monitored(m)
+            }
+            if not monitored.issubset(r.entities):
+                return False
+            last_updates.append(
+                max(self.live[e].unavailable_since or self.live[e].last_update for e in monitored)
+            )
+        return abs(last_updates[0] - last_updates[1]) <= SHARED_OUTAGE_WINDOW
+
     def _group(self, now: datetime) -> list[Report]:
         by_device: dict[str, list[Finding]] = defaultdict(list)
         for f in self.active.values():
@@ -370,14 +387,16 @@ class Engine:
         for device_id, findings in by_device.items():
             reports.append(self._device_report(device_id, findings, now))
 
-        # Integration roll-up: ≥ N devices of one integration all silent → one report.
+        # Two whole devices becoming silent together also point to a shared connection.
         by_integration: dict[str, list[Report]] = defaultdict(list)
         for r in reports:
             if all(f.detector in SILENT_KINDS for f in r.findings):
                 integ = self.metas[r.entities[0]].integration
                 by_integration[integ].append(r)
         for integ, group in by_integration.items():
-            if len(group) < self.cfg.integration_min_devices:
+            if len(
+                group
+            ) < self.cfg.integration_min_devices and not self._simultaneous_device_outage(group):
                 continue
             for r in group:
                 reports.remove(r)
