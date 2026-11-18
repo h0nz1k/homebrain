@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { KeyboardEvent, PointerEvent as RPointerEvent, ReactNode } from 'react';
 import { Skeleton } from '@homebrain/ui';
 import type { HistoryDay, WeatherHistory, WeatherSnapshot } from '../contract.js';
@@ -8,12 +8,15 @@ import {
   DELTA_NEUTRAL,
   DRY_DAY_MM,
   GUST_STRONG_MS,
+  MSL_JUMP_HPA,
   RAIN_DAY_MM,
   delta,
   dryStreak,
+  longestDry,
   niceCeil,
   records,
   recordsOf,
+  streakCallout,
   tempTicks,
   windowStats,
   yesterdayToday,
@@ -58,7 +61,7 @@ function HistoryPending({ state }: { state: Exclude<HistoryState, { kind: 'ready
 }
 
 // ---------- Včera a dnes ----------
-const NBSP = '\u00a0';
+const NBSP = ' ';
 const dTime = dayFmt({ hour: '2-digit', minute: '2-digit' });
 /** Missing value: an en dash with an explanation – never confused with a measured 0,0. */
 function Missing() {
@@ -68,23 +71,42 @@ function Missing() {
     </span>
   );
 }
-function rowValue(v: number | null, unit: string, digits = 1, strong = false) {
-  if (v == null) return <Missing />;
+/** Value + unit in a fixed-width slot, so decimals line up down the column. */
+function Num({ v, unit, digits = 1 }: { v: number; unit: string; digits?: number }) {
   return (
-    <span
-      className={strong ? 'wx-warnc' : undefined}
-      title={strong ? `silný náraz (≥ ${GUST_STRONG_MS} m/s)` : undefined}
-    >
+    <>
       {nf(v, digits)}
-      <small>
-        {NBSP}
-        {unit}
-      </small>
+      <small className="wx-yt-u">{unit}</small>
+    </>
+  );
+}
+/** Highlighted value: ⚠ + weight + warning colour (never colour alone). */
+function Alert({ why, children }: { why: string; children: ReactNode }) {
+  return (
+    <span className="wx-yt-hi" title={why}>
+      <span aria-hidden="true">⚠{NBSP}</span>
+      <span className="wx-sr">{why}: </span>
+      {children}
     </span>
   );
 }
+function rowValue(v: number | null, unit: string, digits = 1, alert: string | null = null) {
+  if (v == null) return <Missing />;
+  const num = <Num v={v} unit={unit} digits={digits} />;
+  return alert ? <Alert why={alert}>{num}</Alert> : num;
+}
 
-function DeltaCell({ dl, unit, digits = 1 }: { dl: Delta; unit: string; digits?: number }) {
+function DeltaCell({
+  dl,
+  unit,
+  digits = 1,
+  alert = null,
+}: {
+  dl: Delta;
+  unit: string;
+  digits?: number;
+  alert?: string | null;
+}) {
   if (dl.kind === 'missing') return <Missing />;
   if (dl.kind === 'same')
     return (
@@ -93,23 +115,21 @@ function DeltaCell({ dl, unit, digits = 1 }: { dl: Delta; unit: string; digits?:
         title={`rozdíl ${nf(dl.v, digits)} ${unit} – bráno jako beze změny`}
       >
         ≈{NBSP}stejně
+        <small className="wx-yt-u" />
       </span>
     );
   const word = dl.kind === 'up' ? 'víc' : 'míň';
-  return (
+  const body = (
     <span
       className={`wx-yt-d is-${dl.kind}`}
       aria-label={`o ${nf(dl.v, digits)} ${unit} ${word} než včera`}
     >
       {dl.kind === 'up' ? '↑' : '↓'}
       {NBSP}
-      {nf(dl.v, digits)}
-      <small>
-        {NBSP}
-        {unit}
-      </small>
+      <Num v={dl.v} unit={unit} digits={digits} />
     </span>
   );
+  return alert ? <Alert why={alert}>{body}</Alert> : body;
 }
 
 export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: WeatherSnapshot }) {
@@ -128,7 +148,13 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
   const { yesterday: y, today: t, yesterdayDate } = yesterdayToday(days, d, today);
   const streak = dryStreak(days, t?.rain ?? null);
   const until = dTime.format(new Date(Date.parse(d.station.updated_at ?? d.generated_at)));
-  const strong = (v: number | null | undefined) => v != null && v >= GUST_STRONG_MS;
+  const gustAlert = (v: number | null | undefined) =>
+    v != null && v >= GUST_STRONG_MS ? `silný náraz (≥ ${GUST_STRONG_MS} m/s)` : null;
+  const mslDl = delta(t?.msl_mean ?? null, y?.msl_mean ?? null, 'msl');
+  const mslAlert =
+    mslDl.kind !== 'missing' && Math.abs(mslDl.v) >= MSL_JUMP_HPA
+      ? `velká změna tlaku (≥ ${MSL_JUMP_HPA} hPa za den)`
+      : null;
   const rows: { key: string; label: string; y: ReactNode; t: ReactNode; dl: ReactNode }[] = [
     {
       key: 't_max',
@@ -154,8 +180,8 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
     {
       key: 'gust',
       label: 'Nejsilnější náraz',
-      y: rowValue(y?.gust_max ?? null, 'm/s', 1, strong(y?.gust_max)),
-      t: rowValue(t?.gust_max ?? null, 'm/s', 1, strong(t?.gust_max)),
+      y: rowValue(y?.gust_max ?? null, 'm/s', 1, gustAlert(y?.gust_max)),
+      t: rowValue(t?.gust_max ?? null, 'm/s', 1, gustAlert(t?.gust_max)),
       dl: <DeltaCell dl={delta(t?.gust_max ?? null, y?.gust_max ?? null, 'gust')} unit="m/s" />,
     },
     {
@@ -163,62 +189,32 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
       label: 'Průměrný tlak',
       y: rowValue(y?.msl_mean ?? null, 'hPa', 0),
       t: rowValue(t?.msl_mean ?? null, 'hPa', 0),
-      dl: (
-        <DeltaCell
-          dl={delta(t?.msl_mean ?? null, y?.msl_mean ?? null, 'msl')}
-          unit="hPa"
-          digits={0}
-        />
-      ),
+      dl: <DeltaCell dl={mslDl} unit="hPa" digits={0} alert={mslAlert} />,
     },
   ];
   const yGaps = y && y.gaps.length > 0;
-  const past =
-    streak.days > 0
-      ? `${streak.exact ? '' : 'aspoň '}${streak.days}${NBSP}${daysCs(streak.days)} bez deště`
-      : null;
-  let streakText: ReactNode;
-  if (t?.rain == null) streakText = <b>Dnešní srážky chybí</b>;
-  else if (streak.todayWet)
-    streakText = (
-      <>
-        <b>
-          Dnes už napršelo {nf(t.rain)}
-          {NBSP}mm
-        </b>
-        {past ? ` · předtím ${past}` : ''}
-      </>
-    );
-  else
-    streakText = (
-      <>
-        <b>Dnes zatím bez deště</b>
-        {past
-          ? ` · ${past}${streak.lastWet ? `, naposledy pršelo ${upper(dWeekLong.format(at(streak.lastWet)))}` : ''}`
-          : y?.rain != null && y.rain >= DRY_DAY_MM
-            ? ` · včera napršelo ${nf(y.rain)}${NBSP}mm`
-            : ''}
-      </>
-    );
+  const callout = streakCallout(streak, t?.rain ?? null, y?.rain ?? null, (date) =>
+    dWeekLong.format(at(date)),
+  );
   return (
-    <Card
-      title="Včera a dnes"
-      sub={yesterdayDate ? `včera = ${dWeekLong.format(at(yesterdayDate))}` : undefined}
-      className="wx-yt"
-      testId="weather-yt"
-    >
+    <Card title="Včera a dnes" sub="vlastní stanice" className="wx-yt" testId="weather-yt">
       <table className="wx-yt-t">
         <thead>
           <tr>
             <th scope="col">
               <span className="wx-sr">Veličina</span>
             </th>
-            <th scope="col">Včera</th>
+            <th scope="col">
+              Včera
+              {yesterdayDate && (
+                <span className="wx-yt-hd">{dWeekLong.format(at(yesterdayDate))}</span>
+              )}
+            </th>
             <th scope="col" data-testid="weather-yt-today-head">
-              Dnes zatím{' '}
-              <span className="wx-yt-until">
-                (do{NBSP}
-                {until})
+              Dnes <span className="wx-yt-prov">zatím</span>
+              <span className="wx-yt-hd">
+                {dWeekLong.format(at(today))} · do{NBSP}
+                {until}
               </span>
             </th>
             <th scope="col">
@@ -232,22 +228,33 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
             <tr key={r.key} data-testid={`weather-yt-${r.key}`}>
               <th scope="row">{r.label}</th>
               <td>{r.y}</td>
-              <td>{r.t}</td>
+              <td className="wx-yt-today">{r.t}</td>
               <td className="wx-yt-dc">{r.dl}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="wx-info" data-testid="weather-dry-streak">
-        {streakText}
-      </p>
-      <p className="wx-foot">
-        Δ = dnes zatím proti celému včerejšku; rozdíl pod {nf(DELTA_NEUTRAL.t)}
-        {NBSP}°C, {nf(DELTA_NEUTRAL.rain)}
-        {NBSP}mm, {nf(DELTA_NEUTRAL.gust, 0)}
-        {NBSP}m/s nebo {nf(DELTA_NEUTRAL.msl, 0)}
-        {NBSP}hPa = ≈{NBSP}stejně · – = chybí data
-        {yGaps ? ' · včera chybí část hodinových dat stanice' : ''}
+      {callout && (
+        <p className="wx-info" data-testid="weather-dry-streak">
+          <b>{callout}</b>
+        </p>
+      )}
+      <p className="wx-foot wx-yt-foot">
+        <span>
+          Δ = dnes zatím proti celému včerejšku · ≈{NBSP}stejně = pod {nf(DELTA_NEUTRAL.t)}
+          {NBSP}°C, {nf(DELTA_NEUTRAL.rain)}
+          {NBSP}mm, {nf(DELTA_NEUTRAL.gust, 0)}
+          {NBSP}m/s, {nf(DELTA_NEUTRAL.msl, 0)}
+          {NBSP}hPa
+        </span>
+        <span>
+          ⚠ = náraz ≥{NBSP}
+          {GUST_STRONG_MS}
+          {NBSP}m/s nebo změna tlaku ≥{NBSP}
+          {MSL_JUMP_HPA}
+          {NBSP}hPa za den · – = chybí data
+          {yGaps ? ' · včera chybí část hodinových dat' : ''}
+        </span>
       </p>
     </Card>
   );
@@ -263,27 +270,31 @@ const RECORD_ROWS: { key: RecordKey; label: string; unit: string }[] = [
   { key: 'gust_max', label: 'Nejsilnější náraz', unit: 'm/s' },
 ];
 
+/**
+ * X-axis labels on real data days: anchored on the last complete day (today's partial column is
+ * drawn lighter and never labelled, so the last label is the last full day of data).
+ */
 function xLabels(days: HistoryDay[]): { i: number; text: string }[] {
   const n = days.length;
-  if (n <= 10) return days.map((d, i) => ({ i, text: cap(dWeek.format(at(d.date))) }));
+  const last = n - (days[n - 1]?.partial ? 2 : 1);
+  const at0 = days.map((d, i) => ({ i, d })).filter(({ i }) => i <= last);
+  if (n <= 10) return at0.map(({ i, d }) => ({ i, text: cap(dWeek.format(at(d.date))) }));
   if (n <= 45)
-    return days
-      .map((d, i) => ({ i, d }))
-      .filter(({ i }) => (n - 1 - i) % 7 === 0)
+    return at0
+      .filter(({ i }) => (last - i) % 7 === 0)
       .map(({ i, d }) => ({ i, text: dayLabel(d.date) }));
-  return days
-    .map((d, i) => ({ i, d }))
+  return at0
     .filter(({ d, i }) => d.date.endsWith('-01') || i === 0)
     .filter(({ i }, k, all) => k === 0 || i - all[k - 1]!.i > 20)
     .map(({ i, d }) => ({ i, text: cap(dMonthShort.format(at(d.date))).replace('.', '') }));
 }
 
 // Chart geometry (viewBox units): temperature panel on top, rain in its own lower panel.
-const VB_H = 250;
-const T_TOP = 8;
-const T_BOT = 150;
-const R_TOP = 176;
-const R_BOT = 246;
+const VB_H = 260;
+const T_TOP = 6;
+const T_BOT = 140;
+const R_TOP = 168;
+const R_BOT = 256;
 const pctY = (y: number) => `${(y / VB_H) * 100}%`;
 
 function HistoryChart({
@@ -297,7 +308,6 @@ function HistoryChart({
   onSel: (i: number) => void;
   detail: string;
 }) {
-  const hatch = `wxh${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const n = days.length;
   const temps = days.flatMap((d) => [d.t_min, d.t_max]).filter((v): v is number => v != null);
   const tLo = temps.length ? Math.min(...temps) : 0;
@@ -307,6 +317,7 @@ function HistoryChart({
   const hi = Math.max(tHi, ...ticks) + 0.5;
   // the rain scale always covers the wettest day of the window
   const rainMax = niceCeil(Math.max(1, ...days.map((d) => d.rain ?? 0)));
+  const rainTicks = [0, rainMax / 2, rainMax];
   const step = 1000 / Math.max(n, 1);
   const w = Math.max(1.5, step * (n > 60 ? 0.8 : 0.56));
   const xc = (i: number) => (i + 0.5) * step;
@@ -333,6 +344,11 @@ function HistoryChart({
     onSel(Math.max(0, Math.min(n - 1, next)));
   };
   const showZero = lo < 0 && hi > 0 && !ticks.includes(0);
+  const colLeft = (i: number) => `${(i / n) * 100}%`;
+  const colW = `${100 / n}%`;
+  const labels = xLabels(days);
+  const selPos = n ? ((sel + 0.5) / n) * 100 : 0;
+  const rainDigits = rainMax < 5 ? 1 : 0;
   return (
     <div
       className="wx-hist-chart"
@@ -351,19 +367,35 @@ function HistoryChart({
       onKeyDown={onKey}
       data-testid="weather-history-chart"
     >
+      {sel >= 0 && sel < n && (
+        <div
+          className="wx-hist-selcol"
+          style={{ left: colLeft(sel), width: colW }}
+          data-testid="weather-history-cursor"
+        />
+      )}
+      {/* gaps as HTML overlays: the same hatch as the legend swatch, undistorted by the SVG scale */}
+      {days.map((d, i) => {
+        const gapT = d.t_max == null || d.t_min == null;
+        const gapR = d.rain == null;
+        if (!gapT && !gapR) return null;
+        const top = gapT ? T_TOP : R_TOP;
+        const bot = gapR ? R_BOT : T_BOT;
+        return (
+          <div
+            key={d.date}
+            className="wx-hist-gap"
+            style={{
+              left: colLeft(i),
+              width: colW,
+              top: pctY(top),
+              height: `${((bot - top) / VB_H) * 100}%`,
+            }}
+            data-testid="weather-history-gap"
+          />
+        );
+      })}
       <svg viewBox={`0 0 1000 ${VB_H}`} preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <pattern
-            id={hatch}
-            width="8"
-            height="8"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <rect width="8" height="8" className="wx-hist-gapbg" />
-            <line x1="0" y1="0" x2="0" y2="8" className="wx-hist-hatch" />
-          </pattern>
-        </defs>
         {ticks.map((v) => (
           <line
             key={v}
@@ -375,88 +407,69 @@ function HistoryChart({
           />
         ))}
         {showZero && <line x1="0" x2="1000" y1={yT(0)} y2={yT(0)} className="wx-hist-zero" />}
-        <line x1="0" x2="1000" y1={R_TOP} y2={R_TOP} className="wx-hist-grid" />
+        {rainTicks.slice(1).map((v) => (
+          <line key={v} x1="0" x2="1000" y1={yR(v)} y2={yR(v)} className="wx-hist-grid" />
+        ))}
         <line x1="0" x2="1000" y1={R_BOT} y2={R_BOT} className="wx-hist-base" />
-        {days.map((d, i) => {
-          const gapAll = d.t_max == null && d.rain == null;
-          return (
-            <g key={d.date} className={d.partial ? 'is-partial' : undefined}>
-              {gapAll && (
-                <rect
-                  x={xc(i) - step / 2}
-                  y={T_TOP}
-                  width={step}
-                  height={R_BOT - T_TOP}
-                  fill={`url(#${hatch})`}
-                  className="wx-hist-gap"
-                  data-testid="weather-history-gap"
-                />
-              )}
-              {d.t_min != null && d.t_max != null && (
-                <rect
-                  x={xc(i) - w / 2}
-                  y={yT(d.t_max)}
-                  width={w}
-                  height={Math.max(2, yT(d.t_min) - yT(d.t_max))}
-                  rx={Math.min(w / 2, 4)}
-                  className="wx-hist-t"
-                />
-              )}
-              {d.rain != null && d.rain > 0 && (
-                <rect
-                  x={xc(i) - w / 2}
-                  y={yR(d.rain)}
-                  width={w}
-                  height={R_BOT - yR(d.rain)}
-                  className="wx-hist-r"
-                />
-              )}
-              {d.rain == null && !gapAll && (
-                <rect
-                  x={xc(i) - step / 2}
-                  y={R_TOP}
-                  width={step}
-                  height={R_BOT - R_TOP}
-                  fill={`url(#${hatch})`}
-                  className="wx-hist-gap"
-                />
-              )}
-            </g>
-          );
-        })}
-        {sel >= 0 && sel < n && (
-          <g className="wx-hist-cur" data-testid="weather-history-cursor">
-            <line x1={xc(sel)} x2={xc(sel)} y1="0" y2={VB_H} className="wx-hist-sel" />
-            <rect
-              x={xc(sel) - Math.max(w, 6) / 2 - 3}
-              y={T_TOP - 4}
-              width={Math.max(w, 6) + 6}
-              height={R_BOT - T_TOP + 4}
-              rx="4"
-              className="wx-hist-selbox"
-            />
+        {days.map((d, i) => (
+          <g key={d.date} className={d.partial ? 'is-partial' : undefined}>
+            {d.t_min != null && d.t_max != null && (
+              <rect
+                x={xc(i) - w / 2}
+                y={yT(d.t_max)}
+                width={w}
+                height={Math.max(2, yT(d.t_min) - yT(d.t_max))}
+                rx={Math.min(w / 2, 4)}
+                className="wx-hist-t"
+              />
+            )}
+            {d.rain != null && d.rain > 0 && (
+              <rect
+                x={xc(i) - w / 2}
+                y={yR(d.rain)}
+                width={w}
+                height={R_BOT - yR(d.rain)}
+                className="wx-hist-r"
+              />
+            )}
           </g>
-        )}
+        ))}
       </svg>
+      <span className="wx-hist-yt">°C</span>
       {ticks.map((v) => (
         <span key={v} className="wx-hist-yl" style={{ top: pctY(yT(v)) }}>
           {nf(v, 0)}
-          {' '}°C
         </span>
       ))}
-      <span className="wx-hist-yl wx-hist-yl--r" style={{ top: pctY(R_TOP) }}>
-        {nf(rainMax, rainMax < 5 ? 1 : 0)}
-        {' '}mm
+      <span className="wx-hist-yt wx-hist-yt--r" style={{ top: pctY(R_TOP) }}>
+        mm
       </span>
-      <span className="wx-hist-yl wx-hist-yl--r" style={{ top: pctY(R_BOT) }}>
-        0{' '}mm
-      </span>
+      {rainTicks.map((v) => (
+        <span
+          key={v}
+          className={`wx-hist-yl wx-hist-yl--r ${v === 0 ? 'is-zero' : ''}`}
+          style={{ top: pctY(yR(v)) }}
+        >
+          {nf(v, v === 0 ? 0 : rainDigits)}
+        </span>
+      ))}
       <div className="wx-hist-x" aria-hidden="true">
-        {xLabels(days).map((l) => (
-          <span key={l.i} style={{ left: `${(xc(l.i) / 1000) * 100}%` }}>
-            {l.text}
+        {labels
+          .filter((l) => Math.abs(((l.i + 0.5) / n) * 100 - selPos) > (n <= 10 ? 0 : 9))
+          .map((l) => (
+            <span key={l.i} style={{ left: `${((l.i + 0.5) / n) * 100}%` }}>
+              {l.text}
+            </span>
+          ))}
+        {days[sel] && (
+          <span
+            className="is-sel"
+            style={{ left: `${selPos}%` }}
+            data-testid="weather-history-seltick"
+          >
+            {n <= 10 ? cap(dWeek.format(at(days[sel].date))) : dayLabel(days[sel].date)}
           </span>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -543,31 +556,34 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
   const scopeTitle = `Rekordy – ${scopeName}${scopeCut ? ` (data od ${dayLabel(scopeCut)})` : ''}`;
   const scopeWord = scope.length === 4 ? `roku ${scope}` : `měsíce`;
   const selDay = days[sel];
+  const dry = longestDry(days);
   return (
     <Card
       title="Historie"
       sub="vlastní stanice · denní hodnoty"
       className="wx-hist"
       testId="weather-history"
-      right={
-        <div className="wx-seg wx-seg--touch" role="tablist" aria-label="Období">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              role="tab"
-              aria-selected={r === range}
-              className={r === range ? 'on' : ''}
-              onClick={() => {
-                setRange(r);
-                setSel(null);
-              }}
-            >
-              {r} dní
-            </button>
-          ))}
-        </div>
-      }
     >
+      <div
+        className="wx-seg wx-seg--touch wx-seg--strong wx-seg--full"
+        role="tablist"
+        aria-label="Období"
+      >
+        {RANGES.map((r) => (
+          <button
+            key={r}
+            role="tab"
+            aria-selected={r === range}
+            className={r === range ? 'on' : ''}
+            onClick={() => {
+              setRange(r);
+              setSel(null);
+            }}
+          >
+            {r} dní
+          </button>
+        ))}
+      </div>
       {hist.kind !== 'ready' ? (
         <HistoryPending state={hist} />
       ) : message ? (
@@ -583,14 +599,7 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
               </dd>
             </div>
             <div>
-              <dt>
-                Dny s deštěm{' '}
-                <span className="wx-hist-thr">
-                  ≥{NB}
-                  {nf(RAIN_DAY_MM, 0)}
-                  {NB}mm
-                </span>
-              </dt>
+              <dt>Deštivé dny</dt>
               <dd data-testid="weather-history-raindays">
                 {stats.rainDays}
                 <small>
@@ -600,17 +609,22 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
               </dd>
             </div>
             <div>
-              <dt>Průměr</dt>
+              <dt>Prům. teplota</dt>
               <dd>
                 {nf(stats.t_mean)}
                 <small>{NB}°C</small>
               </dd>
             </div>
             <div>
-              <dt>Rozpětí</dt>
-              <dd data-testid="weather-history-span">
-                {nf(stats.t_min?.v)} až {nf(stats.t_max?.v)}
-                <small>{NB}°C</small>
+              <dt>Nejdelší sucho</dt>
+              <dd data-testid="weather-history-dry">
+                {dry ? dry.days : '–'}
+                {dry && (
+                  <small>
+                    {NB}
+                    {daysCs(dry.days)}
+                  </small>
+                )}
               </dd>
             </div>
           </dl>
@@ -620,6 +634,26 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
             onSel={setSel}
             detail={selDay ? dayDetail(selDay) : ''}
           />
+          <div className="wx-hist-key">
+            <span>
+              <i className="wx-sw wx-sw--hist-t" /> teplota min–max
+            </span>
+            <span>
+              <i className="wx-sw wx-sw--rain" /> srážky za den
+            </span>
+            {days[days.length - 1]?.partial && (
+              <span>
+                <i className="wx-sw wx-sw--partial" /> světleji = dnes zatím
+              </span>
+            )}
+            {stats.gapDays > 0 && (
+              <span data-testid="weather-history-gaps">
+                <i className="wx-sw wx-sw--gap" /> chybí data ({stats.gapDays}
+                {NB}
+                {daysCs(stats.gapDays)})
+              </span>
+            )}
+          </div>
           {selDay && (
             <DayReadout
               d={selDay}
@@ -629,21 +663,6 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
               ]}
             />
           )}
-          <div className="wx-hist-key">
-            <span>
-              <i className="wx-sw wx-sw--hist-t" /> teplota min–max
-            </span>
-            <span>
-              <i className="wx-sw wx-sw--rain" /> srážky za den
-            </span>
-            {stats.gapDays > 0 && (
-              <span data-testid="weather-history-gaps">
-                <i className="wx-sw wx-sw--gap" /> chybí data ({stats.gapDays}
-                {NB}
-                {daysCs(stats.gapDays)})
-              </span>
-            )}
-          </div>
           <div className="wx-rec" data-testid="weather-records">
             {[
               { title: `Rekordy za ${range} dní`, rec: recWin },
@@ -679,7 +698,8 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
             {firstDate && firstDate > `${today.slice(0, 4)}-01-01`
               ? ` · data od ${dayLabel(firstDate)}`
               : ''}{' '}
-            · chybějící hodiny se nedopočítávají · den s deštěm = aspoň {nf(RAIN_DAY_MM, 0)}
+            · chybějící hodiny se nedopočítávají · deštivý den = aspoň {nf(RAIN_DAY_MM, 0)}
+            {NB}mm srážek, suchý pod {nf(DRY_DAY_MM)}
             {NB}mm
           </p>
         </>

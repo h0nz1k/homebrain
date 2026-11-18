@@ -5,7 +5,9 @@ import {
   DELTA_NEUTRAL,
   delta,
   dryStreak,
+  longestDry,
   niceCeil,
+  streakCallout,
   records,
   tempTicks,
   windowStats,
@@ -141,5 +143,51 @@ describe('rozdíl, osy', () => {
       expect(t.length).toBeLessThanOrEqual(3);
       if (lo < 0 && hi > 0) expect(t).toContain(0);
     }
+  });
+});
+
+describe('streakCallout – jen nová informace', () => {
+  const fmt = (d: string) => `[${d}]`;
+  const st = (days: number, todayWet: boolean, exact = true, lastWet: string | null = null) => ({
+    days,
+    exact,
+    lastWet,
+    todayWet,
+  });
+  it('déšť po suchu', () => {
+    expect(streakCallout(st(2, true), 0.4, 0, fmt)).toBe(
+      'Po 2\u00a0dnech bez deště dnes zatím 0,4\u00a0mm',
+    );
+    expect(streakCallout(st(1, true, false), 1.2, 0, fmt)).toBe(
+      'Po nejméně 1\u00a0dni bez deště dnes zatím 1,2\u00a0mm',
+    );
+  });
+  it('sucho pokračuje, s posledním deštěm', () => {
+    expect(streakCallout(st(5, false, true, '2026-10-25'), 0, 0, fmt)).toBe(
+      'Bez deště už 5\u00a0dní, dnes zatím také · naposledy pršelo [2026-10-25]',
+    );
+  });
+  it('druhý deštivý den; jinak nic, co už je v tabulce', () => {
+    expect(streakCallout(st(0, true), 2, 3, fmt)).toBe('Prší druhý den po sobě');
+    expect(streakCallout(st(0, false), 0, 3, fmt)).toBeNull(); // včera pršelo, dnes ne
+    expect(streakCallout(st(3, false), null, 0, fmt)).toBeNull(); // dnešek chybí
+  });
+});
+
+describe('longestDry', () => {
+  it('nejdelší řada suchých dní; mezera a dnešek řadu přeruší', () => {
+    const days = [
+      day('2026-10-01', 0),
+      day('2026-10-02', 0),
+      day('2026-10-03', null, { gaps: ['rain'] }),
+      day('2026-10-04', 0),
+      day('2026-10-05', 0.1),
+      day('2026-10-06', 0),
+      day('2026-10-07', 3),
+      day('2026-10-08', 0, { partial: true }),
+    ];
+    expect(longestDry(days)).toEqual({ days: 3, end: '2026-10-06' });
+    expect(longestDry([day('2026-10-01', null, { gaps: ['rain'] })])).toBeNull();
+    expect(longestDry([day('2026-10-01', 4)])).toEqual({ days: 0, end: '' });
   });
 });

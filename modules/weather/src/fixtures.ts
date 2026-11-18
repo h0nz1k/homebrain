@@ -29,6 +29,12 @@ const MODELS: [string, string, string, number, number][] = [
   ['ukmo_seamless', 'UKMO', 'Met Office · 2–10 km', -0.2, 168],
   ['metno', 'met.no', 'MET Norway · z HA', 0.3, 216],
 ];
+const PRECIP_W: Record<string, number> = {
+  icon_d2: 0.26,
+  chmi_aladin_cz_1km: 0.22,
+  ecmwf_ifs: 0.16,
+  geosphere_claef_austria: 0.1,
+};
 const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z');
 const round = (v: number, d = 1) => Math.round(v * 10 ** d) / 10 ** d;
 
@@ -112,6 +118,12 @@ export function buildMockSnapshot(scenario: WeatherScenario = 'default'): Weathe
           condition,
           confidence: h < 18 ? 'high' : h < 36 ? 'medium' : 'low',
           contributors: models.map((m) => ({ source: m.id, weight: m.weight })),
+          // synthetic precipitation weights (own skill per variable, issue #131 B)
+          precip_contributors: models.map((m) => ({
+            source: m.id,
+            weight: PRECIP_W[m.id] ?? 0.04,
+          })),
+          precip_weights: 'verified',
         };
       });
   const daily: DailyPoint[] = unavailable

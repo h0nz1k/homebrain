@@ -6,6 +6,8 @@ export const DRY_DAY_MM = 0.2;
 export const RAIN_DAY_MM = 1;
 /** Gusts from this speed are highlighted (warning colour) – ČHMÚ "silný vítr" starts at 15 m/s. */
 export const GUST_STRONG_MS = 15;
+/** A day-to-day change of mean MSL pressure from this size is highlighted (fast change, front). */
+export const MSL_JUMP_HPA = 10;
 
 export type DeltaKey = 't' | 'rain' | 'gust' | 'msl';
 /**
@@ -82,6 +84,36 @@ export function dryStreak(days: HistoryDay[], todayRain: number | null): DryStre
     n++;
   }
   return { days: n, exact, lastWet, todayWet: todayRain != null && todayRain >= DRY_DAY_MM };
+}
+
+const daysLoc = (n: number) => (n === 1 ? 'dni' : 'dnech');
+const daysNom = (n: number) => (n === 1 ? 'den' : n >= 2 && n <= 4 ? 'dny' : 'dní');
+const NBSP = '\u00a0';
+const mm = (v: number) => `${v.toFixed(1).replace('.', ',')}${NBSP}mm`;
+
+/**
+ * The callout of "Včera a dnes": only what the table does not already say (the dry streak and
+ * how today breaks or extends it). null when there is nothing new.
+ */
+export function streakCallout(
+  s: DryStreak,
+  todayRain: number | null,
+  yesterdayRain: number | null,
+  lastWetText: (date: string) => string,
+): string | null {
+  if (todayRain == null) return null;
+  const atLeast = s.exact ? '' : 'nejméně ';
+  if (s.todayWet) {
+    if (s.days > 0)
+      return `Po ${atLeast}${s.days}${NBSP}${daysLoc(s.days)} bez deště dnes zatím ${mm(todayRain)}`;
+    if (yesterdayRain != null && yesterdayRain >= DRY_DAY_MM) return 'Prší druhý den po sobě';
+    return null;
+  }
+  if (s.days > 0)
+    return `Bez deště už ${atLeast}${s.days}${NBSP}${daysNom(s.days)}, dnes zatím také${
+      s.lastWet ? ` · naposledy pršelo ${lastWetText(s.lastWet)}` : ''
+    }`;
+  return null;
 }
 
 export interface DaySummary {
@@ -186,6 +218,24 @@ export function windowStats(days: HistoryDay[], n: number): WindowStats {
     t_min: tMin,
     t_max: tMax,
   };
+}
+
+/**
+ * Longest run of dry days (< DRY_DAY_MM) in the window; a gap or today's partial day ends a run
+ * and never counts as dry. null when no day has a known rain total.
+ */
+export function longestDry(days: HistoryDay[]): { days: number; end: string } | null {
+  let best: { days: number; end: string } | null = null;
+  let run = 0;
+  let known = false;
+  for (const d of days) {
+    if (!d.partial && rainKnown(d)) known = true;
+    if (!d.partial && rainKnown(d) && d.rain! < DRY_DAY_MM) {
+      run++;
+      if (!best || run > best.days) best = { days: run, end: d.date };
+    } else run = 0;
+  }
+  return known ? (best ?? { days: 0, end: '' }) : null;
 }
 
 export type RecordKey = 't_max' | 't_min' | 'rain' | 'gust_max';

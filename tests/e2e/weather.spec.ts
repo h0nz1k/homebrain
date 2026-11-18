@@ -258,7 +258,7 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   await page.goto('/homebrain-pocasi');
   const yt = page.getByTestId('weather-yt');
   await expect(yt).toContainText('Dnes zatím');
-  await expect(page.getByTestId('weather-dry-streak')).toContainText('2 dny bez deště');
+  await expect(page.getByTestId('weather-dry-streak')).toContainText('bez deště dnes zatím');
   const hist = page.getByTestId('weather-history');
   await expect(hist.getByTestId('weather-history-chart')).toBeVisible();
   await hist.getByRole('tab', { name: '30 dní' }).click();
@@ -279,7 +279,7 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   await expect(hist.getByTestId('weather-history-detail')).not.toContainText('30. 10.');
   await hist.getByRole('tab', { name: '30 dní' }).click(); // reset selection
   await page.getByTestId('weather-score-tab-rain').click();
-  await expect(page.getByTestId('weather-score-rain')).toContainText('zachytí');
+  await expect(page.getByTestId('weather-score-rain')).toContainText('zachytil');
   await expect(page.getByTestId('weather-score-rain-blend')).toContainText('kombinace');
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
