@@ -9,6 +9,7 @@ from datetime import timedelta
 import pytest
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
@@ -53,6 +54,9 @@ async def house(hass: HomeAssistant, hass_admin_user):
     source.add_to_hass(hass)
     cellar = _device(hass, source, "cellar", "Čidlo ve sklepě")
     door = _device(hass, source, "door", "Vstupní dveře")
+    # Synthetic room: the panel says „Ve sklepě …“ (locative built in the copy layer).
+    room = ar.async_get(hass).async_create("Sklep")
+    dr.async_get(hass).async_update_device(cellar, area_id=room.id)
     ids = {
         "temp": _entity(
             hass, source, "sensor", "cellar_temperature", cellar, original_name="Teplota"
@@ -125,6 +129,7 @@ async def test_registry_selection(hass: HomeAssistant, house):
     assert metas[ids["door"]].kind == "discrete"
     assert metas[ids["hum"]].device_name == "Čidlo ve sklepě"
     assert metas[ids["hum"]].integration == DEMO
+    assert metas[ids["hum"]].area == "Sklep" and metas[ids["door"]].area is None
 
 
 async def test_list_summary_ack_mute_and_no_ha_writes(
@@ -150,6 +155,7 @@ async def test_list_summary_ack_mute_and_no_ha_writes(
     assert report["key"] == f"device:{house['cellar']}"
     assert report["tier"] == "suspicion" and report["hidden"] is None
     assert report["devices"][0]["name"] == "Čidlo ve sklepě"
+    assert report["devices"][0]["area"] == "Sklep"
     (finding,) = report["findings"]
     assert finding["detector"] == "silent" and finding["device_class"] == "humidity"
     assert finding["entity_id"] == ids["hum"]
@@ -168,6 +174,9 @@ async def test_list_summary_ack_mute_and_no_ha_writes(
     text = str(summary)
     assert ids["hum"] not in text and house["cellar"] not in text
     assert summary["reports"][0]["tier"] == "suspicion"
+    assert summary["reports"][0]["devices"] == [
+        {"name": "Čidlo ve sklepě", "area": "Sklep", "monitored": 2}
+    ]
 
     # „To je v pořádku“ hides this occurrence and widens the humidity limits.
     key = report["key"]

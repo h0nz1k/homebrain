@@ -78,9 +78,11 @@ def report_payload(
     """One report as the panel sees it; ``private=False`` strips entity and device ids."""
     metas = watch.engine.metas
     names: dict[str, str] = {}
+    areas: dict[str, str | None] = {}
     for d in r.device_ids:
         m = next((m for m in metas.values() if m.device_id == d), None)
         names[d] = m.device_name if m else d
+        areas[d] = m.area if m else None
     entities = []
     for eid in r.entities:
         m = metas.get(eid)
@@ -102,6 +104,7 @@ def report_payload(
         "devices": [
             {
                 "name": names[d],
+                "area": areas[d],
                 "monitored": len(watch.engine.device_entities(d)),
                 **({"id": d} if private else {}),
             }

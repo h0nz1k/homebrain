@@ -48,6 +48,8 @@ class EntityMeta:
     integration: str = ""
     unit: str | None = None
     removed: bool = False
+    #: Area (room) name of the entity, else of its device; the panel says „V obýváku …“.
+    area: str | None = None
 
     @property
     def domain(self) -> str:

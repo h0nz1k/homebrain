@@ -10,7 +10,7 @@
   the 60 s evaluation (repeated identical values do not fire ``state_changed``).
 * **Restart safety**: the last evaluation time is stored; on start-up the gap until now is a
   downtime for the engine (clocks pause, 15 min grace).
-* **Owner actions** (Vyřešeno, To je v pořádku, Ztlumit) only change HomeBrain's own ``Store``.
+* **Owner actions** (Vyřešeno, Skrýt na 7 dní; API also `ok`) only change HomeBrain's own ``Store``.
   Phase 1 never calls a service, never notifies and never writes to HA.
 """
 
@@ -24,6 +24,7 @@ from typing import Any, Final
 from zoneinfo import ZoneInfo
 
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
@@ -75,6 +76,7 @@ def build_metas(hass: HomeAssistant) -> list[EntityMeta]:
     """Watched entities from the registries (see module docstring), at most ``MAX_ENTITIES``."""
     ent_reg = er.async_get(hass)
     dev_reg = dr.async_get(hass)
+    area_reg = ar.async_get(hass)
     metas: list[EntityMeta] = []
     for entry in sorted(ent_reg.entities.values(), key=lambda e: e.entity_id):
         if (
@@ -93,6 +95,8 @@ def build_metas(hass: HomeAssistant) -> list[EntityMeta]:
         attrs = state.attributes if state else {}
         device_name = device.name_by_user or device.name or entry.entity_id
         name = (state.name if state else None) or entry.name or entry.original_name or device_name
+        area_id = entry.area_id or device.area_id
+        area = area_reg.async_get_area(area_id) if area_id else None
         numeric = entry.domain == "sensor" and bool(
             attrs.get("state_class")
             or (entry.capabilities or {}).get("state_class")
@@ -110,6 +114,7 @@ def build_metas(hass: HomeAssistant) -> list[EntityMeta]:
                 or attrs.get("device_class"),
                 integration=entry.platform,
                 unit=attrs.get("unit_of_measurement") or entry.unit_of_measurement,
+                area=area.name if area else None,
             )
         )
         if len(metas) >= MAX_ENTITIES:
