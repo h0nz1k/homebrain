@@ -182,6 +182,11 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/family/swap/cancel": {"request_id": "testreq01"},
     "homebrain/family/points/get": {"kid": "nobody"},
     "homebrain/family/points/history": {"kid": "nobody"},
+    "homebrain/anomaly/list": {},
+    "homebrain/anomaly/summary": {},
+    "homebrain/anomaly/ack": {"key": "device:nothing", "kind": "ok"},
+    "homebrain/anomaly/mute": {"key": "device:nothing"},
+    "homebrain/anomaly/unmute": {"key": "device:nothing"},
 }
 
 

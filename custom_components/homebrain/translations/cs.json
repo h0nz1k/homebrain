@@ -352,7 +352,8 @@
         "server": "Server",
         "heating": "Topení",
         "kitchen": "Kuchyň",
-        "communication": "Komunikační centrum"
+        "communication": "Komunikační centrum",
+        "anomaly": "Hlídání domu"
       }
     },
     "meals_display": {
