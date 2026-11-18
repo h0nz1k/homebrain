@@ -276,7 +276,9 @@ describe('copy – r3: „hlášení“ only for sensor reports, alerts are „u
     expect(bad).toEqual([]);
   });
   it('built strings', () => {
-    expect(plain(RESOLVED_HINT)).toBe('Když potíž po označení „Vyřešeno“ trvá, za 2 h se upozornění vrátí.');
+    expect(plain(RESOLVED_HINT)).toBe(
+      'Když potíž po označení „Vyřešeno“ trvá, za 2 h se upozornění vrátí.',
+    );
     expect(plain(RESOLVED_DONE)).toBe('Vyřešeno. Pokud potíž trvá, za 2 h se upozornění vrátí.');
     for (const scenario of ['observations', 'suspicion', 'confirmed'] as const) {
       const snap = mockAnomalySnapshot(scenario);
