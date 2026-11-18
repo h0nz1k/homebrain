@@ -176,14 +176,14 @@ Modul zobrazuje lokální měření (meteostanice Ecowitt přes HA), předpově�
 
 ### WEA-021 – Karta „Včera a dnes“
 
-- **Popis:** Včerejší naměřené hodnoty vs. dnešek zatím (dnešek doplněný živou stanicí) a počet dní bez deště; mezera v datech počítání zastaví („nejméně N dní“). Zvýraznění ⚠ + tučně (ne jen barvou): náraz ≥ 15 m/s, změna průměrného tlaku ≥ 10 hPa za den (`MSL_JUMP_HPA`). Jednotky v pevném slotu (zarovnané desetinné čárky), „Dnes zatím“ s datem a časem; výzva jen s novou informací: ⚠ změna tlaku / silný náraz (`alertCallout`) má přednost před srážkami (`streakCallout`); Δ max. teploty má do `T_MAX_SETTLED_HOUR` (18:00) tlumené „zatím“.
+- **Popis:** Včerejší naměřené hodnoty vs. dnešek zatím (dnešek doplněný živou stanicí) a počet dní bez deště; mezera v datech počítání zastaví („nejméně N dní“). Zvýraznění ⚠ + tučně (ne jen barvou): náraz ≥ 15 m/s, změna průměrného tlaku ≥ 10 hPa za den (`MSL_JUMP_HPA`). Jednotky v pevném slotu (zarovnané desetinné čárky), „Dnes zatím“ s datem a časem na jednom řádku („so 31. 10., do 10:39“); výzva jen s novou informací: ⚠ změna tlaku / silný náraz (`alertCallout`, jedna věta se slovesem, části oddělené „;“, „dnes zatím“ jen jednou: „Tlak je dnes zatím o 26 hPa nižší než včera; náraz větru až 16,2 m/s“) má přednost před srážkami (`streakCallout`); Δ max. teploty má do `T_MAX_SETTLED_HOUR` (18:00) tlumené „zatím“.
 - **Zdroj:** issue #131 A
 - **Priorita:** MVP
 - **Akceptace:** vitest `HistoryCards.test.tsx`, `history.test.ts`; screenshoty 360×800 / 800×1280 / 1440×900, dark + light.
 
 ### WEA-022 – Pohled Historie 7 / 30 / 365 dní
 
-- **Popis:** Sloupce srážek, pás min–max teploty, výběr dne, rekordy měsíce a roku. Jen data vlastní stanice, chybějící dny se vyznačí šrafou shodnou s legendou (přes oba panely), nedopočítávají. Popisky osy x jen na skutečných dnech dat (poslední = poslední úplný den; dnešek zatím má světlejší výplň s plným obrysem ≥ 3 : 1, v legendě „světlejší = dnes (zatím)“). Stopová srážka (> 0 mm) má sloupec aspoň 2 px; zvýraznění vybraného dne je oříznuté na plochu grafu. Dlaždice Srážky / Deštivé dny (≥ 1 mm) / Prům. teplota / Nejdelší sucho (`longestDry`).
+- **Popis:** Sloupce srážek, pás min–max teploty, výběr dne, rekordy měsíce a roku. Jen data vlastní stanice, chybějící dny se vyznačí šrafou shodnou s legendou (přes oba panely), nedopočítávají. Popisky osy x jen na skutečných dnech dat (poslední = poslední úplný den; dnešek zatím má světlejší výplň s neutrálním obrysem ≥ 3 : 1, v legendě „světlejší = dnes (zatím)“). Nad dlaždicemi rozsah okna s daty. Stopová srážka (zobrazená ≥ 0,1 mm) má sloupec aspoň 2 px, 0,0 mm žádný; rekord z dnešního neúplného dne je zatímní („dnes (zatím)“, „rekord: zatím …“); zvýraznění vybraného dne je oříznuté na plochu grafu. Dlaždice Srážky / Deštivé dny (≥ 1 mm) / Prům. teplota / Nejdelší sucho (`longestDry`).
 - **Zdroj:** issue #131 A
 - **Priorita:** MVP
 - **Akceptace:** Přepnutí období mění počet dní v grafu; mezera má vlastní značku a počet v legendě (vitest + e2e `weather.spec.ts`).
@@ -218,7 +218,7 @@ Modul zobrazuje lokální měření (meteostanice Ecowitt přes HA), předpově�
 
 ### WEA-027 – „Kdo se trefuje“: záložka Déšť
 
-- **Popis:** Pořadí modelů podle ETS (≥ 0,2 mm/h) laicky („zachytil x z 10 hodin s deštěm“, „planý poplach u y z 10 ohlášených dešťových hodin“), zkratky a Brier jen v rozbalení; rozdíly pod 95% prahem šumu (delta metoda na kontingenční tabulce) = stejné pořadí „srovnatelné“; „málo dat“ s konkrétní překážkou v číslech; bez dost párů prázdný stav s vysvětlením.
+- **Popis:** Pořadí modelů podle ETS (≥ 0,2 mm/h) laicky („zachytil x z 10 hodin s deštěm“, „planý poplach y z 10“), zkratky a Brier jen v rozbalení; rozdíly pod 95% prahem šumu (delta metoda na kontingenční tabulce; jeden práh pro tabulku = největší z dvojic) = společné pořadí „1.–3.“ a „srovnatelné“; „málo dat“ s konkrétní překážkou v číslech; bez dost párů prázdný stav s vysvětlením.
 - **Zdroj:** issue #131 B
 - **Priorita:** later → implementováno
 - **Akceptace:** vitest `rainScore.test.ts` (ETS, SE vs. bootstrap, práh šumu, shody, texty „málo dat“) a `HistoryCards.test.tsx` (pořadí se shodami, vzorek v hlavičce, prázdný stav).

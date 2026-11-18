@@ -14,6 +14,10 @@ export const MSL_JUMP_HPA = 10;
  */
 export const T_MAX_SETTLED_HOUR = 18;
 
+/** A day's rain gets a bar only when it does not read „0,0 mm“ (zero = no bar, never a sliver). */
+export const hasRainBar = (rain: number | null | undefined): rain is number =>
+  rain != null && Math.round(rain * 10) > 0;
+
 export type DeltaKey = 't' | 'rain' | 'gust' | 'msl';
 /**
  * "Včera a dnes" delta column: a change smaller than this counts as no change (≈), so
@@ -108,16 +112,18 @@ export function alertCallout(
   gustYesterday: number | null,
 ): string | null {
   const parts: string[] = [];
-  if (msl.kind !== 'missing' && msl.kind !== 'same' && msl.v >= MSL_JUMP_HPA)
+  const pressure = msl.kind !== 'missing' && msl.kind !== 'same' && msl.v >= MSL_JUMP_HPA;
+  if (pressure)
     parts.push(
-      `Tlak dnes zatím o ${nf1(msl.v, 0)}${NBSP}hPa ${msl.kind === 'down' ? 'nižší' : 'vyšší'} než včera`,
+      `Tlak je dnes zatím o ${nf1(msl.v, 0)}${NBSP}hPa ${msl.kind === 'down' ? 'nižší' : 'vyšší'} než včera`,
     );
+  // „dnes zatím“ is said once: after the pressure clause the gust needs no time word
   if (gustToday != null && gustToday >= GUST_STRONG_MS)
-    parts.push(`dnes zatím náraz až ${nf1(gustToday)}${NBSP}m/s`);
+    parts.push(`${pressure ? '' : 'dnes zatím '}náraz větru až ${nf1(gustToday)}${NBSP}m/s`);
   else if (gustYesterday != null && gustYesterday >= GUST_STRONG_MS)
-    parts.push(`včera náraz až ${nf1(gustYesterday)}${NBSP}m/s`);
+    parts.push(`včera náraz větru až ${nf1(gustYesterday)}${NBSP}m/s`);
   if (parts.length === 0) return null;
-  const text = parts.join(' · ');
+  const text = parts.join('; ');
   return `⚠ ${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
@@ -269,9 +275,19 @@ export function longestDry(days: HistoryDay[]): { days: number; end: string } | 
 }
 
 export type RecordKey = 't_max' | 't_min' | 'rain' | 'gust_max';
+/**
+ * `partial`: the record is held by today's incomplete day – shown as „zatím“. It stays a record
+ * as the day goes on (a minimum so far can only fall, a maximum or a sum only rise), but its
+ * value is not final.
+ */
+export interface RecordValue {
+  v: number;
+  date: string;
+  partial: boolean;
+}
 export interface Records {
   days: number;
-  values: Record<RecordKey, { v: number; date: string } | null>;
+  values: Record<RecordKey, RecordValue | null>;
 }
 
 /** Highest / lowest values in the days whose date starts with `prefix` ("2026-10" / "2026"). */
@@ -282,11 +298,11 @@ export function records(days: HistoryDay[], prefix: string): Records {
 /** Highest / lowest values in exactly these days (e.g. the selected window). */
 export function recordsOf(scope: HistoryDay[]): Records {
   const best = (key: RecordKey, lowest = false) => {
-    let out: { v: number; date: string } | null = null;
+    let out: RecordValue | null = null;
     for (const d of scope) {
       const v = d[key];
       if (v == null) continue;
-      if (!out || (lowest ? v < out.v : v > out.v)) out = { v, date: d.date };
+      if (!out || (lowest ? v < out.v : v > out.v)) out = { v, date: d.date, partial: d.partial };
     }
     return out;
   };

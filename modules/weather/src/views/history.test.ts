@@ -9,7 +9,9 @@ import {
   niceCeil,
   streakCallout,
   alertCallout,
+  hasRainBar,
   records,
+  recordsOf,
   tempTicks,
   windowStats,
   yesterdayToday,
@@ -98,7 +100,7 @@ describe('windowStats a records', () => {
     expect(s.t_max).toEqual({ v: 11, date: '2026-10-28' });
     const rec = records([...days, day('2026-09-30', 30, { gust_max: 25 })], '2026-10');
     expect(rec.days).toBe(3);
-    expect(rec.values.rain).toEqual({ v: 2.5, date: '2026-10-28' });
+    expect(rec.values.rain).toEqual({ v: 2.5, date: '2026-10-28', partial: false });
     expect(records(days, '2025').values.t_max).toBeNull();
   });
 
@@ -195,16 +197,64 @@ describe('longestDry', () => {
 
 describe('alertCallout – ⚠ má přednost před deštěm', () => {
   it('změna tlaku, pak náraz (dnešní, jinak včerejší)', () => {
-    expect(alertCallout({ kind: 'down', v: 12.3 }, 16.4, 9)).toBe(
-      '⚠ Tlak dnes zatím o 12\u00a0hPa nižší než včera · dnes zatím náraz až 16,4\u00a0m/s',
+    // one sentence: a verb, „dnes zatím“ once, clauses joined by „;“
+    expect(alertCallout({ kind: 'down', v: 26 }, 16.2, 9)).toBe(
+      '⚠ Tlak je dnes zatím o 26\u00a0hPa nižší než včera; náraz větru až 16,2\u00a0m/s',
     );
     expect(alertCallout({ kind: 'up', v: 10 }, null, null)).toBe(
-      '⚠ Tlak dnes zatím o 10\u00a0hPa vyšší než včera',
+      '⚠ Tlak je dnes zatím o 10\u00a0hPa vyšší než včera',
     );
-    expect(alertCallout({ kind: 'same', v: 0.4 }, 8, 15.2)).toBe('⚠ Včera náraz až 15,2\u00a0m/s');
+    expect(alertCallout({ kind: 'same', v: 0.4 }, 16.4, null)).toBe(
+      '⚠ Dnes zatím náraz větru až 16,4\u00a0m/s',
+    );
+    expect(alertCallout({ kind: 'same', v: 0.4 }, 8, 15.2)).toBe(
+      '⚠ Včera náraz větru až 15,2\u00a0m/s',
+    );
+    expect(alertCallout({ kind: 'down', v: 12 }, 8, 15.2)).toBe(
+      '⚠ Tlak je dnes zatím o 12\u00a0hPa nižší než včera; včera náraz větru až 15,2\u00a0m/s',
+    );
+    expect(alertCallout({ kind: 'down', v: 26 }, 16.2, 9)).not.toMatch(/·|dnes zatím.*dnes zatím/);
   });
   it('pod prahy nic', () => {
     expect(alertCallout({ kind: 'down', v: 9.9 }, 14.9, null)).toBeNull();
     expect(alertCallout({ kind: 'missing' }, null, null)).toBeNull();
+  });
+});
+
+describe('sloupec srážek: nula = žádný sloupec', () => {
+  it('„0,0 mm“ nemá sloupec, od 0,05 mm (zobrazeno 0,1) ano', () => {
+    expect(hasRainBar(0)).toBe(false);
+    expect(hasRainBar(0.04)).toBe(false); // shown as 0,0 mm
+    expect(hasRainBar(null)).toBe(false);
+    expect(hasRainBar(0.05)).toBe(true);
+    expect(hasRainBar(0.4)).toBe(true);
+  });
+});
+
+describe('rekordy: okno a dnešní neúplný den', () => {
+  it('okno 30 dní = dnes + 29 předchozích dní; rekord okna je maximum právě z nich', () => {
+    const all = buildMockHistory('default', 400).days;
+    const w = all.slice(-30);
+    expect(w).toHaveLength(30);
+    expect(w.at(-1)!.partial).toBe(true);
+    // MOCK_NOW = 31. 10.: the window starts 2. 10., so 1. 10. is outside it
+    expect(w[0]!.date).toBe('2026-10-02');
+    const max = Math.max(...w.map((d) => d.rain ?? 0));
+    expect(recordsOf(w).values.rain!.v).toBe(max);
+    const year = records(all, '2026').values.rain!;
+    if (year.v > max) expect(year.date < w[0]!.date).toBe(true);
+    // rain days are counted out of days with a known total (the gap day 12 days ago is not)
+    expect(windowStats(all, 30).rainKnownDays).toBe(29);
+  });
+
+  it('rekord z dnešního neúplného dne je označený jako zatímní', () => {
+    const days = [
+      day('2026-10-29', 1, { t_min: 3 }),
+      day('2026-10-30', 0, { t_min: 2 }),
+      day('2026-10-31', 0.4, { t_min: -1, partial: true }),
+    ];
+    const rec = recordsOf(days).values;
+    expect(rec.t_min).toEqual({ v: -1, date: '2026-10-31', partial: true });
+    expect(rec.rain).toEqual({ v: 1, date: '2026-10-29', partial: false });
   });
 });

@@ -259,7 +259,7 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   const yt = page.getByTestId('weather-yt');
   await expect(yt).toContainText('Dnes zatím');
   // ⚠ pressure change in the mock outranks the rain callout
-  await expect(page.getByTestId('weather-yt-alert')).toContainText('⚠ Tlak dnes zatím');
+  await expect(page.getByTestId('weather-yt-alert')).toContainText('⚠ Tlak je dnes zatím');
   await expect(yt.getByTestId('weather-yt-dprov')).toHaveText('zatím');
   const hist = page.getByTestId('weather-history');
   await expect(hist.getByTestId('weather-history-chart')).toBeVisible();
@@ -267,6 +267,24 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   await expect(hist.getByTestId('weather-history-gaps')).toContainText('chybí data');
   await expect(page.getByTestId('weather-records')).toContainText('Rekordy za 30 dní');
   await expect(hist.getByTestId('weather-history-raindays')).toContainText('z\u00a029');
+  // the window's exact days are on the card (today included, so 1. 10. is outside)
+  await expect(hist.getByTestId('weather-history-range')).toHaveText(
+    '2. 10. – 31. 10. 2026 (dnes zatím)',
+  );
+  // today's outline is neutral (--hb-t2), not the rain blue; mm labels sit right of the plot
+  const look = await hist.evaluate((el) => {
+    const g = el.querySelector('.wx-hist-chart svg > g.is-partial .wx-hist-r')!;
+    const plot = el.querySelector('[data-testid="weather-history-plot"]')!.getBoundingClientRect();
+    const labels = Array.from(el.querySelectorAll('.wx-hist-yl--r, .wx-hist-yt--r'));
+    return {
+      stroke: getComputedStyle(g).stroke,
+      rain: getComputedStyle(g).fill,
+      minLeft: Math.min(...labels.map((l) => l.getBoundingClientRect().left - plot.right)),
+    };
+  });
+  expect(look.stroke).toMatch(/^rgb/);
+  expect(look.stroke).not.toBe(look.rain);
+  expect(look.minLeft).toBeGreaterThanOrEqual(6);
   // touch targets: period buttons and the scrub area are at least 44 px tall
   for (const b of await hist.getByRole('tab').all())
     expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -283,6 +301,12 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   await page.getByTestId('weather-score-tab-rain').click();
   await expect(page.getByTestId('weather-score-rain')).toContainText('zachytil');
   await expect(page.getByTestId('weather-score-rain-blend')).toContainText('kombinace');
+  await expect(page.getByTestId('weather-score-rain-blend').locator('.wx-rank-n')).toHaveText(
+    '1.–3.',
+  );
+  await expect(page.getByTestId('weather-score-rain-gfs_seamless')).toContainText(
+    '≈ srovnatelné s ECMWF IFS',
+  );
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );

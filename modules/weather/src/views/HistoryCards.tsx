@@ -14,6 +14,7 @@ import {
   alertCallout,
   delta,
   dryStreak,
+  hasRainBar,
   longestDry,
   niceCeil,
   records,
@@ -24,6 +25,7 @@ import {
   yesterdayToday,
   type Delta,
   type RecordKey,
+  type RecordValue,
   type Records,
 } from './history.js';
 
@@ -32,13 +34,17 @@ export type HistoryState =
   | { kind: 'ready'; data: WeatherHistory }
   | { kind: 'error'; message: string };
 
-const dayFmt = (opts: Intl.DateTimeFormatOptions) =>
-  new Intl.DateTimeFormat('cs-CZ', { timeZone: WX_TZ, ...opts });
+/** cs-CZ dates with non-breaking spaces („31. 10.“ never splits across lines). */
+const dayFmt = (opts: Intl.DateTimeFormatOptions) => {
+  const f = new Intl.DateTimeFormat('cs-CZ', { timeZone: WX_TZ, ...opts });
+  return { format: (d: Date) => f.format(d).replace(/ /g, '\u00a0') };
+};
 const dShort = dayFmt({ day: 'numeric', month: 'numeric' });
 const dWeek = dayFmt({ weekday: 'short' });
 const dWeekLong = dayFmt({ weekday: 'short', day: 'numeric', month: 'numeric' });
 const dMonth = dayFmt({ month: 'long' });
 const dMonthShort = dayFmt({ month: 'short' });
+const dFull = dayFmt({ day: 'numeric', month: 'numeric', year: 'numeric' });
 const at = (date: string) => new Date(`${date}T12:00:00Z`);
 const dayLabel = (date: string) => dShort.format(at(date));
 /** Capitalise only (``cap`` also drops a trailing dot, which a date like „30. 10.“ needs). */
@@ -239,9 +245,13 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
             </th>
             <th scope="col" data-testid="weather-yt-today-head">
               Dnes <span className="wx-yt-prov">zatím</span>
-              <span className="wx-yt-hd">
-                {dWeekLong.format(at(today))} · do{NBSP}
-                {until}
+              {/* one line where it fits; on a phone it may break only after the comma */}
+              <span className="wx-yt-hd wx-yt-hd--now">
+                <span>{dWeekLong.format(at(today))},</span>{' '}
+                <span>
+                  do{NBSP}
+                  {until}
+                </span>
               </span>
             </th>
             <th scope="col">
@@ -271,7 +281,8 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
       )}
       <p className="wx-foot wx-yt-foot">
         <span>
-          Δ = dnes zatím proti celému včerejšku · ≈{NBSP}stejně = pod {nf(DELTA_NEUTRAL.t)}
+          Δ = dnes zatím proti celému včerejšku · ≈{NBSP}stejně = rozdíl menší než{' '}
+          {nf(DELTA_NEUTRAL.t)}
           {NBSP}°C, {nf(DELTA_NEUTRAL.rain)}
           {NBSP}mm, {nf(DELTA_NEUTRAL.gust, 0)}
           {NBSP}m/s, {nf(DELTA_NEUTRAL.msl, 0)}
@@ -451,6 +462,8 @@ function HistoryChart({
           <line key={v} x1="0" x2="1000" y1={yR(v)} y2={yR(v)} className="wx-hist-grid" />
         ))}
         <line x1="0" x2="1000" y1={R_BOT} y2={R_BOT} className="wx-hist-base" />
+        {/* the mm scale is an axis on the plot's right edge: its labels sit outside it */}
+        <line x1="1000" x2="1000" y1={R_TOP} y2={R_BOT} className="wx-hist-base" />
         {days.map((d, i) => (
           <g key={d.date} className={d.partial ? 'is-partial' : undefined}>
             {d.t_min != null && d.t_max != null && (
@@ -463,7 +476,7 @@ function HistoryChart({
                 className="wx-hist-t"
               />
             )}
-            {d.rain != null && d.rain > 0 && (
+            {hasRainBar(d.rain) && (
               <rect
                 x={xc(i) - w / 2}
                 y={Math.min(yR(d.rain), R_BOT - RAIN_MIN_H)}
@@ -485,11 +498,7 @@ function HistoryChart({
         mm
       </span>
       {rainTicks.map((v) => (
-        <span
-          key={v}
-          className={`wx-hist-yl wx-hist-yl--r ${v === 0 ? 'is-zero' : ''}`}
-          style={{ top: pctY(yR(v)) }}
-        >
+        <span key={v} className="wx-hist-yl wx-hist-yl--r" style={{ top: pctY(yR(v)) }}>
           {nf(v, v === 0 ? 0 : rainDigits)}
         </span>
       ))}
@@ -529,6 +538,9 @@ function dayDetail(d: HistoryDay): string {
   return parts.join(' · ');
 }
 
+/** Date column of a record: today's incomplete day is „dnes (zatím)“. */
+const recordDate = (v: RecordValue) => (v.partial ? `dnes${NB}(zatím)` : dayLabel(v.date));
+
 const RECORD_WORD: Record<RecordKey, string> = {
   t_max: 'nejteplejší den',
   t_min: 'nejchladnější den',
@@ -540,7 +552,8 @@ function DayReadout({ d, marks }: { d: HistoryDay; marks: { scope: string; rec: 
   const badges = marks.flatMap(({ scope, rec }) =>
     (Object.keys(RECORD_WORD) as RecordKey[])
       .filter((k) => rec.values[k]?.date === d.date)
-      .map((k) => `${RECORD_WORD[k]} ${scope}`),
+      // a record of today's incomplete day is provisional
+      .map((k) => `${d.partial ? 'zatím ' : ''}${RECORD_WORD[k]} ${scope}`),
   );
   return (
     <div className="wx-hist-detail" data-testid="weather-history-detail" aria-live="polite">
@@ -570,6 +583,18 @@ function DayReadout({ d, marks }: { d: HistoryDay; marks: { scope: string; rec: 
       )}
     </div>
   );
+}
+
+/**
+ * The exact days of the window, e.g. „2. 10. – 31. 10. 2026 (dnes zatím)“: the window is the last
+ * `range` days including today, so a record from the day before its first day is outside it.
+ */
+function windowRange(days: HistoryDay[]): string {
+  const first = days[0]!;
+  const last = days[days.length - 1]!;
+  const sameYear = first.date.slice(0, 4) === last.date.slice(0, 4);
+  const from = sameYear ? dayLabel(first.date) : dFull.format(at(first.date));
+  return `${from} – ${dFull.format(at(last.date))}${last.partial ? ' (dnes zatím)' : ''}`;
 }
 
 const firstOfScope = (scope: string) => (scope.length === 4 ? `${scope}-01-01` : `${scope}-01`);
@@ -620,7 +645,8 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
               setSel(null);
             }}
           >
-            {r} dní
+            {r}
+            {NB}dní
           </button>
         ))}
       </div>
@@ -630,6 +656,11 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
         <p className="wx-empty">{message}</p>
       ) : (
         <>
+          {days.length > 0 && (
+            <p className="wx-hist-range" data-testid="weather-history-range">
+              {windowRange(days)}
+            </p>
+          )}
           <dl className="wx-hist-sum" data-testid="weather-history-summary">
             <div>
               <dt>Srážky</dt>
@@ -725,7 +756,9 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
                             </small>
                           )}
                         </b>
-                        <em>{v ? dayLabel(v.date) : ''}</em>
+                        <em className={v?.partial ? 'is-prov' : undefined}>
+                          {v ? recordDate(v) : ''}
+                        </em>
                       </li>
                     );
                   })}
