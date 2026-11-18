@@ -251,3 +251,226 @@ for (const scenario of ['', 'calm'])
         expect(Math.abs(radar.y - station.y)).toBeLessThan(1);
       }
     });
+
+test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async ({ page }) => {
+  // 10 evidence screenshots per viewport need more than the default 30 s on a busy host
+  if (process.env.HB_WEATHER_SCREENSHOT_DIR) test.setTimeout(120_000);
+  await page.goto('/homebrain-pocasi');
+  const yt = page.getByTestId('weather-yt');
+  await expect(yt).toContainText('Dnes zatím');
+  // ⚠ pressure change in the mock outranks the rain callout
+  await expect(page.getByTestId('weather-yt-alert')).toContainText(
+    'Průměrný tlak je dnes zatím o 26\u00a0hPa nižší než včera. Nárazy větru zatím až 16,2\u00a0m/s.',
+  );
+  await expect(yt.getByTestId('weather-yt-dprov')).toHaveCount(0);
+  await expect(yt.getByTestId('weather-yt-missing')).toHaveCount(0);
+  const ytGeo = await yt.evaluate((el) => {
+    const now = el.querySelector('.wx-yt-hd--now')!;
+    const [date, time] = Array.from(now.children).map((c) => c.getBoundingClientRect());
+    // label vs. value in the pressure row: the value's first glyph vs. the label text's end
+    const row = el.querySelector('[data-testid="weather-yt-msl"]')!;
+    const th = row.querySelector('th')!;
+    const r = document.createRange();
+    r.selectNodeContents(th);
+    const label = Array.from(r.getClientRects());
+    const td = row.querySelector('td')!;
+    const r2 = document.createRange();
+    r2.selectNodeContents(td);
+    const value = r2.getBoundingClientRect();
+    const alert = el.querySelector('[data-testid="weather-yt-alert"] b')!.getBoundingClientRect();
+    const icon = el.querySelector('.wx-yt-alert-ic')!.getBoundingClientRect();
+    return {
+      oneLine: Math.abs(date!.top - time!.top) < 2,
+      // two whole lines: „so 31. 10.“ above „do 10:39“, nothing split inside either
+      timeUnderDate: time!.top >= date!.bottom - 1 && date!.height < 20 && time!.height < 20,
+      gap: value.left - Math.max(...label.map((l) => l.right)),
+      hanging: alert.left - icon.right,
+    };
+  });
+  // „so 31. 10. do 10:39“ on one line, else a clean break between date and time
+  expect(ytGeo.oneLine || ytGeo.timeUnderDate).toBe(true);
+  expect(ytGeo.gap).toBeGreaterThanOrEqual(8);
+  expect(ytGeo.hanging).toBeGreaterThanOrEqual(0); // wrapped callout lines align right of ⚠
+  const hist = page.getByTestId('weather-history');
+  await expect(hist.getByTestId('weather-history-chart')).toBeVisible();
+  await hist.getByRole('tab', { name: '30 dní' }).click();
+  await expect(hist.getByTestId('weather-history-gaps')).toContainText('chybí data');
+  await expect(page.getByTestId('weather-records')).toContainText('Rekordy za 30 dní');
+  await expect(hist.getByTestId('weather-history-raindays')).toContainText('z\u00a029');
+  // the window's exact days are on the card (today included, so 1. 10. is outside)
+  await expect(hist.getByTestId('weather-history-range')).toHaveText(
+    '2. 10. – 31. 10. 2026 (dnes zatím)',
+  );
+  // today's outline is neutral (--hb-t2), not the rain blue; mm labels sit right of the plot
+  const look = await hist.evaluate((el) => {
+    const g = el.querySelector('.wx-hist-chart svg > g.is-partial .wx-hist-r')!;
+    const plot = el.querySelector('[data-testid="weather-history-plot"]')!.getBoundingClientRect();
+    const labels = Array.from(el.querySelectorAll('.wx-hist-yl--r, .wx-hist-yt--r'));
+    return {
+      stroke: getComputedStyle(g).stroke,
+      rain: getComputedStyle(g).fill,
+      minLeft: Math.min(...labels.map((l) => l.getBoundingClientRect().left - plot.right)),
+    };
+  });
+  expect(look.stroke).toMatch(/^rgb/);
+  expect(look.stroke).not.toBe(look.rain);
+  expect(look.minLeft).toBeGreaterThanOrEqual(6);
+  // the x-axis chip is the selected day, framed like the selected column (not the range end)
+  const chip = await hist.evaluate((el) => {
+    const cur = el.querySelector('[data-testid="weather-history-cursor"]')!;
+    const tick = el.querySelector('[data-testid="weather-history-seltick"]')!;
+    const a = cur.getBoundingClientRect();
+    const b = tick.getBoundingClientRect();
+    return {
+      dx: Math.abs(a.left + a.width / 2 - (b.left + b.width / 2)),
+      same: getComputedStyle(cur).borderTopColor === getComputedStyle(tick).borderTopColor,
+      text: tick.textContent,
+      detail: el.querySelector('[data-testid="weather-history-detail"] b')!.textContent,
+    };
+  });
+  expect(chip.dx).toBeLessThan(1.5);
+  expect(chip.same).toBe(true);
+  expect(chip.detail).toContain(chip.text!);
+  // touch targets: period buttons and the scrub area are at least 44 px tall
+  for (const b of await hist.getByRole('tab').all())
+    expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const chart = hist.getByTestId('weather-history-chart');
+  const box = (await chart.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  // drag across the plot moves the selection
+  await page.mouse.move(box.x + 4, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(hist.getByTestId('weather-history-detail')).not.toContainText('30. 10.');
+  await hist.getByRole('tab', { name: '30 dní' }).click(); // reset selection
+  await page.getByTestId('weather-score-tab-rain').click();
+  await expect(page.getByTestId('weather-score-rain')).toContainText('zachytil');
+  await expect(page.getByTestId('weather-score-rain-blend')).toContainText('kombinace');
+  await expect(page.getByTestId('weather-score-rain-blend').locator('.wx-rank-n')).toHaveText('1.');
+  // ALADIN 0,37 → ECMWF IFS 0,30: 0,07 < 0,13 → „≈“ between the two pills
+  const near = page
+    .getByTestId('weather-score-rain-ecmwf_ifs')
+    .getByTestId('weather-score-rain-near');
+  await expect(near).toHaveText('≈');
+  await expect(near).toHaveAttribute('aria-label', /rozdíl 0,07 je menší než 0,13/);
+  await expect(page.getByTestId('weather-score-rain-near')).toHaveCount(4);
+  // Mix is not crowned: its rank pill looks like everyone else's
+  const pills = await page
+    .getByTestId('weather-score-rain')
+    .evaluate((el) =>
+      Array.from(el.querySelectorAll('.wx-rank-n')).map((p) => getComputedStyle(p).backgroundColor),
+    );
+  expect(new Set(pills.slice(0, 5)).size).toBe(1);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  // Evidence for the PR (owner visual check): HB_WEATHER_SCREENSHOT_DIR=<dir> pnpm test:e2e …
+  const dir = process.env.HB_WEATHER_SCREENSHOT_DIR;
+  if (!dir) return;
+  const { width, height } = page.viewportSize()!;
+  for (const theme of ['dark', 'light'] as const) {
+    if (theme === 'light') {
+      await page.goto('/homebrain-pocasi?theme=light');
+      await hist.getByRole('tab', { name: '30 dní' }).click();
+      await page.getByTestId('weather-score-tab-rain').click();
+    }
+    await page.evaluate(() => document.fonts.ready);
+    // The sticky shell top bar would cover element shots scrolled under it (evidence only).
+    await page.addStyleTag({ content: '.hb-topbar{position:static !important}' });
+    const name = (what: string) => `${dir}/weather-${what}-${width}x${height}-${theme}.png`;
+    await yt.screenshot({ path: name('vcera-a-dnes'), animations: 'disabled' });
+    await hist.screenshot({ path: name('historie-30d'), animations: 'disabled' });
+    await page
+      .getByTestId('weather-score')
+      .screenshot({ path: name('skore-dest'), animations: 'disabled' });
+    await hist.getByRole('tab', { name: '365 dní' }).click();
+    await hist.screenshot({ path: name('historie-365d'), animations: 'disabled' });
+    await hist.getByRole('tab', { name: '30 dní' }).click();
+    await page.screenshot({ path: name('stranka'), fullPage: true, animations: 'disabled' });
+  }
+});
+
+/** WCAG contrast of computed colours (rgb()/color(srgb …), alpha composited over the backdrop). */
+test('Počasí #131: kontrast ve světlém motivu (šedý text ≥ 4,5 : 1, dnešní sloupec ≥ 3 : 1)', async ({
+  page,
+}) => {
+  await page.goto('/homebrain-pocasi?theme=light');
+  await expect(page.getByTestId('weather-history-chart')).toBeVisible();
+  await page.getByTestId('weather-score-tab-rain').click();
+  const res = await page.evaluate(() => {
+    type C = [number, number, number, number];
+    const parse = (s: string): C => {
+      const n = s.match(/[\d.]+/g)!.map(Number);
+      if (s.startsWith('color(')) return [n[0]! * 255, n[1]! * 255, n[2]! * 255, n[3] ?? 1];
+      return [n[0]!, n[1]!, n[2]!, n[3] ?? 1];
+    };
+    const over = (f: C, b: C): C => [
+      f[0] * f[3] + b[0] * (1 - f[3]),
+      f[1] * f[3] + b[1] * (1 - f[3]),
+      f[2] * f[3] + b[2] * (1 - f[3]),
+      1,
+    ];
+    const lum = (c: C) => {
+      const l = c.slice(0, 3).map((v) => {
+        const x = v / 255;
+        return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * l[0]! + 0.7152 * l[1]! + 0.0722 * l[2]!;
+    };
+    const ratio = (a: C, b: C) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x! + 0.05) / (y! + 0.05);
+    };
+    const backdrop = (el: Element): C => {
+      const chain: Element[] = [];
+      for (let e: Element | null = el; e; e = e.parentElement) chain.push(e);
+      let bg: C = [255, 255, 255, 1];
+      for (const e of chain.reverse()) {
+        const c = parse(getComputedStyle(e).backgroundColor);
+        if (c[3] > 0) bg = over(c, bg);
+      }
+      return bg;
+    };
+    const probe = (v: string) => {
+      const p = document.createElement('span');
+      p.style.color = `var(${v})`;
+      document.querySelector('.wx')!.appendChild(p);
+      const c = getComputedStyle(p).color;
+      p.remove();
+      return c;
+    };
+    const greys = new Set([probe('--hb-t2'), probe('--hb-t3')]);
+    const worst: { text: string; ratio: number }[] = [];
+    let checked = 0;
+    for (const id of ['weather-yt', 'weather-history', 'weather-score']) {
+      const card = document.querySelector(`[data-testid="${id}"]`)!;
+      for (const el of Array.from(card.querySelectorAll('*'))) {
+        const own = Array.from(el.childNodes).some(
+          (n) => n.nodeType === 3 && n.textContent!.trim(),
+        );
+        const cs = getComputedStyle(el);
+        if (!own || !greys.has(cs.color) || (el as HTMLElement).offsetParent === null) continue;
+        if (el.closest('.wx-sr, .wx-prank-lbl') && cs.position === 'absolute') continue;
+        checked++;
+        const r = ratio(over(parse(cs.color), backdrop(el)), backdrop(el));
+        if (r < 4.5) worst.push({ text: el.textContent!.slice(0, 40), ratio: r });
+      }
+    }
+    const bars = Array.from(
+      document.querySelectorAll('[data-testid="weather-history-chart"] svg > g.is-partial rect'),
+    ).map((r) => {
+      const cs = getComputedStyle(r);
+      const fill = parse(cs.fill);
+      fill[3] *= Number(cs.fillOpacity);
+      const bg = backdrop(r.closest('.wx-hist-chart')!);
+      return ratio(over(fill, bg), bg);
+    });
+    return { checked, worst, bars };
+  });
+  expect(res.checked).toBeGreaterThan(20);
+  expect(res.worst).toEqual([]);
+  expect(res.bars.length).toBeGreaterThan(0);
+  for (const r of res.bars) expect(r).toBeGreaterThanOrEqual(3);
+});

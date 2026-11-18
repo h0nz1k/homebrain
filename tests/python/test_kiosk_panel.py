@@ -27,6 +27,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/roles/set": {"user_id": "someone", "role": "kiosk"},
     "homebrain/weather/get": {},
     "homebrain/weather/alerts": {},
+    "homebrain/weather/history": {},
     "homebrain/energy/pv_forecast": {},
     "homebrain/energy/compare": {},
     "homebrain/energy/settings/get": {},
