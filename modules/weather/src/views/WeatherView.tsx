@@ -77,7 +77,7 @@ const MODEL_COLOR: Record<string, string> = {
   ecmwf_ifs: 'var(--hb-model-ecmwf)',
   gfs_seamless: 'var(--hb-model-gfs)',
   metno: 'var(--hb-model-met-no)',
-  geosphere_arome_austria: 'var(--wx-m-arome)',
+  geosphere_claef_austria: 'var(--wx-m-arome)',
   icon_eu: 'var(--wx-m-icon-eu)',
   ukmo_seamless: 'var(--wx-m-ukmo)',
   ecmwf_aifs025_single: 'var(--wx-m-aifs)',

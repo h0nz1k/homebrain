@@ -57,7 +57,7 @@ Legenda: **Y** = doporučeno, **L** = později, **N** = nedoporučeno. „Free�
 
 **MVP (fáze 1)**
 1. Ecowitt stanice (pozorování, „teď“) — HA entity.
-2. Open-Meteo multi-model: `chmi_aladin_cz_1km`, `icon_d2`, `geosphere_arome_austria`, `icon_eu`, `ecmwf_ifs` (9 km), `ecmwf_aifs025_single`, `gfs_seamless`, `ukmo_seamless` (+ `best_match` jako referenční „Open-Meteo“). Hodinově 0–72 h; denně 10 dní z IFS/AIFS/GFS/ICON.
+2. Open-Meteo multi-model: `chmi_aladin_cz_1km`, `icon_d2`, `geosphere_claef_austria` (C-LAEF 1 km; do 2026-11-04 `geosphere_arome_austria`), `icon_eu`, `ecmwf_ifs` (9 km), `ecmwf_aifs025_single`, `gfs_seamless`, `ukmo_seamless` (+ `best_match` jako referenční „Open-Meteo“). Hodinově 0–72 h; denně 10 dní z IFS/AIFS/GFS/ICON.
 3. met.no z HA (weather entita core `met`, přes binding).
 4. ČHMÚ výstrahy (CAP + alerts.json pro ORP).
 5. ČHMÚ radar `maxz` (historie 2 h) + `fct_maxz` (nowcast 60 min).
@@ -190,8 +190,8 @@ Klouzavý průměr s exponenciálním zapomínáním jako NOAA NAEFS: b = f − 
 
 ### 4.4 Blend (multi-model)
 - Váhy z verifikace: w_m(v,L) ∝ 1 / (MAE_m(v,L)² + ε), normalizace na Σ = 1, podlaha 0,05, strop 0,5 (žádný model nedominuje).
-- Před dostatkem dat (n < 14 dní) priorové váhy: 0–48 h ALADIN 0,25, ICON-D2 0,25, AROME-AT 0,15, ICON-EU 0,1, IFS 0,15, UKMO 0,1; 48–240 h IFS 0,35, AIFS 0,2, ICON 0,15, GFS 0,1, UKMO 0,1, met.no 0,1 (met.no a IFS jsou korelované → součet jejich vah ≤ 0,45).
-- Konec horizontu modelu: lineární útlum váhy v posledních 6 h jeho horizontu (ALADIN 72 h, ICON-D2 48 h, AROME-AT 60 h) → žádné skoky v grafu. Open-Meteo dělá podobné „sešívání“ nejvyšších rozlišení v `best_match`/seamless.[2] Pirate Weather volí zdroj podle veličiny a priority modelů — dobrý vzor pro per-variable výběr.[24]
+- Před dostatkem dat (n < 14 dní) priorové váhy: 0–48 h ALADIN 0,25, ICON-D2 0,25, C-LAEF 0,15, ICON-EU 0,1, IFS 0,15, UKMO 0,1; 48–240 h IFS 0,35, AIFS 0,2, ICON 0,15, GFS 0,1, UKMO 0,1, met.no 0,1 (met.no a IFS jsou korelované → součet jejich vah ≤ 0,45).
+- Konec horizontu modelu: lineární útlum váhy v posledních 6 h jeho horizontu (ALADIN 72 h, ICON-D2 48 h, C-LAEF 60 h) → žádné skoky v grafu. Open-Meteo dělá podobné „sešívání“ nejvyšších rozlišení v `best_match`/seamless.[2] Pirate Weather volí zdroj podle veličiny a priority modelů — dobrý vzor pro per-variable výběr.[24]
 - Srážky: **PoP_blend** = Σ w_m · 1[precip_m ≥ 0,1 mm/h] (+ ensemble členy, mají-li data); množství = vážený medián. Condition: odvodit z blendovaných veličin (oblačnost, srážky, T pro sníh), ne hlasováním ikon.
 - **Váhy po veličinách (implementováno #131 B).** Teplota (a vítr, oblačnost, tlak) dál podle MAE teploty. Srážky a PoP mají vlastní váhy `blend.precip_weights`:
   - skill_m = průměr(max(0, ETS_{≥0,2 mm/h}), max(0, BSS)) pro (zdroj, lead bucket `0-24 | 24-48 | 48-72 | 72+`), jen když má zdroj ≥ `PRECIP_MIN_PAIRS` = 240 hodinových párů a ≥ 12 deštivých hodin;
@@ -289,7 +289,7 @@ Layout: desktop 12-col grid (hero + nowcast + výstrahy nahoře, hodinový graf 
 - **ha-chmu-meteogram**: pro ČR je „prší/bude pršet“ z radaru ČHMÚ s laditelnými prahy dBZ praktičtější než globální radarové API.[12] RainViewer svůj nowcast k 1. 1. 2026 zrušil.[17]
 
 ## Otevřené otázky pro vlastníka
-0. (#131) Open-Meteo v seznamu modelů Previous Runs uvádí *GeoSphere AROME Austria (Discontinued 2026-11-04)* a *DWD ICON D2 / ICON EU (Discontinued 2026-11-30)* (nahrazují je „Native“ varianty). `OM_MODELS` je potřeba upravit samostatnou změnou. Ensemble API: smí HomeBrain v bezplatném režimu používat ensemble (FAQ pricing je nejednoznačné)?
+0. (#131) **Vyřešeno 2026-11-18:** `geosphere_arome_austria` od 2026-11-04 vrací pro budoucí hodiny jen `null` (ověřeno dotazem na Forecast API), nahrazen `geosphere_claef_austria` (C-LAEF AlpeAdria 1 km, 60 h, stejný horizont i prior). `icon_d2`/`icon_eu` názvy zůstávají; Open-Meteo je po 2026-11-30 přepne na nativní mřížky beze změny názvu. Previous Runs API ověřeno živě s `models=`, `start_date`, `end_date` a `precipitation_previous_dayN`. Otevřené: smí HomeBrain v bezplatném režimu používat Ensemble API (FAQ pricing je nejednoznačné)?
 1. Výška senzoru stanice nad zemí a okolní překážky (pro korekci větru)?
 2. Má HomeBrain zakládat výstupní entity (§3.5) pro automatizace, nebo jen panel?
 3. Sdílet stanici na WU/WOW/Windy (nastavuje se v gatewayi)?

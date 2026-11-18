@@ -21,7 +21,7 @@ export const MOCK_NOW = '2026-10-31T09:40:00Z';
 const MODELS: [string, string, string, number, number][] = [
   ['chmi_aladin_cz_1km', 'ALADIN', 'ČHMÚ · 1 km', 0.4, 72],
   ['icon_d2', 'ICON-D2', 'DWD · 2 km', -0.3, 48],
-  ['geosphere_arome_austria', 'AROME-AT', 'GeoSphere · 2,5 km', 0.8, 60],
+  ['geosphere_claef_austria', 'C-LAEF', 'GeoSphere · 1 km', 0.8, 60],
   ['icon_eu', 'ICON-EU', 'DWD · 7 km', -0.6, 120],
   ['ecmwf_ifs', 'ECMWF IFS', 'ECMWF · 9 km', 0.1, 360],
   ['ecmwf_aifs025_single', 'ECMWF AIFS', 'ECMWF · 25 km', -0.9, 360],

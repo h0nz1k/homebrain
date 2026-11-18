@@ -17,7 +17,7 @@ class ModelInfo:
 OM_MODELS: tuple[ModelInfo, ...] = (
     ModelInfo("chmi_aladin_cz_1km", "ALADIN", "ČHMÚ · 1 km", "ČHMÚ", 72),
     ModelInfo("icon_d2", "ICON-D2", "DWD · 2 km", "DWD", 48),
-    ModelInfo("geosphere_arome_austria", "AROME-AT", "GeoSphere · 2,5 km", "GeoSphere Austria", 60),
+    ModelInfo("geosphere_claef_austria", "C-LAEF", "GeoSphere · 1 km", "GeoSphere Austria", 60),
     ModelInfo("icon_eu", "ICON-EU", "DWD · 7 km", "DWD", 120),
     ModelInfo("ecmwf_ifs", "ECMWF IFS", "ECMWF · 9 km", "ECMWF", 360),
     ModelInfo("ecmwf_aifs025_single", "ECMWF AIFS", "ECMWF · 25 km", "ECMWF", 360),
@@ -61,7 +61,7 @@ OM_DAILY_VARS: dict[str, str] = {
 PRIOR_SHORT = {
     "chmi_aladin_cz_1km": 0.25,
     "icon_d2": 0.25,
-    "geosphere_arome_austria": 0.15,
+    "geosphere_claef_austria": 0.15,
     "icon_eu": 0.1,
     "ecmwf_ifs": 0.15,
     "ukmo_seamless": 0.1,

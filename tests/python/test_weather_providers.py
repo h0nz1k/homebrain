@@ -17,7 +17,7 @@ def load(name: str):
 def test_urls_round_coordinates_and_request_all_models():
     url = openmeteo.hourly_url(12.3456, 45.6789)
     assert "latitude=12.35" in url and "longitude=45.68" in url
-    assert "chmi_aladin_cz_1km,icon_d2,geosphere_arome_austria" in url
+    assert "chmi_aladin_cz_1km,icon_d2,geosphere_claef_austria" in url
     assert "past_hours=12" in url and "wind_speed_unit=ms" in url
     assert "minutely_15=precipitation" in openmeteo.nowcast_url(1, 2)
     assert "forecast_days=10" in openmeteo.daily_url(1, 2, "Europe/Prague")
