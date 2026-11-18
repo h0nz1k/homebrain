@@ -161,6 +161,7 @@ BINDING_MODULES = {
         "weather_dew_point",
         "weather_feels_like",
         "weather_pressure",
+        "weather_pressure_absolute",
         "weather_wind_speed",
         "weather_wind_gust",
         "weather_wind_direction",

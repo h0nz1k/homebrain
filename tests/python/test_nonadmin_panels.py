@@ -58,6 +58,7 @@ MATRIX: dict[str, tuple[dict, set[str]]] = {
     "homebrain/bindings/get": ({}, MAPPED),
     "homebrain/weather/get": ({}, MAPPED),
     "homebrain/weather/alerts": ({}, MAPPED),
+    "homebrain/weather/history": ({}, MAPPED),
     "homebrain/energy/pv_forecast": ({}, MAPPED),
     # Energie details are adult+admin; child has no Energie, kiosk the summary only.
     "homebrain/energy/compare": ({}, {"admin", "adult"}),

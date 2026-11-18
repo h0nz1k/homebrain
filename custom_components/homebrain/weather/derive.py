@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 
 def dew_point(t: float | None, rh: float | None) -> float | None:
@@ -21,6 +22,73 @@ def apparent_temperature(t: float | None, rh: float | None, wind: float | None) 
         return None
     e = rh / 100 * 6.105 * math.exp(17.27 * t / (237.7 + t))
     return round(t + 0.33 * e - 0.70 * (wind or 0) - 4.0, 1)
+
+
+G0 = 9.80665  # m/s²
+RD = 287.05  # J/(kg·K), dry air
+LAPSE = 0.0065  # K/m, standard atmosphere
+
+
+def msl_pressure(
+    p_station: float | None, elevation_m: float | None, t_c: float | None
+) -> float | None:
+    """Reduce station (absolute) pressure to mean sea level, hypsometric equation.
+
+    p0 = p · exp(g·h / (Rd · T̄)), T̄ = mean temperature of the fictitious air column between
+    the station and sea level, from the station temperature and the standard lapse rate
+    (T̄ = T + 273.15 + 0.0065·h/2). Dry air (no virtual-temperature term): < 0.3 hPa at 364 m.
+    Without a temperature the ISA column (15 °C at sea level) is assumed.
+    """
+    if p_station is None or elevation_m is None:
+        return None
+    t_k = (15.0 - LAPSE * elevation_m if t_c is None else t_c) + 273.15
+    t_mean = t_k + LAPSE * elevation_m / 2
+    return round(p_station * math.exp(G0 * elevation_m / (RD * t_mean)), 1)
+
+
+def resolve_pressure(
+    relative: float | None,
+    absolute: float | None,
+    elevation_m: float | None,
+    t_c: float | None,
+    *,
+    same_hpa: float,
+    msl_min_hpa: float,
+    min_elevation_m: float,
+) -> dict[str, Any]:
+    """Pick the comparable MSL pressure (WEA-016) and explain where it came from.
+
+    - absolute + elevation → hypsometric MSL (``derived``), also when the station sends a
+      relative pressure (a constant station offset ignores temperature). A relative reading
+      equal to the absolute one has no offset configured at all: flag ``relative_ignored``.
+    - relative only, implausibly low for MSL at an elevated station → it *is* the absolute
+      pressure (offset 0); reduce it too (``relative_as_absolute``).
+    - otherwise the station's own relative pressure (``station``) or nothing.
+    """
+    out: dict[str, Any] = {
+        "msl": None,
+        "source": None,
+        "absolute": absolute,
+        "relative": relative,
+        "relative_ignored": False,
+        "elevation_m": elevation_m,
+    }
+    elevated = elevation_m is not None and elevation_m >= min_elevation_m
+    if absolute is not None and elevation_m is not None:
+        out["msl"] = msl_pressure(absolute, elevation_m, t_c)
+        out["source"] = "derived"
+        out["relative_ignored"] = relative is not None and abs(relative - absolute) < same_hpa
+        return out
+    if relative is not None and elevated and relative < msl_min_hpa:
+        out["msl"] = msl_pressure(relative, elevation_m, t_c)
+        out["source"] = "relative_as_absolute"
+        out["relative_ignored"] = True
+        return out
+    if relative is not None and (absolute is None or abs(relative - absolute) >= same_hpa):
+        out["msl"], out["source"] = relative, "station"
+    else:
+        out["relative_ignored"] = relative is not None
+    return out
 
 
 def pressure_tendency(delta_hpa: float | None) -> dict[str, object] | None:

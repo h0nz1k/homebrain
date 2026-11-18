@@ -1,6 +1,16 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
-import { isWeatherSnapshot, type WeatherSnapshot } from './contract.js';
-import { buildMockSnapshot, mockRadarImage, type WeatherScenario } from './fixtures.js';
+import {
+  isWeatherHistory,
+  isWeatherSnapshot,
+  type WeatherHistory,
+  type WeatherSnapshot,
+} from './contract.js';
+import {
+  buildMockHistory,
+  buildMockSnapshot,
+  mockRadarImage,
+  type WeatherScenario,
+} from './fixtures.js';
 
 export type WeatherState =
   | { kind: 'loading' }
@@ -13,6 +23,8 @@ export interface WeatherAdapter {
   pollMs: number;
   /** Resolve a radar frame path to an <img> URL (signed HA path; data URL in mocks). */
   radarImage?: (path: string) => Promise<string>;
+  /** Measured station days (`homebrain/weather/history`, HA statistics, read-only). */
+  history?: (days: number) => Promise<WeatherHistory>;
 }
 
 export function createWsAdapter(connection: ConnectionLike): WeatherAdapter {
@@ -23,6 +35,12 @@ export function createWsAdapter(connection: ConnectionLike): WeatherAdapter {
         type: 'homebrain/weather/get',
       });
       if (!isWeatherSnapshot(result)) throw new Error('Neplatná odpověď integrace');
+      return result;
+    },
+    history: async (days) => {
+      const message = { type: 'homebrain/weather/history', period: 'day', days };
+      const result = await connection.sendMessagePromise<unknown>(message);
+      if (!isWeatherHistory(result)) throw new Error('Neplatná odpověď integrace');
       return result;
     },
     // <img> cannot send the bearer token: ask HA for a short-lived signed path.
@@ -39,6 +57,7 @@ export function createMockWeatherAdapter(scenario: WeatherScenario = 'default'):
     pollMs: 0,
     fetch: () => Promise.resolve(buildMockSnapshot(scenario)),
     radarImage: (path) => Promise.resolve(mockRadarImage(path)),
+    history: (days) => Promise.resolve(buildMockHistory(scenario, days)),
   };
 }
 

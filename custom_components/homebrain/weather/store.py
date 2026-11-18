@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .const import ARCHIVE_RETENTION_D, OBS_RETENTION_D
+from .const import ARCHIVE_RETENTION_D, OBS_RETENTION_D, PREV_RETENTION_D
 
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
@@ -25,6 +25,13 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE TABLE IF NOT EXISTS bias_state (source TEXT NOT NULL, var TEXT NOT NULL,"
         " lead_bucket TEXT NOT NULL, b REAL NOT NULL, mae REAL NOT NULL, n INTEGER NOT NULL,"
         " updated_at TEXT NOT NULL, PRIMARY KEY (source, var, lead_bucket))",
+    ),
+    # Issue #131 B: Open-Meteo Previous Runs (lead = day × 24 h) and verification results.
+    2: (
+        "CREATE TABLE IF NOT EXISTS fc_prev (source TEXT NOT NULL, valid_at TEXT NOT NULL,"
+        " day INTEGER NOT NULL, var TEXT NOT NULL, value REAL,"
+        " PRIMARY KEY (source, valid_at, day, var))",
+        "CREATE INDEX IF NOT EXISTS fc_prev_valid ON fc_prev (valid_at, var)",
     ),
 }
 SCHEMA_VERSION = max(MIGRATIONS)
@@ -127,6 +134,70 @@ class WeatherStore:
                 ],
             )
 
+    def put_obs_many(self, var: str, values: dict[str, float], qc: str = "ok") -> None:
+        with self.conn:
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO obs_hourly (valid_at, var, value, qc, n)"
+                " VALUES (?, ?, ?, ?, 1)",
+                [(valid_at, var, value, qc) for valid_at, value in values.items()],
+            )
+
+    def has_obs(self, var: str, since: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM obs_hourly WHERE var=? AND valid_at>=? LIMIT 1", (var, since)
+        ).fetchone()
+        return row is not None
+
+    def put_prev(self, rows: Iterable[tuple[str, str, int, str, float]]) -> None:
+        with self.conn:
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO fc_prev (source, valid_at, day, var, value)"
+                " VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+
+    def prev_dates(self, since: str) -> set[str]:
+        """UTC dates (YYYY-MM-DD) that already have Previous Runs rows."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT substr(valid_at, 1, 10) FROM fc_prev WHERE valid_at>=?", (since,)
+        ).fetchall()
+        return {row[0] for row in rows}
+
+    def precip_pairs(self, since: str) -> list[tuple[str, float, str, float, float, float | None]]:
+        """(source, lead_h, valid_at, forecast mm, observed mm, pop 0..1 | None).
+
+        Own archive (all issues, leads 1-72 h; blend PoP = the *raw* pre-calibration value)
+        plus Previous Runs (lead = day × 24 h), each joined to the station's hourly rain.
+        """
+        own = self.conn.execute(
+            "SELECT f.source, f.lead_h, f.valid_at, f.value, o.value, p.value"
+            " FROM fc_archive f JOIN obs_hourly o ON o.valid_at=f.valid_at AND o.var='precip'"
+            " LEFT JOIN fc_archive p ON p.source=f.source AND p.issued_at=f.issued_at"
+            " AND p.valid_at=f.valid_at"
+            " AND p.var=(CASE WHEN f.source='blend' THEN 'pop_raw' ELSE 'pop' END)"
+            " WHERE f.var='precip' AND f.valid_at>=? AND f.value IS NOT NULL"
+            " AND o.value IS NOT NULL",
+            (since,),
+        ).fetchall()
+        prev = self.conn.execute(
+            "SELECT f.source, f.day * 24, f.valid_at, f.value, o.value, NULL"
+            " FROM fc_prev f JOIN obs_hourly o ON o.valid_at=f.valid_at AND o.var='precip'"
+            " WHERE f.var='precip' AND f.valid_at>=? AND f.value IS NOT NULL"
+            " AND o.value IS NOT NULL",
+            (since,),
+        ).fetchall()
+        return [*own, *prev]
+
+    def get_meta(self, key: str) -> str | None:
+        row = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def put_meta(self, key: str, value: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value)
+            )
+
     def prune(self, now: datetime) -> None:
         with self.conn:
             self.conn.execute(
@@ -136,6 +207,10 @@ class WeatherStore:
             self.conn.execute(
                 "DELETE FROM obs_hourly WHERE valid_at<?",
                 (_iso(now - timedelta(days=OBS_RETENTION_D)),),
+            )
+            self.conn.execute(
+                "DELETE FROM fc_prev WHERE valid_at<?",
+                (_iso(now - timedelta(days=PREV_RETENTION_D)),),
             )
 
 

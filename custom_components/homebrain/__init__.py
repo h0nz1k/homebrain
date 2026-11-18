@@ -73,7 +73,12 @@ from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
 from .weather.fetch import USER_AGENT
-from .weather.ws import RadarImageView, websocket_weather_alerts, websocket_weather_get
+from .weather.ws import (
+    RadarImageView,
+    websocket_weather_alerts,
+    websocket_weather_get,
+    websocket_weather_history,
+)
 from .websocket import (
     websocket_get_bindings,
     websocket_get_roles,
@@ -122,7 +127,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:
-        _commands(websocket_weather_get, websocket_weather_alerts)(hass)(reg)
+        _commands(websocket_weather_get, websocket_weather_alerts, websocket_weather_history)(hass)(
+            reg
+        )
         _http_view(hass, RadarImageView())
 
     def robots_reg(reg: Registrar) -> None:

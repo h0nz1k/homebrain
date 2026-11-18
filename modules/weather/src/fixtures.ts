@@ -1,12 +1,16 @@
 import { CHMI_PALETTE } from './views/radarRender.js';
 import type {
   BlendPoint,
+  CategoricalScore,
   Condition,
   DailyPoint,
+  HistoryDay,
   ModelSeries,
+  PrecipVerificationRow,
   RadarBlock,
   RadarFrame,
   SourceMeta,
+  WeatherHistory,
   WeatherSnapshot,
 } from './contract.js';
 
@@ -17,7 +21,7 @@ export const MOCK_NOW = '2026-10-31T09:40:00Z';
 const MODELS: [string, string, string, number, number][] = [
   ['chmi_aladin_cz_1km', 'ALADIN', 'ČHMÚ · 1 km', 0.4, 72],
   ['icon_d2', 'ICON-D2', 'DWD · 2 km', -0.3, 48],
-  ['geosphere_arome_austria', 'AROME-AT', 'GeoSphere · 2,5 km', 0.8, 60],
+  ['geosphere_claef_austria', 'C-LAEF', 'GeoSphere · 1 km', 0.8, 60],
   ['icon_eu', 'ICON-EU', 'DWD · 7 km', -0.6, 120],
   ['ecmwf_ifs', 'ECMWF IFS', 'ECMWF · 9 km', 0.1, 360],
   ['ecmwf_aifs025_single', 'ECMWF AIFS', 'ECMWF · 25 km', -0.9, 360],
@@ -25,6 +29,12 @@ const MODELS: [string, string, string, number, number][] = [
   ['ukmo_seamless', 'UKMO', 'Met Office · 2–10 km', -0.2, 168],
   ['metno', 'met.no', 'MET Norway · z HA', 0.3, 216],
 ];
+const PRECIP_W: Record<string, number> = {
+  icon_d2: 0.26,
+  chmi_aladin_cz_1km: 0.22,
+  ecmwf_ifs: 0.16,
+  geosphere_claef_austria: 0.1,
+};
 const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z');
 const round = (v: number, d = 1) => Math.round(v * 10 ** d) / 10 ** d;
 
@@ -108,6 +118,12 @@ export function buildMockSnapshot(scenario: WeatherScenario = 'default'): Weathe
           condition,
           confidence: h < 18 ? 'high' : h < 36 ? 'medium' : 'low',
           contributors: models.map((m) => ({ source: m.id, weight: m.weight })),
+          // synthetic precipitation weights (own skill per variable, issue #131 B)
+          precip_contributors: models.map((m) => ({
+            source: m.id,
+            weight: PRECIP_W[m.id] ?? 0.04,
+          })),
+          precip_weights: 'verified',
         };
       });
   const daily: DailyPoint[] = unavailable
@@ -232,6 +248,7 @@ export function buildMockSnapshot(scenario: WeatherScenario = 'default'): Weathe
     generated_at: MOCK_NOW,
     location: {
       elevation_m: 480,
+      elevation_source: 'option',
       region: 'CZ000',
       area: unavailable
         ? null
@@ -257,6 +274,16 @@ export function buildMockSnapshot(scenario: WeatherScenario = 'default'): Weathe
         indoor_t: v(21.6, '°C'),
         indoor_rh: v(47, '%'),
       },
+      pressure: unavailable
+        ? undefined
+        : {
+            msl: 1016.4,
+            source: 'derived',
+            absolute: 959.1,
+            relative: 959.1,
+            relative_ignored: true,
+            elevation_m: 480,
+          },
       derived: unavailable
         ? { temp_trend_c_h: null, pressure_tendency: null, today_max: null, today_min: null }
         : {
@@ -366,6 +393,14 @@ export function buildMockSnapshot(scenario: WeatherScenario = 'default'): Weathe
             },
           ]
         : [],
+    verification_precip: unavailable || calm ? [] : mockPrecipVerification(),
+    verification_info: {
+      status: unavailable ? 'pending' : 'ok',
+      last: unavailable ? null : '2026-10-31',
+      pairs: unavailable ? 0 : 4210,
+      pop_calibrated: false,
+      ensemble: false,
+    },
     verification: unavailable
       ? []
       : [
@@ -657,4 +692,129 @@ export function mockRadarImage(path: string): string {
       rgba.set([r, g, b, 255], (j * w + i) * 4);
     }
   return `data:image/png;base64,${toBase64(encodePng(rgba, w, h))}`;
+}
+
+// ---------- precipitation verification (synthetic) ----------
+function cat(a: number, b: number, c: number, d: number): CategoricalScore {
+  const n = a + b + c + d;
+  const ar = ((a + b) * (a + c)) / n;
+  const r = (v: number) => Math.round(v * 1000) / 1000;
+  return {
+    a,
+    b,
+    c,
+    d,
+    pod: a + c ? r(a / (a + c)) : null,
+    far: a + b ? r(b / (a + b)) : null,
+    csi: a + b + c ? r(a / (a + b + c)) : null,
+    ets: a + b + c - ar ? r((a - ar) / (a + b + c - ar)) : null,
+    freq_bias: a + c ? r((a + b) / (a + c)) : null,
+  };
+}
+/** Hand-made contingency tables: ICON-D2 best, GFS over-forecasts drizzle, metno few pairs. */
+export function mockPrecipVerification(): PrecipVerificationRow[] {
+  const row = (
+    source: string,
+    [a, b, c, d]: [number, number, number, number],
+    brier: number,
+    bias: number,
+    n_wet = a + c,
+  ): PrecipVerificationRow => ({
+    source,
+    lead: '0-24',
+    n: a + b + c + d,
+    n_wet,
+    hours: a + b + c + d,
+    wet_hours: n_wet,
+    days: Math.ceil((a + b + c + d) / 24),
+    ...(source === 'blend' ? { out_of_sample: true } : {}),
+    enough: a + b + c + d >= 240 && n_wet >= 12,
+    bias_mm: bias,
+    amount_ratio: Math.round((1 + bias * 4) * 100) / 100,
+    probabilistic: source === 'blend' || source === 'metno',
+    brier,
+    bss: Math.round((1 - brier / 0.085) * 1000) / 1000,
+    base_rate: 0.094,
+    hourly: { '0.2': cat(a, b, c, d), '1': cat(Math.round(a / 3), Math.round(b / 4), c, d) },
+    n_days: Math.round((a + b + c + d) / 24),
+    daily: { '1': cat(9, 3, 2, 26), '5': cat(3, 1, 2, 34) },
+  });
+  return [
+    row('blend', [61, 30, 25, 844], 0.052, 0.02),
+    row('icon_d2', [58, 34, 28, 840], 0.058, 0.03),
+    row('chmi_aladin_cz_1km', [52, 41, 34, 833], 0.064, 0.05),
+    row('ecmwf_ifs', [47, 52, 39, 822], 0.071, 0.06),
+    row('gfs_seamless', [44, 96, 42, 778], 0.094, 0.14),
+    row('metno', [9, 6, 5, 80], 0.081, 0.01),
+  ];
+}
+
+// ---------- measured history (synthetic) ----------
+const pragueDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Prague' });
+/** Deterministic pseudo-random 0..1 from an integer. */
+const noise = (i: number) => {
+  const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+/**
+ * Synthetic station history ending today (MOCK_NOW, partial day). The "station" exists for
+ * 400 days; one day 12 days ago is a recorder gap (no values, never invented); yesterday and
+ * the day before are dry so the dry streak is 2 days.
+ */
+export function buildMockHistory(scenario: WeatherScenario = 'default', days = 7): WeatherHistory {
+  const now = Date.parse(MOCK_NOW);
+  const today = pragueDay.format(new Date(now));
+  const base: WeatherHistory = {
+    status: scenario === 'unavailable' ? 'unconfigured' : 'ok',
+    period: 'day',
+    first: today,
+    last: today,
+    generated_at: MOCK_NOW,
+    elevation_m: 480,
+    elevation_source: 'option',
+    vars: ['gust', 'p_abs', 'rain', 'rain_rate', 'rh', 't2m'],
+    days: [],
+    hours: [],
+  };
+  if (scenario === 'unavailable') return base;
+  const out: HistoryDay[] = [];
+  for (let back = days - 1; back >= 0; back--) {
+    const ms = now - back * 86400000;
+    const date = pragueDay.format(new Date(ms));
+    const doy = Math.floor((ms - Date.UTC(new Date(ms).getUTCFullYear(), 0, 1)) / 86400000);
+    const season = 9 + 10 * Math.sin(((doy - 110) / 365) * 2 * Math.PI);
+    const mean = round(season + (noise(doy * 3) - 0.5) * 6);
+    const amp = 3 + noise(doy * 5) * 5;
+    const wet = noise(doy * 7) > 0.62 && back !== 1 && back !== 2;
+    const rain = back === 3 ? 4.2 : wet ? round(noise(doy * 11) ** 2 * 18 + 0.3) : 0;
+    const partial = back === 0;
+    const gap = back === 12;
+    const hours = partial ? 10 : 24;
+    const cover = (n: number) => ({
+      t2m: n,
+      rh: n,
+      msl: n,
+      gust: n,
+      rain: n,
+      rain_rate: n,
+    });
+    out.push({
+      date,
+      partial,
+      t_min: gap ? null : partial ? 2.4 : round(mean - amp / 2),
+      t_max: gap ? null : partial ? 7.9 : round(mean + amp / 2),
+      t_mean: gap ? null : partial ? 5.1 : mean,
+      rain: gap ? null : partial ? 0.4 : rain,
+      rain_rate_max: gap ? null : rain > 0 ? round(rain / 3 + 0.4) : 0,
+      gust_max: gap ? null : round(6 + noise(doy * 13) * 12),
+      rh_mean: gap ? null : Math.round(70 + noise(doy * 17) * 25),
+      msl_mean: gap ? null : round(1003 + noise(doy * 19) * 28),
+      solar_kwh_m2: null,
+      hours: cover(gap ? 0 : hours),
+      expected_hours: hours,
+      gaps: gap ? ['t2m', 'rh', 'msl', 'gust', 'rain', 'rain_rate'] : [],
+    });
+  }
+  return { ...base, first: out[0]?.date ?? today, days: out };
 }

@@ -97,6 +97,8 @@ KIOSK_WS_COMMANDS: Final = frozenset(
         "homebrain/bindings/get",
         "homebrain/weather/get",
         "homebrain/weather/alerts",
+        # Počasí „Včera a dnes“ + Historie (own station statistics, read-only).
+        "homebrain/weather/history",
         # Dnes „energy.advice“ feed (PV forecast fallback for the advice cards).
         "homebrain/energy/pv_forecast",
         # Dnes „Co se dnes vaří“ (Mealie meal plan; names only).
