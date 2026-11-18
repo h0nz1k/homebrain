@@ -10,29 +10,37 @@ ne kód (viz `THIRD_PARTY_NOTICES.md`).
 
 - **Žádné zápisy do HA a žádná oznámení.** Nic se neposílá na telefon; karta *Na telefon* to
   říká. Tiché hodiny a cooldown z B.3 jsou až pro fázi 2.
-- **Akce (rozhodnutí vlastníka v #129, revize r2 #136):** na každé úrovni přesně tři –
-  *Vyřešeno* (primární, všude stejný vzhled), *Otevřít zařízení* (sekundární, jen HA admin –
-  stránka zařízení v HA), *Skrýt na 7 dní* (odkaz; oznámení zatím nejsou, takže jde jen o
-  skrytí hlášení). „Vím o tom“ a „To je v pořádku“ v UI nejsou. Vše je lokální stav HomeBrainu
+- **Akce (rozhodnutí vlastníka v #129, revize r2 a r3 #136):** na každé úrovni nejvýš tři –
+  *Otevřít ‹zařízení›* (primární, diagnostický krok, jmenuje cíl: „Otevřít Klima obývák“,
+  „Otevřít Myčku“, u dlouhého jména „Otevřít zařízení“; jen HA admin – stránka zařízení v HA),
+  *Vyřešeno* (sekundární – nezkontrolovaná potíž není „vyřešená“ jako výchozí volba) a
+  *Skrýt na 7 dní* (odkaz; oznámení zatím nejsou, takže jde jen o skrytí upozornění). „Vím
+  o tom“ a „To je v pořádku“ v UI nejsou. Vše je lokální stav HomeBrainu
   (`.storage/homebrain.anomaly_watch`).
-  - *Vyřešeno*: skryje hlášení; pokud potíž trvá ještě 2 h, ukáže se znovu – UI to říká
-    („Pokud potíž trvá, za 2 h se hlášení vrátí.“).
+  - *Vyřešeno*: skryje upozornění; pokud potíž trvá ještě 2 h, ukáže se znovu – popisek přímo
+    pod tlačítkem („Po Vyřešeno: pokud potíž trvá, za 2 h se upozornění vrátí.“).
   - API dál zná `ack kind=ok` (rozšíří meze dotčených entit ×1,5, max ×4); panel ho nepoužívá.
-  - Zvýšení úrovně nad potvrzenou vždy hlášení znovu ukáže.
+  - Zvýšení úrovně nad potvrzenou vždy upozornění znovu ukáže.
 - **Texty (r2):** jeden neosobní hlas („Hlídáno 12 zařízení“, ne „Hlídám“); každý výpadek stejně
   – „2 h 21 min od posledního hlášení (9:29)“ – na kartě, kiosku, v řádcích podezření i v detailu;
   místnost v 6. pádě, pokud ji HA zná („V obýváku je neobvykle teplo“); trvání se počítá
   k času, který obrazovka ukazuje (Dnes předá kartě své `now`).
+- **Texty (r3):** „hlášení“ jen pro zprávu čidla („od posledního hlášení“, „Chybí 16 hlášení“),
+  upozornění aplikace je vždy „upozornění“ (test prochází zdrojáky modulu). Čas výpadku jen
+  jednou na kartě (řádek pod nadpisem). Každá karta má jeden konkrétní další krok odvozený
+  z druhu anomálie („Zkontrolujte baterii nebo dosah čidla.“, „Zkontrolujte topení, okno nebo
+  slunce.“). Karty jsou seřazené podle naléhavosti (nejbližší možná Porucha první, pak úroveň).
 - **Mimo fázi 1:** výběr hlídaných zařízení (include/exclude) a citlivost podle přítomnosti –
   fáze 2.
 - **Role:** `list`, `ack`, `mute`, `unmute` – vlastník (HA admin) a dospělí; `summary` (karta
   na Dnes, bez `entity_id` a id zařízení) – i kuchyňský kiosk. Děti nic. Na kiosku karta nemá
-  tlačítko *Otevřít hlídání* (kiosk detail otevřít nesmí).
+  tlačítko *Otevřít hlídání* (kiosk detail otevřít nesmí). Kiosk je záměrně vždy tmavý (Dnes
+  `.today-kiosk` má vlastní tmavé plochy bez ohledu na téma HA), světlá varianta kiosku není.
 - **Hlídané entity:** domény z B.1, povolené, viditelné, bez `entity_category`, patřící zařízení
   (seskupení je po zařízení), max. 1 500; ne vlastní entity HomeBrainu. Přítomnost osob zatím
   nevyužívá (otázka 5).
-- **Texty:** nadpis nesmí odporovat obsahu („Čidlo ve sklepě nehlásí vlhkost“, když teplota
-  chodí dál); všechny časy výpadku se počítají od posledního hlášení. Pravidla a testy:
+- **Texty:** nadpis nesmí odporovat obsahu a nesmí jít číst jako „není vlhko“: „Čidlo ve sklepě
+  přestalo posílat vlhkost“, když teplota chodí dál (rod slovesa podle jména zařízení); všechny časy výpadku se počítají od posledního hlášení. Pravidla a testy:
   `modules/anomaly/src/copy.ts`, `copy.test.ts`, `tests/e2e/anomaly.spec.ts`.
 
 ---

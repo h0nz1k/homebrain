@@ -18,6 +18,8 @@ const P: Record<GlyphName, JSX.Element> = {
   snow: (
     <path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5" />
   ),
+  // next step („Zkontrolujte …“)
+  arrow: <path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" />,
   bolt: <path d="M13 3 5.5 13.5H12L11 21l7.5-10.5H12L13 3Z" />,
   washer: (
     <>

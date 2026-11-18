@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setAnomalyApiFactory } from '../api.js';
 import { MOCK_NOW, createMockAnomalyApi, type AnomalyScenario } from '../mock.js';
 import AnomalyView from './AnomalyView.js';
+import { BaselineBand, roundTicks } from './charts.js';
+import { mockAnomalySnapshot } from '../mock.js';
+import { hm, sinceLast } from '../copy.js';
 import { AnomalyWatchCard } from './WatchCard.js';
 
 const plain = (s: string | null) => (s ?? '').replace(/\u00a0/g, ' ');
@@ -29,29 +32,78 @@ afterEach(() => {
 });
 
 describe('AnomalyView (detail)', () => {
-  it('every tier: exactly Vyřešeno (primary), Otevřít zařízení (secondary), Skrýt (link)', async () => {
+  it('every tier: Otevřít <zařízení> (primary), Vyřešeno (secondary) + caption, Skrýt (link)', async () => {
     useMock('confirmed');
     render(<AnomalyView connection={connection(true)} />);
     const cards = await screen.findAllByTestId('aw-issue');
     expect(new Set(cards.map((c) => c.dataset.tier))).toEqual(new Set(['confirmed', 'suspicion']));
-    await waitFor(() => within(cards[0]!).getByText('Otevřít zařízení'));
-    for (const card of cards) {
+    await waitFor(() => within(cards[0]!).getByText('Otevřít Myčku'));
+    const names = ['Otevřít Myčku', 'Otevřít Čidlo ve sklepě', 'Otevřít Klima obývák'];
+    cards.forEach((card, i) => {
       const actions = within(card).getByTestId('aw-actions');
       const buttons = within(actions).getAllByRole('button');
-      expect(buttons.map((b) => b.textContent)).toEqual([
-        'Vyřešeno',
-        'Otevřít zařízení',
-        'Skrýt na 7 dní',
-      ]);
+      expect(buttons.map((b) => b.textContent)).toEqual([names[i], 'Vyřešeno', 'Skrýt na 7 dní']);
+      // the diagnostic step leads; an unchecked problem is not „Vyřešeno“ by default
       expect(buttons[0]!.dataset.variant).toBe('primary');
-      expect(buttons[0]!.className).toContain('aw-resolve');
       expect(buttons[1]!.dataset.variant).toBe('secondary');
+      expect(buttons[1]!.className).toContain('aw-resolve');
       expect(buttons[2]!.className).toContain('aw-link');
-      expect(plain(within(card).getByTestId('aw-resolve-hint').textContent)).toBe(
-        'Pokud potíž trvá, za 2 h se hlášení vrátí.',
+      // the caption belongs to Vyřešeno: in its group, right after it, and describes it
+      const hint = within(card).getByTestId('aw-resolve-hint');
+      expect(plain(hint.textContent)).toBe(
+        'Po Vyřešeno: pokud potíž trvá, za 2 h se upozornění vrátí.',
       );
-    }
+      expect(hint.previousElementSibling).toBe(buttons[1]);
+      expect(buttons[1]!.getAttribute('aria-describedby')).toBe(hint.id);
+      expect(buttons[2]!.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_PRECEDING).toBe(
+        Node.DOCUMENT_POSITION_PRECEDING,
+      );
+    });
     expect(screen.queryByText(/Vím o tom|To je v pořádku|Ztlumit/)).toBeNull();
+  });
+
+  it('cards are ordered by urgency: soonest escalation to Porucha first', async () => {
+    useMock('suspicion');
+    render(<AnomalyView connection={connection(true)} />);
+    const cards = await screen.findAllByTestId('aw-issue');
+    expect(cards.map((c) => c.dataset.key)).toEqual([
+      'device:demo_dev_dishwasher', // Porucha nejdříve v 11:20
+      'device:demo_dev_cellar', // ve 13:55
+      'device:demo_dev_living', // až při extrémní hodnotě
+    ]);
+    expect(plain(screen.getByTestId('aw-status-names').textContent)).toBe(
+      'Myčka, Čidlo ve sklepě a Klima obývák',
+    );
+  });
+
+  it('one concrete next step per card, from the kind of anomaly', async () => {
+    useMock('suspicion');
+    render(<AnomalyView connection={connection(true)} />);
+    const cards = await screen.findAllByTestId('aw-issue');
+    const step = (key: string) =>
+      plain(
+        within(cards.find((c) => c.dataset.key === key)!).getByTestId('aw-next-step').textContent,
+      );
+    expect(step('device:demo_dev_cellar')).toBe('Zkontrolujte baterii nebo dosah čidla.');
+    expect(step('device:demo_dev_living')).toBe('Zkontrolujte topení, okno nebo slunce.');
+    expect(step('device:demo_dev_dishwasher')).toBe('Zkontrolujte napájení a připojení zařízení.');
+    for (const card of cards) expect(within(card).getAllByTestId('aw-next-step')).toHaveLength(1);
+  });
+
+  it('the outage time („X od posledního hlášení (HH:MM)“) is shown once per card', async () => {
+    useMock('confirmed');
+    render(<AnomalyView connection={connection(true)} />);
+    const snap = mockAnomalySnapshot('confirmed');
+    for (const card of await screen.findAllByTestId('aw-issue')) {
+      const r = snap.reports.find((x) => x.key === card.dataset.key)!;
+      const last = r.findings[0]!.detail.last;
+      if (!last) continue;
+      const text = plain(card.textContent);
+      const phrase = plain(sinceLast(last, snap.now));
+      expect(text.split(phrase).length - 1, card.dataset.key).toBe(1);
+      expect(text.split(`(${hm(last)})`).length - 1, card.dataset.key).toBe(1);
+      expect(text).not.toContain('poslední hlášení');
+    }
   });
 
   it('adults get no „Otevřít zařízení“ (HA settings are admin-only)', async () => {
@@ -63,6 +115,9 @@ describe('AnomalyView (detail)', () => {
       .getAllByRole('button')
       .map((b) => b.textContent);
     expect(labels).toEqual(['Vyřešeno', 'Skrýt na 7 dní']);
+    expect(within(fault).getByText('Vyřešeno').closest('button')!.dataset.variant).toBe(
+      'secondary',
+    );
   });
 
   it('suspicion: „Vyřešeno“ hides it locally, says it comes back after 2 h if it persists', async () => {
@@ -72,7 +127,7 @@ describe('AnomalyView (detail)', () => {
       (c) => c.dataset.key === 'device:demo_dev_cellar',
     )!;
     expect(within(cellar).getByTestId('aw-issue-title').textContent).toBe(
-      'Čidlo ve sklepě nehlásí vlhkost',
+      'Čidlo ve sklepě přestalo posílat vlhkost',
     );
     await act(async () => {
       fireEvent.click(within(cellar).getByText('Vyřešeno'));
@@ -85,7 +140,8 @@ describe('AnomalyView (detail)', () => {
     );
     const hidden = plain(screen.getByTestId('aw-hidden').textContent);
     expect(hidden).toContain('Čidlo ve sklepě');
-    expect(hidden).toContain('Vyřešeno. Pokud potíž trvá, za 2 h se hlášení vrátí.');
+    expect(hidden).toContain('Vyřešeno. Pokud potíž trvá, za 2 h se upozornění vrátí.');
+    expect(hidden).toContain('Skrytá upozornění (1)');
   });
 
   it('mute, then unmute from the hidden list', async () => {
@@ -112,8 +168,10 @@ describe('AnomalyView (detail)', () => {
     expect(plain(within(fault).getByTestId('aw-issue-meta').textContent)).toBe(
       'Neposílá žádné údaje · 2 h 21 min od posledního hlášení (8:19)',
     );
-    expect(plain(within(fault).getByTestId('aw-gap-title').textContent)).toBe(
-      'Chybí 14 hlášení · 2 h 21 min od posledního hlášení (8:19)',
+    // the inset only counts the missing reports (the time is in the meta line)
+    expect(plain(within(fault).getByTestId('aw-gap-title').textContent)).toBe('Chybí 14 hlášení');
+    expect(plain(within(fault).getByTestId('aw-gap').textContent)).toContain(
+      'Chybí 14 hlášení· obvykle každých 10 min',
     );
     // „Aktualizováno“ shows the same instant the durations count to
     expect(plain(screen.getByText(/^Aktualizováno/).textContent)).toBe(
@@ -155,9 +213,14 @@ describe('AnomalyWatchCard (Dnes)', () => {
     expect(card.dataset.layout).toBe('kiosk');
     expect(screen.getByTestId('aw-watch-title').textContent).toBe('Myčka neodpovídá');
     expect(screen.getAllByTestId('aw-watch-item').map((i) => i.textContent)).toEqual([
-      expect.stringContaining('Čidlo ve sklepě nehlásí vlhkost'),
+      expect.stringContaining('Čidlo ve sklepě přestalo posílat vlhkost'),
       expect.stringContaining('V obýváku je neobvykle teplo'),
     ]);
+    // kiosk pill carries the count, the footer the affected devices
+    expect(plain(screen.getByTestId('aw-tier').textContent)).toBe('1 porucha');
+    expect(plain(screen.getByTestId('aw-watch-inventory').textContent)).toBe(
+      '3 z 12 zařízení s upozorněním',
+    );
     // kiosk rows are not buttons (the wall tablet cannot open the detail)
     expect(screen.getAllByTestId('aw-watch-item').every((i) => i.tagName === 'DIV')).toBe(true);
     // the wall kiosk cannot open the detail page: no dead button there
@@ -188,13 +251,19 @@ describe('AnomalyWatchCard (Dnes)', () => {
     }
   });
 
-  it('suspicion: solid primary button „Otevřít hlídání“', async () => {
+  it('suspicion: tonal (not filled) „Otevřít hlídání“, most urgent first; fault: filled', async () => {
     useMock('suspicion');
     render(<AnomalyWatchCard connection={connection(true)} layout="desktop" />);
     const cta = await screen.findByTestId('aw-watch-cta');
     expect(cta.textContent).toBe('Otevřít hlídání');
     expect(cta.dataset.tone).toBe('suspicion');
-    expect(cta.dataset.variant).toBe('primary');
+    expect(cta.dataset.variant).toBe('secondary');
+    expect(screen.getByTestId('aw-watch-title').textContent).toBe('Myčka neodpovídá');
+    expect(plain(screen.getByTestId('aw-tier').textContent)).toBe('Podezření');
+    cleanup();
+    useMock('confirmed');
+    render(<AnomalyWatchCard connection={connection(true)} layout="desktop" />);
+    expect((await screen.findByTestId('aw-watch-cta')).dataset.variant).toBe('primary');
   });
 
   it('only observations: a quiet chip, no card', async () => {
@@ -218,5 +287,48 @@ describe('AnomalyWatchCard (Dnes)', () => {
     setAnomalyApiFactory(() => null);
     const { container } = render(<AnomalyWatchCard layout="mobile" />);
     expect(container.textContent).toBe('');
+  });
+});
+
+describe('BaselineBand (card B chart)', () => {
+  it('the curve leaves the usual range at the start the text states („od 9:30“)', () => {
+    const snap = mockAnomalySnapshot('suspicion');
+    const r = snap.reports.find((x) => x.key === 'device:demo_dev_living')!;
+    const [h, m] = hm(r.findings[0]!.since).split(':').map(Number);
+    const start = h! * 60 + m!;
+    expect(hm(r.findings[0]!.since)).toBe('9:30');
+    const hiAt = (minute: number) => {
+      // usual band as drawn: hourly values at :30, linear in between
+      const pts = r.band!.usual.map((b, k) => ({ x: k * 60 + 30, hi: b![1] }));
+      const k = Math.max(0, Math.min(pts.length - 2, Math.floor((minute - 30) / 60)));
+      const a = pts[k]!;
+      const b = pts[k + 1]!;
+      return a.hi + ((b.hi - a.hi) * (minute - a.x)) / (b.x - a.x);
+    };
+    const outside = r.band!.today.filter(([x, v]) => v > hiAt(x)).map(([x]) => x);
+    // inside the band until shortly before 9:30, outside from (at most 5 min after) 9:30 on
+    expect(outside[0]).toBeGreaterThanOrEqual(start - 5);
+    expect(outside[0]).toBeLessThanOrEqual(start + 5);
+    expect(
+      r.band!.today.filter(([x]) => x >= outside[0]!).every(([x]) => outside.includes(x)),
+    ).toBe(true);
+    // and it deviates visibly: at least 3 °C above the band within half an hour
+    const later = r.band!.today.find(([x]) => x >= start + 30)!;
+    expect(later[1] - hiAt(later[0])).toBeGreaterThan(3);
+  });
+
+  it('round Y ticks: 15 / 20 / 25 / 30 °C', () => {
+    expect(roundTicks(17.9, 28.1).ticks).toEqual([30, 25, 20, 15]);
+    expect(roundTicks(19.2, 21.4).ticks).toEqual([22, 21, 20, 19]);
+    const r = mockAnomalySnapshot('suspicion').reports.find(
+      (x) => x.key === 'device:demo_dev_living',
+    )!;
+    render(<BaselineBand band={r.band!} now={MOCK_NOW} />);
+    expect(screen.getAllByTestId('aw-band-tick').map((t) => plain(t.textContent))).toEqual([
+      '30 °C',
+      '25 °C',
+      '20 °C',
+      '15 °C',
+    ]);
   });
 });

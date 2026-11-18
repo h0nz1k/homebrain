@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { navigatePanel, type ConnectionLike } from '@homebrain/ha-client';
 import { Button, Chip, StatusRow } from '@homebrain/ui';
 import { getAnomalyApi } from '../api.js';
-import { TIER_TONE, TIERS, headline, inventory, meta, reportGlyph, rowDetail } from '../copy.js';
+import {
+  TIER_TONE,
+  TIERS,
+  affectedInventory,
+  byUrgency,
+  headline,
+  meta,
+  reportGlyph,
+  rowDetail,
+  tierCount,
+} from '../copy.js';
 import type { AnomalySnapshot, TierKey } from '../types.js';
 import { TierPill } from './TierPill.js';
 import { Glyph } from './glyphs.js';
@@ -66,9 +76,10 @@ export function AnomalyWatchCard({ connection, layout, now, onLevel }: WatchCard
       clearInterval(timer);
     };
   }, [api]);
-  const open = (snap?.reports ?? []).filter(
-    (r) => r.hidden === null && r.tier !== 'observation' && r.scope !== 'system',
-  );
+  // most urgent first (soonest escalation to Porucha), the same order as the detail page
+  const open = (snap?.reports ?? [])
+    .filter((r) => r.hidden === null && r.tier !== 'observation' && r.scope !== 'system')
+    .sort(byUrgency);
   const level: WatchLevel = open[0]
     ? open[0].tier === 'confirmed'
       ? 'confirmed'
@@ -127,8 +138,9 @@ export function AnomalyWatchCard({ connection, layout, now, onLevel }: WatchCard
             <Glyph name={reportGlyph(top!)} size={22} />
           </span>
           <span className="aw-eyebrow">Hlídání domu</span>
-          {/* kiosk: the pill sits in the eyebrow row, so the big title never wraps around it */}
-          {kiosk && <TierPill tier={top!.tier} />}
+          {/* kiosk: the pill sits in the eyebrow row, so the big title never wraps around it, and
+              carries the count („3 podezření“) – the wall tablet has no detail to open */}
+          {kiosk && <TierPill tier={top!.tier} label={tierCount(snap.counts, top!.tier)} />}
         </div>
         <div className="aw-watch-titlerow">
           <h2 className="aw-watch-title" data-testid="aw-watch-title">
@@ -149,7 +161,7 @@ export function AnomalyWatchCard({ connection, layout, now, onLevel }: WatchCard
         <div className="aw-watch-foot">
           {!kiosk && (
             <Button
-              variant="primary"
+              variant={top!.tier === 'confirmed' ? 'primary' : 'secondary'}
               className="aw-cta"
               data-tone={top!.tier}
               data-testid="aw-watch-cta"
@@ -158,7 +170,12 @@ export function AnomalyWatchCard({ connection, layout, now, onLevel }: WatchCard
               Otevřít hlídání
             </Button>
           )}
-          <span className="aw-muted">{inventory(snap.watched)}</span>
+          <span className="aw-muted" data-testid="aw-watch-inventory">
+            {affectedInventory(
+              (snap.reports ?? []).filter((r) => r.hidden === null),
+              snap.watched,
+            )}
+          </span>
         </div>
       </div>
       {groups.length > 0 && (

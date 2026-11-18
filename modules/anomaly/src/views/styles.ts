@@ -116,7 +116,8 @@ export const anomalyStyles = `
 }
 .aw-watch-primary { min-width: 0; }
 .aw-watch-head { display: flex; align-items: center; gap: 12px; }
-.aw-eyebrow { flex: 1; color: var(--hb-t2); font-size: var(--hb-type-caption, 14px); font-weight: 500; }
+/* hierarchy: title (largest) > section heading of the side list > eyebrow (small caps label) */
+.aw-eyebrow { flex: 1; color: var(--hb-t2); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .aw-watch-titlerow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 4px; }
 .aw-watch-title { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; }
 .aw-watch-context { color: var(--hb-t2); font-size: 15px; }
@@ -127,7 +128,7 @@ export const anomalyStyles = `
   margin-top: 4px;
   border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent);
 }
-.aw-watch-list h3 { margin: 12px 0 2px; font-size: 15px; font-weight: 600; color: var(--hb-t2); }
+.aw-watch-list h3 { margin: 12px 0 2px; font-size: 17px; font-weight: 600; color: var(--hb-t1); }
 .aw-watch-list .hb-status-row { padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--hb-t1) 6%, transparent); }
 .aw-watch-list .hb-status-row:last-child { border-bottom: 0; }
 .aw-watch-list .hb-status-row-label { font-weight: 450; }
@@ -156,15 +157,16 @@ export const anomalyStyles = `
 .aw .hb-btn.aw-cta { min-height: 52px; padding-inline: 26px; font-size: 17px; font-weight: 700; box-shadow: 0 4px 14px color-mix(in srgb, #000 22%, transparent); }
 .aw .aw-cta[data-tone='confirmed'] { background: var(--aw-fault-fill); color: #fff; border: 0; }
 .aw .aw-cta[data-tone='confirmed']:hover:not(:disabled) { background: #9d1f35; }
-/* suspicion: solid amber (r3 had a faint outline – owner asked for a stronger primary button) */
-.aw .aw-cta[data-tone='suspicion'] {
-  background: var(--aw-bar-suspect);
-  color: var(--aw-on-suspect);
-  border: 0;
+/* suspicion: tonal button – clearly the action of the card, but not an alarm (a fault is red) */
+.aw .hb-btn.aw-cta[data-tone='suspicion'] {
+  min-height: 48px;
+  background: color-mix(in srgb, var(--hb-warn) 16%, var(--hb-s1));
+  color: var(--aw-suspect);
+  border: 1px solid color-mix(in srgb, var(--hb-warn) 55%, transparent);
   box-shadow: none;
 }
-.aw .aw-cta[data-tone='suspicion']:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--aw-bar-suspect) 86%, #000);
+.aw .hb-btn.aw-cta[data-tone='suspicion']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hb-warn) 26%, var(--hb-s1));
 }
 
 @media (min-width: 920px) {
@@ -179,6 +181,18 @@ export const anomalyStyles = `
   }
   .aw-watch-list h3 { margin-top: 0; }
   .aw-watch-foot { justify-content: start; gap: 16px; }
+  /* tablet landscape / desktop: compact card – the icon sits beside the copy instead of on its
+     own row, tighter padding (≈ 80 px lower than r2, e2e) */
+  .aw-watch:not([data-layout='kiosk']) { padding: 14px 22px; gap: 10px 28px; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-primary { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; align-content: center; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-head { display: contents; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-head .aw-orb { grid-row: 1 / span 3; align-self: start; margin-top: 2px; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-head .aw-eyebrow { grid-column: 2; }
+  .aw-watch:not([data-layout='kiosk']) :is(.aw-watch-titlerow, .aw-watch-context, .aw-watch-foot) { grid-column: 2; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-titlerow { margin: 0; }
+  .aw-watch:not([data-layout='kiosk']) .hb-btn.aw-cta[data-tone='suspicion'] { min-height: 44px; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-foot { margin-top: 10px; }
+  .aw-watch:not([data-layout='kiosk']) .aw-watch-row { min-height: 48px; padding-block: 6px; }
 }
 /* tablet portrait (800 px): Dnes card reads like the mockup, larger copy */
 @media (min-width: 761px) and (max-width: 919px) {
@@ -198,31 +212,28 @@ export const anomalyStyles = `
    suspicions column is visibly subordinate – narrower, regular-weight heading, muted single-line
    items – and every text on the card is ≥ 22 px (e2e). Parts of the context line stack instead
    of wrapping mid-phrase (no orphans). */
-.aw-watch[data-layout='kiosk'] { padding: 22px 28px; }
+.aw-watch[data-layout='kiosk'] { padding: 16px 28px; }
 .aw-watch[data-layout='kiosk'] .aw-eyebrow { font-size: 22px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-title { font-size: 40px; text-wrap: balance; }
-.aw-watch[data-layout='kiosk'] .aw-watch-context { font-size: 26px; line-height: 1.3; }
+.aw-watch[data-layout='kiosk'] .aw-watch-title { font-size: 56px; line-height: 1.05; text-wrap: balance; }
+/* detail line and the side column ≥ 32 px (read from ~2 m) */
+.aw-watch[data-layout='kiosk'] .aw-watch-context { font-size: 32px; line-height: 1.25; }
 .aw-watch[data-layout='kiosk'] .aw-watch-context > .aw-part { display: block; }
 .aw-watch[data-layout='kiosk'] .aw-watch-context .aw-sep { display: none; }
 .aw-watch[data-layout='kiosk'] .aw-muted { font-size: 22px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-foot { margin-top: 12px; }
-.aw-watch[data-layout='kiosk'][data-has-list] { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px 28px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-foot { margin-top: 8px; }
+.aw-watch[data-layout='kiosk'][data-has-list] { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 10px 28px; }
 .aw-watch[data-layout='kiosk'] .aw-watch-list { min-width: 0; padding-left: 24px; border-left-color: color-mix(in srgb, var(--hb-t1) 10%, transparent); }
-.aw-watch[data-layout='kiosk'] .aw-watch-list h3 { font-size: 22px; font-weight: 400; color: var(--hb-t2); margin-bottom: 4px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row { padding: 8px 0; gap: 12px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-list h3 { font-size: 26px; font-weight: 400; color: var(--hb-t2); margin-bottom: 2px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row { padding: 4px 0; gap: 12px; }
 /* no icon tiles on the kiosk side list: muted text rows, the heading carries the tier */
 .aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-icon { display: none; }
 .aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-copy > * {
-  font-size: 22px;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 32px;
+  line-height: 1.2;
+  text-wrap: balance;
 }
-.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-label { font-weight: 400; color: color-mix(in srgb, var(--hb-t1) 88%, var(--hb-t2)); }
-.aw-watch[data-layout='kiosk'][data-tier='confirmed'] .aw-watch-title { font-size: 56px; line-height: 1.05; }
+.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-label { font-weight: 400; color: color-mix(in srgb, var(--hb-t1) 70%, var(--hb-t2)); }
 .aw-watch[data-layout='kiosk'] .aw-watch-head .hb-pill { min-height: 34px; padding: 4px 16px; font-size: 22px; font-weight: 650; }
-.aw-watch[data-layout='kiosk'][data-tier='confirmed'] .aw-watch-context { font-size: 28px; }
 
 .aw-watch-note { justify-self: start; }
 
@@ -280,6 +291,7 @@ export const anomalyStyles = `
 .aw-strip-legend i { width: 12px; height: 12px; border-radius: 3px; }
 
 .aw .hb-btn, .aw .hb-seg button, .aw summary { min-height: 44px; }
+.aw .aw-affected summary { width: fit-content; min-width: 44px; padding-right: 8px; }
 .aw .hb-seg button { min-width: 44px; }
 .aw-back svg { transform: rotate(180deg); }
 .aw-affected summary { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--hb-t1); font-size: 14px; font-weight: 550; list-style: none; }
@@ -316,15 +328,22 @@ export const anomalyStyles = `
 .aw-entities { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .aw-entity { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--hb-radius-pill, 999px); background: var(--hb-s2); color: var(--hb-t2); font-size: var(--hb-type-caption, 14px); }
 .aw-entity-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hb-t3); }
-.aw-issue-foot { align-self: end; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
-.aw-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-.aw-hint { flex-basis: 100%; color: var(--hb-t2); font-size: 13px; text-align: right; }
+.aw-issue-foot { align-self: end; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
+.aw-actions { display: flex; gap: 8px 10px; flex-wrap: wrap; align-items: flex-start; }
+/* the caption belongs to Vyřešeno: directly under that button, as wide as it allows */
+.aw-resolve-group { display: grid; gap: 4px; justify-items: start; max-width: 30ch; }
+.aw-hint { color: var(--hb-t2); font-size: 13px; line-height: 1.35; }
+.aw-next { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; font-weight: 600; line-height: 1.45; color: var(--hb-t1); }
+.aw-next svg { flex: none; margin-top: 2px; color: var(--hb-ac); }
+.aw-status-copy p.aw-status-names { color: var(--hb-t1); font-weight: 550; }
 .aw-issue .hb-btn[data-variant='primary'] { background: var(--hb-ac-solid); }
 .aw-issue .hb-btn[data-variant='primary']:hover:not(:disabled) { background: var(--hb-ac-solid-hover); }
 .aw-issue .hb-step { --step-ink: var(--aw-observe); }
 .aw-issue .hb-step:nth-child(2) { --step-ink: var(--aw-suspect); }
 .aw-issue .hb-step:nth-child(3) { --step-ink: var(--aw-fault-ink); }
-.aw-issue .hb-step[data-state='active'] { background: color-mix(in srgb, var(--step-ink) 11%, var(--hb-s1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--step-ink) 45%, var(--hb-s1)); }
+/* a progress display, not buttons: flat steps, no border or shadow; the active one only tinted */
+.aw-issue .hb-step { box-shadow: none; border: 0; background: transparent; padding-inline: 4px; }
+.aw-issue .hb-step[data-state='active'] { background: color-mix(in srgb, var(--step-ink) 9%, transparent); box-shadow: none; }
 .aw-issue .hb-step[data-state='done'] .hb-step-n,
 .aw-issue .hb-step[data-state='active'] .hb-step-n { background: color-mix(in srgb, var(--step-ink) 16%, var(--hb-s1)); color: var(--step-ink); }
 .aw-issue .hb-step .hb-step-t { display: flex; }
@@ -414,9 +433,9 @@ export const anomalyStyles = `
   .aw-tiles .hb-tile-icon { width: 20px; height: 24px; }
   .aw-tiles .hb-tile-label { overflow-wrap: anywhere; }
   .aw .hb-seg button { padding-inline: 8px; }
-  .aw-actions { width: 100%; }
-  .aw-actions .hb-btn { flex: 1; }
-  .aw-hint { text-align: left; }
+  .aw-actions .aw-open { flex: 1 1 100%; }
+  .aw-resolve-group { flex: 1; max-width: none; }
+  .aw-resolve-group .hb-btn { width: 100%; }
   .aw-how li { grid-template-columns: 1fr; gap: 6px; }
 }
 @container (max-width: 460px) {

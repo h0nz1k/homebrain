@@ -3,9 +3,13 @@
  * the wording rules are in one tested place:
  *
  * - a headline never contradicts the detail: when the same device still reports another value,
- *   the headline names only what is missing („Čidlo ve sklepě nehlásí vlhkost“);
+ *   the headline names only what is missing, and says data stopped coming („Čidlo ve sklepě
+ *   přestalo posílat vlhkost“ – not „nehlásí vlhkost“, which reads as „it is not damp“);
+ * - „hlášení“ is only a report of a sensor („od posledního hlášení“, „Chybí 16 hlášení“); an alert
+ *   of this app is always „upozornění“ (copy.test.ts scans the sources for it);
  * - every outage time is anchored to the **last report** and reads the same everywhere
- *   („2 h 45 min od posledního hlášení (7:55)“): card, kiosk, suspicion rows, detail, timeline;
+ *   („2 h 45 min od posledního hlášení (7:55)“): card, kiosk, suspicion rows, detail – once per
+ *   card (the meta line), the timeline only counts the missing reports;
  * - durations are computed from the caller's `now` (on Dnes the clock shown on screen);
  * - one impersonal voice (no „hlídám / ukážu / naměřil“), rooms in the locative where known
  *   („V obýváku je neobvykle teplo“);
@@ -182,9 +186,7 @@ export function headline(r: Report): string {
   if (SILENT.has(top.detector)) {
     if (wholeDevice(r)) return `${device} neodpovídá`;
     const silent = silentFindings(r);
-    return silent.length > 1
-      ? `${device} nehlásí ${values(r.entity_count)}`
-      : `${device} nehlásí ${what(top)}`;
+    return stoppedSending(device, silent.length > 1 ? values(r.entity_count) : what(top));
   }
   if (top.detector === 'baseline') {
     const up = (top.detail.z ?? 0) > 0;
@@ -202,6 +204,30 @@ export function headline(r: Report): string {
   }
   // dwell
   return `${top.name}: ${dwellVerb(top)} déle než obvykle`;
+}
+
+/**
+ * Grammatical gender of a device name from its first word („Čidlo ve sklepě“ → neuter). Names are
+ * the owner's own, so only clear endings count; `null` when unsure.
+ */
+export function nameGender(name: string): 'm' | 'f' | 'n' | null {
+  const head = name.trim().split(/\s+/)[0]?.toLocaleLowerCase('cs-CZ') ?? '';
+  if (!/^\p{L}{2,}$/u.test(head)) return null;
+  if (['klima', 'kakao'].includes(head)) return 'n';
+  if (/[oí]$/.test(head)) return 'n';
+  if (/[aeě]$/.test(head)) return 'f';
+  if (/[bcčdďfghjklmnňpqrřsštťvwxzž]$/.test(head)) return 'm';
+  return null;
+}
+
+/**
+ * „Čidlo ve sklepě přestalo posílat vlhkost“: says that data stopped coming (unambiguous, unlike
+ * „nehlásí vlhkost“). With a name of unclear gender: „Senzor XY-1: přestala chodit vlhkost“.
+ */
+function stoppedSending(device: string, what: string): string {
+  const g = nameGender(device);
+  if (g) return `${device} ${{ m: 'přestal', f: 'přestala', n: 'přestalo' }[g]} posílat ${what}`;
+  return `${device}: přestaly chodit údaje (${what})`;
 }
 
 function dwellVerb(f: Finding): string {
@@ -264,16 +290,14 @@ function allValues(n: number): string {
   return `${n >= 5 ? 'všech' : 'všechny'} ${values(n)}`;
 }
 
-/** Why it matters / what to check (one or two sentences); durations count up to `now`. */
+/** What happened and why it matters (no instruction – see `nextStep`); durations count to `now`. */
 export function why(r: Report, now: Date | string): string {
-  if (r.scope === 'integration')
-    return 'Zkontrolujte společnou bránu nebo připojení integrace v Home Assistantu.';
-  if (r.scope === 'system') return 'Zkontrolujte připojení sítě a stav Home Assistantu.';
+  if (r.scope === 'integration') return 'Zařízení mají společnou bránu nebo integraci.';
+  if (r.scope === 'system') return 'Výpadek se týká většiny zařízení najednou.';
   const top = r.findings[0];
   if (!top) return '';
   if (SILENT.has(top.detector)) {
-    if (wholeDevice(r))
-      return `Chybí ${allValues(r.entity_count)} zařízení. Zkontrolujte napájení a připojení.`;
+    if (wholeDevice(r)) return `Chybí ${allValues(r.entity_count)} zařízení.`;
     const still = r.reporting[0];
     if (still) {
       const other = still.device_class && QUANTITY[still.device_class];
@@ -281,8 +305,8 @@ export function why(r: Report, now: Date | string): string {
       return `${lead} ze stejného zařízení přichází dál, chybí jen ${what(top)}.`;
     }
     return top.detector === 'unavailable'
-      ? 'Home Assistant ji hlásí jako nedostupnou. Zkontrolujte zařízení a jeho integraci.'
-      : 'Zkontrolujte baterii, napájení nebo dosah signálu.';
+      ? 'Home Assistant ji hlásí jako nedostupnou.'
+      : 'Ze zařízení nepřichází žádná hodnota.';
   }
   if (top.detector === 'baseline') {
     if (top.tier === 'observation')
@@ -295,11 +319,110 @@ export function why(r: Report, now: Date | string): string {
   }
   if (top.detector === 'flapping')
     return top.detail.what === 'availability'
-      ? 'Zařízení se opakovaně odpojuje. Zkontrolujte signál nebo napájení.'
-      : 'Stav se mění mnohem častěji než obvykle. Může jít o vadný kontakt nebo opakující se automatizaci.';
+      ? 'Zařízení se opakovaně odpojuje.'
+      : 'Stav se mění mnohem častěji než obvykle.';
+  return 'Stav trvá déle, než bývá zvykem.';
+}
+
+/** Baseline steps by quantity and direction: [too high, too low]. */
+const BASELINE_STEP: Record<string, [string, string]> = {
+  temperature: ['Zkontrolujte topení, okno nebo slunce.', 'Zkontrolujte topení, okno nebo dveře.'],
+  humidity: ['Zkontrolujte větrání nebo únik vody.', 'Zkontrolujte zvlhčovač nebo topení.'],
+  moisture: ['Zkontrolujte, jestli někde neteče voda.', 'Zkontrolujte zálivku nebo čidlo.'],
+  power: [
+    'Zkontrolujte, co je zapnuté a nemá být.',
+    'Zkontrolujte, jestli spotřebič běží, jak má.',
+  ],
+  carbon_dioxide: ['Vyvětrejte nebo zkontrolujte větrání.', 'Zkontrolujte čidlo.'],
+};
+
+/**
+ * One concrete next step per card, derived from the kind of anomaly (detector, what is missing,
+ * quantity and direction) – never written per device.
+ */
+export function nextStep(r: Report): string {
+  if (r.scope === 'integration')
+    return 'Zkontrolujte společnou bránu nebo připojení integrace v Home Assistantu.';
+  if (r.scope === 'system') return 'Zkontrolujte připojení sítě a stav Home Assistantu.';
+  const top = r.findings[0];
+  if (!top) return '';
+  if (SILENT.has(top.detector)) {
+    if (wholeDevice(r)) return 'Zkontrolujte napájení a připojení zařízení.';
+    if (top.detector === 'unavailable') return 'Zkontrolujte zařízení a jeho integraci.';
+    // the device still sends something: power and the network work, the sensor part does not
+    if (r.reporting.length) return 'Zkontrolujte baterii nebo dosah čidla.';
+    return 'Zkontrolujte baterii, napájení nebo dosah signálu.';
+  }
+  if (top.detector === 'baseline') {
+    const up = (top.detail.z ?? 0) > 0;
+    const pair = top.device_class ? BASELINE_STEP[top.device_class] : undefined;
+    if (pair) return up ? pair[0] : pair[1];
+    return 'Zkontrolujte, co se u zařízení změnilo.';
+  }
+  if (top.detector === 'flapping')
+    return top.detail.what === 'availability'
+      ? 'Zkontrolujte signál nebo napájení zařízení.'
+      : 'Zkontrolujte kontakt čidla nebo automatizace, které ho přepínají.';
   return dwellVerb(top) === 'otevřeno'
     ? 'Zkontrolujte, jestli se nezapomnělo zavřít.'
     : 'Zkontrolujte, jestli se nezapomnělo vypnout.';
+}
+
+/** Longest device name that still fits the button („Otevřít Klima obývák“). */
+const OPEN_NAME_MAX = 18;
+/**
+ * The name in the accusative after „Otevřít“: masculine inanimate and neuter names stay
+ * („Klima obývák“, „Čidlo ve sklepě“), a feminine head noun in -a takes -u („Myčku“,
+ * „Zásuvku akvária“); anything else is `null` (no guessing).
+ */
+export function accusativeName(name: string): string | null {
+  const trimmed = name.trim();
+  const [head = '', ...rest] = trimmed.split(/\s+/);
+  const g = nameGender(trimmed);
+  if (g === 'm' || g === 'n') return trimmed;
+  if (g === 'f' && /a$/.test(head)) return [head.slice(0, -1) + 'u', ...rest].join(' ');
+  return null;
+}
+
+/** Diagnostic action names its target („Otevřít Myčku“); a long or unclear name → „zařízení“. */
+export function openDeviceLabel(name: string): { text: string; aria?: string } {
+  const acc = accusativeName(name);
+  if (acc && acc.length <= OPEN_NAME_MAX) return { text: `Otevřít ${acc}` };
+  // the visible text is generic: the accessible name still says which device
+  return { text: 'Otevřít zařízení', aria: `Otevřít zařízení ${name.trim()}` };
+}
+
+/** When Porucha can come at the earliest (ms); a fault already reached sorts first. */
+function escalationAt(r: Report): number {
+  if (r.tier === 'confirmed') return Date.parse(r.reached.confirmed ?? r.since) - 1e15;
+  const at = r.earliest.confirmed;
+  return at ? Date.parse(at) : Number.POSITIVE_INFINITY;
+}
+
+/** Urgency order: soonest escalation to Porucha first, then the higher tier, then the older one. */
+export function byUrgency(a: Report, b: Report): number {
+  const ea = escalationAt(a);
+  const eb = escalationAt(b);
+  if (ea !== eb) return ea < eb ? -1 : 1;
+  return TIER_RANK[b.tier] - TIER_RANK[a.tier] || Date.parse(a.since) - Date.parse(b.since);
+}
+
+/** Affected device names for the summary: „Myčka, Čidlo ve sklepě a Klima obývák“ / „…a 2 další“. */
+export function affectedNames(reports: Report[]): string {
+  const names: string[] = [];
+  for (const r of reports.slice().sort(byUrgency))
+    for (const d of r.devices) if (!names.includes(d.name)) names.push(d.name);
+  if (!names.length) return '';
+  if (names.length <= 3)
+    return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} a ${names.at(-1)}`;
+  const more = names.length - 3;
+  return `${names.slice(0, 3).join(', ')} a ${more}${NB}${plural(more, 'další', 'další', 'dalších')}`;
+}
+
+/** Devices of the open reports (distinct): „3 z 12 zařízení s upozorněním“. */
+export function affectedInventory(reports: Report[], watched: { devices: number }): string {
+  const ids = new Set(reports.flatMap((r) => r.devices.map((d) => d.id ?? d.name)));
+  return `${ids.size} z ${devicesCount(watched.devices)} s${NB}upozorněním`;
 }
 
 /** Stepper detail per tier: when it was reached, the earliest time it can come, or why not. */
@@ -329,6 +452,7 @@ export type Glyph =
   | 'pulse'
   | 'phone'
   | 'wifi'
+  | 'arrow'
   | 'home';
 
 const CLASS_GLYPH: Record<string, Glyph> = {
@@ -398,9 +522,18 @@ export function overview(counts: Record<TierKey, number>): {
   return { title: 'Vše v pořádku', sub: 'Nic neobvyklého za posledních 24 h', tone: 'ok' };
 }
 
+/** „1 porucha“, „3 podezření“, „2 pozorování“: count of one tier (kiosk pill). */
+export function tierCount(counts: Record<TierKey, number>, tier: TierKey): string {
+  const n = counts[tier];
+  if (tier === 'confirmed') return `${n}${NB}${plural(n, 'porucha', 'poruchy', 'poruch')}`;
+  return `${n}${NB}${tier === 'suspicion' ? 'podezření' : 'pozorování'}`;
+}
+
 export function inventory(watched: { devices: number }): string {
   return `Hlídáno ${devicesCount(watched.devices)}`;
 }
 
-/** What „Vyřešeno“ does (owner: say it in the UI). */
-export const RESOLVED_HINT = `Pokud potíž trvá, za 2${NB}h se hlášení vrátí.`;
+/** What „Vyřešeno“ does, as a caption under that button (owner: say it in the UI). */
+export const RESOLVED_HINT = `Po Vyřešeno: pokud potíž trvá, za 2${NB}h se upozornění vrátí.`;
+/** The same after it was pressed (hidden list). */
+export const RESOLVED_DONE = `Vyřešeno. Pokud potíž trvá, za 2${NB}h se upozornění vrátí.`;

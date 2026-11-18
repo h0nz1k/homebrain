@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { TIER_LABEL, TIERS, dur, hm, num, sinceLast } from '../copy.js';
+import { TIER_LABEL, TIERS, dur, hm, num } from '../copy.js';
 import type { Band, Health } from '../types.js';
 
 const HOUR = 3_600_000;
@@ -16,7 +16,7 @@ export function HealthStrip({ health, now }: { health: Health[]; now: string }) 
       <div
         className="aw-strip-bars"
         role="img"
-        aria-label="Nejvyšší úroveň hlášení v jednotlivých hodinách za posledních 24 h"
+        aria-label="Nejvyšší úroveň upozornění v jednotlivých hodinách za posledních 24 h"
       >
         {health.map((tier, k) => (
           <span
@@ -47,6 +47,18 @@ const minuteOfDay = (value: string | number) => {
   return h! * 60 + m!;
 };
 
+/** Round Y ticks („15, 20, 25, 30 °C“): a 1/2/5/10 step giving 3–5 ticks, top first. */
+export function roundTicks(min: number, max: number) {
+  const span = Math.max(1, max - min);
+  const step = [1, 2, 5, 10, 20, 50, 100].find((s) => span / s <= 4) ?? 100;
+  const bottom = Math.floor(min / step) * step;
+  let top = Math.ceil(max / step) * step;
+  if (top === bottom) top += step;
+  const ticks: number[] = [];
+  for (let t = top; t >= bottom - 1e-9; t -= step) ticks.push(Math.round(t * 100) / 100);
+  return { top, bottom, ticks };
+}
+
 /** Today's curve against the usual range for each hour; after „teď“ the band is only a forecast. */
 export function BaselineBand({ band, now }: { band: Band; now: string }) {
   const id = useId();
@@ -57,11 +69,9 @@ export function BaselineBand({ band, now }: { band: Band; now: string }) {
   const today = band.today;
   const all = [...known.flatMap((u) => [u.lo, u.hi]), ...today.map((p) => p[1])];
   if (!all.length) return null;
-  const pad = Math.max(1, (Math.max(...all) - Math.min(...all)) * 0.12);
-  const top = Math.ceil(Math.max(...all) + pad);
-  const bottom = Math.floor(Math.min(...all) - pad);
+  const { top, bottom, ticks } = roundTicks(Math.min(...all), Math.max(...all));
   const x = (minute: number) => (minute / 1440) * width;
-  const y = (value: number) => 8 + ((top - value) / (top - bottom || 1)) * (height - 16);
+  const y = (value: number) => ((top - value) / (top - bottom || 1)) * height;
   const nowMinute = minuteOfDay(now);
   const nowX = x(nowMinute);
   const edges = known.length
@@ -81,13 +91,12 @@ export function BaselineBand({ band, now }: { band: Band; now: string }) {
     .join(' ');
   const current = today.filter(([m]) => m <= nowMinute).at(-1);
   const unit = band.unit ? ` ${band.unit}` : '';
-  const ticks = [top, (top + bottom) / 2, bottom];
   return (
     <figure className="aw-band" aria-label="Dnešní průběh proti obvyklému rozmezí pro denní dobu">
       <div className="aw-band-chart">
         <div className="aw-band-y" aria-hidden="true">
           {ticks.map((t) => (
-            <span key={t}>
+            <span key={t} data-testid="aw-band-tick">
               {num(t)}
               {unit}
             </span>
@@ -158,8 +167,9 @@ export function BaselineBand({ band, now }: { band: Band; now: string }) {
 const GAP_WINDOW = 4 * HOUR;
 
 /**
- * Outage timeline: received reports, the last one, and the expected reports that did not come.
- * The anchor is the last report (the same time as in the card's headline line).
+ * Outage timeline: received reports, the last one (dot) and the expected reports that did not
+ * come. The outage time itself („… od posledního hlášení (7:55)“) is said once, in the card's
+ * meta line; the caption only counts the missing reports.
  */
 export function SilenceTimeline({
   last,
@@ -191,20 +201,10 @@ export function SilenceTimeline({
   return (
     <figure className="aw-gap" data-testid="aw-gap">
       <figcaption>
-        <b data-testid="aw-gap-title">
-          Chybí {missing}&nbsp;hlášení · {sinceLast(last, now)}
-        </b>
-        <span>obvykle hlásí každých {dur(step / 60_000)}</span>
+        <b data-testid="aw-gap-title">Chybí {missing}&nbsp;hlášení</b>
+        <span>· obvykle každých {dur(step / 60_000)}</span>
       </figcaption>
       <div className="aw-gap-scale" aria-hidden="true">
-        <div className="aw-gap-events">
-          <span
-            style={{ left: `${lastPos}%` }}
-            data-align={lastPos < 25 ? 'start' : lastPos > 70 ? 'end' : 'center'}
-          >
-            poslední hlášení <b>{hm(lastMs)}</b>
-          </span>
-        </div>
         <div className="aw-gap-track">
           <span className="aw-gap-data" style={{ width: `${lastPos}%` }} />
           <span className="aw-gap-missing" style={{ left: `${lastPos}%` }} />

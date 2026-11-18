@@ -13,17 +13,22 @@ import {
 } from '@homebrain/ui';
 import { getAnomalyApi, type AckKind, type AnomalyApi } from '../api.js';
 import {
+  RESOLVED_DONE,
   RESOLVED_HINT,
   TIER_LABEL,
   TIER_RANK,
   TIER_TONE,
   TIERS,
+  affectedNames,
+  byUrgency,
   glyphFor,
   headline,
   hm,
   inventory,
   lastReport,
   meta,
+  nextStep,
+  openDeviceLabel,
   overview,
   reportGlyph,
   stepDetail,
@@ -99,7 +104,9 @@ function IssueCard({
   const top = r.findings[0];
   const last = lastReport(r);
   const deviceId = r.scope === 'device' ? r.devices[0]?.id : undefined;
+  const open = openDeviceLabel(r.devices[0]?.name ?? '');
   const busy = actions.busy === r.key;
+  const step = nextStep(r);
   return (
     <article
       className="hb-card aw-issue"
@@ -121,6 +128,12 @@ function IssueCard({
       <p className="aw-why" data-testid="aw-issue-why">
         {why(r, now)}
       </p>
+      {step && (
+        <p className="aw-next" data-testid="aw-next-step">
+          <Glyph name="arrow" size={18} />
+          <span>{step}</span>
+        </p>
+      )}
       {r.band && <BaselineBand band={r.band} now={now} />}
       {last && top && (
         <SilenceTimeline last={last} intervalS={top.detail.interval_s ?? 600} now={now} />
@@ -142,7 +155,7 @@ function IssueCard({
         </details>
       )}
       <Stepper
-        label="Vývoj hlášení"
+        label="Vývoj upozornění"
         steps={TIERS.map((key) => ({
           key,
           title: TIER_LABEL[key],
@@ -151,29 +164,36 @@ function IssueCard({
         }))}
       />
       <footer className="aw-issue-foot">
-        {/* Owner: at most three actions – primary, secondary, tertiary link. */}
-        {/* The same three on every tier; „Vyřešeno“ always looks the same. */}
+        {/* Owner: at most three actions. The diagnostic step is primary (an unchecked problem
+            is not „solved“ by default), Vyřešeno secondary with its caption, Skrýt a link. */}
         <div className="aw-actions" data-testid="aw-actions">
-          <Button
-            variant="primary"
-            size="sm"
-            className="aw-resolve"
-            loading={busy}
-            aria-describedby={`${r.key}-hint`}
-            onClick={() => void actions.ack(r, 'resolved')}
-          >
-            Vyřešeno
-          </Button>
           {deviceId && actions.openDevice && (
             <Button
-              variant="secondary"
+              variant="primary"
               size="sm"
+              className="aw-open"
+              aria-label={open.aria}
               onClick={() => actions.openDevice!(deviceId)}
               disabled={busy}
             >
-              Otevřít zařízení
+              {open.text}
             </Button>
           )}
+          <div className="aw-resolve-group">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="aw-resolve"
+              loading={busy}
+              aria-describedby={`${r.key}-hint`}
+              onClick={() => void actions.ack(r, 'resolved')}
+            >
+              Vyřešeno
+            </Button>
+            <small className="aw-hint" id={`${r.key}-hint`} data-testid="aw-resolve-hint">
+              {RESOLVED_HINT}
+            </small>
+          </div>
           <button
             type="button"
             className="aw-link"
@@ -183,9 +203,6 @@ function IssueCard({
             Skrýt na 7 dní
           </button>
         </div>
-        <p className="aw-hint" id={`${r.key}-hint`} data-testid="aw-resolve-hint">
-          {RESOLVED_HINT}
-        </p>
       </footer>
     </article>
   );
@@ -196,7 +213,7 @@ function PhoneCard() {
     <Card className="aw-side" data-testid="aw-phone">
       <h2 className="aw-h2">Na telefon</h2>
       <p className="aw-muted aw-pad">
-        Upozornění na telefon zatím nejsou zapnutá. Hlášení jsou jen tady a na obrazovce Dnes.
+        Upozornění na telefon zatím nejsou zapnutá. Upozornění jsou jen tady a na obrazovce Dnes.
       </p>
     </Card>
   );
@@ -247,7 +264,7 @@ function DevicesCard({ snap, visible }: { snap: AnomalySnapshot; visible: Report
       <h2 className="aw-h2">Hlídaná zařízení</h2>
       <p className="aw-muted aw-pad">
         {sorted.length - affected.size} v pořádku
-        {affected.size > 0 && ` · ${affected.size} s hlášením`}
+        {affected.size > 0 && ` · ${affected.size} s upozorněním`}
         {snap.watched.learning > 0 && ` · učí se ${values(snap.watched.learning)}`}
       </p>
       <div className="aw-tiles">
@@ -273,7 +290,7 @@ function HiddenCard({ hidden, actions }: { hidden: Report[]; actions: Actions })
   if (!hidden.length) return null;
   return (
     <Card className="aw-side" data-testid="aw-hidden">
-      <h2 className="aw-h2">Skrytá hlášení ({hidden.length})</h2>
+      <h2 className="aw-h2">Skrytá upozornění ({hidden.length})</h2>
       <div className="aw-hidden-list">
         {hidden.map((r) => (
           <StatusRow
@@ -285,7 +302,7 @@ function HiddenCard({ hidden, actions }: { hidden: Report[]; actions: Actions })
               r.hidden === 'muted' && r.muted_until
                 ? `Skryto do ${new Date(r.muted_until).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' })}`
                 : r.ack === 'resolved'
-                  ? `Vyřešeno. ${RESOLVED_HINT}`
+                  ? RESOLVED_DONE
                   : 'Označeno jako v pořádku – hlídá se s větší tolerancí'
             }
             value={null}
@@ -355,7 +372,8 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
       );
     if (error && !snap) return <ErrorState onRetry={reload}>{error}</ErrorState>;
     if (!snap) return <Skeleton lines={6} />;
-    const open = snap.reports.filter((r) => r.hidden === null);
+    // most urgent first: soonest escalation to Porucha, then the higher tier
+    const open = snap.reports.filter((r) => r.hidden === null).sort(byUrgency);
     const hidden = snap.reports.filter((r) => r.hidden !== null);
     const visible = filter === 'all' ? open : open.filter((r) => r.tier === filter);
     const h = overview(snap.counts);
@@ -387,6 +405,11 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
                   ? 'Prvních 7 dní se sbírá historie. Výpadky se hlídají hned, odchylky od obvyklých hodnot až potom.'
                   : h.sub}
               </p>
+              {!learning && open.length > 0 && (
+                <p className="aw-status-names" data-testid="aw-status-names">
+                  {affectedNames(open)}
+                </p>
+              )}
               <p className="aw-muted">
                 {learning ? `Učí se ${values(snap.watched.learning)}` : inventory(snap.watched)}
               </p>

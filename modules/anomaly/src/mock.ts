@@ -166,13 +166,17 @@ function usualBand(): ([number, number] | null)[] {
   });
 }
 
+/**
+ * Today's 5-min means: the usual daily curve until shortly before `since`, then a rise that leaves
+ * the usual band right at `since` – the „od 9:30“ the card states (mock.test.ts).
+ */
 function today(now: string, since: string): [number, number][] {
   const end = minuteOfDay(now);
-  const rise = minuteOfDay(since) - 30;
+  const rise = minuteOfDay(since) - 5;
   const out: [number, number][] = [];
   for (let m = 2.5; m <= end; m += 5) {
     const base = 20.6 + 1.2 * Math.sin(((m / 60 - 9) / 24) * 2 * Math.PI);
-    const warm = m >= rise ? Math.min(7, ((m - rise) / 30) * 7) : 0;
+    const warm = m >= rise ? Math.min(7, (m - rise) * 0.3) : 0;
     out.push([m, Math.round((base + warm) * 100) / 100]);
   }
   return out;
