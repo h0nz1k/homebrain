@@ -7,6 +7,12 @@ import {
   type NetworkScenario,
 } from '@homebrain/module-network';
 import {
+  ANOMALY_SCENARIOS,
+  createMockAnomalyApi,
+  setAnomalyApiFactory,
+  type AnomalyScenario,
+} from '@homebrain/module-anomaly';
+import {
   createMockServerApi,
   setServerApiFactory,
   type ServerScenario,
@@ -202,6 +208,17 @@ const serverApi = createMockServerApi({
   scenario: (recipesQuery.get('server') as ServerScenario | null) ?? 'ok',
 });
 setServerApiFactory(() => serverApi);
+// Hlídání domu: synthetic house. `?anomaly=ok|observations|suspicion|confirmed|learning`; the
+// detail page defaults to `confirmed`, Dnes shows the card only with an explicit `?anomaly=`.
+const anomalyParam = recipesQuery.get('anomaly') as AnomalyScenario | null;
+const anomalyApi =
+  anomalyParam && ANOMALY_SCENARIOS.includes(anomalyParam)
+    ? createMockAnomalyApi({ scenario: anomalyParam })
+    : null;
+const anomalyDetailApi = anomalyApi ?? createMockAnomalyApi({ scenario: 'confirmed' });
+setAnomalyApiFactory(() =>
+  location.pathname.startsWith('/homebrain-hlidani') ? anomalyDetailApi : anomalyApi,
+);
 // Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|solar|solar-nogain|…`,
 // `&rooms=0|4` (bound room sensors/TRVs; default 0 like the current backend),
 // `&extras=none` = side circuits unmapped (null payloads).
