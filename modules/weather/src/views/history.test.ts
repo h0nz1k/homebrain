@@ -8,6 +8,7 @@ import {
   longestDry,
   niceCeil,
   streakCallout,
+  alertCallout,
   records,
   tempTicks,
   windowStats,
@@ -189,5 +190,21 @@ describe('longestDry', () => {
     expect(longestDry(days)).toEqual({ days: 3, end: '2026-10-06' });
     expect(longestDry([day('2026-10-01', null, { gaps: ['rain'] })])).toBeNull();
     expect(longestDry([day('2026-10-01', 4)])).toEqual({ days: 0, end: '' });
+  });
+});
+
+describe('alertCallout – ⚠ má přednost před deštěm', () => {
+  it('změna tlaku, pak náraz (dnešní, jinak včerejší)', () => {
+    expect(alertCallout({ kind: 'down', v: 12.3 }, 16.4, 9)).toBe(
+      '⚠ Tlak dnes zatím o 12\u00a0hPa nižší než včera · dnes zatím náraz až 16,4\u00a0m/s',
+    );
+    expect(alertCallout({ kind: 'up', v: 10 }, null, null)).toBe(
+      '⚠ Tlak dnes zatím o 10\u00a0hPa vyšší než včera',
+    );
+    expect(alertCallout({ kind: 'same', v: 0.4 }, 8, 15.2)).toBe('⚠ Včera náraz až 15,2\u00a0m/s');
+  });
+  it('pod prahy nic', () => {
+    expect(alertCallout({ kind: 'down', v: 9.9 }, 14.9, null)).toBeNull();
+    expect(alertCallout({ kind: 'missing' }, null, null)).toBeNull();
   });
 });

@@ -341,7 +341,7 @@ export const weatherStyles = `
 .wx-grade{font-size:13px;font-weight:600;color:var(--hb-t1)}
 .wx-prank-v .wx-grade{min-width:4.6em}
 .wx-grade--good{color:var(--hb-ok)}.wx-grade--weak{color:var(--hb-warn)}
-/* track = grade bands (slabá < 0,2 · průměrná · dobrá ≥ 0,4) with tick lines above the fill */
+/* track = grade bands (slabé < 0,2 · průměrné · dobré ≥ 0,4) with tick lines above the fill */
 .wx-prank-bar{grid-area:bar;position:relative;height:8px;border-radius:999px;overflow:hidden;background:linear-gradient(90deg,color-mix(in srgb,var(--hb-warn) 16%,transparent) 0 20%,color-mix(in srgb,var(--hb-t1) 10%,transparent) 20% 40%,color-mix(in srgb,var(--hb-ok) 16%,transparent) 40% 100%)}
 .wx-prank-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent calc(20% - 1px),var(--hb-t2) calc(20% - 1px) calc(20% + 1px),transparent calc(20% + 1px) calc(40% - 1px),var(--hb-t2) calc(40% - 1px) calc(40% + 1px),transparent calc(40% + 1px))}
 .wx-prank-bar i{display:block;height:100%;border-radius:inherit;background:var(--c);transform-origin:left;animation:wx-grow 700ms var(--hb-ease-out,ease-out) both}
@@ -419,10 +419,11 @@ export const weatherStyles = `
 /* fixed-width unit slot: decimals line up down each column */
 .wx-yt-u{display:inline-block;width:2.7em;padding-left:.3em;text-align:left;font-size:12px;font-weight:500;color:var(--hb-t2)}
 .wx-yt-hi,.wx-yt-hi .wx-yt-u{color:var(--hb-warn);font-weight:750}
-.wx-yt-d{font-weight:600}.wx-yt-d.is-same{font-weight:500;color:var(--hb-t2)}
+.wx-yt-d{font-weight:600}.wx-yt-d.is-same{font-weight:400;color:var(--hb-t3)}
+.wx-yt-dz{display:block;font-size:12px;font-weight:500;line-height:1.1;color:var(--hb-t2)}
 .wx-yt-gap{font-weight:600;color:var(--hb-t2);cursor:help}
 .wx-yt-gap::after{content:'';display:inline-block;width:2.7em;padding-left:.3em;font-size:12px}
-.wx-yt-foot{display:flex;flex-direction:column;gap:2px}
+.wx-yt-foot{display:flex;flex-direction:column;gap:2px;font-size:13px}
 .wx-yt .wx-info{margin-top:auto}.wx-yt .wx-yt-t{margin-bottom:12px}
 .wx-hist-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:1fr;gap:4px;margin:12px 0 0}
 .wx-hist-sum div{background:var(--hb-fill,var(--hb-s2));border-radius:var(--hb-radius-xs,6px);padding:8px 12px;min-width:0}
@@ -433,24 +434,28 @@ export const weatherStyles = `
 .wx-seg--touch button{min-height:44px;min-width:44px;padding:0 14px}
 .wx-seg--full{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;width:100%;box-sizing:border-box}.wx-seg--full button{font-size:14px}
 /* the whole plot (≥ 44 px tall, full width) is the scrub/drag target, not the thin bars */
-.wx-hist-chart{position:relative;height:230px;margin:20px 40px 0 34px;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none;border-radius:4px}
+.wx-hist-chart{position:relative;height:230px;margin:20px 46px 0 34px;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none;border-radius:4px}
 .wx-hist-chart:focus-visible{outline:2px solid var(--hb-ac);outline-offset:6px}
 .wx-hist-chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.wx-hist-t{fill:var(--hb-weather-temp);opacity:.8}
-.wx-hist-r{fill:var(--hb-weather-rain);opacity:.9}
-.wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{opacity:.4}
+.wx-hist-t{fill:var(--hb-weather-temp)}
+.wx-hist-r{fill:var(--hb-weather-rain)}
+/* today so far: lighter fill, full-colour outline (≥ 3:1 against the card) */
+.wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{fill-opacity:.35;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.wx-hist-chart .is-partial .wx-hist-t{stroke:var(--hb-weather-temp)}.wx-hist-chart .is-partial .wx-hist-r{stroke:var(--hb-weather-rain)}
 /* gap = the legend hatch (2 px --hb-t2 stripes, > 3:1), as an HTML overlay so it is not stretched */
-.wx-hist-gap,.wx-sw--gap{background:repeating-linear-gradient(45deg,var(--hb-t2) 0 2px,color-mix(in srgb,var(--hb-t2) 14%,transparent) 2px 6px)}
+/* lighter grey hatch, stripes still ≥ 3:1 (t2 at 65 % ≈ 3,3:1 light / 4,1:1 dark) */
+.wx-hist-gap,.wx-sw--gap{background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--hb-t2) 65%,transparent) 0 2px,color-mix(in srgb,var(--hb-t2) 8%,transparent) 2px 6px)}
 .wx-hist-gap{position:absolute;min-width:4px;pointer-events:none}
+.wx-hist-plot{position:absolute;left:0;right:0;overflow:hidden;pointer-events:none}
 .wx-hist-selcol{position:absolute;top:0;bottom:0;min-width:6px;box-sizing:border-box;border:1px solid var(--hb-ac);border-radius:3px;background:color-mix(in srgb,var(--hb-ac) 14%,transparent);pointer-events:none}
 .wx-hist-grid{stroke:var(--hb-t2);stroke-width:1;opacity:.22;vector-effect:non-scaling-stroke}
 .wx-hist-zero{stroke:var(--hb-t2);stroke-width:1;opacity:.75;vector-effect:non-scaling-stroke}
 .wx-hist-base{stroke:var(--hb-t2);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 .wx-hist-yl{position:absolute;left:-34px;width:28px;text-align:right;transform:translateY(-50%);font-size:12px;color:var(--hb-t2);white-space:nowrap;line-height:1;font-variant-numeric:tabular-nums}
-.wx-hist-yl--r{left:auto;right:-40px;width:34px;text-align:left;color:var(--wx-rain-ink)}
+.wx-hist-yl--r{left:auto;right:-46px;width:34px;text-align:left;color:var(--wx-rain-ink)}
 .wx-hist-yl--r.is-zero{transform:translateY(-100%)}
 .wx-hist-yt{position:absolute;top:-18px;left:-34px;width:28px;text-align:right;font-size:12px;font-weight:600;color:var(--hb-t2)}
-.wx-hist-yt--r{top:auto;left:auto;right:-40px;width:34px;text-align:left;color:var(--wx-rain-ink);transform:translateY(calc(-100% - 8px))}
+.wx-hist-yt--r{top:auto;left:auto;right:-46px;width:34px;text-align:left;color:var(--wx-rain-ink);transform:translateY(calc(-100% - 8px))}
 .wx-hist-x{position:absolute;left:0;right:0;bottom:-22px;height:16px;font-size:12px;color:var(--hb-t2)}
 .wx-hist-x span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;padding-top:4px}.wx-hist-x span::before{content:'';position:absolute;top:-2px;left:50%;width:1px;height:4px;background:var(--hb-t2)}.wx-hist-x span.is-sel{font-weight:700;color:var(--hb-t1);padding:3px 5px 1px;margin-top:1px;border-radius:4px;background:color-mix(in srgb,var(--hb-ac) 22%,transparent)}.wx-hist-x span.is-sel::before{background:var(--hb-ac);height:5px;top:-4px}
 .wx-hist-detail{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;margin:12px 0 0;font-size:14px;font-weight:500;color:var(--hb-t1)}
@@ -459,10 +464,10 @@ export const weatherStyles = `
 .wx-hist-detail .wx-hist-badges::before{content:none}
 .wx-hist-badges{display:flex;flex-wrap:wrap;gap:4px}
 .wx-hist-badges em{font-style:normal;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--hb-ac) 14%,transparent);color:var(--hb-t1)}
-.wx-hist-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin:30px 0 0;font-size:12px;color:var(--hb-t2)}
+.wx-hist-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin:30px 0 0;font-size:13px;color:var(--hb-t2)}
 .wx-hist-key span{display:inline-flex;align-items:center;gap:6px}
 .wx-sw--hist-t{background:var(--hb-weather-temp);width:6px;height:10px;border-radius:2px}
-.wx-sw--gap{width:12px;height:12px;border-radius:2px}.wx-sw--partial{width:6px;height:10px;border-radius:2px;background:var(--hb-weather-temp);opacity:.4}
+.wx-sw--gap{width:12px;height:12px;border-radius:2px}.wx-sw--partial{width:6px;height:10px;border-radius:2px;box-sizing:border-box;border:1.5px solid var(--hb-weather-temp);background:color-mix(in srgb,var(--hb-weather-temp) 35%,transparent)}
 .wx-rec{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hb-b1)}
 .wx-rec h3{margin:0 0 4px;font-size:13px;font-weight:600}
 .wx-rec ul{list-style:none;margin:0;padding:0}
@@ -475,8 +480,8 @@ export const weatherStyles = `
 @media (max-width:760px){
   .wx-hist-sum{grid-template-columns:repeat(2,minmax(0,1fr))}
   .wx-rec{grid-template-columns:1fr;gap:12px}
-  .wx-hist-chart{height:220px;margin:20px 32px 0 28px}
-  .wx-hist-yl,.wx-hist-yt{left:-28px;width:24px}.wx-hist-yl--r,.wx-hist-yt--r{left:auto;right:-32px;width:28px}
+  .wx-hist-chart{height:220px;margin:20px 38px 0 28px}
+  .wx-hist-yl,.wx-hist-yt{left:-28px;width:24px}.wx-hist-yl--r,.wx-hist-yt--r{left:auto;right:-38px;width:28px}
   .wx-hist-detail .wx-hist-g{flex-basis:100%}.wx-hist-detail .wx-hist-g::before{content:none}
   .wx-yt-t th,.wx-yt-t td{padding-left:6px}.wx-yt-t tbody th{width:auto;white-space:normal;font-size:13px;line-height:1.25}.wx-yt-t thead th{white-space:normal}
   .wx-yt-u,.wx-yt-gap::after{width:2.25em;padding-left:.2em}

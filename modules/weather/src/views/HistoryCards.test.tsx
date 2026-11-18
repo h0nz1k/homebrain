@@ -40,10 +40,16 @@ describe('Včera a dnes + Historie', () => {
     expect(gustHi.textContent).toContain('silný náraz');
     expect(screen.getByTestId('weather-yt-msl').querySelector('.wx-yt-hi')).not.toBeNull();
     expect(screen.getByTestId('weather-yt-t_max').querySelector('.wx-yt-hi')).toBeNull();
-    // the callout only says what the table does not
-    expect(screen.getByTestId('weather-dry-streak').textContent).toBe(
-      'Po 2\u00a0dnech bez deště dnes zatím 0,4\u00a0mm',
-    );
+    // ⚠ pressure change / gust takes priority over the rain callout
+    expect(screen.queryByTestId('weather-dry-streak')).toBeNull();
+    const alert = screen.getByTestId('weather-yt-alert');
+    expect(alert.className).toContain('wx-info--warn');
+    expect(alert.textContent).toMatch(/^⚠ Tlak dnes zatím o \d+\u00a0hPa (nižší|vyšší) než včera/);
+    // 10:40 local: today's max can still rise → muted „zatím“ on its Δ only
+    expect(within(tMax).getByTestId('weather-yt-dprov').textContent).toBe('zatím');
+    expect(screen.getByTestId('weather-yt-t_min').querySelector('.wx-yt-dz')).toBeNull();
+    // „≈ stejně“ carries no empty unit slot (right-aligned)
+    expect(tMax.querySelector('.wx-yt-d.is-same .wx-yt-u')).toBeNull();
     expect(yt.textContent).toContain('⚠ = náraz ≥\u00a015\u00a0m/s nebo změna tlaku ≥\u00a010');
     // elevation from options is shown in the location line, with an explanation
     expect(screen.getByTestId('weather-elevation').textContent).toContain('480 m n. m.');
@@ -67,6 +73,28 @@ describe('Včera a dnes + Historie', () => {
     expect(gaps[0]!.textContent).toBe('–');
     expect(gaps[0]!.getAttribute('title')).toBe('chybí data');
     expect(rain.textContent).toContain('0,4'); // today still measured
+  });
+
+  it('Historie: stopová srážka má viditelný sloupec, zvýraznění je v ploše grafu', async () => {
+    const snap = buildMockSnapshot('default');
+    const hist = buildMockHistory('default', 7);
+    const k = hist.days.length - 3;
+    hist.days[k] = { ...hist.days[k]!, rain: 0.05 };
+    setWeatherAdapterFactory(() => ({
+      pollMs: 0,
+      fetch: () => Promise.resolve(snap),
+      history: () => Promise.resolve(hist),
+    }));
+    render(<WeatherView />);
+    const chart = await screen.findByTestId('weather-history-chart');
+    const bars = chart.querySelectorAll('rect.wx-hist-r');
+    const heights = Array.from(bars).map((b) => Number(b.getAttribute('height')));
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(2.4);
+    const plot = screen.getByTestId('weather-history-plot');
+    expect(plot.contains(screen.getByTestId('weather-history-cursor'))).toBe(true);
+    const card = screen.getByTestId('weather-history');
+    expect(card.textContent).toContain('světlejší = dnes (zatím)');
+    expect(screen.getByTestId('weather-records').textContent).toContain('Nejteplejší den');
   });
 
   it('bez navázaných senzorů vysvětlí, co chybí', async () => {
@@ -132,7 +160,10 @@ describe('Kdo se trefuje – déšť', () => {
     const mix = screen.getByTestId('weather-score-rain-blend');
     expect(mix.textContent).toContain('kombinace');
     expect(mix.textContent).toContain('vážený průměr ICON-D2, ALADIN');
-    expect(mix.textContent).toContain('dobrá'); // ETS ≥ 0,4
+    // a real ellipsis right after the last name, never three dots
+    expect(mix.textContent).toMatch(/ECMWF IFS…/);
+    expect(score.textContent).not.toContain('...');
+    expect(mix.textContent).toContain('dobré'); // ETS ≥ 0,4, neuter like „skóre“
     expect(mix.textContent).toContain('zachytil 7\u00a0z\u00a010 hodin s deštěm');
     expect(mix.textContent).toContain(
       'planý poplach u 3\u00a0z\u00a010 ohlášených dešťových hodin',
@@ -140,17 +171,23 @@ describe('Kdo se trefuje – déšť', () => {
     // within noise: tied ranks, no clear #1 vs #2
     const ranks = Array.from(list.querySelectorAll('.wx-rank-n')).map((n) => n.textContent);
     expect(ranks).toEqual(['1', '1', '1', '4', '5', '–']);
+    // the tie sentence says exactly what rankPrecip does: members vs. their group's leader
     expect(mix.textContent).toContain('≈ srovnatelné s ICON-D2, ALADIN');
+    const aladin = screen.getByTestId('weather-score-rain-chmi_aladin_cz_1km');
+    expect(within(aladin).getByTestId('weather-score-rain-tie').textContent).toBe(
+      '≈ srovnatelné s Mixem',
+    );
+    expect(score.textContent).toContain('vedoucímu své skupiny');
     expect(screen.getByTestId('weather-score-rain-noise').textContent).toMatch(
       /Rozdíly menší než ~0,1\d nejsou spolehlivé/,
     );
     // grade legend in one line, bars on an absolute 0–1 scale
     expect(screen.getByTestId('weather-score-rain-key').textContent).toContain(
-      'dobrá ≥\u00a00,4 · průměrná 0,2–0,4 · slabá <\u00a00,2',
+      'dobré ≥\u00a00,4 · průměrné 0,2–0,4 · slabé <\u00a00,2',
     );
     const bar = mix.querySelector<HTMLElement>('.wx-prank-bar i')!;
     expect(bar.style.width).toBe('49%');
-    expect(screen.getByTestId('weather-score-rain-gfs_seamless').textContent).toContain('slabá');
+    expect(screen.getByTestId('weather-score-rain-gfs_seamless').textContent).toContain('slabé');
     // too few pairs: the actual blocker with numbers, not ranked
     const metno = screen.getByTestId('weather-score-rain-metno');
     expect(metno.textContent).toContain('zatím málo dat: 100 z 240 potřebných porovnání');
@@ -171,11 +208,11 @@ describe('Kdo se trefuje – déšť', () => {
   });
 
   it('hodnocení ETS slovy', () => {
-    expect(etsGrade(0.49).word).toBe('dobrá');
-    expect(etsGrade(0.4).word).toBe('dobrá');
-    expect(etsGrade(0.3).word).toBe('průměrná');
-    expect(etsGrade(0.19).word).toBe('slabá');
-    expect(etsGrade(null).word).toBe('slabá');
+    expect(etsGrade(0.49).word).toBe('dobré');
+    expect(etsGrade(0.4).word).toBe('dobré');
+    expect(etsGrade(0.3).word).toBe('průměrné');
+    expect(etsGrade(0.19).word).toBe('slabé');
+    expect(etsGrade(null).word).toBe('slabé');
   });
 
   it('málo deštivých hodin → upozornění pro celou kartu', async () => {

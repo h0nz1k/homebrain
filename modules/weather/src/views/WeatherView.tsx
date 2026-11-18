@@ -1058,7 +1058,7 @@ function blendParts(d: WeatherSnapshot, label: (id: string) => string): string |
     .sort((a, b) => b.weight - a.weight);
   if (ws.length === 0) return null;
   const names = ws.slice(0, 3).map((c) => label(c.source));
-  return `vážený průměr ${names.join(', ')}${ws.length > 3 ? ' …' : ''}`;
+  return `vážený průměr ${names.join(', ')}${ws.length > 3 ? '…' : ''}`;
 }
 
 /** Header line of the rain tab: sample once (rows only repeat it when theirs differs). */
@@ -1077,6 +1077,8 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
   const few = inBucket.filter((r) => !r.enough);
   const label = (id: string) =>
     id === 'blend' ? 'Mix' : (d.models.find((m) => m.id === id)?.label ?? id);
+  /** Instrumental after „s“ („srovnatelné s Mixem“); model acronyms stay undeclined. */
+  const withLabel = (id: string) => (id === 'blend' ? 'Mixem' : label(id));
   const info = d.verification_info;
   if (ranked.length === 0) {
     const most = [...all].sort((a, b) => b.n - a.n)[0];
@@ -1127,13 +1129,18 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
         aria-label="Pořadí podle trefy deště"
         data-testid="weather-score-rain"
       >
-        {ranked.map(({ row: r, ets, rank, tied }) => {
+        {ranked.map((rr) => {
+          const { row: r, ets, rank, tied } = rr;
           const h = r.hourly['0.2'];
           const grade = etsGrade(ets);
           const blend = r.source === 'blend';
-          const peers = tied
-            ? ranked.filter((o) => o.rank === rank && o.row !== r).map((o) => label(o.row.source))
-            : [];
+          // exactly what rankPrecip compares: a member is within noise of its group's leader
+          // (members are not compared with each other); the leader lists its members
+          const peers = !tied
+            ? []
+            : rr.tiedWith
+              ? [withLabel(rr.tiedWith)]
+              : ranked.filter((o) => o.tiedWith === r.source).map((o) => withLabel(o.row.source));
           const own =
             common && (wetHours(r) !== common.wet || sampleDays(r) !== common.days)
               ? sampleText(wetHours(r), sampleDays(r))
@@ -1218,15 +1225,15 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
         ))}
       </ol>
       <p className="wx-rank-k wx-prank-key" data-testid="weather-score-rain-key">
-        Skóre: <span className="wx-grade wx-grade--good">dobrá ≥{NB2}0,4</span> ·{' '}
-        <span className="wx-grade wx-grade--mid">průměrná 0,2–0,4</span> ·{' '}
-        <span className="wx-grade wx-grade--weak">slabá &lt;{NB2}0,2</span>
+        Skóre: <span className="wx-grade wx-grade--good">dobré ≥{NB2}0,4</span> ·{' '}
+        <span className="wx-grade wx-grade--mid">průměrné 0,2–0,4</span> ·{' '}
+        <span className="wx-grade wx-grade--weak">slabé &lt;{NB2}0,2</span>
         {noise != null && (
           <>
             <br />
             <span data-testid="weather-score-rain-noise">
-              Rozdíly menší než ~{nf(noise, 2)} nejsou spolehlivé – takové modely mají stejné
-              pořadí.
+              Rozdíly menší než ~{nf(noise, 2)} nejsou spolehlivé – model, který má tak blízko k
+              vedoucímu své skupiny, má stejné pořadí jako on.
             </span>
           </>
         )}
@@ -1247,8 +1254,9 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
         </p>
         <p>
           Spolehlivost: 95{NB2}% interval rozdílu skóre ze směrodatné chyby ETS (delta metoda na
-          tabulce trefa / planý poplach / minul / správně sucho). Modely, jejichž rozdíl proti
-          nejlepšímu ve skupině je menší, mají stejné pořadí.
+          tabulce trefa / planý poplach / minul / správně sucho). Model, jehož rozdíl proti
+          vedoucímu skupiny (nejlepšímu s tímto pořadím) je pod tímto prahem, dostane stejné pořadí;
+          členové skupiny se mezi sebou neporovnávají.
         </p>
       </details>
       <details className="wx-prank-more" data-testid="weather-score-rain-details">

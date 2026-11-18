@@ -258,7 +258,9 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   await page.goto('/homebrain-pocasi');
   const yt = page.getByTestId('weather-yt');
   await expect(yt).toContainText('Dnes zatím');
-  await expect(page.getByTestId('weather-dry-streak')).toContainText('bez deště dnes zatím');
+  // ⚠ pressure change in the mock outranks the rain callout
+  await expect(page.getByTestId('weather-yt-alert')).toContainText('⚠ Tlak dnes zatím');
+  await expect(yt.getByTestId('weather-yt-dprov')).toHaveText('zatím');
   const hist = page.getByTestId('weather-history');
   await expect(hist.getByTestId('weather-history-chart')).toBeVisible();
   await hist.getByRole('tab', { name: '30 dní' }).click();

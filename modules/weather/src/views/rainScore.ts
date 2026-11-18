@@ -13,13 +13,13 @@ export const ETS_MID = 0.2;
 const Z95 = 1.96;
 
 /**
- * Verbal ETS grade (hourly rain ≥ 0,2 mm/h). Hourly ETS of NWP vs. one gauge rarely exceeds
+ * Verbal ETS grade (hourly rain ≥ 0,2 mm/h), neuter to agree with „skóre“. Hourly ETS of NWP vs. one gauge rarely exceeds
  * 0,5, so ≥ 0,4 is already good; below 0,2 the model is barely better than chance.
  */
 export function etsGrade(ets: number | null): { word: string; tone: 'good' | 'mid' | 'weak' } {
-  if (ets != null && ets >= ETS_GOOD) return { word: 'dobrá', tone: 'good' };
-  if (ets != null && ets >= ETS_MID) return { word: 'průměrná', tone: 'mid' };
-  return { word: 'slabá', tone: 'weak' };
+  if (ets != null && ets >= ETS_GOOD) return { word: 'dobré', tone: 'good' };
+  if (ets != null && ets >= ETS_MID) return { word: 'průměrné', tone: 'mid' };
+  return { word: 'slabé', tone: 'weak' };
 }
 
 type Table = Pick<CategoricalScore, 'a' | 'b' | 'c' | 'd'>;

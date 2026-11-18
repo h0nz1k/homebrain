@@ -8,6 +8,11 @@ export const RAIN_DAY_MM = 1;
 export const GUST_STRONG_MS = 15;
 /** A day-to-day change of mean MSL pressure from this size is highlighted (fast change, front). */
 export const MSL_JUMP_HPA = 10;
+/**
+ * Until this local hour today's max. temperature may still rise, so its Δ is marked „zatím“
+ * (the daily maximum usually falls in the afternoon; the day is complete in the evening).
+ */
+export const T_MAX_SETTLED_HOUR = 18;
 
 export type DeltaKey = 't' | 'rain' | 'gust' | 'msl';
 /**
@@ -90,6 +95,31 @@ const daysLoc = (n: number) => (n === 1 ? 'dni' : 'dnech');
 const daysNom = (n: number) => (n === 1 ? 'den' : n >= 2 && n <= 4 ? 'dny' : 'dní');
 const NBSP = '\u00a0';
 const mm = (v: number) => `${v.toFixed(1).replace('.', ',')}${NBSP}mm`;
+
+const nf1 = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',');
+
+/**
+ * The ⚠ part of the "Včera a dnes" callout – it takes priority over the rain callout: a pressure
+ * change ≥ MSL_JUMP_HPA first, then a gust ≥ GUST_STRONG_MS (today's, else yesterday's).
+ */
+export function alertCallout(
+  msl: Delta,
+  gustToday: number | null,
+  gustYesterday: number | null,
+): string | null {
+  const parts: string[] = [];
+  if (msl.kind !== 'missing' && msl.kind !== 'same' && msl.v >= MSL_JUMP_HPA)
+    parts.push(
+      `Tlak dnes zatím o ${nf1(msl.v, 0)}${NBSP}hPa ${msl.kind === 'down' ? 'nižší' : 'vyšší'} než včera`,
+    );
+  if (gustToday != null && gustToday >= GUST_STRONG_MS)
+    parts.push(`dnes zatím náraz až ${nf1(gustToday)}${NBSP}m/s`);
+  else if (gustYesterday != null && gustYesterday >= GUST_STRONG_MS)
+    parts.push(`včera náraz až ${nf1(gustYesterday)}${NBSP}m/s`);
+  if (parts.length === 0) return null;
+  const text = parts.join(' · ');
+  return `⚠ ${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
 
 /**
  * The callout of "Včera a dnes": only what the table does not already say (the dry streak and

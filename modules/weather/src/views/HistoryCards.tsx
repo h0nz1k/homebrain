@@ -10,6 +10,8 @@ import {
   GUST_STRONG_MS,
   MSL_JUMP_HPA,
   RAIN_DAY_MM,
+  T_MAX_SETTLED_HOUR,
+  alertCallout,
   delta,
   dryStreak,
   longestDry,
@@ -63,6 +65,7 @@ function HistoryPending({ state }: { state: Exclude<HistoryState, { kind: 'ready
 // ---------- Včera a dnes ----------
 const NBSP = ' ';
 const dTime = dayFmt({ hour: '2-digit', minute: '2-digit' });
+const dHour = dayFmt({ hour: 'numeric', hourCycle: 'h23' });
 /** Missing value: an en dash with an explanation – never confused with a measured 0,0. */
 function Missing() {
   return (
@@ -101,22 +104,36 @@ function DeltaCell({
   unit,
   digits = 1,
   alert = null,
+  prov = false,
 }: {
   dl: Delta;
   unit: string;
   digits?: number;
   alert?: string | null;
+  /** Today's value may still change (max. temperature before the evening): muted „zatím“. */
+  prov?: boolean;
 }) {
   if (dl.kind === 'missing') return <Missing />;
+  const zatim = prov ? (
+    <small
+      className="wx-yt-dz"
+      title={`dnešní maximum se do ${T_MAX_SETTLED_HOUR}:00 ještě může změnit`}
+      data-testid="weather-yt-dprov"
+    >
+      zatím
+    </small>
+  ) : null;
   if (dl.kind === 'same')
     return (
-      <span
-        className="wx-yt-d is-same"
-        title={`rozdíl ${nf(dl.v, digits)} ${unit} – bráno jako beze změny`}
-      >
-        ≈{NBSP}stejně
-        <small className="wx-yt-u" />
-      </span>
+      <>
+        <span
+          className="wx-yt-d is-same"
+          title={`rozdíl ${nf(dl.v, digits)} ${unit} – bráno jako beze změny`}
+        >
+          ≈{NBSP}stejně
+        </span>
+        {zatim}
+      </>
     );
   const word = dl.kind === 'up' ? 'víc' : 'míň';
   const body = (
@@ -129,7 +146,12 @@ function DeltaCell({
       <Num v={dl.v} unit={unit} digits={digits} />
     </span>
   );
-  return alert ? <Alert why={alert}>{body}</Alert> : body;
+  return (
+    <>
+      {alert ? <Alert why={alert}>{body}</Alert> : body}
+      {zatim}
+    </>
+  );
 }
 
 export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: WeatherSnapshot }) {
@@ -155,13 +177,16 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
     mslDl.kind !== 'missing' && Math.abs(mslDl.v) >= MSL_JUMP_HPA
       ? `velká změna tlaku (≥ ${MSL_JUMP_HPA} hPa za den)`
       : null;
+  const tMaxProv = Number(dHour.format(new Date(Date.parse(d.generated_at)))) < T_MAX_SETTLED_HOUR;
   const rows: { key: string; label: string; y: ReactNode; t: ReactNode; dl: ReactNode }[] = [
     {
       key: 't_max',
       label: 'Max. teplota',
       y: rowValue(y?.t_max ?? null, '°C'),
       t: rowValue(t?.t_max ?? null, '°C'),
-      dl: <DeltaCell dl={delta(t?.t_max ?? null, y?.t_max ?? null, 't')} unit="°C" />,
+      dl: (
+        <DeltaCell dl={delta(t?.t_max ?? null, y?.t_max ?? null, 't')} unit="°C" prov={tMaxProv} />
+      ),
     },
     {
       key: 't_min',
@@ -193,9 +218,11 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
     },
   ];
   const yGaps = y && y.gaps.length > 0;
-  const callout = streakCallout(streak, t?.rain ?? null, y?.rain ?? null, (date) =>
-    dWeekLong.format(at(date)),
-  );
+  // a ⚠ pressure change / gust is more important than the rain streak
+  const alertText = alertCallout(mslDl, t?.gust_max ?? null, y?.gust_max ?? null);
+  const callout =
+    alertText ??
+    streakCallout(streak, t?.rain ?? null, y?.rain ?? null, (date) => dWeekLong.format(at(date)));
   return (
     <Card title="Včera a dnes" sub="vlastní stanice" className="wx-yt" testId="weather-yt">
       <table className="wx-yt-t">
@@ -235,7 +262,10 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
         </tbody>
       </table>
       {callout && (
-        <p className="wx-info" data-testid="weather-dry-streak">
+        <p
+          className={`wx-info ${alertText ? 'wx-info--warn' : ''}`}
+          data-testid={alertText ? 'weather-yt-alert' : 'weather-dry-streak'}
+        >
           <b>{callout}</b>
         </p>
       )}
@@ -264,8 +294,8 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
 const RANGES = [7, 30, 365] as const;
 type Range = (typeof RANGES)[number];
 const RECORD_ROWS: { key: RecordKey; label: string; unit: string }[] = [
-  { key: 't_max', label: 'Nejtepleji', unit: '°C' },
-  { key: 't_min', label: 'Nejchladněji', unit: '°C' },
+  { key: 't_max', label: 'Nejteplejší den', unit: '°C' },
+  { key: 't_min', label: 'Nejchladnější den', unit: '°C' },
   { key: 'rain', label: 'Nejvíc srážek', unit: 'mm' },
   { key: 'gust_max', label: 'Nejsilnější náraz', unit: 'm/s' },
 ];
@@ -296,6 +326,8 @@ const T_BOT = 140;
 const R_TOP = 168;
 const R_BOT = 256;
 const pctY = (y: number) => `${(y / VB_H) * 100}%`;
+/** Trace rain (> 0 mm) still gets a visible bar: 2,4 units ≈ 2 px at the 220–230 px chart height. */
+const RAIN_MIN_H = 2.4;
 
 function HistoryChart({
   days,
@@ -367,34 +399,42 @@ function HistoryChart({
       onKeyDown={onKey}
       data-testid="weather-history-chart"
     >
-      {sel >= 0 && sel < n && (
-        <div
-          className="wx-hist-selcol"
-          style={{ left: colLeft(sel), width: colW }}
-          data-testid="weather-history-cursor"
-        />
-      )}
-      {/* gaps as HTML overlays: the same hatch as the legend swatch, undistorted by the SVG scale */}
-      {days.map((d, i) => {
-        const gapT = d.t_max == null || d.t_min == null;
-        const gapR = d.rain == null;
-        if (!gapT && !gapR) return null;
-        const top = gapT ? T_TOP : R_TOP;
-        const bot = gapR ? R_BOT : T_BOT;
-        return (
+      {/* overlays live in the plot box (overflow hidden): highlight and gaps never spill past it */}
+      <div
+        className="wx-hist-plot"
+        style={{ top: pctY(T_TOP), bottom: pctY(VB_H - R_BOT) }}
+        data-testid="weather-history-plot"
+      >
+        {sel >= 0 && sel < n && (
           <div
-            key={d.date}
-            className="wx-hist-gap"
-            style={{
-              left: colLeft(i),
-              width: colW,
-              top: pctY(top),
-              height: `${((bot - top) / VB_H) * 100}%`,
-            }}
-            data-testid="weather-history-gap"
+            className="wx-hist-selcol"
+            style={{ left: colLeft(sel), width: colW }}
+            data-testid="weather-history-cursor"
           />
-        );
-      })}
+        )}
+        {/* gaps as HTML overlays: the same hatch as the legend swatch, undistorted by the SVG scale */}
+        {days.map((d, i) => {
+          const gapT = d.t_max == null || d.t_min == null;
+          const gapR = d.rain == null;
+          if (!gapT && !gapR) return null;
+          const top = gapT ? T_TOP : R_TOP;
+          const bot = gapR ? R_BOT : T_BOT;
+          const plotH = R_BOT - T_TOP;
+          return (
+            <div
+              key={d.date}
+              className="wx-hist-gap"
+              style={{
+                left: colLeft(i),
+                width: colW,
+                top: `${((top - T_TOP) / plotH) * 100}%`,
+                height: `${((bot - top) / plotH) * 100}%`,
+              }}
+              data-testid="weather-history-gap"
+            />
+          );
+        })}
+      </div>
       <svg viewBox={`0 0 1000 ${VB_H}`} preserveAspectRatio="none" aria-hidden="true">
         {ticks.map((v) => (
           <line
@@ -426,9 +466,9 @@ function HistoryChart({
             {d.rain != null && d.rain > 0 && (
               <rect
                 x={xc(i) - w / 2}
-                y={yR(d.rain)}
+                y={Math.min(yR(d.rain), R_BOT - RAIN_MIN_H)}
                 width={w}
-                height={R_BOT - yR(d.rain)}
+                height={Math.max(RAIN_MIN_H, R_BOT - yR(d.rain))}
                 className="wx-hist-r"
               />
             )}
@@ -490,8 +530,8 @@ function dayDetail(d: HistoryDay): string {
 }
 
 const RECORD_WORD: Record<RecordKey, string> = {
-  t_max: 'nejtepleji',
-  t_min: 'nejchladněji',
+  t_max: 'nejteplejší den',
+  t_min: 'nejchladnější den',
   rain: 'nejvíc srážek',
   gust_max: 'nejsilnější náraz',
 };
@@ -643,7 +683,7 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
             </span>
             {days[days.length - 1]?.partial && (
               <span>
-                <i className="wx-sw wx-sw--partial" /> světleji = dnes zatím
+                <i className="wx-sw wx-sw--partial" /> světlejší = dnes (zatím)
               </span>
             )}
             {stats.gapDays > 0 && (
