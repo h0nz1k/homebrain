@@ -10,7 +10,6 @@ import {
   noiseThreshold,
   outOfTen,
   rankPrecip,
-  rankText,
   round2,
 } from './rainScore.js';
 
@@ -55,59 +54,62 @@ describe('ETS a jeho nejistota', () => {
   });
 });
 
-describe('pořadí se shodami', () => {
-  it('jeden práh pro celou tabulku, skupiny 1.–3. a 4.–5. (přesně mock z karty)', () => {
+describe('pořadí a „≈“ mezi sousedy', () => {
+  it('přesně mock z karty: ALADIN 0,37 a ECMWF 0,30 (rozdíl 0,07 < 0,13) mají „≈“', () => {
     const { rows: ranked, noise } = rankPrecip(mockPrecipVerification().filter((r) => r.enough));
     // shown scores: 0,49 · 0,45 · 0,37 · 0,30 · 0,19; threshold 0,13 (largest pairwise)
     expect(ranked.map((r) => round2(r.ets!))).toEqual([0.49, 0.45, 0.37, 0.3, 0.19]);
     expect(noise).toBe(0.13);
-    expect(ranked.map((r) => [r.row.source, rankText(r), r.tiedWith])).toEqual([
-      ['blend', '1.–3.', null],
-      ['icon_d2', '1.–3.', 'blend'],
-      ['chmi_aladin_cz_1km', '1.–3.', 'blend'], // 0,49 − 0,37 = 0,12 < 0,13
-      ['ecmwf_ifs', '4.–5.', null], // 0,49 − 0,30 = 0,19 ≥ 0,13 → new group
-      ['gfs_seamless', '4.–5.', 'ecmwf_ifs'], // 0,30 − 0,19 = 0,11 < 0,13 → ≈ srovnatelné
+    expect(ranked.map((r) => [r.row.source, r.rank, r.diffPrev, r.nearPrev])).toEqual([
+      ['blend', 1, null, false],
+      ['icon_d2', 2, 0.04, true],
+      ['chmi_aladin_cz_1km', 3, 0.08, true],
+      ['ecmwf_ifs', 4, 0.07, true], // the r5 bug: was „4.–5.“ next to ALADIN „1.–3.“
+      ['gfs_seamless', 5, 0.11, true],
     ]);
-    expect(ranked.every((r) => r.tied)).toBe(true);
   });
 
-  it('každý zobrazený rozdíl odpovídá pravidlu na kartě (rozdíl od vedoucího < práh)', () => {
-    const { rows: ranked, noise } = rankPrecip(mockPrecipVerification().filter((r) => r.enough));
-    for (const r of ranked) {
-      const leader = ranked.find((o) => o.rank === r.rank)!;
-      const diff = round2(round2(leader.ets!) - round2(r.ets!));
-      expect(diff < noise!).toBe(true);
-    }
-    for (let i = 1; i < ranked.length; i++)
-      if (ranked[i]!.rank !== ranked[i - 1]!.rank) {
-        const leader = ranked.find((o) => o.rank === ranked[i - 1]!.rank)!;
-        expect(round2(leader.ets! - ranked[i]!.ets!)).toBeGreaterThanOrEqual(noise!);
+  it('pravidlo platí pro každou dvojici sousedů: „≈“ ⇔ zobrazený rozdíl < práh', () => {
+    const cases = [
+      mockPrecipVerification().filter((r) => r.enough),
+      [
+        row('a', table(60, 20, 20, 900)),
+        row('b', table(54, 26, 26, 894)),
+        row('c', table(30, 50, 50, 870)),
+        row('d', table(28, 52, 52, 868)),
+      ],
+    ];
+    for (const rows of cases) {
+      const { rows: ranked, noise } = rankPrecip(rows);
+      expect(ranked[0]!.nearPrev).toBe(false);
+      for (let i = 1; i < ranked.length; i++) {
+        const diff = round2(round2(ranked[i - 1]!.ets!) - round2(ranked[i]!.ets!));
+        expect(ranked[i]!.diffPrev).toBe(diff);
+        expect(ranked[i]!.nearPrev).toBe(diff < noise!);
       }
+    }
   });
 
-  it('jasný rozdíl na velkém vzorku = různé pořadí', () => {
+  it('jasný rozdíl na velkém vzorku = bez „≈“', () => {
     const { rows: ranked } = rankPrecip([
       row('weak', table(400, 400, 400, 8800)),
       row('strong', table(800, 200, 200, 8800)),
     ]);
-    expect(ranked.map((r) => [r.row.source, rankText(r), r.tied])).toEqual([
-      ['strong', '1.', false],
-      ['weak', '2.', false],
+    expect(ranked.map((r) => [r.row.source, r.rank, r.nearPrev])).toEqual([
+      ['strong', 1, false],
+      ['weak', 2, false],
     ]);
   });
 
-  it('skupina se nezřetězí: porovnává se s vedoucím, ne se sousedem', () => {
-    // each neighbour within noise, but the last clearly worse than the leader
+  it('žádné sdílené pořadí, jen stejné zobrazené skóre má stejné číslo', () => {
     const { rows: ranked, noise } = rankPrecip([
       row('a', table(60, 20, 20, 900)),
       row('b', table(54, 26, 26, 894)),
       row('c', table(48, 32, 32, 888)),
-      row('d', table(42, 38, 38, 882)),
+      row('b2', table(54, 26, 26, 894)),
     ]);
-    for (let i = 1; i < 4; i++)
-      expect(round2(ranked[i - 1]!.ets! - ranked[i]!.ets!)).toBeLessThan(noise!);
-    expect(round2(ranked[0]!.ets! - ranked[3]!.ets!)).toBeGreaterThanOrEqual(noise!);
-    expect(ranked.map(rankText)).toEqual(['1.–2.', '1.–2.', '3.–4.', '3.–4.']);
+    expect(ranked.map((r) => r.rank)).toEqual([1, 2, 2, 4]);
+    expect(ranked[2]!.diffPrev).toBe(0);
     // the threshold is the largest pairwise one
     const pairs = ranked.flatMap((x, i) =>
       ranked.slice(i + 1).map((y) => noiseThreshold(x.row.hourly['0.2']!, y.row.hourly['0.2']!)!),

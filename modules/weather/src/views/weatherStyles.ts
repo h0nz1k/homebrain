@@ -328,9 +328,10 @@ export const weatherStyles = `
 .wx-prank-head{display:none}
 .wx-prank-i{display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:'n name val' 'n note note' 'n bar bar' 'n hit hit' 'n fa fa';column-gap:12px;row-gap:4px;align-items:center;padding:10px;border-radius:var(--hb-radius-sm,12px)}
 .wx-prank-i.is-few{grid-template-areas:'n name name' 'n few few'}
-.wx-prank-i.is-blend{background:color-mix(in srgb,var(--hb-ac) 9%,transparent)}
 .wx-prank-i .wx-rank-n{align-self:start;justify-self:start}
-.wx-rank-n.is-range{width:auto;min-width:24px;padding:0 5px;border-radius:12px;white-space:nowrap;font-size:11.5px}
+.wx-prank-i .wx-rank-n{width:auto;min-width:24px;padding:0 5px;border-radius:12px;font-variant-numeric:tabular-nums}
+/* „≈“ between two neighbouring rank pills: their scores differ by less than the noise threshold */
+.wx-prank-i{position:relative}.wx-prank-near{position:absolute;left:10px;top:-14px;width:24px;height:20px;display:grid;place-items:center;font-size:16px;font-weight:700;line-height:1;color:var(--hb-t1);cursor:help}
 .wx-prank-name{grid-area:name;display:flex;flex-direction:column;gap:2px;min-width:0}
 .wx-prank-nl .wx-rank-name{overflow:visible;flex:none}
 .wx-prank-nl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
@@ -343,8 +344,7 @@ export const weatherStyles = `
 .wx-prank-v .wx-grade{min-width:4.6em}
 .wx-grade--good{color:var(--hb-ok)}.wx-grade--weak{color:var(--hb-warn)}
 /* track = grade bands (slabé < 0,2 · průměrné · dobré ≥ 0,4) with tick lines above the fill */
-.wx-prank-bar{grid-area:bar;position:relative;height:8px;border-radius:999px;overflow:hidden;background:linear-gradient(90deg,color-mix(in srgb,var(--hb-warn) 16%,transparent) 0 20%,color-mix(in srgb,var(--hb-t1) 10%,transparent) 20% 40%,color-mix(in srgb,var(--hb-ok) 16%,transparent) 40% 100%)}
-.wx-prank-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent calc(20% - 1px),var(--hb-t2) calc(20% - 1px) calc(20% + 1px),transparent calc(20% + 1px) calc(40% - 1px),var(--hb-t2) calc(40% - 1px) calc(40% + 1px),transparent calc(40% + 1px))}
+.wx-prank-bar{grid-area:bar;position:relative;height:8px;border-radius:999px;overflow:hidden;background:color-mix(in srgb,var(--hb-t1) 10%,transparent)}
 .wx-prank-bar i{display:block;height:100%;border-radius:inherit;background:var(--c);transform-origin:left;animation:wx-grow 700ms var(--hb-ease-out,ease-out) both}
 .wx-prank-c{font-size:13px;color:var(--hb-t2);min-width:0}
 .wx-prank-c b{font-weight:600;color:var(--hb-t1);font-variant-numeric:tabular-nums}
@@ -354,8 +354,8 @@ export const weatherStyles = `
 .wx-prank-key{line-height:1.6}
 .wx-prank-key .wx-grade{font-size:12px;white-space:nowrap}
 @media (min-width:761px){
-  .wx-prank-head,.wx-prank-i{grid-template-columns:36px minmax(110px,1.25fr) minmax(70px,1fr) 128px 72px 104px;column-gap:14px}
-  .wx-prank-head{display:grid;padding:0 10px 4px;font-size:12px;font-weight:600;color:var(--hb-t2)}
+  .wx-prank-head,.wx-prank-i{grid-template-columns:36px minmax(110px,1.25fr) minmax(70px,1fr) 128px 112px 124px;column-gap:14px}
+  .wx-prank-head{display:grid;align-items:end;padding:0 10px 4px;font-size:12px;font-weight:600;color:var(--hb-t2)}.wx-prank-head small{display:block;font-size:11.5px;font-weight:500}
   .wx-prank-head>span:nth-child(n+3){text-align:right}.wx-prank-head>span:nth-child(3){text-align:left}
   .wx-prank-i{grid-template-areas:'n name bar val hit fa' 'n note note note note note';align-items:center;row-gap:2px}
   .wx-prank-i.is-few{grid-template-areas:'n name few few few few'}
@@ -414,17 +414,17 @@ export const weatherStyles = `
 .wx-yt-t th,.wx-yt-t td{padding:8px 0 8px 18px;border-top:1px solid var(--hb-b1);text-align:right;font-weight:600;white-space:nowrap;vertical-align:baseline}
 .wx-yt-t thead th{border-top:0;padding-top:0;font-size:13px;font-weight:650;color:var(--hb-t1);white-space:nowrap;vertical-align:bottom;line-height:1.35}
 .wx-yt-t thead th:first-child,.wx-yt-t tbody th{padding-left:0}
-.wx-yt-t tbody th{text-align:left;font-weight:500;color:var(--hb-t2);width:40%}
+.wx-yt-t tbody th{text-align:left;font-weight:500;color:var(--hb-t2);width:40%;padding-right:10px}
 .wx-yt-hd{display:block;font-size:12px;font-weight:500;color:var(--hb-t2)}.wx-yt-hd--now{white-space:nowrap}.wx-yt-hd--now>span{white-space:nowrap}
 .wx-yt-prov{font-weight:500;color:var(--hb-t2)}
 /* fixed-width unit slot: decimals line up down each column */
 .wx-yt-u{display:inline-block;width:2.7em;padding-left:.3em;text-align:left;font-size:12px;font-weight:500;color:var(--hb-t2)}
 .wx-yt-hi,.wx-yt-hi .wx-yt-u{color:var(--hb-warn);font-weight:750}
 .wx-yt-d{font-weight:600}.wx-yt-d.is-same{font-weight:400;color:var(--hb-t3)}
-.wx-yt-dz{display:block;font-size:12px;font-weight:500;line-height:1.1;color:var(--hb-t2)}
 .wx-yt-gap{font-weight:600;color:var(--hb-t2);cursor:help}
 .wx-yt-gap::after{content:'';display:inline-block;width:2.7em;padding-left:.3em;font-size:12px}
-.wx-yt-foot{display:flex;flex-direction:column;gap:2px;font-size:13px}
+.wx-yt-foot{display:flex;flex-direction:column;gap:2px;font-size:13px}.wx-yt-foot .wx-yt-hi{font-weight:700}
+.wx-yt-alert{display:flex;gap:.35em;align-items:baseline}.wx-yt-alert-ic{flex:none;font-weight:700}
 .wx-yt .wx-info{margin-top:auto}.wx-yt .wx-yt-t{margin-bottom:12px}
 .wx-hist-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:1fr;gap:4px;margin:12px 0 0}
 .wx-hist-sum div{background:var(--hb-fill,var(--hb-s2));border-radius:var(--hb-radius-xs,6px);padding:8px 12px;min-width:0}
@@ -440,8 +440,8 @@ export const weatherStyles = `
 .wx-hist-chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .wx-hist-t{fill:var(--hb-weather-temp)}
 .wx-hist-r{fill:var(--hb-weather-rain)}
-/* today so far: lighter fill, neutral outline (--hb-t2, ≥ 3:1 against the card; not the rain blue) */
-.wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{fill-opacity:.35;stroke-width:1.5;vector-effect:non-scaling-stroke}
+/* today so far: full fill (≥ 3:1 against the card, like every bar) + dark neutral outline (--hb-t2; not the rain blue) */
+.wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{stroke-width:1.5;vector-effect:non-scaling-stroke}
 .wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{stroke:var(--hb-t2)}
 /* gap = the legend hatch (2 px --hb-t2 stripes, > 3:1), as an HTML overlay so it is not stretched */
 /* lighter grey hatch, stripes still ≥ 3:1 (t2 at 65 % ≈ 3,3:1 light / 4,1:1 dark) */
@@ -457,7 +457,7 @@ export const weatherStyles = `
 .wx-hist-yt{position:absolute;top:-18px;left:-34px;width:28px;text-align:right;font-size:12px;font-weight:600;color:var(--hb-t2)}
 .wx-hist-yt--r{top:auto;left:auto;right:-46px;width:36px;text-align:left;color:var(--wx-rain-ink);transform:translateY(calc(-100% - 8px))}
 .wx-hist-x{position:absolute;left:0;right:0;bottom:-22px;height:16px;font-size:12px;color:var(--hb-t2)}
-.wx-hist-x span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;padding-top:4px}.wx-hist-x span::before{content:'';position:absolute;top:-2px;left:50%;width:1px;height:4px;background:var(--hb-t2)}.wx-hist-x span.is-sel{font-weight:700;color:var(--hb-t1);padding:3px 5px 1px;margin-top:1px;border-radius:4px;background:color-mix(in srgb,var(--hb-ac) 22%,transparent)}.wx-hist-x span.is-sel::before{background:var(--hb-ac);height:5px;top:-4px}
+.wx-hist-x span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;padding-top:4px}.wx-hist-x span::before{content:'';position:absolute;top:-2px;left:50%;width:1px;height:4px;background:var(--hb-t2)}.wx-hist-x span.is-sel{font-weight:700;color:var(--hb-t1);padding:2px 5px 1px;margin-top:1px;border-radius:4px}.wx-hist-x span.is-sel::before{background:var(--hb-ac);height:5px;top:-4px}
 .wx-hist-detail{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;margin:12px 0 0;font-size:14px;font-weight:500;color:var(--hb-t1)}
 .wx-hist-detail>span{white-space:nowrap}
 .wx-hist-detail>span+span::before{content:'·';margin-right:10px;color:var(--hb-t2)}
@@ -467,7 +467,9 @@ export const weatherStyles = `
 .wx-hist-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin:30px 0 0;font-size:13px;color:var(--hb-t2)}
 .wx-hist-key span{display:inline-flex;align-items:center;gap:6px}
 .wx-sw--hist-t{background:var(--hb-weather-temp);width:6px;height:10px;border-radius:2px}
-.wx-sw--gap{width:12px;height:12px;border-radius:2px}.wx-sw--partial{width:6px;height:10px;border-radius:2px;box-sizing:border-box;border:1.5px solid var(--hb-t2);background:color-mix(in srgb,var(--hb-weather-temp) 35%,transparent)}
+.wx-sw--gap{width:12px;height:12px;border-radius:2px}.wx-sw--partial{width:8px;height:12px;border-radius:2px;box-sizing:border-box;border:1.5px solid var(--hb-t2);background:var(--hb-weather-temp)}
+/* the selected day: the same frame as the column highlight and the x-axis chip */
+.wx-sw--sel,.wx-hist-selcol,.wx-hist-x span.is-sel{border:1px solid var(--hb-ac);background:color-mix(in srgb,var(--hb-ac) 14%,transparent)}.wx-sw--sel{width:10px;height:12px;border-radius:3px;box-sizing:border-box}
 .wx-rec{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hb-b1)}
 .wx-rec h3{margin:0 0 4px;font-size:13px;font-weight:600}
 .wx-rec ul{list-style:none;margin:0;padding:0}

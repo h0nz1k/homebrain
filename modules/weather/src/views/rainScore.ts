@@ -108,14 +108,12 @@ export const round2 = (v: number) => Math.round(v * 100) / 100;
 export interface RankedRow {
   row: PrecipVerificationRow;
   ets: number | null;
-  /** Competition rank (1, 1, 3 …): sources within noise of their group's leader share it. */
+  /** Plain rank by the shown score (1, 2, 3 …); only equal shown scores share one. */
   rank: number;
-  /** Last rank of the tie group (rank … rankTo, e.g. „1.–3.“); = rank when not tied. */
-  rankTo: number;
-  /** Leader of the tie group when this row is tied with a better-scored source. */
-  tiedWith: string | null;
-  /** The group has more than one member ("srovnatelné"). */
-  tied: boolean;
+  /** Shown score difference to the row above (2 decimals); null for the first row. */
+  diffPrev: number | null;
+  /** The row above is closer than the noise threshold: „≈“ between the two, order not reliable. */
+  nearPrev: boolean;
 }
 
 export interface PrecipRanking {
@@ -125,12 +123,12 @@ export interface PrecipRanking {
 }
 
 /**
- * Ranking by hourly ETS ≥ 0,2 mm/h with ties. One threshold for the whole table – the largest
- * pairwise `noiseThreshold` among the ranked sources (conservative: a tie rather than a false
- * winner), so the card can state it once and every shown difference can be checked against it.
- * A source joins the current group when its difference to the group's leader is below the
- * threshold; comparing with the leader (not the neighbour) keeps groups from chaining into one
- * tie. Scores and threshold are rounded to 2 decimals first, exactly as the card shows them.
+ * Ranking by hourly ETS ≥ 0,2 mm/h. No shared ranks or tie groups: every source gets its plain
+ * rank and „≈“ marks each pair of neighbours whose shown scores differ by less than the noise
+ * threshold – a rule a reader can check on any adjacent pair from the numbers on the card.
+ * One threshold for the whole table – the largest pairwise `noiseThreshold` among the ranked
+ * sources (conservative: „≈“ rather than a false winner). Scores and threshold are rounded to
+ * 2 decimals first, exactly as the card shows them.
  */
 export function rankPrecip(rows: PrecipVerificationRow[]): PrecipRanking {
   const sorted = rows
@@ -145,31 +143,21 @@ export function rankPrecip(rows: PrecipVerificationRow[]): PrecipRanking {
       if (t != null && (max == null || t > max)) max = t;
     }
   const noise = max == null ? null : round2(max);
-  const out: RankedRow[] = [];
-  let leader: (typeof sorted)[number] | null = null;
-  let rank = 0;
-  sorted.forEach((s, i) => {
-    const same =
-      leader != null && leader.ets != null && s.ets != null && noise != null
-        ? round2(round2(leader.ets) - round2(s.ets)) < noise
-        : false;
-    if (!same) {
-      leader = s;
-      rank = i + 1;
-    }
-    out.push({ ...s, rank, rankTo: rank, tiedWith: same ? leader!.row.source : null, tied: false });
+  const shown = (v: number | null) => (v == null ? null : round2(v));
+  const out = sorted.map((s, i): RankedRow => {
+    const prev = i > 0 ? sorted[i - 1]! : null;
+    const a = shown(prev?.ets ?? null);
+    const b = shown(s.ets);
+    const diffPrev = a != null && b != null ? round2(a - b) : null;
+    return {
+      ...s,
+      rank: 1 + sorted.filter((o) => (shown(o.ets) ?? -1) > (b ?? -1)).length,
+      diffPrev,
+      nearPrev: diffPrev != null && noise != null && diffPrev < noise,
+    };
   });
-  for (const r of out) {
-    const group = out.filter((o) => o.rank === r.rank);
-    r.tied = group.length > 1;
-    r.rankTo = r.rank + group.length - 1;
-  }
   return { rows: out, noise };
 }
-
-/** „1.“ or „1.–3.“ for a tie group. */
-export const rankText = (r: Pick<RankedRow, 'rank' | 'rankTo'>) =>
-  r.rankTo > r.rank ? `${r.rank}.–${r.rankTo}.` : `${r.rank}.`;
 
 export const wetHours = (r: PrecipVerificationRow) => r.wet_hours ?? r.n_wet;
 export const sampleDays = (r: PrecipVerificationRow) => r.days ?? r.n_days;

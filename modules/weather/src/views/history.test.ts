@@ -167,7 +167,7 @@ describe('streakCallout – jen nová informace', () => {
   });
   it('sucho pokračuje, s posledním deštěm', () => {
     expect(streakCallout(st(5, false, true, '2026-10-25'), 0, 0, fmt)).toBe(
-      'Bez deště už 5\u00a0dní, dnes zatím také · naposledy pršelo [2026-10-25]',
+      'Bez deště už 5\u00a0dní, dnes zatím také\u00a0· naposledy pršelo [2026-10-25]',
     );
   });
   it('druhý deštivý den; jinak nic, co už je v tabulce', () => {
@@ -196,24 +196,23 @@ describe('longestDry', () => {
 });
 
 describe('alertCallout – ⚠ má přednost před deštěm', () => {
-  it('změna tlaku, pak náraz (dnešní, jinak včerejší)', () => {
-    // one sentence: a verb, „dnes zatím“ once, clauses joined by „;“
+  it('změna průměrného tlaku, pak náraz (dnešní, jinak včerejší)', () => {
+    // one sentence per fact, each with its day
     expect(alertCallout({ kind: 'down', v: 26 }, 16.2, 9)).toBe(
-      '⚠ Tlak je dnes zatím o 26\u00a0hPa nižší než včera; náraz větru až 16,2\u00a0m/s',
+      '⚠ Průměrný tlak je dnes zatím o 26\u00a0hPa nižší než včera. Nárazy větru zatím až 16,2\u00a0m/s.',
     );
     expect(alertCallout({ kind: 'up', v: 10 }, null, null)).toBe(
-      '⚠ Tlak je dnes zatím o 10\u00a0hPa vyšší než včera',
+      '⚠ Průměrný tlak je dnes zatím o 10\u00a0hPa vyšší než včera.',
     );
     expect(alertCallout({ kind: 'same', v: 0.4 }, 16.4, null)).toBe(
-      '⚠ Dnes zatím náraz větru až 16,4\u00a0m/s',
+      '⚠ Nárazy větru dnes zatím až 16,4\u00a0m/s.',
     );
     expect(alertCallout({ kind: 'same', v: 0.4 }, 8, 15.2)).toBe(
-      '⚠ Včera náraz větru až 15,2\u00a0m/s',
+      '⚠ Včera nárazy větru až 15,2\u00a0m/s.',
     );
     expect(alertCallout({ kind: 'down', v: 12 }, 8, 15.2)).toBe(
-      '⚠ Tlak je dnes zatím o 12\u00a0hPa nižší než včera; včera náraz větru až 15,2\u00a0m/s',
+      '⚠ Průměrný tlak je dnes zatím o 12\u00a0hPa nižší než včera. Včera nárazy větru až 15,2\u00a0m/s.',
     );
-    expect(alertCallout({ kind: 'down', v: 26 }, 16.2, 9)).not.toMatch(/·|dnes zatím.*dnes zatím/);
   });
   it('pod prahy nic', () => {
     expect(alertCallout({ kind: 'down', v: 9.9 }, 14.9, null)).toBeNull();

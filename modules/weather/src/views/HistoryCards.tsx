@@ -10,7 +10,6 @@ import {
   GUST_STRONG_MS,
   MSL_JUMP_HPA,
   RAIN_DAY_MM,
-  T_MAX_SETTLED_HOUR,
   alertCallout,
   delta,
   dryStreak,
@@ -71,7 +70,6 @@ function HistoryPending({ state }: { state: Exclude<HistoryState, { kind: 'ready
 // ---------- Včera a dnes ----------
 const NBSP = ' ';
 const dTime = dayFmt({ hour: '2-digit', minute: '2-digit' });
-const dHour = dayFmt({ hour: 'numeric', hourCycle: 'h23' });
 /** Missing value: an en dash with an explanation – never confused with a measured 0,0. */
 function Missing() {
   return (
@@ -110,36 +108,22 @@ function DeltaCell({
   unit,
   digits = 1,
   alert = null,
-  prov = false,
 }: {
   dl: Delta;
   unit: string;
   digits?: number;
   alert?: string | null;
-  /** Today's value may still change (max. temperature before the evening): muted „zatím“. */
-  prov?: boolean;
 }) {
+  // no per-cell „zatím“: the Dnes header already says the whole column is so far
   if (dl.kind === 'missing') return <Missing />;
-  const zatim = prov ? (
-    <small
-      className="wx-yt-dz"
-      title={`dnešní maximum se do ${T_MAX_SETTLED_HOUR}:00 ještě může změnit`}
-      data-testid="weather-yt-dprov"
-    >
-      zatím
-    </small>
-  ) : null;
   if (dl.kind === 'same')
     return (
-      <>
-        <span
-          className="wx-yt-d is-same"
-          title={`rozdíl ${nf(dl.v, digits)} ${unit} – bráno jako beze změny`}
-        >
-          ≈{NBSP}stejně
-        </span>
-        {zatim}
-      </>
+      <span
+        className="wx-yt-d is-same"
+        title={`rozdíl ${nf(dl.v, digits)} ${unit} – bráno jako beze změny`}
+      >
+        ≈{NBSP}stejně
+      </span>
     );
   const word = dl.kind === 'up' ? 'víc' : 'míň';
   const body = (
@@ -152,12 +136,7 @@ function DeltaCell({
       <Num v={dl.v} unit={unit} digits={digits} />
     </span>
   );
-  return (
-    <>
-      {alert ? <Alert why={alert}>{body}</Alert> : body}
-      {zatim}
-    </>
-  );
+  return alert ? <Alert why={alert}>{body}</Alert> : body;
 }
 
 export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: WeatherSnapshot }) {
@@ -181,18 +160,15 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
   const mslDl = delta(t?.msl_mean ?? null, y?.msl_mean ?? null, 'msl');
   const mslAlert =
     mslDl.kind !== 'missing' && Math.abs(mslDl.v) >= MSL_JUMP_HPA
-      ? `velká změna tlaku (≥ ${MSL_JUMP_HPA} hPa za den)`
+      ? `velký rozdíl průměrného tlaku (≥ ${MSL_JUMP_HPA} hPa)`
       : null;
-  const tMaxProv = Number(dHour.format(new Date(Date.parse(d.generated_at)))) < T_MAX_SETTLED_HOUR;
   const rows: { key: string; label: string; y: ReactNode; t: ReactNode; dl: ReactNode }[] = [
     {
       key: 't_max',
       label: 'Max. teplota',
       y: rowValue(y?.t_max ?? null, '°C'),
       t: rowValue(t?.t_max ?? null, '°C'),
-      dl: (
-        <DeltaCell dl={delta(t?.t_max ?? null, y?.t_max ?? null, 't')} unit="°C" prov={tMaxProv} />
-      ),
+      dl: <DeltaCell dl={delta(t?.t_max ?? null, y?.t_max ?? null, 't')} unit="°C" />,
     },
     {
       key: 't_min',
@@ -224,6 +200,10 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
     },
   ];
   const yGaps = y && y.gaps.length > 0;
+  // „– = chybí data“ only when a dash is on the card (a missing value, so also its Δ)
+  const anyMissing = (['t_max', 't_min', 'rain', 'gust_max', 'msl_mean'] as const).some(
+    (k) => y?.[k] == null || t?.[k] == null,
+  );
   // a ⚠ pressure change / gust is more important than the rain streak
   const alertText = alertCallout(mslDl, t?.gust_max ?? null, y?.gust_max ?? null);
   const callout =
@@ -245,9 +225,9 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
             </th>
             <th scope="col" data-testid="weather-yt-today-head">
               Dnes <span className="wx-yt-prov">zatím</span>
-              {/* one line where it fits; on a phone it may break only after the comma */}
+              {/* one line where it fits; on a phone it breaks only between date and time */}
               <span className="wx-yt-hd wx-yt-hd--now">
-                <span>{dWeekLong.format(at(today))},</span>{' '}
+                <span>{dWeekLong.format(at(today))}</span>{' '}
                 <span>
                   do{NBSP}
                   {until}
@@ -273,29 +253,49 @@ export function YesterdayTodayCard({ hist, d }: { hist: HistoryState; d: Weather
       </table>
       {callout && (
         <p
-          className={`wx-info ${alertText ? 'wx-info--warn' : ''}`}
+          className={`wx-info ${alertText ? 'wx-info--warn wx-yt-alert' : ''}`}
           data-testid={alertText ? 'weather-yt-alert' : 'weather-dry-streak'}
         >
-          <b>{callout}</b>
+          {alertText ? (
+            // hanging indent: the ⚠ stands alone, wrapped lines align with the text
+            <>
+              <span className="wx-yt-alert-ic" aria-hidden="true">
+                ⚠
+              </span>
+              <b>
+                <span className="wx-sr">Pozor: </span>
+                {alertText.replace(/^⚠ /, '')}
+              </b>
+            </>
+          ) : (
+            <b>{callout}</b>
+          )}
         </p>
       )}
-      <p className="wx-foot wx-yt-foot">
+      <p className="wx-foot wx-yt-foot" data-testid="weather-yt-foot">
+        <span>Δ = dnes zatím proti celému včerejšku</span>
         <span>
-          Δ = dnes zatím proti celému včerejšku · ≈{NBSP}stejně = rozdíl menší než{' '}
-          {nf(DELTA_NEUTRAL.t)}
+          ≈{NBSP}stejně{NBSP}={NBSP}rozdíl menší než {nf(DELTA_NEUTRAL.t)}
           {NBSP}°C, {nf(DELTA_NEUTRAL.rain)}
           {NBSP}mm, {nf(DELTA_NEUTRAL.gust, 0)}
           {NBSP}m/s, {nf(DELTA_NEUTRAL.msl, 0)}
           {NBSP}hPa
         </span>
         <span>
-          ⚠ = náraz ≥{NBSP}
+          <span className="wx-yt-hi">⚠</span> a <span className="wx-yt-hi">oranžová</span>
+          {NBSP}={NBSP}náraz ≥{NBSP}
           {GUST_STRONG_MS}
-          {NBSP}m/s nebo změna tlaku ≥{NBSP}
+          {NBSP}m/s nebo rozdíl průměrného tlaku ≥{NBSP}
           {MSL_JUMP_HPA}
-          {NBSP}hPa za den · – = chybí data
-          {yGaps ? ' · včera chybí část hodinových dat' : ''}
+          {NBSP}hPa
         </span>
+        {(anyMissing || yGaps) && (
+          <span data-testid="weather-yt-missing">
+            {anyMissing ? `–${NBSP}=${NBSP}chybí data` : ''}
+            {anyMissing && yGaps ? `${NBSP}· ` : ''}
+            {yGaps ? 'včera chybí část hodinových dat' : ''}
+          </span>
+        )}
       </p>
     </Card>
   );
@@ -535,11 +535,15 @@ function dayDetail(d: HistoryDay): string {
   ];
   if (d.gust_max != null) parts.push(`náraz ${nf(d.gust_max)}${NB}m/s`);
   if (!d.partial && d.gaps.length > 0) parts.push('neúplná data');
-  return parts.join(' · ');
+  return parts.join(`${NB}· `);
 }
 
-/** Date column of a record: today's incomplete day is „dnes (zatím)“. */
-const recordDate = (v: RecordValue) => (v.partial ? `dnes${NB}(zatím)` : dayLabel(v.date));
+/**
+ * Date column of a record: today's incomplete day is „dnes (zatím)“; in the 365-day view (two
+ * calendar years) with the year.
+ */
+const recordDate = (v: RecordValue, withYear: boolean) =>
+  v.partial ? `dnes${NB}(zatím)` : withYear ? dFull.format(at(v.date)) : dayLabel(v.date);
 
 const RECORD_WORD: Record<RecordKey, string> = {
   t_max: 'nejteplejší den',
@@ -625,7 +629,7 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
   return (
     <Card
       title="Historie"
-      sub="vlastní stanice · denní hodnoty"
+      sub={`vlastní stanice${NB}· denní hodnoty`}
       className="wx-hist"
       testId="weather-history"
     >
@@ -714,9 +718,12 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
             </span>
             {days[days.length - 1]?.partial && (
               <span>
-                <i className="wx-sw wx-sw--partial" /> světlejší = dnes (zatím)
+                <i className="wx-sw wx-sw--partial" /> tmavý obrys = dnes (zatím)
               </span>
             )}
+            <span data-testid="weather-history-selkey">
+              <i className="wx-sw wx-sw--sel" /> rámeček = vybraný den
+            </span>
             {stats.gapDays > 0 && (
               <span data-testid="weather-history-gaps">
                 <i className="wx-sw wx-sw--gap" /> chybí data ({stats.gapDays}
@@ -757,7 +764,7 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
                           )}
                         </b>
                         <em className={v?.partial ? 'is-prov' : undefined}>
-                          {v ? recordDate(v) : ''}
+                          {v ? recordDate(v, range === 365) : ''}
                         </em>
                       </li>
                     );
@@ -766,14 +773,21 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
               </section>
             ))}
           </div>
-          <p className="wx-foot">
+          <p className="wx-foot" data-testid="weather-history-foot">
             Jen vlastní stanice (dlouhodobé statistiky Home Assistantu)
             {firstDate && firstDate > `${today.slice(0, 4)}-01-01`
-              ? ` · data od ${dayLabel(firstDate)}`
-              : ''}{' '}
-            · chybějící hodiny se nedopočítávají · deštivý den = aspoň {nf(RAIN_DAY_MM, 0)}
-            {NB}mm srážek, suchý pod {nf(DRY_DAY_MM)}
-            {NB}mm
+              ? `${NB}· data od ${dayLabel(firstDate)}`
+              : ''}
+            {NB}· chybějící hodiny se nedopočítávají
+            <br />
+            Deštivý den = aspoň {nf(RAIN_DAY_MM, 0)}
+            {NB}mm srážek, slabě deštivý {nf(DRY_DAY_MM)} až &lt;{NB}
+            {nf(RAIN_DAY_MM, 0)}
+            {NB}mm, suchý pod {nf(DRY_DAY_MM)}
+            {NB}mm.
+            <br />
+            Nejdelší sucho = nejvíc suchých dní po sobě v tomto období; dnešek a dny bez dat řadu
+            přeruší.
           </p>
         </>
       )}

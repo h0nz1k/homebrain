@@ -27,7 +27,6 @@ import {
   fewBlocker,
   outOfTen,
   rankPrecip,
-  rankText,
   round2,
   sampleDays,
   wetHours,
@@ -1058,16 +1057,31 @@ function blendParts(d: WeatherSnapshot, label: (id: string) => string): string |
     .filter((c) => c.weight > 0)
     .sort((a, b) => b.weight - a.weight);
   if (ws.length === 0) return null;
+  // never truncated: the first three by weight, the rest as a count („a další 2“)
   const names = ws.slice(0, 3).map((c) => label(c.source));
-  return `vážený průměr ${names.join(', ')}${ws.length > 3 ? '…' : ''}`;
+  const more = ws.length - names.length;
+  return `vážený průměr ${names.join(', ')}${more > 0 ? ` a${NB2}další${NB2}${more}` : ''}`;
 }
 
-/** Header line of the rain tab: sample once (rows only repeat it when theirs differs). */
-function precipSample(d: WeatherSnapshot): string | null {
-  const all = d.verification_precip ?? [];
-  const lead = precipBucket(all);
-  const s = commonSample(all.filter((r) => r.lead === lead && r.enough));
-  return s ? `hodnoceno ${sampleText(s.wet, s.days)}` : null;
+/**
+ * Header lines of the rain tab: the common sample once (rows only repeat it when theirs differs)
+ * and Mix's own sample right next to it – Mix is scored only out of sample.
+ */
+function precipSample(d: WeatherSnapshot): { all: string; mix: string | null } | null {
+  const rows = (d.verification_precip ?? []).filter((r) => r.enough);
+  const lead = precipBucket(d.verification_precip ?? []);
+  const inBucket = rows.filter((r) => r.lead === lead);
+  const s = commonSample(inBucket);
+  if (!s) return null;
+  const b = inBucket.find((r) => r.source === 'blend');
+  return {
+    all: `hodnoceno ${sampleText(s.wet, s.days)}`,
+    mix: b
+      ? `Mix ${sampleText(wetHours(b), sampleDays(b))}${
+          b.out_of_sample ? ', jen dny, ze kterých se neučil' : ''
+        }`
+      : null,
+  };
 }
 
 function PrecipScore({ d }: { d: WeatherSnapshot }) {
@@ -1078,8 +1092,6 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
   const few = inBucket.filter((r) => !r.enough);
   const label = (id: string) =>
     id === 'blend' ? 'Mix' : (d.models.find((m) => m.id === id)?.label ?? id);
-  /** Instrumental after „s“ („srovnatelné s Mixem“); model acronyms stay undeclined. */
-  const withLabel = (id: string) => (id === 'blend' ? 'Mixem' : label(id));
   const info = d.verification_info;
   if (ranked.length === 0) {
     const most = [...all].sort((a, b) => b.n - a.n)[0];
@@ -1107,7 +1119,6 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
   const common = commonSample(ranked.map((r) => r.row));
   const bestWet = Math.max(...ranked.map((r) => wetHours(r.row)));
   const mix = blendParts(d, label);
-  const hasBlend = ranked.some((r) => r.row.source === 'blend');
   return (
     <>
       {bestWet < RAIN_FEW_WET_HOURS && (
@@ -1121,44 +1132,51 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
         <span>Model</span>
         <span>Skóre 0–1</span>
         <span />
-        <span>zachytil</span>
-        <span>planý poplach</span>
+        <span>
+          zachytil<small>z 10 hodin s deštěm</small>
+        </span>
+        <span>
+          planý poplach<small>z 10 předpovědí deště</small>
+        </span>
       </div>
       <ol
         className="wx-prank"
         aria-label="Pořadí podle trefy deště"
         data-testid="weather-score-rain"
       >
-        {ranked.map((rr) => {
-          const { row: r, ets, tied } = rr;
+        {ranked.map((rr, i) => {
+          const { row: r, ets } = rr;
           const h = r.hourly['0.2'];
           const grade = etsGrade(ets);
           const blend = r.source === 'blend';
-          // exactly what rankPrecip compares: a member is within noise of its group's leader
-          // (members are not compared with each other); the leader lists its members
-          const peers = !tied
-            ? []
-            : rr.tiedWith
-              ? [withLabel(rr.tiedWith)]
-              : ranked.filter((o) => o.tiedWith === r.source).map((o) => withLabel(o.row.source));
+          // Mix's sample is stated in the header next to the common one
           const own =
-            common && (wetHours(r) !== common.wet || sampleDays(r) !== common.days)
+            !blend && common && (wetHours(r) !== common.wet || sampleDays(r) !== common.days)
               ? sampleText(wetHours(r), sampleDays(r))
               : null;
           const hit = outOfTen(h?.pod);
           const fa = outOfTen(h?.far);
+          const prev = i > 0 ? ranked[i - 1]! : null;
           return (
             <li
               key={r.source}
-              className={`wx-prank-i ${blend ? 'is-blend' : ''} ${tied ? 'is-tied' : ''}`}
+              className={`wx-prank-i ${rr.nearPrev ? 'is-near' : ''}`}
               style={{ '--c': MODEL_COLOR[r.source] ?? 'var(--hb-t3)' } as CSSProperties}
               data-testid={`weather-score-rain-${r.source}`}
             >
-              <span
-                className={`wx-rank-n ${tied ? 'is-range' : ''}`}
-                aria-label={`${rankText(rr)} místo${tied ? ', srovnatelné' : ''}`}
-              >
-                {tied ? rankText(rr) : rr.rank}
+              {rr.nearPrev && prev && noise != null && (
+                <span
+                  className="wx-prank-near"
+                  role="img"
+                  aria-label={`téměř stejně jako ${label(prev.row.source)}: rozdíl ${nf(rr.diffPrev, 2)} je menší než ${nf(noise, 2)}`}
+                  title={`rozdíl ${nf(rr.diffPrev, 2)} < ${nf(noise, 2)} – pořadí není spolehlivé`}
+                  data-testid="weather-score-rain-near"
+                >
+                  ≈
+                </span>
+              )}
+              <span className="wx-rank-n" aria-label={`${rr.rank}. místo`}>
+                {rr.rank}.
               </span>
               <span className="wx-prank-name">
                 <span className="wx-prank-nl">
@@ -1167,14 +1185,9 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
                   {blend && <span className="wx-chip">kombinace</span>}
                 </span>
               </span>
-              {((blend && mix) || tied || own) && (
+              {((blend && mix) || own) && (
                 <span className="wx-prank-notes">
-                  {blend && mix && <span>{mix}</span>}
-                  {tied && (
-                    <span data-testid="weather-score-rain-tie">
-                      ≈ srovnatelné s {peers.join(', ')}
-                    </span>
-                  )}
+                  {blend && mix && <span data-testid="weather-score-rain-mix">{mix}</span>}
                   {own && <span>{own}</span>}
                 </span>
               )}
@@ -1197,11 +1210,11 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
               </span>
               <span
                 className="wx-prank-c wx-prank-fa"
-                title={h ? `${h.b} z ${h.a + h.b} ohlášených dešťových hodin` : undefined}
+                title={h ? `${h.b} z ${h.a + h.b} předpovědí deště bylo planých` : undefined}
               >
                 <span className="wx-prank-lbl">planý poplach </span>
                 <b>{xOf10(fa)}</b>
-                <span className="wx-sr"> ohlášených dešťových hodin</span>
+                <span className="wx-prank-lbl"> předpovědí deště</span>
               </span>
             </li>
           );
@@ -1227,38 +1240,40 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
         ))}
       </ol>
       <p className="wx-rank-k wx-prank-key" data-testid="weather-score-rain-key">
-        Skóre: <span className="wx-grade wx-grade--good">dobré ≥{NB2}0,4</span> ·{' '}
-        <span className="wx-grade wx-grade--mid">průměrné 0,2–0,39</span> ·{' '}
-        <span className="wx-grade wx-grade--weak">slabé &lt;{NB2}0,2</span>
+        <span data-testid="weather-score-rain-scale">
+          Skóre 0–1: 1{NB2}={NB2}bez chyby, 0{NB2}={NB2}jako náhodný tip.
+        </span>
+        <br />
+        <span className="wx-grade wx-grade--good">dobré ≥{NB2}0,4</span>
+        {NB2}· <span className="wx-grade wx-grade--mid">průměrné 0,2 až &lt;{NB2}0,4</span>
+        {NB2}· <span className="wx-grade wx-grade--weak">slabé &lt;{NB2}0,2</span>
         {noise != null && (
           <>
             <br />
             <span data-testid="weather-score-rain-noise">
-              Rozdíl skóre menší než {nf(noise, 2)} není spolehlivý – modely tak blízko nejlepšímu
-              ze skupiny sdílí jeho pořadí (např. 1.–3.).
+              ≈ mezi sousedy = rozdíl skóre menší než {nf(noise, 2)}, takové pořadí není spolehlivé.
             </span>
-          </>
-        )}
-        {hasBlend && (
-          <>
-            <br />
-            Kombinaci hodnotíme jen na dnech, ze kterých se neučila.
           </>
         )}
       </p>
       <details className="wx-prank-more" data-testid="weather-score-rain-how">
         <summary>Jak se to počítá</summary>
         <p>
-          Hodina s deštěm = aspoň 0,2{NB2}mm za hodinu (slabý déšť a víc) na srážkoměru stanice.
+          Hodina s deštěm = aspoň 0,2{NB2}mm za hodinu (slabý déšť a více) na srážkoměru stanice.
           Skóre je ETS (equitable threat score): 1 = vše trefil, 0 = jako náhoda, pod 0 = horší než
-          náhoda. „Zachytil“ je podíl hodin s deštěm, které model ohlásil (POD); „planý poplach“ je
-          podíl ohlášených dešťových hodin, kdy nepršelo (FAR).
+          náhoda.
+        </p>
+        <p data-testid="weather-score-rain-defs">
+          „Zachytil 7{NB2}z{NB2}10“ = z 10 hodin, kdy pršelo, model déšť ohlásil na 7 (POD). „Planý
+          poplach 3{NB2}z{NB2}10“ = z 10 hodin, na které model déšť předpověděl, ve 3 nepršelo – 3 z
+          10 předpovědí deště byly plané (FAR).
         </p>
         <p>
           Spolehlivost: 95{NB2}% interval rozdílu skóre ze směrodatné chyby ETS (delta metoda na
           tabulce trefa / planý poplach / minul / správně sucho). Práh je jeden pro celou tabulku –
-          největší z prahů všech dvojic modelů. Model, jehož rozdíl proti nejlepšímu ze skupiny je
-          pod tímto prahem, sdílí pořadí skupiny; členové skupiny se mezi sebou neporovnávají.
+          největší z prahů všech dvojic modelů. Pořadí se nesdílí: „≈“ stojí mezi každými dvěma
+          sousedy, jejichž zobrazená skóre se liší o méně než práh; dá se to ověřit odečtením čísel
+          na kartě.
         </p>
       </details>
       <details className="wx-prank-more" data-testid="weather-score-rain-details">
@@ -1304,12 +1319,18 @@ function ScoreCard({ d }: { d: WeatherSnapshot }) {
         ) : (
           <>
             <span className="wx-cs-l">
-              Jak často model správně trefil, jestli bude pršet (slabý déšť a víc, {leadText(lead)})
-              · porovnáno s tvým srážkoměrem
+              Jak často model správně trefil, jestli bude pršet (slabý déšť a více, {leadText(lead)}
+              ){NB2}· porovnáno s tvým srážkoměrem
             </span>
             {sample && (
               <span className="wx-cs-l" data-testid="weather-score-rain-sample">
-                · {sample}
+                {sample.all}
+                {sample.mix && (
+                  <>
+                    {' '}
+                    <span data-testid="weather-score-rain-sample-mix">({sample.mix})</span>
+                  </>
+                )}
               </span>
             )}
           </>

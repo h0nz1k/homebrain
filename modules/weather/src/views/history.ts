@@ -8,11 +8,6 @@ export const RAIN_DAY_MM = 1;
 export const GUST_STRONG_MS = 15;
 /** A day-to-day change of mean MSL pressure from this size is highlighted (fast change, front). */
 export const MSL_JUMP_HPA = 10;
-/**
- * Until this local hour today's max. temperature may still rise, so its Δ is marked „zatím“
- * (the daily maximum usually falls in the afternoon; the day is complete in the evening).
- */
-export const T_MAX_SETTLED_HOUR = 18;
 
 /** A day's rain gets a bar only when it does not read „0,0 mm“ (zero = no bar, never a sliver). */
 export const hasRainBar = (rain: number | null | undefined): rain is number =>
@@ -103,8 +98,9 @@ const mm = (v: number) => `${v.toFixed(1).replace('.', ',')}${NBSP}mm`;
 const nf1 = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',');
 
 /**
- * The ⚠ part of the "Včera a dnes" callout – it takes priority over the rain callout: a pressure
- * change ≥ MSL_JUMP_HPA first, then a gust ≥ GUST_STRONG_MS (today's, else yesterday's).
+ * The ⚠ part of the "Včera a dnes" callout – it takes priority over the rain callout: a change of
+ * mean pressure ≥ MSL_JUMP_HPA first, then a gust ≥ GUST_STRONG_MS (today's, else yesterday's).
+ * One sentence per fact, each saying which day it is about.
  */
 export function alertCallout(
   msl: Delta,
@@ -112,19 +108,15 @@ export function alertCallout(
   gustYesterday: number | null,
 ): string | null {
   const parts: string[] = [];
-  const pressure = msl.kind !== 'missing' && msl.kind !== 'same' && msl.v >= MSL_JUMP_HPA;
-  if (pressure)
+  if (msl.kind !== 'missing' && msl.kind !== 'same' && msl.v >= MSL_JUMP_HPA)
     parts.push(
-      `Tlak je dnes zatím o ${nf1(msl.v, 0)}${NBSP}hPa ${msl.kind === 'down' ? 'nižší' : 'vyšší'} než včera`,
+      `Průměrný tlak je dnes zatím o ${nf1(msl.v, 0)}${NBSP}hPa ${msl.kind === 'down' ? 'nižší' : 'vyšší'} než včera.`,
     );
-  // „dnes zatím“ is said once: after the pressure clause the gust needs no time word
   if (gustToday != null && gustToday >= GUST_STRONG_MS)
-    parts.push(`${pressure ? '' : 'dnes zatím '}náraz větru až ${nf1(gustToday)}${NBSP}m/s`);
+    parts.push(`Nárazy větru ${parts.length ? '' : 'dnes '}zatím až ${nf1(gustToday)}${NBSP}m/s.`);
   else if (gustYesterday != null && gustYesterday >= GUST_STRONG_MS)
-    parts.push(`včera náraz větru až ${nf1(gustYesterday)}${NBSP}m/s`);
-  if (parts.length === 0) return null;
-  const text = parts.join('; ');
-  return `⚠ ${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+    parts.push(`Včera nárazy větru až ${nf1(gustYesterday)}${NBSP}m/s.`);
+  return parts.length === 0 ? null : `⚠ ${parts.join(' ')}`;
 }
 
 /**
@@ -147,7 +139,7 @@ export function streakCallout(
   }
   if (s.days > 0)
     return `Bez deště už ${atLeast}${s.days}${NBSP}${daysNom(s.days)}, dnes zatím také${
-      s.lastWet ? ` · naposledy pršelo ${lastWetText(s.lastWet)}` : ''
+      s.lastWet ? `${NBSP}· naposledy pršelo ${lastWetText(s.lastWet)}` : ''
     }`;
   return null;
 }
