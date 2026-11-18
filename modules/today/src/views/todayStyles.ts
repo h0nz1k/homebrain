@@ -114,10 +114,6 @@ export const todayStyles = `
 .today-kiosk .today-cards{min-height:100px}
 .today-kiosk .today-clock{font-size:160px}
 .today-kiosk.today-busy .today-clock{font-size:96px}
-.today-watch-on .today-hero{min-height:110px;padding-bottom:40px}
-.today-watch-on .today-clock{font-size:96px}
-.today-watch-on .today-weather{--temp-size:64px}
-.today-kiosk.today-watch-on .today-clock{font-size:96px}
 .today-kiosk .today-footer,.today-kiosk .today-station,.today-kiosk .today-ribbon-heading span,.today-kiosk .hb-ribbon-label,.today-kiosk .hb-ribbon-tick,.today-kiosk .hb-ribbon-now>span,.today-kiosk .hb-signal-severity,.today-kiosk .hb-signal-context,.today-kiosk .hb-signal-also,.today-kiosk .hb-pill,.today-kiosk .hb-signal-value small,.today-kiosk button,.today-kiosk .hb-signal-action span{font-size:16px}
 .today-kiosk .hb-signal-action{margin-top:4px}
 .today-night .today-content{justify-content:center;align-items:center;color:#CDBFAF;--hb-t1:#CDBFAF;--hb-t2:#CDBFAF}
@@ -359,9 +355,9 @@ export const todayStyles = `
 .today-desktop.today-watch-on .today-content{gap:12px;padding-top:16px;padding-bottom:16px}
 .today-desktop.today-watch-on .today-hero{min-height:0;padding-bottom:0;align-items:center;justify-content:flex-start;gap:32px}
 .today-desktop.today-watch-on .today-sun-band{display:none}
-.today-desktop.today-watch-on .today-clock{font-size:72px;line-height:1}
+.today-desktop.today-watch-on .today-clock{font-size:64px;line-height:1}
 .today-desktop.today-watch-on .today-weather{--temp-size:44px;display:flex;align-items:center;gap:16px;text-align:left;align-self:center}
 .today-desktop.today-watch-on .today-temperature{gap:12px}
 .today-desktop.today-watch-on .today-condition,.today-desktop.today-watch-on .today-station{position:static;margin:0;font-size:17px}
-.today-desktop.today-watch-on .today-summary{font-size:18px}
+.today-desktop.today-watch-on .today-hero>.today-summary{margin-left:auto;align-self:center;font-size:18px;color:var(--hb-t2);text-align:right}
 `;

@@ -755,6 +755,11 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   text-overflow: ellipsis;
   font-size: var(--hb-font-sm);
 }
+/* The box width is an estimate: centred labels centre their text in it, so the text (not just
+   the box) sits over its marker. */
+.hb-ribbon-label[data-anchor='center'] {
+  text-align: center;
+}
 .hb-ribbon-track,
 .hb-ribbon-past {
   position: absolute;

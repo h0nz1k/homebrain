@@ -521,7 +521,7 @@ test.describe('Dnes – živá data přes falešné HA spojení (?live=1)', () =
       await expect(page.getByTestId('ha-freshness')).toContainText('HA · před');
       await expect(page.getByTestId('ha-freshness')).not.toContainText('odpojeno');
       await expect(page.getByText('Počasí není k dispozici')).toHaveCount(0);
-      await expect(page.getByTestId('ribbon-card')).toContainText('východ 06:56');
+      await expect(page.getByTestId('ribbon-card')).toContainText('východ 6:56');
       await expect(page.getByTestId('ribbon-card')).toContainText('západ 16:47');
       await expect(page.locator('.hb-ribbon-cheap')).not.toHaveCount(0);
       await expect(page.locator('.hb-ribbon-hourly')).not.toHaveCount(0);

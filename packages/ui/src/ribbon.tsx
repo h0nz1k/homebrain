@@ -192,11 +192,14 @@ export function DayRibbon({
       .map((item) => ({
         id: item.id,
         label: item.label,
-        x: position(item.from) / 100,
+        // Point markers (events, waste reminder) centre their label on the time; bands (cheap
+        // power 13–15 h) centre it on the segment, so the label reads as belonging to it.
+        x:
+          (item.kind === 'event' || item.to === undefined
+            ? position(item.from)
+            : (position(item.from) + position(Math.min(item.to, end))) / 2) / 100,
         priority: priorities[item.kind],
-        // Point markers (events, waste reminder) centre their label; bands start at their begin.
-        anchor:
-          item.kind === 'event' || item.to === undefined ? ('center' as const) : ('start' as const),
+        anchor: 'center' as const,
       })),
     width,
     (text) => Array.from(text).length * letterWidth,
@@ -244,6 +247,7 @@ export function DayRibbon({
               className="hb-ribbon-label"
               data-testid="ribbon-label"
               data-id={label.id}
+              data-anchor={label.anchor}
               title={label.label}
               style={{
                 left: `${(label.left / width) * 100}%`,

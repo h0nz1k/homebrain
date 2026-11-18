@@ -60,6 +60,12 @@ const clockFormat = new Intl.DateTimeFormat('cs-CZ', {
   hour: '2-digit',
   minute: '2-digit',
 });
+/** Times in text („východ 6:56“): Czech writes the hour without a leading zero. */
+const timeFormat = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: TIME_ZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+});
 const dateFormat = new Intl.DateTimeFormat('cs-CZ', {
   timeZone: TIME_ZONE,
   weekday: 'long',
@@ -316,6 +322,14 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const watchOn = !!watchCard && !!watchLevel;
   // Wall kiosk has no spare row: with the card the ribbon is slim, the home tiles step aside.
   const kioskWatch = kiosk && watchOn;
+  // Landscape tablet/desktop with the card: the summary („Přebytek FVE 1,6 kW“) fills the empty
+  // right side of the compact clock row instead of taking a row of its own (portrait has no room).
+  const summaryInHero = !kiosk && !mobile && !portrait && watchOn;
+  const summaryLine = !!summary.sentence && (
+    <p className="today-summary" data-testid="today-summary">
+      {summary.sentence}
+    </p>
+  );
   const position = pixelShift(shift);
   return (
     <section
@@ -376,6 +390,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
             )}
           </div>
           {presenceInHero && presence}
+          {summaryInHero && summaryLine}
         </div>
         {night ? (
           <>
@@ -388,11 +403,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
         ) : (
           <>
             {kiosk && cookingCard}
-            {!kioskCooking && !kioskWatch && !!summary.sentence && (
-              <p className="today-summary" data-testid="today-summary">
-                {summary.sentence}
-              </p>
-            )}
+            {!kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
             {heroFirst && hero}
             {watchCard}
             <div className="today-ribbon-card" data-testid="ribbon-card">
@@ -400,8 +411,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 Průběh dne{' '}
                 {sunKnown ? (
                   <span>
-                    východ {clockFormat.format(new Date(data.sun.sunrise))} · západ{' '}
-                    {clockFormat.format(new Date(data.sun.sunset))} ·{' '}
+                    východ {timeFormat.format(new Date(data.sun.sunrise))} · západ{' '}
+                    {timeFormat.format(new Date(data.sun.sunset))} ·{' '}
                     {Math.floor(daylightMinutes / 60)} h {daylightMinutes % 60} min světla
                   </span>
                 ) : (

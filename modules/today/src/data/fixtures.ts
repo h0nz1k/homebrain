@@ -56,7 +56,7 @@ export const FIXTURES: Record<StateKey, TodayData> = {
         kind: 'cheap',
         from: '2026-10-31T13:00:00+01:00',
         to: '2026-10-31T15:00:00+01:00',
-        label: 'Levný proud 13–15 h · 0,9 Kč',
+        label: 'Levný proud 13–15 h · 0,9 Kč/kWh',
       },
       {
         id: 'cal-dinner',

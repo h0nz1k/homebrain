@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rank } from '@homebrain/signals';
 import { createMockAdapter } from '../data/adapter.js';
@@ -54,6 +55,26 @@ describe('TodayView', () => {
       expect(clock.textContent).toBe('10:40');
       expect(seen.at(-1)?.now).toBe(clock.getAttribute('dateTime'));
       expect(screen.getByTestId('watch-now').textContent).toBe(fixtureFor('a').now);
+    } finally {
+      setTodayWatchCard(null);
+    }
+  });
+  it('timeline header: times without a leading zero („východ 6:56“)', () => {
+    const { container } = show('a');
+    const heading = container.querySelector('.today-ribbon-heading')!.textContent!;
+    expect(heading.replace(/\u00a0/g, ' ')).toContain('východ 6:56 · západ 16:47');
+    expect(heading).not.toMatch(/\b0\d:\d\d/);
+  });
+  it('tablet with the watch card: the summary sits in the clock row (one line)', () => {
+    function Stub({ onLevel }: TodayWatchCardProps) {
+      useEffect(() => onLevel?.('suspicion'), [onLevel]);
+      return <p data-testid="watch-stub" />;
+    }
+    setTodayWatchCard(Stub);
+    try {
+      show('a');
+      const summary = screen.getByTestId('today-summary');
+      expect(summary.parentElement).toBe(screen.getByTestId('today-hero'));
     } finally {
       setTodayWatchCard(null);
     }
