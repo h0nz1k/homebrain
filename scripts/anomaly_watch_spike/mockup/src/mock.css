@@ -896,7 +896,7 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
-  .aw-devices {
+  .aw-rail .aw-devices {
     grid-row: 1;
     grid-column: 1 / -1;
   }
