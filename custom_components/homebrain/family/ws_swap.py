@@ -399,7 +399,7 @@ async def websocket_family_chore_create(
     except Exception as err:  # noqa: BLE001
         connection.send_error(msg["id"], "service_failed", str(err))
         return
-    chore_id = (resp or {}).get("chore_id") if isinstance(resp, dict) else None
+    chore_id = (resp.get("id") or resp.get("chore_id")) if isinstance(resp, dict) else None
     connection.send_result(
         msg["id"],
         {

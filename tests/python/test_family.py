@@ -442,7 +442,8 @@ def _strict_create_chore(hass: HomeAssistant, recorded: list[dict[str, Any]]) ->
 
     async def handler(call: ServiceCall):
         recorded.append(dict(call.data))
-        return {"chore_id": "chore-new-1"}
+        # ChoreOps 1.6 handle_create_chore returns {"id": internal_id}
+        return {"id": "chore-new-1"}
 
     hass.services.async_register(
         "choreops",
