@@ -11,6 +11,10 @@ export const AW_PALETTE = {
     fault: '#ff9c9e',
     barSuspect: '#f2b635',
     onSuspect: '#1f1500',
+    /** 24 h strip bars (non-text, ≥ 3:1 on the card). */
+    stripObserve: '#5fb3b6',
+    stripSuspect: '#f2b635',
+    stripFault: '#ea4b59',
   },
   light: {
     observe: '#126a72',
@@ -18,6 +22,9 @@ export const AW_PALETTE = {
     fault: '#a42339',
     barSuspect: '#e3a21a',
     onSuspect: '#1f1500',
+    stripObserve: '#2f8a8f',
+    stripSuspect: '#b97c0c',
+    stripFault: '#c8283e',
   },
 } as const;
 
@@ -29,8 +36,9 @@ const vars = (p: (typeof AW_PALETTE)['dark' | 'light'], dark: boolean) => `
   --aw-on-suspect: ${p.onSuspect};
   --aw-band-fill: ${dark ? '#3f5a6e' : '#9fb3c2'};
   --aw-bar-ok: color-mix(in srgb, var(--hb-ok) ${dark ? 52 : 60}%, var(--hb-s2));
-  --aw-bar-observe: ${dark ? '#5fb3b6' : '#3a9ca1'};
-  --aw-bar-fault: ${dark ? '#ea4b59' : '#c8283e'};
+  --aw-bar-observe: ${p.stripObserve};
+  --aw-strip-suspect: ${p.stripSuspect};
+  --aw-bar-fault: ${p.stripFault};
   --aw-fault-fill: #b5243d;
 `;
 
@@ -44,6 +52,7 @@ export const anomalyStyles = `
 .aw * { box-sizing: border-box; }
 .aw :where(h1, h2, h3, p, ul, ol, figure) { margin: 0; }
 .aw :where(p, li, small) { text-wrap: pretty; }
+.aw .hb-step :where(span, small, strong) { text-wrap: balance; }
 .aw-page {
   max-width: 1440px;
   margin: 0 auto;
@@ -62,14 +71,17 @@ export const anomalyStyles = `
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  color: var(--t);
+  /* glyph in the text ink of the tier (≥ 3:1 on the tint, palette.test.ts), tint from the hue */
+  color: var(--ink, var(--t));
   background: color-mix(in srgb, var(--t) 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--t) 18%, transparent);
 }
 .aw-orb[data-tone='ok'] { --t: var(--hb-ok); }
-.aw-orb[data-tone='warn'] { --t: var(--hb-warn); }
-.aw-orb[data-tone='crit'] { --t: var(--hb-crit); }
+.aw-orb[data-tone='warn'] { --t: var(--hb-warn); --ink: var(--aw-suspect); }
+.aw-orb[data-tone='crit'] { --t: var(--hb-crit); --ink: var(--aw-fault-ink); }
 .aw-orb[data-tone='accent'] { --t: var(--aw-observe); }
+.aw .hb-status-row[data-tone='warn'] .hb-status-row-icon { color: var(--aw-suspect); }
+.aw .hb-status-row[data-tone='crit'] .hb-status-row-icon { color: var(--aw-fault-ink); }
 .aw-orb-lg { width: 64px; height: 64px; border-radius: 20px; }
 
 .aw .hb-pill[data-tone='accent'],
@@ -108,7 +120,6 @@ export const anomalyStyles = `
 .aw-watch-titlerow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 4px; }
 .aw-watch-title { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; }
 .aw-watch-context { color: var(--hb-t2); font-size: 15px; }
-.aw-watch-sent { margin-top: 6px; color: var(--hb-t2); font-size: 15px; }
 .aw-watch-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
 .aw-watch-list {
   display: grid;
@@ -122,9 +133,27 @@ export const anomalyStyles = `
 .aw-watch-list .hb-status-row-label { font-weight: 450; }
 .aw-watch-list .hb-status-row-detail,
 .aw-watch-list .hb-status-row-copy > :last-child:not(.hb-status-row-label) { color: var(--hb-t2); }
+/* tappable row (opens the detail): whole row is the target, chevron says so */
+.aw .aw-watch-row {
+  width: 100%;
+  min-height: 56px;
+  margin: 0;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--hb-t1) 6%, transparent);
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.aw .aw-watch-row:hover { background: color-mix(in srgb, var(--hb-t1) 6%, transparent); }
+.aw .aw-watch-row:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
+.aw-row-chevron { flex: none; color: var(--hb-t2); }
 
 /* the anomaly outranks every chore on Dnes */
-.aw .aw-cta { min-height: 48px; padding-inline: 22px; font-size: 16px; font-weight: 650; }
+.aw .hb-btn.aw-cta { min-height: 52px; padding-inline: 26px; font-size: 17px; font-weight: 700; box-shadow: 0 4px 14px color-mix(in srgb, #000 22%, transparent); }
 .aw .aw-cta[data-tone='confirmed'] { background: var(--aw-fault-fill); color: #fff; border: 0; }
 .aw .aw-cta[data-tone='confirmed']:hover:not(:disabled) { background: #9d1f35; }
 /* suspicion: solid amber (r3 had a faint outline – owner asked for a stronger primary button) */
@@ -155,32 +184,44 @@ export const anomalyStyles = `
 @media (min-width: 761px) and (max-width: 919px) {
   .aw-watch { padding: 26px 30px; gap: 16px; }
   .aw-watch-title { font-size: 34px; }
-  .aw-watch-context, .aw-watch-sent { font-size: 19px; }
+  .aw-watch-context { font-size: 19px; }
   .aw-watch-list .hb-status-row-label { font-size: 18px; }
   .aw-watch-list h3 { font-size: 17px; }
-  .aw .aw-cta { min-height: 52px; font-size: 17px; padding-inline: 26px; }
+  .aw .hb-btn.aw-cta { min-height: 52px; font-size: 17px; padding-inline: 26px; }
 }
 @media (max-width: 760px) {
   .aw-watch { padding: 16px; }
   .aw-watch-title { font-size: 24px; }
 }
 
-/* Wall kiosk (1280×800, read from ~2 m): a fault is the loudest thing after the clock, the
-   suspicions column is visibly subordinate (narrower, lighter, smaller) but still ≥ 20 px. */
+/* Wall kiosk (1280×800, read from ~2 m): a fault is the loudest thing after the clock; the
+   suspicions column is visibly subordinate – narrower, regular-weight heading, muted single-line
+   items – and every text on the card is ≥ 22 px (e2e). Parts of the context line stack instead
+   of wrapping mid-phrase (no orphans). */
 .aw-watch[data-layout='kiosk'] { padding: 22px 28px; }
-.aw-watch[data-layout='kiosk'] .aw-eyebrow { font-size: 20px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-title { font-size: 40px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-context,
-.aw-watch[data-layout='kiosk'] .aw-watch-sent { font-size: 24px; line-height: 1.3; }
-.aw-watch[data-layout='kiosk'] .aw-muted { font-size: 20px; }
-.aw-watch[data-layout='kiosk'][data-has-list] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
-.aw-watch[data-layout='kiosk'] .aw-watch-list { padding-left: 24px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-list h3 { font-size: 22px; font-weight: 600; color: var(--hb-t2); margin-bottom: 2px; }
-.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row { padding: 8px 0; }
-.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-label { font-size: 22px; line-height: 1.25; font-weight: 450; }
-.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-copy > :not(.hb-status-row-label) { font-size: 20px; }
+.aw-watch[data-layout='kiosk'] .aw-eyebrow { font-size: 22px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-title { font-size: 40px; text-wrap: balance; }
+.aw-watch[data-layout='kiosk'] .aw-watch-context { font-size: 26px; line-height: 1.3; }
+.aw-watch[data-layout='kiosk'] .aw-watch-context > .aw-part { display: block; }
+.aw-watch[data-layout='kiosk'] .aw-watch-context .aw-sep { display: none; }
+.aw-watch[data-layout='kiosk'] .aw-muted { font-size: 22px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-foot { margin-top: 12px; }
+.aw-watch[data-layout='kiosk'][data-has-list] { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px 28px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-list { min-width: 0; padding-left: 24px; border-left-color: color-mix(in srgb, var(--hb-t1) 10%, transparent); }
+.aw-watch[data-layout='kiosk'] .aw-watch-list h3 { font-size: 22px; font-weight: 400; color: var(--hb-t2); margin-bottom: 4px; }
+.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row { padding: 8px 0; gap: 12px; }
+/* no icon tiles on the kiosk side list: muted text rows, the heading carries the tier */
+.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-icon { display: none; }
+.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-copy > * {
+  font-size: 22px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aw-watch[data-layout='kiosk'] .aw-watch-list .hb-status-row-label { font-weight: 400; color: color-mix(in srgb, var(--hb-t1) 88%, var(--hb-t2)); }
 .aw-watch[data-layout='kiosk'][data-tier='confirmed'] .aw-watch-title { font-size: 56px; line-height: 1.05; }
-.aw-watch[data-layout='kiosk'][data-tier='confirmed'] .aw-watch-titlerow .hb-pill { min-height: 34px; padding: 4px 16px; font-size: 22px; font-weight: 650; }
+.aw-watch[data-layout='kiosk'] .aw-watch-head .hb-pill { min-height: 34px; padding: 4px 16px; font-size: 22px; font-weight: 650; }
 .aw-watch[data-layout='kiosk'][data-tier='confirmed'] .aw-watch-context { font-size: 28px; }
 
 .aw-watch-note { justify-self: start; }
@@ -210,14 +251,33 @@ export const anomalyStyles = `
 
 .aw-strip { display: grid; gap: 6px; }
 .aw-strip-bars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 36px; }
-.aw-strip [data-tier] { border-radius: 4px; background: var(--aw-bar-ok); }
-.aw-strip [data-tier='observation'] { background: var(--aw-bar-observe); }
-.aw-strip [data-tier='suspicion'] { background: var(--aw-bar-suspect); }
-.aw-strip [data-tier='confirmed'] { background: var(--aw-bar-fault); }
+.aw-strip-bars { align-items: end; }
+/* not by colour alone: height grows with the tier, plus a pattern per tier */
+.aw-strip [data-tier] { border-radius: 4px; background-color: var(--aw-bar-ok); }
+.aw-strip-bars [data-tier='ok'] { height: 40%; }
+.aw-strip-bars [data-tier='observation'] { height: 60%; }
+.aw-strip-bars [data-tier='suspicion'] { height: 80%; }
+.aw-strip-bars [data-tier='confirmed'] { height: 100%; }
+.aw-strip [data-tier='observation'] {
+  background-color: var(--aw-bar-observe);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--hb-s1) 70%, transparent) 1.2px, transparent 1.6px);
+  background-size: 5px 5px;
+}
+.aw-strip [data-tier='suspicion'] {
+  background-color: var(--aw-strip-suspect);
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--hb-s1) 55%, transparent) 0 2px, transparent 2px 5px);
+}
+.aw-strip [data-tier='confirmed'] {
+  background-color: var(--aw-bar-fault);
+  background-image: linear-gradient(var(--hb-s1), var(--hb-s1));
+  background-size: 60% 3px;
+  background-position: 50% 4px;
+  background-repeat: no-repeat;
+}
 .aw-strip-axis, .aw-strip-legend { display: flex; justify-content: space-between; color: var(--hb-t2); font-size: 13px; }
 .aw-strip-legend { display: grid; grid-template-columns: repeat(2, max-content); justify-content: start; gap: 5px 20px; }
 .aw-strip-legend span { display: inline-flex; gap: 5px; align-items: center; }
-.aw-strip-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.aw-strip-legend i { width: 12px; height: 12px; border-radius: 3px; }
 
 .aw .hb-btn, .aw .hb-seg button, .aw summary { min-height: 44px; }
 .aw .hb-seg button { min-width: 44px; }
@@ -258,6 +318,7 @@ export const anomalyStyles = `
 .aw-entity-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hb-t3); }
 .aw-issue-foot { align-self: end; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 8%, transparent); }
 .aw-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.aw-hint { flex-basis: 100%; color: var(--hb-t2); font-size: 13px; text-align: right; }
 .aw-issue .hb-btn[data-variant='primary'] { background: var(--hb-ac-solid); }
 .aw-issue .hb-btn[data-variant='primary']:hover:not(:disabled) { background: var(--hb-ac-solid-hover); }
 .aw-issue .hb-step { --step-ink: var(--aw-observe); }
@@ -355,6 +416,7 @@ export const anomalyStyles = `
   .aw .hb-seg button { padding-inline: 8px; }
   .aw-actions { width: 100%; }
   .aw-actions .hb-btn { flex: 1; }
+  .aw-hint { text-align: left; }
   .aw-how li { grid-template-columns: 1fr; gap: 6px; }
 }
 @container (max-width: 460px) {

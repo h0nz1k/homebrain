@@ -9,6 +9,7 @@ import type { StateKey, TodayData } from '../data/types.js';
 import { createTodayAdapter, isKioskRoute, setTodayAdapterFactory } from './runtime.js';
 import TodayView from './TodayView.js';
 import { createMockCookingProbes, setCookingSourceFactory } from '../data/cooking.js';
+import { setTodayWatchCard, type TodayWatchCardProps } from '../data/watch.js';
 
 let width = 1440;
 let reduced = false;
@@ -41,6 +42,22 @@ afterEach(() => {
   document.getElementById('hb-topbar-slot')?.remove();
 });
 describe('TodayView', () => {
+  it('the Hlídání domu card counts its durations to the clock Dnes shows (one „now“)', () => {
+    const seen: TodayWatchCardProps[] = [];
+    setTodayWatchCard((props) => {
+      seen.push(props);
+      return <p data-testid="watch-now">{props.now}</p>;
+    });
+    try {
+      show('a');
+      const clock = screen.getByTestId('today-clock');
+      expect(clock.textContent).toBe('10:40');
+      expect(seen.at(-1)?.now).toBe(clock.getAttribute('dateTime'));
+      expect(screen.getByTestId('watch-now').textContent).toBe(fixtureFor('a').now);
+    } finally {
+      setTodayWatchCard(null);
+    }
+  });
   it('no „Klidný den“ while a probe waits to come off the heat', () => {
     setCookingSourceFactory(() => ({
       subscribe(on) {

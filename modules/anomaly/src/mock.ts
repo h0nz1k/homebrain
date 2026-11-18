@@ -15,14 +15,38 @@ export const ANOMALY_SCENARIOS: AnomalyScenario[] = [
   'learning',
 ];
 
-const DAY = '2026-11-09';
-const at = (hm: string) => `${DAY}T${hm}:00+01:00`;
-const NOW: Record<AnomalyScenario, string> = {
-  ok: at('08:20'),
-  observations: at('09:35'),
-  suspicion: at('10:40'),
-  confirmed: at('11:50'),
-  learning: at('08:20'),
+/**
+ * One injected clock for the whole page: every time in a scenario is an offset from `now`, so the
+ * Dnes clock, „Aktualizováno“ and every duration agree. The default is the Dnes fixture clock
+ * (`modules/today` state `a`, 10:40); dev passes the same instant it gives Dnes.
+ */
+export const MOCK_NOW = '2026-10-31T10:40:00+01:00';
+const rel = (now: string, minutes: number) =>
+  new Date(Date.parse(now) + minutes * 60_000).toISOString();
+/** Minute of the local (Prague) day. */
+const minuteOfDay = (iso: string) => {
+  const [h, m] = new Intl.DateTimeFormat('cs-CZ', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Europe/Prague',
+  })
+    .format(new Date(iso))
+    .split(':')
+    .map(Number);
+  return h! * 60 + m!;
+};
+
+/** Per scenario: minutes before `now` of the cellar's last report, the dishwasher's last report and
+ * the start of the living-room warmth (`null` = report not in the scenario). */
+const STORY: Record<
+  AnomalyScenario,
+  { cellar: number; dishwasher: number; living: number } | null
+> = {
+  ok: null,
+  learning: null,
+  observations: { cellar: 100, dishwasher: 0, living: 5 },
+  suspicion: { cellar: 165, dishwasher: 71, living: 70 },
+  confirmed: { cellar: 235, dishwasher: 141, living: 140 },
 };
 
 export const DEMO_DEVICES = [
@@ -93,24 +117,23 @@ function reached(r: Partial<Record<TierKey, string>>): Partial<Record<TierKey, s
   return r;
 }
 
-function cellar(tier: TierKey, now: string): Report {
-  const last = at('07:55');
-  const minutes = (Date.parse(now) - Date.parse(last)) / 60_000;
+function cellar(tier: TierKey, now: string, ago: number): Report {
+  const last = rel(now, -ago);
+  const at = (minutes: number) => rel(last, minutes);
+  const minutes = ago;
   return {
     key: 'device:demo_dev_cellar',
     scope: 'device',
     tier,
-    since: at('08:30'),
+    since: at(35),
     reached:
       tier === 'observation'
-        ? reached({ observation: at('08:30') })
-        : reached({ observation: at('08:30'), suspicion: at('10:00') }),
+        ? reached({ observation: at(35) })
+        : reached({ observation: at(35), suspicion: at(125) }),
     earliest:
-      tier === 'observation'
-        ? { suspicion: at('09:55'), confirmed: at('13:55') }
-        : { confirmed: at('13:55') },
+      tier === 'observation' ? { suspicion: at(120), confirmed: at(360) } : { confirmed: at(360) },
     integration: 'demo_zigbee',
-    devices: [{ id: 'demo_dev_cellar', name: 'Čidlo ve sklepě', monitored: 2 }],
+    devices: [{ id: 'demo_dev_cellar', name: 'Čidlo ve sklepě', area: 'Sklep', monitored: 2 }],
     entities: [
       { name: 'Vlhkost', device_class: 'humidity', entity_id: 'sensor.demo_cellar_humidity' },
     ],
@@ -120,7 +143,7 @@ function cellar(tier: TierKey, now: string): Report {
         ...finding(
           'silent',
           tier,
-          at('08:30'),
+          at(35),
           'Vlhkost',
           'humidity',
           { last, interval_s: 600, minutes: Math.round(minutes) },
@@ -143,32 +166,33 @@ function usualBand(): ([number, number] | null)[] {
   });
 }
 
-function today(now: string): [number, number][] {
-  const end = (Date.parse(now) - Date.parse(at('00:00'))) / 60_000;
+function today(now: string, since: string): [number, number][] {
+  const end = minuteOfDay(now);
+  const rise = minuteOfDay(since) - 30;
   const out: [number, number][] = [];
   for (let m = 2.5; m <= end; m += 5) {
     const base = 20.6 + 1.2 * Math.sin(((m / 60 - 9) / 24) * 2 * Math.PI);
-    const warm = m >= 9 * 60 ? Math.min(7, ((m - 9 * 60) / 30) * 7) : 0;
+    const warm = m >= rise ? Math.min(7, ((m - rise) / 30) * 7) : 0;
     out.push([m, Math.round((base + warm) * 100) / 100]);
   }
   return out;
 }
 
-function living(tier: TierKey, now: string): Report {
-  const band: Band = { unit: '°C', usual: usualBand(), today: today(now) };
+function living(tier: TierKey, now: string, ago: number): Report {
+  const since = rel(now, -ago);
+  const at = (minutes: number) => rel(since, minutes);
+  const band: Band = { unit: '°C', usual: usualBand(), today: today(now, since) };
   const value = band.today.at(-1)?.[1] ?? 27;
   return {
     key: 'device:demo_dev_living',
     scope: 'device',
     tier,
-    since: at('09:30'),
+    since: at(0),
     reached:
-      tier === 'observation'
-        ? { observation: at('09:30') }
-        : { observation: at('09:30'), suspicion: at('10:00') },
-    earliest: tier === 'observation' ? { suspicion: at('10:00') } : {},
+      tier === 'observation' ? { observation: at(0) } : { observation: at(0), suspicion: at(30) },
+    earliest: tier === 'observation' ? { suspicion: at(30) } : {},
     integration: 'demo_zigbee',
-    devices: [{ id: 'demo_dev_living', name: 'Klima obývák', monitored: 2 }],
+    devices: [{ id: 'demo_dev_living', name: 'Klima obývák', area: 'Obývák', monitored: 2 }],
     entities: [
       { name: 'Teplota', device_class: 'temperature', entity_id: 'sensor.demo_living_temperature' },
     ],
@@ -178,7 +202,7 @@ function living(tier: TierKey, now: string): Report {
         ...finding(
           'baseline',
           tier,
-          at('09:30'),
+          at(0),
           'Teplota',
           'temperature',
           { value, usual: 20.5, z: 4.6, seen_before: true },
@@ -195,20 +219,21 @@ function living(tier: TierKey, now: string): Report {
   };
 }
 
-function dishwasher(tier: TierKey): Report {
-  const last = at('09:29');
+function dishwasher(tier: TierKey, now: string, ago: number): Report {
+  const last = rel(now, -ago);
+  const at = (minutes: number) => rel(last, minutes);
   return {
     key: 'device:demo_dev_dishwasher',
     scope: 'device',
     tier,
-    since: at('09:55'),
+    since: at(26),
     reached:
       tier === 'confirmed'
-        ? { observation: at('09:55'), suspicion: at('10:25'), confirmed: at('11:20') }
-        : { observation: at('09:55'), suspicion: at('10:25') },
-    earliest: tier === 'confirmed' ? {} : { confirmed: at('11:20') },
+        ? { observation: at(26), suspicion: at(56), confirmed: at(111) }
+        : { observation: at(26), suspicion: at(56) },
+    earliest: tier === 'confirmed' ? {} : { confirmed: at(111) },
     integration: 'demo_appliance',
-    devices: [{ id: 'demo_dev_dishwasher', name: 'Myčka', monitored: 17 }],
+    devices: [{ id: 'demo_dev_dishwasher', name: 'Myčka', area: 'Kuchyně', monitored: 17 }],
     entities: DISHWASHER_VALUES.map((name, i) => ({
       name,
       device_class: i === 0 ? 'power' : null,
@@ -216,7 +241,7 @@ function dishwasher(tier: TierKey): Report {
     })),
     entity_count: 17,
     findings: DISHWASHER_VALUES.map((name, i) => ({
-      ...finding('silent', tier, at('09:55'), name, i === 0 ? 'power' : null, {
+      ...finding('silent', tier, at(26), name, i === 0 ? 'power' : null, {
         last,
         interval_s: 600,
       }),
@@ -243,16 +268,26 @@ function health(scenario: AnomalyScenario): Health[] {
 }
 
 /** Full (`list`) snapshot of a scenario. */
-export function mockAnomalySnapshot(scenario: AnomalyScenario = 'confirmed'): AnomalySnapshot {
-  const now = NOW[scenario];
-  const reports: Report[] =
-    scenario === 'observations'
-      ? [cellar('observation', now), living('observation', now)]
+export function mockAnomalySnapshot(
+  scenario: AnomalyScenario = 'confirmed',
+  now: string = MOCK_NOW,
+): AnomalySnapshot {
+  const story = STORY[scenario];
+  const reports: Report[] = !story
+    ? []
+    : scenario === 'observations'
+      ? [cellar('observation', now, story.cellar), living('observation', now, story.living)]
       : scenario === 'suspicion'
-        ? [cellar('suspicion', now), living('suspicion', now), dishwasher('suspicion')]
-        : scenario === 'confirmed'
-          ? [dishwasher('confirmed'), cellar('suspicion', now), living('suspicion', now)]
-          : [];
+        ? [
+            cellar('suspicion', now, story.cellar),
+            living('suspicion', now, story.living),
+            dishwasher('suspicion', now, story.dishwasher),
+          ]
+        : [
+            dishwasher('confirmed', now, story.dishwasher),
+            cellar('suspicion', now, story.cellar),
+            living('suspicion', now, story.living),
+          ];
   const counts = { observation: 0, suspicion: 0, confirmed: 0 };
   for (const r of reports) counts[r.tier] += 1;
   const learning = scenario === 'learning';
@@ -260,7 +295,7 @@ export function mockAnomalySnapshot(scenario: AnomalyScenario = 'confirmed'): An
     now,
     ready: !learning,
     learning,
-    learned_at: learning ? null : at('03:30'),
+    learned_at: learning ? null : rel(now, -minuteOfDay(now) + 210),
     watched: learning ? { devices: 0, entities: 0, learning: 32, known: 32 } : WATCHED,
     counts,
     reports,
@@ -284,7 +319,7 @@ export function toSummary(full: AnomalySnapshot): AnomalySnapshot {
       .map((r, i) => ({
         ...r,
         key: `${r.scope}:${i}`,
-        devices: r.devices.map(({ name, monitored }) => ({ name, monitored })),
+        devices: r.devices.map(({ name, area, monitored }) => ({ name, area, monitored })),
         entities: r.entities.map(({ name, device_class }) => ({ name, device_class })),
         findings: r.findings.map((f) => {
           const copy = { ...f };
@@ -300,9 +335,9 @@ export function toSummary(full: AnomalySnapshot): AnomalySnapshot {
 
 /** In-memory API: acknowledgements and mutes hide reports like the integration does. */
 export function createMockAnomalyApi(
-  opts: { scenario?: AnomalyScenario; delayMs?: number; fail?: boolean } = {},
+  opts: { scenario?: AnomalyScenario; now?: string; delayMs?: number; fail?: boolean } = {},
 ): AnomalyApi & { calls: string[] } {
-  const snap = mockAnomalySnapshot(opts.scenario ?? 'confirmed');
+  const snap = mockAnomalySnapshot(opts.scenario ?? 'confirmed', opts.now);
   const calls: string[] = [];
   const wait = <T>(v: T) =>
     new Promise<T>((resolve, reject) =>

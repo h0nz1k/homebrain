@@ -13,6 +13,7 @@ import {
 } from '@homebrain/ui';
 import { getAnomalyApi, type AckKind, type AnomalyApi } from '../api.js';
 import {
+  RESOLVED_HINT,
   TIER_LABEL,
   TIER_RANK,
   TIER_TONE,
@@ -95,7 +96,6 @@ function IssueCard({
   wide?: boolean;
   actions: Actions;
 }) {
-  const fault = r.tier === 'confirmed';
   const top = r.findings[0];
   const last = lastReport(r);
   const deviceId = r.scope === 'device' ? r.devices[0]?.id : undefined;
@@ -119,7 +119,7 @@ function IssueCard({
         <TierPill tier={r.tier} />
       </header>
       <p className="aw-why" data-testid="aw-issue-why">
-        {why(r)}
+        {why(r, now)}
       </p>
       {r.band && <BaselineBand band={r.band} now={now} />}
       {last && top && (
@@ -152,27 +152,19 @@ function IssueCard({
       />
       <footer className="aw-issue-foot">
         {/* Owner: at most three actions – primary, secondary, tertiary link. */}
+        {/* The same three on every tier; „Vyřešeno“ always looks the same. */}
         <div className="aw-actions" data-testid="aw-actions">
-          {fault ? (
-            <Button
-              variant="primary"
-              size="sm"
-              loading={busy}
-              onClick={() => void actions.ack(r, 'resolved')}
-            >
-              Vyřešeno
-            </Button>
-          ) : (
-            <Button
-              variant="strong"
-              size="sm"
-              loading={busy}
-              onClick={() => void actions.ack(r, 'ok')}
-            >
-              To je v pořádku
-            </Button>
-          )}
-          {fault && deviceId && actions.openDevice && (
+          <Button
+            variant="primary"
+            size="sm"
+            className="aw-resolve"
+            loading={busy}
+            aria-describedby={`${r.key}-hint`}
+            onClick={() => void actions.ack(r, 'resolved')}
+          >
+            Vyřešeno
+          </Button>
+          {deviceId && actions.openDevice && (
             <Button
               variant="secondary"
               size="sm"
@@ -188,9 +180,12 @@ function IssueCard({
             onClick={() => void actions.mute(r)}
             disabled={busy}
           >
-            Ztlumit na 7 dní
+            Skrýt na 7 dní
           </button>
         </div>
+        <p className="aw-hint" id={`${r.key}-hint`} data-testid="aw-resolve-hint">
+          {RESOLVED_HINT}
+        </p>
       </footer>
     </article>
   );
@@ -201,8 +196,7 @@ function PhoneCard() {
     <Card className="aw-side" data-testid="aw-phone">
       <h2 className="aw-h2">Na telefon</h2>
       <p className="aw-muted aw-pad">
-        Zatím nic neposílám. Oznámení o potvrzených poruchách přidám v další fázi, do té doby jsou
-        hlášení jen tady a na obrazovce Dnes.
+        Upozornění na telefon zatím nejsou zapnutá. Hlášení jsou jen tady a na obrazovce Dnes.
       </p>
     </Card>
   );
@@ -211,24 +205,28 @@ function PhoneCard() {
 function HowCard() {
   return (
     <Card className="aw-side">
-      <h2 className="aw-h2">Jak hlídám</h2>
-      <ol className="aw-how">
+      <h2 className="aw-h2">Jak hlídání funguje</h2>
+      <ol className="aw-how" data-testid="aw-how">
         <li>
           <TierPill tier="observation" size="sm" />
-          <span>Změna je mimo obvyklý průběh. Pozorování ukážu jen tady.</span>
+          <span>
+            Hodnota se odchyluje od obvyklého průběhu. Pozorování je vidět jen na této stránce.
+          </span>
         </li>
         <li>
           <TierPill tier="suspicion" size="sm" />
-          <span>Změna trvá déle nebo se opakuje. Ukážu ji i v přehledu Dnes.</span>
+          <span>Odchylka trvá déle nebo se opakuje. Podezření se ukáže i na obrazovce Dnes.</span>
         </li>
         <li>
           <TierPill tier="confirmed" size="sm" />
-          <span>Je to dlouhé nebo jednoznačné. Na Dnes bude nahoře.</span>
+          <span>
+            Výpadek nebo odchylka je dlouhá či jednoznačná. Porucha je na obrazovce Dnes nahoře.
+          </span>
         </li>
       </ol>
       <p className="aw-privacy">
-        <Icon name="lock" size={16} /> Výpočet běží doma v Home Assistantu z jeho vlastní historie.
-        Nic se neodesílá ven a do Home Assistantu nic nezapisuji.
+        <Icon name="lock" size={16} /> Vyhodnocuje se doma, z historie Home Assistantu. Nic se
+        neodesílá ven a do Home Assistantu se nic nezapisuje.
       </p>
     </Card>
   );
@@ -285,16 +283,16 @@ function HiddenCard({ hidden, actions }: { hidden: Report[]; actions: Actions })
             label={headline(r)}
             detail={
               r.hidden === 'muted' && r.muted_until
-                ? `Ztlumeno do ${new Date(r.muted_until).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' })}`
+                ? `Skryto do ${new Date(r.muted_until).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' })}`
                 : r.ack === 'resolved'
-                  ? 'Označeno jako vyřešené – když potíž potrvá, ukážu ji znovu'
-                  : 'Označeno jako v pořádku – hlídám s větší tolerancí'
+                  ? `Vyřešeno. ${RESOLVED_HINT}`
+                  : 'Označeno jako v pořádku – hlídá se s větší tolerancí'
             }
             value={null}
             action={
               r.hidden === 'muted' ? (
                 <button type="button" className="aw-link" onClick={() => void actions.unmute(r)}>
-                  Zrušit ztlumení
+                  Zobrazit znovu
                 </button>
               ) : undefined
             }
@@ -381,10 +379,12 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
               />
             </span>
             <div className="aw-status-copy">
-              <h2 data-testid="aw-headline">{learning ? 'Učím se, jak dům běží' : h.title}</h2>
+              <h2 data-testid="aw-headline">
+                {learning ? 'Hlídání se učí, jak dům běží' : h.title}
+              </h2>
               <p>
                 {learning
-                  ? 'Prvních 7 dní sbírám historii. Výpadky hlídám hned, odchylky od obvyklých hodnot až potom.'
+                  ? 'Prvních 7 dní se sbírá historie. Výpadky se hlídají hned, odchylky od obvyklých hodnot až potom.'
                   : h.sub}
               </p>
               <p className="aw-muted">

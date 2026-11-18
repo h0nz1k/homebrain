@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  atTime,
   dur,
+  inventory,
+  roomLocative,
+  rowDetail,
+  sinceLast,
   headline,
   hm,
   lastReport,
@@ -12,7 +17,7 @@ import {
   why,
   wholeDevice,
 } from './copy.js';
-import { mockAnomalySnapshot } from './mock.js';
+import { MOCK_NOW, mockAnomalySnapshot } from './mock.js';
 import type { Report } from './types.js';
 
 const plain = (s: string) => s.replace(/\u00a0/g, ' ');
@@ -29,29 +34,64 @@ describe('copy – headlines never contradict the detail', () => {
     expect(wholeDevice(r)).toBe(false);
     expect(headline(r)).toBe('Čidlo ve sklepě nehlásí vlhkost');
     expect(headline(r)).not.toMatch(/nevysílá|neodpovídá/);
-    expect(plain(why(r))).toBe('Teplota ze stejného zařízení přichází dál, chybí jen vlhkost.');
+    expect(plain(why(r, MOCK_NOW))).toBe(
+      'Teplota ze stejného zařízení přichází dál, chybí jen vlhkost.',
+    );
   });
 
-  it('a whole silent device „neodpovídá“ and counts all its values', () => {
+  it('a whole silent device „neodpovídá“, „Neposílá žádné údaje“, the count only in the detail', () => {
     const r = report('confirmed', 'device:demo_dev_dishwasher');
     expect(wholeDevice(r)).toBe(true);
     expect(headline(r)).toBe('Myčka neodpovídá');
-    expect(plain(meta(r, mockAnomalySnapshot('confirmed').now))).toBe(
-      'Všech 17 hodnot mlčí od 9:29 · 2 h 21 min',
+    expect(plain(meta(r, MOCK_NOW))).toBe(
+      'Neposílá žádné údaje · 2 h 21 min od posledního hlášení (8:19)',
     );
-    expect(why(r)).toBe('Zkontrolujte napájení a připojení zařízení.');
+    expect(plain(meta(r, MOCK_NOW))).not.toMatch(/17|mlčí/);
+    expect(plain(why(r, MOCK_NOW))).toBe(
+      'Chybí všech 17 hodnot zařízení. Zkontrolujte napájení a připojení.',
+    );
   });
 
-  it('baseline: natural Czech, no „Podobně teplo už bývalo“', () => {
+  it('baseline: the room in the locative, the real duration (not „déle než 30 minut“)', () => {
     const r = report('suspicion', 'device:demo_dev_living');
-    expect(headline(r)).toBe('Klima obývák: neobvykle teplo');
-    const text = plain(why(r));
-    expect(text).not.toMatch(/Podobně teplo|bývalo/);
+    expect(headline(r)).toBe('V obýváku je neobvykle teplo');
+    const text = plain(why(r, MOCK_NOW));
+    expect(text).not.toMatch(/Podobně teplo|bývalo|déle než 30|jsem|naměřil/);
     expect(text).toBe(
-      'Odchylka trvá déle než 30 minut. Takovou teplotu už jsem tu v posledních týdnech naměřil, proto to zatím není porucha.',
+      'Odchylka trvá 1 h 10 min. Takové hodnoty tu v posledních týdnech už byly, proto to zatím není porucha.',
+    );
+    expect(plain(why(report('confirmed', 'device:demo_dev_living'), MOCK_NOW))).toMatch(
+      /^Odchylka trvá 2 h 20 min\. /,
     );
     const obs = report('observations', 'device:demo_dev_living');
-    expect(why(obs)).toBe('Hodnota vybočila z obvyklého rozmezí pro tuto denní dobu.');
+    expect(why(obs, MOCK_NOW)).toBe('Hodnota vybočila z obvyklého rozmezí pro tuto denní dobu.');
+    // unknown room: a sentence with the device name instead of a broken locative
+    const noRoom = { ...r, devices: [{ ...r.devices[0]!, area: 'Zimní zahrada' }] };
+    expect(headline(noRoom)).toBe('Klima obývák hlásí neobvykle vysokou teplotu');
+  });
+
+  it('room locatives', () => {
+    expect(roomLocative('Obývák')).toBe('v obýváku');
+    expect(roomLocative('sklep')).toBe('ve sklepě');
+    expect(roomLocative('Chodba')).toBe('na chodbě');
+    expect(roomLocative(null)).toBeNull();
+  });
+
+  it('impersonal voice everywhere (no „hlídám, ukážu, naměřil, přidám“)', () => {
+    const first = /\b(hlídám|ukážu|naměřil|přidám|sleduji|vyhodnocuji|učím|posílám|jsem)\b/i;
+    for (const scenario of ['observations', 'suspicion', 'confirmed'] as const) {
+      const snap = mockAnomalySnapshot(scenario);
+      for (const r of snap.reports)
+        for (const text of [
+          headline(r),
+          meta(r, snap.now),
+          why(r, snap.now),
+          rowDetail(r, snap.now),
+        ])
+          expect(text).not.toMatch(first);
+      expect(overview(snap.counts).sub).not.toMatch(first);
+    }
+    expect(plain(inventory({ devices: 12 }))).toBe('Hlídáno 12 zařízení');
   });
 
   it('other detectors and scopes read as sentences', () => {
@@ -79,12 +119,21 @@ describe('copy – headlines never contradict the detail', () => {
   });
 });
 
-describe('copy – outage times are anchored to the last report (od posledního hlášení)', () => {
-  for (const [scenario, key] of [
-    ['observations', 'device:demo_dev_cellar'],
-    ['suspicion', 'device:demo_dev_cellar'],
-    ['suspicion', 'device:demo_dev_dishwasher'],
-    ['confirmed', 'device:demo_dev_dishwasher'],
+describe('copy – outage times: „… od posledního hlášení (h:mm)“ everywhere', () => {
+  const OUTAGE = /^(.* · )?\d+ (h|min)( \d+ min)? od posledního hlášení \(\d{1,2}:\d{2}\)$/;
+  for (const [scenario, key, expected] of [
+    ['observations', 'device:demo_dev_cellar', '1 h 40 min od posledního hlášení (9:00)'],
+    ['suspicion', 'device:demo_dev_cellar', '2 h 45 min od posledního hlášení (7:55)'],
+    [
+      'suspicion',
+      'device:demo_dev_dishwasher',
+      'Neposílá žádné údaje · 1 h 11 min od posledního hlášení (9:29)',
+    ],
+    [
+      'confirmed',
+      'device:demo_dev_dishwasher',
+      'Neposílá žádné údaje · 2 h 21 min od posledního hlášení (8:19)',
+    ],
   ] as const) {
     it(`${scenario} ${key}`, () => {
       const snap = mockAnomalySnapshot(scenario);
@@ -92,13 +141,22 @@ describe('copy – outage times are anchored to the last report (od posledního 
       const last = lastReport(r)!;
       expect(last).toBe(r.findings[0]!.detail.last);
       const line = plain(meta(r, snap.now));
+      expect(line).toBe(expected);
+      expect(line).toMatch(OUTAGE);
       // the clock time is the last report, never the first observation or tier change
-      expect(line).toContain(`od ${hm(last)}`);
-      expect(line).not.toContain(`od ${hm(r.since)}`);
+      expect(line).toContain(`(${hm(last)})`);
+      expect(line).not.toContain(hm(r.since));
       // the duration is now − last report
-      expect(line.endsWith(plain(dur(outageMinutes(r, snap.now)!)))).toBe(true);
+      expect(line).toContain(plain(dur(outageMinutes(r, snap.now)!)));
+      // the suspicion row on Dnes says the same
+      expect(plain(rowDetail(r, snap.now))).toBe(plain(sinceLast(last, snap.now)));
     });
   }
+  it('the duration follows the caller’s clock (Dnes passes its own „now“)', () => {
+    const r = report('suspicion', 'device:demo_dev_cellar');
+    const later = new Date(Date.parse(MOCK_NOW) + 15 * 60_000).toISOString();
+    expect(plain(meta(r, later))).toBe('3 h od posledního hlášení (7:55)');
+  });
 });
 
 describe('copy – helpers', () => {
@@ -113,12 +171,18 @@ describe('copy – helpers', () => {
     expect(plain(dur(141))).toBe('2 h 21 min');
     expect(plain(dur(180))).toBe('3 h');
   });
-  it('stepper explains future tiers', () => {
+  it('stepper explains future tiers („Porucha nejdříve ve 13:55“)', () => {
     const r = report('suspicion', 'device:demo_dev_cellar');
     expect(stepDetail(r, 'observation')).toBe('8:30');
-    expect(stepDetail(r, 'confirmed')).toBe('nejdřív 13:55');
+    expect(plain(stepDetail(r, 'confirmed'))).toBe('nejdříve ve 13:55');
     const warm = report('suspicion', 'device:demo_dev_living');
-    expect(stepDetail(warm, 'confirmed')).toBe('jen při extrému');
+    expect(stepDetail(warm, 'confirmed')).toBe('až při extrémní hodnotě');
+  });
+  it('v / ve before a time', () => {
+    expect(plain(atTime('2026-10-31T09:55:00+01:00'))).toBe('v 9:55');
+    expect(plain(atTime('2026-10-31T13:55:00+01:00'))).toBe('ve 13:55');
+    expect(plain(atTime('2026-10-31T21:00:00+01:00'))).toBe('ve 21:00');
+    expect(plain(atTime('2026-10-31T11:00:00+01:00'))).toBe('v 11:00');
   });
   it('page headline', () => {
     expect(plain(overview({ observation: 0, suspicion: 2, confirmed: 1 }).title)).toBe('1 porucha');

@@ -7,6 +7,8 @@ export type TodayWatchLevel = 'confirmed' | 'suspicion' | null;
 export interface TodayWatchCardProps {
   connection?: ConnectionLike;
   layout: 'kiosk' | 'mobile' | 'desktop';
+  /** The clock Dnes shows: the card computes every duration from it (one „now“ per screen). */
+  now: string;
   onLevel?: (level: TodayWatchLevel) => void;
 }
 

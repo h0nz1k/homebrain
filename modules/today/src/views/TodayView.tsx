@@ -306,7 +306,12 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   // Hlídání domu: from a suspicion up the card leads the everyday cards (under the clock).
   const watchCard =
     !night && !(kiosk && highestSeverity === 'critical') && !kioskCooking
-      ? renderTodayWatchCard({ connection: context.connection, layout, onLevel: setWatchLevel })
+      ? renderTodayWatchCard({
+          connection: context.connection,
+          layout,
+          now: data.now,
+          onLevel: setWatchLevel,
+        })
       : null;
   const watchOn = !!watchCard && !!watchLevel;
   // Wall kiosk has no spare row: with the card the ribbon is slim, the home tiles step aside.

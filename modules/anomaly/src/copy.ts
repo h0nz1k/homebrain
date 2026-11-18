@@ -4,8 +4,11 @@
  *
  * - a headline never contradicts the detail: when the same device still reports another value,
  *   the headline names only what is missing („Čidlo ve sklepě nehlásí vlhkost“);
- * - every outage time is anchored to the **last report** („mlčí od 7:55 · 2 h 45 min“), the same
- *   instant on the card, the Dnes tile and the timeline;
+ * - every outage time is anchored to the **last report** and reads the same everywhere
+ *   („2 h 45 min od posledního hlášení (7:55)“): card, kiosk, suspicion rows, detail, timeline;
+ * - durations are computed from the caller's `now` (on Dnes the clock shown on screen);
+ * - one impersonal voice (no „hlídám / ukážu / naměřil“), rooms in the locative where known
+ *   („V obýváku je neobvykle teplo“);
  * - non-breaking spaces between a number and its unit and after one-letter prepositions.
  */
 import type { Detector, Finding, Report, TierKey } from './types.js';
@@ -48,6 +51,18 @@ export function dur(minutes: number): string {
     .join(' ');
 }
 
+/** „v 9:55“, „ve 13:55“ – Czech uses „ve“ before hours read with a consonant cluster. */
+export function atTime(value: Date | string | number): string {
+  const text = hm(value);
+  const hour = Number(text.split(':')[0]);
+  return `${[2, 3, 4, 12, 13, 14, 20, 21, 22, 23].includes(hour) ? 've' : 'v'}${NB}${text}`;
+}
+
+/** The one outage phrase: „2 h 21 min od posledního hlášení (9:29)“. */
+export function sinceLast(last: string, now: Date | string): string {
+  return `${dur((new Date(now).getTime() - Date.parse(last)) / 60_000)} od${NB}posledního hlášení (${hm(last)})`;
+}
+
 function plural(n: number, one: string, few: string, many: string) {
   return n === 1 ? one : n >= 2 && n <= 4 ? few : many;
 }
@@ -83,6 +98,39 @@ const WARM_COLD: Record<string, [string, string]> = {
   temperature: ['neobvykle teplo', 'neobvykle chladno'],
   humidity: ['neobvykle vlhko', 'neobvykle sucho'],
 };
+
+/**
+ * Room names in the locative („v obýváku“). Area names come from the owner's HA, so only common
+ * Czech rooms are known; any other room falls back to a sentence with the device name.
+ */
+const ROOM_LOCATIVE: Record<string, string> = {
+  obývák: 'v obýváku',
+  'obývací pokoj': 'v obývacím pokoji',
+  ložnice: 'v ložnici',
+  koupelna: 'v koupelně',
+  kuchyně: 'v kuchyni',
+  kuchyň: 'v kuchyni',
+  sklep: 've sklepě',
+  pracovna: 'v pracovně',
+  'dětský pokoj': 'v dětském pokoji',
+  pokoj: 'v pokoji',
+  chodba: 'na chodbě',
+  předsíň: 'v předsíni',
+  garáž: 'v garáži',
+  půda: 'na půdě',
+  kotelna: 'v kotelně',
+  'technická místnost': 'v technické místnosti',
+  spíž: 've spíži',
+  šatna: 'v šatně',
+  toaleta: 'na toaletě',
+  wc: 'na toaletě',
+  dílna: 'v dílně',
+  zahrada: 'na zahradě',
+  terasa: 'na terase',
+};
+export function roomLocative(area: string | null | undefined): string | null {
+  return (area && ROOM_LOCATIVE[area.trim().toLocaleLowerCase('cs-CZ')]) || null;
+}
 
 const cap = (s: string) => s.charAt(0).toLocaleUpperCase('cs-CZ') + s.slice(1);
 
@@ -141,7 +189,8 @@ export function headline(r: Report): string {
   if (top.detector === 'baseline') {
     const up = (top.detail.z ?? 0) > 0;
     const pair = top.device_class ? WARM_COLD[top.device_class] : undefined;
-    if (pair) return `${device}: ${up ? pair[0] : pair[1]}`;
+    const room = roomLocative(r.devices[0]?.area);
+    if (pair && room) return `${cap(room)} je ${up ? pair[0] : pair[1]}`;
     const q = quantity(top);
     if (q) return `${device} hlásí neobvykle ${up ? HIGH[q.g] : LOW[q.g]} ${q.acc}`;
     return `${device}: neobvyklá hodnota „${top.name}“`;
@@ -164,32 +213,24 @@ function dwellVerb(f: Finding): string {
 
 /** One line under the headline: what, since when (last report), how long. */
 export function meta(r: Report, now: Date | string): string {
-  const nowMs = new Date(now).getTime();
   if (r.scope === 'integration') {
     const last = lastReport(r);
-    const tail = last
-      ? ` · mlčí od${NB}${hm(last)} · ${dur((nowMs - Date.parse(last)) / 60_000)}`
-      : '';
+    const tail = last ? ` · ${sinceLast(last, now)}` : '';
     return `Společná integrace${r.integration ? ` ${r.integration}` : ''} · ${devicesCount(r.devices.length)}${tail}`;
   }
   if (r.scope === 'system') return `Od${NB}${hm(r.since)}`;
   const top = r.findings[0];
   if (!top) return '';
   if (SILENT.has(top.detector)) {
-    const last = lastReport(r)!;
-    const since = `od${NB}${hm(last)} · ${dur((nowMs - Date.parse(last)) / 60_000)}`;
-    if (wholeDevice(r)) {
-      const n = r.entity_count;
-      return `${n >= 5 ? 'Všech' : 'Všechny'} ${values(n)} mlčí ${since}`;
-    }
+    const since = sinceLast(lastReport(r)!, now);
+    // The headline already says what is missing; the count of values is only in the detail.
+    if (wholeDevice(r)) return `Neposílá žádné údaje · ${since}`;
     const silent = silentFindings(r);
     if (top.detector === 'unavailable' && silent.length === 1) {
       const adj = { m: 'nedostupný', f: 'nedostupná', n: 'nedostupné' }[quantity(top)?.g ?? 'f'];
-      return `${cap(what(top, 'nom'))} je ${adj} ${since}`;
+      return `${cap(what(top, 'nom'))} je ${adj} · ${since}`;
     }
-    return silent.length > 1
-      ? `${cap(values(r.entity_count))} mlčí ${since}`
-      : `${cap(what(top, 'nom'))} mlčí ${since}`;
+    return cap(since);
   }
   if (top.detector === 'baseline') {
     const unit = top.unit ? `${NB}${top.unit}` : '';
@@ -205,15 +246,34 @@ export function meta(r: Report, now: Date | string): string {
   return `Od${NB}${hm(started)} · ${dur(top.detail.minutes ?? 0)} · obvykle nejvýš ${dur(top.detail.usual_minutes ?? 0)}`;
 }
 
-/** Why it matters / what to check (one or two sentences). */
-export function why(r: Report): string {
+/** Short second line of a row in „Další podezření“ (single line on the kiosk). */
+export function rowDetail(r: Report, now: Date | string): string {
+  const last = lastReport(r);
+  if (last) return sinceLast(last, now);
+  const top = r.findings[0];
+  if (top?.detector === 'baseline') {
+    const unit = top.unit ? `${NB}${top.unit}` : '';
+    return `${num(top.detail.value ?? 0)}${unit}, obvykle ${num(top.detail.usual ?? 0)}${unit}`;
+  }
+  return `od${NB}${hm(top?.since ?? r.since)}`;
+}
+
+/** „Chybí všech 17 hodnot zařízení“ / „obě hodnoty“ / „všechny 3 hodnoty“. */
+function allValues(n: number): string {
+  if (n === 2) return 'obě hodnoty';
+  return `${n >= 5 ? 'všech' : 'všechny'} ${values(n)}`;
+}
+
+/** Why it matters / what to check (one or two sentences); durations count up to `now`. */
+export function why(r: Report, now: Date | string): string {
   if (r.scope === 'integration')
     return 'Zkontrolujte společnou bránu nebo připojení integrace v Home Assistantu.';
   if (r.scope === 'system') return 'Zkontrolujte připojení sítě a stav Home Assistantu.';
   const top = r.findings[0];
   if (!top) return '';
   if (SILENT.has(top.detector)) {
-    if (wholeDevice(r)) return 'Zkontrolujte napájení a připojení zařízení.';
+    if (wholeDevice(r))
+      return `Chybí ${allValues(r.entity_count)} zařízení. Zkontrolujte napájení a připojení.`;
     const still = r.reporting[0];
     if (still) {
       const other = still.device_class && QUANTITY[still.device_class];
@@ -227,14 +287,11 @@ export function why(r: Report): string {
   if (top.detector === 'baseline') {
     if (top.tier === 'observation')
       return 'Hodnota vybočila z obvyklého rozmezí pro tuto denní dobu.';
-    if (top.detail.seen_before !== false) {
-      const q = quantity(top);
-      const like = q
-        ? `${q.g === 'f' ? 'Takovou' : q.g === 'm' ? 'Takový' : 'Takové'} ${q.acc}`
-        : 'Takovou hodnotu';
-      return `Odchylka trvá déle než 30${NB}minut. ${like} už jsem tu v posledních týdnech naměřil, proto to zatím není porucha.`;
-    }
-    return 'Hodnota je mimo vše, co jsem tu za poslední tři týdny naměřil.';
+    const lasting = `Odchylka trvá ${dur((new Date(now).getTime() - Date.parse(top.since)) / 60_000)}.`;
+    if (top.detail.seen_before !== false)
+      return `${lasting} Takové hodnoty tu v posledních týdnech už byly, proto to zatím není porucha.`;
+    const up = (top.detail.z ?? 0) > 0;
+    return `${lasting} Tak ${up ? 'vysoká' : 'nízká'} hodnota se tu za poslední tři týdny nevyskytla.`;
   }
   if (top.detector === 'flapping')
     return top.detail.what === 'availability'
@@ -250,8 +307,10 @@ export function stepDetail(r: Report, tier: TierKey): string {
   const reached = r.reached[tier];
   if (reached) return hm(reached);
   const earliest = r.earliest[tier];
-  if (earliest) return `nejdřív ${hm(earliest)}`;
-  return r.findings[0]?.detector === 'baseline' ? 'jen při extrému' : 'podle vývoje';
+  if (earliest) return `nejdříve ${atTime(earliest)}`;
+  return r.findings[0]?.detector === 'baseline'
+    ? 'až při extrémní hodnotě'
+    : 'podle dalšího vývoje';
 }
 
 export type Glyph =
@@ -325,16 +384,23 @@ export function overview(counts: Record<TierKey, number>): {
       tone: 'confirmed',
     };
   if (suspicion)
-    return { title: `${suspicion}${NB}podezření`, sub: 'Sleduji další vývoj', tone: 'suspicion' };
+    return {
+      title: `${suspicion}${NB}podezření`,
+      sub: 'Další vývoj se sleduje',
+      tone: 'suspicion',
+    };
   if (observation)
     return {
       title: `${observation}${NB}pozorování`,
-      sub: 'Změny zatím vyhodnocuji',
+      sub: 'Změny se zatím vyhodnocují',
       tone: 'observation',
     };
   return { title: 'Vše v pořádku', sub: 'Nic neobvyklého za posledních 24 h', tone: 'ok' };
 }
 
-export function inventory(watched: { devices: number; entities: number }): string {
-  return `Hlídám ${devicesCount(watched.devices)} (${values(watched.entities)})`;
+export function inventory(watched: { devices: number }): string {
+  return `Hlídáno ${devicesCount(watched.devices)}`;
 }
+
+/** What „Vyřešeno“ does (owner: say it in the UI). */
+export const RESOLVED_HINT = `Pokud potíž trvá, za 2${NB}h se hlášení vrátí.`;

@@ -40,6 +40,8 @@ export interface Finding {
 
 export interface ReportDevice {
   name: string;
+  /** Room (HA area) of the device, if assigned: „V obýváku je neobvykle teplo“. */
+  area?: string | null;
   /** Watched entities of the device. */
   monitored: number;
   /** Only in `list`. */

@@ -1,11 +1,14 @@
 import { useId } from 'react';
-import { TIER_LABEL, TIERS, dur, hm, num } from '../copy.js';
+import { TIER_LABEL, TIERS, dur, hm, num, sinceLast } from '../copy.js';
 import type { Band, Health } from '../types.js';
 
 const HOUR = 3_600_000;
 const LEGEND: Record<Health, string> = { ok: 'V pořádku', ...TIER_LABEL };
 
-/** Highest tier per hour over the last 24 h (oldest first). */
+/**
+ * Highest tier per hour over the last 24 h (oldest first). The tier is never told by colour
+ * alone: bars grow with the tier and carry a pattern (dots, stripes, solid with a notch).
+ */
 export function HealthStrip({ health, now }: { health: Health[]; now: string }) {
   const end = Date.parse(now);
   return (
@@ -189,7 +192,7 @@ export function SilenceTimeline({
     <figure className="aw-gap" data-testid="aw-gap">
       <figcaption>
         <b data-testid="aw-gap-title">
-          Od {hm(lastMs)} chybí {missing}&nbsp;hlášení
+          Chybí {missing}&nbsp;hlášení · {sinceLast(last, now)}
         </b>
         <span>obvykle hlásí každých {dur(step / 60_000)}</span>
       </figcaption>
@@ -199,7 +202,7 @@ export function SilenceTimeline({
             style={{ left: `${lastPos}%` }}
             data-align={lastPos < 25 ? 'start' : lastPos > 70 ? 'end' : 'center'}
           >
-            poslední hodnota <b>{hm(lastMs)}</b>
+            poslední hlášení <b>{hm(lastMs)}</b>
           </span>
         </div>
         <div className="aw-gap-track">

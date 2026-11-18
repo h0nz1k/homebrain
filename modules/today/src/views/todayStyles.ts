@@ -354,4 +354,14 @@ export const todayStyles = `
 .today-kiosk.today-cooking-on .today-hero{min-height:110px}
 .today-kiosk.today-cooking-on .today-content{gap:8px;padding-top:16px;padding-bottom:14px}
 .today-night .today-cooking{width:min(100%,960px);--hb-glass:rgba(10,12,16,.6)}
+/* Tablet/desktop with the Hlídání domu card: the hero collapses to one compact row (clock,
+   weather, condition), no sun arc, so the card and the whole „Průběh dne“ fit 1280×800 (e2e). */
+.today-desktop.today-watch-on .today-content{gap:12px;padding-top:16px;padding-bottom:16px}
+.today-desktop.today-watch-on .today-hero{min-height:0;padding-bottom:0;align-items:center;justify-content:flex-start;gap:32px}
+.today-desktop.today-watch-on .today-sun-band{display:none}
+.today-desktop.today-watch-on .today-clock{font-size:72px;line-height:1}
+.today-desktop.today-watch-on .today-weather{--temp-size:44px;display:flex;align-items:center;gap:16px;text-align:left;align-self:center}
+.today-desktop.today-watch-on .today-temperature{gap:12px}
+.today-desktop.today-watch-on .today-condition,.today-desktop.today-watch-on .today-station{position:static;margin:0;font-size:17px}
+.today-desktop.today-watch-on .today-summary{font-size:18px}
 `;

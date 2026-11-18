@@ -2,16 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { navigatePanel, type ConnectionLike } from '@homebrain/ha-client';
 import { Button, Chip, StatusRow } from '@homebrain/ui';
 import { getAnomalyApi } from '../api.js';
-import {
-  TIER_TONE,
-  TIERS,
-  headline,
-  hm,
-  inventory,
-  lastReport,
-  meta,
-  reportGlyph,
-} from '../copy.js';
+import { TIER_TONE, TIERS, headline, inventory, meta, reportGlyph, rowDetail } from '../copy.js';
 import type { AnomalySnapshot, TierKey } from '../types.js';
 import { TierPill } from './TierPill.js';
 import { Glyph } from './glyphs.js';
@@ -25,6 +16,12 @@ export type WatchLevel = 'confirmed' | 'suspicion' | null;
 export interface WatchCardProps {
   connection?: ConnectionLike;
   layout: 'kiosk' | 'mobile' | 'desktop';
+  /**
+   * The clock shown on the screen (Dnes passes its own `now`): every duration on the card counts
+   * up to it, so „10:40“ on the clock and „1 h 11 min od posledního hlášení“ always agree. Without
+   * it the snapshot's evaluation time is used.
+   */
+  now?: string;
   /** Tells Dnes whether the card is shown (it shrinks the clock and makes room on the kiosk). */
   onLevel?: (level: WatchLevel) => void;
 }
@@ -35,8 +32,23 @@ const GROUP_TITLE: Record<TierKey, string> = {
   observation: 'Další pozorování',
 };
 
+function RowChevron() {
+  return (
+    <svg className="aw-row-chevron" viewBox="0 0 24 24" width={20} height={20} aria-hidden="true">
+      <path
+        d="m9 6 6 6-6 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Dnes: „Hlídání domu“ card from a suspicion up, a quiet chip otherwise (summary API only). */
-export function AnomalyWatchCard({ connection, layout, onLevel }: WatchCardProps) {
+export function AnomalyWatchCard({ connection, layout, now, onLevel }: WatchCardProps) {
   const api = useMemo(() => getAnomalyApi(connection), [connection]);
   const [snap, setSnap] = useState<AnomalySnapshot | null>(null);
   useEffect(() => {
@@ -68,6 +80,7 @@ export function AnomalyWatchCard({ connection, layout, onLevel }: WatchCardProps
   if (!snap || !snap.ready) return null;
 
   const kiosk = layout === 'kiosk';
+  const clock = now ?? snap.now;
   if (!level) {
     const observations = snap.counts.observation;
     return (
@@ -114,17 +127,25 @@ export function AnomalyWatchCard({ connection, layout, onLevel }: WatchCardProps
             <Glyph name={reportGlyph(top!)} size={22} />
           </span>
           <span className="aw-eyebrow">Hlídání domu</span>
+          {/* kiosk: the pill sits in the eyebrow row, so the big title never wraps around it */}
+          {kiosk && <TierPill tier={top!.tier} />}
         </div>
         <div className="aw-watch-titlerow">
           <h2 className="aw-watch-title" data-testid="aw-watch-title">
             {headline(top!)}
           </h2>
-          <TierPill tier={top!.tier} />
+          {!kiosk && <TierPill tier={top!.tier} />}
         </div>
         <p className="aw-watch-context" data-testid="aw-watch-meta">
-          {meta(top!, snap.now)}
+          {meta(top!, clock)
+            .split(' · ')
+            .map((part, i) => (
+              <span key={i} className="aw-part">
+                {i > 0 && <span className="aw-sep"> · </span>}
+                {part}
+              </span>
+            ))}
         </p>
-        <p className="aw-watch-sent">Aktualizováno {hm(snap.now)}</p>
         <div className="aw-watch-foot">
           {!kiosk && (
             <Button
@@ -148,17 +169,40 @@ export function AnomalyWatchCard({ connection, layout, onLevel }: WatchCardProps
                 <h3>
                   {GROUP_TITLE[tier]} ({items.length})
                 </h3>
-                {visible.map((r) => (
-                  <StatusRow
-                    key={r.key}
-                    icon={<Glyph name={reportGlyph(r)} size={18} />}
-                    tone={TIER_TONE[r.tier]}
-                    label={headline(r)}
-                    detail={`od ${hm(lastReport(r) ?? r.since)}`}
-                    value={null}
-                    data-testid="aw-watch-item"
-                  />
-                ))}
+                {visible.map((r) =>
+                  kiosk ? (
+                    // The wall tablet cannot open the detail: a plain, muted row.
+                    <StatusRow
+                      key={r.key}
+                      icon={<Glyph name={reportGlyph(r)} size={18} />}
+                      tone={TIER_TONE[r.tier]}
+                      label={headline(r)}
+                      detail={rowDetail(r, clock)}
+                      value={null}
+                      data-testid="aw-watch-item"
+                    />
+                  ) : (
+                    // Same look as a StatusRow, but the whole row opens the detail (chevron).
+                    <button
+                      key={r.key}
+                      type="button"
+                      className="hb-status-row aw-watch-row"
+                      data-rich=""
+                      data-tone={TIER_TONE[r.tier]}
+                      data-testid="aw-watch-item"
+                      onClick={() => navigatePanel(ANOMALY_PATH)}
+                    >
+                      <span className="hb-status-row-icon" aria-hidden="true">
+                        <Glyph name={reportGlyph(r)} size={18} />
+                      </span>
+                      <span className="hb-status-row-copy">
+                        <span className="hb-status-row-label">{headline(r)}</span>
+                        <small>{rowDetail(r, clock)}</small>
+                      </span>
+                      <RowChevron />
+                    </button>
+                  ),
+                )}
               </section>
             );
           })}
