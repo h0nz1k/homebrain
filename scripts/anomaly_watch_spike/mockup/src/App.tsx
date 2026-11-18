@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import {
   Button,
   Card,
@@ -105,13 +105,31 @@ function WatchCard({ s }: { s: Snapshot }) {
             <Glyph name={top.glyph} size={22} />
           </span>
           <span className="aw-eyebrow">Hlídání domu</span>
-          <TierPill tier={top.tier} size="sm" />
         </div>
-        <h2 className="aw-watch-title">{top.headline}</h2>
+        <div className="aw-watch-titlerow">
+          <h2 className="aw-watch-title">{top.headline}</h2>
+          <TierPill tier={top.tier} />
+        </div>
         <p className="aw-watch-context">{top.meta}</p>
-        {top.phone_at && (
-          <p className="aw-watch-sent aw-muted">Odesláno na telefon {hm(top.phone_at)}</p>
-        )}
+        <p className="aw-watch-sent">Aktualizováno {s.time}</p>
+        <div className="aw-watch-foot">
+          {/* The anomaly outranks every chore on the page. */}
+          <Button
+            variant="primary"
+            className="aw-cta"
+            data-tone={top.tier}
+            onClick={() => navigate('detail')}
+          >
+            Otevřít hlídání
+          </Button>
+          {top.phone_at ? (
+            <span className="aw-watch-phone">
+              <Glyph name="phone" size={18} /> Odesláno na telefon v {hm(top.phone_at)}
+            </span>
+          ) : (
+            <span className="aw-muted">{s.inventory}</span>
+          )}
+        </div>
       </div>
       {other.length > 0 && (
         <div className="aw-watch-list">
@@ -126,6 +144,7 @@ function WatchCard({ s }: { s: Snapshot }) {
                   icon={<Glyph name={i.glyph} size={18} />}
                   tone={tone(i.tier)}
                   label={i.headline}
+                  detail={`od ${i.from}`}
                   value={null}
                 />
               ))}
@@ -133,12 +152,6 @@ function WatchCard({ s }: { s: Snapshot }) {
           ))}
         </div>
       )}
-      <div className="aw-watch-foot">
-        <Button variant="secondary" size="sm" onClick={() => navigate('detail')}>
-          Otevřít hlídání
-        </Button>
-        <span className="aw-muted">{s.inventory}</span>
-      </div>
     </article>
   );
 }
@@ -161,7 +174,9 @@ function Dnes({ s }: { s: Snapshot }) {
         Dům v pořádku
       </Chip>
     ) : null;
-  const [wasteDone, setWasteDone] = useState(false);
+  const [binOut, setBinOut] = useState(false);
+  // The bin button exists only from 17:00 the evening before collection.
+  const binDue = Number(s.time.split(':')[0]) >= 17;
   const dishwasherAffected = s.issues.some((i) => i.device_ids.includes('dev_dishwasher'));
   return (
     <div className="aw-page aw-dnes" data-watch={card ? s.issues[0].tier : undefined}>
@@ -172,7 +187,7 @@ function Dnes({ s }: { s: Snapshot }) {
         </div>
         <div className="aw-hero-wx">
           <span className="aw-temp">
-            7<small> °C</small>
+            7<small> °C</small>
           </span>
           <span className="aw-muted">polojasno</span>
         </div>
@@ -185,22 +200,24 @@ function Dnes({ s }: { s: Snapshot }) {
           severity="notice"
           title="Zítra svoz papíru"
           context={
-            wasteDone
-              ? 'Popelnice je připravená ke svozu.'
-              : 'Připravte popelnici večer. Svoz bývá do 8:00.'
+            binOut
+              ? 'Popelnice je venku.'
+              : binDue
+                ? 'Svoz bývá do 8:00.'
+                : 'Popelnici připravte večer, svoz bývá do 8:00. Připomenu v 17:00.'
           }
           icon={<Icon name="bin" size={22} />}
-          actionLabel={wasteDone ? undefined : 'Hotovo – vyvezeno'}
-          onAction={() => setWasteDone(true)}
+          actionLabel={binDue && !binOut ? 'Popelnice je venku' : undefined}
+          onAction={() => setBinOut(true)}
         />
         <SignalCard
           id="energy"
           severity="notice"
-          title="Levný proud 13–15 h"
+          title="Levný proud dnes 13–15 h"
           context={
             dishwasherAffected
-              ? 'Průměr 1,9 Kč/kWh. Vhodná doba na praní.'
-              : 'Průměr 1,9 Kč/kWh. Vhodná doba na praní nebo mytí nádobí.'
+              ? 'Průměr 1,9 Kč/kWh. Hodí se na praní. Myčka teď nehlásí stav, mytí odložte.'
+              : 'Průměr 1,9 Kč/kWh. Vhodná doba na praní nebo mytí nádobí.'
           }
           icon={<Icon name="tariff" size={22} />}
         />
@@ -210,7 +227,7 @@ function Dnes({ s }: { s: Snapshot }) {
           Počasí bez výstrah
         </Chip>
         <Chip tone="neutral" icon={<Icon name="battery" size={16} />}>
-          Baterie 78 %
+          Baterie domu 78 %
         </Chip>
         <Chip tone="neutral" icon={<Icon name="calendar" size={16} />}>
           Odpoledne 2 události
@@ -254,12 +271,20 @@ function HealthStrip({ s }: { s: Snapshot }) {
   );
 }
 
-function BaselineBand({ points }: { points: Snapshot['temperature'] }) {
+const minuteOfDay = (d: Date) => {
+  const [h, m] = hm(d).split(':').map(Number);
+  return h * 60 + m;
+};
+
+function BaselineBand({ points, now }: { points: Snapshot['temperature']; now: Date }) {
+  const id = useId();
   const width = 480;
   const height = 112;
   const x = (minute: number) => (minute / 1440) * width;
   const y = (value: number) => 8 + ((30 - value) / 12) * (height - 16);
-  const current = points.at(-1)!;
+  const nowMinute = minuteOfDay(now);
+  const nowX = x(nowMinute);
+  const current = [...points].reverse().find((p) => p.minute <= nowMinute) ?? points.at(-1)!;
   const usual = [USUAL[0], ...USUAL, USUAL[23]].map((bounds, i) => ({
     ...bounds,
     minute: i === 0 ? 0 : i === 25 ? 1440 : (i - 0.5) * 60,
@@ -271,39 +296,53 @@ function BaselineBand({ points }: { points: Snapshot['temperature'] }) {
       .reverse()
       .map((p) => `${x(p.minute)},${y(p.lo)}`),
   ].join(' ');
-  const line = points.map((p) => `${x(p.minute)},${y(p.value)}`).join(' ');
+  const edge = (key: 'hi' | 'lo') => usual.map((p) => `${x(p.minute)},${y(p[key])}`).join(' ');
+  const line = points
+    .filter((p) => p.minute <= nowMinute)
+    .map((p) => `${x(p.minute)},${y(p.value)}`)
+    .join(' ');
+  const past = `${id}-past`;
+  const future = `${id}-future`;
   return (
     <figure className="aw-band" aria-label="Dnešní hodinový průměr teploty proti obvyklému rozmezí">
       <div className="aw-band-chart">
         <div className="aw-band-y" aria-hidden="true">
-          <span>30°</span>
-          <span>24°</span>
-          <span>18°</span>
+          <span>30 °C</span>
+          <span>24 °C</span>
+          <span>18 °C</span>
         </div>
         <div className="aw-band-plot">
           <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-            <polygon points={band} className="aw-band-usual" />
-            {[18, 24, 30].map((v) => (
+            <defs>
+              <clipPath id={past}>
+                <rect x={0} y={0} width={nowX} height={height} />
+              </clipPath>
+              <clipPath id={future}>
+                <rect x={nowX} y={0} width={width - nowX} height={height} />
+              </clipPath>
+            </defs>
+            {[18, 21, 24, 27, 30].map((v) => (
               <line key={v} x1={0} x2={width} y1={y(v)} y2={y(v)} className="aw-band-grid" />
             ))}
-            <line
-              x1={x(current.minute)}
-              x2={x(current.minute)}
-              y1={0}
-              y2={height}
-              className="aw-band-now"
-            />
+            <polygon points={band} className="aw-band-usual" clipPath={`url(#${past})`} />
+            {/* After 'teď' the usual band is only a forecast: faded with dashed edges. */}
+            <g clipPath={`url(#${future})`}>
+              <polygon points={band} className="aw-band-usual aw-band-ahead" />
+              <polyline points={edge('hi')} className="aw-band-edge" />
+              <polyline points={edge('lo')} className="aw-band-edge" />
+            </g>
+            <line x1={nowX} x2={nowX} y1={0} y2={height} className="aw-band-now" />
             <polyline points={line} className="aw-band-today" />
           </svg>
           <span
             className="aw-band-dot"
             style={{
-              left: `${current.minute / 14.4}%`,
+              left: `${(current.minute / 1440) * 100}%`,
               top: `${(y(current.value) / height) * 100}%`,
             }}
           />
-          <span className="aw-band-tag" style={{ left: `${current.minute / 14.4}%` }}>
-            teď
+          <span className="aw-band-tag" style={{ left: `${(nowMinute / 1440) * 100}%` }}>
+            teď {hm(now)}
           </span>
         </div>
         <div className="aw-band-axis" aria-hidden="true">
@@ -328,32 +367,96 @@ function BaselineBand({ points }: { points: Snapshot['temperature'] }) {
   );
 }
 
+const HOUR = 3_600_000;
+/** Shared 4h window, so a longer gap is visibly longer on every card. */
+const GAP_WINDOW = 4 * HOUR;
+
 function SilenceTimeline({ gap, now }: { gap: NonNullable<Issue['gap']>; now: Date }) {
+  const end = +now;
+  const start = end - GAP_WINDOW;
+  const step = gap.interval * 60_000;
+  const last = +new Date(gap.last);
+  const pos = (t: number) => ((t - start) / (end - start)) * 100;
+  const hours: number[] = [];
+  // Hour labels keep clear of the 'teď' label at the right end.
+  for (let t = Math.ceil(start / HOUR) * HOUR; t <= end; t += HOUR) hours.push(t);
+  const labelled = hours.filter((t) => end - t >= 0.3 * GAP_WINDOW);
+  const received: number[] = [];
+  for (let t = last; t >= start; t -= step) received.push(t);
+  const expected: number[] = [];
+  for (let t = last + step; t <= end; t += step) expected.push(t);
+  const lastPos = pos(last);
   return (
     <figure className="aw-gap">
-      <figcaption>Obvykle nové hodnoty každých {dur(gap.interval)}</figcaption>
-      <div className="aw-gap-track" aria-hidden="true">
-        <span />
-        <span />
-      </div>
-      <div className="aw-gap-times">
-        <span>
-          <b>{hm(gap.last)}</b>Poslední hodnota
-        </span>
-        <span>
-          <b>{hm(gap.since)}</b>Začátek mezery
-        </span>
-        <span>
-          <b>{hm(now)}</b>Teď
-        </span>
+      <figcaption>
+        <b>
+          Od {hm(gap.last)} chybí {expected.length} hlášení
+        </b>
+        <span>obvykle hlásí každých {dur(gap.interval)}</span>
+      </figcaption>
+      <div className="aw-gap-scale" aria-hidden="true">
+        <div className="aw-gap-events">
+          <span
+            style={{ left: `${lastPos}%` }}
+            data-align={lastPos < 25 ? 'start' : lastPos > 70 ? 'end' : 'center'}
+          >
+            poslední hodnota <b>{hm(gap.last)}</b>
+          </span>
+        </div>
+        <div className="aw-gap-track">
+          <span className="aw-gap-data" style={{ width: `${lastPos}%` }} />
+          <span className="aw-gap-missing" style={{ left: `${lastPos}%` }} />
+          {hours.map((t) => (
+            <i key={t} className="aw-gap-hour" style={{ left: `${pos(t)}%` }} />
+          ))}
+          {received.map((t) => (
+            <i key={t} className="aw-gap-got" style={{ left: `${pos(t)}%` }} />
+          ))}
+          {expected.map((t) => (
+            <i key={t} className="aw-gap-miss" style={{ left: `${pos(t)}%` }} />
+          ))}
+          <i className="aw-gap-last" style={{ left: `${lastPos}%` }} />
+        </div>
+        <div className="aw-gap-hours">
+          {labelled.map((t) => (
+            <span key={t} style={{ left: `${pos(t)}%` }}>
+              {hm(t)}
+            </span>
+          ))}
+          <span className="aw-gap-now">
+            teď <b>{hm(now)}</b>
+          </span>
+        </div>
       </div>
     </figure>
   );
 }
 
-function IssueCard({ i, s }: { i: Issue; s: Snapshot }) {
+function Chevron() {
   return (
-    <article className="hb-card aw-issue" data-tier={i.tier}>
+    <svg className="aw-chevron" viewBox="0 0 24 24" width={18} height={18} aria-hidden="true">
+      <path
+        d="m6 9 6 6 6-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** A half-width card left alone in the last grid row takes the full width instead. */
+function lone(list: Issue[], i: Issue) {
+  const half = list.filter((x) => x.tier !== 'confirmed');
+  return half.length % 2 === 1 && half.at(-1) === i;
+}
+
+function IssueCard({ i, s, wide }: { i: Issue; s: Snapshot; wide?: boolean }) {
+  const fault = i.tier === 'confirmed';
+  return (
+    <article className="hb-card aw-issue" data-tier={i.tier} data-wide={wide || undefined}>
       <header className="aw-issue-head">
         <span className="aw-orb" data-tone={tone(i.tier)}>
           <Glyph name={i.glyph} size={22} />
@@ -365,11 +468,14 @@ function IssueCard({ i, s }: { i: Issue; s: Snapshot }) {
         <TierPill tier={i.tier} />
       </header>
       {i.why && <p className="aw-why">{i.why}</p>}
-      {i.value && <BaselineBand points={s.temperature} />}
+      {i.value && <BaselineBand points={s.temperature} now={s.now} />}
       {i.gap && <SilenceTimeline gap={i.gap} now={s.now} />}
       {i.entities.length > 1 && (
         <details className="aw-affected">
-          <summary>Dotčené hodnoty ({i.entities.length})</summary>
+          <summary>
+            Dotčené hodnoty ({i.entities.length})
+            <Chevron />
+          </summary>
           <div className="aw-entities" aria-label="Dotčené entity">
             {i.entities.map((e) => (
               <span key={e} className="aw-entity">
@@ -388,7 +494,7 @@ function IssueCard({ i, s }: { i: Issue; s: Snapshot }) {
           detail: i.reached[key]
             ? hm(i.reached[key]!)
             : i.earliest[key]
-              ? `nejdřív ${hm(i.earliest[key]!)}`
+              ? `nejdřív ${hm(i.earliest[key]!)}`
               : i.value
                 ? 'jen při extrému'
                 : 'podle vývoje',
@@ -398,33 +504,32 @@ function IssueCard({ i, s }: { i: Issue; s: Snapshot }) {
       <footer className="aw-issue-foot">
         {i.phone_at && (
           <span className="aw-sent">
-            <Glyph name="phone" size={16} /> Odesláno na telefon {hm(i.phone_at)}
+            <Glyph name="phone" size={16} /> Odesláno na telefon v {hm(i.phone_at)}
           </span>
         )}
         <div className="aw-actions">
-          {i.tier === 'confirmed' ? (
+          {fault ? (
             <>
               <Button variant="primary" size="sm">
                 Vyřešeno
               </Button>
               <Button variant="secondary" size="sm">
-                Vím o tom
+                Otevřít zařízení
               </Button>
-              <Button variant="ghost" size="sm">
-                Ztlumit na 7 dní
+              <Button variant="secondary" size="sm">
+                Vím o tom
               </Button>
             </>
           ) : (
-            <>
-              <Button variant="ghost" size="sm">
-                To je v pořádku
-              </Button>
-              <Button variant="secondary" size="sm">
-                Ztlumit na 7 dní
-              </Button>
-            </>
+            <Button variant="strong" size="sm">
+              To je v pořádku
+            </Button>
           )}
+          <button type="button" className="aw-link">
+            Ztlumit na 7 dní
+          </button>
         </div>
+        {fault && <p className="aw-hint">„Vím o tom“ = už nepřipomínat, hlídat dál.</p>}
       </footer>
     </article>
   );
@@ -447,7 +552,7 @@ function PhoneCard({ s }: { s: Snapshot }) {
               <span>{hm(sent.phone_at!)}</span>
             </div>
             <strong>{sent.headline}</strong>
-            <span>{sent.gap && <>Bez dat od {hm(sent.gap.since)}. </>}Klepněte pro detail.</span>
+            <span>{sent.gap && <>Bez dat od {hm(sent.gap.last)}. </>}Klepněte pro detail.</span>
           </div>
         </div>
       ) : (
@@ -481,7 +586,7 @@ function HowCard() {
       <ol className="aw-how">
         <li>
           <TierPill tier="observation" size="sm" />
-          <span>Změna je mimo obvyklý průběh. Pozorování se zobrazí tady.</span>
+          <span>Změna je mimo obvyklý průběh. Pozorování ukážu jen tady.</span>
         </li>
         <li>
           <TierPill tier="suspicion" size="sm" />
@@ -493,8 +598,8 @@ function HowCard() {
         </li>
       </ol>
       <p className="aw-privacy">
-        <Icon name="lock" size={16} /> Počítá se v Home Assistantu z vaší historie. Nic neodchází
-        ven.
+        <Icon name="lock" size={16} /> Výpočet běží doma v Home Assistantu, ven jdou jen oznámení na
+        telefon.
       </p>
     </Card>
   );
@@ -602,7 +707,7 @@ function Detail({ s }: { s: Snapshot }) {
           ) : (
             <div className="aw-issues">
               {visible.map((i) => (
-                <IssueCard key={i.key} i={i} s={s} />
+                <IssueCard key={i.key} i={i} s={s} wide={lone(visible, i)} />
               ))}
             </div>
           )}

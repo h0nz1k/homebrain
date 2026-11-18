@@ -1,16 +1,26 @@
 /* Mockup layout uses @homebrain/ui tokens; new pieces are
    candidates for packages/ui (aw-orb → TonedIcon, aw-strip → HealthStrip, aw-band → BaselineBand). */
 :root[data-theme='dark'] {
-  --aw-observe: #79b3ff;
+  /* observation = cyan-grey teal, deliberately not the blue of primary buttons */
+  --aw-observe: #74c4c6;
   --aw-suspect: #ffd38c;
   --aw-fault-ink: #ff9c9e;
-  --aw-band-fill: #426082;
+  --aw-band-fill: #3f5a6e;
+  /* bar fills shared by the 24h strip and its legend */
+  --aw-bar-ok: color-mix(in srgb, var(--hb-ok) 52%, var(--hb-s2));
+  --aw-bar-observe: #5fb3b6;
+  --aw-bar-suspect: #f2b635;
+  --aw-bar-fault: #ea4b59;
 }
 :root[data-theme='light'] {
-  --aw-observe: #2158b6;
+  --aw-observe: #126a72;
   --aw-suspect: #783c0b;
   --aw-fault-ink: #a42339;
-  --aw-band-fill: #93a9c3;
+  --aw-band-fill: #9fb3c2;
+  --aw-bar-ok: color-mix(in srgb, var(--hb-ok) 60%, var(--hb-s2));
+  --aw-bar-observe: #3a9ca1;
+  --aw-bar-suspect: #e3a21a;
+  --aw-bar-fault: #c8283e;
 }
 html,
 body {
@@ -129,7 +139,8 @@ body {
 }
 .aw-dnes .hb-signal {
   height: 100%;
-  align-content: center;
+  align-content: start;
+  align-items: start;
 }
 .aw-dnes .hb-signal-action button {
   background: var(--hb-ac-solid);
@@ -173,12 +184,45 @@ body {
       transparent 60%
     ),
     var(--hb-glass);
+  border-color: color-mix(in srgb, var(--hb-warn) 34%, var(--hb-edge));
+  box-shadow: inset 4px 0 var(--aw-bar-suspect);
+}
+.aw-watch-titlerow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 12px 0 4px;
+}
+.aw-watch-titlerow .aw-watch-title {
+  margin: 0;
+}
+/* primary action of the page: the anomaly outranks chores */
+.aw-page .aw-cta {
+  min-height: 48px;
+  padding-inline: 22px;
+  font-size: 16px;
+  font-weight: 650;
+}
+.aw-page .aw-cta[data-tone='confirmed'] {
+  background: #c8283e;
+  color: #fff;
+}
+.aw-page .aw-cta[data-tone='confirmed']:hover:not(:disabled) {
+  background: #ad1f33;
+}
+.aw-page .aw-cta[data-tone='suspicion'] {
+  background: color-mix(in srgb, var(--hb-warn) 10%, transparent);
+  color: var(--aw-suspect);
+  box-shadow: inset 0 0 0 2px var(--aw-bar-suspect);
 }
 .aw-watch-primary {
   min-width: 0;
 }
 .aw-watch-sent {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
+  color: var(--hb-t2);
+  font-size: 15px;
 }
 .aw-watch-head {
   display: flex;
@@ -222,10 +266,23 @@ body {
 }
 .aw-watch-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 4px;
+  margin-top: 16px;
+}
+.aw-watch-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--hb-t2);
+  font-size: 15px;
+  font-weight: 500;
+}
+.aw-watch-list .hb-status-row-detail,
+.aw-watch-list .hb-status-row-copy > :last-child:not(.hb-status-row-label) {
+  color: var(--hb-t2);
 }
 
 /* ---------------------------------------------------------------- detail */
@@ -334,16 +391,16 @@ body {
 }
 .aw-strip [data-tier] {
   border-radius: 4px;
-  background: color-mix(in srgb, var(--hb-ok) 52%, var(--hb-s2));
+  background: var(--aw-bar-ok);
 }
 .aw-strip [data-tier='observation'] {
-  background: var(--aw-observe);
+  background: var(--aw-bar-observe);
 }
 .aw-strip [data-tier='suspicion'] {
-  background: var(--hb-warn);
+  background: var(--aw-bar-suspect);
 }
 .aw-strip [data-tier='confirmed'] {
-  background: var(--hb-crit);
+  background: var(--aw-bar-fault);
 }
 .aw-strip-axis,
 .aw-strip-legend {
@@ -353,9 +410,10 @@ body {
   font-size: 13px;
 }
 .aw-strip-legend {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
   justify-content: start;
-  gap: 5px 10px;
+  gap: 5px 20px;
 }
 .aw-strip-legend span {
   display: inline-flex;
@@ -363,8 +421,9 @@ body {
   align-items: center;
 }
 .aw-strip-legend i {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
 }
 
 .hb-pill[data-tone='accent'],
@@ -414,17 +473,44 @@ body {
 .aw-affected summary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  color: var(--hb-t2);
+  color: var(--hb-t1);
   font-size: 14px;
+  font-weight: 550;
+  list-style: none;
 }
-.aw-affected summary::before {
-  content: '›';
-  font-size: 20px;
+.aw-affected summary::-webkit-details-marker {
+  display: none;
 }
-.aw-affected[open] summary::before {
-  transform: rotate(90deg);
+.aw-chevron {
+  color: var(--hb-t2);
+  transition: transform 0.2s;
+}
+.aw-affected[open] .aw-chevron {
+  transform: rotate(180deg);
+}
+/* tertiary text action, still a 44 px target */
+.aw-page .aw-link {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--hb-t2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--hb-t2) 50%, transparent);
+  cursor: pointer;
+}
+.aw-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--hb-t2);
+  font-size: 13px;
 }
 .aw-issue .hb-step {
   --step-ink: var(--aw-observe);
@@ -571,7 +657,17 @@ body {
 }
 .aw-band-grid {
   stroke: var(--hb-t2);
-  opacity: 0.3;
+  opacity: 0.16;
+  vector-effect: non-scaling-stroke;
+}
+.aw-band-ahead {
+  opacity: 0.35;
+}
+.aw-band-edge {
+  fill: none;
+  stroke: var(--aw-band-fill);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
   vector-effect: non-scaling-stroke;
 }
 .aw-band-chart {
@@ -603,6 +699,7 @@ body {
 .aw-band-tag {
   position: absolute;
   top: 0;
+  white-space: nowrap;
   translate: 5px 0;
   padding: 1px 5px;
   border-radius: 4px;
@@ -669,34 +766,110 @@ body {
   color: var(--hb-t1);
   font-weight: 600;
 }
-.aw-gap-track {
+.aw-gap-scale {
   display: grid;
-  grid-template-columns: 1fr 3fr;
-  gap: 4px;
-  margin-block: 4px;
-  height: 8px;
-}
-.aw-gap-track span {
-  border-radius: 3px;
-  background: var(--hb-t2);
-}
-.aw-gap-track span:last-child {
-  background: repeating-linear-gradient(125deg, var(--gap-ink) 0 2px, transparent 2px 6px);
-}
-.aw-gap-times {
-  display: grid;
-  grid-template-columns: 1fr 1.3fr auto;
   gap: 6px;
+  margin-top: 2px;
+}
+.aw-gap-events,
+.aw-gap-hours {
+  position: relative;
+  height: 20px;
   color: var(--hb-t2);
   font-size: 13px;
+  white-space: nowrap;
 }
-.aw-gap-times span:last-child {
-  text-align: right;
+.aw-gap-hours {
+  height: 20px;
 }
-.aw-gap-times b {
-  display: block;
+.aw-gap-events span,
+.aw-gap-hours span {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
+}
+.aw-gap-events [data-align='start'] {
+  translate: -6px 0;
+}
+.aw-gap-events [data-align='end'] {
+  translate: calc(-100% + 6px) 0;
+}
+.aw-gap-hours .aw-gap-now {
+  left: auto;
+  right: 0;
+  translate: 0 0;
+}
+.aw-gap-hours b {
   color: var(--hb-t1);
-  font-size: 16px;
+}
+.aw-gap figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+}
+.aw-gap figcaption span {
+  color: var(--hb-t2);
+  font-size: 13px;
+  font-weight: 400;
+}
+.aw-issue[data-wide] {
+  grid-column: 1 / -1;
+}
+.aw-gap-events b {
+  color: var(--hb-t1);
+  font-size: 15px;
+}
+.aw-gap-track {
+  position: relative;
+  height: 22px;
+}
+.aw-gap-track > * {
+  position: absolute;
+}
+.aw-gap-data,
+.aw-gap-missing {
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+}
+.aw-gap-data {
+  left: 0;
+  background: color-mix(in srgb, var(--hb-t2) 55%, transparent);
+}
+.aw-gap-missing {
+  right: 0;
+  background: color-mix(in srgb, var(--gap-ink) 22%, transparent);
+}
+.aw-gap-hour {
+  top: -2px;
+  bottom: -4px;
+  width: 1.5px;
+  background: var(--hb-t2);
+}
+.aw-gap-got,
+.aw-gap-miss {
+  top: 7px;
+  width: 2px;
+  height: 8px;
+  translate: -1px 0;
+  border-radius: 1px;
+}
+.aw-gap-got {
+  background: color-mix(in srgb, var(--hb-t2) 70%, transparent);
+}
+.aw-gap-miss {
+  background: var(--gap-ink);
+  opacity: 0.85;
+}
+.aw-gap-last {
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  translate: -6px 0;
+  border-radius: 50%;
+  background: var(--hb-t1);
+  box-shadow: 0 0 0 3px var(--hb-s2);
 }
 
 .aw-tiles {
@@ -834,12 +1007,59 @@ body {
   .aw-watch-list h3 {
     margin-top: 0;
   }
+  /* kiosk / desktop: a fault is the loudest thing after the clock (readable from 2 m) */
   .aw-watch[data-tier='confirmed'] .aw-watch-title {
     font-size: clamp(56px, 4.5vw, 66px);
     line-height: 1.05;
   }
-  .aw-watch[data-tier='confirmed'] .aw-watch-context {
+  .aw-watch[data-tier='confirmed'] .aw-watch-titlerow .hb-pill {
+    min-height: 36px;
+    padding: 4px 16px;
+    font-size: 22px;
+    font-weight: 650;
+  }
+  .aw-watch[data-tier='confirmed'] .aw-watch-context,
+  .aw-watch[data-tier='confirmed'] .aw-watch-sent,
+  .aw-watch[data-tier='confirmed'] .aw-watch-phone,
+  .aw-watch[data-tier='confirmed'] .aw-watch-list .hb-status-row-label {
     font-size: 30px;
+    line-height: 1.25;
+  }
+  .aw-watch[data-tier='confirmed'] .aw-watch-list h3 {
+    font-size: 30px;
+    margin-bottom: 4px;
+  }
+  .aw-watch[data-tier='confirmed'] .aw-watch-list .hb-status-row-copy > :not(.hb-status-row-label),
+  .aw-watch[data-tier='confirmed'] .aw-watch-foot .aw-muted {
+    font-size: 24px;
+  }
+  .aw-watch[data-tier='confirmed'] .aw-cta {
+    min-height: 60px;
+    padding-inline: 30px;
+    font-size: 24px;
+  }
+  .aw-watch[data-tier='confirmed'] .aw-eyebrow {
+    font-size: 20px;
+  }
+  .aw-dnes[data-watch='confirmed'] .aw-temp {
+    font-size: 48px;
+  }
+  .aw-dnes[data-watch='confirmed'] .aw-watch {
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+  }
+  .aw-dnes[data-watch='confirmed'] .hb-signal {
+    min-height: 0;
+  }
+  .aw-dnes[data-watch='confirmed'] {
+    gap: 18px;
+    padding-top: 22px;
+    padding-bottom: 22px;
+  }
+  .aw-dnes[data-watch='confirmed'] .aw-hero {
+    padding-block: 20px;
+  }
+  .aw-dnes[data-watch='confirmed'] .aw-clock {
+    font-size: 104px;
   }
   .aw-watch-foot {
     justify-content: start;
@@ -877,15 +1097,49 @@ body {
   .aw-dnes .hb-signal {
     min-height: 178px;
   }
+  /* tablet portrait: spread the stack over the whole screen instead of leaving the bottom empty */
   .aw-dnes[data-watch] {
-    align-content: start;
-    padding-top: 72px;
+    grid-template-rows: 1fr auto auto auto;
+    align-content: stretch;
+    padding-top: 40px;
+  }
+  .aw-dnes[data-watch] .aw-watch {
+    padding: 30px 32px;
+    gap: 18px;
+  }
+  .aw-dnes[data-watch] .aw-watch-title {
+    font-size: 36px;
+  }
+  .aw-dnes[data-watch] .aw-watch-context,
+  .aw-dnes[data-watch] .aw-watch-sent {
+    font-size: 20px;
+  }
+  .aw-dnes[data-watch] .aw-watch-list .hb-status-row-label {
+    font-size: 19px;
+  }
+  .aw-dnes[data-watch] .aw-watch-list h3 {
+    font-size: 18px;
+  }
+  .aw-dnes[data-watch] .aw-cards {
+    align-items: stretch;
+  }
+  .aw-dnes[data-watch] .aw-cards .hb-signal {
+    min-height: 0;
+  }
+  .aw-dnes[data-watch] .hb-signal h3 {
+    font-size: 24px;
+  }
+  .aw-dnes[data-watch] .hb-signal-context {
+    font-size: 17px;
   }
   .aw-watch[data-tier='confirmed'] .aw-watch-title {
     font-size: 48px;
   }
   .aw-watch[data-tier='confirmed'] .aw-watch-context {
     font-size: 24px;
+  }
+  .aw-dnes[data-watch] .aw-temp {
+    font-size: 56px;
   }
 }
 @media (max-width: 1180px) {

@@ -36,11 +36,14 @@ Každé hlášení má jednu ze tří úrovní.
   výpadky, ne s ideálem.
 - Spotřeba (konvice, návštěva) potřebuje mnohem silnější odchylku než teplota nebo vlhkost.
 
-**Soukromí.** Vše se počítá v Home Assistantu z jeho vlastní historie (recorder). Nic se neposílá
-ven, žádná AI, žádná cloudová služba.
+**Soukromí.** Výpočet běží doma v Home Assistantu z jeho vlastní historie (recorder). Ven jdou
+jen oznámení na telefon, žádná AI, žádná cloudová služba.
 
-**Ovládání.** U hlášení „To je v pořádku“ (zavřít a přizpůsobit prah) a „Ztlumit na 7 dní“. Obojí je
-jen lokální stav HomeBrainu, do HA se nic nezapisuje.
+**Ovládání.** Podezření: hlavní „To je v pořádku“ (zavřít a přizpůsobit prah), vedlejší odkaz
+„Ztlumit na 7 dní“. Porucha: hlavní „Vyřešeno“, vedle „Otevřít zařízení“, pak „Vím o tom“ (už
+nepřipomínat, hlídat dál) a odkaz „Ztlumit na 7 dní“. Na *Dnes* má při podezření nebo poruše
+„Otevřít hlídání“ přednost před běžnými úkoly (např. popelnice). Vše je jen lokální stav
+HomeBrainu, do HA se nic nezapisuje.
 
 ---
 
@@ -88,8 +91,9 @@ baselinem nehlídají.
 1. **Úroveň nikdy neklesá**, dokud hlášení trvá (žádné blikání). Hlášení se uzavře, až je podmínka
    15 min nepravdivá; přesune se do „Nedávno vyřešené“ (7 dní).
 2. **Seskupení po zařízení** (`device_id`). Mlčí-li ≥ 2 entity a ≥ 50 % hlídaných entit zařízení,
-   je titulek „{Zařízení} neodpovídá ({N} entit)“ a úroveň se zvedá o stupeň (podezření → porucha):
-   mlčící celé zařízení je porucha zařízení, ne šum. Počet entit v titulku zahrnuje i sourozence,
+   je titulek „{Zařízení} neodpovídá ({N} entit)“ a úroveň se zvedá postupně: pozorování trvající
+   30 min → podezření, mlčení na prahu podezření (2 h) → porucha. Mlčící celé zařízení je porucha
+   zařízení, ne šum; podezření ale vždy předchází poruše (v ukázce 9:55 → 10:25 → 11:20). Počet entit v titulku zahrnuje i sourozence,
    kteří ještě nepřekročili práh, a nikdy neklesá (žádné 2 → 7 → 17).
 3. **Seskupení po integraci**: pokud mlčí ≥ 3 zařízení jedné integrace, vznikne jedno společné hlášení.
    Stačí i dvě zařízení, pokud mlčí všechny jejich hlídané hodnoty a poslední aktualizace zařízení

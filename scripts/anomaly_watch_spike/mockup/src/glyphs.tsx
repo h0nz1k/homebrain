@@ -11,6 +11,10 @@ const P: Record<Glyph, JSX.Element> = {
   ),
   thermo: <path d="M10 13.5V5a2 2 0 1 1 4 0v8.5a4 4 0 1 1-4 0ZM12 9v6" />,
   drop: <path d="M12 3.5c3 4 5.5 7 5.5 10.2a5.5 5.5 0 0 1-11 0C6.5 10.5 9 7.5 12 3.5Z" />,
+  // sensor with a struck-through signal arc: 'nevysílá'
+  sensorOff: (
+    <path d="M9 13.5h6v6.5a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-6.5ZM12 16.5h.01M8.2 9.7a5.5 5.5 0 0 1 7.6 0M5.6 7a9.3 9.3 0 0 1 12.8 0M4 3.5l16 16" />
+  ),
   snow: (
     <path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5" />
   ),

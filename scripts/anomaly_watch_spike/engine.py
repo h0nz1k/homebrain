@@ -441,8 +441,13 @@ class Engine:
             )
         tier = max(f.tier for f in findings)
         # Corroboration: most of a device going quiet together is a device fault, not noise.
-        if len(silent) >= 2 and len(silent) >= 0.5 * len(monitored) and tier >= Tier.SUSPICION:
-            tier = min(Tier.CONFIRMED, Tier(tier + 1))
+        # Raised one step at a time: a quiet device is a suspicion after persist_suspicion,
+        # and confirmed once the silence itself reaches the suspicion threshold.
+        if len(silent) >= 2 and len(silent) >= 0.5 * len(monitored):
+            if tier >= Tier.SUSPICION:
+                tier = min(Tier.CONFIRMED, Tier(tier + 1))
+            elif now - min(f.since for f in findings) >= self.cfg.persist_suspicion:
+                tier = Tier.SUSPICION
         top = max(findings, key=lambda f: (f.tier, -f.since.timestamp()))
         if len(silent) >= 2:
             title = f"{device_name} neodpovídá ({plural_entities(len(silent))})"

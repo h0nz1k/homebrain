@@ -86,6 +86,10 @@ def test_dishwasher_silent_is_one_grouped_report_and_one_notification(history, b
     assert timedelta(minutes=20) <= first_obs - gone <= timedelta(minutes=45)
     # 17 entities silent together = device fault: confirmed after 2 h, not the single-entity 6 h
     assert timedelta(hours=1, minutes=50) <= confirmed - gone <= timedelta(hours=2, minutes=15)
+    # escalation is stepwise: a quiet device is a suspicion well before it is confirmed
+    suspected = _first(tl, lambda r: r.tier == Tier.SUSPICION)
+    assert suspected - first_obs >= timedelta(minutes=30)
+    assert confirmed - suspected >= timedelta(minutes=30)
     # recovery clears it, the relapse within 24 h does not ring the phone again
     assert not any(
         tl_r

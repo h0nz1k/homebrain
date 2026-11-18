@@ -6,6 +6,7 @@ export type Glyph =
   | 'dishwasher'
   | 'thermo'
   | 'drop'
+  | 'sensorOff'
   | 'snow'
   | 'bolt'
   | 'washer'
@@ -36,7 +37,7 @@ const GLYPHS: Record<string, Glyph> = {
   dev_living_climate: 'thermo',
   dev_bedroom_climate: 'thermo',
   dev_bathroom_climate: 'thermo',
-  dev_cellar_climate: 'drop',
+  dev_cellar_climate: 'sensorOff',
   dev_meter: 'bolt',
   dev_washer: 'washer',
   dev_front_door: 'door',
@@ -96,11 +97,21 @@ export interface Issue extends RawReport {
   glyph: Glyph;
   why?: string;
   meta: string;
+  /** Absolute start of the anomaly ('od 9:29'), shown next to every duration. */
+  from: string;
 }
 
 function issue(r: RawReport, now: Date): Issue {
-  const age = r.gap ? (+now - +new Date(r.gap.since)) / 60_000 : 0;
-  const base: Issue = { ...r, headline: r.title, meta: '', glyph: 'wifi' };
+  // Every duration is anchored to the last value the device sent (not the start of the gap).
+  const age = r.gap ? (+now - +new Date(r.gap.last)) / 60_000 : 0;
+  const first = r.reached.observation ?? r.gap?.last;
+  const base: Issue = {
+    ...r,
+    headline: r.title,
+    meta: '',
+    glyph: 'wifi',
+    from: first ? hm(first) : hm(now),
+  };
   if (r.scope === 'integration') {
     return {
       ...base,
@@ -122,14 +133,15 @@ function issue(r: RawReport, now: Date): Issue {
     const allSilent = device?.count === r.entities.length && r.entities.length > 1;
     return {
       ...base,
+      from: hm(r.gap.last),
       headline:
         r.key === 'device:dev_cellar_climate'
-          ? 'Čidlo vlhkosti ve sklepě neposílá data'
+          ? 'Čidlo vlhkosti ve sklepě nejspíš nevysílá'
           : `${device?.name ?? 'Zařízení'} neodpovídá`,
-      meta: `${allSilent ? `Všech ${values(r.entities.length)} mlčí` : 'Bez nových dat'} · ${dur(age)}`,
+      meta: `${allSilent ? `Všech ${values(r.entities.length)} mlčí` : `${r.entities[0].split(' ')[0]} mlčí`} od\u00a0${hm(r.gap.last)} · ${dur(age)}`,
       why: allSilent
         ? 'Zkontrolujte napájení a připojení zařízení.'
-        : 'Teplota ze stejného čidla přichází dál. Nejspíš vypadla jen tahle hodnota.',
+        : 'Teplota ze stejného čidla přichází dál, takže nejspíš vypadla jen tahle hodnota.',
     };
   }
   if (r.value) {
@@ -137,7 +149,7 @@ function issue(r: RawReport, now: Date): Issue {
     return {
       ...base,
       headline: 'V obýváku je neobvykle teplo',
-      meta: `${num(current)}\u00a0${unit} · obvykle ${num(usual)}\u00a0${unit}`,
+      meta: `${num(current)}\u00a0${unit} · obvykle ${num(usual)}\u00a0${unit} · od\u00a0${base.from}`,
       why:
         r.tier === 'observation'
           ? 'Teplota vybočila z obvyklého rozmezí pro tuto dobu.'
