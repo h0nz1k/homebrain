@@ -251,3 +251,45 @@ for (const scenario of ['', 'calm'])
         expect(Math.abs(radar.y - station.y)).toBeLessThan(1);
       }
     });
+
+test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async ({ page }) => {
+  await page.goto('/homebrain-pocasi');
+  const yt = page.getByTestId('weather-yt');
+  await expect(yt).toContainText('Dnes zatím');
+  await expect(page.getByTestId('weather-dry-streak')).toContainText('2 dny bez deště');
+  const hist = page.getByTestId('weather-history');
+  await expect(hist.getByTestId('weather-history-chart')).toBeVisible();
+  await hist.getByRole('tab', { name: '30 dní' }).click();
+  await expect(hist.getByTestId('weather-history-gaps')).toContainText('chybí data');
+  await expect(page.getByTestId('weather-records')).toContainText('Rekordy – 2026');
+  await page.getByTestId('weather-score-tab-rain').click();
+  await expect(page.getByTestId('weather-score-rain')).toContainText('zachytí');
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  // Evidence for the PR (owner visual check): HB_WEATHER_SCREENSHOT_DIR=<dir> pnpm test:e2e …
+  const dir = process.env.HB_WEATHER_SCREENSHOT_DIR;
+  if (!dir) return;
+  const { width, height } = page.viewportSize()!;
+  for (const theme of ['dark', 'light'] as const) {
+    if (theme === 'light') {
+      await page.goto('/homebrain-pocasi?theme=light');
+      await hist.getByRole('tab', { name: '30 dní' }).click();
+      await page.getByTestId('weather-score-tab-rain').click();
+    }
+    await page.evaluate(() => document.fonts.ready);
+    // The sticky shell top bar would cover element shots scrolled under it (evidence only).
+    await page.addStyleTag({ content: '.hb-topbar{position:static !important}' });
+    const name = (what: string) => `${dir}/weather-${what}-${width}x${height}-${theme}.png`;
+    await yt.screenshot({ path: name('vcera-a-dnes'), animations: 'disabled' });
+    await hist.screenshot({ path: name('historie-30d'), animations: 'disabled' });
+    await page
+      .getByTestId('weather-score')
+      .screenshot({ path: name('skore-dest'), animations: 'disabled' });
+    await hist.getByRole('tab', { name: '365 dní' }).click();
+    await hist.screenshot({ path: name('historie-365d'), animations: 'disabled' });
+    await hist.getByRole('tab', { name: '30 dní' }).click();
+    await page.screenshot({ path: name('stranka'), fullPage: true, animations: 'disabled' });
+  }
+});

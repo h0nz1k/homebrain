@@ -358,6 +358,56 @@ export const weatherStyles = `
   .wx-models .wx-xl-noon{display:none}
   .wx-hours-p,.wx-hero-src,.wx-hw-foot,.wx-hw-tlx,.wx-spark-x,.wx-hs-w,.wx-hs-key,.wx-foot,.wx-rank-k,.wx-attr,.wx-xlabs span,.wx-ylab,.wx-lg-w{font-size:13px}
 }
+/* Včera a dnes + Historie (issue #131 A): own station statistics, gaps shown, never filled. */
+.wx-yt{grid-column:span 5;align-self:start}.wx-hist{grid-column:span 7}
+.wx-yt-t{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.wx-yt-t th,.wx-yt-t td{padding:7px 0 7px 10px;border-top:1px solid var(--hb-b1);text-align:right;font-weight:600;white-space:nowrap;vertical-align:baseline}
+.wx-yt-t thead th{border-top:0;padding-top:0;font-size:12px;font-weight:600;color:var(--hb-t2)}
+.wx-yt-t tbody th{padding-left:0;text-align:left;font-weight:500;color:var(--hb-t2);white-space:normal}
+.wx-yt-t small{font-size:12px;font-weight:500;color:var(--hb-t2)}
+.wx-yt-note{display:block;font-size:12px;font-weight:500;color:var(--hb-t2)}
+.wx-yt-gap{font-size:12px;font-weight:500;color:var(--hb-warn)}
+.wx-yt .wx-info{margin-top:auto}.wx-yt .wx-yt-t{margin-bottom:12px}
+.wx-hist-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 14px}
+.wx-hist-sum div{background:var(--hb-fill,var(--hb-s2));border-radius:var(--hb-radius-xs,6px);padding:8px 12px;min-width:0}
+.wx-hist-sum dt{font-size:13px;font-weight:600;color:var(--hb-t2)}
+.wx-hist-sum dd{margin:2px 0 0;font-size:16px;font-weight:600;white-space:nowrap}
+.wx-hist-sum small{font-size:12px;font-weight:500;color:var(--hb-t2)}
+.wx-hist-chart{position:relative;height:190px;margin:0 46px 0 34px;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none}
+.wx-hist-chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.wx-hist-t{fill:var(--hb-weather-temp);opacity:.8}
+.wx-hist-r{fill:var(--hb-weather-rain);opacity:.9}
+.wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{opacity:.4}
+.wx-hist-chart .is-sel .wx-hist-t,.wx-hist-chart .is-sel .wx-hist-r{opacity:1}
+.wx-hist-gap{fill:var(--hb-warn);opacity:.13}
+.wx-hist-rgap{fill:var(--hb-warn);opacity:.55}
+.wx-hist-zero{stroke:var(--hb-t3);stroke-dasharray:3 3;stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
+.wx-hist-base{stroke:var(--hb-b2,var(--hb-b1));stroke-width:1;vector-effect:non-scaling-stroke}
+.wx-hist-sel{stroke:var(--hb-t1);stroke-width:1;opacity:.45;vector-effect:non-scaling-stroke}
+.wx-hist-yl{position:absolute;left:-34px;width:28px;text-align:right;transform:translateY(-50%);font-size:12px;color:var(--hb-t2);white-space:nowrap}
+.wx-hist-yl--r{left:auto;right:-46px;width:42px;text-align:left;color:var(--wx-rain-ink)}
+.wx-hist-x{position:absolute;left:0;right:0;bottom:-20px;height:14px;font-size:12px;color:var(--hb-t2)}
+.wx-hist-x span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.wx-hist-detail{margin:30px 0 0;font-size:13px;font-weight:500;color:var(--hb-t1)}
+.wx-hist-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0;font-size:12px;color:var(--hb-t2)}
+.wx-hist-key span{display:inline-flex;align-items:center;gap:6px}
+.wx-sw--hist-t{background:var(--hb-weather-temp);width:6px;height:10px;border-radius:2px}.wx-sw--gap{background:color-mix(in srgb,var(--hb-warn) 35%,transparent);width:10px;height:10px;border-radius:2px}
+.wx-rec{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hb-b1)}
+.wx-rec h3{margin:0 0 4px;font-size:13px;font-weight:600}
+.wx-rec ul{list-style:none;margin:0;padding:0}
+.wx-rec li{display:grid;grid-template-columns:minmax(0,1fr) auto 48px;gap:8px;align-items:baseline;padding:4px 0;font-size:13px}
+.wx-rec li span{color:var(--hb-t2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wx-rec li b{font-weight:600;white-space:nowrap}.wx-rec li small{font-size:12px;font-weight:500;color:var(--hb-t2)}
+.wx-rec li em{font-style:normal;font-size:12px;color:var(--hb-t3);text-align:right}
+.wx-hist .wx-foot{margin-top:12px}
+@media (max-width:1180px){.wx-yt,.wx-hist{grid-column:span 12}}
+@media (max-width:760px){
+  .wx-hist-sum{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wx-rec{grid-template-columns:1fr;gap:12px}
+  .wx-hist-chart{height:160px}
+  .wx-rank--rain .wx-rank-sub{white-space:normal}
+  .wx-yt-t,.wx-rec li,.wx-hist-detail{font-size:14px}.wx-hist-key,.wx-yt-note,.wx-yt-t small{font-size:13px}
+}
 .hb-shell[data-narrow='true'] .wx,.hb-shell[data-layout-mobile='true'] .wx{padding-bottom:calc(var(--hb-tabbar-height,72px) + env(safe-area-inset-bottom,0px) + 24px)}
 /* Sticky bottom tab bar: keep scrolled-to controls (radar scrubber + time labels) above it. */
 .hb-shell[data-narrow='true'] .wx *,.hb-shell[data-layout-mobile='true'] .wx *{scroll-margin-bottom:calc(var(--hb-tabbar-height,72px) + env(safe-area-inset-bottom,0px) + 24px)}
