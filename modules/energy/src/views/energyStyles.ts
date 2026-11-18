@@ -238,15 +238,22 @@ export const energyStyles = `
 .ef-cons-col .ef-cons-other{position:absolute;font-size:13px;color:var(--hb-t3);white-space:nowrap}
 .ef-cons-row .ef-cons-none{margin:0;font-size:13px;color:var(--hb-t3)}
 .ef-cons-row .ef-cons-more{align-self:center;font-size:13px;color:var(--hb-t2)}
-.ef-sheet-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.ef-sheet-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;padding-top:max(12px,env(safe-area-inset-top))}
 .ef-scrim{position:absolute;inset:0;background:rgba(5,8,12,.45);backdrop-filter:blur(6px);animation:ef-fade .2s ease both}
-.ef-sheet{position:relative;width:min(440px,100%);padding:18px 20px calc(20px + env(safe-area-inset-bottom));border-radius:22px 22px 0 0;background:var(--hb-s1);box-shadow:0 -12px 40px rgba(0,0,0,.28);animation:ef-up .3s var(--hb-ease-out,var(--hb-ease)) both}
-@media (min-width:700px){.ef-sheet-wrap{align-items:center}.ef-sheet{border-radius:22px}}
+.ef-sheet{position:relative;display:flex;flex-direction:column;width:min(440px,100%);max-height:100%;overflow:hidden;padding:18px 20px 0;border-radius:22px 22px 0 0;background:var(--hb-s1);box-shadow:0 -12px 40px rgba(0,0,0,.28);animation:ef-up .3s var(--hb-ease-out,var(--hb-ease)) both}
+@media (min-width:700px){.ef-sheet-wrap{align-items:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}.ef-sheet{border-radius:22px}.ef-sheet-body{padding-bottom:20px}}
+.ef-sheet-body>.ef-sheet-main>.ef-rows:first-child{margin-top:4px}.ef-sheet-body>.ef-sheet-main>.ef-rows:first-child>div:first-child{border-top:0}
+/* Taller content scrolls inside the sheet; the head with „Zavřít“ never leaves the screen. */
+.ef-sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin:0 -20px;padding:0 20px calc(20px + env(safe-area-inset-bottom))}
+/* Landscape tablet: overview stays pinned left while the detailed sections scroll on the right. */
+@media (orientation:landscape) and (min-width:700px) and (min-height:500px){.ef-sheet:not([data-wide]):has(.ef-sheet-secs){width:min(820px,100%)}.ef-sheet:not([data-wide]) .ef-sheet-body:has(.ef-sheet-secs){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:28px;align-items:start}.ef-sheet-body:has(.ef-sheet-secs)>.ef-sheet-note{grid-column:1/-1}.ef-sheet-body:has(.ef-sheet-secs)>.ef-sheet-main{position:sticky;top:0}.ef-sheet-body:has(.ef-sheet-secs) .ef-sheet-secs>.ef-sec:first-child{margin-top:14px;padding-top:0;border-top:0}}
+/* Landscape phone (low height): one readable column, compact head. */
+@media (max-height:499px){.ef-sheet:not([data-wide]){width:min(560px,100%)}.ef-sheet{padding-top:12px}.ef-sheet-ic{width:36px;height:36px}.ef-sheet-head h3{font-size:16px}}
 @keyframes ef-up{from{opacity:0;transform:translateY(24px)}}
-.ef-sheet-head{display:flex;align-items:center;gap:12px}
+.ef-sheet-head{flex:none;display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid color-mix(in srgb,var(--hb-t1) 8%,transparent)}
 .ef-sheet-head h3{flex:1;margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
 .ef-sheet-ic{width:44px;height:44px;flex:none;border-radius:50%;background:color-mix(in srgb,currentColor 12%,var(--hb-s1))}
-.ef-close{padding:7px 14px;border:0;border-radius:999px;background:color-mix(in srgb,var(--hb-t1) 8%,var(--hb-s1));color:var(--hb-t1);font:inherit;font-size:13px;cursor:pointer}
+.ef-close{min-height:40px;padding:9px 16px;border:0;border-radius:999px;background:color-mix(in srgb,var(--hb-t1) 8%,var(--hb-s1));color:var(--hb-t1);font:inherit;font-size:13px;cursor:pointer}
 .ef-sheet-note{margin:12px 0 0;font-size:14px;line-height:1.45;color:var(--hb-t2)}
 .ef-rows{margin:14px 0 0}
 .ef-rows div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--hb-b1);font-size:14px}
@@ -317,7 +324,7 @@ export const energyStyles = `
 .ef-dir{width:.56em;height:.56em;margin-right:6px;vertical-align:.06em;overflow:visible;fill:none;stroke:var(--hb-energy-grid);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .ef-dir[data-dir='out']{transform:rotate(180deg);stroke:var(--hb-energy-grid-export)}
 .ef-dir[data-dir='both']{stroke:color-mix(in srgb,var(--hb-energy-grid) 50%,var(--hb-energy-pv))}
-.ef-sheet[data-wide]{width:min(580px,100%);max-height:92vh;overflow:auto}
+.ef-sheet[data-wide]{width:min(580px,100%)}
 .ef-phs-now{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:14px;font-size:14px;color:var(--hb-t2)}
 .ef-phs-now{--st:var(--hb-ok)}
 .ef-phs-now[data-state='notice']{--st:var(--hb-warn)}
