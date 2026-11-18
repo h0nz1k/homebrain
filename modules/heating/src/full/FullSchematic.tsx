@@ -675,19 +675,23 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
   const label = (k: string, extra?: ReactNode, extraClass?: string) => {
     const l = labels[k];
     if (!l) return null;
+    const code = service && SERVICE_FIELD[k] ? codes[SERVICE_FIELD[k]] : undefined;
+    // Cards inside the tank: the code joins the line and the card grows (no free space around).
+    const grow = code && l.card ? 64 : 0;
+    const tl: GeoLabel = grow ? { ...l, x: l.box[0]! + 18 - grow / 2, anchor: 'start' } : l;
     return (
       <g key={k} data-label-group={k}>
         {l.card && (
           <rect
-            x={l.box[0]! - 4}
+            x={l.box[0]! - 4 - grow / 2}
             y={l.box[1]! - 2}
-            width={l.box[2]! + 8}
+            width={l.box[2]! + 8 + grow}
             height={l.box[3]! + 4}
             rx="5"
             className="fs-card"
           />
         )}
-        {l.sensor && <Sensor c={[l.box[0]! + 7, l.box[1]! + l.box[3]! / 2]} />}
+        {l.sensor && <Sensor c={[l.box[0]! + 7 - grow / 2, l.box[1]! + l.box[3]! / 2]} />}
         {l.pipeSensor && (
           <g className="fs-pipe-sensor" data-sensor-for={k}>
             <Sensor c={l.pipeSensor} />
@@ -697,13 +701,16 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
           opacity={l.compressorDependent && dep ? 0.78 : undefined}
           data-compressor-dependent={l.compressorDependent ? '' : undefined}
         >
-          <Text l={l} k={k} extraClass={extraClass}>
+          <Text l={tl} k={k} extraClass={extraClass}>
             {l.reading ? <Reading value={st.readings[k]} /> : null}
             {extra}
+            {code && l.card && (
+              <tspan className="fs-t-code" data-service-code={k}>{` · ${code}`}</tspan>
+            )}
           </Text>
         </g>
-        {service && SERVICE_FIELD[k] && codes[SERVICE_FIELD[k]] && (
-          <ServiceCode k={k} l={l} code={codes[SERVICE_FIELD[k]]!} />
+        {code && !l.card && (
+          <ServiceCode k={k} l={l} code={code} reading={l.reading ? st.readings[k] : undefined} />
         )}
       </g>
     );
@@ -1051,7 +1058,7 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
       {service && codes['heat_pump.compressor_on'] && (
         <text
           x={hx + hw / 2}
-          y={hy - 62}
+          y={hy - 19}
           fontSize="15"
           textAnchor="middle"
           className="fs-t fs-t-code"
@@ -1168,10 +1175,22 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
   );
 }
 
-function ServiceCode({ k, l, code }: { k: string; l: GeoLabel; code: string }) {
+function ServiceCode({
+  k,
+  l,
+  code,
+  reading,
+}: {
+  k: string;
+  l: GeoLabel;
+  code: string;
+  reading?: string | null;
+}) {
   const [bx, by, bw, bh] = l.box as [number, number, number, number];
   const place = SERVICE_PLACE[k];
-  const x = place === 'inline' ? bx + bw + 10 : l.x;
+  // The frozen box measures the name only; the live value follows it (≈ 7.6 units per glyph).
+  const value = reading === undefined ? 0 : 10 + 7.6 * (reading ?? '–').length;
+  const x = place === 'inline' ? bx + bw + value + 8 : l.x;
   const y = place === 'inline' ? l.y : place === 'above' ? by - 6 : by + bh + 14;
   return (
     <text
