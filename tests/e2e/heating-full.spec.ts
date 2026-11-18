@@ -18,7 +18,7 @@ async function minVisibleLabelPx(page: Page) {
   return page.getByTestId('heating-full-viewport').evaluate((port) => {
     const r = port.getBoundingClientRect();
     let min = Infinity;
-    for (const t of port.querySelectorAll<SVGTextElement>('text[data-label]')) {
+    for (const t of Array.from(port.querySelectorAll<SVGTextElement>('text[data-label]'))) {
       const b = t.getBoundingClientRect();
       if (
         b.width === 0 ||
