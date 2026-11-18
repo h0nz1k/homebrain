@@ -33,8 +33,8 @@ PAGES: dict[int, dict[str, str]] = {
         "__Y50.7_BOOL_i": "0",  # compressor
         "__X336_REAL_04.1f": "040.2",  # condenser out
         "__X348_REAL_04.1f": "036.0",  # return
-        "__X360_REAL_04.1f": "006.1",  # brine in
-        "__X372_REAL_04.1f": "003.9",  # brine out
+        "__X360_REAL_04.1f": "006.1",  # from the ground collector
+        "__X372_REAL_04.1f": "003.9",  # to the ground collector
         "__X384_REAL_04.1f": "047.5",  # tank top / DHW
         "__X396_REAL_04.1f": "041.0",  # tank bottom
         "__R7012_REAL_04.1f": "042.0",  # tank target
