@@ -33,6 +33,13 @@ describe('full schematic live state', () => {
     expect(st.dhwValve).toBe('B');
   });
 
+  it('compressor off + unmapped pre-run: collector loop is still (filled), not "no data"', () => {
+    const st = fullState(snap('idle'));
+    expect(st.compressor).toBe('off');
+    expect(st.pipes.hp_to_jbr).toBe('still');
+    expect(st.pipes.jbr_to_ground).toBe('still');
+  });
+
   it('DHW: changeover to A, TUV leg flows, tank leg closed', () => {
     const st = fullState(snap('dhw'));
     expect(st.pipes.valve_to_tuv).toBe('flow');

@@ -52,8 +52,6 @@ const run = (on: Tri): PipeState => (on === null ? 'unknown' : on ? 'flow' : 'st
 /** Leg behind a valve port: selected → follows the pump, not selected → closed. */
 const leg = (selected: Tri, on: Tri): PipeState =>
   selected === null ? 'unknown' : selected ? run(on) : 'closed';
-const or = (...v: Tri[]): Tri =>
-  v.some((x) => x === true) ? true : v.every((x) => x === false) ? false : null;
 
 const t = (v: number | null | undefined) => (v === null || v === undefined ? null : fmtT(v));
 
@@ -71,7 +69,14 @@ export function fullState(snap: HeatingSnapshot): FullState {
   const mixB: Tri = path === 'unknown' ? null : path !== 'A';
   const charge = L(snap.pumps.secondary ?? hp.compressor_on);
   const toDhw = L(snap.dhw.valve_to_dhw);
-  const collector = L(or(hp.compressor_on, hp.primary_prerun));
+  // Pre-run is often unmapped (null): then the compressor alone decides.
+  const collector = L(
+    hp.compressor_on === true || hp.primary_prerun === true
+      ? true
+      : hp.compressor_on === false
+        ? false
+        : null,
+  );
   const house = L(snap.pumps.heating);
   const solar = snap.extras.solar ? L(snap.extras.solar.pump) : null;
   const pool = snap.extras.pool;
@@ -98,8 +103,8 @@ export function fullState(snap: HeatingSnapshot): FullState {
     hp_to_jbr: run(collector),
     pbr_to_hp: run(collector),
     jbs_to_pbr: run(collector),
-    jbr_to_ground: run(or(collector, cooling)),
-    ground_to_jbs: run(or(collector, cooling)),
+    jbr_to_ground: run(cooling === true ? true : collector),
+    ground_to_jbs: run(cooling === true ? true : collector),
     jbs_to_chlad: cooling ? 'flow' : 'idle',
     chlad_to_hx: cooling ? 'flow' : 'idle',
     hx_to_jbr: cooling ? 'flow' : 'idle',
