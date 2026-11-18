@@ -92,6 +92,10 @@ export const todayStyles = `
 .today-busy .today-content{gap:12px;padding-top:20px}
 .today-busy .today-hero{min-height:110px}
 .today-busy .today-clock{font-size:96px}
+.today-watch-on .today-hero{min-height:110px;padding-bottom:40px}
+.today-watch-on .today-clock{font-size:96px}
+.today-watch-on .today-weather{--temp-size:64px}
+.today-kiosk.today-watch-on .today-clock{font-size:96px}
 .today-busy .today-weather{--temp-size:72px}
 .today-busy .today-summary{font-size:18px}
 .today-busy .today-ribbon-card{min-height:0;flex:none;padding:10px 20px}
@@ -110,6 +114,10 @@ export const todayStyles = `
 .today-kiosk .today-cards{min-height:100px}
 .today-kiosk .today-clock{font-size:160px}
 .today-kiosk.today-busy .today-clock{font-size:96px}
+.today-watch-on .today-hero{min-height:110px;padding-bottom:40px}
+.today-watch-on .today-clock{font-size:96px}
+.today-watch-on .today-weather{--temp-size:64px}
+.today-kiosk.today-watch-on .today-clock{font-size:96px}
 .today-kiosk .today-footer,.today-kiosk .today-station,.today-kiosk .today-ribbon-heading span,.today-kiosk .hb-ribbon-label,.today-kiosk .hb-ribbon-tick,.today-kiosk .hb-ribbon-now>span,.today-kiosk .hb-signal-severity,.today-kiosk .hb-signal-context,.today-kiosk .hb-signal-also,.today-kiosk .hb-pill,.today-kiosk .hb-signal-value small,.today-kiosk button,.today-kiosk .hb-signal-action span{font-size:16px}
 .today-kiosk .hb-signal-action{margin-top:4px}
 .today-night .today-content{justify-content:center;align-items:center;color:#CDBFAF;--hb-t1:#CDBFAF;--hb-t2:#CDBFAF}
