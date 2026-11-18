@@ -1057,10 +1057,12 @@ function blendParts(d: WeatherSnapshot, label: (id: string) => string): string |
     .filter((c) => c.weight > 0)
     .sort((a, b) => b.weight - a.weight);
   if (ws.length === 0) return null;
-  // never truncated: the first three by weight, the rest as a count („a další 2“)
+  // never truncated: the first three by weight, the rest as a count („a 2 další“, „a 6 dalších“)
   const names = ws.slice(0, 3).map((c) => label(c.source));
   const more = ws.length - names.length;
-  return `vážený průměr ${names.join(', ')}${more > 0 ? ` a${NB2}další${NB2}${more}` : ''}`;
+  // Czech count agreement: „a 1 další“, „a 2–4 další“, „a 5+ dalších“
+  const moreWord = more >= 5 ? 'dalších' : 'další';
+  return `vážený průměr ${names.join(', ')}${more > 0 ? ` a${NB2}${more}${NB2}${moreWord}` : ''}`;
 }
 
 /**

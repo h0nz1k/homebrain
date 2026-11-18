@@ -119,7 +119,8 @@ describe('Včera a dnes + Historie', () => {
     const plot = screen.getByTestId('weather-history-plot');
     expect(plot.contains(screen.getByTestId('weather-history-cursor'))).toBe(true);
     const card = screen.getByTestId('weather-history');
-    expect(card.textContent).toContain('tmavý obrys = dnes (zatím)');
+    expect(card.textContent).toContain('s tmavým obrysem = dnes (zatím)');
+    expect(card.textContent).toMatch(/Rekordy – [^(]+\(zatím/);
     // the selected-day frame has a legend entry; the x chip is the selected day
     expect(screen.getByTestId('weather-history-selkey').textContent).toContain(
       'rámeček = vybraný den',
@@ -281,7 +282,7 @@ describe('Kdo se trefuje – déšť', () => {
     expect(mix.className).not.toContain('is-blend');
     // ingredients never truncated: the rest as a count
     expect(screen.getByTestId('weather-score-rain-mix').textContent).toMatch(
-      /^vážený průměr ICON-D2, ALADIN, ECMWF IFS( a\u00a0další\u00a0\d+)?$/,
+      /^vážený průměr ICON-D2, ALADIN, ECMWF IFS( a\u00a0\d+\u00a0(další|dalších))?$/,
     );
     expect(score.textContent).not.toContain('…');
     expect(score.textContent).not.toContain('...');

@@ -622,7 +622,8 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
   const scopeName = scope.length === 4 ? scope : dMonth.format(at(`${scope}-15`));
   // only call it a month / year record if the station data covers that month / year from its start
   const scopeCut = firstDate && firstDate > firstOfScope(scope) ? firstDate : null;
-  const scopeTitle = `Rekordy – ${scopeName}${scopeCut ? ` (data od ${dayLabel(scopeCut)})` : ''}`;
+  // the scope is always the running month / year, so its records are provisional
+  const scopeTitle = `Rekordy – ${scopeName} (zatím${scopeCut ? `, data od ${dayLabel(scopeCut)}` : ''})`;
   const scopeWord = scope.length === 4 ? `roku ${scope}` : `měsíce`;
   const selDay = days[sel];
   const dry = longestDry(days);
@@ -718,7 +719,7 @@ export function HistoryCard({ hist, now }: { hist: HistoryState; now: number }) 
             </span>
             {days[days.length - 1]?.partial && (
               <span>
-                <i className="wx-sw wx-sw--partial" /> tmavý obrys = dnes (zatím)
+                <i className="wx-sw wx-sw--partial" /> s tmavým obrysem = dnes (zatím)
               </span>
             )}
             <span data-testid="weather-history-selkey">
