@@ -19,6 +19,7 @@ import {
 } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
 import { pointsWord } from '../czech.js';
+import { newRequestId } from '../uid.js';
 import {
   czDate,
   fmtPoints,
@@ -453,7 +454,7 @@ export function AddChoreSheet({
     .join('-');
   const [icon, setIcon] = useState('');
   const [iconOpen, setIconOpen] = useState(false);
-  const [requestId] = useState(() => crypto.randomUUID());
+  const [requestId] = useState(newRequestId);
   const [dueTime, setDueTime] = useState('18:00');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -850,7 +851,7 @@ export function SwapSheet({
     setBusy(true);
     try {
       const payload = {
-        client_request_id: crypto.randomUUID(),
+        client_request_id: newRequestId(),
         chore: choreId,
         from_kid: fromKid.kid_uuid ?? fromKid.id,
         to_kid: target,
