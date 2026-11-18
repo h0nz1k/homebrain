@@ -102,6 +102,48 @@ def test_score_group_amount_bias_and_daily_thresholds():
     assert m["daily"]["1"]["a"] == 1 and m["daily"]["5"]["a"] == 1  # 12 vs 6 mm: both events
     assert m["hourly"]["0.2"]["pod"] == 1.0 and m["probabilistic"] is False
     assert m["enough"] is False  # 24 < PRECIP_MIN_PAIRS
+    assert m["hours"] == 24 and m["wet_hours"] == 24 and m["days"] == 1
+
+
+def test_sample_size_counts_distinct_hours_not_issues():
+    # two issues verify the same 3 hours: 6 pairs, but only 3 hours (2 wet) of 1 day
+    obs = [0.0, 0.4, 1.0]
+    pairs = [
+        verify.Pair("icon_d2", lead, f"2026-11-16T{10 + h:02d}:00:00Z", 0.0, o)
+        for lead in (3, 9)
+        for h, o in enumerate(obs)
+    ]
+    m = verify.score_group(pairs, PRAGUE)
+    assert m["n"] == 6 and m["n_wet"] == 4
+    assert (m["hours"], m["wet_hours"], m["days"]) == (3, 2, 1)
+
+
+def test_blend_is_scored_out_of_sample_rolling_origin():
+    """The mix is never scored on hours that could have trained its weights.
+
+    Night N1 scores the pairs known by then and the weights follow from those scores; a
+    blend issued after N1 is archived; night N2 scores the blend only from that archive.
+    The blend's scored hours are all later than every hour seen at N1, and a blend pair
+    without positive lead (would overlap the training sample) is dropped.
+    """
+    n1 = "2026-11-10T03:00:00Z"
+    seen_at_n1 = [
+        verify.Pair(
+            "icon_d2", 6, f"2026-11-09T{h:02d}:00:00Z", 0.5 * (h % 3 == 0), 0.4 * (h % 3 == 0)
+        )
+        for h in range(24)
+    ]
+    issued = "2026-11-10T06:00:00Z"
+    later = [f"2026-11-10T{h:02d}:00:00Z" for h in range(7, 24)]
+    blend = [verify.Pair("blend", i + 1, v, 0.3, 0.3) for i, v in enumerate(later)]
+    leak = verify.Pair("blend", 0, n1, 0.3, 0.3)  # lead 0: never counted
+    scores = verify.precip_scores([*seen_at_n1, *blend, leak], PRAGUE)
+    row = scores[("blend", "0-24")]
+    assert row["out_of_sample"] is True and row["n"] == len(later)
+    assert "out_of_sample" not in scores[("icon_d2", "0-24")]
+    assert all(p.valid_at > issued > n1 for p in blend)
+    assert not verify.blend_out_of_sample(leak)
+    assert verify.blend_out_of_sample(seen_at_n1[0])
 
 
 def test_precip_lead_buckets():

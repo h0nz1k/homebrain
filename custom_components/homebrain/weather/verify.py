@@ -34,6 +34,8 @@ from .const import (
     PRECIP_MIN_WET,
 )
 
+BLEND = "blend"
+
 
 class Pair(NamedTuple):
     source: str
@@ -153,9 +155,15 @@ def score_group(pairs: Sequence[Pair], tz: tzinfo) -> dict[str, Any]:
     ]
     days = daily_pairs(pairs, tz)
     total_obs = sum(o for _, o in fo)
+    # Several issues may verify the same hour: distinct hours / days are the sample size a
+    # person can relate to ("z 86 deštivých hodin za 40 dní"); n counts the pairs.
+    obs_hour = {p.valid_at: p.obs for p in pairs}
     return {
         "n": n,
         "n_wet": wet,
+        "hours": len(obs_hour),
+        "wet_hours": sum(o >= POP_THRESHOLD_MM_H for o in obs_hour.values()),
+        "days": len({_local_day(v, tz) for v in obs_hour}),
         "enough": n >= PRECIP_MIN_PAIRS and wet >= PRECIP_MIN_WET,
         "bias_mm": round(sum(f - o for f, o in fo) / n, 3) if n else None,
         "amount_ratio": round(sum(f for f, _ in fo) / total_obs, 2) if total_obs > 0 else None,
@@ -167,12 +175,29 @@ def score_group(pairs: Sequence[Pair], tz: tzinfo) -> dict[str, Any]:
     }
 
 
+def blend_out_of_sample(p: Pair) -> bool:
+    """True if a blend pair could not have influenced the weights it was issued with.
+
+    The blend is scored only on its own archived forecasts (rolling origin): a forecast
+    issued at T used the precipitation weights of the last nightly scoring N <= T, which
+    only saw station hours that had already ended (valid_at <= N). Its pairs are valid
+    after T (lead > 0), so they are never part of the sample its weights came from.
+    Previous Runs rows have no blend, and a lead <= 0 would break the argument -> dropped.
+    """
+    return p.source != BLEND or p.lead_h > 0
+
+
 def precip_scores(pairs: Iterable[Pair], tz: tzinfo) -> dict[tuple[str, str], dict[str, Any]]:
-    """Metrics per (source, precip lead bucket)."""
+    """Metrics per (source, precip lead bucket); the blend only out-of-sample."""
     groups: dict[tuple[str, str], list[Pair]] = defaultdict(list)
     for p in pairs:
-        groups[(p.source, precip_lead_bucket(p.lead_h))].append(p)
-    return {key: score_group(items, tz) for key, items in groups.items()}
+        if blend_out_of_sample(p):
+            groups[(p.source, precip_lead_bucket(p.lead_h))].append(p)
+    out = {key: score_group(items, tz) for key, items in groups.items()}
+    for (source, _), metrics in out.items():
+        if source == BLEND:
+            metrics["out_of_sample"] = True
+    return out
 
 
 def skill(metrics: Mapping[str, Any] | None) -> float | None:
