@@ -15,12 +15,12 @@ Modul zobrazuje lokální měření (meteostanice Ecowitt přes HA), předpově�
 | `weather_station_humidity` | sensor | % | ano | venkovní vlhkost |
 | `weather_station_dew_point` | sensor | °C | ne | |
 | `weather_station_pressure_relative` | sensor | hPa | ne | |
-| `weather_station_pressure_absolute` | sensor | hPa | ne | |
+| `weather_station_pressure_absolute` | sensor | hPa | ne | v integraci klíč `weather_pressure_absolute` (#131): zdroj MSL tlaku |
 | `weather_station_wind_speed` | sensor | m/s nebo km/h | ano | jednotka v adaptéru |
 | `weather_station_wind_gust` | sensor | stejná jako speed | ne | |
 | `weather_station_wind_direction` | sensor | ° nebo compass | ne | |
 | `weather_station_rain_rate` | sensor | mm/h | ne | piezo |
-| `weather_station_rain_daily` | sensor | mm | ne | |
+| `weather_station_rain_daily` | sensor | mm | ne | `state_class: total_increasing`; jeho statistiky (`change`) = historie a ověřování srážek (#131) |
 | `weather_station_uv_index` | sensor | index | ne | |
 | `weather_station_solar_radiation` | sensor | W/m² | ne | |
 | `weather_station_lux` | sensor | lx | ne | |
@@ -153,6 +153,76 @@ Modul zobrazuje lokální měření (meteostanice Ecowitt přes HA), předpově�
 - **Priorita:** later
 - **Akceptace:** Pole `recommendations` může být prázdné; žádné hardcoded rady bez pravidla.
 
+### WEA-018 – Výška lokality z options
+
+- **Popis:** Když HA `core.config.elevation` je 0 nebo chybí, použije se `options.weather.elevation_m`. Efektivní výška se ukáže v řádku lokality (s vysvětlením zdroje) a posílá se do všech Open-Meteo dotazů jako `elevation`; neznámá výška se neposílá.
+- **Zdroj:** issue #131 A
+- **Priorita:** MVP
+- **Akceptace:** Given HA elevation 0 a option 480 m, When snapshot, Then `location.elevation_m = 480`, `elevation_source = "option"` a URL obsahuje `elevation=480`; bez option `elevation_m = null` (pytest `test_weather_history.py`).
+
+### WEA-019 – MSL tlak z absolutního tlaku
+
+- **Popis:** Zobrazovaný a porovnávaný tlak je MSL odvozený hypsometricky z absolutního tlaku, výšky a teploty (spec §4.2). Relativní tlak stanice rovný absolutnímu (offset nenastaven) se ignoruje a označí ve snapshotu.
+- **Zdroj:** issue #131 A; WEA-016
+- **Priorita:** MVP
+- **Akceptace:** Vzorec dává 1013,25 hPa pro ICAO standardní atmosféru (500 m, 1000 m) ± 0,15 hPa; REL = ABS → `station.pressure.relative_ignored = true`; bez výšky se nic nevymýšlí.
+
+### WEA-020 – WS historie stanice
+
+- **Popis:** `homebrain/weather/history` (den/hodina, ≤ 400 dní, hodiny ≤ 31 dní) jen z HA long-term statistics přes veřejné `statistics_during_period` v recorder executoru: teplota min/max/průměr, srážky (`change`), max intenzita, max náraz, vlhkost, MSL, solární energie, pokrytí hodin a mezery.
+- **Zdroj:** issue #131 A
+- **Priorita:** MVP
+- **Akceptace:** Den s chybějícími hodinami má `gaps` a hodnoty jen z dostupných hodin; den bez dat má `null`, ne 0; DST den má 25/23 očekávaných hodin; záporný `change` se zahodí (pytest).
+
+### WEA-021 – Karta „Včera a dnes“
+
+- **Popis:** Včerejší naměřené hodnoty vs. dnešek zatím (dnešek doplněný živou stanicí) a počet dní bez deště; mezera v datech počítání zastaví („aspoň N dní“).
+- **Zdroj:** issue #131 A
+- **Priorita:** MVP
+- **Akceptace:** vitest `HistoryCards.test.tsx`, `history.test.ts`; screenshoty 360×800 / 800×1280 / 1440×900, dark + light.
+
+### WEA-022 – Pohled Historie 7 / 30 / 365 dní
+
+- **Popis:** Sloupce srážek, pás min–max teploty, výběr dne, rekordy měsíce a roku. Jen data vlastní stanice, chybějící dny se vyznačí, nedopočítávají.
+- **Zdroj:** issue #131 A
+- **Priorita:** MVP
+- **Akceptace:** Přepnutí období mění počet dní v grafu; mezera má vlastní značku a počet v legendě (vitest + e2e `weather.spec.ts`).
+
+### WEA-023 – Ověřování srážek proti stanici
+
+- **Popis:** Hodinové páry srážkoměr vs. archiv předpovědí (`fc_archive`) a Open-Meteo Previous Runs po modelech a lead bucketech; POD/FAR/CSI/ETS pro ≥ 0,2 a ≥ 1 mm/h a denní ≥ 1 / ≥ 5 mm, bias množství, Brier PoP. Noční job 1× za noc s backoffem v rozpočtu volání (spec §3.2).
+- **Zdroj:** issue #131 B; spec §4.6
+- **Priorita:** later → implementováno
+- **Akceptace:** Ručně spočítané kontingenční tabulky v `test_weather_verify.py`; noční job při druhém spuštění téže noci nevolá API.
+
+### WEA-024 – Váhy blendu po veličinách
+
+- **Popis:** Srážky a PoP mají váhy z Brier/ETS (priory + shrinkage, minimální počet párů a deštivých hodin); teplota beze změny podle MAE.
+- **Zdroj:** issue #131 B; spec §4.4
+- **Priorita:** later → implementováno
+- **Akceptace:** Skóre srážek nemění teplotu ani `contributors`; jediný ověřený zdroj nepřebere váhu neověřených (pytest).
+
+### WEA-025 – Kalibrované PoP
+
+- **Popis:** PoP = vážený hlas (vlastní PoP modelu, jinak práh 0,2 mm/h) → reliability binning na stanici od 500 párů; do té doby nekalibrované. Ve snapshotu `pop_raw` a `pop_calibrated`.
+- **Zdroj:** issue #131 B
+- **Priorita:** later → implementováno
+- **Akceptace:** Mrholení 0,15 mm/h ve všech modelech → PoP 0; kalibrační křivka je monotónní (pytest).
+
+### WEA-026 – Ensemble pravděpodobnosti (volitelné)
+
+- **Popis:** ICON-D2-EPS 0–48 h jako podíl členů ≥ 0,2 mm/h, smíchaný 50 : 50 s hlasem modelů. Za konstantou `ENSEMBLE_ENABLED` (výchozí vypnuto) – viz rozpočet a důvody ve spec §3.2.
+- **Zdroj:** issue #131 B
+- **Priorita:** later
+- **Akceptace:** S vypnutým flagem žádné volání Ensemble API; parser a míchání mají unit test.
+
+### WEA-027 – „Kdo se trefuje“: záložka Déšť
+
+- **Popis:** Pořadí modelů podle ETS (≥ 0,2 mm/h) se srozumitelným popisem (zachytí X % deště, plané poplachy Y %, Brier); bez dost párů prázdný stav s vysvětlením.
+- **Zdroj:** issue #131 B
+- **Priorita:** later → implementováno
+- **Akceptace:** vitest `HistoryCards.test.tsx` (pořadí, skrytí zdroje s malým n, prázdný stav).
+
 ## Portovat vs. zahodit
 
 | položka | rozhodnutí | důvod |
@@ -165,9 +235,11 @@ Modul zobrazuje lokální měření (meteostanice Ecowitt přes HA), předpově�
 
 ## Mimo rozsah
 
-Verification scoring bez historie; primární cut-over V1/V2 panelů až po soak HomeBrain (`acceptance.md`).
+Verification scoring bez historie (od #131 se srážky ověřují proti HA statistikám stanice, WEA-023); primární cut-over V1/V2 panelů až po soak HomeBrain (`acceptance.md`).
 
 ## Otevřené otázky
 
 - Která met.no entita je kanonická při dvou souřadnicích?
 - Obnovení radar runneru a zdroje varování.
+- (#131) Fáze B2 – 0–2 h blend nowcastu a QC srážkoměru proti ČHMÚ – jen návrh ve spec §4.9.
+- (#131) Odchylka od „normálu stanice“ (průměr stejného data z předchozích let) v kartě Včera a dnes zatím chybí – potřebuje víc než rok historie.
