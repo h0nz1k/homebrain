@@ -1075,3 +1075,50 @@ test('úsporné hero a čitelné malé zatížení fází v obou motivech', asyn
     }
   }
 });
+
+// Regression: the inverter sheet is taller than a landscape tablet / phone screen. It must stay
+// inside the viewport, scroll inside itself, and keep „Zavřít“ reachable at all times.
+test.describe('detail střídače se vejde na obrazovku', () => {
+  for (const vp of [
+    { name: 'mobil na výšku', width: 360, height: 640 },
+    { name: 'mobil na šířku', width: 800, height: 360 },
+    { name: 'tablet na šířku', width: 1280, height: 720 },
+    { name: 'tablet na šířku (kiosk)', width: 1024, height: 600 },
+  ]) {
+    test(`${vp.name} ${vp.width}×${vp.height}: Zavřít vidět, obsah se posouvá`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.clock.setFixedTime(new Date('2026-06-02T13:00:00+02:00'));
+      await page.goto('/homebrain-energie?flow=noon');
+      await page.getByTestId('energy-flow-node-hub').click();
+      const sheet = page.getByTestId('energy-flow-sheet');
+      await expect(sheet).toContainText('Střídač');
+      const box = (await sheet.boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 1);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1);
+      const close = sheet.getByRole('button', { name: 'Zavřít' });
+      await expect(close).toBeInViewport({ ratio: 1 });
+      await page.screenshot({
+        path: test.info().outputPath(`inverter-${vp.width}x${vp.height}-top.png`),
+      });
+      // Content taller than the sheet scrolls inside it; the close button stays reachable.
+      const scroll = await sheet.evaluate((el) => {
+        const sc = el.querySelector<HTMLElement>('.ef-sheet-body') ?? el;
+        const before = sc.scrollTop;
+        sc.scrollTop = sc.scrollHeight;
+        return { overflows: sc.scrollHeight > sc.clientHeight + 1, moved: sc.scrollTop > before };
+      });
+      if (scroll.overflows) expect(scroll.moved).toBe(true);
+      await expect(sheet.getByTestId('energy-flow-sheet-section').last()).toBeInViewport();
+      await expect(close).toBeInViewport({ ratio: 1 });
+      await page.screenshot({
+        path: test.info().outputPath(`inverter-${vp.width}x${vp.height}.png`),
+      });
+      await close.click();
+      await expect(sheet).toHaveCount(0);
+    });
+  }
+});
