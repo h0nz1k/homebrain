@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,19 +17,29 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from ..bindings import get_bindings
-from . import geo, history, radar
+from . import geo, history, radar, verify
 from .blend import applied_bias, blend_daily, blend_hourly, lead_bucket, update_bias
 from .const import (
     ARCHIVE_EVERY_H,
     ARCHIVE_MAX_LEAD_H,
     ATTRIBUTION,
+    BACKOFF_S,
     ELEVATION_MIN_SET_M,
+    ENSEMBLE_ENABLED,
     HISTORY_CACHE_S,
     INTERVALS_S,
     METNO,
     MIN_VERIFIED_PAIRS,
     OM_DAILY_MODELS,
     OM_MODELS,
+    POP_THRESHOLD_MM_H,
+    PRECIP_WINDOW_D,
+    PREV_RUNS_CHUNK_D,
+    PREV_RUNS_DAYS,
+    PREV_RUNS_EPOCH,
+    PREV_RUNS_HOUR_LOCAL,
+    PREV_RUNS_MAX_WEIGHT,
+    PREV_RUNS_NIGHTLY_D,
     RADAR_MAX_AGE_MIN,
     RADAR_RADIUS_KM,
     RADAR_RAIN_DBZ,
@@ -85,6 +96,11 @@ class WeatherManager:
         self.radar_nowcast: dict[str, Any] | None = None
         self._png_cache: dict[str, bytes] = {}
         self._history_cache: dict[tuple[Any, ...], tuple[datetime, dict[str, Any]]] = {}
+        # Precipitation verification (issue #131 B): scores per (source, lead bucket), the
+        # PoP reliability table and the nightly job's bookkeeping.
+        self.precip_scores: dict[tuple[str, str], dict[str, Any]] = {}
+        self.pop_table: dict[str, Any] | None = None
+        self.verify_info: dict[str, Any] = {"status": "pending", "last": None}
 
     # -- lifecycle -----------------------------------------------------------------
     async def async_start(self) -> None:
@@ -92,6 +108,7 @@ class WeatherManager:
         await self.hass.async_add_executor_job(self.store.open)
         self._store_open = True
         self.bias = await self.hass.async_add_executor_job(self.store.load_bias)
+        await self._load_verification()
         since = iso(dt_util.utcnow() - timedelta(hours=13))
         for valid_at, var, value in await self.hass.async_add_executor_job(
             self.store.obs_since, since
@@ -192,6 +209,8 @@ class WeatherManager:
             "om_daily": openmeteo.daily_url(lat, lon, tz, elevation),
             "om_nowcast": openmeteo.nowcast_url(lat, lon, elevation),
         }
+        if ENSEMBLE_ENABLED:
+            urls["om_ensemble"] = openmeteo.ensemble_url(lat, lon, elevation)
         for key, url in urls.items():
             state = self.states[key]
             if not state.due(now):
@@ -207,6 +226,7 @@ class WeatherManager:
         await self._refresh_metno(now)
         if self.states["om_hourly"].fetched_at == now:
             await self._archive(now)
+        await self._verify_precip(session, now)
 
     def _parse(self, key: str, payload: Any) -> Any:
         if key == "om_hourly":
@@ -215,6 +235,8 @@ class WeatherManager:
             return openmeteo.parse_daily(payload)
         if key == "om_nowcast":
             return openmeteo.parse_nowcast(payload)
+        if key == "om_ensemble":
+            return openmeteo.parse_ensemble(payload)
         return payload  # alerts are filtered at snapshot time (region may change)
 
     async def _refresh_cap(self, session: Any, now: datetime) -> None:
@@ -493,8 +515,10 @@ class WeatherManager:
             for point in points:
                 valid = datetime.fromisoformat(point["t"].replace("Z", "+00:00"))
                 lead = round((valid - issued).total_seconds() / 3600)
-                if 1 <= lead <= ARCHIVE_MAX_LEAD_H and point.get("t2m") is not None:
-                    rows.append((source, issued_s, point["t"], lead, "t2m", point["t2m"]))
+                if not 1 <= lead <= ARCHIVE_MAX_LEAD_H:
+                    continue
+                for var, value in self._archive_values(source, point):
+                    rows.append((source, issued_s, point["t"], lead, var, value))
         await self.hass.async_add_executor_job(self.store.archive, rows)
         await self.hass.async_add_executor_job(self.store.prune, now)
 
@@ -547,6 +571,142 @@ class WeatherManager:
         self._history_cache[key] = (now, result)
         return result
 
+    @staticmethod
+    def _archive_values(source: str, point: dict[str, Any]) -> list[tuple[str, float]]:
+        """t2m, precip (mm in the hour ending at t) and PoP 0..1 (blend: the raw value
+        before calibration, so the reliability table never learns from itself)."""
+        out = [(var, point[var]) for var in ("t2m", "precip") if point.get(var) is not None]
+        if source == "blend":
+            if point.get("pop_raw") is not None:
+                out.append(("pop_raw", point["pop_raw"]))
+        elif point.get("pop") is not None:
+            out.append(("pop", round(point["pop"] / 100, 3)))
+        return out
+
+    # -- precipitation verification (nightly) ------------------------------------------
+    async def _load_verification(self) -> None:
+        get = self.store.get_meta
+        raw_scores = await self.hass.async_add_executor_job(get, "precip_scores")
+        raw_table = await self.hass.async_add_executor_job(get, "pop_calibration")
+        raw_info = await self.hass.async_add_executor_job(get, "precip_verify_info")
+        self.precip_scores = verify.loads(raw_scores)
+        try:
+            self.pop_table = json.loads(raw_table) if raw_table else None
+            if raw_info:
+                self.verify_info.update(json.loads(raw_info))
+        except ValueError:
+            self.pop_table = None
+
+    async def _verify_precip(self, session: Any, now: datetime) -> None:
+        """Once per night (after PREV_RUNS_HOUR_LOCAL): station rain from HA statistics →
+        obs_hourly, Open-Meteo Previous Runs → fc_prev, then scores + PoP calibration.
+
+        Backoff on failure (BACKOFF_S); after the last step the job waits for the next night.
+        """
+        state = self.states["om_prev_runs"]
+        local = now.astimezone(self.tz)
+        today = local.date().isoformat()
+        if (
+            local.hour < PREV_RUNS_HOUR_LOCAL
+            or self.verify_info.get("last") == today
+            or not state.due(now)
+        ):
+            return
+        rain_entity = self.bindings.get("weather_rain_daily")
+        if not rain_entity or "recorder" not in self.hass.config.components:
+            self.verify_info.update(status="unbound", last=today)
+            return
+        job = self.hass.async_add_executor_job
+        try:
+            window_start = now - timedelta(days=PRECIP_WINDOW_D)
+            since = iso(window_start)
+            bootstrapped = await job(self.store.has_obs, "precip", since)
+            obs_from = (
+                now - timedelta(days=PREV_RUNS_NIGHTLY_D + 1) if bootstrapped else window_start
+            )
+            rows = await history.async_statistics(self.hass, {"rain": rain_entity}, obs_from, None)
+            rain = history.rain_by_valid_hour(history.aggregate_hours(rows, None))
+            await job(self.store.put_obs_many, "precip", rain)
+            spent = await self._fetch_prev_runs(session, now, window_start)
+            pairs = await job(self.store.precip_pairs, since)
+            scores, table = await job(self._score, pairs)
+        except Exception as err:  # noqa: BLE001 - provider isolation (WEA-010)
+            _LOGGER.debug("Precipitation verification failed: %s", err)
+            state.fail(now, err)
+            if state.failures >= len(BACKOFF_S):
+                self.verify_info.update(status="failed", last=today, error=str(err))
+            return
+        self.precip_scores, self.pop_table = scores, table
+        self.verify_info = {
+            "status": "ok",
+            "last": today,
+            "at": iso(now),
+            "pairs": len(pairs),
+            "station_hours": len(rain),
+            "prev_runs_weight": round(spent, 1),
+            "pop_calibration_pairs": table["n"] if table else 0,
+        }
+        state.succeed(now, self.verify_info)
+        put = self.store.put_meta
+        await job(put, "precip_scores", verify.dumps(scores))
+        await job(put, "pop_calibration", json.dumps(table) if table else "")
+        await job(put, "precip_verify_info", json.dumps(self.verify_info))
+
+    def _score(
+        self, rows: list[tuple[Any, ...]]
+    ) -> tuple[dict[tuple[str, str], dict[str, Any]], dict[str, Any] | None]:
+        """Executor: metrics per (source, bucket) and the blend PoP reliability table."""
+        pairs = [verify.Pair(*row) for row in rows]
+        scores = verify.precip_scores(pairs, self.tz)
+        probs = [
+            (p.pop, int(p.obs >= POP_THRESHOLD_MM_H))
+            for p in pairs
+            if p.source == "blend" and p.pop is not None
+        ]
+        return scores, verify.reliability_table(probs)
+
+    async def _fetch_prev_runs(self, session: Any, now: datetime, window_start: datetime) -> float:
+        """Fill missing UTC days of the window (bootstrap) and re-read the newest nights,
+        in chunks of PREV_RUNS_CHUNK_D, within PREV_RUNS_MAX_WEIGHT call weights."""
+        first = max(window_start.date(), date.fromisoformat(PREV_RUNS_EPOCH))
+        last = (now - timedelta(days=1)).date()
+        have = await self.hass.async_add_executor_job(self.store.prev_dates, first.isoformat())
+        recent = last - timedelta(days=PREV_RUNS_NIGHTLY_D - 1)
+        wanted = [
+            first + timedelta(days=i)
+            for i in range((last - first).days + 1)
+            if (first + timedelta(days=i)).isoformat() not in have
+            or first + timedelta(days=i) >= recent
+        ]
+        chunks: list[list[date]] = []
+        for day in wanted:
+            if chunks and day - chunks[-1][-1] == timedelta(days=1):
+                if len(chunks[-1]) < PREV_RUNS_CHUNK_D:
+                    chunks[-1].append(day)
+                    continue
+            chunks.append([day])
+        lat, lon = self.hass.config.latitude, self.hass.config.longitude
+        spent = 0.0
+        for chunk in chunks:
+            weight = openmeteo.call_weight(len(PREV_RUNS_DAYS), len(chunk), len(OM_MODELS))
+            if spent + weight > PREV_RUNS_MAX_WEIGHT:
+                break
+            url = openmeteo.prev_runs_url(
+                lat, lon, chunk[0].isoformat(), chunk[-1].isoformat(), self.elevation[0]
+            )
+            payload = await fetch_json(session, url, user_agent=self.user_agent)
+            spent += weight
+            rows = openmeteo.parse_prev_runs(payload)
+            await self.hass.async_add_executor_job(self.store.put_prev, rows)
+        return spent
+
+    def _verification_precip(self) -> list[dict[str, Any]]:
+        rows = [
+            {"source": source, "lead": bucket, **metrics}
+            for (source, bucket), metrics in self.precip_scores.items()
+        ]
+        return sorted(rows, key=lambda r: (r["lead"], -(verify.skill(r) or -1), r["source"]))
+
     # -- snapshot --------------------------------------------------------------------
     def _series(self) -> tuple[dict[str, list[dict[str, Any]]], dict[str, int]]:
         series: dict[str, list[dict[str, Any]]] = {}
@@ -562,7 +722,17 @@ class WeatherManager:
 
     def _blend(self, now: datetime) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         series, horizons = self._series()
-        return blend_hourly(series, horizons, self.bias, now), series
+        ens = self.states["om_ensemble"]
+        hourly = blend_hourly(
+            series,
+            horizons,
+            self.bias,
+            now,
+            precip_scores=self.precip_scores,
+            pop_table=self.pop_table,
+            ensemble_pop=ens.data if ENSEMBLE_ENABLED and ens.status(now) == "fresh" else None,
+        )
+        return hourly, series
 
     def snapshot(self, now: datetime | None = None) -> dict[str, Any]:
         now = now or dt_util.utcnow()
@@ -633,6 +803,12 @@ class WeatherManager:
             "warnings": self._warnings(now),
             "radar": self.radar_block(now),
             "verification": self._verification(),
+            "verification_precip": self._verification_precip(),
+            "verification_info": {
+                **self.verify_info,
+                "pop_calibrated": self.pop_table is not None,
+                "ensemble": ENSEMBLE_ENABLED,
+            },
             "sources": self._sources(station, now),
             "attribution": list(ATTRIBUTION.values()),
         }

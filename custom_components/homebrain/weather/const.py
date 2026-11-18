@@ -150,12 +150,14 @@ PREV_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
 PREV_RUNS_DAYS = (1, 2, 3)
 PREV_RUNS_HOUR_LOCAL = 3
 PREV_RUNS_EPOCH = "2024-01-01"
-PREV_RUNS_BOOTSTRAP_D = 365
+# Bootstrap = the scoring window (older pairs would not be scored anyway); the newest
+# PREV_RUNS_NIGHTLY_D days are re-read every night. Chunks of 4 weeks (2 call weights).
 PREV_RUNS_CHUNK_D = 28
 PREV_RUNS_NIGHTLY_D = 3
 # Budget in Open-Meteo weighted calls per night (free tier: 10 000/day, 5 000/h, 600/min).
-PREV_RUNS_MAX_WEIGHT = 120.0
-PREV_RETENTION_D = 400
+# Bootstrap ≈ 4 chunks × 4.8 = 19.2, a normal night 2.4 (spec §3.2).
+PREV_RUNS_MAX_WEIGHT = 50.0
+PREV_RETENTION_D = 120
 # Optional ICON-D2-EPS precipitation probabilities (Ensemble API). OFF: the model id and the
 # member column names are not in the official docs and the Open-Meteo FAQ lists ensemble APIs
 # under paid plans; see docs/specs/weather-multisource.md §3.2 for the budget math.

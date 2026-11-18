@@ -12,9 +12,13 @@ from .const import (
     BIAS_MIN_N,
     BIAS_SHRINK,
     BIAS_W,
+    ENSEMBLE_HORIZON_H,
+    ENSEMBLE_POP_WEIGHT,
     LEAD_BUCKETS,
     MIN_VERIFIED_PAIRS,
     OM_DAILY_MODELS,
+    POP_THRESHOLD_MM_H,
+    PRECIP_SHRINK_N,
     PRIOR_LONG,
     PRIOR_SHORT,
     TAPER_H,
@@ -22,6 +26,7 @@ from .const import (
     WEIGHT_FLOOR,
 )
 from .derive import condition
+from .verify import calibrate, precip_lead_bucket, skill
 
 BiasKey = tuple[str, str, str]
 
@@ -85,13 +90,62 @@ def model_weights(
     raw: dict[str, float] = {}
     for src, ver in zip(sources, verified, strict=True):
         weight = 1 / (ver["mae"] ** 2 + 0.25) if use_verified and ver else prior.get(src, 0.0)
-        remaining = horizons.get(src, 9999) - lead_h
-        if remaining <= 0:
-            weight = 0.0
-        elif remaining < TAPER_H:
-            weight *= remaining / TAPER_H
-        raw[src] = weight
+        raw[src] = _taper(weight, src, lead_h, horizons)
     return _normalise(raw)
+
+
+PrecipScores = dict[tuple[str, str], dict[str, Any]]
+
+
+def _taper(weight: float, src: str, lead_h: float, horizons: dict[str, int]) -> float:
+    remaining = horizons.get(src, 9999) - lead_h
+    if remaining <= 0:
+        return 0.0
+    return weight * remaining / TAPER_H if remaining < TAPER_H else weight
+
+
+def precip_weights(
+    sources: list[str],
+    lead_h: float,
+    horizons: dict[str, int],
+    scores: PrecipScores | None,
+) -> tuple[dict[str, float], bool]:
+    """Precipitation weights from station verification (Brier + ETS), not temperature MAE.
+
+    Per source: λ = n / (n + PRECIP_SHRINK_N) once its (source, lead bucket) has ``enough``
+    pairs and wet hours, else 0; w = (1-λ)·prior_share + λ·M·skill / Σskill, where Σskill
+    sums ``verify.skill`` over the verified sources and M is their combined prior share.
+    Same horizon taper, floor and cap as temperature. Returns (weights, any_verified).
+    """
+    prior = PRIOR_SHORT if lead_h < 48 else PRIOR_LONG
+    prior_raw = {s: prior.get(s, 0.0) for s in sources}
+    prior_total = sum(prior_raw.values()) or 1.0
+    bucket = precip_lead_bucket(lead_h)
+    metrics = {s: (scores or {}).get((s, bucket)) for s in sources}
+    skills = {s: skill(m) for s, m in metrics.items()}
+    verified = {s: v for s, v in skills.items() if v is not None}
+    skill_total = sum(verified.values())
+    # Verified sources only redistribute their own prior mass by skill; unverified sources
+    # keep theirs (one lucky verified model cannot take over the whole blend).
+    mass = sum(prior_raw[s] for s in verified) / prior_total
+    raw: dict[str, float] = {}
+    for src in sources:
+        share = prior_raw[src] / prior_total
+        if src in verified and skill_total > 0:
+            n = metrics[src]["n"]  # type: ignore[index]
+            lam = n / (n + PRECIP_SHRINK_N)
+            share = (1 - lam) * share + lam * mass * verified[src] / skill_total
+        raw[src] = _taper(share, src, lead_h, horizons)
+    return _normalise(raw), bool(verified) and skill_total > 0
+
+
+def pop_vote(point: dict[str, Any]) -> float | None:
+    """A source's probability of ≥ POP_THRESHOLD_MM_H: its own PoP, else binary from amount."""
+    if point.get("pop") is not None:
+        return point["pop"] / 100
+    if point.get("precip") is not None:
+        return 1.0 if point["precip"] >= POP_THRESHOLD_MM_H else 0.0
+    return None
 
 
 def weighted_quantile(values: list[tuple[float, float]], q: float) -> float | None:
@@ -145,8 +199,17 @@ def blend_hourly(
     bias: dict[BiasKey, dict[str, float]],
     now: datetime,
     hours: int = 48,
+    *,
+    precip_scores: PrecipScores | None = None,
+    pop_table: dict[str, Any] | None = None,
+    ensemble_pop: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
-    """Blend all sources hour by hour from the current hour."""
+    """Blend all sources hour by hour from the current hour.
+
+    Temperature (and wind, cloud, …) use the temperature-verified weights; precipitation
+    amount and PoP use ``precip_weights``. PoP: weighted vote, optionally mixed with the
+    ensemble probability (0-48 h), then calibrated on the station (reliability table).
+    """
     start = now.replace(minute=0, second=0, microsecond=0)
     by_time: dict[datetime, dict[str, dict[str, Any]]] = {}
     for src, points in series.items():
@@ -173,15 +236,33 @@ def blend_hourly(
         ) -> list[tuple[float, float]]:
             return [(pts[s][key], w) for s, w in ws.items() if pts[s].get(key) is not None]
 
-        precip_pairs = pairs("precip")
-        pop_votes = []
-        for s, w in weights.items():
-            if points[s].get("pop") is not None:
-                pop_votes.append((points[s]["pop"] / 100, w))
-            elif points[s].get("precip") is not None:
-                pop_votes.append((1.0 if points[s]["precip"] >= 0.1 else 0.0, w))
-        pop = _wmean(pop_votes)
-        precip = weighted_quantile(precip_pairs, 0.5)
+        wet_points = {
+            s: p
+            for s, p in by_time[when].items()
+            if p.get("precip") is not None or p.get("pop") is not None
+        }
+        pweights, p_verified = precip_weights(
+            sorted(wet_points), max(lead, 0), horizons, precip_scores
+        )
+        votes = [(v, w) for s, w in pweights.items() if (v := pop_vote(wet_points[s])) is not None]
+        pop_raw = _wmean(votes)
+        t_iso = when.isoformat().replace("+00:00", "Z")
+        ens = (ensemble_pop or {}).get(t_iso) if lead <= ENSEMBLE_HORIZON_H else None
+        if ens is not None:
+            pop_raw = (
+                ens
+                if pop_raw is None
+                else ((1 - ENSEMBLE_POP_WEIGHT) * pop_raw + ENSEMBLE_POP_WEIGHT * ens)
+            )
+        pop = calibrate(pop_raw, pop_table)
+        precip = weighted_quantile(
+            [
+                (wet_points[s]["precip"], w)
+                for s, w in pweights.items()
+                if wet_points[s].get("precip") is not None
+            ],
+            0.5,
+        )
         cloud = _wmean(pairs("cloud"))
         out.append(
             {
@@ -194,6 +275,9 @@ def blend_hourly(
                 "td2m": _r(_wmean(pairs("td2m"))),
                 "precip": _r(precip, 2),
                 "pop": _r(pop, 2),
+                "pop_raw": _r(pop_raw, 3),
+                "pop_calibrated": pop_table is not None and pop_raw is not None,
+                "pop_ensemble": _r(ens, 2),
                 "wind": _r(_wmean(pairs("wind"))),
                 "gust": _r(_wmean(pairs("gust"))),
                 "wind_dir": _circular(pairs("wind_dir")),
@@ -207,6 +291,11 @@ def blend_hourly(
                     {"source": s, "weight": round(w, 3)}
                     for s, w in sorted(weights.items(), key=lambda kv: -kv[1])
                 ],
+                "precip_contributors": [
+                    {"source": s, "weight": round(w, 3)}
+                    for s, w in sorted(pweights.items(), key=lambda kv: -kv[1])
+                ],
+                "precip_weights": "verified" if p_verified else "prior",
             }
         )
     return out
