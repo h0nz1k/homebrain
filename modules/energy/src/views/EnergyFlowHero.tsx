@@ -1397,43 +1397,51 @@ function DetailSheet(props: {
             Zavřít
           </button>
         </div>
-        {c.note && (
-          <p className="ef-sheet-note" data-testid="energy-flow-sheet-note">
-            {c.note}
-          </p>
-        )}
-        {c.phases && (
-          <PhaseSheetBody
-            model={props.model}
-            history={props.phaseHistory}
-            appliances={props.appliances}
-          />
-        )}
-        <dl className="ef-rows">
-          {c.rows.map((r) => (
-            <div key={r.label} data-tone={r.tone}>
-              <dt>{r.label}</dt>
-              <dd>{r.value}</dd>
-            </div>
-          ))}
-        </dl>
-        {c.sparks?.map((sp) => (
-          <TempSpark key={sp.key} spark={sp} history={props.thermalHistory} />
-        ))}
-        {c.sections?.map((sec) => (
-          <section key={sec.title} className="ef-sec" data-testid="energy-flow-sheet-section">
-            <h4>{sec.title}</h4>
+        <div className="ef-sheet-body" data-testid="energy-flow-sheet-body">
+          {c.note && (
+            <p className="ef-sheet-note" data-testid="energy-flow-sheet-note">
+              {c.note}
+            </p>
+          )}
+          {c.phases && (
+            <PhaseSheetBody
+              model={props.model}
+              history={props.phaseHistory}
+              appliances={props.appliances}
+            />
+          )}
+          <div className="ef-sheet-main">
             <dl className="ef-rows">
-              {sec.rows.map((r) => (
+              {c.rows.map((r) => (
                 <div key={r.label} data-tone={r.tone}>
                   <dt>{r.label}</dt>
                   <dd>{r.value}</dd>
                 </div>
               ))}
             </dl>
-            {sec.note && <p className="ef-sheet-note">{sec.note}</p>}
-          </section>
-        ))}
+            {c.sparks?.map((sp) => (
+              <TempSpark key={sp.key} spark={sp} history={props.thermalHistory} />
+            ))}
+          </div>
+          {c.sections?.length ? (
+            <div className="ef-sheet-secs">
+              {c.sections.map((sec) => (
+                <section key={sec.title} className="ef-sec" data-testid="energy-flow-sheet-section">
+                  <h4>{sec.title}</h4>
+                  <dl className="ef-rows">
+                    {sec.rows.map((r) => (
+                      <div key={r.label} data-tone={r.tone}>
+                        <dt>{r.label}</dt>
+                        <dd>{r.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {sec.note && <p className="ef-sheet-note">{sec.note}</p>}
+                </section>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
