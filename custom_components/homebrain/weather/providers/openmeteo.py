@@ -11,14 +11,19 @@ from ..const import OM_DAILY_MODELS, OM_DAILY_VARS, OM_HOURLY_VARS, OM_MODELS
 BASE = "https://api.open-meteo.com/v1/forecast"
 
 
-def _coords(lat: float, lon: float) -> dict[str, str]:
+def _coords(lat: float, lon: float, elevation: float | None = None) -> dict[str, str]:
     # Two decimals (~1 km) is enough for every model grid and avoids leaking precision.
-    return {"latitude": f"{lat:.2f}", "longitude": f"{lon:.2f}"}
+    # ``elevation`` drives Open-Meteo's statistical downscaling (default: 90 m DEM); sent only
+    # when the home elevation is actually known (HA config or options.weather.elevation_m).
+    out = {"latitude": f"{lat:.2f}", "longitude": f"{lon:.2f}"}
+    if elevation is not None:
+        out["elevation"] = f"{elevation:.0f}"
+    return out
 
 
-def hourly_url(lat: float, lon: float) -> str:
+def hourly_url(lat: float, lon: float, elevation: float | None = None) -> str:
     query = {
-        **_coords(lat, lon),
+        **_coords(lat, lon, elevation),
         "hourly": ",".join(OM_HOURLY_VARS),
         "models": ",".join(model.id for model in OM_MODELS),
         "past_hours": "12",
@@ -29,9 +34,9 @@ def hourly_url(lat: float, lon: float) -> str:
     return f"{BASE}?{urlencode(query, safe=',')}"
 
 
-def daily_url(lat: float, lon: float, timezone: str) -> str:
+def daily_url(lat: float, lon: float, timezone: str, elevation: float | None = None) -> str:
     query = {
-        **_coords(lat, lon),
+        **_coords(lat, lon, elevation),
         "daily": ",".join(OM_DAILY_VARS),
         "models": ",".join(OM_DAILY_MODELS),
         "forecast_days": "10",
@@ -41,9 +46,9 @@ def daily_url(lat: float, lon: float, timezone: str) -> str:
     return f"{BASE}?{urlencode(query, safe=',')}"
 
 
-def nowcast_url(lat: float, lon: float) -> str:
+def nowcast_url(lat: float, lon: float, elevation: float | None = None) -> str:
     query = {
-        **_coords(lat, lon),
+        **_coords(lat, lon, elevation),
         "minutely_15": "precipitation",
         "models": "icon_d2",
         "forecast_minutely_15": "12",

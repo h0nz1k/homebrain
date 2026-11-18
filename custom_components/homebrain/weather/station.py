@@ -7,7 +7,13 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import STATION_STALE_S
+from .const import (
+    MSL_PLAUSIBLE_MIN_HPA,
+    PRESSURE_REDUCE_MIN_ELEVATION_M,
+    PRESSURE_SAME_HPA,
+    STATION_STALE_S,
+)
+from .derive import resolve_pressure
 from .units import convert
 
 # logical key -> (output key, conversion kind, valid range)
@@ -16,7 +22,9 @@ STATION_KEYS: dict[str, tuple[str, str, tuple[float, float] | None]] = {
     "weather_humidity": ("rh", "num", (1, 100)),
     "weather_dew_point": ("td2m", "temp", (-50, 35)),
     "weather_feels_like": ("feels_like", "temp", (-60, 55)),
-    "weather_pressure": ("msl", "pressure", (900, 1080)),
+    # Station "relative" pressure (Ecowitt REL = ABS + user offset, often 0) and ABS.
+    "weather_pressure": ("msl", "pressure", (800, 1080)),
+    "weather_pressure_absolute": ("p_abs", "pressure", (500, 1080)),
     "weather_wind_speed": ("wind", "speed", (0, 60)),
     "weather_wind_gust": ("gust", "speed", (0, 90)),
     "weather_wind_direction": ("wind_dir", "num", (0, 360)),
@@ -87,3 +95,34 @@ def read_station(hass: HomeAssistant, bindings: dict[str, str], now: datetime) -
         "updated_at": newest.isoformat() if newest else None,
         "values": values,
     }
+
+
+def apply_pressure(station: dict[str, Any], elevation_m: float | None) -> dict[str, Any]:
+    """Replace the station ``msl`` value by the comparable MSL pressure (spec §4.2, WEA-016).
+
+    The raw relative reading moves to ``p_rel``; ``station["pressure"]`` explains the source
+    and flags a relative pressure equal to the absolute one (no offset set in the station).
+    """
+    values = station["values"]
+    raw = values.get("msl")
+    rel = raw["v"] if raw else None
+    p_abs = values.get("p_abs", {}).get("v")
+    t2m = values.get("t2m", {}).get("v")
+    info = resolve_pressure(
+        rel if isinstance(rel, (int, float)) else None,
+        p_abs if isinstance(p_abs, (int, float)) else None,
+        elevation_m,
+        t2m if isinstance(t2m, (int, float)) else None,
+        same_hpa=PRESSURE_SAME_HPA,
+        msl_min_hpa=MSL_PLAUSIBLE_MIN_HPA,
+        min_elevation_m=PRESSURE_REDUCE_MIN_ELEVATION_M,
+    )
+    if raw is not None:
+        values["p_rel"] = raw
+    source = values.get("p_abs") if info["source"] == "derived" else raw
+    if info["msl"] is not None and source is not None:
+        values["msl"] = {**source, "v": info["msl"], "qc": [*source["qc"], info["source"]]}
+    elif raw is not None:
+        values["msl"] = {**raw, "v": None, "qc": [*raw["qc"], "ignored"]}
+    station["pressure"] = info
+    return station

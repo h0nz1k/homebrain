@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -44,4 +45,25 @@ async def async_get_metno(hass: HomeAssistant, entity_id: str) -> list[dict[str,
                 "condition": item.get("condition"),
             }
         )
-    return points
+    return to_interval_end(points)
+
+
+def to_interval_end(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """HA hourly forecasts give precipitation for [t, t+1 h); Open-Meteo for (t-1 h, t].
+
+    Move ``precip``/``pop`` one hour later so every source means "the hour ending at t"
+    (blend and verification compare like with like). The first hour has no value.
+    """
+
+    def parse(t: str) -> datetime:
+        return datetime.fromisoformat(t.replace("Z", "+00:00"))
+
+    out = []
+    prev: dict[str, Any] | None = None
+    for point in points:
+        shifted = {**point, "precip": None, "pop": None}
+        if prev is not None and parse(point["t"]) - parse(prev["t"]) == timedelta(hours=1):
+            shifted["precip"], shifted["pop"] = prev.get("precip"), prev.get("pop")
+        out.append(shifted)
+        prev = point
+    return out

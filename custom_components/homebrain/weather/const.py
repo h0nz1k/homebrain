@@ -56,7 +56,8 @@ OM_DAILY_VARS: dict[str, str] = {
     "weather_code": "wmo",
 }
 
-# Prior weights until verification has enough pairs (spec §4.4).
+# Prior weights until verification has enough pairs (spec §4.4). Precipitation uses the same
+# priors until its own verification (Brier/ETS) has enough pairs.
 PRIOR_SHORT = {
     "chmi_aladin_cz_1km": 0.25,
     "icon_d2": 0.25,
@@ -99,12 +100,70 @@ INTERVALS_S = {
     "chmi_cap": 10 * 60,
     "chmi_radar": 5 * 60,
     "metno": 30 * 60,
+    "om_prev_runs": 24 * 3600,
+    "om_ensemble": 3 * 3600,
 }
 BACKOFF_S = (60, 120, 300, 900, 3600)
 STATION_STALE_S = 10 * 60
 TICK_S = 60
 
 RAIN_RATE_MM_H = 0.2
+
+# -- Elevation and pressure (issue #131 A) -------------------------------------------------
+# HA ``core.config.elevation`` of 0 is treated as "not set" (no Czech home is at sea level);
+# ``options.weather.elevation_m`` then fills in. Open-Meteo gets ``elevation`` only when known.
+ELEVATION_MIN_SET_M = 1
+# A station "relative" pressure within this of the absolute one has no offset configured.
+PRESSURE_SAME_HPA = 0.5
+# MSL pressure below this does not occur in central Europe (record lows ~960 hPa): a relative
+# reading under it, at an elevated station, is really the absolute (station) pressure.
+MSL_PLAUSIBLE_MIN_HPA = 955
+PRESSURE_REDUCE_MIN_ELEVATION_M = 100
+
+# -- Measured history (homebrain/weather/history) ------------------------------------------
+HISTORY_MAX_DAYS = 400
+HISTORY_MAX_HOUR_DAYS = 31
+HISTORY_CACHE_S = 15 * 60
+# A day counts as dry below this daily sum (piezo noise / dew); also the dry-streak rule.
+DRY_DAY_MM = 0.2
+
+# -- Precipitation verification and weights (issue #131 B) ---------------------------------
+# Event threshold for PoP, Brier score and the binary vote of models without their own PoP.
+# 0.2 mm/h (not 0.1) reduces the NWP drizzle bias against a piezo gauge.
+POP_THRESHOLD_MM_H = 0.2
+PRECIP_HOURLY_THRESHOLDS = (0.2, 1.0)
+PRECIP_DAILY_THRESHOLDS = (1.0, 5.0)
+PRECIP_LEAD_BUCKETS = (24, 48, 72)
+PRECIP_WINDOW_D = 90
+# Verified precip weights need this many hourly pairs and wet hours per source/bucket; until
+# then priors, then a shrinkage blend prior -> skill with lambda = n / (n + PRECIP_SHRINK_N).
+PRECIP_MIN_PAIRS = 240
+PRECIP_MIN_WET = 12
+PRECIP_SHRINK_N = 480
+# Reliability binning of the raw blend PoP (10 bins); shrink each bin to its centre.
+POP_CALIB_BINS = 10
+POP_CALIB_MIN_PAIRS = 500
+POP_CALIB_PRIOR_N = 20
+# Open-Meteo Previous Runs API: once per night after this local hour, days 1-3 before valid
+# time (day1 = "predicted 24 h before valid time", docs 2026-11). Archive from 01/2024.
+PREV_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
+PREV_RUNS_DAYS = (1, 2, 3)
+PREV_RUNS_HOUR_LOCAL = 3
+PREV_RUNS_EPOCH = "2024-01-01"
+PREV_RUNS_BOOTSTRAP_D = 365
+PREV_RUNS_CHUNK_D = 28
+PREV_RUNS_NIGHTLY_D = 3
+# Budget in Open-Meteo weighted calls per night (free tier: 10 000/day, 5 000/h, 600/min).
+PREV_RUNS_MAX_WEIGHT = 120.0
+PREV_RETENTION_D = 400
+# Optional ICON-D2-EPS precipitation probabilities (Ensemble API). OFF: the model id and the
+# member column names are not in the official docs and the Open-Meteo FAQ lists ensemble APIs
+# under paid plans; see docs/specs/weather-multisource.md §3.2 for the budget math.
+ENSEMBLE_ENABLED = False
+ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
+ENSEMBLE_MODEL = "icon_d2_eps"
+ENSEMBLE_HORIZON_H = 48
+ENSEMBLE_POP_WEIGHT = 0.5
 
 ATTRIBUTION = {
     "open_meteo": {

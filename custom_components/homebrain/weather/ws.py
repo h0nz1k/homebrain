@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from ..const import DOMAIN
 from ..roles import entry_roles, require_dnes_access, resolve_role
+from .const import HISTORY_MAX_DAYS, HISTORY_MAX_HOUR_DAYS
 
 
 @websocket_api.websocket_command({vol.Required("type"): "homebrain/weather/get"})
@@ -41,6 +42,33 @@ def websocket_weather_alerts(
     from homeassistant.util import dt as dt_util
 
     connection.send_result(msg["id"], manager.alerts_block(dt_util.utcnow()))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "homebrain/weather/history",
+        vol.Optional("period", default="day"): vol.In(("day", "hour")),
+        vol.Optional("days", default=7): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=HISTORY_MAX_DAYS)
+        ),
+    }
+)
+@require_dnes_access
+@websocket_api.async_response
+async def websocket_weather_history(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Measured station days/hours from HA long-term statistics (read-only, issue #131)."""
+    manager = hass.data.get(DOMAIN, {}).get("weather")
+    if manager is None:
+        connection.send_error(msg["id"], "not_found", "Weather is not running")
+        return
+    if msg["period"] == "hour" and msg["days"] > HISTORY_MAX_HOUR_DAYS:
+        connection.send_error(
+            msg["id"], "invalid_format", f"period hour allows at most {HISTORY_MAX_HOUR_DAYS} days"
+        )
+        return
+    connection.send_result(msg["id"], await manager.async_history(msg["period"], msg["days"]))
 
 
 class RadarImageView(HomeAssistantView):

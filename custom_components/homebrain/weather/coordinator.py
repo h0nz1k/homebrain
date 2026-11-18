@@ -16,12 +16,14 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from ..bindings import get_bindings
-from . import geo, radar
+from . import geo, history, radar
 from .blend import applied_bias, blend_daily, blend_hourly, lead_bucket, update_bias
 from .const import (
     ARCHIVE_EVERY_H,
     ARCHIVE_MAX_LEAD_H,
     ATTRIBUTION,
+    ELEVATION_MIN_SET_M,
+    HISTORY_CACHE_S,
     INTERVALS_S,
     METNO,
     MIN_VERIFIED_PAIRS,
@@ -44,7 +46,7 @@ from .derive import (
 from .fetch import USER_AGENT, FetchError, SourceState, fetch_bytes, fetch_json
 from .providers import chmi_alerts, chmi_cap, openmeteo
 from .providers.metno_ha import async_get_metno
-from .station import FORECAST_KEY, read_station
+from .station import FORECAST_KEY, apply_pressure, read_station
 from .store import WeatherStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,6 +84,7 @@ class WeatherManager:
         self.radar_fct_base: datetime | None = None
         self.radar_nowcast: dict[str, Any] | None = None
         self._png_cache: dict[str, bytes] = {}
+        self._history_cache: dict[tuple[Any, ...], tuple[datetime, dict[str, Any]]] = {}
 
     # -- lifecycle -----------------------------------------------------------------
     async def async_start(self) -> None:
@@ -139,6 +142,29 @@ class WeatherManager:
             return str(value)
         return geo.KRAJ_NUTS.get(self.area.kraj or "") if self.area else None
 
+    @property
+    def elevation(self) -> tuple[float | None, str | None]:
+        """Home elevation (m) and where it came from.
+
+        HA ``core.config.elevation`` wins when set; 0 / None counts as "not set" and
+        ``options.weather.elevation_m`` fills in (issue #131).
+        """
+        ha = self.hass.config.elevation
+        if ha is not None and abs(float(ha)) >= ELEVATION_MIN_SET_M:
+            return float(ha), "ha"
+        raw = self.options.get("elevation_m")
+        try:
+            value = float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            value = None
+        if value is not None and -500 <= value <= 9000:
+            return value, "option"
+        return None, None
+
+    def read_station(self, now: datetime) -> dict[str, Any]:
+        """Station values with the comparable MSL pressure (see ``apply_pressure``)."""
+        return apply_pressure(read_station(self.hass, self.bindings, now), self.elevation[0])
+
     async def _resolve_area(self) -> None:
         """Home ORP from HA's home coordinates (zone.home) via bundled polygons; an explicit
         ``options.weather.chmi_orp`` (CISORP code) wins. Nothing location-specific in Git."""
@@ -160,10 +186,11 @@ class WeatherManager:
         session = async_get_clientsession(self.hass)
         lat, lon = self.hass.config.latitude, self.hass.config.longitude
         tz = str(self.hass.config.time_zone or "UTC")
+        elevation = self.elevation[0]
         urls = {
-            "om_hourly": openmeteo.hourly_url(lat, lon),
-            "om_daily": openmeteo.daily_url(lat, lon, tz),
-            "om_nowcast": openmeteo.nowcast_url(lat, lon),
+            "om_hourly": openmeteo.hourly_url(lat, lon, elevation),
+            "om_daily": openmeteo.daily_url(lat, lon, tz, elevation),
+            "om_nowcast": openmeteo.nowcast_url(lat, lon, elevation),
         }
         for key, url in urls.items():
             state = self.states[key]
@@ -403,7 +430,7 @@ class WeatherManager:
 
     # -- station sampling, hourly obs and bias learning ------------------------------
     def _sample_station(self, now: datetime) -> None:
-        station = read_station(self.hass, self.bindings, now)
+        station = self.read_station(now)
         values = {k: v["v"] for k, v in station["values"].items() if v["v"] is not None}
         if not values:
             return
@@ -471,6 +498,55 @@ class WeatherManager:
         await self.hass.async_add_executor_job(self.store.archive, rows)
         await self.hass.async_add_executor_job(self.store.prune, now)
 
+    # -- measured history (recorder long-term statistics, read-only) -------------------
+    @property
+    def tz(self) -> Any:
+        return dt_util.get_time_zone(str(self.hass.config.time_zone)) or dt_util.UTC
+
+    async def async_history(
+        self, period: str, days: int, now: datetime | None = None
+    ) -> dict[str, Any]:
+        """``homebrain/weather/history``: station days or hours from HA statistics.
+
+        Range = the last ``days`` local days including today (today is partial). Cached per
+        hour for ``HISTORY_CACHE_S`` so tab switches do not re-query the recorder.
+        """
+        now = now or dt_util.utcnow()
+        tz = self.tz
+        ids = history.statistic_ids(self.bindings)
+        elevation, elevation_source = self.elevation
+        key = (period, days, tuple(sorted(ids.items())), elevation, now.strftime("%Y%m%d%H"))
+        cached = self._history_cache.get(key)
+        if cached and (now - cached[0]).total_seconds() < HISTORY_CACHE_S:
+            return cached[1]
+        today = now.astimezone(tz).date()
+        first = today - timedelta(days=days - 1)
+        base: dict[str, Any] = {
+            "period": period,
+            "first": first.isoformat(),
+            "last": today.isoformat(),
+            "generated_at": iso(now),
+            "elevation_m": elevation,
+            "elevation_source": elevation_source,
+            "vars": sorted(ids),
+        }
+        if not ids:
+            return {**base, "status": "unconfigured", "days": [], "hours": []}
+        if "recorder" not in self.hass.config.components:
+            return {**base, "status": "unsupported", "days": [], "hours": []}
+        start = datetime.combine(first, datetime.min.time(), tz).astimezone(dt_util.UTC)
+        rows = await history.async_statistics(self.hass, ids, start, None)
+        hours = history.aggregate_hours(rows, elevation)
+        result = {**base, "status": "ok", "days": [], "hours": []}
+        if period == "hour":
+            result["hours"] = history.hour_records(hours)
+        else:
+            result["days"] = history.aggregate_days(hours, tz, first, today, now, ids)
+        if len(self._history_cache) > 8:
+            self._history_cache.clear()
+        self._history_cache[key] = (now, result)
+        return result
+
     # -- snapshot --------------------------------------------------------------------
     def _series(self) -> tuple[dict[str, list[dict[str, Any]]], dict[str, int]]:
         series: dict[str, list[dict[str, Any]]] = {}
@@ -490,7 +566,7 @@ class WeatherManager:
 
     def snapshot(self, now: datetime | None = None) -> dict[str, Any]:
         now = now or dt_util.utcnow()
-        station = read_station(self.hass, self.bindings, now)
+        station = self.read_station(now)
         hourly, series = self._blend(now)
         start = now.replace(minute=0, second=0, microsecond=0)
         end = start + timedelta(hours=48)
@@ -542,7 +618,8 @@ class WeatherManager:
             "schema_version": SCHEMA_VERSION,
             "generated_at": iso(now),
             "location": {
-                "elevation_m": self.hass.config.elevation,
+                "elevation_m": self.elevation[0],
+                "elevation_source": self.elevation[1],
                 "region": self.region,
                 "area": self.alerts_block(now)["area"],
             },
