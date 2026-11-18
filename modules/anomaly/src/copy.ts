@@ -326,7 +326,7 @@ export function why(r: Report, now: Date | string): string {
 
 /** Baseline steps by quantity and direction: [too high, too low]. */
 const BASELINE_STEP: Record<string, [string, string]> = {
-  temperature: ['Zkontrolujte topení, okno nebo slunce.', 'Zkontrolujte topení, okno nebo dveře.'],
+  temperature: ['Zkontrolujte topení, okno nebo přímé slunce.', 'Zkontrolujte topení, okno nebo dveře.'],
   humidity: ['Zkontrolujte větrání nebo únik vody.', 'Zkontrolujte zvlhčovač nebo topení.'],
   moisture: ['Zkontrolujte, jestli někde neteče voda.', 'Zkontrolujte zálivku nebo čidlo.'],
   power: [
@@ -534,6 +534,6 @@ export function inventory(watched: { devices: number }): string {
 }
 
 /** What „Vyřešeno“ does, as a caption under that button (owner: say it in the UI). */
-export const RESOLVED_HINT = `Po Vyřešeno: pokud potíž trvá, za 2${NB}h se upozornění vrátí.`;
+export const RESOLVED_HINT = `Když potíž po označení „Vyřešeno“ trvá, za 2${NB}h se upozornění vrátí.`;
 /** The same after it was pressed (hidden list). */
 export const RESOLVED_DONE = `Vyřešeno. Pokud potíž trvá, za 2${NB}h se upozornění vrátí.`;

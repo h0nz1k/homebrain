@@ -156,7 +156,7 @@ describe('copy – r3: one concrete next step per card, from the kind of anomaly
   });
   it('unusually warm → heating, window or sun; cold and other quantities differ', () => {
     const warm = report('suspicion', 'device:demo_dev_living');
-    expect(nextStep(warm)).toBe('Zkontrolujte topení, okno nebo slunce.');
+    expect(nextStep(warm)).toBe('Zkontrolujte topení, okno nebo přímé slunce.');
     const top = warm.findings[0]!;
     const cold = { ...warm, findings: [{ ...top, detail: { ...top.detail, z: -4 } }] };
     expect(nextStep(cold)).toBe('Zkontrolujte topení, okno nebo dveře.');
@@ -276,7 +276,7 @@ describe('copy – r3: „hlášení“ only for sensor reports, alerts are „u
     expect(bad).toEqual([]);
   });
   it('built strings', () => {
-    expect(plain(RESOLVED_HINT)).toBe('Po Vyřešeno: pokud potíž trvá, za 2 h se upozornění vrátí.');
+    expect(plain(RESOLVED_HINT)).toBe('Když potíž po označení „Vyřešeno“ trvá, za 2 h se upozornění vrátí.');
     expect(plain(RESOLVED_DONE)).toBe('Vyřešeno. Pokud potíž trvá, za 2 h se upozornění vrátí.');
     for (const scenario of ['observations', 'suspicion', 'confirmed'] as const) {
       const snap = mockAnomalySnapshot(scenario);

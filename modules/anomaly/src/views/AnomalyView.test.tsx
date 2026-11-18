@@ -51,7 +51,7 @@ describe('AnomalyView (detail)', () => {
       // the caption belongs to Vyřešeno: in its group, right after it, and describes it
       const hint = within(card).getByTestId('aw-resolve-hint');
       expect(plain(hint.textContent)).toBe(
-        'Po Vyřešeno: pokud potíž trvá, za 2 h se upozornění vrátí.',
+        'Když potíž po označení „Vyřešeno“ trvá, za 2 h se upozornění vrátí.',
       );
       expect(hint.previousElementSibling).toBe(buttons[1]);
       expect(buttons[1]!.getAttribute('aria-describedby')).toBe(hint.id);
@@ -85,7 +85,7 @@ describe('AnomalyView (detail)', () => {
         within(cards.find((c) => c.dataset.key === key)!).getByTestId('aw-next-step').textContent,
       );
     expect(step('device:demo_dev_cellar')).toBe('Zkontrolujte baterii nebo dosah čidla.');
-    expect(step('device:demo_dev_living')).toBe('Zkontrolujte topení, okno nebo slunce.');
+    expect(step('device:demo_dev_living')).toBe('Zkontrolujte topení, okno nebo přímé slunce.');
     expect(step('device:demo_dev_dishwasher')).toBe('Zkontrolujte napájení a připojení zařízení.');
     for (const card of cards) expect(within(card).getAllByTestId('aw-next-step')).toHaveLength(1);
   });

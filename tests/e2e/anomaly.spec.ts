@@ -131,7 +131,7 @@ test.describe('Hlídání domu – detail', () => {
       const steps = [
         'Zkontrolujte napájení a připojení zařízení.',
         'Zkontrolujte baterii nebo dosah čidla.',
-        'Zkontrolujte topení, okno nebo slunce.',
+        'Zkontrolujte topení, okno nebo přímé slunce.',
       ];
       for (const [i, card] of (await issues.all()).entries()) {
         const buttons = card.getByTestId('aw-actions').getByRole('button');
@@ -151,7 +151,7 @@ test.describe('Hlídání domu – detail', () => {
         // under „Skrýt na 7 dní“
         const hint = card.getByTestId('aw-resolve-hint');
         await expect(hint).toHaveText(
-          'Po Vyřešeno: pokud potíž trvá, za 2\u00a0h se upozornění vrátí.',
+          'Když potíž po označení „Vyřešeno“ trvá, za 2\u00a0h se upozornění vrátí.',
         );
         const [hb, rb, lb] = await Promise.all([
           hint.boundingBox(),
