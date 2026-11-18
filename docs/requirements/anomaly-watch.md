@@ -10,13 +10,21 @@ ne kód (viz `THIRD_PARTY_NOTICES.md`).
 
 - **Žádné zápisy do HA a žádná oznámení.** Nic se neposílá na telefon; karta *Na telefon* to
   říká. Tiché hodiny a cooldown z B.3 jsou až pro fázi 2.
-- **Akce (rozhodnutí vlastníka v #129):** porucha = *Vyřešeno* (primární), *Otevřít zařízení*
-  (sekundární, jen HA admin – stránka zařízení v HA), *Ztlumit na 7 dní* (odkaz). Podezření a
-  pozorování = *To je v pořádku* + *Ztlumit*. „Vím o tom“ je zrušeno. Vše je lokální stav
-  HomeBrainu (`.storage/homebrain.anomaly_watch`).
-  - *To je v pořádku*: skryje hlášení, dokud trvá, a rozšíří meze dotčených entit ×1,5 (max ×4).
-  - *Vyřešeno*: skryje hlášení; pokud potíž trvá ještě 2 h, ukáže se znovu.
+- **Akce (rozhodnutí vlastníka v #129, revize r2 #136):** na každé úrovni přesně tři –
+  *Vyřešeno* (primární, všude stejný vzhled), *Otevřít zařízení* (sekundární, jen HA admin –
+  stránka zařízení v HA), *Skrýt na 7 dní* (odkaz; oznámení zatím nejsou, takže jde jen o
+  skrytí hlášení). „Vím o tom“ a „To je v pořádku“ v UI nejsou. Vše je lokální stav HomeBrainu
+  (`.storage/homebrain.anomaly_watch`).
+  - *Vyřešeno*: skryje hlášení; pokud potíž trvá ještě 2 h, ukáže se znovu – UI to říká
+    („Pokud potíž trvá, za 2 h se hlášení vrátí.“).
+  - API dál zná `ack kind=ok` (rozšíří meze dotčených entit ×1,5, max ×4); panel ho nepoužívá.
   - Zvýšení úrovně nad potvrzenou vždy hlášení znovu ukáže.
+- **Texty (r2):** jeden neosobní hlas („Hlídáno 12 zařízení“, ne „Hlídám“); každý výpadek stejně
+  – „2 h 21 min od posledního hlášení (9:29)“ – na kartě, kiosku, v řádcích podezření i v detailu;
+  místnost v 6. pádě, pokud ji HA zná („V obýváku je neobvykle teplo“); trvání se počítá
+  k času, který obrazovka ukazuje (Dnes předá kartě své `now`).
+- **Mimo fázi 1:** výběr hlídaných zařízení (include/exclude) a citlivost podle přítomnosti –
+  fáze 2.
 - **Role:** `list`, `ack`, `mute`, `unmute` – vlastník (HA admin) a dospělí; `summary` (karta
   na Dnes, bez `entity_id` a id zařízení) – i kuchyňský kiosk. Děti nic. Na kiosku karta nemá
   tlačítko *Otevřít hlídání* (kiosk detail otevřít nesmí).
@@ -36,7 +44,7 @@ každé zařízení obvykle chová (jak často posílá data, jaké hodnoty mív
 bývají otevřené dveře nebo rozsvícené světlo), a během dne si všímá, když se něco výrazně liší.
 
 **Jak to hlásí.** HomeBrain sdruží související hodnoty do jednoho hlášení, například „Myčka neodpovídá.
-Všech 17 hodnot mlčí.“ Při společném výpadku více zařízení upozorní na jejich integraci nebo bránu.
+Neposílá žádné údaje.“ Při společném výpadku více zařízení upozorní na jejich integraci nebo bránu.
 Každé hlášení má jednu ze tří úrovní.
 
 | Úroveň | Kdy | Kde je vidět |
@@ -61,9 +69,9 @@ Každé hlášení má jednu ze tří úrovní.
 **Soukromí.** Výpočet běží doma v Home Assistantu z jeho vlastní historie (recorder). Ven jdou
 jen oznámení na telefon, žádná AI, žádná cloudová služba.
 
-**Ovládání.** Podezření: hlavní „To je v pořádku“ (zavřít a přizpůsobit prah), vedlejší odkaz
-„Ztlumit na 7 dní“. Porucha: hlavní „Vyřešeno“, vedle „Otevřít zařízení“, pak „Vím o tom“ (už
-nepřipomínat, hlídat dál) a odkaz „Ztlumit na 7 dní“. Na *Dnes* má při podezření nebo poruše
+**Ovládání.** (Původní návrh; ve fázi 1 platí tři akce výše.) Podezření: hlavní „To je v pořádku“
+(zavřít a přizpůsobit prah), vedlejší odkaz „Ztlumit na 7 dní“. Porucha: hlavní „Vyřešeno“, vedle
+„Otevřít zařízení“, pak „Vím o tom“ a odkaz „Ztlumit na 7 dní“. Na *Dnes* má při podezření nebo poruše
 „Otevřít hlídání“ přednost před běžnými úkoly (např. popelnice). Vše je jen lokální stav
 HomeBrainu, do HA se nic nezapisuje.
 
