@@ -387,7 +387,6 @@ async def websocket_family_chore_create(
         "auto_approve": False,
         "approval_reset_type": "at_midnight_once" if freq != "none" else "manual",
         "pending_claims": "hold_pending",
-        "return_response": True,
     }
     if fields["recurrence"] == "weekly" and fields["weekdays"]:
         data["applicable_days"] = fields["weekdays"]
