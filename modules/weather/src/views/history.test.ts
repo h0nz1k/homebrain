@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { HistoryDay } from '../contract.js';
 import { buildMockHistory, buildMockSnapshot } from '../fixtures.js';
-import { dryStreak, records, windowStats, yesterdayToday } from './history.js';
+import {
+  DELTA_NEUTRAL,
+  delta,
+  dryStreak,
+  niceCeil,
+  records,
+  tempTicks,
+  windowStats,
+  yesterdayToday,
+} from './history.js';
 
 const day = (date: string, rain: number | null, extra: Partial<HistoryDay> = {}): HistoryDay => ({
   date,
@@ -97,5 +106,40 @@ describe('windowStats a records', () => {
     expect(h.days.filter((d) => d.gaps.length > 0)).toHaveLength(1);
     expect(dryStreak(h.days, 0.4)).toMatchObject({ days: 2, exact: true, todayWet: true });
     expect(buildMockHistory('unavailable').status).toBe('unconfigured');
+  });
+});
+
+describe('rozdíl, osy', () => {
+  it('delta: pod prahem je „stejně“, chybějící hodnota je missing', () => {
+    expect(delta(7.9, 7.8, 't')).toEqual({ kind: 'same', v: 0.1 });
+    expect(delta(9.4, 7.8, 't')).toEqual({ kind: 'up', v: 1.6 });
+    expect(delta(0, 0.4, 'rain')).toEqual({ kind: 'down', v: 0.4 });
+    expect(delta(0.1, 0, 'rain').kind).toBe('same'); // < 0,2 mm
+    expect(delta(null, 3, 'gust')).toEqual({ kind: 'missing' });
+    expect(DELTA_NEUTRAL.t).toBe(0.5);
+  });
+
+  it('niceCeil pokryje maximum kulatým číslem', () => {
+    expect(niceCeil(18.1)).toBe(20);
+    expect(niceCeil(4.2)).toBe(5);
+    expect(niceCeil(2.1)).toBe(2.5);
+    expect(niceCeil(10)).toBe(10);
+    expect(niceCeil(0)).toBe(1);
+  });
+
+  it('tempTicks: 2–3 kulaté hodnoty, 0 °C při přechodu přes nulu', () => {
+    expect(tempTicks(1.4, 18)).toEqual([5, 10, 15]);
+    expect(tempTicks(-7.4, 25.2)).toEqual([0, 10, 20]);
+    expect(tempTicks(2.4, 4.1)).toEqual([3, 4]);
+    for (const [lo, hi] of [
+      [-12, 3],
+      [0.2, 0.6],
+      [-30, 38],
+    ] as const) {
+      const t = tempTicks(lo, hi);
+      expect(t.length).toBeGreaterThanOrEqual(1);
+      expect(t.length).toBeLessThanOrEqual(3);
+      if (lo < 0 && hi > 0) expect(t).toContain(0);
+    }
   });
 });

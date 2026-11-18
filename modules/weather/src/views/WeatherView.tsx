@@ -18,6 +18,7 @@ import { Card, Cell, cap, nf, signed } from './parts.js';
 import { chartTimeMarks } from './chartTime.js';
 import { RadarCard } from './RadarCard.js';
 import { HistoryCard, YesterdayTodayCard, type HistoryState } from './HistoryCards.js';
+import { etsGrade } from './rainScore.js';
 import { bandPath, smoothPath, type Pt } from './curve.js';
 import {
   conditionSentence,
@@ -1016,75 +1017,150 @@ function TempScore({ d }: { d: WeatherSnapshot }) {
   );
 }
 
-const pct = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v * 100)} %`);
+const pct = (v: number | null | undefined) => (v == null ? '–' : `${Math.round(v * 100)}\u00a0%`);
 /** Lead bucket shown: own archive (0–24 h) once it has verified rows, else Previous Runs. */
 function precipBucket(rows: PrecipVerificationRow[]): string | null {
   for (const lead of ['0-24', '24-48', '48-72'])
     if (rows.some((r) => r.lead === lead && r.enough)) return lead;
   return null;
 }
+const leadText = (lead: string | null) =>
+  lead === '24-48' ? '24–48 h' : lead === '48-72' ? '48–72 h' : '0–24 h';
+/** Below this many distinct wet hours the ranking is only indicative ("málo dat"). */
+const RAIN_FEW_WET_HOURS = 40;
+const wetHours = (r: PrecipVerificationRow) => r.wet_hours ?? r.n_wet;
+const daysCs = (n: number) => (n === 1 ? 'den' : n >= 2 && n <= 4 ? 'dny' : 'dní');
+function sampleText(r: PrecipVerificationRow): string {
+  const wet = wetHours(r);
+  const days = r.days ?? r.n_days;
+  const hours = wet === 1 ? 'deštivé hodiny' : 'deštivých hodin';
+  return `z ${wet}\u00a0${hours} za ${days}\u00a0${daysCs(days)}`;
+}
 function PrecipScore({ d }: { d: WeatherSnapshot }) {
   const all = d.verification_precip ?? [];
   const lead = precipBucket(all);
-  const rows = all
-    .filter((r) => r.lead === lead && r.enough)
+  const inBucket = all.filter((r) => r.lead === lead);
+  const rows = inBucket
+    .filter((r) => r.enough)
     .sort((a, b) => (b.hourly['0.2']?.ets ?? -1) - (a.hourly['0.2']?.ets ?? -1));
+  const few = inBucket.filter((r) => !r.enough);
   const label = (id: string) =>
-    id === 'blend' ? 'Mix (vážený)' : (d.models.find((m) => m.id === id)?.label ?? id);
-  const best = Math.max(0.01, ...rows.map((r) => r.hourly['0.2']?.ets ?? 0));
+    id === 'blend' ? 'Mix' : (d.models.find((m) => m.id === id)?.label ?? id);
   const info = d.verification_info;
   if (rows.length === 0)
     return (
-      <p className="wx-empty" data-testid="weather-score-rain-empty">
-        Skóre srážek se zobrazí po nasbírání alespoň 240 hodinových párů předpověď–srážkoměr s aspoň
-        12 deštivými hodinami. Ověřuje se jednou za noc
-        {info?.status === 'unbound' ? ' – chybí navázaný denní srážkoměr stanice' : ''}.
-      </p>
+      <div className="wx-empty" data-testid="weather-score-rain-empty">
+        <p>
+          <b>Málo dat.</b> Skóre srážek se zobrazí po nasbírání alespoň 240 hodinových dvojic
+          předpověď–měření, mezi nimi aspoň 12 hodin s deštěm.
+        </p>
+        <p>
+          Ověřuje se jednou za noc
+          {info?.status === 'unbound' ? ' – chybí navázaný denní srážkoměr stanice' : ''}.
+        </p>
+      </div>
     );
+  const cardFew = Math.max(...rows.map(wetHours)) < RAIN_FEW_WET_HOURS;
   return (
     <>
+      {cardFew && (
+        <p className="wx-info wx-info--warn" data-testid="weather-score-rain-few">
+          <b>Zatím málo dat</b> – nejvíc {Math.max(...rows.map(wetHours))} deštivých hodin. Pořadí
+          je orientační, ustálí se zhruba po {RAIN_FEW_WET_HOURS} hodinách s deštěm.
+        </p>
+      )}
       <ol
-        className="wx-rank wx-rank--rain"
+        className="wx-prank"
         aria-label="Pořadí podle trefy srážek"
         data-testid="weather-score-rain"
       >
         {rows.map((r, i) => {
           const h = r.hourly['0.2'];
           const ets = h?.ets ?? null;
+          const grade = etsGrade(ets);
+          const blend = r.source === 'blend';
           return (
             <li
               key={r.source}
-              className={`wx-rank-i ${r.source === 'blend' ? 'is-blend' : ''}`}
+              className={`wx-prank-i ${blend ? 'is-blend' : ''}`}
               style={{ '--c': MODEL_COLOR[r.source] ?? 'var(--hb-t3)' } as CSSProperties}
+              data-testid={`weather-score-rain-${r.source}`}
             >
               <span className="wx-rank-n">{i + 1}</span>
-              <span className="wx-rank-name">
+              <span className="wx-prank-name">
                 <i aria-hidden="true" />
-                {label(r.source)}
+                <span className="wx-rank-name">{label(r.source)}</span>
+                {blend && (
+                  <span className="wx-chip" title="vážená kombinace všech modelů">
+                    kombinace
+                  </span>
+                )}
               </span>
-              <span className="wx-rank-v" aria-label={`ETS ${nf(ets, 2)}`}>
-                {nf(ets, 2)}
+              <span className="wx-prank-v">
+                <b aria-label={`ETS ${nf(ets, 2)}`}>{nf(ets, 2)}</b>
+                <span className={`wx-grade wx-grade--${grade.tone}`}>{grade.word}</span>
               </span>
-              <span className="wx-rank-bar" aria-hidden="true">
-                <i style={{ width: `${Math.max(6, (Math.max(0, ets ?? 0) / best) * 100)}%` }} />
+              <span className="wx-prank-bar" aria-hidden="true">
+                <i style={{ width: `${Math.max(0, Math.min(1, ets ?? 0)) * 100}%` }} />
               </span>
-              <span className="wx-rank-sub">
-                zachytí {pct(h?.pod)} deště · plané poplachy {pct(h?.far)} · Brier {nf(r.brier, 3)}
+              <span className="wx-prank-sub">
+                <span>zachytí {pct(h?.pod)} hodin s deštěm</span>
+                <span>z předpovězených dešťových hodin nepršelo {pct(h?.far)}</span>
+                <span className="wx-prank-n">
+                  {sampleText(r)}
+                  {wetHours(r) < RAIN_FEW_WET_HOURS ? ' · málo dat' : ''}
+                </span>
               </span>
             </li>
           );
         })}
+        {few.map((r) => (
+          <li
+            key={r.source}
+            className="wx-prank-i is-few"
+            style={{ '--c': MODEL_COLOR[r.source] ?? 'var(--hb-t3)' } as CSSProperties}
+            data-testid={`weather-score-rain-${r.source}`}
+          >
+            <span className="wx-rank-n">–</span>
+            <span className="wx-prank-name">
+              <i aria-hidden="true" />
+              <span className="wx-rank-name">{label(r.source)}</span>
+            </span>
+            <span className="wx-prank-v">
+              <span className="wx-grade">málo dat</span>
+            </span>
+            <span className="wx-prank-sub">
+              <span className="wx-prank-n">
+                {sampleText(r)} – hodnotí se od 240 dvojic a 12 hodin s deštěm
+              </span>
+            </span>
+          </li>
+        ))}
       </ol>
       <p className="wx-rank-k">
-        Číslo = ETS (trefa deště ≥ 0,2 mm/h očištěná o náhodu, 1 = dokonalé) · předstih{' '}
-        {lead === '0-24' ? '0–24 h' : lead === '24-48' ? '24–48 h' : '48–72 h'}
+        Pruh = ETS na stupnici 0–1 · Mix se hodnotí jen na svých archivovaných předpovědích, z nichž
+        jeho váhy nevznikly
       </p>
+      <details className="wx-prank-more" data-testid="weather-score-rain-details">
+        <summary>Brier – chyba pravděpodobnosti, nižší = lepší</summary>
+        <ul>
+          {rows.map((r) => (
+            <li key={r.source}>
+              <span>{label(r.source)}</span>
+              <b>{nf(r.brier, 3)}</b>
+            </li>
+          ))}
+        </ul>
+        <p>
+          Modely bez vlastní pravděpodobnosti se hodnotí jako 0 nebo 100 % podle předpovězeného
+          množství.
+        </p>
+      </details>
       <p className="wx-info">
-        Srážky v mixu mají <b>vlastní váhy podle tohoto skóre</b>, teplota podle své chyby.
-        Pravděpodobnost deště{' '}
+        Srážky v mixu mají <b>vlastní váhy podle tohoto skóre</b>. Pravděpodobnost deště{' '}
         {info?.pop_calibrated
-          ? 'je kalibrovaná na stanici'
-          : 'se zatím kalibruje (sbírají se páry)'}
+          ? 'je kalibrovaná na srážkoměr stanice'
+          : 'se zatím kalibruje (sbírají se dvojice předpověď–měření)'}
         .
       </p>
     </>
@@ -1094,18 +1170,29 @@ function PrecipScore({ d }: { d: WeatherSnapshot }) {
 type ScoreTab = 'temp' | 'rain';
 function ScoreCard({ d }: { d: WeatherSnapshot }) {
   const [tab, setTab] = useState<ScoreTab>('temp');
+  const lead = precipBucket(d.verification_precip ?? []);
   return (
     <Card
       title="Kdo se trefuje"
       sub={
-        tab === 'temp'
-          ? 'teplota 0–24 h · průměrná chyba vs. stanice'
-          : 'déšť po hodinách · vs. srážkoměr stanice'
+        tab === 'temp' ? (
+          'teplota 0–24 h · průměrná chyba vs. stanice'
+        ) : (
+          <>
+            déšť ≥ 0,2 mm/h · předstih {leadText(lead)} · vs. srážkoměr stanice
+            <br />
+            ETS: 0 = náhoda, 1 = dokonalé
+          </>
+        )
       }
-      className="wx-score"
+      className={`wx-score ${tab === 'rain' ? 'is-rain' : ''}`}
       testId="weather-score"
       right={
-        <div className="wx-seg" role="tablist" aria-label="Hodnocená veličina">
+        <div
+          className="wx-seg wx-seg--touch wx-seg--strong"
+          role="tablist"
+          aria-label="Hodnocená veličina"
+        >
           {(
             [
               ['temp', 'Teplota'],

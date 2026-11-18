@@ -320,6 +320,29 @@ export const weatherStyles = `
 @keyframes wx-grow{from{transform:scaleX(0)}to{transform:none}}
 .wx-rank-sub{grid-area:sub;font-size:12px;color:var(--hb-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .wx-rank-k{margin:8px 0 0 10px;font-size:12px;color:var(--hb-t2)}
+.wx-seg--strong button.on{background:var(--hb-ac-solid);color:#fff;font-weight:650;box-shadow:var(--hb-elev-1)}
+.wx-prank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.wx-prank-i{display:grid;grid-template-columns:24px minmax(0,1fr) auto;grid-template-areas:'n name val' 'n bar bar' 'n sub sub';column-gap:12px;row-gap:6px;align-items:center;padding:10px;border-radius:var(--hb-radius-sm,12px)}
+.wx-prank-i.is-blend{background:color-mix(in srgb,var(--hb-ac) 9%,transparent)}
+.wx-prank-i .wx-rank-n{align-self:start}
+.wx-prank-name{grid-area:name;display:flex;align-items:center;gap:8px;min-width:0}
+.wx-prank-name>i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.wx-chip{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;color:var(--hb-t1);background:color-mix(in srgb,var(--hb-t1) 9%,transparent);white-space:nowrap}
+.wx-prank-v{grid-area:val;display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.wx-prank-v b{font-size:16px;font-weight:650}
+.wx-grade{font-size:13px;font-weight:600;color:var(--hb-t2)}
+.wx-grade--good{color:var(--hb-ok)}.wx-grade--weak{color:var(--hb-warn)}
+.wx-prank-bar{grid-area:bar;height:6px;border-radius:999px;background:color-mix(in srgb,var(--hb-t1) 9%,transparent);overflow:hidden}
+.wx-prank-bar i{display:block;height:100%;border-radius:inherit;background:var(--c);transform-origin:left;animation:wx-grow 700ms var(--hb-ease-out,ease-out) both}
+.wx-prank-sub{grid-area:sub;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--hb-t2);min-width:0}
+.wx-prank-n{color:var(--hb-t2);font-size:12px}
+.wx-prank-i.is-few .wx-rank-name{color:var(--hb-t2)}
+.wx-prank-more{margin:8px 0 0 10px;font-size:13px;color:var(--hb-t2)}
+.wx-prank-more summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:6px;font-weight:600;color:var(--hb-t1);list-style:none}.wx-prank-more summary::-webkit-details-marker{display:none}.wx-prank-more summary::before{content:"▸";color:var(--hb-t2);transition:transform var(--hb-dur-base,200ms)}.wx-prank-more[open] summary::before{transform:rotate(90deg)}
+.wx-prank-more ul{list-style:none;margin:0;padding:0;max-width:320px}
+.wx-prank-more li{display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid var(--hb-b1)}
+.wx-prank-more p{margin:6px 0 0}
+.wx-info--warn{background:color-mix(in srgb,var(--hb-warn) 13%,transparent)}.wx-score .wx-info.wx-info--warn{margin:0 0 10px}
 .wx-score .wx-info{margin-top:auto}.wx-score .wx-rank-k{margin-bottom:12px}
 /* ---- r2: 48 h hourly strip ---- */
 .wx-hs-key{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--hb-t2)}
@@ -345,7 +368,7 @@ export const weatherStyles = `
 .wx-hs-tv{height:24px;line-height:24px;font-size:15px;font-weight:600;white-space:nowrap}
 .wx-hs-dn{align-self:flex-start;height:18px;padding-left:8px;font-size:12px;font-weight:650;line-height:18px;color:var(--hb-t1);white-space:nowrap;overflow:visible;width:0}
 .wx-hs-pt{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--hb-s1);box-shadow:0 0 0 2.5px var(--hb-weather-temp)}
-@media (prefers-reduced-motion:reduce){.wx-rank-bar i{animation:none}}
+@media (prefers-reduced-motion:reduce){.wx-rank-bar i,.wx-prank-bar i{animation:none}}
 @media (max-width:760px){.wx-rank-i{grid-template-columns:24px minmax(0,1fr) auto;grid-template-areas:'n name val' 'n sub sub' 'n bar bar';row-gap:5px}}
 @media (prefers-reduced-motion:reduce){.wx-hero,.wx-tip{animation:none}}
 @media (max-width:1180px){.wx-hero{grid-template-columns:minmax(0,1fr) minmax(260px,340px)}}
@@ -360,38 +383,54 @@ export const weatherStyles = `
 }
 /* Včera a dnes + Historie (issue #131 A): own station statistics, gaps shown, never filled. */
 .wx-yt{grid-column:span 5;align-self:start}.wx-hist{grid-column:span 7}
-.wx-yt-t{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
-.wx-yt-t th,.wx-yt-t td{padding:7px 0 7px 10px;border-top:1px solid var(--hb-b1);text-align:right;font-weight:600;white-space:nowrap;vertical-align:baseline}
-.wx-yt-t thead th{border-top:0;padding-top:0;font-size:12px;font-weight:600;color:var(--hb-t2)}
-.wx-yt-t tbody th{padding-left:0;text-align:left;font-weight:500;color:var(--hb-t2);white-space:normal}
+/* label | včera | dnes | Δ: compact columns so values sit next to their labels on wide cards */
+.wx-yt-t{width:auto;max-width:100%;align-self:flex-start;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.wx-yt-t th,.wx-yt-t td{padding:8px 0 8px 22px;border-top:1px solid var(--hb-b1);text-align:right;font-weight:600;white-space:nowrap;vertical-align:baseline}
+.wx-yt-t thead th{border-top:0;padding-top:0;font-size:12px;font-weight:600;color:var(--hb-t2);white-space:normal;vertical-align:bottom}
+.wx-yt-t thead th:first-child,.wx-yt-t tbody th{padding-left:0}
+.wx-yt-t tbody th{text-align:left;font-weight:500;color:var(--hb-t2);min-width:9.5em}
+.wx-yt-until{font-weight:500;white-space:nowrap}
 .wx-yt-t small{font-size:12px;font-weight:500;color:var(--hb-t2)}
-.wx-yt-note{display:block;font-size:12px;font-weight:500;color:var(--hb-t2)}
-.wx-yt-gap{font-size:12px;font-weight:500;color:var(--hb-warn)}
+.wx-yt-t .wx-warnc,.wx-yt-t .wx-warnc small{color:var(--hb-warn);font-weight:650}
+.wx-yt-dc{min-width:5.5em}
+.wx-yt-d{font-weight:600}.wx-yt-d.is-same{font-weight:500;color:var(--hb-t2)}
+.wx-yt-gap{font-weight:600;color:var(--hb-t2);cursor:help}
 .wx-yt .wx-info{margin-top:auto}.wx-yt .wx-yt-t{margin-bottom:12px}
 .wx-hist-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 14px}
 .wx-hist-sum div{background:var(--hb-fill,var(--hb-s2));border-radius:var(--hb-radius-xs,6px);padding:8px 12px;min-width:0}
 .wx-hist-sum dt{font-size:13px;font-weight:600;color:var(--hb-t2)}
+.wx-hist-thr{font-weight:500;white-space:nowrap}
 .wx-hist-sum dd{margin:2px 0 0;font-size:16px;font-weight:600;white-space:nowrap}
 .wx-hist-sum small{font-size:12px;font-weight:500;color:var(--hb-t2)}
-.wx-hist-chart{position:relative;height:190px;margin:0 46px 0 34px;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none}
+.wx-seg--touch button{min-height:44px;min-width:44px;padding:0 14px}
+/* the whole plot (≥ 44 px tall, full width) is the scrub/drag target, not the thin bars */
+.wx-hist-chart{position:relative;height:210px;margin:0 52px 0 46px;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none;border-radius:4px}
+.wx-hist-chart:focus-visible{outline:2px solid var(--hb-ac);outline-offset:6px}
 .wx-hist-chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.wx-hist-t{fill:var(--hb-weather-temp);opacity:.8}
-.wx-hist-r{fill:var(--hb-weather-rain);opacity:.9}
+.wx-hist-t{fill:var(--hb-weather-temp);opacity:.75}
+.wx-hist-r{fill:var(--hb-weather-rain);opacity:.85}
 .wx-hist-chart .is-partial .wx-hist-t,.wx-hist-chart .is-partial .wx-hist-r{opacity:.4}
-.wx-hist-chart .is-sel .wx-hist-t,.wx-hist-chart .is-sel .wx-hist-r{opacity:1}
-.wx-hist-gap{fill:var(--hb-warn);opacity:.13}
-.wx-hist-rgap{fill:var(--hb-warn);opacity:.55}
-.wx-hist-zero{stroke:var(--hb-t3);stroke-dasharray:3 3;stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
-.wx-hist-base{stroke:var(--hb-b2,var(--hb-b1));stroke-width:1;vector-effect:non-scaling-stroke}
-.wx-hist-sel{stroke:var(--hb-t1);stroke-width:1;opacity:.45;vector-effect:non-scaling-stroke}
-.wx-hist-yl{position:absolute;left:-34px;width:28px;text-align:right;transform:translateY(-50%);font-size:12px;color:var(--hb-t2);white-space:nowrap}
-.wx-hist-yl--r{left:auto;right:-46px;width:42px;text-align:left;color:var(--wx-rain-ink)}
+.wx-hist-gapbg{fill:var(--hb-t2);opacity:.1}
+.wx-hist-hatch{stroke:var(--hb-t2);stroke-width:2.5}
+.wx-hist-grid{stroke:var(--hb-t3);stroke-width:1;opacity:.25;vector-effect:non-scaling-stroke}
+.wx-hist-zero{stroke:var(--hb-t2);stroke-width:1;opacity:.75;vector-effect:non-scaling-stroke}
+.wx-hist-base{stroke:var(--hb-t3);stroke-width:1;opacity:.6;vector-effect:non-scaling-stroke}
+.wx-hist-sel{stroke:var(--hb-t1);stroke-width:1;stroke-dasharray:3 3;opacity:.7;vector-effect:non-scaling-stroke}
+.wx-hist-selbox{fill:none;stroke:var(--hb-t1);stroke-width:2;vector-effect:non-scaling-stroke}
+.wx-hist-yl{position:absolute;left:-46px;width:40px;text-align:right;transform:translateY(-50%);font-size:12px;color:var(--hb-t2);white-space:nowrap;line-height:1}
+.wx-hist-yl--r{left:auto;right:-52px;width:46px;text-align:left;color:var(--wx-rain-ink)}
 .wx-hist-x{position:absolute;left:0;right:0;bottom:-20px;height:14px;font-size:12px;color:var(--hb-t2)}
 .wx-hist-x span{position:absolute;transform:translateX(-50%);white-space:nowrap}
-.wx-hist-detail{margin:30px 0 0;font-size:13px;font-weight:500;color:var(--hb-t1)}
+.wx-hist-detail{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;margin:32px 0 0;font-size:14px;font-weight:500;color:var(--hb-t1)}
+.wx-hist-detail>span{white-space:nowrap}
+.wx-hist-detail>span+span::before{content:'·';margin-right:10px;color:var(--hb-t2)}
+.wx-hist-detail .wx-hist-badges::before{content:none}
+.wx-hist-badges{display:flex;flex-wrap:wrap;gap:4px}
+.wx-hist-badges em{font-style:normal;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--hb-ac) 14%,transparent);color:var(--hb-t1)}
 .wx-hist-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0;font-size:12px;color:var(--hb-t2)}
 .wx-hist-key span{display:inline-flex;align-items:center;gap:6px}
-.wx-sw--hist-t{background:var(--hb-weather-temp);width:6px;height:10px;border-radius:2px}.wx-sw--gap{background:color-mix(in srgb,var(--hb-warn) 35%,transparent);width:10px;height:10px;border-radius:2px}
+.wx-sw--hist-t{background:var(--hb-weather-temp);width:6px;height:10px;border-radius:2px}
+.wx-sw--gap{width:12px;height:12px;border-radius:2px;background:repeating-linear-gradient(45deg,var(--hb-t2) 0 2px,color-mix(in srgb,var(--hb-t2) 12%,transparent) 2px 5px)}
 .wx-rec{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hb-b1)}
 .wx-rec h3{margin:0 0 4px;font-size:13px;font-weight:600}
 .wx-rec ul{list-style:none;margin:0;padding:0}
@@ -404,7 +443,10 @@ export const weatherStyles = `
 @media (max-width:760px){
   .wx-hist-sum{grid-template-columns:repeat(2,minmax(0,1fr))}
   .wx-rec{grid-template-columns:1fr;gap:12px}
-  .wx-hist-chart{height:160px}
+  .wx-hist-chart{height:190px;margin:0 46px 0 42px}
+  .wx-hist-yl{left:-42px;width:37px}.wx-hist-yl--r{right:-46px;width:42px}
+  .wx-hist-detail .wx-hist-g{flex-basis:100%}.wx-hist-detail .wx-hist-g::before{content:none}
+  .wx-yt-t th,.wx-yt-t td{padding-left:12px}.wx-yt-t tbody th{min-width:0;white-space:normal}.wx-yt-t{width:100%}
   .wx-rank--rain .wx-rank-sub{white-space:normal}
   .wx-yt-t,.wx-rec li,.wx-hist-detail{font-size:14px}.wx-hist-key,.wx-yt-note,.wx-yt-t small{font-size:13px}
 }

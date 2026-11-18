@@ -4,6 +4,51 @@ import type { HistoryDay, WeatherSnapshot } from '../contract.js';
 export const DRY_DAY_MM = 0.2;
 /** A "rain day" in window summaries (climatological convention ≥ 1 mm). */
 export const RAIN_DAY_MM = 1;
+/** Gusts from this speed are highlighted (warning colour) – ČHMÚ "silný vítr" starts at 15 m/s. */
+export const GUST_STRONG_MS = 15;
+
+export type DeltaKey = 't' | 'rain' | 'gust' | 'msl';
+/**
+ * "Včera a dnes" delta column: a change smaller than this counts as no change (≈), so
+ * sensor noise and rounding never read as a trend. °C / mm / m/s / hPa.
+ */
+export const DELTA_NEUTRAL: Record<DeltaKey, number> = { t: 0.5, rain: 0.2, gust: 1, msl: 1 };
+
+export type Delta =
+  { kind: 'missing' } | { kind: 'same'; v: number } | { kind: 'up' | 'down'; v: number };
+
+/** Today vs. yesterday; |Δ| below DELTA_NEUTRAL[key] is "same". */
+export function delta(today: number | null, yesterday: number | null, key: DeltaKey): Delta {
+  if (today == null || yesterday == null) return { kind: 'missing' };
+  const v = Math.round((today - yesterday) * 10) / 10;
+  if (Math.abs(v) < DELTA_NEUTRAL[key]) return { kind: 'same', v };
+  return { kind: v > 0 ? 'up' : 'down', v: Math.abs(v) };
+}
+
+const NICE = [1, 2, 2.5, 5, 10];
+/** Smallest "nice" number (1, 2, 2.5, 5 × 10^k) that is ≥ v. */
+export function niceCeil(v: number): number {
+  if (!(v > 0)) return 1;
+  const mag = 10 ** Math.floor(Math.log10(v));
+  return (NICE.find((m) => m * mag >= v - 1e-9) ?? 10) * mag;
+}
+
+/**
+ * Axis ticks for a temperature range: 2–3 round values inside [lo, hi] (step 1/2/5/10/20 °C),
+ * always including 0 °C when the range crosses it.
+ */
+export function tempTicks(lo: number, hi: number): number[] {
+  for (const step of [1, 2, 5, 10, 20, 50]) {
+    const first = Math.ceil(lo / step) * step + 0; // + 0 turns −0 into 0
+    const ticks: number[] = [];
+    for (let v = first; v <= hi + 1e-9; v += step) ticks.push(v);
+    if (ticks.length <= 3) {
+      if (ticks.length === 0) return [Math.round((lo + hi) / 2)];
+      return ticks;
+    }
+  }
+  return [lo, hi];
+}
 
 const complete = (d: HistoryDay) => !d.partial;
 const rainKnown = (d: HistoryDay) => d.rain != null && !d.gaps.includes('rain');
@@ -107,6 +152,8 @@ export function yesterdayToday(
 
 export interface WindowStats {
   days: number;
+  /** Days whose rain total is known (denominator of rainDays). */
+  rainKnownDays: number;
   /** Days with at least one bound variable missing hours. */
   gapDays: number;
   rain: number | null;
@@ -129,6 +176,7 @@ export function windowStats(days: HistoryDay[], n: number): WindowStats {
   }
   return {
     days: w.length,
+    rainKnownDays: known.length,
     gapDays: w.filter((d) => !d.partial && d.gaps.length > 0).length,
     rain: known.length ? Math.round(known.reduce((s, d) => s + d.rain!, 0) * 10) / 10 : null,
     rainDays: w.filter((d) => (d.rain ?? 0) >= RAIN_DAY_MM).length,
@@ -148,7 +196,11 @@ export interface Records {
 
 /** Highest / lowest values in the days whose date starts with `prefix` ("2026-10" / "2026"). */
 export function records(days: HistoryDay[], prefix: string): Records {
-  const scope = days.filter((d) => d.date.startsWith(prefix));
+  return recordsOf(days.filter((d) => d.date.startsWith(prefix)));
+}
+
+/** Highest / lowest values in exactly these days (e.g. the selected window). */
+export function recordsOf(scope: HistoryDay[]): Records {
   const best = (key: RecordKey, lowest = false) => {
     let out: { v: number; date: string } | null = null;
     for (const d of scope) {

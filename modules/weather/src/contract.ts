@@ -228,6 +228,12 @@ export interface PrecipVerificationRow {
   lead: string;
   n: number;
   n_wet: number;
+  /** Distinct verified hours / wet hours (≥ 0,2 mm) / local days (several issues share one hour). */
+  hours?: number;
+  wet_hours?: number;
+  days?: number;
+  /** Blend only: scored on its own archived forecasts, never on pairs its weights came from. */
+  out_of_sample?: boolean;
   enough: boolean;
   bias_mm: number | null;
   amount_ratio: number | null;

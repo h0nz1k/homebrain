@@ -253,6 +253,8 @@ for (const scenario of ['', 'calm'])
     });
 
 test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async ({ page }) => {
+  // 10 evidence screenshots per viewport need more than the default 30 s on a busy host
+  if (process.env.HB_WEATHER_SCREENSHOT_DIR) test.setTimeout(120_000);
   await page.goto('/homebrain-pocasi');
   const yt = page.getByTestId('weather-yt');
   await expect(yt).toContainText('Dnes zatím');
@@ -261,9 +263,24 @@ test('Počasí: Včera a dnes, Historie a skóre srážek (issue #131)', async (
   await expect(hist.getByTestId('weather-history-chart')).toBeVisible();
   await hist.getByRole('tab', { name: '30 dní' }).click();
   await expect(hist.getByTestId('weather-history-gaps')).toContainText('chybí data');
-  await expect(page.getByTestId('weather-records')).toContainText('Rekordy – 2026');
+  await expect(page.getByTestId('weather-records')).toContainText('Rekordy za 30 dní');
+  await expect(hist.getByTestId('weather-history-raindays')).toContainText('z\u00a029');
+  // touch targets: period buttons and the scrub area are at least 44 px tall
+  for (const b of await hist.getByRole('tab').all())
+    expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const chart = hist.getByTestId('weather-history-chart');
+  const box = (await chart.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  // drag across the plot moves the selection
+  await page.mouse.move(box.x + 4, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(hist.getByTestId('weather-history-detail')).not.toContainText('30. 10.');
+  await hist.getByRole('tab', { name: '30 dní' }).click(); // reset selection
   await page.getByTestId('weather-score-tab-rain').click();
   await expect(page.getByTestId('weather-score-rain')).toContainText('zachytí');
+  await expect(page.getByTestId('weather-score-rain-blend')).toContainText('kombinace');
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
