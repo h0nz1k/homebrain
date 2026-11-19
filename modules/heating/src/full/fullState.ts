@@ -190,6 +190,8 @@ export function fullState(snap: HeatingSnapshot): FullState {
     tank_dhw: t(snap.dhw.temp),
     solar_temp: snap.extras.solar ? t(snap.extras.solar.temp) : null,
     pool_temp: pool ? t(pool.temp) : null,
+    fish_t: fishT,
+    fish_target: fsT(fishTarget),
     mixer_pct:
       snap.house.mixing_valve_pct === null
         ? null
