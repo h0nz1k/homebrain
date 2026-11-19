@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from typing import Any, Final
 from zoneinfo import ZoneInfo
@@ -16,6 +17,8 @@ from ..roles import FAMILY_APPROVE_ROLES
 from . import choreops_adapter, model, points_model, swap_model, swap_service
 from .swap_store import FamilySwapStore
 from .ws_common import _role, _visible_kids, family_options
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _store(hass: HomeAssistant) -> FamilySwapStore:
@@ -342,10 +345,14 @@ CREATE_SCHEMA: Final = {
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=80)),
     vol.Required("points"): vol.Coerce(float),
     vol.Required("assignees"): vol.All([str], vol.Length(min=1, max=8)),
-    vol.Required("recurrence"): vol.In(("once", "daily", "weekly")),
+    vol.Required("recurrence"): vol.In(model.RECURRENCES),
     vol.Optional("weekdays"): [vol.In(("mon", "tue", "wed", "thu", "fri", "sat", "sun"))],
     vol.Required("first_date"): vol.Match(r"^\d{4}-\d{2}-\d{2}$"),
     vol.Required("due_time"): vol.Match(r"^\d{2}:\d{2}$"),
+    vol.Optional("times"): vol.All(
+        [vol.Match(r"^\d{2}:\d{2}$")],
+        vol.Length(min=model.MULTI_TIMES[0], max=model.MULTI_TIMES[1]),
+    ),
     vol.Optional("icon"): vol.All(str, vol.Length(max=64)),
 }
 
@@ -362,53 +369,79 @@ async def websocket_family_chore_create(
     try:
         fields = model.validate_create_chore_fields(msg)
     except ValueError:
-        connection.send_error(msg["id"], "invalid_input", "Neplatná data formuláře")
+        _create_error(connection, msg, "invalid_input")
         return
     cfg = choreops_adapter.config_entry_id(hass)
     if not cfg:
-        connection.send_error(msg["id"], "not_configured", "ChoreOps není nastaven")
+        _create_error(connection, msg, "not_configured")
         return
     kids = model.discover_kids(hass.states.async_all(), family_options(hass))
     by_uuid = _kids_index(kids)
     names = [by_uuid[a]["name"] for a in fields["assignees"] if a in by_uuid]
     if len(names) != len(fields["assignees"]):
-        connection.send_error(msg["id"], "invalid_input", "Neplatné přiřazení")
+        _create_error(connection, msg, "invalid_input")
         return
-    freq = {"once": "none", "daily": "daily", "weekly": "weekly"}[fields["recurrence"]]
-    due = f"{fields['first_date']}T{fields['due_time']}:00"
-    data: dict[str, Any] = {
-        "config_entry_id": cfg,
-        "name": fields["name"],
-        "points": fields["points"],
-        "assigned_user_names": names,
-        "frequency": freq,
-        "completion_criteria": "independent",
-        "due_date": due,
-        "auto_approve": False,
-        "approval_reset_type": "at_midnight_once" if freq != "none" else "manual",
-        "pending_claims": "hold_pending",
-    }
-    if fields["recurrence"] == "weekly" and fields["weekdays"]:
-        data["applicable_days"] = fields["weekdays"]
-    if fields.get("icon"):
-        data["icon"] = fields["icon"]
     try:
-        resp = await choreops_adapter.call_choreops(
-            hass, "choreops", "create_chore", data, context=connection.context(msg), response=True
+        plans = model.plan_create_chores(
+            fields, config_entry_id=cfg, user_names=names, now=dt_util.now()
         )
-    except Exception as err:  # noqa: BLE001
-        connection.send_error(msg["id"], "service_failed", str(err))
+    except ValueError:
+        _create_error(connection, msg, "invalid_input")
         return
-    chore_id = (resp.get("id") or resp.get("chore_id")) if isinstance(resp, dict) else None
+    created: list[str] = []
+    for data in plans:
+        try:
+            resp = await choreops_adapter.call_choreops(
+                hass,
+                "choreops",
+                "create_chore",
+                data,
+                context=connection.context(msg),
+                response=True,
+            )
+        except Exception as err:  # noqa: BLE001 - ChoreOps raises HomeAssistantError/vol.Invalid
+            code = model.create_error_code(err)
+            _LOGGER.warning("Rodina: create_chore %s failed: %s (%s)", data["name"], code, err)
+            await _rollback_created(hass, connection, msg, cfg, created)
+            _create_error(connection, msg, code)
+            return
+        chore_id = (resp.get("id") or resp.get("chore_id")) if isinstance(resp, dict) else None
+        if chore_id:
+            created.append(str(chore_id))
     connection.send_result(
         msg["id"],
         {
             "operation_id": fields["client_request_id"],
-            "chore_id": chore_id,
-            "status": "created" if chore_id else "unknown",
+            "chore_id": created[0] if created else None,
+            "chore_ids": created,
+            "names": [p["name"] for p in plans],
+            "status": "created" if len(created) == len(plans) else "unknown",
             "revision": _store(hass).revision,
         },
     )
+
+
+def _create_error(connection: Any, msg: dict[str, Any], code: str) -> None:
+    connection.send_error(
+        msg["id"], code, model.CREATE_ERROR_MESSAGES.get(code, "Úkol se nepodařilo uložit.")
+    )
+
+
+async def _rollback_created(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any], cfg: str, created: list[str]
+) -> None:
+    """„Víckrát denně“ is all-or-nothing: delete slots created before a later slot failed."""
+    for chore_id in created:
+        try:
+            await choreops_adapter.call_choreops(
+                hass,
+                "choreops",
+                "delete_chore",
+                {"config_entry_id": cfg, "id": chore_id},
+                context=connection.context(msg),
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Rodina: rollback delete_chore %s failed: %s", chore_id, err)
 
 
 POINTS_SCHEMA: Final = {

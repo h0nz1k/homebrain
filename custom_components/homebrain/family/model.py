@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable, Mapping
+from datetime import date, datetime, time, timedelta
 from typing import Any, Final
 
+import voluptuous as vol
 from homeassistant.util import slugify
 
 from . import points_model
@@ -30,6 +32,9 @@ _SCHOOL_RE: Final = re.compile(r"škol|skol|school|rozvrh", re.IGNORECASE)
 _FOREIGN_RE: Final = re.compile(r"mealie|choreops|odpad|waste", re.IGNORECASE)
 PRIVATE_EVENT_FIELDS: Final = ("location", "description")
 DETAIL_ROLES: Final = frozenset({"owner", "adult"})
+_TIME_RE: Final = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+RECURRENCES: Final = ("once", "daily", "daily_multi", "weekly")
+MULTI_TIMES: Final = (2, 6)
 
 
 def _name(state: Any) -> str:
@@ -290,6 +295,10 @@ def pending_approvals(
     return items
 
 
+def _slot_name(name: str, time: str) -> str:
+    return f"{name} ({time})"
+
+
 def validate_create_chore_fields(msg: Mapping[str, Any]) -> dict[str, Any]:
     name = str(msg.get("name") or "").strip()
     if not name or len(name) > 80:
@@ -301,8 +310,21 @@ def validate_create_chore_fields(msg: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(assignees, list) or not assignees:
         raise ValueError("assignees")
     recurrence = msg.get("recurrence")
-    if recurrence not in {"once", "daily", "weekly"}:
+    if recurrence not in RECURRENCES:
         raise ValueError("recurrence")
+    times: list[str] = []
+    if recurrence == "daily_multi":
+        raw = msg.get("times")
+        if not isinstance(raw, list) or not all(isinstance(t, str) for t in raw):
+            raise ValueError("times")
+        times = sorted(set(raw))
+        lo, hi = MULTI_TIMES
+        if len(times) != len(raw) or not lo <= len(times) <= hi:
+            raise ValueError("times")
+        if not all(_TIME_RE.match(t) for t in times):
+            raise ValueError("times")
+        if len(_slot_name(name, times[0])) > 80:
+            raise ValueError("name")
     return {
         "name": name,
         "points": points,
@@ -311,9 +333,95 @@ def validate_create_chore_fields(msg: Mapping[str, Any]) -> dict[str, Any]:
         "weekdays": msg.get("weekdays") or [],
         "first_date": str(msg.get("first_date") or ""),
         "due_time": str(msg.get("due_time") or ""),
+        "times": times,
         "icon": msg.get("icon"),
         "client_request_id": str(msg.get("client_request_id") or ""),
     }
+
+
+def plan_create_chores(
+    fields: Mapping[str, Any], *, config_entry_id: str, user_names: list[str], now: datetime
+) -> list[dict[str, Any]]:
+    """``choreops.create_chore`` payloads for one Rodina „Přidat úkol“ submit.
+
+    ``daily_multi`` („Víckrát denně“): ChoreOps 1.6 ``create_chore`` accepts neither the
+    ``daily_multi`` frequency nor ``daily_multi_times`` (Options flow only), so each time of
+    the day becomes its own daily chore „<název> (12:00)“. Every slot is a separate claim
+    with its own points and approval, resets at midnight like any daily chore and stays
+    visible in today's list with its own deadline. A slot already past on the first day
+    starts the next day (ChoreOps rejects due dates in the past).
+    """
+    base: dict[str, Any] = {
+        "config_entry_id": config_entry_id,
+        "points": fields["points"],
+        "assigned_user_names": user_names,
+        "completion_criteria": "independent",
+        "auto_approve": False,
+        "pending_claims": "hold_pending",
+    }
+    if fields.get("icon"):
+        base["icon"] = fields["icon"]
+    first = date.fromisoformat(fields["first_date"])
+    if fields["recurrence"] == "daily_multi":
+        out = []
+        for slot in fields["times"]:
+            hour, minute = (int(x) for x in slot.split(":"))
+            due = datetime.combine(first, time(hour, minute), tzinfo=now.tzinfo)
+            if due <= now:
+                due += timedelta(days=1)
+            out.append(
+                {
+                    **base,
+                    "name": _slot_name(fields["name"], slot),
+                    "frequency": "daily",
+                    "due_date": due.replace(tzinfo=None).isoformat(timespec="seconds"),
+                    "approval_reset_type": "at_midnight_once",
+                }
+            )
+        return out
+    freq = {"once": "none", "daily": "daily", "weekly": "weekly"}[fields["recurrence"]]
+    data = {
+        **base,
+        "name": fields["name"],
+        "frequency": freq,
+        "due_date": f"{fields['first_date']}T{fields['due_time']}:00",
+        "approval_reset_type": "at_midnight_once" if freq != "none" else "manual",
+    }
+    if fields["recurrence"] == "weekly" and fields["weekdays"]:
+        data["applicable_days"] = fields["weekdays"]
+    return [data]
+
+
+# ChoreOps raises HomeAssistantError(translation_key=…); str(err) is the bare key.
+_CREATE_ERRORS: Final = {
+    "duplicate_chore": "duplicate_name",
+    "invalid_chore_name": "invalid_input",
+    "invalid_points": "invalid_input",
+    "invalid_due_date": "invalid_input",
+    "due_date_in_past": "due_in_past",
+    "not_found": "invalid_input",
+    "missing_field": "invalid_input",
+    "error_msg_no_entry_found": "not_configured",
+    "service_target_ambiguous": "not_configured",
+    "service_target_title_not_found": "not_configured",
+}
+CREATE_ERROR_MESSAGES: Final = {
+    "duplicate_name": "Úkol s tímto názvem už existuje.",
+    "due_in_past": "Termín už minul.",
+    "invalid_input": "Neplatná data formuláře",
+    "not_configured": "ChoreOps není nastaven",
+    "service_failed": "Úkol se nepodařilo uložit.",
+}
+
+
+def create_error_code(err: BaseException) -> str:
+    """Stable Rodina error code for a failed ``create_chore`` (never the raw ChoreOps text)."""
+    key = getattr(err, "translation_key", None) or str(err).strip()
+    if key in _CREATE_ERRORS:
+        return _CREATE_ERRORS[key]
+    if isinstance(err, vol.Invalid):
+        return "invalid_input"
+    return "service_failed"
 
 
 def _chore_state(raw: str) -> str:
@@ -340,6 +448,42 @@ def kid_chores(get_state: Callable[[str], Any], kid: Mapping[str, Any]) -> list[
         sensor = get_state(row["eid"]) if row.get("eid") else None
         out.append(_enrich_chore_row(row, sensor, kid))
     return out
+
+
+UPCOMING_GROUPS: Final = ("this_week", "other")
+UPCOMING_LIMIT: Final = 8
+
+
+def kid_upcoming(get_state: Callable[[str], Any], kid: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Planned chores of later days (ChoreOps ``this_week`` / ``other`` groups).
+
+    A new chore due tomorrow lands in ``this_week``; without this list it was invisible in
+    Rodina and looked as if it had not been saved. Rows are read-only (ChoreOps does not
+    allow claiming before the due window), sorted by due date, dated rows first.
+    """
+    helper = get_state(kid["helper_entity"])
+    rows = helper.attributes.get("chores") if helper else None
+    out: list[dict[str, Any]] = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, Mapping) or not row.get("name"):
+            continue
+        group = row.get("primary_group")
+        state = _chore_state(str(row.get("state") or ""))
+        if group not in UPCOMING_GROUPS or state in ("done", "claimed"):
+            continue
+        sensor = get_state(row["eid"]) if row.get("eid") else None
+        attrs = sensor.attributes if sensor else {}
+        due = attrs.get("due_date") if isinstance(attrs.get("due_date"), str) else None
+        item: dict[str, Any] = {
+            "id": str(row.get("eid") or row["name"]),
+            "name": str(row["name"]),
+            "points": _float(attrs.get("default_points", attrs.get("points"))),
+            "due": due,
+            "group": group,
+        }
+        out.append(item)
+    out.sort(key=lambda r: (r["due"] is None, r["due"] or "", r["name"]))
+    return out[:UPCOMING_LIMIT]
 
 
 def kid_payload(
@@ -380,6 +524,7 @@ def kid_payload(
         if points_state
         else None,
         "chores": chores,
+        "upcoming": kid_upcoming(get_state, kid),
     }
     if include_points_detail and points_state:
         attrs = dict(points_state.attributes)
