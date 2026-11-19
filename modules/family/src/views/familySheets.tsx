@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -49,6 +50,13 @@ import type {
   Recurrence,
   Weekday,
 } from '../types.js';
+
+/** Same avatar fill as the kid card (`.fam-avatar`), so one kid has one colour everywhere. */
+export function kidAvatarBg(color: string | undefined): CSSProperties | undefined {
+  return color
+    ? { background: `linear-gradient(140deg, ${color}, color-mix(in srgb, ${color} 60%, #000))` }
+    : undefined;
+}
 
 const WEEKDAYS: { id: Weekday; label: string }[] = [
   { id: 'mon', label: 'Po' },
@@ -120,12 +128,12 @@ export function ApprovalsBlock({
                 {swap && (
                   <div className="fam-transfer">
                     <span className="fam-person-pill">
-                      <i style={{ background: colors[from?.id ?? ''] }}>{from?.name[0]}</i>
+                      <i style={kidAvatarBg(colors[from?.id ?? ''])}>{from?.name[0]}</i>
                       {from?.name ?? 'Původní dítě'}
                     </span>
                     <Icon name="arrow" size={18} />
                     <span className="fam-person-pill">
-                      <i style={{ background: colors[to?.id ?? ''] }}>{to?.name[0]}</i>
+                      <i style={kidAvatarBg(colors[to?.id ?? ''])}>{to?.name[0]}</i>
                       {to?.name ?? 'Náhradník'}
                     </span>
                   </div>
@@ -439,6 +447,8 @@ export interface CreatedChore {
 }
 
 const MAX_TIMES = 6;
+const MIN_TIMES = 2;
+const DEFAULT_TIMES = ['12:00', '18:00'];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** „7:5“ / „7.30“ / „730“ → „07:05“ / „07:30“; anything else stays as typed. */
 function normTime(text: string): string {
@@ -471,6 +481,10 @@ export function AddChoreSheet({
   const errId = useId();
   const nameErrId = useId();
   const alertRef = useRef<HTMLDivElement>(null);
+  const footRef = useRef<HTMLDivElement>(null);
+  const timesRef = useRef<HTMLFieldSetElement>(null);
+  const [timesFlash, setTimesFlash] = useState(false);
+  const dupHintId = useId();
   const [openedAt] = useState(() => clock().getTime());
   const [name, setName] = useState('');
   const [points, setPoints] = useState(2);
@@ -480,7 +494,7 @@ export function AddChoreSheet({
   const [recurrence, setRecurrence] = useState<Recurrence>('daily');
   const [weekdays, setWeekdays] = useState<Weekday[]>(['mon', 'thu']);
   const [dueTime, setDueTime] = useState('18:00');
-  const [times, setTimes] = useState<string[]>(['12:00', '18:00']);
+  const [times, setTimes] = useState<string[]>(DEFAULT_TIMES);
   const [firstDateText, setFirstDateText] = useState(() =>
     defaultFirstDate(new Date(openedAt), '18:00').toLocaleDateString('cs-CZ'),
   );
@@ -569,15 +583,12 @@ export function AddChoreSheet({
         ? 'zítřka'
         : czDate(firstDay)
     : '—';
-  // „dnes“ / „zítra“ / „St 20. 11.“ / „27. 11.“
-  const onceDay = !firstDay
-    ? '—'
-    : /^[A-ZÚČ]/u.test(startWord)
-      ? `${startWord}\u00a0${czDate(firstDay)}`
-      : startWord;
+  // „dnes“ / „zítra“ / „st 26. 11.“
+  const onceDay = firstDay ? startWord : '—';
   const dayList = WEEKDAYS.filter((d) => weekdays.includes(d.id)).map((d) => d.label);
   const chosen = kids.filter((k) => assignees.includes(k.kid_uuid ?? k.id));
   const who = chosen.map((k) => k.name).join(' a ') || 'Nikdo';
+  const pointsText = `${points}\u00a0${pointsWord(points)}`;
   // Date/time tokens stay on one line (no-break spaces + nowrap span).
   const tok = (text: string) => (
     <span className="fam-nowrap" data-testid="family-summary-token">
@@ -622,7 +633,7 @@ export function AddChoreSheet({
     );
   const summaryText = (
     <>
-      {`${points}\u00a0b.`} · {scheduleText}
+      {pointsText} · {scheduleText}
     </>
   );
   const dueLabel =
@@ -634,6 +645,52 @@ export function AddChoreSheet({
   useEffect(() => {
     if (error) alertRef.current?.focus();
   }, [error]);
+  // The footer floats over the scroll area: the body reserves its measured height (+16 px, the
+  // error panel included) so the last field always scrolls fully above it; the fade/shadow over
+  // the content shows only while there is more below.
+  useLayoutEffect(() => {
+    const foot = footRef.current?.closest('.hb-sheet-foot');
+    const sheet = foot?.closest<HTMLElement>('.hb-sheet');
+    const body = sheet?.querySelector<HTMLElement>('.hb-sheet-body');
+    if (!(foot instanceof HTMLElement) || !sheet || !body) return;
+    sheet.dataset.famFloatFoot = '';
+    const measure = () => {
+      const h = `${Math.ceil(foot.getBoundingClientRect().height)}px`;
+      if (sheet.style.getPropertyValue('--fam-foot-h') !== h)
+        sheet.style.setProperty('--fam-foot-h', h);
+      const end = body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
+      if (end) sheet.dataset.famScrollEnd = '';
+      else delete sheet.dataset.famScrollEnd;
+    };
+    measure();
+    // Footer (error panel) and form content; not the body itself, whose padding we set.
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(foot);
+    if (body.firstElementChild) ro?.observe(body.firstElementChild);
+    body.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      body.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+  // „Nastavit vícekrát denně“: bring the times into view and flash them once.
+  useEffect(() => {
+    if (!timesFlash) return;
+    const el = timesRef.current;
+    el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    el?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    const t = setTimeout(() => setTimesFlash(false), 1600);
+    return () => clearTimeout(t);
+  }, [timesFlash]);
+  const switchToMulti = () => {
+    const valid2 = times.map(normTime).filter((t) => TIME_RE.test(t));
+    if (new Set(valid2).size < MIN_TIMES) setTimes(DEFAULT_TIMES);
+    chooseSchedule('daily_multi', weekdays);
+    setError(null);
+    setTimesFlash(true);
+  };
   const save = async (nameOverride?: string) => {
     setSubmitted(true);
     const finalName = (nameOverride ?? name).trim();
@@ -669,7 +726,8 @@ export function AddChoreSheet({
       setBusy(false);
     }
   };
-  const suggestion = error?.code === 'duplicate_name' ? nextDistinctName(error.name) : '';
+  const duplicate = error?.code === 'duplicate_name';
+  const suggestion = duplicate ? nextDistinctName(error.name) : '';
   const chosenIcon = ICONS.find(([value]) => value === icon);
   const fieldErr = (text: string, testid?: string) =>
     submitted && text ? (
@@ -680,10 +738,12 @@ export function AddChoreSheet({
   const title = (
     <>
       Přidat úkol
-      {chosen.length === 1 && (
+      {chosen.length > 0 && (
         <span className="fam-title-who" data-testid="family-add-chore-title-who">
           {' · '}
-          {chosen[0]!.name}
+          {chosen.length === 1
+            ? chosen[0]!.name
+            : `${chosen.length} ${czPlural(chosen.length, 'dítě', 'děti', 'dětí')}`}
         </span>
       )}
     </>
@@ -697,7 +757,7 @@ export function AddChoreSheet({
       stickyFooter
       closeLabel="Zavřít formulář"
       footer={
-        <div className="fam-add-foot">
+        <div className="fam-add-foot" ref={footRef}>
           {error && (
             <div
               ref={alertRef}
@@ -707,45 +767,36 @@ export function AddChoreSheet({
               data-testid="family-add-chore-error"
               data-code={error.code}
             >
-              <Icon name="info" size={18} />
-              <div>
-                <strong>{CREATE_CHORE_ERRORS[error.code]}</strong>
-                {error.code === 'duplicate_name' && (
-                  <>
-                    <p>
-                      Má se úkol dělat víckrát? Ulož ho pod jiným názvem, nebo u nového úkolu zvol
-                      Opakování „Víckrát denně“.
-                    </p>
-                    <div className="fam-save-err-actions">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        data-testid="family-duplicate-rename"
-                        disabled={busy}
-                        onClick={() => {
-                          setName(suggestion);
-                          void save(suggestion);
-                        }}
-                      >
-                        Uložit jako „{suggestion}“
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        data-testid="family-duplicate-edit"
-                        onClick={() => {
-                          setError(null);
-                          const input = document.getElementById('fam-chore-name');
-                          input?.focus();
-                          input?.scrollIntoView?.({ block: 'center' });
-                        }}
-                      >
-                        Změnit název
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <strong>
+                <Icon name="info" size={18} />
+                {CREATE_CHORE_ERRORS[error.code]}
+              </strong>
+              {duplicate && (
+                <div className="fam-save-err-actions">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    data-testid="family-duplicate-multi"
+                    disabled={busy}
+                    onClick={switchToMulti}
+                  >
+                    Nastavit vícekrát denně
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="fam-save-err-alt"
+                    data-testid="family-duplicate-rename"
+                    disabled={busy}
+                    onClick={() => {
+                      setName(suggestion);
+                      void save(suggestion);
+                    }}
+                  >
+                    Uložit jako „{suggestion}“
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           <p className="fam-foot-who" data-testid="family-add-chore-for">
@@ -755,7 +806,7 @@ export function AddChoreSheet({
                 <span key={k.id} className="fam-foot-kid">
                   <span
                     className="fam-partner-avatar"
-                    style={{ background: colors[k.id] }}
+                    style={kidAvatarBg(colors[k.id])}
                     aria-hidden="true"
                   >
                     {k.name[0]}
@@ -771,8 +822,10 @@ export function AddChoreSheet({
             </span>
           </p>
           <Button
-            variant="primary"
-            contrast="high"
+            // With the duplicate error shown the same name would fail again: the panel's
+            // actions are the way forward, the plain save steps back to secondary.
+            variant={duplicate ? 'secondary' : 'primary'}
+            contrast={duplicate ? undefined : 'high'}
             type="submit"
             form="fam-add-chore"
             disabled={busy}
@@ -780,6 +833,7 @@ export function AddChoreSheet({
             data-testid="family-add-chore-save"
             data-invalid={!valid || undefined}
             data-busy={busy || undefined}
+            data-demoted={duplicate || undefined}
             className="fam-cta"
           >
             {busy ? 'Ukládám…' : 'Uložit úkol'}
@@ -805,19 +859,24 @@ export function AddChoreSheet({
             onChange={(e) => {
               setName(e.target.value);
               setNameDirty(true);
-              if (error?.code === 'duplicate_name') setError(null);
+              if (duplicate) setError(null);
             }}
             // Blur validates only an edited field: tabbing through an untouched form must not
             // insert errors (and shift the layout under the pointer).
             onBlur={() => nameDirty && setNameTouched(true)}
             maxLength={80}
             placeholder="Např. Zalít květiny"
-            aria-invalid={showName || error?.code === 'duplicate_name' ? true : undefined}
-            aria-describedby={showName ? nameErrId : undefined}
+            aria-invalid={showName || duplicate ? true : undefined}
+            aria-describedby={showName ? nameErrId : duplicate ? dupHintId : undefined}
           />
           {showName && (
             <p id={nameErrId} className="fam-field-err" data-testid="family-name-error">
               {problems.name}
+            </p>
+          )}
+          {duplicate && !showName && (
+            <p id={dupHintId} className="fam-field-err" data-testid="family-name-duplicate">
+              Tento název už existuje.
             </p>
           )}
         </div>
@@ -836,7 +895,7 @@ export function AddChoreSheet({
                   data-testid="family-who-chip"
                   style={{ '--fam-chip-kid': colors[k.id] } as CSSProperties}
                 >
-                  <span className="fam-partner-avatar" style={{ background: colors[k.id] }}>
+                  <span className="fam-partner-avatar" style={kidAvatarBg(colors[k.id])}>
                     {k.name[0]}
                   </span>
                   {k.name}
@@ -867,7 +926,7 @@ export function AddChoreSheet({
               data-testid="family-points-value"
             >
               <b>{points}</b>
-              <span>b.</span>
+              <span>{pointsWord(points)}</span>
             </output>
             <Button
               variant="secondary"
@@ -881,7 +940,7 @@ export function AddChoreSheet({
         </div>
         <div className="fam-form-icon">
           <span className="fam-label" id="fam-icon-label">
-            Ikona <small>· volitelné</small>
+            Ikona <small>(nepovinná)</small>
           </span>
           <button
             type="button"
@@ -925,7 +984,7 @@ export function AddChoreSheet({
           options={[
             ['once', 'Jednou'],
             ['daily', 'Denně'],
-            ['daily_multi', 'Víckrát denně'],
+            ['daily_multi', 'Vícekrát denně'],
             ['weekly', 'Vybrané dny'],
           ]}
         />
@@ -947,10 +1006,17 @@ export function AddChoreSheet({
           </div>
         )}
         {multi && (
-          <fieldset className="fam-times" data-testid="family-multi-times">
-            <legend>
-              Časy splnění <small>· každý den, každý zvlášť za body</small>
-            </legend>
+          <fieldset
+            ref={timesRef}
+            className="fam-times"
+            data-testid="family-multi-times"
+            data-flash={timesFlash || undefined}
+            aria-describedby={`${errId}-times`}
+          >
+            <legend>Časy splnění</legend>
+            <p id={`${errId}-times`} className="fam-hint fam-times-hint">
+              Každé splnění má vlastní body.
+            </p>
             <ol>
               {times.map((t, i) => (
                 <li key={i}>
@@ -977,15 +1043,17 @@ export function AddChoreSheet({
                     />
                     <Icon name="clock" size={20} />
                   </span>
-                  {times.length > 2 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<Icon name="close" size={18} />}
-                      aria-label={`Odebrat ${i + 1}. čas`}
-                      onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))}
-                    />
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="fam-times-remove"
+                    icon={<Icon name="close" size={18} />}
+                    aria-label={`Odebrat ${i + 1}. čas`}
+                    title={times.length <= MIN_TIMES ? 'Aspoň dva časy' : undefined}
+                    data-testid="family-multi-remove"
+                    disabled={times.length <= MIN_TIMES}
+                    onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))}
+                  />
                 </li>
               ))}
             </ol>
@@ -1052,7 +1120,7 @@ export function AddChoreSheet({
             </strong>
             <p className="fam-hint">
               {multi
-                ? 'Každý čas je samostatné splnění za body. Splnění schvaluje rodič.'
+                ? 'Každé splnění má vlastní body a schvaluje ho rodič.'
                 : assignees.length > 1
                   ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
                   : 'Splnění schvaluje rodič.'}
@@ -1180,7 +1248,7 @@ export function SwapSheet({
             <span className="fam-recipient-label">Komu</span>
             <span
               className="fam-partner-avatar"
-              style={{ background: colors[partners[0]!.id] ?? colors[partners[0]!.name] }}
+              style={kidAvatarBg(colors[partners[0]!.id] ?? colors[partners[0]!.name])}
               aria-hidden="true"
             >
               {partners[0]!.name[0]}
@@ -1200,7 +1268,7 @@ export function SwapSheet({
                 >
                   <span
                     className="fam-partner-avatar"
-                    style={{ background: colors[p.id] ?? colors[p.name] }}
+                    style={kidAvatarBg(colors[p.id] ?? colors[p.name])}
                   >
                     {p.name[0]}
                   </span>
