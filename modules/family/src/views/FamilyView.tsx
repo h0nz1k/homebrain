@@ -12,6 +12,7 @@ import {
   czCount,
   czPlural,
   presenceHex,
+  useToast,
 } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
 import {
@@ -28,6 +29,7 @@ import {
   sortChores,
   timeLabel,
   todayEvents,
+  upcomingLabel,
 } from '../format.js';
 import { handedToLabel, takenFromLabel } from '../czech.js';
 import type { FamilyEvent, FamilyKid, FamilySnapshot } from '../types.js';
@@ -395,6 +397,76 @@ function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'war
   );
 }
 
+/** Chore name of the last created chore, highlighted (and scrolled to) once it shows up. */
+export interface Highlight {
+  name: string;
+  kids: string[];
+}
+
+const UPCOMING_COMPACT = 3;
+
+/** „Víckrát denně“ creates „<name> (12:00)“, „<name> (19:00)“: highlight all of them. */
+const isHighlighted = (name: string, highlight?: string | null) =>
+  !!highlight && (name === highlight || name.startsWith(`${highlight} (`));
+
+/**
+ * Planned chores of the next days: a calm, read-only list under today's actionable rows
+ * (Rodina ticks off only today's chores). Kiosk and the child's view keep today first and
+ * show at most three rows.
+ */
+function UpcomingList({
+  kid,
+  now,
+  compact,
+  words,
+  highlight,
+}: {
+  kid: FamilyKid;
+  now: Date;
+  compact?: boolean;
+  words?: boolean;
+  highlight?: string | null;
+}) {
+  const all = kid.upcoming ?? [];
+  if (!all.length) return null;
+  const rows = compact ? all.slice(0, UPCOMING_COMPACT) : all;
+  const more = all.length - rows.length;
+  return (
+    <section
+      className="fam-upcoming"
+      data-testid="family-upcoming"
+      data-compact={compact || undefined}
+      aria-label={`Naplánované úkoly: ${kid.name}`}
+    >
+      <h3 className="fam-upcoming-h">
+        <Icon name="calendar" size={14} />
+        Naplánované
+        <small>· {all.length}</small>
+      </h3>
+      <ul>
+        {rows.map((c) => (
+          <li
+            key={c.id}
+            className="fam-upcoming-row"
+            data-testid="family-upcoming-chore"
+            data-group={c.group}
+            data-highlight={isHighlighted(c.name, highlight) || undefined}
+          >
+            <span className="fam-upcoming-when">{upcomingLabel(c.due, now)}</span>
+            <span className="fam-upcoming-name">{c.name}</span>
+            {c.points != null && (
+              <span className="fam-upcoming-pts">{pointsLabel(c.points, { words })}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {more > 0 && (
+        <p className="fam-upcoming-more">a {czCount(more, 'další', 'další', 'dalších')}</p>
+      )}
+    </section>
+  );
+}
+
 function KidCard({
   kid,
   color,
@@ -406,9 +478,12 @@ function KidCard({
   self,
   words,
   members,
+  highlight,
 }: {
   kid: FamilyKid;
   color: string;
+  /** Name of a just-created chore to highlight. */
+  highlight?: string | null;
   now: Date;
   act: Actions;
   /** Kiosk: finished chores fold into one static „Hotovo: N“ line so the card fits the screen. */
@@ -577,6 +652,7 @@ function KidCard({
                 data-state={ui}
                 data-muted={out || undefined}
                 data-swap={c.swap_today?.kind}
+                data-highlight={isHighlighted(c.name, highlight) || undefined}
                 data-testid="family-chore"
               >
                 {out ? (
@@ -665,6 +741,13 @@ function KidCard({
             </li>
           )}
         </ul>
+        <UpcomingList
+          kid={kid}
+          now={now}
+          compact={compact || self}
+          words={words}
+          highlight={highlight}
+        />
       </div>
     </article>
   );
@@ -679,12 +762,14 @@ function ChoresCard({
   onApproval,
   kidAct,
   phone,
+  highlight,
 }: {
   snap: FamilySnapshot;
   now: Date;
   act: Actions;
   members: Member[];
   phone?: boolean;
+  highlight?: Highlight | null;
   onAdd: (kid: FamilyKid) => void;
   kidAct: (kid: FamilyKid) => Actions;
   onApproval: {
@@ -755,6 +840,7 @@ function ChoresCard({
             self={!!viewer}
             words={child}
             members={members}
+            highlight={highlight?.kids.includes(kid.kid_uuid ?? kid.id) ? highlight.name : null}
             act={{
               ...kidAct(kid),
               onAdd: snap.capabilities?.can_create_chore && parent ? () => onAdd(kid) : undefined,
@@ -860,7 +946,21 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     mode: 'give' | 'reassign';
   } | null>(null);
   const [menu, setMenu] = useState<{ kid: string; chore: string } | null>(null);
+  const [highlight, setHighlight] = useState<Highlight | null>(null);
   const phone = usePhone();
+  const notify = useToast();
+
+  // A just-created chore: scroll its row into view once the refreshed snapshot has it,
+  // keep the highlight for a few seconds.
+  useEffect(() => {
+    if (!highlight) return;
+    const el = document.querySelector<HTMLElement>(
+      '[data-testid="family-chore"][data-highlight], [data-testid="family-upcoming-chore"][data-highlight]',
+    );
+    el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    const t = window.setTimeout(() => setHighlight(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [highlight, snap]);
 
   useEffect(() => {
     if (!kiosk) return;
@@ -992,6 +1092,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       kidAct={makeKidAct}
       onApproval={approvalHandlers}
       phone={phone}
+      highlight={highlight}
     />,
   );
   const shop = slot(
@@ -1061,7 +1162,14 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           colors={identityColors}
           initialKid={addChore}
           onClose={() => setAddChore(null)}
-          onCreated={() => void load()}
+          onCreated={(created) => {
+            notify.success(`Úkol přidán: ${created.who} · ${created.when}`, {
+              id: 'family-chore-created',
+              description: created.name,
+            });
+            setHighlight({ name: created.name, kids: created.assignees });
+            void load();
+          }}
         />
       )}
       {swap && api && (

@@ -2,6 +2,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -21,7 +22,16 @@ import type { FamilyApi } from '../api.js';
 import { pointsWord } from '../czech.js';
 import { newRequestId } from '../uid.js';
 import {
+  CREATE_CHORE_ERRORS,
+  createChoreErrorCode,
+  nextDistinctName,
+  withTimeout,
+  type CreateChoreErrorCode,
+} from '../errors.js';
+import {
   czDate,
+  dayWord,
+  defaultFirstDate,
   fmtPoints,
   localKey,
   monthPoints,
@@ -418,6 +428,26 @@ function joinCz(items: string[]): string {
     : (items[0] ?? '—');
 }
 
+export interface CreatedChore {
+  name: string;
+  /** kid_uuid of every assignee. */
+  assignees: string[];
+  /** „Dcera a Syn“ */
+  who: string;
+  /** „dnes do 18:00“, „každý den 12:00 a 19:00“ … */
+  when: string;
+}
+
+const MAX_TIMES = 6;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** „7:5“ / „7.30“ / „730“ → „07:05“ / „07:30“; anything else stays as typed. */
+function normTime(text: string): string {
+  const t = text.trim().replace('.', ':');
+  const m = /^(\d{1,2}):?(\d{2})$/.exec(t) ?? /^(\d{1,2}):(\d)$/.exec(t);
+  return m ? `${m[1]!.padStart(2, '0')}:${m[2]!.padStart(2, '0')}` : t;
+}
+const shortTime = (t: string) => t.replace(/^0(\d)/, '$1');
+
 export function AddChoreSheet({
   kids,
   api,
@@ -425,17 +455,23 @@ export function AddChoreSheet({
   onCreated,
   initialKid,
   colors,
+  now: nowProp,
 }: {
   kids: FamilyKid[];
   api: FamilyApi;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (created: CreatedChore) => void;
   initialKid?: string;
   colors: Record<string, string>;
+  /** Tests pin the clock. */
+  now?: () => Date;
 }) {
   useBackClosable(onClose);
+  const clock = nowProp ?? (() => new Date());
   const errId = useId();
   const nameErrId = useId();
+  const alertRef = useRef<HTMLDivElement>(null);
+  const [openedAt] = useState(() => clock().getTime());
   const [name, setName] = useState('');
   const [points, setPoints] = useState(2);
   const [assignees, setAssignees] = useState<string[]>(
@@ -443,9 +479,13 @@ export function AddChoreSheet({
   );
   const [recurrence, setRecurrence] = useState<Recurrence>('daily');
   const [weekdays, setWeekdays] = useState<Weekday[]>(['mon', 'thu']);
+  const [dueTime, setDueTime] = useState('18:00');
+  const [times, setTimes] = useState<string[]>(['12:00', '18:00']);
   const [firstDateText, setFirstDateText] = useState(() =>
-    new Date(Date.now() + 86400000).toLocaleDateString('cs-CZ'),
+    defaultFirstDate(new Date(openedAt), '18:00').toLocaleDateString('cs-CZ'),
   );
+  // The first day follows the due time until the user edits the date themself.
+  const [dateEdited, setDateEdited] = useState(false);
   const firstDate = firstDateText
     .trim()
     .split(/\.\s*/)
@@ -454,17 +494,24 @@ export function AddChoreSheet({
     .join('-');
   const [icon, setIcon] = useState('');
   const [iconOpen, setIconOpen] = useState(false);
-  const [requestId] = useState(newRequestId);
-  const [dueTime, setDueTime] = useState('18:00');
+  const [requestId, setRequestId] = useState(newRequestId);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<{ code: CreateChoreErrorCode; name: string } | null>(null);
   const [nameTouched, setNameTouched] = useState(false);
   const [nameDirty, setNameDirty] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [openedAt] = useState(() => Date.now());
+  const multi = recurrence === 'daily_multi';
+  const slots = useMemo(() => [...new Set(times.map(normTime))].sort(), [times]);
+  const defaultDay = (time: string) =>
+    defaultFirstDate(new Date(openedAt), TIME_RE.test(time) ? time : '18:00');
+  const followDefault = (time: string) => {
+    if (!dateEdited) setFirstDateText(defaultDay(time).toLocaleDateString('cs-CZ'));
+  };
   const chooseSchedule = (nextRecurrence: Recurrence, nextDays: Weekday[]) => {
     setRecurrence(nextRecurrence);
     setWeekdays(nextDays);
+    if (nextRecurrence === 'daily_multi' || recurrence === 'daily_multi')
+      followDefault(nextRecurrence === 'daily_multi' ? (slots.at(-1) ?? '18:00') : dueTime);
     if (nextRecurrence !== 'weekly' || !nextDays.length || !/^\d{4}-\d{2}-\d{2}$/.test(firstDate))
       return;
     const day = new Date(`${firstDate}T12:00:00`);
@@ -486,35 +533,73 @@ export function AddChoreSheet({
     /^\d{4}-\d{2}-\d{2}$/.test(firstDate) &&
     !Number.isNaN(new Date(`${firstDate}T12:00:00`).getTime()) &&
     localKey(new Date(`${firstDate}T12:00:00`)) === firstDate;
-  const timeOk = /^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime);
-  const futureOk = dateOk && timeOk && new Date(`${firstDate}T${dueTime}`).getTime() > openedAt;
+  const timesOk = multi
+    ? slots.length >= 2 && slots.length === times.length && slots.every((t) => TIME_RE.test(t))
+    : TIME_RE.test(dueTime);
+  /** First due slot on the first day that is still ahead (multi: earlier slots may be past). */
+  const firstDue = (at: number) =>
+    dateOk && timesOk
+      ? (multi ? slots : [dueTime]).find((t) => new Date(`${firstDate}T${t}`).getTime() > at)
+      : undefined;
+  const futureOk = !!firstDue(openedAt);
   const problems = {
     name: !name.trim() ? 'Doplň název úkolu.' : '',
     who: !assignees.length ? 'Vyber, komu úkol patří.' : '',
     days: recurrence === 'weekly' && !weekdays.length ? 'Vyber aspoň jeden den.' : '',
     when: !dateOk
       ? 'Zadej datum ve tvaru 17. 11. 2026.'
-      : !timeOk
-        ? 'Zadej čas ve tvaru 18:00.'
+      : !timesOk
+        ? multi
+          ? slots.length < times.length
+            ? 'Každý čas zadej jen jednou.'
+            : 'Zadej aspoň dva časy ve tvaru 12:00.'
+          : 'Zadej čas ve tvaru 18:00.'
         : !futureOk
           ? 'Termín musí být v budoucnu.'
           : '',
   };
   const valid = !Object.values(problems).some(Boolean);
   const showName = (nameTouched || submitted) && problems.name;
-  const startLabel = dateOk ? czDate(new Date(`${firstDate}T12:00:00`)) : '—';
+  const firstDay = dateOk ? new Date(`${firstDate}T12:00:00`) : null;
+  const startWord = firstDay ? dayWord(firstDay, new Date(openedAt)) : '—';
+  const startLabel = firstDay
+    ? startWord === 'dnes'
+      ? 'dneška'
+      : startWord === 'zítra'
+        ? 'zítřka'
+        : czDate(firstDay)
+    : '—';
+  // „dnes“ / „zítra“ / „St 20. 11.“ / „27. 11.“
+  const onceDay = !firstDay
+    ? '—'
+    : /^[A-ZÚČ]/u.test(startWord)
+      ? `${startWord}\u00a0${czDate(firstDay)}`
+      : startWord;
   const dayList = WEEKDAYS.filter((d) => weekdays.includes(d.id)).map((d) => d.label);
-  const who =
-    kids
-      .filter((k) => assignees.includes(k.kid_uuid ?? k.id))
-      .map((k) => k.name)
-      .join(' a ') || 'Nikdo';
+  const chosen = kids.filter((k) => assignees.includes(k.kid_uuid ?? k.id));
+  const who = chosen.map((k) => k.name).join(' a ') || 'Nikdo';
   // Date/time tokens stay on one line (no-break spaces + nowrap span).
   const tok = (text: string) => (
     <span className="fam-nowrap" data-testid="family-summary-token">
       {text}
     </span>
   );
+  const slotText = joinCz(slots.map(shortTime));
+  const whenPlain =
+    recurrence === 'weekly'
+      ? `${joinCz(dayList)} do\u00a0${dueTime} · od\u00a0${startLabel}`
+      : recurrence === 'daily'
+        ? `každý den do\u00a0${dueTime} · od\u00a0${startLabel}`
+        : multi
+          ? `každý den ${slots.length}× (${slotText}) · od\u00a0${startLabel}`
+          : `${onceDay} do\u00a0${dueTime}`;
+  const footWhen = multi
+    ? `${slots.length}× denně · od\u00a0${startLabel}`
+    : recurrence === 'once'
+      ? `${onceDay} do\u00a0${dueTime}`
+      : recurrence === 'daily'
+        ? `denně do\u00a0${dueTime} · od\u00a0${startLabel}`
+        : `${joinCz(dayList)} · od\u00a0${startLabel}`;
   const due = tok(`do\u00a0${dueTime}`);
   const since = tok(`od\u00a0${startLabel}`);
   const scheduleText =
@@ -526,14 +611,18 @@ export function AddChoreSheet({
       <>
         každý den {due} · {since}
       </>
+    ) : multi ? (
+      <>
+        každý den {tok(`${slots.length}×`)} ({slotText}) · {since}
+      </>
     ) : (
       <>
-        {tok(startLabel)} {due}
+        {tok(onceDay)} {due}
       </>
     );
   const summaryText = (
     <>
-      {who} · {`${points}\u00a0b.`} · {scheduleText}
+      {`${points}\u00a0b.`} · {scheduleText}
     </>
   );
   const dueLabel =
@@ -542,36 +631,45 @@ export function AddChoreSheet({
       : recurrence === 'weekly'
         ? 'V tyto dny do'
         : 'Splnit do';
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (error) alertRef.current?.focus();
+  }, [error]);
+  const save = async (nameOverride?: string) => {
     setSubmitted(true);
-    if (!valid || busy || new Date(`${firstDate}T${dueTime}`).getTime() <= new Date().getTime()) {
+    const finalName = (nameOverride ?? name).trim();
+    const at = clock().getTime();
+    const dueSlot = firstDue(at);
+    if (!valid || busy || !finalName || !dueSlot) {
       if (problems.name) document.getElementById('fam-chore-name')?.focus();
       return;
     }
     const payload: CreateChoreInput = {
       client_request_id: requestId,
-      name: name.trim(),
+      name: finalName,
       points,
       assignees,
       recurrence,
       weekdays: recurrence === 'weekly' ? weekdays : undefined,
       first_date: firstDate,
-      due_time: dueTime,
+      due_time: dueSlot,
+      times: multi ? slots : undefined,
       icon: icon || undefined,
     };
     setBusy(true);
-    setError('');
+    setError(null);
     try {
-      await api.createChore(payload);
-      onCreated();
+      await withTimeout(api.createChore(payload));
+      onCreated({ name: finalName, assignees, who, when: whenPlain });
       onClose();
-    } catch {
-      setError('Úkol se nepodařilo uložit.');
+    } catch (err) {
+      setError({ code: createChoreErrorCode(err), name: finalName });
+      // A rejected request did not create anything: the next attempt is a new operation.
+      setRequestId(newRequestId());
     } finally {
       setBusy(false);
     }
   };
+  const suggestion = error?.code === 'duplicate_name' ? nextDistinctName(error.name) : '';
   const chosenIcon = ICONS.find(([value]) => value === icon);
   const fieldErr = (text: string, testid?: string) =>
     submitted && text ? (
@@ -579,28 +677,114 @@ export function AddChoreSheet({
         {text}
       </p>
     ) : null;
+  const title = (
+    <>
+      Přidat úkol
+      {chosen.length === 1 && (
+        <span className="fam-title-who" data-testid="family-add-chore-title-who">
+          {' · '}
+          {chosen[0]!.name}
+        </span>
+      )}
+    </>
+  );
   return (
     <Sheet
-      title="Přidat úkol"
+      title={title}
       onClose={onClose}
       appearance="raised"
       isolation="strong"
       stickyFooter
       closeLabel="Zavřít formulář"
       footer={
-        <Button
-          variant="primary"
-          contrast="high"
-          type="submit"
-          form="fam-add-chore"
-          disabled={busy}
-          aria-describedby={submitted && !valid ? errId : undefined}
-          data-testid="family-add-chore-save"
-          data-invalid={!valid || undefined}
-          className="fam-cta"
-        >
-          {busy ? 'Ukládám…' : 'Uložit úkol'}
-        </Button>
+        <div className="fam-add-foot">
+          {error && (
+            <div
+              ref={alertRef}
+              tabIndex={-1}
+              role="alert"
+              className="fam-save-err"
+              data-testid="family-add-chore-error"
+              data-code={error.code}
+            >
+              <Icon name="info" size={18} />
+              <div>
+                <strong>{CREATE_CHORE_ERRORS[error.code]}</strong>
+                {error.code === 'duplicate_name' && (
+                  <>
+                    <p>
+                      Má se úkol dělat víckrát? Ulož ho pod jiným názvem, nebo u nového úkolu zvol
+                      Opakování „Víckrát denně“.
+                    </p>
+                    <div className="fam-save-err-actions">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        data-testid="family-duplicate-rename"
+                        disabled={busy}
+                        onClick={() => {
+                          setName(suggestion);
+                          void save(suggestion);
+                        }}
+                      >
+                        Uložit jako „{suggestion}“
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        data-testid="family-duplicate-edit"
+                        onClick={() => {
+                          setError(null);
+                          const input = document.getElementById('fam-chore-name');
+                          input?.focus();
+                          input?.scrollIntoView?.({ block: 'center' });
+                        }}
+                      >
+                        Změnit název
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <p className="fam-foot-who" data-testid="family-add-chore-for">
+            <span className="fam-foot-label">Pro:</span>
+            {chosen.length ? (
+              chosen.map((k) => (
+                <span key={k.id} className="fam-foot-kid">
+                  <span
+                    className="fam-partner-avatar"
+                    style={{ background: colors[k.id] }}
+                    aria-hidden="true"
+                  >
+                    {k.name[0]}
+                  </span>
+                  <b>{k.name}</b>
+                </span>
+              ))
+            ) : (
+              <b className="fam-foot-none">nikdo</b>
+            )}
+            <span className="fam-foot-when" data-testid="family-add-chore-when">
+              {footWhen}
+            </span>
+          </p>
+          <Button
+            variant="primary"
+            contrast="high"
+            type="submit"
+            form="fam-add-chore"
+            disabled={busy}
+            aria-describedby={submitted && !valid ? errId : undefined}
+            data-testid="family-add-chore-save"
+            data-invalid={!valid || undefined}
+            data-busy={busy || undefined}
+            className="fam-cta"
+          >
+            {busy ? 'Ukládám…' : 'Uložit úkol'}
+          </Button>
+        </div>
       }
       data-testid="family-add-chore-sheet"
     >
@@ -608,7 +792,10 @@ export function AddChoreSheet({
         id="fam-add-chore"
         className="fam-add-chore"
         noValidate
-        onSubmit={(e) => void submit(e)}
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          void save();
+        }}
       >
         <div className="fam-field">
           <label htmlFor="fam-chore-name">Název</label>
@@ -618,13 +805,14 @@ export function AddChoreSheet({
             onChange={(e) => {
               setName(e.target.value);
               setNameDirty(true);
+              if (error?.code === 'duplicate_name') setError(null);
             }}
             // Blur validates only an edited field: tabbing through an untouched form must not
             // insert errors (and shift the layout under the pointer).
             onBlur={() => nameDirty && setNameTouched(true)}
             maxLength={80}
             placeholder="Např. Zalít květiny"
-            aria-invalid={showName ? true : undefined}
+            aria-invalid={showName || error?.code === 'duplicate_name' ? true : undefined}
             aria-describedby={showName ? nameErrId : undefined}
           />
           {showName && (
@@ -633,6 +821,34 @@ export function AddChoreSheet({
             </p>
           )}
         </div>
+        <fieldset>
+          <legend>Komu {kids.length > 1 && <small>· můžeš vybrat víc dětí</small>}</legend>
+          <div className="fam-chips">
+            {kids.map((k) => {
+              const id = k.kid_uuid ?? k.id;
+              const on = assignees.includes(id);
+              return (
+                <Chip
+                  key={id}
+                  className="fam-chip fam-who-chip"
+                  onPress={() => toggleAssignee(id)}
+                  pressed={on}
+                  data-testid="family-who-chip"
+                  style={{ '--fam-chip-kid': colors[k.id] } as CSSProperties}
+                >
+                  <span className="fam-partner-avatar" style={{ background: colors[k.id] }}>
+                    {k.name[0]}
+                  </span>
+                  {k.name}
+                  <span className="fam-chip-tick" aria-hidden="true">
+                    {on && <Icon name="check" size={16} />}
+                  </span>
+                </Chip>
+              );
+            })}
+          </div>
+          {fieldErr(problems.who)}
+        </fieldset>
         <div className="fam-form-points">
           <label htmlFor="fam-chore-points">Body</label>
           <div className="fam-stepper">
@@ -700,40 +916,16 @@ export function AddChoreSheet({
             ))}
           </div>
         )}
-        <fieldset>
-          <legend>Komu {kids.length > 1 && <small>· můžeš vybrat víc dětí</small>}</legend>
-          <div className="fam-chips">
-            {kids.map((k) => {
-              const id = k.kid_uuid ?? k.id;
-              const on = assignees.includes(id);
-              return (
-                <Chip
-                  key={id}
-                  className="fam-chip fam-who-chip"
-                  onPress={() => toggleAssignee(id)}
-                  pressed={on}
-                >
-                  <span className="fam-partner-avatar" style={{ background: colors[k.id] }}>
-                    {k.name[0]}
-                  </span>
-                  {k.name}
-                  <span className="fam-chip-tick" aria-hidden="true">
-                    {on && <Icon name="check" size={16} />}
-                  </span>
-                </Chip>
-              );
-            })}
-          </div>
-          {fieldErr(problems.who)}
-        </fieldset>
         <SegmentedControl
           label="Opakování"
           tone="solid"
+          className="fam-recurrence"
           value={recurrence}
           onChange={(v: string) => chooseSchedule(v as Recurrence, weekdays)}
           options={[
             ['once', 'Jednou'],
             ['daily', 'Denně'],
+            ['daily_multi', 'Víckrát denně'],
             ['weekly', 'Vybrané dny'],
           ]}
         />
@@ -754,7 +946,63 @@ export function AddChoreSheet({
             {fieldErr(problems.days)}
           </div>
         )}
-        <div className="fam-form-dates">
+        {multi && (
+          <fieldset className="fam-times" data-testid="family-multi-times">
+            <legend>
+              Časy splnění <small>· každý den, každý zvlášť za body</small>
+            </legend>
+            <ol>
+              {times.map((t, i) => (
+                <li key={i}>
+                  <span className="fam-times-n" aria-hidden="true">
+                    {i + 1}.
+                  </span>
+                  <span className="fam-input-icon">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="12:00"
+                      aria-label={`${i + 1}. čas`}
+                      value={t}
+                      data-testid="family-multi-time"
+                      onChange={(e) =>
+                        setTimes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                      }
+                      onBlur={() => {
+                        const next = times.map((x, j) => (j === i ? normTime(x) : x));
+                        setTimes(next);
+                        const all = [...new Set(next.map(normTime))].sort();
+                        followDefault(all.at(-1) ?? '18:00');
+                      }}
+                    />
+                    <Icon name="clock" size={20} />
+                  </span>
+                  {times.length > 2 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Icon name="close" size={18} />}
+                      aria-label={`Odebrat ${i + 1}. čas`}
+                      onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))}
+                    />
+                  )}
+                </li>
+              ))}
+            </ol>
+            {times.length < MAX_TIMES && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Icon name="plus" size={18} />}
+                data-testid="family-multi-add"
+                onClick={() => setTimes((prev) => [...prev, ''])}
+              >
+                Přidat čas
+              </Button>
+            )}
+          </fieldset>
+        )}
+        <div className="fam-form-dates" data-multi={multi || undefined}>
           <label>
             {recurrence === 'once' ? 'Den splnění' : 'Od kdy'}
             <span className="fam-input-icon">
@@ -763,47 +1011,60 @@ export function AddChoreSheet({
                 placeholder="DD. MM. RRRR"
                 inputMode="numeric"
                 value={firstDateText}
-                onChange={(e) => setFirstDateText(e.target.value)}
+                data-testid="family-first-date"
+                onChange={(e) => {
+                  setFirstDateText(e.target.value);
+                  setDateEdited(true);
+                }}
                 onBlur={() => chooseSchedule(recurrence, weekdays)}
               />
               <Icon name="calendar" size={20} />
             </span>
           </label>
-          <label>
-            {dueLabel}
-            <span className="fam-input-icon">
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="18:00"
-                value={dueTime}
-                onChange={(e) => setDueTime(e.target.value)}
-                data-testid="family-due-time"
-              />
-              <Icon name="clock" size={20} />
-            </span>
-          </label>
+          {!multi && (
+            <label>
+              {dueLabel}
+              <span className="fam-input-icon">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="18:00"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  onBlur={() => {
+                    const t = normTime(dueTime);
+                    setDueTime(t);
+                    followDefault(t);
+                  }}
+                  data-testid="family-due-time"
+                />
+                <Icon name="clock" size={20} />
+              </span>
+            </label>
+          )}
           {fieldErr(problems.when)}
         </div>
         <div className="fam-summary" data-testid="family-chore-summary-box">
           <Icon name="calendar" size={18} />
           <div>
-            <strong data-testid="family-chore-summary">{summaryText}</strong>
+            <strong data-testid="family-chore-summary">
+              {who} · {summaryText}
+            </strong>
             <p className="fam-hint">
-              {assignees.length > 1
-                ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
-                : 'Splnění schvaluje rodič.'}
+              {multi
+                ? 'Každý čas je samostatné splnění za body. Splnění schvaluje rodič.'
+                : assignees.length > 1
+                  ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
+                  : 'Splnění schvaluje rodič.'}
+              {!multi && startWord !== 'dnes' && recurrence !== 'weekly' && firstDay && (
+                <> Do svého dne bude úkol v části „Naplánované“.</>
+              )}
             </p>
           </div>
         </div>
         {submitted && !valid && (
           <p id={errId} className="hb-sr-only">
             {Object.values(problems).filter(Boolean).join(' ')}
-          </p>
-        )}
-        {error && (
-          <p className="fam-err" role="alert">
-            {error}
           </p>
         )}
       </form>

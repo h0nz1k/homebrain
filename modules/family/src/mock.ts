@@ -1,5 +1,6 @@
 import type { FamilyApi } from './api.js';
 import type {
+  CreateChoreInput,
   FamilyChore,
   FamilyEvent,
   FamilyKid,
@@ -7,6 +8,7 @@ import type {
   FamilySnapshot,
   PointsHistory,
   PointsSummary,
+  FamilyUpcomingChore,
 } from './types.js';
 
 /** Synthetic household for dev/e2e: generic names only („Dcera“, „Syn“). */
@@ -105,6 +107,18 @@ function pointsSummary(name: string, balance: number): PointsSummary {
   };
 }
 
+/** ChoreOps `primary_group` of a later due date: before next Monday 7:00 = `this_week`. */
+function groupOf(due: Date, now: Date): FamilyUpcomingChore['group'] {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7);
+  monday.setDate(monday.getDate() + ((8 - monday.getDay()) % 7 || 7));
+  return due < monday ? 'this_week' : 'other';
+}
+
+function upcoming(now: Date, id: string, name: string, points: number, day: number, h: number) {
+  const due = at(now, day, h);
+  return { id: `sensor.demo_${id}`, name, points, due, group: groupOf(new Date(due), now) };
+}
+
 function kids(now: Date): FamilyKid[] {
   const c = (
     id: string,
@@ -153,6 +167,11 @@ function kids(now: Date): FamilyKid[] {
           },
         }),
       ],
+      upcoming: [
+        upcoming(now, 'mycka', 'Vyndat myčku', 3, 1, 18),
+        upcoming(now, 'prach', 'Utřít prach', 2, 3, 17),
+        upcoming(now, 'okna', 'Umýt okna', 5, 10, 16),
+      ],
     },
     {
       id: 'syn',
@@ -172,8 +191,25 @@ function kids(now: Date): FamilyKid[] {
         }),
         c('boty', 'Uklidit boty', 'claimed', 2, 18),
       ],
+      upcoming: [upcoming(now, 'trideni', 'Vynést tříděný odpad', 2, 1, 19)],
     },
   ];
+}
+
+/** Mirrors backend `plan_create_chores`: „Víckrát denně“ = one daily chore per time. */
+function slotsOf(input: CreateChoreInput): { name: string; date: string; due: string }[] {
+  const iso = (date: string, time: string) => new Date(`${date}T${time}:00`).toISOString();
+  if (input.recurrence !== 'daily_multi' || !input.times?.length)
+    return [
+      { name: input.name, date: input.first_date, due: iso(input.first_date, input.due_time) },
+    ];
+  return input.times.map((t) => {
+    const past = new Date(`${input.first_date}T${t}:00`).getTime() <= Date.now();
+    const d = new Date(`${input.first_date}T12:00:00`);
+    if (past) d.setDate(d.getDate() + 1);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { name: `${input.name} (${t})`, date, due: iso(date, t) };
+  });
 }
 
 export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & { log: unknown[] } {
@@ -200,6 +236,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       .filter((k) => role !== 'child' || k.id === own)
       .map((k) => ({
         ...k,
+        upcoming: k.upcoming?.map((u) => ({ ...u })),
         chores: k.chores.map((c) => ({
           ...c,
           can_claim:
@@ -372,7 +409,41 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     },
     createChore: async (input) => {
       log.push({ kind: 'createChore', input });
-      return { status: 'created', chore_id: 'demo-new' };
+      const taken = new Set(
+        state.kids.flatMap((k) => [...k.chores, ...(k.upcoming ?? [])].map((c) => c.name)),
+      );
+      const slots = slotsOf(input);
+      // ChoreOps: names are unique across the whole install (case-sensitive).
+      if (slots.some((s) => taken.has(s.name)))
+        throw Object.assign(new Error('Úkol s tímto názvem už existuje.'), {
+          code: 'duplicate_name',
+        });
+      const today = dateOnly(now(), 0);
+      for (const kid of state.kids.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id)))
+        for (const slot of slots) {
+          const id = `sensor.demo_new_${state.seq++}`;
+          if (slot.date === today)
+            kid.chores.push({
+              id,
+              name: slot.name,
+              state: 'todo',
+              points: input.points,
+              due: slot.due,
+              can_claim: false,
+              can_approve: false,
+              can_request_swap: true,
+            });
+          else
+            (kid.upcoming ??= []).push({
+              id,
+              name: slot.name,
+              points: input.points,
+              due: slot.due,
+              group: groupOf(new Date(slot.due), now()),
+            });
+          kid.upcoming?.sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
+        }
+      return { status: 'created', chore_id: 'demo-new', names: slots.map((s) => s.name) };
     },
     pointsGet: async (kid) => {
       const k = state.kids.find((x) => x.id === kid || x.kid_uuid === kid);

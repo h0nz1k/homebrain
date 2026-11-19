@@ -3,6 +3,9 @@ import {
   choreNote,
   choreTally,
   czDate,
+  dayWord,
+  defaultFirstDate,
+  upcomingLabel,
   eventWho,
   isPast,
   monthPoints,
@@ -164,5 +167,25 @@ describe('family format', () => {
       net: 15,
     });
     expect(monthPoints(null)).toMatchObject({ earned: null, net: null });
+  });
+});
+
+describe('chore-fix dates', () => {
+  const now = new Date(2026, 10, 19, 10); // Thursday
+  it('dayWord: dnes / zítra / weekday this week / date later', () => {
+    expect(dayWord(new Date(2026, 10, 19, 20), now)).toBe('dnes');
+    expect(dayWord(new Date(2026, 10, 20, 8), now)).toBe('zítra');
+    expect(dayWord(new Date(2026, 10, 22, 8), now)).toBe('Ne');
+    expect(dayWord(new Date(2026, 10, 27, 8), now)).toBe('27. 11.');
+  });
+  it('upcomingLabel adds the due time', () => {
+    expect(upcomingLabel(new Date(2026, 10, 20, 18).toISOString(), now)).toBe('zítra do 18:00');
+    expect(upcomingLabel(null, now)).toBe('Naplánováno');
+  });
+  it('defaultFirstDate: today while the due time is ≥ 15 min ahead, else tomorrow', () => {
+    expect(defaultFirstDate(now, '18:00').getDate()).toBe(19);
+    expect(defaultFirstDate(new Date(2026, 10, 19, 17, 50), '18:00').getDate()).toBe(20);
+    expect(defaultFirstDate(new Date(2026, 10, 19, 19), '18:00').getDate()).toBe(20);
+    expect(defaultFirstDate(new Date(2026, 10, 30, 19), '18:00').getMonth()).toBe(11);
   });
 });

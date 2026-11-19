@@ -235,3 +235,32 @@ export function eventWho(
   }
   return { who: [], title: ev.summary };
 }
+
+/** Day word relative to today: „dnes“, „zítra“, „St“ (this week), „20.\u00a011.“ (later). */
+export function dayWord(day: Date, now: Date): string {
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((start(day) - start(now)) / 86_400_000);
+  if (diff === 0) return 'dnes';
+  if (diff === 1) return 'zítra';
+  if (diff > 1 && diff < 7) return DAY[day.getDay()] ?? czDate(day);
+  return czDate(day);
+}
+
+/** Upcoming chore: „zítra do 18:00“, „St do 18:00“, „20.\u00a011. do 18:00“. */
+export function upcomingLabel(due: string | null, now: Date): string {
+  if (!due) return 'Naplánováno';
+  const d = new Date(due);
+  if (Number.isNaN(d.getTime())) return 'Naplánováno';
+  return `${dayWord(d, now)} do\u00a0${timeLabel(due)}`;
+}
+
+/**
+ * Default first day of a new chore: today while the due time is still ahead (at least
+ * 15 minutes, so the kid can actually do it), otherwise tomorrow.
+ */
+export function defaultFirstDate(now: Date, dueTime: string): Date {
+  const [h, m] = dueTime.split(':').map(Number);
+  const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h ?? 18, m ?? 0);
+  const today = due.getTime() - now.getTime() >= 15 * 60_000;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + (today ? 0 : 1), 12);
+}
