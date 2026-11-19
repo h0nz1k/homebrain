@@ -79,10 +79,19 @@ async def _delete_chore(
 ) -> dict[str, Any]:
     groups = store.data.get("chore_groups") or {}
     requested_ids = msg.get("series_ids")
+    slot_id = msg.get("slot_id")
     targets = [row]
     if requested_ids is not None:
         targets = chore_management.series(row, rows.values(), groups, cfg)
         if len(targets) < 2 or sorted(requested_ids) != sorted(item["id"] for item in targets):
+            return {"error": "conflict"}
+    elif slot_id is not None:
+        targets = [
+            slot
+            for slot in chore_management.series(row, rows.values(), groups, cfg)
+            if slot["id"] == slot_id
+        ]
+        if not targets:
             return {"error": "conflict"}
 
     deleted = 0
@@ -243,7 +252,8 @@ async def websocket_family_chore_skip_today(
     {
         vol.Required("type"): "homebrain/family/chore/delete",
         **CHORE_MANAGEMENT_SCHEMA,
-        vol.Optional("series_ids"): vol.All(
+        vol.Exclusive("slot_id", "delete_scope"): vol.All(str, vol.Length(min=1, max=64)),
+        vol.Exclusive("series_ids", "delete_scope"): vol.All(
             [vol.All(str, vol.Length(min=1, max=64))], vol.Length(min=2, max=64)
         ),
     }

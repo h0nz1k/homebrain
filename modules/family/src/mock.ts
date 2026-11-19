@@ -1,4 +1,5 @@
 import type { FamilyApi } from './api.js';
+import { handedToLabel, takenFromLabel } from './czech.js';
 import type {
   ChoreManagement,
   CreateChoreInput,
@@ -17,6 +18,8 @@ export interface FamilyMockOptions {
   role?: FamilyRole;
   /** `empty` = nothing configured (no calendars, no ChoreOps, no shopping list). */
   scenario?: 'full' | 'empty';
+  /** Synthetic overdue occurrence for the reassign success and failure flows. */
+  reassignDemo?: 'overdue' | 'error';
   now?: () => Date;
 }
 
@@ -234,6 +237,21 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   };
   const log: unknown[] = [];
   const own = 'syn';
+  if (opts.reassignDemo && !empty) {
+    const [ema, kuba] = state.kids as [FamilyKid, FamilyKid];
+    ema.name = 'Ema';
+    kuba.name = 'Kuba';
+    ema.chores.push({
+      id: 'sensor.demo_overdue',
+      name: 'Utřít stůl',
+      state: 'overdue',
+      points: 3,
+      due: at(now(), -1, 18),
+      can_claim: true,
+      can_approve: false,
+      can_request_swap: true,
+    });
+  }
   const skipped = new Map<string, { kid: FamilyKid; row: FamilyChore }>();
   const manage = (
     kid: FamilyKid,
@@ -425,6 +443,36 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     },
     swapReassign: async (input) => {
       log.push({ kind: 'swapReassign', input });
+      if (opts.reassignDemo === 'error') throw { code: 'service_failed' };
+      const from = state.kids.find((kid) => (kid.kid_uuid ?? kid.id) === input.from_kid);
+      const to = state.kids.find((kid) => (kid.kid_uuid ?? kid.id) === input.to_kid);
+      const original = from?.chores.find((row) => row.id === input.chore);
+      if (!from || !to || !original) throw { code: 'not_found' };
+      original.swap_today = {
+        kind: 'transferred_out',
+        label: handedToLabel(to.name),
+        partner_name: to.name,
+        muted: true,
+      };
+      original.counts_today = false;
+      original.can_request_swap = false;
+      const current = now();
+      const due =
+        original.due && Date.parse(original.due) > current.getTime() + 15 * 60_000
+          ? original.due
+          : at(current, 0, 23, 59);
+      to.chores.push({
+        ...original,
+        id: `${original.id}-reassigned`,
+        state: 'todo',
+        due,
+        counts_today: true,
+        swap_today: {
+          kind: 'transferred_in',
+          label: takenFromLabel(from.name),
+          partner_name: from.name,
+        },
+      });
       return { operation: { status: 'active' } };
     },
     swapCancel: async (request_id) => {
@@ -458,7 +506,14 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     deleteChore: async (input) => {
       log.push({ kind: 'deleteChore', input });
       if (role !== 'owner' && role !== 'adult') throw { code: 'unauthorized' };
-      const ids = new Set(input.series_ids ?? [input.chore]);
+      const owner = state.kids.find((kid) => kid.id === input.kid);
+      const original = [...(owner?.chores ?? []), ...(owner?.upcoming ?? [])].find(
+        (row) => row.id === input.chore,
+      );
+      if (!original) throw { code: 'not_found' };
+      const ids = new Set(input.series_ids ?? [input.slot_id ?? input.chore]);
+      if (input.slot_id && !original.management?.slots.some((slot) => slot.id === input.slot_id))
+        throw { code: 'conflict' };
       for (const kid of state.kids) {
         kid.chores = kid.chores.filter((row) => !ids.has(row.id));
         kid.upcoming = kid.upcoming?.filter((row) => !ids.has(row.id));

@@ -913,7 +913,9 @@ async def test_chore_management_requires_adult(
     assert result["error"]["code"] == "unauthorized"
 
 
-@pytest.mark.parametrize("mode", ["single", "series", "legacy", "stale"])
+@pytest.mark.parametrize(
+    "mode", ["single", "series", "legacy", "stale", "sibling", "unrelated_slot"]
+)
 async def test_delete_chore_uses_confirmed_scope_and_cancels_swaps(
     hass, entry, hass_ws_client, manageable_chores, mode
 ):
@@ -927,11 +929,15 @@ async def test_delete_chore_uses_confirmed_scope_and_cancels_swaps(
         }
     key = "one" if mode == "single" else "early"
     eid = chores[key]["eid"]
-    store.upsert_request("pending", {"id": "pending", "source_chore_id": eid, "status": "pending"})
+    deleted_key = "late" if mode == "sibling" else key
+    store.upsert_request(
+        "pending",
+        {"id": "pending", "source_chore_id": chores[deleted_key]["eid"], "status": "pending"},
+    )
     store.upsert_operation(
         "applying",
         {
-            "source_snapshot": {"chore_id": key},
+            "source_snapshot": {"chore_id": deleted_key},
             "status": "applying",
             "config_entry_id": "choreops-entry",
         },
@@ -972,17 +978,21 @@ async def test_delete_chore_uses_confirmed_scope_and_cancels_swaps(
         "chore": eid,
         "client_request_id": "delete-12345678",
     }
-    if mode != "single":
+    if mode in {"sibling", "unrelated_slot"}:
+        payload["slot_id"] = "late" if mode == "sibling" else "extraneous"
+    elif mode != "single":
         payload["series_ids"] = ["early", "extraneous" if mode == "stale" else "late"]
     result = await _ws(client, payload)
     replay = await _ws(client, payload)
-    if mode == "stale":
+    if mode in {"stale", "unrelated_slot"}:
         assert result["error"]["code"] == replay["error"]["code"] == "conflict"
         assert not deleted
         return
     assert result["success"], result
     assert replay["result"] == result["result"]
-    assert deleted == (["one"] if mode == "single" else ["early", "late"])
+    assert deleted == ([deleted_key] if mode in {"single", "sibling"} else ["early", "late"])
+    if mode == "sibling":
+        assert "early" in chores
     assert store.data["requests"]["pending"]["status"] == "cancelled"
     assert store.data["operations"]["applying"]["status"] == "cancelled"
     assert store.data["requests"]["unrelated"]["status"] == "pending"

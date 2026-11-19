@@ -1125,6 +1125,10 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const phone = usePhone();
   const notify = useToast();
+  const openSheet = deleteTarget ?? swap ?? menu ?? addChore ?? pointsKid;
+  useLayoutEffect(() => {
+    if (openSheet) notify.dismiss();
+  }, [notify, openSheet]);
 
   // A just-created chore: scroll its row into view once the refreshed snapshot has it (once
   // per creation). Closing the sheet goes `history.back()`, whose popstate restores the scroll
@@ -1309,6 +1313,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const menuChore = menuToday || (menuKid && menuKid.upcoming?.find((c) => c.id === menu.chore));
   const canTransfer = canTransferChore(menuToday || null);
   const management = menuChore?.management;
+  const showReassign = !!menuToday && !management?.one_off;
   const skipToday = async () => {
     if (!menu || !menuChore?.due || skipInFlight.current) return;
     skipInFlight.current = true;
@@ -1430,11 +1435,12 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           }}
         >
           {management && <p className="fam-hint">{management.assignees.join(', ')}</p>}
-          <ul className="fam-menu-list">
-            {menuToday && !management?.one_off && (
+          <ul className="fam-menu-list" data-mixed={(showReassign && !!management) || undefined}>
+            {showReassign && (
               <li>
                 <Button
                   variant="ghost"
+                  icon={<Icon name="swap" size={20} />}
                   disabled={!canTransfer || skipBusy}
                   onClick={() => {
                     setSwap({ kid: menu.kid, chore: menu.chore, mode: 'reassign' });
@@ -1450,7 +1456,8 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
                 {!management.one_off && (
                   <li>
                     <Button
-                      variant="ghost"
+                      variant="danger"
+                      icon={<Icon name="calendar" size={20} />}
                       disabled={!management.can_skip || skipBusy}
                       onClick={() => void skipToday()}
                     >
@@ -1460,7 +1467,8 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
                 )}
                 <li>
                   <Button
-                    variant="ghost"
+                    variant="danger"
+                    icon={<Icon name="bin" size={20} />}
                     disabled={skipBusy}
                     onClick={() => {
                       setDeleteTarget({ ...menu, management });
@@ -1489,14 +1497,17 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         <DeleteChoreSheet
           chore={deleteTarget.management}
           onClose={() => setDeleteTarget(null)}
-          onDelete={async (seriesIds) => {
+          onDelete={async (scope) => {
             await api.deleteChore({
               client_request_id: newRequestId(),
               kid: deleteTarget.kid,
               chore: deleteTarget.chore,
-              ...(seriesIds && { series_ids: seriesIds }),
+              ...scope,
             });
-            notify.success(deleteTarget.management.one_off ? 'Úkol smazán.' : 'Řada smazána.');
+            const wholeSeries =
+              scope.series_ids ||
+              (!deleteTarget.management.one_off && deleteTarget.management.slots.length < 2);
+            notify.success(wholeSeries ? 'Řada smazána.' : 'Úkol smazán.');
             setDeleteTarget(null);
             void load();
           }}

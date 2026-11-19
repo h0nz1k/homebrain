@@ -1021,57 +1021,142 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
   }
 });
 
-test.describe('Rodina – mazání úkolů', () => {
-  async function capture(page: Page, project: string, name: string) {
-    const dir = process.env.HB_FAMILY_DELETE_SHOTS;
-    if (dir && project === 'mobile-s21') await page.screenshot({ path: join(dir, name) });
+test.describe('Rodina – mazání a přeřazování úkolů', () => {
+  const shots = process.env.HB_FAMILY_DELETE_SHOTS;
+
+  async function capture(page: Page, project: string, name: string, theme: string) {
+    if (!shots || project !== 'mobile-s21') return;
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: join(shots, `${name}-${theme}.png`), animations: 'disabled' });
   }
 
-  test('jen dnes přesune termín mezi naplánované a Zpět jej obnoví', async ({ page }, info) => {
-    await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
-    await open(page);
-    await page.getByTestId('family-add-chore').first().click();
-    const form = page.getByTestId('family-add-chore-sheet');
-    await form.locator('#fam-chore-name').fill('Utřít stůl');
-    await form.getByTestId('family-add-chore-save').click();
-    await expect(form).toHaveCount(0);
-    const today = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
-    await today.getByTestId('family-chore-menu').click();
-    await capture(page, info.project.name, 'skip-today-menu.png');
-    await page.getByRole('button', { name: 'Smazat jen dnes' }).click();
-    const toast = page.getByTestId('hb-toast').filter({ hasText: 'Dnešní termín smazán' });
-    await expect(toast).toBeVisible();
-    await expect(today).toHaveCount(0);
-    await expect(
-      page.getByTestId('family-upcoming-chore').filter({ hasText: 'Utřít stůl' }),
-    ).toBeVisible();
-    await capture(page, info.project.name, 'skip-today-undo.png');
-    await toast.getByRole('button', { name: 'Zpět' }).click();
-    await expect(today).toBeVisible();
-  });
+  for (const theme of ['dark', 'light'] as const) {
+    test(`jen dnes přesune termín mezi naplánované a Zpět jej obnoví (${theme})`, async ({
+      page,
+    }, info) => {
+      await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+      await open(page, `?theme=${theme}`);
+      await page.getByTestId('family-add-chore').first().click();
+      const form = page.getByTestId('family-add-chore-sheet');
+      await form.locator('#fam-chore-name').fill('Utřít stůl');
+      await form.getByTestId('family-add-chore-save').click();
+      await expect(form).toHaveCount(0);
+      const creationToast = page.getByTestId('hb-toast').filter({ hasText: 'Úkol přidán:' });
+      await expect(creationToast).toBeVisible();
+      const today = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
+      await today.getByTestId('family-chore-menu').click();
+      const menu = page.getByTestId('family-chore-menu-sheet');
+      await expect(creationToast).toBeHidden();
+      const rows = menu.locator('li > button');
+      await expect(rows).toHaveCount(3);
+      for (const row of await rows.all()) {
+        await expect(row).toBeInViewport({ ratio: 1 });
+        await expect(row.locator('svg')).toBeVisible();
+        expect((await row.boundingBox())?.height).toBeGreaterThanOrEqual(48);
+      }
+      await expect(rows.nth(1)).toHaveAttribute('data-variant', 'danger');
+      await expect(rows.nth(2)).toHaveAttribute('data-variant', 'danger');
+      await expect(creationToast).toHaveCount(0);
+      await capture(page, info.project.name, 'skip-today-menu', theme);
+      await menu.getByRole('button', { name: 'Smazat jen dnes' }).click();
+      const toast = page.getByTestId('hb-toast').filter({ hasText: 'Dnešní termín smazán' });
+      await expect(toast).toBeVisible();
+      await expect(today).toHaveCount(0);
+      await expect(
+        page.getByTestId('family-upcoming-chore').filter({ hasText: 'Utřít stůl' }),
+      ).toBeVisible();
+      await capture(page, info.project.name, 'skip-today-undo', theme);
+      await toast.getByRole('button', { name: 'Zpět' }).click();
+      await expect(today).toBeVisible();
+    });
 
-  test('potvrzení celé řady ukáže a smaže všechny vybrané časy', async ({ page }, info) => {
-    await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
-    await open(page);
-    await page.getByTestId('family-add-chore').first().click();
-    const form = page.getByTestId('family-add-chore-sheet');
-    await form.locator('#fam-chore-name').fill('Zalít záhon');
-    await form.getByRole('radio', { name: 'Vícekrát' }).click();
-    await form.getByTestId('family-add-chore-save').click();
-    await expect(form).toHaveCount(0);
-    const rows = page.getByTestId('family-chore').filter({ hasText: /^Zalít záhon/ });
-    await expect(rows).toHaveCount(2);
-    await rows.last().getByTestId('family-chore-menu').click();
-    await page.getByRole('button', { name: 'Smazat celou řadu' }).click();
-    const confirm = page.getByTestId('family-delete-chore-sheet');
-    await expect(confirm.getByText('Body, které už za něj někdo dostal, zůstanou.')).toBeVisible();
-    await expect(confirm.getByRole('button', { name: 'Zrušit' })).toBeFocused();
-    await confirm.getByRole('radio', { name: 'Smazat všechny časy (2)' }).check();
-    await expect(confirm.locator('fieldset li')).toHaveCount(2);
-    await capture(page, info.project.name, 'delete-series-confirm.png');
-    await confirm.getByRole('button', { name: 'Smazat řadu' }).click();
-    await expect(rows).toHaveCount(0);
-    await expect(page.getByTestId('hb-toast').filter({ hasText: 'Řada smazána.' })).toBeVisible();
-    await capture(page, info.project.name, 'delete-series-success.png');
-  });
+    test(`potvrzení řady umožní smazat libovolný čas i všechny časy (${theme})`, async ({
+      page,
+    }, info) => {
+      await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+      await open(page, `?theme=${theme}`);
+      const createSeries = async (name: string) => {
+        await page.getByTestId('family-add-chore').first().click();
+        const form = page.getByTestId('family-add-chore-sheet');
+        await form.locator('#fam-chore-name').fill(name);
+        await form.getByRole('radio', { name: 'Vícekrát' }).click();
+        await form.getByTestId('family-add-chore-save').click();
+        await expect(form).toHaveCount(0);
+        const rows = page.getByTestId('family-chore').filter({ hasText: name });
+        await expect(rows).toHaveCount(2);
+        return rows;
+      };
+      const confirm = page.getByTestId('family-delete-chore-sheet');
+      const openConfirm = async (slot: '12:00' | '18:00') => {
+        await page
+          .getByTestId('family-chore')
+          .filter({ hasText: `Zalít záhon (${slot})` })
+          .getByTestId('family-chore-menu')
+          .click();
+        await page.getByRole('button', { name: 'Smazat celou řadu' }).click();
+        await expect(page.getByTestId('hb-toast')).toHaveCount(0);
+        await expect(confirm.getByRole('heading', { name: 'Smazat úkol' })).toBeVisible();
+        await expect(confirm.getByRole('button', { name: 'Zrušit' })).toBeFocused();
+        await expect(
+          confirm.getByText('Body, které už za něj někdo dostal, zůstanou.'),
+        ).toBeInViewport({ ratio: 1 });
+        await expect(confirm.getByRole('radio', { name: `Jen ${slot}` })).toBeChecked();
+      };
+
+      const rows = await createSeries('Zalít záhon');
+      await openConfirm('18:00');
+      await expect(confirm.getByRole('radio', { name: 'Jen 12:00' })).toBeVisible();
+      await expect(confirm.getByRole('button', { name: 'Smazat 18:00' })).toBeVisible();
+      await capture(page, info.project.name, 'delete-series-confirm-single', theme);
+      await confirm.getByRole('radio', { name: 'Všechny časy (2)' }).check();
+      await expect(confirm.getByRole('button', { name: 'Smazat všechny časy' })).toBeVisible();
+      await capture(page, info.project.name, 'delete-series-confirm-all', theme);
+
+      await confirm.getByRole('radio', { name: 'Jen 12:00' }).check();
+      await confirm.getByRole('button', { name: 'Smazat 12:00' }).click();
+      await expect(rows).toHaveCount(1);
+      await expect(rows).toContainText('18:00');
+
+      await open(page, `?theme=${theme}`);
+      await createSeries('Zalít záhon');
+      await openConfirm('12:00');
+      await confirm.getByRole('radio', { name: 'Všechny časy (2)' }).check();
+      await confirm.getByRole('button', { name: 'Smazat všechny časy' }).click();
+      await expect(rows).toHaveCount(0);
+      await expect(page.getByTestId('hb-toast').filter({ hasText: 'Řada smazána.' })).toBeVisible();
+      await capture(page, info.project.name, 'delete-series-success', theme);
+    });
+
+    for (const outcome of ['overdue', 'error'] as const) {
+      test(`přeřazení úkolu po termínu (${theme}, ${outcome})`, async ({ page }, info) => {
+        await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+        await open(page, `?theme=${theme}&reassign=${outcome}`);
+        const chore = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
+        await expect(chore).toContainText('Po termínu (18:00)');
+        await chore.getByTestId('family-chore-menu').click();
+        await page.getByRole('button', { name: 'Přeřadit na dnes…' }).click();
+        const swap = page.getByTestId('family-swap-sheet');
+        await expect(swap.getByTestId('family-swap-recipient')).toContainText('Kuba');
+        const submit = swap.getByTestId('family-swap-submit');
+        await submit.click();
+        if (outcome === 'error') {
+          await expect(swap.getByRole('alert')).toHaveText(
+            'Přeřazení se nepovedlo, zkus to znovu.',
+          );
+          await expect(swap.getByRole('alert')).toBeInViewport({ ratio: 1 });
+          await expect(submit).toBeEnabled();
+          await expect(page.getByTestId('hb-toast')).toHaveCount(0);
+          await capture(page, info.project.name, 'reassign-error', theme);
+        } else {
+          await expect(swap).toHaveCount(0);
+          await expect(chore.and(page.locator('[data-swap="transferred_out"]'))).toHaveCount(1);
+          const reassigned = chore.and(page.locator('[data-swap="transferred_in"]'));
+          await expect(reassigned).toContainText('do 23:59');
+          await reassigned.scrollIntoViewIfNeeded();
+          await expect(page.getByTestId('hb-toast')).toContainText('Přeřazeno na Kubu na dnes');
+          await capture(page, info.project.name, 'reassign-success', theme);
+        }
+      });
+    }
+  }
 });

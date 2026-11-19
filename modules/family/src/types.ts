@@ -40,7 +40,10 @@ export interface ChoreMutationInput {
 export type SkipChoreInput = ChoreMutationInput &
   ({ expected_due: string } | { undo_request_id: string });
 
-export type DeleteChoreInput = ChoreMutationInput & { series_ids?: string[] };
+export type DeleteChoreScope =
+  { slot_id?: string; series_ids?: never } | { slot_id?: never; series_ids: string[] };
+
+export type DeleteChoreInput = ChoreMutationInput & DeleteChoreScope;
 
 export interface FamilyChore {
   id: string;

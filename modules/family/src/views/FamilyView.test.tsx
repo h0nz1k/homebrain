@@ -304,11 +304,13 @@ describe('Delete chore', () => {
     expect(
       (within(sheet).getByRole('radio', { name: 'Jen 18:00' }) as HTMLInputElement).checked,
     ).toBe(true);
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Smazat všechny časy (2)' }));
-    expect(within(sheet).getByText('Zalít záhon (12:00) · Ema')).toBeTruthy();
-    expect(within(sheet).getByText('Zalít záhon (18:00) · Ema')).toBeTruthy();
+    expect(within(sheet).getByRole('heading', { name: 'Smazat úkol' })).toBeTruthy();
+    expect(within(sheet).getByRole('button', { name: 'Smazat 18:00' })).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Jen 12:00' }));
+    expect(within(sheet).getByRole('button', { name: 'Smazat 12:00' })).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Všechny časy (2)' }));
     await act(async () =>
-      fireEvent.click(within(sheet).getByRole('button', { name: 'Smazat řadu' })),
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Smazat všechny časy' })),
     );
     expect(remove).toHaveBeenCalledWith(
       expect.objectContaining({

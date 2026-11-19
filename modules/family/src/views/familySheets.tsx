@@ -44,6 +44,7 @@ import {
 import type {
   ChoreManagement,
   CreateChoreInput,
+  DeleteChoreScope,
   FamilyApproval,
   FamilyKid,
   FamilySnapshot,
@@ -1480,10 +1481,10 @@ export function DeleteChoreSheet({
   onClose,
 }: {
   chore: ChoreManagement;
-  onDelete: (seriesIds?: string[]) => Promise<void>;
+  onDelete: (scope: DeleteChoreScope) => Promise<void>;
   onClose: () => void;
 }) {
-  const [all, setAll] = useState(false);
+  const [selectedId, setSelectedId] = useState(chore.id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitting = useRef(false);
@@ -1493,6 +1494,15 @@ export function DeleteChoreSheet({
   }, []);
   const descriptionId = useId();
   const multi = chore.slots.length > 1;
+  const all = multi && selectedId === null;
+  const selectedSlot = chore.slots.find((slot) => slot.id === selectedId);
+  const assignees = all
+    ? [...new Set(chore.slots.flatMap((slot) => slot.assignees))]
+    : (selectedSlot?.assignees ?? chore.assignees);
+  const slotLabel = (slot: ChoreManagement['slots'][number]) => slot.time ?? slot.name;
+  let deleteLabel = chore.one_off ? 'Smazat úkol' : 'Smazat řadu';
+  if (all) deleteLabel = 'Smazat všechny časy';
+  else if (multi && selectedSlot) deleteLabel = `Smazat ${slotLabel(selectedSlot)}`;
   const close = () => {
     if (!submitting.current) onClose();
   };
@@ -1503,7 +1513,10 @@ export function DeleteChoreSheet({
     setBusy(true);
     setError(null);
     try {
-      await onDelete(all ? chore.slots.map((slot) => slot.id) : undefined);
+      if (all) await onDelete({ series_ids: chore.slots.map((slot) => slot.id) });
+      else if (selectedSlot && selectedSlot.id !== chore.id) {
+        await onDelete({ slot_id: selectedSlot.id });
+      } else await onDelete({});
     } catch (err) {
       setError(choreManagementError(err, 'Úkol se nepodařilo smazat. Zkus to znovu.'));
     } finally {
@@ -1514,7 +1527,7 @@ export function DeleteChoreSheet({
 
   return (
     <Sheet
-      title={chore.one_off ? 'Smazat úkol' : 'Smazat celou řadu'}
+      title="Smazat úkol"
       onClose={close}
       appearance="raised"
       isolation="strong"
@@ -1529,12 +1542,15 @@ export function DeleteChoreSheet({
               {error}
             </p>
           )}
+          <p id={descriptionId} className="fam-delete-points">
+            Body, které už za něj někdo dostal, zůstanou.
+          </p>
           <div className="fam-delete-actions" ref={actions}>
             <Button data-autofocus variant="secondary" onClick={close} disabled={busy}>
               Zrušit
             </Button>
             <Button variant="danger" onClick={() => void submit()} disabled={busy}>
-              {chore.one_off ? 'Smazat úkol' : 'Smazat řadu'}
+              {deleteLabel}
             </Button>
           </div>
         </>
@@ -1543,43 +1559,35 @@ export function DeleteChoreSheet({
       <div className="fam-delete-summary">
         <strong>{chore.series_name}</strong>
         <p className="fam-hint">
-          {chore.assignees.join(', ')}
+          {assignees.join(', ')}
           {!chore.one_off &&
             ` · ${chore.times_per_day ? `${chore.times_per_day}× denně` : '1× v naplánovaný den'}`}
         </p>
         {multi && (
           <fieldset disabled={busy} className="fam-delete-slots">
             <legend>Které časy smazat?</legend>
-            <label>
-              <input
-                type="radio"
-                name={descriptionId}
-                checked={!all}
-                onChange={() => setAll(false)}
-              />
-              Jen {chore.time ?? chore.slots.find((slot) => slot.id === chore.id)?.name}
-            </label>
+            {chore.slots.map((slot) => (
+              <label key={slot.id}>
+                <input
+                  type="radio"
+                  name={descriptionId}
+                  checked={selectedId === slot.id}
+                  onChange={() => setSelectedId(slot.id)}
+                />
+                Jen {slotLabel(slot)}
+              </label>
+            ))}
             <label>
               <input
                 type="radio"
                 name={descriptionId}
                 checked={all}
-                onChange={() => setAll(true)}
+                onChange={() => setSelectedId(null)}
               />
-              Smazat všechny časy ({chore.slots.length})
+              Všechny časy ({chore.slots.length})
             </label>
-            {all && (
-              <ul>
-                {chore.slots.map((slot) => (
-                  <li key={slot.id}>
-                    {slot.name} · {slot.assignees.join(', ')}
-                  </li>
-                ))}
-              </ul>
-            )}
           </fieldset>
         )}
-        <p id={descriptionId}>Body, které už za něj někdo dostal, zůstanou.</p>
       </div>
     </Sheet>
   );
