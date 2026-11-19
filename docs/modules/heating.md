@@ -67,6 +67,10 @@ with a label) and `schedules:` (time programs). See the example file for the syn
 
 `house.mixing_valve_pct` is numeric percent (no device class), rounded to an integer in the payload; unmapped or unavailable → `null`. The private mapping is configured outside this repository.
 
+The full schematic shows a mixing-valve fault only for a fault lamp mapped under the exact key
+`mixing_valve` in `faults:` (the regulation exposes none today, so it never shows from live
+data); without `house.mixing_valve_pct` the valve is drawn neutral ("poloha –").
+
 Derived payload values: `dhw.reheat_below = dhw.target − dhw.hysteresis`;
 `heat_pump.motohours = motohours + motominutes / 60`; `outdoor.min_today/max_today` from
 polls; `heat_pump.running_since` from the last off → on transition; `power_w` from the
