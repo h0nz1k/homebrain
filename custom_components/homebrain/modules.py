@@ -45,6 +45,7 @@ MODULES: Final = (
     "server",
     "heating",
     "communication",
+    "anomaly",
 )
 CONF_DISABLED_MODULES: Final = "disabled_modules"
 

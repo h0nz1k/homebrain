@@ -54,6 +54,11 @@ export function createMockAdapter(state: StateKey, opts: MockAdapterOptions = {}
   };
 }
 
+/** Clock of a fixture state: dev mocks of other modules (Hlídání domu) use the same instant. */
+export function fixtureNow(state: StateKey): string {
+  return fixtureFor(state).now;
+}
+
 export function listFixtureStates(): StateKey[] {
   return [...STATE_KEYS];
 }
