@@ -329,8 +329,9 @@ export function FreeTasks({
               <div className="fam-person-task-text">
                 <strong>{chore.name}</strong>
                 <small>
-                  {chore.due && <>do&nbsp;{timeLabel(chore.due)} · </>}
-                  {names.join(' nebo ')}
+                  {chore.due && <span className="fam-nowrap">do&nbsp;{timeLabel(chore.due)}</span>}
+                  {chore.due && ' · '}
+                  <span className="fam-nowrap">{names.join(' nebo ')}</span>
                 </small>
               </div>
               {option && onClaim ? (

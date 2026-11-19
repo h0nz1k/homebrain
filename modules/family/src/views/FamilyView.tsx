@@ -926,7 +926,7 @@ function ShoppingCard({
   const open = snap.shopping.items.filter((i) => !i.done);
   const done = snap.shopping.items.filter((i) => i.done);
   const kiosk = snap.role === 'kiosk';
-  const visibleOpen = kiosk ? open.slice(0, 2) : open;
+  const visibleOpen = kiosk ? open.slice(0, 3) : open;
   const hiddenCount = open.length - visibleOpen.length;
   const submit = async (e: FormEvent) => {
     e.preventDefault();

@@ -675,13 +675,14 @@ export const familyStyles = `
 .fam-person-wait { display: inline-flex; gap: 3px; align-items: center; color: var(--fam-pending); white-space: nowrap; }
 .fam-event-state {
   display: inline-block; border-radius: 6px; padding: 0 6px; color: var(--hb-t1);
-  font-size: var(--hb-type-caption); font-weight: 650; background: var(--hb-s2);
+  font-size: var(--hb-type-caption); font-weight: 650; background: var(--hb-s1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 30%, transparent);
 }
 .fam-ev[data-running], .fam-ev[data-next] {
   border-radius: 8px;
   background: color-mix(in srgb, var(--fam-src, var(--hb-ac)) 9%, var(--hb-s1));
 }
-.fam-ev[data-running] .fam-event-state { background: color-mix(in srgb, var(--hb-ok) 18%, var(--hb-s1)); }
+.fam-ev[data-running] .fam-event-state { background: color-mix(in srgb, var(--hb-ok) 18%, var(--hb-s1)); box-shadow: none; }
 .fam-person-view { --fam-person-title: 21px; min-width: 0; display: grid; gap: 16px; }
 .fam-person-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .fam-person-back.hb-btn { justify-self: start; padding-inline: 9px; font-weight: 650; }
@@ -769,7 +770,7 @@ export const familyStyles = `
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; min-width: 0;
   gap: 12px; border: 0; margin: 0; padding: 8px 14px 14px;
 }
-.fam-person-settings legend { font-weight: 700; padding: 6px; }
+.fam-person-settings legend { float: left; grid-column: 1 / -1; width: 100%; font-weight: 700; padding: 6px 0 0; }
 .fam-person-settings legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-inline-end: 6px; }
 .fam-person-settings label { display: grid; min-width: 0; gap: 4px; font-weight: 600; }
 .fam-person-settings select {
@@ -815,10 +816,11 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-person-avatar { width: 48px; height: 48px; font-size: 24px; }
 .fam[data-kiosk] .fam-person-name strong, .fam[data-kiosk] .fam-person-head h1 { font-size: 25px; }
 .fam[data-kiosk] .fam-person-head .fam-person-avatar { width: 64px; height: 64px; }
-.fam[data-kiosk] .fam-person-view { --fam-person-title: 26px; }
+.fam[data-kiosk] .fam-person-view { --fam-person-title: 26px; --fam-task-lead: 52px; }
 .fam[data-kiosk] .fam-person-task { min-height: 64px; }
 .fam[data-kiosk] .fam-person-task-text strong, .fam[data-kiosk] .fam-person-event { font-size: 21px; }
-.fam[data-kiosk] .fam-person-mark { width: 34px; height: 34px; }
+.fam[data-kiosk] .fam-person-mark { width: 40px; height: 40px; }
+.fam[data-kiosk] .fam-person-check { min-width: 52px; height: 52px; }
 .fam[data-kiosk] :is(.fam-chore, .fam-upcoming-row) { grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) var(--fam-task-point) 10px; gap: 8px; }
 .fam[data-kiosk] .fam-person-task-text small, .fam[data-kiosk] .fam-person-presence,
 .fam[data-kiosk] .fam-person-event small, .fam[data-kiosk] .fam-person-section-head small,

@@ -184,8 +184,8 @@ test.describe('Rodina', () => {
     expect(box!.height).toBeGreaterThanOrEqual(48);
     const shopping = page.getByTestId('family-shopping');
     await expect(shopping).toContainText('4 položky');
-    await expect(shopping.getByTestId('family-shop-item')).toHaveCount(2);
-    await expect(shopping).toContainText('a 2 další');
+    await expect(shopping.getByTestId('family-shop-item')).toHaveCount(3);
+    await expect(shopping).toContainText('a 1 další');
     const week = page.getByTestId('family-week');
     await expect(week.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
     for (const panel of [
