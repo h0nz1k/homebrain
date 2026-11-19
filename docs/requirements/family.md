@@ -207,7 +207,7 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 ### FAM-024 – Z minula a historie
 
 - Nesplněný úkol se ukazuje ve skupině Po termínu po dobu tří následujících kalendářních dnů. Čtvrtý den se přesune do Historie jako Zmeškané. Úkoly opakované s odstupem od splnění zůstávají po termínu až do splnění.
-- Zmeškané výskyty zachycené HomeBrainem jsou v historii 90 dní. Splnění s body se načítají z ChoreOps za posledních 30 dní podle dostupnosti záznamů. Týden zobrazuje aktuální výskyty dostupné v ChoreOps.
+- Zmeškané výskyty zachycené HomeBrainem jsou v historii 90 dní. Splněné úkoly se načítají z bodového deníku a senzorů ChoreOps za posledních 30 dní podle dostupnosti záznamů. Týden zobrazuje aktuální výskyty dostupné v ChoreOps.
 
 ### FAM-025 – Volné úkoly
 

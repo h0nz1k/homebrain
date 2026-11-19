@@ -116,7 +116,8 @@ export const familyStyles = `
   .fam-slot[data-slot='today'] { order: 1; }
   .fam-slot[data-slot='shop'] { order: 2; }
   .fam-slot[data-slot='chores'] { order: 3; }
-  .fam-slot[data-slot='week'] { order: 4; }
+  .fam-slot[data-slot='free'] { order: 4; }
+  .fam-slot[data-slot='week'] { order: 5; }
   .fam-card { padding: 16px; }
   .fam-ev { grid-template-columns: 64px 4px minmax(0, 1fr); }
   .fam-ev .fam-src { grid-column: 3; justify-self: start; margin-top: -4px; }
@@ -455,13 +456,13 @@ export const familyStyles = `
 }
 /* kiosk: same handoff tag, balanced column heights */
 .fam[data-kiosk] .fam-swap-tag, .fam[data-kiosk] .fam-wait-chip { font-size: 14px; }
-.fam[data-kiosk] .fam-day li { grid-template-columns: 54px 8px minmax(0, 1fr); gap: 6px; }
+.fam[data-kiosk] .fam-day li { grid-template-columns: 60px 8px minmax(0, 1fr); gap: 6px; }
 .fam[data-kiosk] .fam-free { padding-left: 68px; }
 .fam[data-kiosk] .fam-col > .fam-slot:last-child { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 .fam[data-kiosk] .fam-col > .fam-slot:last-child > .fam-card { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .fam[data-kiosk] .fam-slot[data-slot='chores'] > .fam-card { max-height: none; }
 .fam[data-kiosk] .fam-day li > span.fam-wk-time { font-size: 14px; }
-.fam[data-kiosk] .fam-day li[data-allday] > span.fam-wk-time { font-size: 12px; }
+.fam[data-kiosk] .fam-day li[data-allday] > span.fam-wk-time { font-size: 16px; }
 .fam-day li em { flex: 0 1 auto; }
 .fam-day li em .fam-wk-school { display: inline-flex; vertical-align: -2px; }
 /* one „needs a parent“ colour for every pending state (handover + completion); blue only for done handovers */
@@ -665,7 +666,7 @@ export const familyStyles = `
 .fam-times-remove.hb-btn { width: 44px; height: 44px; min-height: 44px; color: var(--hb-t1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 45%, transparent); border-radius: 12px; }
 .fam-times-remove.hb-btn:disabled { opacity: 1; color: var(--hb-t2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t2) 70%, transparent); cursor: not-allowed; }
 .fam-dup-wait { margin: 0; font-size: 13px; color: var(--hb-t2); text-align: center; }
-.fam .hb-sheet-foot .fam-cta[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+.fam .hb-sheet-foot .fam-cta[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; transition-property: background-color, transform; }
 
 /* Family identity and person detail. */
 .fam {
@@ -807,8 +808,7 @@ export const familyStyles = `
 .fam-pts, .fam-upcoming-pts { min-width: 0; text-align: right; font-size: 13px; white-space: nowrap; font-weight: 650; }
 .fam-menu-slot { width: 36px; min-width: 36px; margin-inline: 0; }
 .fam-chore-meta .hb-pill.fam-pending-pill { white-space: nowrap; text-wrap: nowrap; }
-.fam-handover-pending { font-weight: 650; overflow-wrap: anywhere; line-height: 1.3; }
-.fam-handover-pending svg { vertical-align: -2px; }
+.fam-handover-pending { font-size: 12px; font-weight: 650; overflow-wrap: anywhere; line-height: 1.2; }
 
 @media (min-width: 761px) {
   .fam-person-columns { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
@@ -847,4 +847,10 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-upcoming-line { font-weight: 500; }
 .fam[data-kiosk] .fam-upcoming-more-inline { font-weight: inherit; }
 .fam[data-kiosk] .fam-slot[data-slot='chores'] > .fam-card { scrollbar-gutter: stable; }
+.fam[data-kiosk] .fam-kid-h .fam-avatar, .fam[data-kiosk] .fam-kid-h small,
+.fam[data-kiosk] .fam-kid-h .fam-points, .fam[data-kiosk] .fam-kid > .fam-bar,
+.fam[data-kiosk] .fam-kid-pending { display: none; }
+.fam[data-kiosk] .fam-kid-h { margin-bottom: 4px; }
+.fam[data-kiosk] .fam-chore { min-height: 52px; padding-block: 2px; }
+.fam[data-kiosk] .fam-kids:has(.fam-upcoming-line) .fam-kid + .fam-kid { padding-top: 5px; }
 `;

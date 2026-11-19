@@ -403,15 +403,25 @@ function usePersonHistory(api: FamilyApi, member: string, enabled: boolean) {
 function History({
   history,
   member,
+  now,
 }: {
   history: ReturnType<typeof usePersonHistory>;
   member: FamilyMember;
+  now: Date;
 }) {
   const { entries, error } = history;
   const rows = [
     ...member.missed.map((row) => ({ ...row, points: null, missed: true })),
     ...(entries ?? []).map((row, index) => ({ ...row, id: `completed-${index}`, missed: false })),
   ].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+  const days = new Map<string, typeof rows>();
+  const today = localKey(now);
+  for (const row of rows) {
+    const key = row.date ? localKey(new Date(row.date)) : '';
+    const day = days.get(key);
+    if (day) day.push(row);
+    else days.set(key, [row]);
+  }
   return (
     <section>
       <div className="fam-person-section-head">
@@ -425,28 +435,39 @@ function History({
         )}
         {!entries && !error && <p className="fam-person-empty">Načítám splněné úkoly…</p>}
         {entries && !rows.length && <p className="fam-person-empty">Zatím žádné záznamy.</p>}
-        <ul>
-          {rows.map((row) => (
-            <li
-              className="fam-person-task"
-              data-testid="family-history-row"
-              data-missed={row.missed || undefined}
-              key={`${row.id}/${row.date}`}
-            >
-              <span className="fam-person-mark" aria-hidden="true">
-                <Icon name={row.missed ? 'alert' : 'check'} size={20} />
-              </span>
-              <div className="fam-person-task-text">
-                <strong>{row.name}</strong>
-                <small>
-                  {row.date && <>{longDate(new Date(row.date))} · </>}
-                  {row.missed ? 'Zmeškané' : 'Hotovo'}
-                </small>
-              </div>
-              <span className="fam-person-points">{pointsLabel(row.points)}</span>
-            </li>
-          ))}
-        </ul>
+        {[...days].map(([day, items]) => (
+          <section className="fam-person-group fam-person-day" key={day}>
+            <h3>
+              {day === today && 'Dnes · '}
+              {day ? longDate(new Date(`${day}T12:00:00`)) : 'Datum neznámé'}
+            </h3>
+            <ul>
+              {items.map((row) => (
+                <li
+                  className="fam-person-task"
+                  data-testid="family-history-row"
+                  data-missed={row.missed || undefined}
+                  key={`${row.id}/${row.date}`}
+                >
+                  <span className="fam-person-mark" aria-hidden="true">
+                    <Icon name={row.missed ? 'alert' : 'check'} size={20} />
+                  </span>
+                  <div className="fam-person-task-text">
+                    <strong>{row.name}</strong>
+                    <small>
+                      {row.missed
+                        ? 'Zmeškané'
+                        : row.date
+                          ? `Hotovo v\u00a0${timeLabel(row.date)}`
+                          : 'Hotovo'}
+                    </small>
+                  </div>
+                  <span className="fam-person-points">{pointsLabel(row.points)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </div>
     </section>
   );
@@ -577,7 +598,7 @@ export function PersonView({
           </div>
         )}
         {tab === 'Týden' && <Week member={member} now={now} history={history} />}
-        {tab === 'Historie' && <History history={history} member={member} />}
+        {tab === 'Historie' && <History history={history} member={member} now={now} />}
       </div>
     </article>
   );

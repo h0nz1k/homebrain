@@ -699,7 +699,7 @@ export function AddChoreSheet({
         ? 'V tyto dny do'
         : 'Splnit do';
   useEffect(() => {
-    if (error) alertRef.current?.focus();
+    if (error) alertRef.current?.focus({ preventScroll: true });
   }, [error]);
   // The footer floats over the scroll area: the body reserves its measured height (+16 px, the
   // error panel included) so the last field always scrolls fully above it; the fade/shadow over
@@ -712,8 +712,12 @@ export function AddChoreSheet({
     sheet.dataset.famFloatFoot = '';
     const measure = () => {
       const h = `${Math.ceil(foot.getBoundingClientRect().height)}px`;
-      if (sheet.style.getPropertyValue('--fam-foot-h') !== h)
+      const previous = sheet.style.getPropertyValue('--fam-foot-h');
+      if (previous !== h) {
+        const wasAtEnd = body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
         sheet.style.setProperty('--fam-foot-h', h);
+        if (previous && wasAtEnd) body.scrollTop = body.scrollHeight;
+      }
       const end = body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
       if (end) sheet.dataset.famScrollEnd = '';
       else delete sheet.dataset.famScrollEnd;
@@ -807,7 +811,11 @@ export function AddChoreSheet({
           {' · '}
           {chosen.length === 1
             ? chosen[0]!.name
-            : `${chosen.length} ${czPlural(chosen.length, 'dítě', 'děti', 'dětí')}`}
+            : `${chosen.length} ${
+                chosen.some((member) => 'role' in member && member.role !== 'child')
+                  ? czPlural(chosen.length, 'osoba', 'osoby', 'osob')
+                  : czPlural(chosen.length, 'dítě', 'děti', 'dětí')
+              }`}
         </span>
       )}
     </>
@@ -955,7 +963,7 @@ export function AddChoreSheet({
           )}
         </div>
         <fieldset>
-          <legend>Komu {kids.length > 1 && <small>· můžeš vybrat víc dětí</small>}</legend>
+          <legend>Komu {kids.length > 1 && <small>· můžeš vybrat víc osob</small>}</legend>
           <div className="fam-chips">
             {kids.map((k) => {
               const id = k.kid_uuid ?? k.id;

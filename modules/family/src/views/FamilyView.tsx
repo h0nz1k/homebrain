@@ -404,7 +404,7 @@ function PendingPill({ kind, recipient }: { kind: 'swap' | 'completion'; recipie
         data-pending="swap"
         data-status="pending"
       >
-        <Icon name="swap" size={14} /> {pendingHandoverLabel(recipient)}
+        {pendingHandoverLabel(recipient)}
       </small>
     );
   }
@@ -1322,6 +1322,9 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     : null;
   const canTransfer = canTransferChore(menuChore);
   const free = snap.free_chores ?? [];
+  const freeSlot = free.length
+    ? slot('free', <FreeTasks rows={free} members={familyMembers} />)
+    : null;
   if (selected || editingPersons) {
     return (
       <div
@@ -1408,7 +1411,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </div>
           <div className="fam-col">{chores}</div>
           <div className="fam-col">
-            <FreeTasks rows={free} members={familyMembers} />
+            {freeSlot}
             {shop}
           </div>
         </div>
@@ -1420,7 +1423,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </div>
           <div className="fam-col">
             {chores}
-            <FreeTasks rows={free} members={familyMembers} />
+            {freeSlot}
             {shop}
           </div>
         </div>

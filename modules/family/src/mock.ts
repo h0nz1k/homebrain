@@ -248,6 +248,15 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
               can_approve: false,
             },
             {
+              id: 'demo-shelf',
+              name: 'Uklidit polici',
+              state: 'overdue',
+              due: at(today, -4, 16),
+              points: 3,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
               id: 'demo-table',
               name: 'Prostřít stůl',
               state: 'todo',
@@ -482,9 +491,17 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     log,
     get: async () => snapshot(),
     personHistory: async (member) => ({
-      entries: (all.find((k) => k.id === member)?.chores ?? [])
-        .filter((c) => c.state === 'done')
-        .map((c) => ({ date: c.due ?? now().toISOString(), name: c.name, points: c.points })),
+      entries: [
+        ...(all.find((k) => k.id === member)?.chores ?? [])
+          .filter((c) => c.state === 'done')
+          .map((c) => ({ date: c.due ?? now().toISOString(), name: c.name, points: c.points })),
+        ...(member === 'tata'
+          ? [
+              { date: at(today, -2, 17), name: 'Vyčistit filtr', points: 6 },
+              { date: at(today, -3, 8), name: 'Připravit snídani', points: 5 },
+            ]
+          : []),
+      ],
     }),
     personsSettings: async () => settings(),
     savePersons: async (input) => {

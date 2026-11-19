@@ -492,18 +492,15 @@ test.describe('Rodina', () => {
     test(`řádky úkolů (${label}): sloupec bodů končí na stejném místě`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await open(page, query);
-      const lists = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('.fam-chores')).map((ul) =>
-          Array.from(ul.querySelectorAll(':scope > li .fam-pts')).map(
-            (el) => el.getBoundingClientRect().right,
-          ),
-        ),
-      );
-      expect(lists.length).toBeGreaterThan(0);
-      for (const rights of lists) {
-        expect(rights.length).toBeGreaterThan(1);
-        expect(Math.max(...rights) - Math.min(...rights)).toBeLessThanOrEqual(1);
-      }
+      const points = await page
+        .locator('.fam-chores .fam-pts, .fam-upcoming-row .fam-upcoming-pts')
+        .evaluateAll((nodes) =>
+          nodes
+            .filter((node) => node.getClientRects().length > 0)
+            .map((node) => node.getBoundingClientRect().right),
+        );
+      expect(points.length).toBeGreaterThan(2);
+      expect(Math.max(...points) - Math.min(...points)).toBeLessThanOrEqual(1);
     });
   }
 
@@ -1106,6 +1103,31 @@ test.describe('Rodina – detail osoby P1', () => {
     );
     await expect(detail.getByRole('button', { name: /Rodina/ })).toBeVisible();
   });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`kiosk detail má čitelné stavy, metadata a body (${theme})`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await open(page, `?kiosk=1&theme=${theme}`);
+      const meta = '.fam-wk-time, .fam-chore-meta small, .fam-pts, .fam-person-presence';
+      const verify = async (selector: string) => {
+        const fonts = await page
+          .locator(selector)
+          .evaluateAll((nodes) =>
+            nodes
+              .filter((node) => node.getClientRects().length)
+              .map((node) => parseFloat(getComputedStyle(node).fontSize)),
+          );
+        expect(fonts.length).toBeGreaterThan(1);
+        expect(Math.min(...fonts)).toBeGreaterThanOrEqual(16);
+        for (const row of await contrastOf(page, selector))
+          expect(row.ratio, row.text).toBeGreaterThanOrEqual(4.5);
+      };
+      await verify(meta);
+      await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
+      await verify('.fam-person-task-text small, .fam-person-points, .fam-person-presence');
+      await noSidewaysScroll(page);
+    });
+  }
 
   test('vlastník nastaví barvu osoby', async ({ page }) => {
     await open(page);
