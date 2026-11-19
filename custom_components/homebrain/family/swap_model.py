@@ -183,7 +183,7 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
                 "config_entry_id": cfg,
                 "name": f"{base} (za {from_name}) · HB-{token[:8]}",
                 "assigned_user_names": [assignee],
-                "points": points,
+                **({"points": points} if points is not None else {}),
                 "frequency": "none",
                 "completion_criteria": "independent",
                 "due_date": op.get("clone_due"),

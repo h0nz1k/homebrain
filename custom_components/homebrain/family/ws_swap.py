@@ -43,8 +43,16 @@ def _kids_index(kids: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def _occurrence(hass: HomeAssistant, kid: dict[str, Any], opaque: str) -> dict[str, Any] | None:
-    for row in model.kid_chores(hass.states.get, kid):
+    rows = model.apply_swap_overlays(
+        model.kid_chores(hass.states.get, kid),
+        kid=kid,
+        store_data=_store(hass).data,
+        kids_by_uuid={},
+    )
+    for row in rows:
         if row.get("opaque_id") == opaque or row.get("id") == opaque:
+            if (row.get("swap_today") or {}).get("kind") == "transferred_out":
+                row["can_request_swap"] = False
             return row
     return None
 
@@ -234,7 +242,7 @@ async def websocket_family_swap_decide(
             connection.send_error(msg["id"], "not_found", "Dítě nenalezeno")
             return
         occ = _occurrence(hass, from_k, str(updated.get("source_chore_id")))
-        if not occ:
+        if not occ or not choreops_adapter.matches_entry(hass, cfg, occ["id"]):
             connection.send_error(msg["id"], "not_found", "Povinnost nenalezena.")
             return
         if not occ["can_request_swap"]:
@@ -312,6 +320,8 @@ async def websocket_family_swap_reassign(
         connection.send_error(msg["id"], "not_found", "Dítě nenalezeno")
         return
     occ = _occurrence(hass, from_k, msg["chore"])
+    if occ and not choreops_adapter.matches_entry(hass, cfg, occ["id"]):
+        occ = None
     tz = ZoneInfo(hass.config.time_zone)
     try:
         swap_model.validate_swap_request(

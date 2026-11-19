@@ -198,14 +198,17 @@ function kids(now: Date): FamilyKid[] {
 }
 
 /** Mirrors backend `plan_create_chores`: „Vícekrát denně“ = one daily chore per time. */
-function slotsOf(input: CreateChoreInput): { name: string; date: string; due: string }[] {
+function slotsOf(
+  input: CreateChoreInput,
+  now: Date,
+): { name: string; date: string; due: string }[] {
   const iso = (date: string, time: string) => new Date(`${date}T${time}:00`).toISOString();
   if (input.recurrence !== 'daily_multi' || !input.times?.length)
     return [
       { name: input.name, date: input.first_date, due: iso(input.first_date, input.due_time) },
     ];
   return input.times.map((t) => {
-    const past = new Date(`${input.first_date}T${t}:00`).getTime() <= Date.now();
+    const past = new Date(`${input.first_date}T${t}:00`).getTime() <= now.getTime();
     const d = new Date(`${input.first_date}T12:00:00`);
     if (past) d.setDate(d.getDate() + 1);
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -239,6 +242,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   ): ChoreManagement => ({
     id: row.id,
     one_off: false,
+    times_per_day: 1,
     assignees: [kid.name],
     series_name: row.name,
     slots: [{ id: row.id, name: row.name, time: null, assignees: [kid.name] }],
@@ -461,7 +465,11 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         for (const row of [...kid.chores, ...(kid.upcoming ?? [])]) {
           if (row.management) {
             const slots = row.management.slots.filter((slot) => !ids.has(slot.id));
-            row.management = { ...row.management, slots };
+            row.management = {
+              ...row.management,
+              slots,
+              times_per_day: row.management.times_per_day == null ? null : slots.length,
+            };
           }
         }
       }
@@ -472,7 +480,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       const taken = new Set(
         state.kids.flatMap((k) => [...k.chores, ...(k.upcoming ?? [])].map((c) => c.name)),
       );
-      const slots = slotsOf(input);
+      const slots = slotsOf(input, now());
       // ChoreOps: names are unique across the whole install (case-sensitive).
       if (slots.some((s) => taken.has(s.name)))
         throw Object.assign(new Error('Úkol s tímto názvem už existuje.'), {
@@ -492,6 +500,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
           const management: ChoreManagement = {
             id: slot.id,
             one_off: input.recurrence === 'once',
+            times_per_day: input.recurrence.startsWith('daily') ? created.length : null,
             can_skip: false,
             assignees,
             series_name: input.name,

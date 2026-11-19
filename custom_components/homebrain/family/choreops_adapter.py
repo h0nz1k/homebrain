@@ -45,6 +45,11 @@ def config_entry_id(hass: HomeAssistant) -> str | None:
     return None
 
 
+def matches_entry(hass: HomeAssistant, config_id: str, entity_id: str) -> bool:
+    entity = er.async_get(hass).async_get(entity_id)
+    return entity is None or (entity.platform == "choreops" and entity.config_entry_id == config_id)
+
+
 def chore_id(hass: HomeAssistant, config_id: str, entity_id: str) -> str | None:
     """Resolve the ChoreOps 1.6 status sensor's internal chore ID."""
     entity = er.async_get(hass).async_get(entity_id)

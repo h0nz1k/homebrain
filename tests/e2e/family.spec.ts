@@ -14,44 +14,46 @@ async function open(page: Page, query = '') {
  * is covered, and the body reserves the footer's measured height (+16 px).
  */
 async function expectLastControlClear(page: Page) {
-  const r = await page.getByTestId('family-add-chore-sheet').evaluate(async (sheet) => {
-    const body = sheet.querySelector<HTMLElement>('.hb-sheet-body')!;
-    const foot = sheet.querySelector<HTMLElement>('.hb-sheet-foot')!;
-    body.scrollTop = body.scrollHeight;
-    await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
-    const controls = Array.from(
-      sheet.querySelectorAll<HTMLElement>(
-        '#fam-add-chore input, #fam-add-chore button, #fam-add-chore [role="radio"]',
-      ),
-    ).filter((el) => el.getClientRects().length > 0);
-    const last = controls.at(-1)!;
-    const summary = sheet.querySelector<HTMLElement>('[data-testid="family-chore-summary-box"]')!;
-    const footTop = foot.getBoundingClientRect().top;
-    const bodyTop = body.getBoundingClientRect().top;
-    const covered = (el: HTMLElement) => {
-      const b = el.getBoundingClientRect();
-      return [b.top + 2, b.bottom - 2].some((y) => {
-        const hit = document.elementFromPoint(b.left + b.width / 2, y);
-        return !hit || !(el === hit || el.contains(hit));
-      });
-    };
-    const pad = parseFloat(getComputedStyle(body).paddingBottom);
-    return {
-      lastBottom: last.getBoundingClientRect().bottom,
-      lastTop: last.getBoundingClientRect().top,
-      summaryBottom: summary.getBoundingClientRect().bottom,
-      footTop,
-      bodyTop,
-      lastCovered: covered(last),
-      pad,
-      footH: foot.getBoundingClientRect().height,
-    };
-  });
-  expect(r.lastTop).toBeGreaterThanOrEqual(r.bodyTop);
-  expect(r.lastBottom).toBeLessThanOrEqual(r.footTop - 12);
-  expect(r.summaryBottom).toBeLessThanOrEqual(r.footTop - 12);
-  expect(r.lastCovered).toBe(false);
-  expect(Math.abs(r.pad - (r.footH + 16))).toBeLessThanOrEqual(1.5);
+  await expect(async () => {
+    const r = await page.getByTestId('family-add-chore-sheet').evaluate(async (sheet) => {
+      const body = sheet.querySelector<HTMLElement>('.hb-sheet-body')!;
+      const foot = sheet.querySelector<HTMLElement>('.hb-sheet-foot')!;
+      body.scrollTo({ top: body.scrollHeight, behavior: 'instant' });
+      await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+      const controls = Array.from(
+        sheet.querySelectorAll<HTMLElement>(
+          '#fam-add-chore input, #fam-add-chore button, #fam-add-chore [role="radio"]',
+        ),
+      ).filter((el) => el.getClientRects().length > 0);
+      const last = controls.at(-1)!;
+      const summary = sheet.querySelector<HTMLElement>('[data-testid="family-chore-summary-box"]')!;
+      const footTop = foot.getBoundingClientRect().top;
+      const bodyTop = body.getBoundingClientRect().top;
+      const covered = (el: HTMLElement) => {
+        const b = el.getBoundingClientRect();
+        return [b.top + 2, b.bottom - 2].some((y) => {
+          const hit = document.elementFromPoint(b.left + b.width / 2, y);
+          return !hit || !(el === hit || el.contains(hit));
+        });
+      };
+      const pad = parseFloat(getComputedStyle(body).paddingBottom);
+      return {
+        lastBottom: last.getBoundingClientRect().bottom,
+        lastTop: last.getBoundingClientRect().top,
+        summaryBottom: summary.getBoundingClientRect().bottom,
+        footTop,
+        bodyTop,
+        lastCovered: covered(last),
+        pad,
+        footH: foot.getBoundingClientRect().height,
+      };
+    });
+    expect(r.lastTop).toBeGreaterThanOrEqual(r.bodyTop);
+    expect(r.lastBottom).toBeLessThanOrEqual(r.footTop - 12);
+    expect(r.summaryBottom).toBeLessThanOrEqual(r.footTop - 12);
+    expect(r.lastCovered).toBe(false);
+    expect(Math.abs(r.pad - (r.footH + 16))).toBeLessThanOrEqual(1.5);
+  }).toPass({ timeout: 3000 });
 }
 
 /** WCAG contrast of an element's text (or fill) against its composited background. */
@@ -584,7 +586,7 @@ test.describe('Rodina – přidání úkolu', () => {
       // The same name would fail again: plain Save is visibly disabled, the panel leads.
       await expect(save).toHaveAttribute('aria-disabled', 'true');
       await expect(save).toHaveAttribute('data-variant', 'secondary');
-      expect(Number(await save.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(0.7);
+      await expect(save).toHaveCSS('opacity', '0.5');
       await expect(sheet.getByTestId('family-add-chore-dup-wait')).toHaveText(
         'Nejdřív vyber jednu z možností výše',
       );

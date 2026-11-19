@@ -24,6 +24,7 @@ export interface ChoreManagement {
   id: string | null;
   one_off: boolean;
   can_skip: boolean;
+  times_per_day: number | null;
   assignees: string[];
   series_name: string;
   time: string | null;

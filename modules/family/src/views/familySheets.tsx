@@ -1351,7 +1351,7 @@ export function SwapSheet({
             <p className="fam-hint" data-testid="family-swap-chore-meta">
               {[
                 mode === 'reassign' ? fromKid?.name : null,
-                chore?.due ? `dnes do ${timeLabel(chore.due)}` : 'dnes',
+                'dnes',
                 chore?.points != null ? pointsAmount(chore.points) : null,
               ]
                 .filter(Boolean)
@@ -1541,7 +1541,7 @@ export function DeleteChoreSheet({
         <p className="fam-hint">
           {chore.assignees.join(', ')}
           {!chore.one_off &&
-            ` · ${chore.slots.length > 1 ? `${chore.slots.length}× denně` : '1× za termín'}`}
+            ` · ${chore.times_per_day ? `${chore.times_per_day}× denně` : '1× v naplánovaný den'}`}
         </p>
         {multi && (
           <fieldset disabled={busy} className="fam-delete-slots">

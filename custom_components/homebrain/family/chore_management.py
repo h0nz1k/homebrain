@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -28,7 +28,7 @@ def catalog(
                 continue
             eid = row["eid"]
             sensor = hass.states.get(eid)
-            if not sensor:
+            if not sensor or not choreops_adapter.matches_entry(hass, cfg, eid):
                 continue
             attrs = sensor.attributes
             name = str(row["name"])
@@ -60,9 +60,14 @@ def catalog(
 
 
 def series(
-    row: dict[str, Any], rows: Any, groups: Mapping[str, dict[str, Any]], cfg: str
+    row: dict[str, Any],
+    rows: Iterable[dict[str, Any]],
+    groups: Mapping[str, dict[str, Any]],
+    cfg: str,
 ) -> list[dict[str, Any]]:
     """Prefer the recorded group, otherwise match legacy slots with identical assignees."""
+    if not row["id"]:
+        return []
     stored_group = next(
         (
             group["chore_ids"]
@@ -95,8 +100,7 @@ def series(
             )
         if match:
             matches[cid] = candidate
-    if row["id"]:
-        matches[row["id"]] = row
+    matches[row["id"]] = row
     return sorted(matches.values(), key=lambda item: (item["time"] or "", item["name"]))
 
 
@@ -105,13 +109,17 @@ def can_skip(row: dict[str, Any]) -> bool:
 
 
 def metadata(
-    row: dict[str, Any], rows: Any, groups: Mapping[str, dict[str, Any]], cfg: str
+    row: dict[str, Any],
+    rows: Iterable[dict[str, Any]],
+    groups: Mapping[str, dict[str, Any]],
+    cfg: str,
 ) -> dict[str, Any]:
     slots = series(row, rows, groups, cfg)
     return {
         "id": row["id"],
         "one_off": row["frequency"] == "none",
         "can_skip": can_skip(row),
+        "times_per_day": max(1, len(slots)) if row["frequency"] == "daily" else None,
         "assignees": row["assignees"],
         "series_name": row["base"] if len(slots) > 1 else row["name"],
         "time": row["time"],
