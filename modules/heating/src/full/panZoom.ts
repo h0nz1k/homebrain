@@ -12,7 +12,7 @@ export interface Rect {
 }
 
 export const MAX_SCALE = 3;
-/** Drawing text is 14–15 units: from this scale every label is ≥ 12 CSS px. */
+/** Drawing text is 15 units: from this scale every label is ≥ 12 CSS px. */
 export const READABLE_SCALE = 0.8;
 
 /** Whole drawing inside the viewport with `pad` px around. */
@@ -23,25 +23,6 @@ export function fitView(vw: number, vh: number, world: Rect, pad = 8): View {
     tx: vw / 2 - (world.x + world.w / 2) * scale,
     ty: vh / 2 - (world.y + world.h / 2) * scale,
   };
-}
-
-/**
- * Preset: fit `box`; on a narrow screen never below the readable scale, centred on `centre`
- * (the part that matters most), so labels stay ≥ 12 px and the rest is a pan away.
- */
-export function focusView(
-  vw: number,
-  vh: number,
-  box: Rect,
-  opts: { minScale?: number; centre?: readonly [number, number] } = {},
-): View {
-  const fit = Math.min(vw / box.w, vh / box.h);
-  const scale = Math.min(MAX_SCALE, Math.max(opts.minScale ?? 0, fit));
-  const [cx, cy] =
-    fit >= (opts.minScale ?? 0)
-      ? [box.x + box.w / 2, box.y + box.h / 2]
-      : (opts.centre ?? [box.x + box.w / 2, box.y + box.h / 2]);
-  return { scale, tx: vw / 2 - cx * scale, ty: vh / 2 - cy * scale };
 }
 
 /** Keep the drawing on screen: centred when smaller than the viewport, edges clamped otherwise. */

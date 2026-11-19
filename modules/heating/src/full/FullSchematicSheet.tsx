@@ -14,32 +14,16 @@ import {
 import { createPortal } from 'react-dom';
 import type { HeatingSnapshot } from '../types.js';
 import { FULL_CANVAS, FullSchematic } from './FullSchematic.js';
-import { mixerFault } from './fullState.js';
-import {
-  READABLE_SCALE,
-  clampView,
-  fitView,
-  focusView,
-  zoomAt,
-  type Rect,
-  type View,
-} from './panZoom.js';
+import { fullState, mixerFault } from './fullState.js';
+import { LegendPanel, focusFacts, legendStyles } from './Legend.js';
+import { clampView, fitView, zoomAt, type View } from './panZoom.js';
+import { CONTENT, boxView, equivalentPreset, presetById, presetsFor } from './presets.js';
 import { fullSchematicStyles } from './styles.js';
 
-const WORLD: Rect = { x: 0, y: 0, w: FULL_CANVAS.w, h: FULL_CANVAS.h };
-
-export type PresetId = 'all' | 'tech' | 'pool' | 'house' | 'legend';
-/** Presets: `box` is fitted; on a phone the readable scale wins and the view centres on `centre`. */
-export const PRESETS: Record<
-  Exclude<PresetId, 'all'>,
-  { label: string; box: Rect; centre: readonly [number, number] }
-> = {
-  tech: { label: 'Technika', box: { x: 880, y: 330, w: 1350, h: 640 }, centre: [1235, 690] },
-  pool: { label: 'Bazén', box: { x: 2140, y: 690, w: 1080, h: 530 }, centre: [2985, 1005] },
-  house: { label: 'Dům', box: { x: 280, y: 96, w: 1070, h: 880 }, centre: [700, 560] },
-  legend: { label: 'Legenda', box: { x: 2520, y: 16, w: 700, h: 760 }, centre: [2870, 330] },
-};
+const WORLD = CONTENT;
 const NARROW = 700;
+/** Phone opens on the heat pump, wider screens on the whole drawing. */
+const firstPreset = (vw: number) => (vw < NARROW ? 'hp' : 'all');
 
 export function FullSchematicSheet({
   snap,
@@ -105,10 +89,14 @@ function Viewer({
   const titleId = useId();
   const root = useRef<HTMLDivElement>(null);
   const port = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [size, setSize] = useState({ w: 0, h: 0, top: 0 });
   const [view, setView] = useState<View>({ scale: 0.3, tx: 0, ty: 0 });
-  const [preset, setPreset] = useState<PresetId | null>(null);
+  const [preset, setPresetState] = useState<string | null>(null);
   const [service, setService] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [legendOpen, setLegendOpen] = useState<boolean | null>(null);
+  const tools = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState({ l: false, r: false });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ d: number; x: number; y: number } | null>(null);
   const moved = useRef(false);
@@ -120,6 +108,12 @@ function Viewer({
 
   const minScale = size.w ? fitView(size.w, size.h, WORLD).scale : 0.05;
   const narrow = size.w > 0 && size.w < NARROW;
+  const offered = size.w ? presetsFor(size.w, size.h) : [];
+  // Any user move ends the preset (and its clip) and hides the gesture hint.
+  const setPreset = useCallback((id: string | null) => {
+    setPresetState(id);
+    setTouched(true);
+  }, []);
 
   const apply = useCallback(
     (next: View) => {
@@ -130,42 +124,65 @@ function Viewer({
   );
 
   const goPreset = useCallback(
-    (id: PresetId) => {
+    (id: string) => {
       if (!size.w) return;
-      setPreset(id);
-      if (id === 'all') {
-        setView(fitView(size.w, size.h, WORLD));
-        return;
-      }
-      const p = PRESETS[id];
-      const v = focusView(size.w, size.h, p.box, {
-        minScale: narrow ? READABLE_SCALE : 0,
-        centre: p.centre,
-      });
-      setView(clampView(v, size.w, size.h, WORLD, minScale));
+      setPresetState(id);
+      const p = id === 'all' ? undefined : presetById(id);
+      // Phone: frame at the top, the preset's live values are listed under it.
+      const align = size.w < NARROW ? 'top' : 'centre';
+      setView(
+        p ? boxView(size.w, size.h, p.box, undefined, align) : fitView(size.w, size.h, WORLD),
+      );
     },
-    [minScale, narrow, size.h, size.w],
+    [size.h, size.w],
   );
 
   useLayoutEffect(() => {
     const el = port.current;
     if (!el) return;
-    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight, top: el.offsetTop });
     measure();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     return () => ro?.disconnect();
   }, []);
 
-  // First layout and every resize: phone opens on the technical room (readable), wide = whole drawing.
-  const initial = useRef<PresetId | null>(null);
+  // First layout: phone on the heat pump, wide on the whole drawing. Every resize (rotation, dock
+  // toggle) keeps the same place: the preset (or its equivalent on this size) or the free view.
+  const started = useRef(false);
   useLayoutEffect(() => {
     if (!size.w) return;
-    const id = preset ?? initial.current ?? (size.w < NARROW ? 'tech' : 'all');
-    initial.current = id;
-    goPreset(id);
+    if (!started.current) {
+      started.current = true;
+      goPreset(firstPreset(size.w));
+      return;
+    }
+    if (preset === null) {
+      apply(viewRef.current);
+      return;
+    }
+    goPreset(preset === 'all' ? 'all' : (equivalentPreset(preset, offered) ?? 'all'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
+
+  // Tab row on a phone scrolls sideways: fade the edge that has more buttons behind it.
+  useLayoutEffect(() => {
+    const el = tools.current;
+    if (!el) return;
+    const update = () =>
+      setFade({
+        l: el.scrollLeft > 2,
+        r: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+      });
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro?.disconnect();
+    };
+  }, [offered.length]);
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -189,6 +206,7 @@ function Viewer({
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      setTouched(true);
       const r = el.getBoundingClientRect();
       const v = viewRef.current;
       setPreset(null);
@@ -212,7 +230,7 @@ function Viewer({
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [apply, minScale]);
+  }, [apply, minScale, setPreset]);
 
   const local = (e: { clientX: number; clientY: number }) => {
     const r = port.current!.getBoundingClientRect();
@@ -220,6 +238,7 @@ function Viewer({
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    setTouched(true);
     port.current?.setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, local(e));
     moved.current = false;
@@ -303,7 +322,18 @@ function Viewer({
 
   const fault = mixerFault(snap);
   const otherFaults = snap.faults.active.filter((f) => f !== fault);
-  const presetButtons: PresetId[] = ['all', 'tech', 'pool', 'house', 'legend'];
+  const st = fullState(snap);
+  const presetButtons = [{ id: 'all', label: 'Celé' }, ...offered];
+  // Docked open where the screen has the height for it (desktop, tablet portrait), else a tap away.
+  const showLegend = legendOpen ?? (!narrow && window.innerHeight >= 860);
+  const active = preset && preset !== 'all' ? presetById(preset) : undefined;
+  const frameBottom = active ? view.ty + (active.box.y + active.box.h) * view.scale : 0;
+  // Preset frame: the drawing is clipped to the preset box (drawing units, before scaling).
+  const clip = active
+    ? `inset(${active.box.y}px ${FULL_CANVAS.w - active.box.x - active.box.w}px ${
+        FULL_CANVAS.h - active.box.y - active.box.h
+      }px ${active.box.x}px)`
+    : undefined;
 
   return (
     <div
@@ -315,23 +345,34 @@ function Viewer({
       tabIndex={-1}
       data-testid="heating-full-schematic"
       data-preset={preset ?? 'free'}
+      data-presets={offered.map((p) => p.id).join(' ')}
       data-fs-theme={theme}
       data-scale={view.scale.toFixed(3)}
     >
-      <style>{fullSchematicStyles + overlayStyles}</style>
+      <style>{fullSchematicStyles + overlayStyles + legendStyles}</style>
       <header className="ht-fs-head">
         <h2 id={titleId}>Topení – celé schéma</h2>
-        <div className="ht-fs-tools" role="toolbar" aria-label="Pohled na schéma">
-          {presetButtons.map((id) => (
+        <div
+          ref={tools}
+          className="ht-fs-tools"
+          role="toolbar"
+          aria-label="Pohled na schéma"
+          data-fade-l={fade.l ? '' : undefined}
+          data-fade-r={fade.r ? '' : undefined}
+        >
+          {presetButtons.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               className="ht-fs-btn"
               aria-pressed={preset === id}
               data-testid={`heating-full-preset-${id}`}
-              onClick={() => goPreset(id)}
+              onClick={() => {
+                setTouched(true);
+                goPreset(id);
+              }}
             >
-              {id === 'all' ? 'Celé' : PRESETS[id].label}
+              {label}
             </button>
           ))}
           <span className="ht-fs-sep" aria-hidden="true" />
@@ -356,9 +397,24 @@ function Viewer({
             className="ht-fs-btn"
             aria-pressed={service}
             data-testid="heating-full-service"
-            onClick={() => setService((s) => !s)}
+            onClick={() => {
+              setTouched(true);
+              setService((s) => !s);
+            }}
           >
             Servis
+          </button>
+          <button
+            type="button"
+            className="ht-fs-btn"
+            aria-pressed={showLegend}
+            data-testid="heating-full-legend-toggle"
+            onClick={() => {
+              setTouched(true);
+              setLegendOpen(!showLegend);
+            }}
+          >
+            Legenda
           </button>
         </div>
         <button
@@ -374,10 +430,7 @@ function Viewer({
       {(fault || otherFaults.length > 0) && (
         <p className="ht-fs-alert" role="status" data-testid="heating-full-alert">
           <span aria-hidden="true">⚠</span>{' '}
-          {[
-            fault ? 'Směšovací ventil ÚT: porucha, nouzově otevřen' : null,
-            ...otherFaults.map((f) => f.label),
-          ]
+          {[fault ? 'Směšovací ventil ÚT: porucha' : null, ...otherFaults.map((f) => f.label)]
             .filter(Boolean)
             .join(' · ')}
         </p>
@@ -402,13 +455,42 @@ function Viewer({
       >
         <div
           className="ht-fs-world"
-          style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
+          data-clip={active?.id}
+          data-clip-box={
+            active ? `${active.box.x} ${active.box.y} ${active.box.w} ${active.box.h}` : undefined
+          }
+          style={{
+            transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
+            clipPath: clip,
+          }}
         >
           <FullSchematic snap={snap} service={service} theme={theme} />
         </div>
       </div>
-      {narrow && (
-        <p className="ht-fs-hint">Posun tažením · přiblížení dvěma prsty · dvojité klepnutí</p>
+      {narrow && active && frameBottom + 90 < size.h && (
+        <dl
+          className="ht-fs fs-facts"
+          data-theme={theme}
+          style={{ top: size.top + frameBottom + 12 }}
+          data-testid="heating-full-facts"
+        >
+          {focusFacts(active.id, st).map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd className={v ? undefined : 'fs-lg-nodata'}>{v ?? '–'}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {narrow && !touched && (
+        <p className="ht-fs-hint" data-testid="heating-full-hint">
+          Posun tažením · přiblížení dvěma prsty · dvojité klepnutí
+        </p>
+      )}
+      {showLegend && (
+        <div className="ht-fs fs-dock" data-theme={theme}>
+          <LegendPanel st={st} snap={snap} />
+        </div>
       )}
     </div>
   );
@@ -429,7 +511,10 @@ const overlayStyles = `
 .ht-fs-port:active { cursor:grabbing; }
 .ht-fs-port:focus-visible { box-shadow:inset 0 0 0 2px var(--hb-ac, #3d8bff); }
 .ht-fs-world { position:absolute; left:0; top:0; transform-origin:0 0; }
-.ht-fs-hint { position:absolute; left:50%; bottom:max(10px, env(safe-area-inset-bottom)); transform:translateX(-50%); margin:0; padding:6px 12px; border-radius:16px; font-size:12px; background:color-mix(in srgb, var(--hb-s1, #1b2026) 88%, transparent); color:var(--hb-t2); pointer-events:none; white-space:nowrap; }
+.ht-fs-tools[data-fade-r] { -webkit-mask-image:linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image:linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+.ht-fs-tools[data-fade-l] { -webkit-mask-image:linear-gradient(90deg, transparent, #000 40px); mask-image:linear-gradient(90deg, transparent, #000 40px); }
+.ht-fs-tools[data-fade-l][data-fade-r] { -webkit-mask-image:linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image:linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+.ht-fs-hint { position:absolute; left:50%; bottom:calc(52px + env(safe-area-inset-bottom)); transform:translateX(-50%); margin:0; padding:6px 12px; border-radius:16px; font-size:12px; background:color-mix(in srgb, var(--hb-s1, #1b2026) 88%, transparent); color:var(--hb-t2); pointer-events:none; white-space:nowrap; }
 @media (max-width: 699px) {
   .ht-fs-head { padding-left:12px; gap:6px; }
   .ht-fs-head h2 { font-size:15px; flex:1; }

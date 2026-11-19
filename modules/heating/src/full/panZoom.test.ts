@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { READABLE_SCALE, clampView, fitView, focusView, toWorld, zoomAt } from './panZoom.js';
+import { clampView, fitView, toWorld, zoomAt } from './panZoom.js';
 
 const WORLD = { x: 0, y: 0, w: 3235, h: 1300 };
 
@@ -10,23 +10,6 @@ describe('full schematic pan/zoom', () => {
     const [cx, cy] = toWorld(v, 640, 370);
     expect(cx).toBeCloseTo(1617.5, 1);
     expect(cy).toBeCloseTo(650, 1);
-  });
-
-  it('phone preset keeps labels readable (≥ 12 px) and centres on the chosen part', () => {
-    const v = focusView(
-      360,
-      520,
-      { x: 880, y: 330, w: 1350, h: 640 },
-      { minScale: READABLE_SCALE, centre: [1235, 690] },
-    );
-    expect(v.scale).toBe(READABLE_SCALE);
-    expect(15 * v.scale).toBeGreaterThanOrEqual(12);
-    expect(toWorld(v, 180, 260)).toEqual([1235, 690]);
-  });
-
-  it('wide preset fits its box', () => {
-    const v = focusView(1280, 700, { x: 880, y: 330, w: 1350, h: 640 });
-    expect(v.scale).toBeCloseTo(Math.min(1280 / 1350, 700 / 640), 5);
   });
 
   it('zoom keeps the point under the finger and respects the limits', () => {

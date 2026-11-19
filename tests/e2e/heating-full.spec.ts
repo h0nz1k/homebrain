@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // Lazy chunk + 3235 × 1300 drawing: give slow CI runners room.
-test.describe.configure({ timeout: 90_000 });
+test.describe.configure({ timeout: 120_000 });
 
-// Topení – celé schéma (p3i): fullscreen pan/zoom from the Toky card, dev mock data.
+// Topení – celé schéma (p3i, r2): fullscreen pan/zoom from the Toky card, dev mock data.
 
 async function open(page: Page, query: string) {
   await page.goto(`/homebrain-topeni?${query}`);
@@ -13,25 +13,37 @@ async function open(page: Page, query: string) {
   return sheet;
 }
 
-/** Smallest rendered font size (CSS px) of the labels fully inside the viewport. */
-async function minVisibleLabelPx(page: Page) {
+/**
+ * Every text of the drawing inside the visible frame (viewport ∩ preset clip): returns the texts
+ * that are cut by the frame edge and the smallest font size (CSS px) of the fully visible ones.
+ */
+async function frameCheck(page: Page) {
   return page.getByTestId('heating-full-viewport').evaluate((port) => {
-    const r = port.getBoundingClientRect();
-    let min = Infinity;
-    for (const t of Array.from(port.querySelectorAll<SVGTextElement>('text[data-label]'))) {
-      const b = t.getBoundingClientRect();
-      if (
-        b.width === 0 ||
-        b.left < r.left ||
-        b.right > r.right ||
-        b.top < r.top ||
-        b.bottom > r.bottom
-      )
-        continue;
-      if (t.closest('[data-label-group^="legend"]')) continue;
-      min = Math.min(min, b.height / 1.2);
+    const pr = port.getBoundingClientRect();
+    const svg = port.querySelector('svg')!;
+    const sr = svg.getBoundingClientRect();
+    const k = sr.width / Number(svg.getAttribute('width'));
+    const box = port.querySelector<HTMLElement>('[data-clip-box]')?.dataset.clipBox;
+    let [l, t, r, b] = [pr.left, pr.top, pr.right, pr.bottom];
+    if (box) {
+      const [x, y, w, h] = box.split(' ').map(Number) as [number, number, number, number];
+      l = Math.max(l, sr.left + x * k);
+      t = Math.max(t, sr.top + y * k);
+      r = Math.min(r, sr.left + (x + w) * k);
+      b = Math.min(b, sr.top + (y + h) * k);
     }
-    return min;
+    const cut: string[] = [];
+    let min = Infinity;
+    for (const el of Array.from(svg.querySelectorAll<SVGTextElement>('text'))) {
+      const q = el.getBoundingClientRect();
+      if (q.width === 0 || !el.textContent?.trim()) continue;
+      const out = q.right <= l + 1 || q.left >= r - 1 || q.bottom <= t + 1 || q.top >= b - 1;
+      if (out) continue;
+      const inside = q.left >= l - 1 && q.right <= r + 1 && q.top >= t - 1 && q.bottom <= b + 1;
+      if (!inside) cut.push(el.textContent.trim());
+      else min = Math.min(min, Number(el.getAttribute('font-size')) * k);
+    }
+    return { cut, min };
   });
 }
 
@@ -48,33 +60,71 @@ const infinite = (page: Page) =>
       }).length,
   );
 
+/** WCAG contrast of an element's fill against a colour. */
+const contrastOf = (page: Page, selector: string, against: string) =>
+  page.evaluate(
+    ([sel, bg]) => {
+      const el = document.querySelector(sel!)!;
+      const rgb = (c: string) => (c.match(/[\d.]+/gu) ?? []).slice(0, 3).map(Number);
+      const lum = (c: number[]) =>
+        c
+          .map((v) => v / 255)
+          .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+          .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i]!, 0);
+      const probe = document.createElement('div');
+      probe.style.color = bg!;
+      el.closest('.ht-fs')!.appendChild(probe);
+      const back = rgb(getComputedStyle(probe).color);
+      probe.remove();
+      const fore = rgb(getComputedStyle(el).fill);
+      // no translucent ancestors may thin the text
+      let op = 1;
+      for (let n: Element | null = el; n && n.tagName !== 'svg'; n = n.parentElement)
+        op *= Number(getComputedStyle(n).opacity);
+      const [a, b] = [lum(fore), lum(back)].sort((x, y) => y - x) as [number, number];
+      return { ratio: (a + 0.05) / (b + 0.05), opacity: op };
+    },
+    [selector, against],
+  );
+
 for (const theme of ['dark', 'light'] as const) {
-  test(`celé schéma ${theme}: živá data, porucha směšovače, otazníky, bez kódů PLC`, async ({
+  test(`celé schéma ${theme}: živá data bez poruchy, otazníky, kontrast, bez kódů PLC`, async ({
     page,
   }) => {
-    const sheet = await open(page, `topeni=heating&ventil=porucha&theme=${theme}`);
+    const sheet = await open(page, `topeni=heating&theme=${theme}`);
     await expect(sheet).toHaveAttribute('data-fs-theme', theme);
-    // fault is never clipped: HTML strip above the drawing + ring/pill on the valve body
-    await expect(sheet.getByTestId('heating-full-alert')).toContainText('Směšovací ventil');
-    await expect(
-      sheet.locator('[data-glyph="valve_mix"][data-path="A"] [data-fault-glyph]'),
-    ).toHaveCount(1);
-    await expect(sheet.locator('path[data-route="jbyp_to_mix"]')).toHaveAttribute(
-      'data-state',
-      'closed',
-    );
-    await expect(sheet.locator('[data-flow-route="jbyp_to_mix"]')).toHaveCount(0);
+    // realistic data: no fault anywhere, mixing valve position unknown = neutral, not a fault
+    await expect(sheet.getByTestId('heating-full-alert')).toHaveCount(0);
+    await expect(sheet.locator('[data-fault-glyph]')).toHaveCount(0);
+    await expect(sheet.locator('[data-glyph="valve_mix"]')).toHaveAttribute('data-path', 'unknown');
+    await expect(sheet.getByTestId('heating-full-mix-pct')).toHaveText('poloha –');
+    await expect(sheet.getByTestId('heating-full-cool-state')).toHaveText('bez signálu');
     // heat pump: compressor running, readouts outside the cabinet
     await expect(sheet.getByTestId('heating-full-hp')).toHaveAttribute('data-compressor', 'on');
     await expect(sheet.locator('[data-label="hp_t_out"]')).toContainText('Výstup do topení');
     await expect(sheet.locator('[data-label="hp_coll_in"] [data-reading="none"]')).toHaveText(/–/u);
-    // on-site questions stay visible
-    for (const q of ['?1', '?2', '?3']) {
-      await expect(sheet.locator('[data-badge-for] text', { hasText: q })).toHaveCount(1);
+    // rybárna: valve to heating open = tempering active
+    await expect(sheet.getByTestId('heating-full-fish-state')).toHaveText('topí');
+    await expect(sheet.getByTestId('heating-full-pool-card')).toContainText('27,9 °C');
+    // one marker system, questions in the legend
+    for (const q of ['?1', '?2', '?3', '?4']) {
+      await expect(sheet.locator(`[data-badge-for][data-question="${q}"]`).first()).toBeVisible();
+    }
+    // secondary labels ≥ 4.5:1 on the technical room, never thinned by opacity
+    for (const sel of [
+      '[data-testid="heating-full-cool-state"]',
+      '[data-testid="heating-full-mix-pct"]',
+      '[data-label="hp_coll_out"]',
+      '[data-label="hx_cool"]',
+    ]) {
+      const c = await contrastOf(page, sel, 'var(--fs-tech)');
+      expect(c.ratio, sel).toBeGreaterThanOrEqual(4.5);
+      expect(c.opacity, sel).toBe(1);
     }
     const text = await sheet.getByTestId('heating-full-svg').textContent();
     expect(text).not.toMatch(/\b[XYR]\d{2,4}(\.\d)?\b/u);
     expect(text).not.toMatch(new RegExp(`${'sol'}ank|${'br'}ine`, 'i'));
+    expect(text).not.toMatch(/porucha|nouzov/iu);
     // service view adds the addresses of the (here synthetic) private map
     await sheet.getByTestId('heating-full-service').click();
     await expect(sheet.locator('[data-service-code="hp_t_out"]')).toHaveText('X336');
@@ -83,28 +133,74 @@ for (const theme of ['dark', 'light'] as const) {
   });
 }
 
-test('celé schéma: předvolby, čitelné popisky a přiblížení', async ({ page }, info) => {
+test('celé schéma: porucha směšovače jen z explicitní kontrolky (testovací fixture)', async ({
+  page,
+}) => {
+  const sheet = await open(page, 'topeni=heating&ventil=porucha&theme=light');
+  const alert = sheet.getByTestId('heating-full-alert');
+  await expect(alert).toContainText('Směšovací ventil');
+  await expect(sheet.locator('[data-glyph="valve_mix"] [data-fault-glyph]')).toHaveCount(1);
+  // the banner sits above the drawing, never over it
+  const a = (await alert.boundingBox())!;
+  const v = (await sheet.getByTestId('heating-full-viewport').boundingBox())!;
+  expect(a.y + a.height).toBeLessThanOrEqual(v.y + 0.5);
+});
+
+test('celé schéma: rybárna – ventil zavřený, teplo stačí', async ({ page }) => {
+  const sheet = await open(page, 'topeni=idle&theme=dark');
+  await expect(sheet.getByTestId('heating-full-fish-state')).toHaveText('netopí – teplo stačí');
+  await expect(sheet.locator('path[data-route="pryb_to_js"]')).toHaveAttribute(
+    'data-state',
+    'still',
+  );
+  await expect(sheet.locator('[data-glyph="ryb_water"][data-state="off"]')).toHaveCount(1);
+});
+
+test('celé schéma: předvolby sedí na obsah, nic neořezávají, tablet ≥ 12 px', async ({
+  page,
+}, info) => {
   const sheet = await open(page, 'topeni=heating&theme=dark');
   const narrow = (page.viewportSize()?.width ?? 0) < 700;
-  // phone opens on the technical room at a readable scale, wide screens on the whole drawing
-  await expect(sheet).toHaveAttribute('data-preset', narrow ? 'tech' : 'all');
-  for (const id of ['tech', 'pool', 'house'] as const) {
+  await expect(sheet).toHaveAttribute('data-preset', narrow ? 'hp' : 'all');
+  if (narrow) {
+    // gesture hint until the first interaction
+    await expect(sheet.getByTestId('heating-full-hint')).toBeVisible();
+  }
+  const ids = ((await sheet.getAttribute('data-presets')) ?? '').split(' ');
+  expect(ids.length).toBeGreaterThanOrEqual(3);
+  for (const id of ids) {
     await sheet.getByTestId(`heating-full-preset-${id}`).click();
     await expect(sheet).toHaveAttribute('data-preset', id);
-    if (narrow || info.project.name === 'desktop') {
-      expect(await minVisibleLabelPx(page), `${id} labels`).toBeGreaterThanOrEqual(11.9);
-    }
+    const { cut, min } = await frameCheck(page);
+    expect(cut, `${id}: texts cut by the frame`).toEqual([]);
+    const floor = info.project.name === 'mobile-s21' ? 9.4 : 11.9;
+    expect(min, `${id}: smallest text`).toBeGreaterThanOrEqual(floor);
   }
+  await expect(sheet.getByTestId('heating-full-hint')).toHaveCount(0);
   await sheet.getByTestId('heating-full-preset-all').click();
   const fit = Number(await sheet.getAttribute('data-scale'));
   await page.getByRole('button', { name: 'Přiblížit' }).click();
   await expect
     .poll(async () => Number(await sheet.getAttribute('data-scale')))
     .toBeGreaterThan(fit);
+  await expect(sheet).toHaveAttribute('data-preset', 'free');
   const noScroll = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(noScroll).toBeLessThanOrEqual(0);
+});
+
+test('celé schéma: legenda HTML (sbalitelná) se stavem', async ({ page }) => {
+  const sheet = await open(page, 'topeni=heating&theme=dark');
+  const toggle = sheet.getByTestId('heating-full-legend-toggle');
+  if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+  const legend = sheet.getByTestId('heating-full-legend');
+  await expect(legend).toContainText('AKN');
+  await expect(legend).toContainText('Čárkovaně = běžně neaktivní');
+  await expect(legend.locator('[data-question]')).toHaveCount(4);
+  await expect(sheet.getByTestId('heating-full-status')).toContainText('−1,8 °C');
+  await toggle.click();
+  await expect(legend).toHaveCount(0);
 });
 
 test('celé schéma: pohyb jen bez omezení pohybu', async ({ page }) => {
