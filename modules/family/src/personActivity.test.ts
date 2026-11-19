@@ -20,6 +20,7 @@ describe('personActivity', () => {
     );
 
     expect(activity.points).toBe(18);
+    expect(member.points_week).toBe(activity.points);
     expect(activity.week.filter((row) => !row.missed).map((row) => row.points)).toEqual([5, 8, 5]);
     expect(activity.history.find((row) => row.missed)?.points).toBe(0);
     expect(activity.history.some((row) => row.name === 'Nákup')).toBe(true);

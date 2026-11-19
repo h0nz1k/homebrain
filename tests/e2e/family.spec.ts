@@ -1104,6 +1104,7 @@ test.describe('Rodina – detail osoby P1', () => {
   });
 
   test('kiosk otevře dospělého a ukáže jen přítomnost z Wi-Fi', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page, '?kiosk=1');
     const family = page.getByTestId('family');
@@ -1126,6 +1127,12 @@ test.describe('Rodina – detail osoby P1', () => {
       /Kč|baterie|v práci|na kroužku|ve škole|Sportovní hala|Vzít dres/i,
     );
     await expect(detail.getByRole('button', { name: /Zpět/ })).toBeVisible();
+    await task.getByRole('checkbox').click();
+    await expect(task).toContainText('Čeká na schválení');
+    await detail.getByRole('tab', { name: 'Týden' }).click();
+    const origin = detail.getByRole('heading', { name: /Středa 18./ }).locator('..');
+    await expect(origin).toContainText('přeneseno');
+    await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
   });
 
   for (const theme of ['dark', 'light'] as const) {

@@ -363,22 +363,29 @@ function Week({
   activity: ReturnType<typeof personActivity>;
 }) {
   const { today, days, week } = activity;
+  const counted = member.chores.filter((chore) => chore.counts_today !== false);
   const rows: (TaskRow & { weekDay: string | null })[] = [
-    ...member.chores
-      .filter((chore) => chore.counts_today !== false && chore.state !== 'done')
+    ...counted
+      .filter((chore) => chore.state !== 'done')
       .map((chore) => ({ ...chore, weekDay: today })),
-    ...member.chores.flatMap((chore) =>
-      chore.carried_days && chore.due
+    ...counted.flatMap((chore) => {
+      const day = chore.due ? localKey(new Date(chore.due)) : null;
+      const recorded = week.some(
+        (entry) =>
+          entry.date && entry.name === chore.name && localKey(new Date(entry.date)) === day,
+      );
+      return day && day < today && !recorded
         ? [
             {
               ...chore,
-              weekDay: localKey(new Date(chore.due)),
+              weekDay: day,
               occurrence: 'carried' as const,
+              state: 'overdue' as const,
               points: null,
             },
           ]
-        : [],
-    ),
+        : [];
+    }),
     ...week.map((entry) => ({
       ...entry,
       weekDay: entry.date ? localKey(new Date(entry.date)) : null,
@@ -436,7 +443,9 @@ function Week({
                   {total
                     ? `${formatOutOf(done, total)} hotovo`
                     : history.entries
-                      ? 'Bez úkolů'
+                      ? key < today
+                        ? 'Bez záznamů'
+                        : 'Bez úkolů'
                       : ''}
                 </small>
               </h3>

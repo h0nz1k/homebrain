@@ -702,7 +702,7 @@ export const familyStyles = `
 }
 .fam-person-section-head h2 { font-size: var(--fam-person-title, 20px); font-weight: 700; letter-spacing: -0.02em; }
 .fam-person-section-head small, .fam-person-section-head p { color: var(--hb-t2); font-size: 14px; }
-.fam-person-section-head p { flex-basis: 100%; }
+.fam-person-section-head p { flex-basis: 100%; text-wrap: pretty; }
 .fam .fam-person-surface {
   background: var(--fam-person-surface); border-radius: 18px; padding: 4px 12px; box-shadow: var(--hb-elev-1);
 }
@@ -736,7 +736,8 @@ export const familyStyles = `
   background: color-mix(in srgb, var(--hb-warn) 17%, var(--fam-person-surface));
 }
 .fam-person-task[data-missed] .fam-person-mark,
-.fam-person-task[data-missed] .fam-person-points { color: var(--hb-t2); }
+.fam-person-task[data-missed] .fam-person-points,
+.fam-person-day .fam-person-task:not([data-state='done'], [data-state='approved']) .fam-person-points { color: var(--hb-t2); }
 .fam-person-check {
   background: none; border: 0; min-width: 44px; height: 44px; padding: 0; cursor: pointer;
   display: grid; place-items: center; border-radius: 8px;
