@@ -165,7 +165,7 @@ test.describe('Rodina', () => {
     await expect(page.getByRole('button', { name: 'Ne', exact: true })).toBeVisible();
     const summary = page.getByTestId('family-chore-summary');
     await expect(summary).toContainText('Dcera · 2\u00a0b. · Po a Čt do\u00a018:00 · od\u00a0');
-    await page.getByRole('radio', { name: 'Denně' }).click();
+    await page.getByRole('radio', { name: 'Denně', exact: true }).click();
     await expect(summary).toContainText('každý den do\u00a018:00');
     await page.getByRole('radio', { name: 'Vybrané dny' }).click();
     await page.getByTestId('family-add-chore-save').click();
@@ -431,7 +431,10 @@ test.describe('Rodina – přidání úkolu', () => {
       await page.getByTestId('family-add-chore').first().click();
       const sheet = page.getByTestId('family-add-chore-sheet');
       await expect(sheet.getByTestId('family-add-chore-title-who')).toHaveText(' · Dcera');
-      await expect(sheet.getByTestId('family-add-chore-for')).toContainText('Pro:Dcera');
+      const forKid = sheet.getByTestId('family-add-chore-for');
+      await expect(forKid).toContainText('Pro:');
+      await expect(forKid.locator('.fam-foot-kid b')).toHaveText(['Dcera']);
+      await expect(forKid).toBeInViewport({ ratio: 1 });
       await sheet.locator('#fam-chore-name').fill('Vytřít chodbu');
       await sheet.getByRole('radio', { name: 'Jednou' }).click();
       const tomorrow = await page.evaluate(() =>
@@ -511,10 +514,21 @@ test.describe('Rodina – přidání úkolu', () => {
       await page.setViewportSize({ width: 1280, height: 800 });
       await open(page, `?kiosk=1&theme=${theme}`);
       const up = page.locator('[data-kid="dcera"] [data-testid="family-upcoming"]');
-      await expect(up).toHaveAttribute('data-compact', 'true');
-      await expect(up.getByTestId('family-upcoming-chore')).toHaveCount(3);
+      await expect(up).toHaveAttribute('data-compact', 'line');
+      await expect(up).toContainText('Naplánované: Vyndat myčku (zítra)');
       const card = (await page.getByTestId('family-chores').boundingBox())!;
       expect(card.y + card.height).toBeLessThanOrEqual(800);
+      // Today's rows of the last kid still fit inside the card (the plan line must not push
+      // them out of the fixed-height kiosk card).
+      const last = (await page
+        .locator('[data-kid="syn"] [data-testid="family-chore"]')
+        .last()
+        .boundingBox())!;
+      expect(last.y + last.height).toBeLessThanOrEqual(card.y + card.height);
+      const line = (await page
+        .locator('[data-kid="syn"] [data-testid="family-upcoming"]')
+        .boundingBox())!;
+      expect(line.y + line.height).toBeLessThanOrEqual(card.y + card.height);
     });
   }
 });
@@ -555,6 +569,7 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
   test.skip(!choreShots, 'nastav HB_FAMILY_CHORE_SHOTS');
   for (const theme of ['dark', 'light'] as const) {
     test(`snímky ${theme}`, async ({ page }) => {
+      test.setTimeout(120_000);
       const shot = (name: string, fullPage = false) =>
         page.screenshot({ path: join(choreShots!, `${name}-${theme}.png`), fullPage });
       await page.setViewportSize({ width: 360, height: 800 });

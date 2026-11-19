@@ -232,7 +232,8 @@ describe('FamilyView upcoming + confirmation', () => {
     await screen.findByTestId('family');
     const dcera = document.querySelector<HTMLElement>('[data-kid="dcera"]')!;
     const up = within(dcera).getByTestId('family-upcoming');
-    expect(up.dataset.compact).toBe('true');
+    expect(up.dataset.compact).toBe('line');
+    expect(up.textContent).toContain('Vyndat myčku (zítra)');
     // Today's list comes first.
     expect(
       dcera.querySelector('.fam-chores')!.compareDocumentPosition(up) &

@@ -418,17 +418,39 @@ function UpcomingList({
   kid,
   now,
   compact,
+  line,
   words,
   highlight,
 }: {
   kid: FamilyKid;
   now: Date;
   compact?: boolean;
+  /** Kiosk: a single summary line. */
+  line?: boolean;
   words?: boolean;
   highlight?: string | null;
 }) {
   const all = kid.upcoming ?? [];
   if (!all.length) return null;
+  // Kiosk: the chores card has a fixed height, so the plan is one line under today's rows.
+  if (line)
+    return (
+      <p
+        className="fam-upcoming fam-upcoming-line"
+        data-testid="family-upcoming"
+        data-compact="line"
+      >
+        <Icon name="calendar" size={14} />
+        <b>Naplánované:</b>{' '}
+        <span>
+          {all
+            .slice(0, UPCOMING_COMPACT)
+            .map((c) => `${c.name} (${upcomingLabel(c.due, now).replace(/\sdo\s.*$/u, '')})`)
+            .join(' · ')}
+          {all.length > UPCOMING_COMPACT ? ` · +${all.length - UPCOMING_COMPACT}` : ''}
+        </span>
+      </p>
+    );
   const rows = compact ? all.slice(0, UPCOMING_COMPACT) : all;
   const more = all.length - rows.length;
   return (
@@ -745,6 +767,7 @@ function KidCard({
           kid={kid}
           now={now}
           compact={compact || self}
+          line={compact}
           words={words}
           highlight={highlight}
         />

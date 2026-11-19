@@ -552,10 +552,17 @@ export const familyStyles = `
 .fam-upcoming ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .fam-upcoming-row { display: grid; grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto; align-items: baseline; gap: 10px; padding: 6px 0; font-size: 14px; color: var(--hb-t2); border-radius: 8px; }
 .fam-upcoming-when { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 13px; }
-.fam-upcoming-name { color: var(--hb-t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fam-upcoming-name { color: var(--hb-t1); min-width: 0; overflow-wrap: anywhere; }
 .fam-upcoming-pts { white-space: nowrap; font-size: 13px; }
 .fam-upcoming-more { margin: 2px 0 0; font-size: 13px; color: var(--hb-t2); }
 .fam-upcoming[data-compact] .fam-upcoming-row { padding: 3px 0; font-size: 13px; }
+.fam-upcoming-line { display: flex; align-items: center; gap: 6px; margin: 0; padding-top: 2px; font-size: 13px; line-height: 18px; border-top: 0; color: var(--hb-t2); white-space: nowrap; min-width: 0; }
+.fam-upcoming-line > svg { flex: none; }
+/* Kiosk: the plan line costs ~20 px per kid; take it back from the gaps between kids. */
+.fam[data-kiosk] .fam-kids:has(.fam-upcoming-line) { gap: 6px; }
+.fam[data-kiosk] .fam-kids:has(.fam-upcoming-line) .fam-kid + .fam-kid { padding-top: 8px; }
+.fam-upcoming-line b { font-weight: 650; flex: none; }
+.fam-upcoming-line > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--hb-t1); }
 .fam-chore[data-highlight], .fam-upcoming-row[data-highlight] { background: color-mix(in srgb, var(--hb-ac) 16%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--hb-ac) 16%, transparent); border-radius: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .fam-chore[data-highlight], .fam-upcoming-row[data-highlight] { transition: background 0.6s, box-shadow 0.6s; }
