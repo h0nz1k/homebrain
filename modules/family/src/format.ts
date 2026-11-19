@@ -115,15 +115,35 @@ export function fmtPoints(points: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1).replace('.', ',');
 }
 
-/** „+3 b.“ for parents and the kiosk; kid-facing views spell it out („+3 body“, „+5 bodů“). */
-export function pointsLabel(points: number | null, opts: { words?: boolean } = {}): string {
+/** One points style in the whole module: „+1 bod“, „+3 body“, „+5 bodů“. */
+export function pointsLabel(points: number | null): string {
   if (points === null) return '';
-  return `+${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
+  return `+${pointsAmount(points)}`;
 }
 
-/** Same unit rule without the sign: „128 b.“ / „128 bodů“. */
-export function pointsAmount(points: number, opts: { words?: boolean } = {}): string {
-  return `${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
+/** Same without the sign: „1 bod“, „128 bodů“, „2,5 bodu“. */
+export function pointsAmount(points: number): string {
+  return `${fmtPoints(points)}\u00a0${pointsWord(points)}`;
+}
+
+/** Does the spoken genitive of `n` start with s/š/z/ž or a hard cluster (dvou, tří, čtyř)? */
+function zeBefore(n: number): boolean {
+  if (n < 10) return [2, 3, 4, 6, 7].includes(n); // dvou, tří, čtyř, šesti, sedmi
+  if (n < 20) return [12, 13, 14, 16, 17].includes(n); // dvanácti … sedmnácti
+  if (n < 100) return zeBefore(Math.floor(n / 10)); // dvaceti, šedesáti, sedmdesáti
+  if (n < 1000) return n < 200 || zeBefore(Math.floor(n / 100)); // sta, dvou set
+  if (n < 1_000_000) return n >= 2000 && zeBefore(Math.floor(n / 1000)); // tisíce, dvou tisíc
+  return false;
+}
+
+/** „ze“ before 2, 3, 4, 6, 7, 12–14, 16, 17, 20…; „z“ before 1, 5, 8, 9, 10, 11, 15… */
+export function outOfPrep(total: number): 'z' | 'ze' {
+  return zeBefore(Math.abs(Math.trunc(total))) ? 'ze' : 'z';
+}
+
+/** „1 ze 3“, „3 z 5“ with no-break spaces so it never wraps. */
+export function formatOutOf(done: number, total: number): string {
+  return `${done}\u00a0${outOfPrep(total)}\u00a0${total}`;
 }
 
 const SPENT_SOURCES = ['Odměny', 'Sankce'];
@@ -234,4 +254,53 @@ export function eventWho(
     if (ids.length && ids.every(Boolean)) return { who: ids as string[], title: m[2]!.trim() };
   }
   return { who: [], title: ev.summary };
+}
+
+/**
+ * Day relative to today, one style everywhere: „dnes“, „zítra“, otherwise a lowercase
+ * weekday + date („ne\u00a030.\u00a011.“) – never a bare weekday.
+ */
+export function dayWord(day: Date, now: Date): string {
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((start(day) - start(now)) / 86_400_000);
+  if (diff === 0) return 'dnes';
+  if (diff === 1) return 'zítra';
+  return `${(DAY[day.getDay()] ?? '').toLowerCase()}\u00a0${czDate(day)}`;
+}
+
+/**
+ * Upcoming chore: day and due time („18:00“) as separate parts. Tomorrow keeps its date
+ * („zítra\u00a0·\u00a0so\u00a020.\u00a011.“) so it never has to be worked out; later days
+ * are „ne\u00a022.\u00a011.“. `short` (kiosk line) drops the date after „zítra“.
+ */
+export function upcomingParts(
+  due: string | null,
+  now: Date,
+  opts: { short?: boolean } = {},
+): { day: string; time: string } {
+  const d = due ? new Date(due) : null;
+  if (!d || Number.isNaN(d.getTime())) return { day: 'později', time: '' };
+  const word = dayWord(d, now);
+  const day =
+    word === 'zítra' && !opts.short
+      ? `zítra\u00a0·\u00a0${(DAY[d.getDay()] ?? '').toLowerCase()}\u00a0${czDate(d)}`
+      : word;
+  return { day, time: timeLabel(due!) };
+}
+
+/** „zítra 18:00“, „ne 30. 11. 17:00“. */
+export function upcomingLabel(due: string | null, now: Date): string {
+  const { day, time } = upcomingParts(due, now, { short: true });
+  return time ? `${day} ${time}` : day;
+}
+
+/**
+ * Default first day of a new chore: today while the due time is still ahead (at least
+ * 15 minutes, so the kid can actually do it), otherwise tomorrow.
+ */
+export function defaultFirstDate(now: Date, dueTime: string): Date {
+  const [h, m] = dueTime.split(':').map(Number);
+  const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h ?? 18, m ?? 0);
+  const today = due.getTime() - now.getTime() >= 15 * 60_000;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + (today ? 0 : 1), 12);
 }

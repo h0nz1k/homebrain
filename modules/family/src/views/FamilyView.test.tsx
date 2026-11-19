@@ -111,9 +111,32 @@ describe('FamilyView', () => {
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
     const pills = screen.getAllByTestId('family-pending-pill');
     expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
-    expect(pills.every((p) => p.textContent?.endsWith('Čeká na schválení'))).toBe(true);
+    const label = (kind: string) => pills.find((p) => p.dataset.pending === kind)!.textContent;
+    expect(label('swap')).toBe('Předání čeká na schválení');
+    expect(label('completion')).toBe('Splnění čeká na schválení');
     expect(screen.getAllByTestId('family-done-summary')[0]!.textContent).toContain('Hotovo: 2');
     expect(screen.queryByTestId('family-approvals')).toBeNull();
+  });
+
+  it('handed-out chore: points struck with „→ name“, not counted twice', async () => {
+    await mount('owner');
+    const out = screen
+      .getAllByTestId('family-chore')
+      .find((li) => li.dataset.swap === 'transferred_out')!;
+    const pts = within(out).getByTestId('family-pts-out');
+    expect(pts.querySelector('s')!.textContent).toBe('+3\u00a0body');
+    expect(pts.textContent).toContain('→\u00a0Syn');
+  });
+
+  it('„⋯“ menu on every actionable row and on no other row', async () => {
+    await mount('owner');
+    for (const li of screen.getAllByTestId('family-chore')) {
+      const actionable =
+        (li.dataset.state === 'todo' || li.dataset.state === 'overdue') &&
+        li.dataset.swap !== 'pending_give' &&
+        li.dataset.swap !== 'transferred_out';
+      expect(!!within(li).queryByTestId('family-chore-menu')).toBe(actionable);
+    }
   });
 
   it('handover tags decline names; done rows carry no extra „Hotovo“ text', async () => {
@@ -126,11 +149,13 @@ describe('FamilyView', () => {
     expect(done.length).toBeGreaterThan(0);
     for (const li of done) expect(li.querySelector('.fam-chore-meta')).toBeNull();
     expect(screen.getByTestId('family-pending-points').textContent).toBe(
-      '+2\u00a0b. čeká na schválení',
+      '+2\u00a0body čekají na schválení',
     );
-    expect(screen.getByTestId('family-pending-swaps').textContent).toBe(
-      'Předání čeká na schválení',
-    );
+    // The handover wait is on its row only, not repeated in the kid header.
+    expect(screen.queryByTestId('family-pending-swaps')).toBeNull();
+    expect(
+      screen.getAllByTestId('family-pending-pill').some((p) => p.textContent?.includes('Předání')),
+    ).toBe(true);
   });
 
   it('child: kid-facing unit spelled out („3 body“), no abbreviations', async () => {

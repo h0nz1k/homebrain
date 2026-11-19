@@ -33,6 +33,15 @@ export interface FamilyChore {
   swap_today?: FamilySwapToday | null;
   counts_today?: boolean;
 }
+/** A chore of a later day (ChoreOps groups `this_week` / `other`): shown, not claimable yet. */
+export interface FamilyUpcomingChore {
+  id: string;
+  name: string;
+  points: number | null;
+  due: string | null;
+  /** ChoreOps `primary_group`. */
+  group: 'this_week' | 'other';
+}
 export interface PointsSummary {
   kid_name: string;
   balance: number | null;
@@ -55,6 +64,8 @@ export interface FamilyKid {
   points_today: number | null;
   points_summary?: PointsSummary;
   chores: FamilyChore[];
+  /** Planned chores of the next days, sorted by due (older backends omit it). */
+  upcoming?: FamilyUpcomingChore[];
 }
 export interface FamilyApproval {
   kind: 'completion' | 'swap';
@@ -102,7 +113,7 @@ export interface FamilySnapshot {
   generated_at: string;
 }
 
-export type Recurrence = 'once' | 'daily' | 'weekly';
+export type Recurrence = 'once' | 'daily' | 'daily_multi' | 'weekly';
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 export interface CreateChoreInput {
@@ -114,6 +125,8 @@ export interface CreateChoreInput {
   weekdays?: Weekday[];
   first_date: string;
   due_time: string;
+  /** `daily_multi`: all due times of the day, ascending („12:00“, „19:00“). */
+  times?: string[];
   icon?: string;
 }
 

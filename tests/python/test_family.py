@@ -504,3 +504,218 @@ def test_swap_create_effect_has_only_choreops_fields():
     )
     assert effect is not None and effect.service == "create_chore"
     assert set(effect.data) <= set(CHOREOPS_CREATE_FIELDS)
+
+
+# --- Rodina „Přidat úkol“ fix: upcoming chores, stable error codes, „Vícekrát denně“ -------
+
+
+def test_upcoming_lists_this_week_and_other_sorted_by_due(hass: HomeAssistant):
+    """A chore due tomorrow (``this_week``) was invisible; now it is in ``upcoming``."""
+    household(hass)
+    hass.states.async_set(
+        "sensor.dcera_choreops_chore_mycka",
+        "pending",
+        {"default_points": 3, "due_date": "2026-06-03T18:00:00+02:00"},
+    )
+    helper = hass.states.get("sensor.dcera_choreops_ui_dashboard_helper")
+    rows = [
+        *helper.attributes["chores"],
+        {
+            "eid": "sensor.dcera_choreops_chore_mycka",
+            "name": "Vyndat myčku",
+            "state": "pending",
+            "primary_group": "this_week",
+        },
+        {
+            "eid": "sensor.dcera_choreops_chore_x",
+            "name": "Hotové",
+            "state": "approved",
+            "primary_group": "this_week",
+        },
+    ]
+    hass.states.async_set(helper.entity_id, helper.state, {**helper.attributes, "chores": rows})
+    kid = model.discover_kids(hass.states.async_all(), {})[0]
+    upcoming = model.kid_upcoming(hass.states.get, kid)
+    # „Umýt okna“ (other, due 2026-06-02T16:00Z) sorts before tomorrow's chore; done rows skip.
+    assert [(u["name"], u["group"]) for u in upcoming] == [
+        ("Umýt okna", "other"),
+        ("Vyndat myčku", "this_week"),
+    ]
+    assert upcoming[1]["due"] == "2026-06-03T18:00:00+02:00" and upcoming[1]["points"] == 3
+    # Today's actionable list is unchanged (claim/swap only work on today's rows).
+    assert "Vyndat myčku" not in [r["name"] for r in model.kid_chores(hass.states.get, kid)]
+    payload = model.kid_payload(hass.states.get, kid, "owner", False)
+    assert [u["name"] for u in payload["upcoming"]] == ["Umýt okna", "Vyndat myčku"]
+
+
+def test_upcoming_is_capped_and_undated_last(hass: HomeAssistant):
+    rows = []
+    for i in range(10):
+        eid = f"sensor.dcera_choreops_chore_u{i}"
+        due = None if i == 0 else f"2026-06-{10 + i:02d}T18:00:00+02:00"
+        hass.states.async_set(eid, "pending", {"default_points": 1, "due_date": due})
+        rows.append({"eid": eid, "name": f"Úkol {i}", "state": "pending", "primary_group": "other"})
+    _kid(hass, "dcera", "Dcera", rows, 1)
+    kid = model.discover_kids(hass.states.async_all(), {})[0]
+    upcoming = model.kid_upcoming(hass.states.get, kid)
+    assert len(upcoming) == model.UPCOMING_LIMIT
+    assert upcoming[0]["name"] == "Úkol 1"
+    assert all(u["due"] for u in upcoming)
+
+
+def _fields(**extra: Any) -> dict[str, Any]:
+    return model.validate_create_chore_fields(
+        {
+            "name": "Myčka horní koš",
+            "points": 2,
+            "assignees": ["dcera"],
+            "recurrence": "once",
+            "first_date": "2026-06-02",
+            "due_time": "18:00",
+            **extra,
+        }
+    )
+
+
+def test_plan_daily_multi_creates_one_daily_chore_per_time():
+    fields = _fields(recurrence="daily_multi", times=["19:00", "08:30"], due_time="19:00")
+    plans = model.plan_create_chores(fields, config_entry_id="cfg", user_names=["Dcera"], now=NOW)
+    # 08:30 already passed at NOW (09:00) → starts tomorrow; 19:00 still today.
+    assert [(p["name"], p["due_date"]) for p in plans] == [
+        ("Myčka horní koš (08:30)", "2026-06-03T08:30:00"),
+        ("Myčka horní koš (19:00)", "2026-06-02T19:00:00"),
+    ]
+    for p in plans:
+        assert p["frequency"] == "daily"
+        assert p["approval_reset_type"] == "at_midnight_once"
+        assert p["assigned_user_names"] == ["Dcera"]
+        assert set(p) <= set(CHOREOPS_CREATE_FIELDS)
+
+
+@pytest.mark.parametrize(
+    "times",
+    [["12:00"], ["12:00", "12:00"], ["1:00", "12:00"], [f"{h:02d}:00" for h in range(7)], None],
+)
+def test_daily_multi_rejects_bad_times(times):
+    with pytest.raises(ValueError):
+        _fields(recurrence="daily_multi", times=times)
+
+
+def test_daily_multi_name_leaves_room_for_the_time_suffix():
+    with pytest.raises(ValueError):
+        _fields(name="x" * 75, recurrence="daily_multi", times=["08:00", "18:00"])
+
+
+def test_plan_once_keeps_manual_reset():
+    (plan,) = model.plan_create_chores(
+        _fields(), config_entry_id="cfg", user_names=["Dcera"], now=NOW
+    )
+    assert plan["frequency"] == "none" and plan["approval_reset_type"] == "manual"
+    assert plan["due_date"] == "2026-06-02T18:00:00"
+
+
+def test_create_error_code_maps_choreops_translation_keys():
+    import voluptuous as vol
+    from homeassistant.exceptions import HomeAssistantError
+
+    def ha(key: str) -> HomeAssistantError:
+        return HomeAssistantError(translation_domain="choreops", translation_key=key)
+
+    assert model.create_error_code(ha("duplicate_chore")) == "duplicate_name"
+    assert model.create_error_code(HomeAssistantError("duplicate_chore")) == "duplicate_name"
+    assert model.create_error_code(ha("due_date_in_past")) == "due_in_past"
+    assert model.create_error_code(ha("error_msg_no_entry_found")) == "not_configured"
+    assert model.create_error_code(vol.Invalid("extra keys not allowed")) == "invalid_input"
+    assert model.create_error_code(RuntimeError("boom")) == "service_failed"
+
+
+def _failing_create_chore(hass: HomeAssistant, recorded: list, fail_on: str | None, key: str):
+    from homeassistant.exceptions import HomeAssistantError
+
+    async def create(call: ServiceCall):
+        if fail_on is None or call.data["name"] == fail_on:
+            raise HomeAssistantError(translation_domain="choreops", translation_key=key)
+        recorded.append(("create", dict(call.data)))
+        return {"id": f"id-{len(recorded)}"}
+
+    async def delete(call: ServiceCall):
+        recorded.append(("delete", dict(call.data)))
+
+    hass.services.async_register(
+        "choreops", "create_chore", create, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register("choreops", "delete_chore", delete)
+    MockConfigEntry(domain="choreops", data={}, entry_id="choreops-entry").add_to_hass(hass)
+
+
+CREATE_MSG = {
+    "type": "homebrain/family/chore/create",
+    "client_request_id": "req-12345678",
+    "name": "Myčka horní koš",
+    "points": 2,
+    "assignees": ["dcera"],
+    "recurrence": "once",
+    "first_date": "2099-06-02",
+    "due_time": "18:00",
+}
+
+
+async def test_create_duplicate_returns_stable_code(hass, entry, hass_ws_client, hass_admin_user):
+    recorded: list = []
+    _failing_create_chore(hass, recorded, None, "duplicate_chore")
+    client = await hass_ws_client(hass)
+    msg = await _ws(client, dict(CREATE_MSG))
+    assert not msg["success"]
+    assert msg["error"]["code"] == "duplicate_name"
+    assert msg["error"]["message"] == "Úkol s tímto názvem už existuje."
+    assert "duplicate_chore" not in msg["error"]["message"]
+
+
+async def test_create_daily_multi_rolls_back_on_later_slot_failure(
+    hass, entry, hass_ws_client, hass_admin_user
+):
+    recorded: list = []
+    _failing_create_chore(hass, recorded, "Myčka horní koš (19:00)", "duplicate_chore")
+    client = await hass_ws_client(hass)
+    msg = await _ws(
+        client,
+        {
+            **CREATE_MSG,
+            "recurrence": "daily_multi",
+            "times": ["12:00", "19:00"],
+            "due_time": "12:00",
+        },
+    )
+    assert msg["error"]["code"] == "duplicate_name"
+    assert recorded == [
+        ("create", recorded[0][1]),
+        ("delete", {"config_entry_id": "choreops-entry", "id": "id-1"}),
+    ]
+    assert recorded[0][1]["name"] == "Myčka horní koš (12:00)"
+
+
+async def test_create_daily_multi_via_strict_schema(hass, entry, hass_ws_client, hass_admin_user):
+    recorded: list[dict[str, Any]] = []
+    _strict_create_chore(hass, recorded)
+    client = await hass_ws_client(hass)
+    msg = await _ws(
+        client,
+        {
+            **CREATE_MSG,
+            "recurrence": "daily_multi",
+            "times": ["12:00", "19:00"],
+            "due_time": "12:00",
+        },
+    )
+    assert msg["success"], msg
+    assert msg["result"]["names"] == ["Myčka horní koš (12:00)", "Myčka horní koš (19:00)"]
+    assert [d["due_date"] for d in recorded] == ["2099-06-02T12:00:00", "2099-06-02T19:00:00"]
+    assert all(d["frequency"] == "daily" for d in recorded)
+
+
+async def test_create_without_choreops_is_not_configured(
+    hass, entry, hass_ws_client, hass_admin_user
+):
+    client = await hass_ws_client(hass)
+    msg = await _ws(client, dict(CREATE_MSG))
+    assert msg["error"]["code"] == "not_configured"
