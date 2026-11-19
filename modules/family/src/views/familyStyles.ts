@@ -293,6 +293,13 @@ export const familyStyles = `
 .fam-points-stats > div { background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); }
 .fam-add-chore input:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
 .fam-partner-avatar { color: white; }
+.fam-chore-detail { border: 0; background: transparent; color: inherit; font: inherit; text-align: start; padding: 0; cursor: pointer; }
+.fam-chore-detail:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 3px; }
+.fam-delete-summary { display: grid; gap: 12px; }
+.fam-delete-slots { display: grid; gap: 8px; border: 1px solid var(--hb-bd); border-radius: 12px; padding: 8px 12px; }
+.fam-delete-slots label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.fam-delete-slots ul { padding-inline-start: 20px; }
+.fam-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fam-menu-list .hb-btn { width: 100%; justify-content: flex-start; }
 
 .fam-check { position: relative; border: 0; background: none !important; }

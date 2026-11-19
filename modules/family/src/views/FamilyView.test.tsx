@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { setFamilyApiFactory } from '../api.js';
+import { toastStore } from '@homebrain/ui';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { setFamilyApiFactory, type FamilyApi } from '../api.js';
 import { createMockFamilyApi } from '../mock.js';
 import type { FamilyRole } from '../types.js';
 import FamilyView from './FamilyView.js';
@@ -16,7 +17,10 @@ async function mount(role: FamilyRole, scenario: 'full' | 'empty' = 'full', kios
   return api;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  toastStore.reset();
+});
 
 describe('FamilyView', () => {
   it('owner: chores of both kids, approve calls the API', async () => {
@@ -128,16 +132,23 @@ describe('FamilyView', () => {
     expect(pts.textContent).toContain('→\u00a0Syn');
   });
 
-  it('„⋯“ menu on every actionable row and on no other row', async () => {
-    await mount('owner');
-    for (const li of screen.getAllByTestId('family-chore')) {
-      const actionable =
-        (li.dataset.state === 'todo' || li.dataset.state === 'overdue') &&
-        li.dataset.swap !== 'pending_give' &&
-        li.dataset.swap !== 'transferred_out';
-      expect(!!within(li).queryByTestId('family-chore-menu')).toBe(actionable);
-    }
-  });
+  it.each(['owner', 'adult', 'child', 'kiosk'] as const)(
+    'chore management menu for %s',
+    async (role) => {
+      await mount(role, 'full', role === 'kiosk');
+      const menus = screen.queryAllByTestId('family-chore-menu');
+      if (role === 'owner' || role === 'adult') {
+        expect(menus).toHaveLength(screen.getAllByTestId('family-chore').length);
+        fireEvent.click(menus[0]!);
+        expect(screen.getByRole('button', { name: 'Smazat jen dnes' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Smazat celou řadu' })).toBeTruthy();
+      } else {
+        expect(menus).toHaveLength(0);
+        expect(screen.queryByRole('button', { name: /Smazat/ })).toBeNull();
+        if (role === 'child') expect(screen.getByTestId('family-chore-give')).toBeTruthy();
+      }
+    },
+  );
 
   it('handover tags decline names; done rows carry no extra „Hotovo“ text', async () => {
     await mount('owner');
@@ -172,5 +183,148 @@ describe('FamilyView', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('Reassign chore', () => {
+  async function openReassign(swapReassign: FamilyApi['swapReassign']) {
+    const mock = createMockFamilyApi({ role: 'owner' });
+    setFamilyApiFactory(() => ({
+      ...mock,
+      swapReassign,
+      swapOptions: async () => ({
+        occurrences: [],
+        partners: [{ id: 'kuba', name: 'Kuba' }],
+      }),
+    }));
+    render(<FamilyView store={store} bindings={{}} />);
+    await screen.findByTestId('family');
+    const row = screen
+      .getAllByTestId('family-chore')
+      .find((item) => item.dataset.swap === 'transferred_in')!;
+    fireEvent.click(within(row).getByTestId('family-chore-menu'));
+    fireEvent.click(screen.getByRole('button', { name: /Přeřadit na dnes/ }));
+    await screen.findByTestId('family-swap-recipient');
+    return screen.getByTestId('family-swap-submit') as HTMLButtonElement;
+  }
+
+  it('keeps the sheet open and surfaces a failed response above the submit button', async () => {
+    let reject!: (error: unknown) => void;
+    const reassign = vi.fn(
+      () =>
+        new Promise<Record<string, unknown>>((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const submit = await openReassign(reassign);
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    expect(submit.disabled).toBe(true);
+    expect(reassign).toHaveBeenCalledTimes(1);
+    await act(async () => reject({ code: 'due_in_past' }));
+    const alert = within(screen.getByTestId('family-swap-sheet')).getByRole('alert');
+    expect(alert.textContent).toBe('Termín úkolu už minul.');
+    expect(alert.nextElementSibling).toBe(submit);
+    expect(submit.disabled).toBe(false);
+  });
+
+  it('closes the sheet and confirms success with the recipient in Czech', async () => {
+    const submit = await openReassign(async () => ({ operation: { status: 'active' } }));
+    await act(async () => fireEvent.click(submit));
+    expect(screen.queryByTestId('family-swap-sheet')).toBeNull();
+    expect(
+      toastStore
+        .getSnapshot()
+        .toasts.some((toast) => toast.message === 'Přeřazeno na Kubu na dnes'),
+    ).toBe(true);
+  });
+});
+
+describe('Delete chore', () => {
+  async function openDelete(
+    deleteChore: FamilyApi['deleteChore'],
+    recurrence: 'daily_multi' | 'once' = 'daily_multi',
+  ) {
+    const api = createMockFamilyApi({ role: 'owner', now: () => new Date(2026, 5, 2, 9) });
+    const firstKid = (await api.get()).kids[0]!;
+    await api.createChore({
+      client_request_id: 'create-12345678',
+      name: 'Zalít záhon',
+      points: 2,
+      assignees: [firstKid.id],
+      recurrence,
+      first_date: '2026-06-02',
+      due_time: '18:00',
+      ...(recurrence === 'daily_multi' && { times: ['12:00', '18:00'] }),
+    });
+    setFamilyApiFactory(() => ({
+      ...api,
+      get: async () => {
+        const snapshot = await api.get();
+        snapshot.kids[0]!.name = 'Ema';
+        for (const row of snapshot.kids[0]!.chores) {
+          if (row.management) {
+            row.management = {
+              ...row.management,
+              assignees: ['Ema'],
+              slots: row.management.slots.map((slot) => ({ ...slot, assignees: ['Ema'] })),
+            };
+          }
+        }
+        return snapshot;
+      },
+      deleteChore,
+    }));
+    render(<FamilyView store={store} bindings={{}} />);
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: recurrence === 'once' ? 'Zalít záhon' : 'Zalít záhon (18:00)',
+      }),
+    );
+    const detail = screen.getByTestId('family-chore-menu-sheet');
+    if (recurrence === 'once') {
+      expect(
+        within(detail).queryByRole('button', { name: /Smazat jen dnes|Smazat celou řadu/ }),
+      ).toBeNull();
+    }
+    fireEvent.click(
+      within(detail).getByRole('button', {
+        name: recurrence === 'once' ? 'Smazat úkol' : 'Smazat celou řadu',
+      }),
+    );
+    return screen.getByTestId('family-delete-chore-sheet');
+  }
+
+  it('confirms the exact slots and preserves the points copy with Cancel focused', async () => {
+    const remove = vi.fn(async () => ({ deleted: 2 }));
+    const sheet = await openDelete(remove);
+    expect(within(sheet).getByText('Ema · 2× denně')).toBeTruthy();
+    expect(within(sheet).getByText('Body, které už za něj někdo dostal, zůstanou.')).toBeTruthy();
+    expect(document.activeElement).toBe(within(sheet).getByRole('button', { name: 'Zrušit' }));
+    expect(
+      (within(sheet).getByRole('radio', { name: 'Jen 18:00' }) as HTMLInputElement).checked,
+    ).toBe(true);
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Smazat všechny časy (2)' }));
+    expect(within(sheet).getByText('Zalít záhon (12:00) · Ema')).toBeTruthy();
+    expect(within(sheet).getByText('Zalít záhon (18:00) · Ema')).toBeTruthy();
+    await act(async () =>
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Smazat řadu' })),
+    );
+    expect(remove).toHaveBeenCalledWith(
+      expect.objectContaining({
+        series_ids: expect.arrayContaining([expect.any(String), expect.any(String)]),
+      }),
+    );
+    expect(screen.queryByTestId('family-delete-chore-sheet')).toBeNull();
+  });
+
+  it('shows only single deletion for one-off chores and keeps its service error inline', async () => {
+    const sheet = await openDelete(async () => {
+      throw { code: 'not_found' };
+    }, 'once');
+    await act(async () =>
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Smazat úkol' })),
+    );
+    expect(within(sheet).getByRole('alert').textContent).toBe('Úkol už není dostupný.');
   });
 });

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Final
 from zoneinfo import ZoneInfo
 
 REQUEST_TERMINAL: Final = frozenset({"rejected", "cancelled", "expired"})
 REQUEST_ACTIVE: Final = frozenset({"pending", "approved"})
 OPERATION_TERMINAL: Final = frozenset(
-    {"completed", "failed", "cleaned", "unclaimed_expired", "needs_repair"}
+    {"completed", "failed", "cleaned", "unclaimed_expired", "needs_repair", "cancelled"}
 )
 
 SWAP_BLOCKED_CRITERIA: Final = frozenset(
@@ -48,6 +48,26 @@ def local_today(now: datetime, tz: ZoneInfo) -> date:
 def day_end_utc(local_day: date, tz: ZoneInfo) -> datetime:
     start = datetime(local_day.year, local_day.month, local_day.day, tzinfo=tz) + timedelta(days=1)
     return start.astimezone(UTC)
+
+
+def clone_due(due: str | None, now: datetime, tz: ZoneInfo) -> str:
+    """Give a swapped occurrence a usable deadline in the household's local day."""
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    if due:
+        try:
+            source = datetime.fromisoformat(due)
+        except ValueError:
+            source = None
+        if source is not None:
+            if source.tzinfo is None:
+                source = source.replace(tzinfo=tz)
+            if source.astimezone(UTC) > now.astimezone(UTC) + timedelta(minutes=15):
+                return due
+    end = datetime.combine(local_today(now, tz), time(23, 59), tz)
+    if end.timestamp() <= now.timestamp():
+        end = end.replace(second=59, microsecond=999999)
+    return end.isoformat()
 
 
 def expires_at(local_day: date, tz: ZoneInfo) -> datetime:
@@ -152,7 +172,6 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
     cfg = str(op.get("config_entry_id") or "")
     token = str(op.get("operation_token") or "")
     if step == "create_intent":
-        due = snap.get("due")
         assignee = op.get("assignee_name")
         points = snap.get("points")
         base = str(snap.get("name") or "Úkol")
@@ -167,7 +186,7 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
                 "points": points,
                 "frequency": "none",
                 "completion_criteria": "independent",
-                "due_date": due,
+                "due_date": op.get("clone_due"),
                 "auto_approve": False,
                 "approval_reset_type": "manual",
                 "pending_claims": "hold_pending",
@@ -180,8 +199,12 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
             "skip_chore_due_date",
             {
                 "config_entry_id": cfg,
-                "chore_id": snap.get("chore_id"),
-                "user_id": op.get("from_kid_name"),
+                **(
+                    {"chore_id": snap["chore_id"]}
+                    if snap.get("chore_id")
+                    else {"chore_name": snap["name"]}
+                ),
+                "user_name": op.get("from_kid_name"),
                 "mark_as_missed": False,
             },
         )

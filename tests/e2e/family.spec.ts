@@ -302,7 +302,7 @@ test.describe('Rodina', () => {
     expect(chores).toBe(presence);
   });
 
-  test('dítě: bez ⋯ u hotových a čekajících úkolů, vidí, kdo se dívá', async ({ page }) => {
+  test('dítě: má akci předání, menu správy nevidí', async ({ page }) => {
     await open(page, '?role=child');
     await expect(page.getByTestId('family-viewer')).toHaveText(/Syn/);
     for (const state of ['done', 'claimed']) {
@@ -315,7 +315,8 @@ test.describe('Rodina', () => {
         ),
       ).toHaveCount(0);
     }
-    const menu = page.getByTestId('family-chore-menu').first();
+    await expect(page.getByTestId('family-chore-menu')).toHaveCount(0);
+    const menu = page.getByTestId('family-chore-give').first();
     const box = await menu.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -870,7 +871,7 @@ test.describe('Rodina – seznam dětí', () => {
     });
   }
 
-  test('předání: body přeškrtnuté s „→ jméno“, různé štítky čekání, ⋯ u každého aktivního', async ({
+  test('předání: body přeškrtnuté s „→ jméno“, různé štítky čekání, rodič má menu správy', async ({
     page,
   }) => {
     await open(page);
@@ -894,15 +895,7 @@ test.describe('Rodina – seznam dětí', () => {
     const rows = page.locator('[data-testid="family-chore"]');
     for (let i = 0; i < (await rows.count()); i += 1) {
       const row = rows.nth(i);
-      const [state, swap] = await row.evaluate((el) => [
-        (el as HTMLElement).dataset.state,
-        (el as HTMLElement).dataset.swap,
-      ]);
-      const actionable =
-        (state === 'todo' || state === 'overdue') &&
-        swap !== 'pending_give' &&
-        swap !== 'transferred_out';
-      await expect(row.getByTestId('family-chore-menu')).toHaveCount(actionable ? 1 : 0);
+      await expect(row.getByTestId('family-chore-menu')).toHaveCount(1);
       // Deadline first in the meta line, the points vertically centred in the row.
       const geo = await row.evaluate((el) => {
         const meta = el.querySelector('.fam-chore-meta');
@@ -1024,4 +1017,59 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
       await shot('phone-child');
     });
   }
+});
+
+test.describe('Rodina – mazání úkolů', () => {
+  async function capture(page: Page, project: string, name: string) {
+    const dir = process.env.HB_FAMILY_DELETE_SHOTS;
+    if (dir && project === 'mobile-s21') await page.screenshot({ path: join(dir, name) });
+  }
+
+  test('jen dnes přesune termín mezi naplánované a Zpět jej obnoví', async ({ page }, info) => {
+    await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+    await open(page);
+    await page.getByTestId('family-add-chore').first().click();
+    const form = page.getByTestId('family-add-chore-sheet');
+    await form.locator('#fam-chore-name').fill('Utřít stůl');
+    await form.getByTestId('family-add-chore-save').click();
+    await expect(form).toHaveCount(0);
+    const today = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
+    await today.getByTestId('family-chore-menu').click();
+    await capture(page, info.project.name, 'skip-today-menu.png');
+    await page.getByRole('button', { name: 'Smazat jen dnes' }).click();
+    const toast = page.getByTestId('hb-toast').filter({ hasText: 'Dnešní termín smazán' });
+    await expect(toast).toBeVisible();
+    await expect(today).toHaveCount(0);
+    await expect(
+      page.getByTestId('family-upcoming-chore').filter({ hasText: 'Utřít stůl' }),
+    ).toBeVisible();
+    await capture(page, info.project.name, 'skip-today-undo.png');
+    await toast.getByRole('button', { name: 'Zpět' }).click();
+    await expect(today).toBeVisible();
+  });
+
+  test('potvrzení celé řady ukáže a smaže všechny vybrané časy', async ({ page }, info) => {
+    await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+    await open(page);
+    await page.getByTestId('family-add-chore').first().click();
+    const form = page.getByTestId('family-add-chore-sheet');
+    await form.locator('#fam-chore-name').fill('Zalít záhon');
+    await form.getByRole('radio', { name: 'Vícekrát' }).click();
+    await form.getByTestId('family-add-chore-save').click();
+    await expect(form).toHaveCount(0);
+    const rows = page.getByTestId('family-chore').filter({ hasText: /^Zalít záhon/ });
+    await expect(rows).toHaveCount(2);
+    await rows.last().getByTestId('family-chore-menu').click();
+    await page.getByRole('button', { name: 'Smazat celou řadu' }).click();
+    const confirm = page.getByTestId('family-delete-chore-sheet');
+    await expect(confirm.getByText('Body, které už za něj někdo dostal, zůstanou.')).toBeVisible();
+    await expect(confirm.getByRole('button', { name: 'Zrušit' })).toBeFocused();
+    await confirm.getByRole('radio', { name: 'Smazat všechny časy (2)' }).check();
+    await expect(confirm.locator('fieldset li')).toHaveCount(2);
+    await capture(page, info.project.name, 'delete-series-confirm.png');
+    await confirm.getByRole('button', { name: 'Smazat řadu' }).click();
+    await expect(rows).toHaveCount(0);
+    await expect(page.getByTestId('hb-toast').filter({ hasText: 'Řada smazána.' })).toBeVisible();
+    await capture(page, info.project.name, 'delete-series-success.png');
+  });
 });

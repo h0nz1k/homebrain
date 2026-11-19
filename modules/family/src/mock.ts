@@ -1,5 +1,6 @@
 import type { FamilyApi } from './api.js';
 import type {
+  ChoreManagement,
   CreateChoreInput,
   FamilyChore,
   FamilyEvent,
@@ -230,15 +231,34 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   };
   const log: unknown[] = [];
   const own = 'syn';
+  const skipped = new Map<string, { kid: FamilyKid; row: FamilyChore }>();
+  const manage = (
+    kid: FamilyKid,
+    row: FamilyChore | FamilyUpcomingChore,
+    today: boolean,
+  ): ChoreManagement => ({
+    id: row.id,
+    one_off: false,
+    assignees: [kid.name],
+    series_name: row.name,
+    slots: [{ id: row.id, name: row.name, time: null, assignees: [kid.name] }],
+    time: null,
+    ...row.management,
+    can_skip: today && row.due != null && !row.management?.one_off,
+  });
   const snapshot = (): FamilySnapshot => {
     const detail = role === 'owner' || role === 'adult';
     const visibleKids = state.kids
       .filter((k) => role !== 'child' || k.id === own)
       .map((k) => ({
         ...k,
-        upcoming: k.upcoming?.map((u) => ({ ...u })),
+        upcoming: k.upcoming?.map((u) => ({
+          ...u,
+          management: detail ? manage(k, u, false) : undefined,
+        })),
         chores: k.chores.map((c) => ({
           ...c,
+          management: detail ? manage(k, c, true) : undefined,
           can_claim:
             (role !== 'child' || k.id === own) &&
             (c.state === 'todo' || c.state === 'overdue') &&
@@ -407,6 +427,46 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       log.push({ kind: 'swapCancel', request_id });
       return { ok: true };
     },
+    skipChoreToday: async (input) => {
+      log.push({ kind: 'skipChoreToday', input });
+      if (role !== 'owner' && role !== 'adult') throw { code: 'unauthorized' };
+      if ('undo_request_id' in input) {
+        const entry = skipped.get(input.undo_request_id);
+        if (!entry) throw { code: 'restore_failed' };
+        entry.kid.upcoming = entry.kid.upcoming?.filter((row) => row.id !== entry.row.id);
+        entry.kid.chores.push(entry.row);
+        skipped.delete(input.undo_request_id);
+        return { ok: true };
+      }
+      const kid = state.kids.find((k) => k.id === input.kid);
+      const row = kid?.chores.find((c) => c.id === input.chore);
+      if (!kid || !row) throw { code: 'not_found' };
+      if (row.due !== input.expected_due) throw { code: 'conflict' };
+      if (row.management?.one_off) throw { code: 'unsupported_chore' };
+      const canUndo = row.state === 'todo' && new Date(input.expected_due) > now();
+      if (canUndo) skipped.set(input.client_request_id, { kid, row });
+      kid.chores = kid.chores.filter((c) => c.id !== row.id);
+      const next = new Date(input.expected_due);
+      next.setDate(next.getDate() + 1);
+      (kid.upcoming ??= []).push({ ...row, due: next.toISOString(), group: groupOf(next, now()) });
+      return { ok: true, can_undo: canUndo };
+    },
+    deleteChore: async (input) => {
+      log.push({ kind: 'deleteChore', input });
+      if (role !== 'owner' && role !== 'adult') throw { code: 'unauthorized' };
+      const ids = new Set(input.series_ids ?? [input.chore]);
+      for (const kid of state.kids) {
+        kid.chores = kid.chores.filter((row) => !ids.has(row.id));
+        kid.upcoming = kid.upcoming?.filter((row) => !ids.has(row.id));
+        for (const row of [...kid.chores, ...(kid.upcoming ?? [])]) {
+          if (row.management) {
+            const slots = row.management.slots.filter((slot) => !ids.has(slot.id));
+            row.management = { ...row.management, slots };
+          }
+        }
+      }
+      return { deleted: ids.size };
+    },
     createChore: async (input) => {
       log.push({ kind: 'createChore', input });
       const taken = new Set(
@@ -419,30 +479,48 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
           code: 'duplicate_name',
         });
       const today = dateOnly(now(), 0);
-      for (const kid of state.kids.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id)))
-        for (const slot of slots) {
-          const id = `sensor.demo_new_${state.seq++}`;
+      const assigned = state.kids.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id));
+      const assignees = assigned.map((kid) => kid.name);
+      const created = slots.map((slot, i) => ({
+        ...slot,
+        id: `sensor.demo_new_${state.seq++}`,
+        time: input.times?.[i] ?? null,
+        assignees,
+      }));
+      for (const kid of assigned) {
+        for (const slot of created) {
+          const management: ChoreManagement = {
+            id: slot.id,
+            one_off: input.recurrence === 'once',
+            can_skip: false,
+            assignees,
+            series_name: input.name,
+            time: slot.time,
+            slots: created,
+          };
+          const row = {
+            id: slot.id,
+            name: slot.name,
+            points: input.points,
+            due: slot.due,
+            management,
+          };
           if (slot.date === today)
             kid.chores.push({
-              id,
-              name: slot.name,
+              ...row,
               state: 'todo',
-              points: input.points,
-              due: slot.due,
               can_claim: false,
               can_approve: false,
-              can_request_swap: true,
+              can_request_swap: !management.one_off,
             });
           else
             (kid.upcoming ??= []).push({
-              id,
-              name: slot.name,
-              points: input.points,
-              due: slot.due,
+              ...row,
               group: groupOf(new Date(slot.due), now()),
             });
-          kid.upcoming?.sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
         }
+        kid.upcoming?.sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
+      }
       return { status: 'created', chore_id: 'demo-new', names: slots.map((s) => s.name) };
     },
     pointsGet: async (kid) => {

@@ -443,7 +443,7 @@ def _strict_create_chore(hass: HomeAssistant, recorded: list[dict[str, Any]]) ->
     async def handler(call: ServiceCall):
         recorded.append(dict(call.data))
         # ChoreOps 1.6 handle_create_chore returns {"id": internal_id}
-        return {"id": "chore-new-1"}
+        return {"id": f"chore-new-{len(recorded)}"}
 
     hass.services.async_register(
         "choreops",
@@ -497,6 +497,7 @@ def test_swap_create_effect_has_only_choreops_fields():
             "status": "applying",
             "config_entry_id": "choreops-entry",
             "operation_token": "op-test",
+            "clone_due": "2026-11-19T18:00:00",
             "assignee_name": "Syn",
             "from_kid_name": "Dcera",
             "source_snapshot": {"name": "Zalít květiny", "points": 2, "due": "2026-11-19T18:00:00"},
@@ -711,6 +712,12 @@ async def test_create_daily_multi_via_strict_schema(hass, entry, hass_ws_client,
     assert msg["result"]["names"] == ["Myčka horní koš (12:00)", "Myčka horní koš (19:00)"]
     assert [d["due_date"] for d in recorded] == ["2099-06-02T12:00:00", "2099-06-02T19:00:00"]
     assert all(d["frequency"] == "daily" for d in recorded)
+    groups = hass.data[DOMAIN]["family_swap"].data["chore_groups"]
+    (group,) = groups.values()
+    assert group == {
+        "config_entry_id": "choreops-entry",
+        "chore_ids": ["chore-new-1", "chore-new-2"],
+    }
 
 
 async def test_create_without_choreops_is_not_configured(
@@ -719,3 +726,349 @@ async def test_create_without_choreops_is_not_configured(
     client = await hass_ws_client(hass)
     msg = await _ws(client, dict(CREATE_MSG))
     assert msg["error"]["code"] == "not_configured"
+
+
+@pytest.mark.parametrize(
+    ("mode", "source_due", "clone_due"),
+    [
+        ("reassign", "2026-06-01T22:43:00+02:00", "2026-06-02T23:59:00+02:00"),
+        ("reassign", "2026-06-02T18:00:00+02:00", "2026-06-02T18:00:00+02:00"),
+        ("decide", "2026-06-01T22:43:00+02:00", "2026-06-02T23:59:00+02:00"),
+        ("failed", "2026-06-01T22:43:00+02:00", "2026-06-02T23:59:00+02:00"),
+    ],
+)
+async def test_swap_choreops_create_and_skip(
+    hass, entry, hass_ws_client, hass_admin_user, monkeypatch, mode, source_due, clone_due
+):
+    import voluptuous as vol
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.util import dt as dt_util
+
+    monkeypatch.setattr(hass.config, "time_zone", "Europe/Prague")
+    monkeypatch.setattr(dt_util, "now", lambda *args: NOW)
+    for slug in ("dcera", "syn"):
+        hass.states.async_remove(f"sensor.{slug}_choreops_ui_dashboard_helper")
+    source = _chore(
+        hass,
+        "ema",
+        "kytky",
+        "Zalít květiny",
+        "overdue" if source_due < NOW.isoformat() else "pending",
+    )
+    hass.states.async_set(
+        source["eid"],
+        source["state"],
+        {"chore_id": "source", "default_points": 2, "due_date": source_due, "frequency": "daily"},
+    )
+    _kid(hass, "ema", "Ema", [source], 0)
+    _kid(hass, "kuba", "Kuba", [], 0)
+    seen = []
+
+    async def create(call):
+        seen.append("create")
+        assert call.data["assigned_user_names"] == ["Kuba"]
+        assert call.data["due_date"] == clone_due
+        assert datetime.fromisoformat(call.data["due_date"]) > NOW
+        if mode == "failed":
+            raise HomeAssistantError(
+                translation_domain="choreops", translation_key="due_date_in_past"
+            )
+        clone = _chore(hass, "kuba", "clone", call.data["name"], "pending")
+        hass.states.async_set(clone["eid"], "pending", {"chore_id": "clone", "due_date": clone_due})
+        _kid(hass, "kuba", "Kuba", [clone], 0)
+        return {"id": "clone"}
+
+    async def skip(call):
+        seen.append("skip")
+        assert call.data == {
+            "config_entry_id": "choreops-entry",
+            "chore_id": "source",
+            "user_name": "Ema",
+            "mark_as_missed": False,
+        }
+        _kid(hass, "ema", "Ema", [{**source, "primary_group": "this_week"}], 0)
+
+    MockConfigEntry(domain="choreops", data={}, entry_id="choreops-entry").add_to_hass(hass)
+    hass.services.async_register(
+        "choreops",
+        "create_chore",
+        create,
+        schema=vol.Schema({vol.Optional(k): object for k in CHOREOPS_CREATE_FIELDS}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register("choreops", "skip_chore_due_date", skip)
+    await _as(hass, entry, hass_admin_user, "adult")
+    client = await hass_ws_client(hass)
+    payload = {
+        "type": "homebrain/family/swap/reassign",
+        "client_request_id": "swap-12345678",
+        "chore": source["eid"],
+        "from_kid": "ema",
+        "to_kid": "kuba",
+        "local_date": "2026-06-02",
+    }
+    if mode == "decide":
+        req = await _ws(client, {**payload, "type": "homebrain/family/swap/request"})
+        assert req["success"], req
+        payload = {
+            "type": "homebrain/family/swap/decide",
+            "request_id": req["result"]["request"]["id"],
+            "decision": "approve",
+        }
+    result = await _ws(client, payload)
+    if mode != "decide":
+        replay = await _ws(client, payload)
+        assert replay["success"] == result["success"]
+        assert replay.get("result") == result.get("result")
+    if mode == "failed":
+        assert not result["success"]
+        assert result["error"]["code"] == replay["error"]["code"] == "due_in_past"
+        assert seen == ["create"]
+        store = hass.data[DOMAIN]["family_swap"]
+        (failed,) = store.data["operations"].values()
+        assert failed["status"] == "failed"
+        assert failed["step"] == "create_intent"
+        return
+    assert result["success"], result
+    assert result["result"]["operation"]["status"] == "active"
+    assert seen == ["create", "skip"]
+    snapshot = (await _ws(client, {"type": "homebrain/family/get"}))["result"]
+    kids = {kid["id"]: kid for kid in snapshot["kids"]}
+    assert kids["ema"]["chores"] == []
+    assert kids["kuba"]["chores"][0]["swap_today"]["kind"] == "transferred_in"
+
+
+@pytest.fixture
+def manageable_chores(hass, monkeypatch):
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.util import dt as dt_util
+
+    monkeypatch.setattr(hass.config, "time_zone", "Europe/Prague")
+    monkeypatch.setattr(dt_util, "now", lambda *args: NOW)
+    for slug in ("dcera", "syn"):
+        hass.states.async_remove(f"sensor.{slug}_choreops_ui_dashboard_helper")
+    config = MockConfigEntry(domain="choreops", data={}, entry_id="choreops-entry")
+    config.add_to_hass(hass)
+    registry = er.async_get(hass)
+    chores = {}
+
+    def add(key, name, frequency, kid="Ema", group="today"):
+        eid = registry.async_get_or_create(
+            "sensor",
+            "choreops",
+            f"{config.entry_id}_{kid.lower()}_{key}_chore_status",
+            config_entry=config,
+            suggested_object_id=f"{kid.lower()}_{key}",
+        ).entity_id
+        due = "2026-06-02T18:00:00+02:00"
+        hass.states.async_set(
+            eid,
+            "pending",
+            {
+                "recurring_frequency": frequency,
+                "assigned_user_names": [kid],
+                "due_date": due,
+                "completion_criteria": "independent",
+            },
+        )
+        chores[key] = {
+            "eid": eid,
+            "name": name,
+            "primary_group": group,
+            "state": "pending",
+            "kid": kid,
+        }
+
+    def refresh():
+        for name in ("Ema", "Kuba"):
+            _kid(
+                hass, name.lower(), name, [row for row in chores.values() if row["kid"] == name], 0
+            )
+
+    add("early", "Zalít záhon (12:00)", "daily")
+    add("late", "Zalít záhon (18:00)", "daily", group="other")
+    add("extraneous", "Zalít záhon (20:00)", "daily", kid="Kuba")
+    add("one", "Vyndat myčku", "none")
+    refresh()
+    return chores, refresh
+
+
+@pytest.mark.parametrize("role", ["child", "kiosk"])
+@pytest.mark.parametrize("action", ["skip_today", "delete"])
+async def test_chore_management_requires_adult(
+    hass, entry, hass_ws_client, hass_admin_user, manageable_chores, role, action
+):
+    chores, _ = manageable_chores
+    await _as(hass, entry, hass_admin_user, role, [{"name": "Ema", "user_id": hass_admin_user.id}])
+    client = await hass_ws_client(hass)
+    result = await _ws(
+        client,
+        {
+            "type": f"homebrain/family/chore/{action}",
+            "client_request_id": "blocked-12345678",
+            "kid": "ema",
+            "chore": chores["early"]["eid"],
+        },
+    )
+    assert result["error"]["code"] == "unauthorized"
+
+
+@pytest.mark.parametrize("mode", ["single", "series", "legacy", "stale"])
+async def test_delete_chore_uses_confirmed_scope_and_cancels_swaps(
+    hass, entry, hass_ws_client, manageable_chores, mode
+):
+    import voluptuous as vol
+
+    chores, refresh = manageable_chores
+    store = hass.data[DOMAIN]["family_swap"]
+    if mode in {"series", "stale"}:
+        store.data["chore_groups"] = {
+            "known": {"config_entry_id": "choreops-entry", "chore_ids": ["early", "late"]},
+        }
+    key = "one" if mode == "single" else "early"
+    eid = chores[key]["eid"]
+    store.upsert_request("pending", {"id": "pending", "source_chore_id": eid, "status": "pending"})
+    store.upsert_operation(
+        "applying",
+        {
+            "source_snapshot": {"chore_id": key},
+            "status": "applying",
+            "config_entry_id": "choreops-entry",
+        },
+    )
+    store.upsert_request(
+        "unrelated",
+        {
+            "id": "unrelated",
+            "source_chore_id": chores["extraneous"]["eid"],
+            "status": "pending",
+        },
+    )
+    deleted = []
+
+    async def delete(call):
+        assert call.data["config_entry_id"] == "choreops-entry"
+        deleted.append(call.data["id"])
+        del chores[call.data["id"]]
+        refresh()
+        return {"id": call.data["id"]}
+
+    hass.services.async_register(
+        "choreops",
+        "delete_chore",
+        delete,
+        schema=vol.Schema({vol.Required("config_entry_id"): str, vol.Required("id"): str}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    client = await hass_ws_client(hass)
+    snapshot = (await _ws(client, {"type": "homebrain/family/get"}))["result"]
+    row = next(c for c in snapshot["kids"][0]["chores"] if c["id"] == eid)
+    assert row["management"]["one_off"] is (mode == "single")
+    if mode != "single":
+        assert [slot["id"] for slot in row["management"]["slots"]] == ["early", "late"]
+    payload = {
+        "type": "homebrain/family/chore/delete",
+        "kid": "ema",
+        "chore": eid,
+        "client_request_id": "delete-12345678",
+    }
+    if mode != "single":
+        payload["series_ids"] = ["early", "extraneous" if mode == "stale" else "late"]
+    result = await _ws(client, payload)
+    replay = await _ws(client, payload)
+    if mode == "stale":
+        assert result["error"]["code"] == replay["error"]["code"] == "conflict"
+        assert not deleted
+        return
+    assert result["success"], result
+    assert replay["result"] == result["result"]
+    assert deleted == (["one"] if mode == "single" else ["early", "late"])
+    assert store.data["requests"]["pending"]["status"] == "cancelled"
+    assert store.data["operations"]["applying"]["status"] == "cancelled"
+    assert store.data["requests"]["unrelated"]["status"] == "pending"
+    assert "extraneous" in chores
+    if mode == "series":
+        assert store.data["chore_groups"] == {}
+
+
+async def test_skip_today_dedupes_and_can_restore_future_occurrence(
+    hass, entry, hass_ws_client, manageable_chores
+):
+    import voluptuous as vol
+
+    chores, refresh = manageable_chores
+    eid = chores["early"]["eid"]
+    original_due = hass.states.get(eid).attributes["due_date"]
+    next_due = "2026-06-03T18:00:00+02:00"
+    calls = []
+
+    def due_change(group, due):
+        chores["early"]["primary_group"] = group
+        state = hass.states.get(eid)
+        hass.states.async_set(eid, state.state, {**state.attributes, "due_date": due})
+        refresh()
+
+    async def skip(call):
+        calls.append(dict(call.data))
+        due_change("this_week", next_due)
+
+    async def restore(call):
+        calls.append(dict(call.data))
+        due_change("today", original_due)
+
+    hass.services.async_register(
+        "choreops",
+        "skip_chore_due_date",
+        skip,
+        schema=vol.Schema(
+            {
+                vol.Required("config_entry_id"): str,
+                vol.Required("chore_id"): str,
+                vol.Required("user_name"): str,
+                vol.Required("mark_as_missed"): bool,
+            }
+        ),
+    )
+    hass.services.async_register(
+        "choreops",
+        "set_chore_due_date",
+        restore,
+        schema=vol.Schema(
+            {
+                vol.Required("config_entry_id"): str,
+                vol.Required("chore_name"): str,
+                vol.Required("user_name"): str,
+                vol.Required("due_date"): str,
+            }
+        ),
+    )
+    client = await hass_ws_client(hass)
+    base = {"type": "homebrain/family/chore/skip_today", "kid": "ema", "chore": eid}
+    payload = {**base, "client_request_id": "skip-12345678", "expected_due": original_due}
+    result = await _ws(client, payload)
+    assert result["result"] == {"ok": True, "can_undo": True}
+    assert (await _ws(client, payload))["result"] == result["result"]
+    assert hass.states.get(eid).attributes["due_date"] == next_due
+    assert calls == [
+        {
+            "config_entry_id": "choreops-entry",
+            "chore_id": "early",
+            "user_name": "Ema",
+            "mark_as_missed": False,
+        }
+    ]
+    restore_result = await _ws(
+        client,
+        {
+            **base,
+            "client_request_id": "undo-12345678",
+            "undo_request_id": "skip-12345678",
+        },
+    )
+    assert restore_result["success"], restore_result
+    assert calls[-1] == {
+        "config_entry_id": "choreops-entry",
+        "chore_name": "Zalít záhon (12:00)",
+        "user_name": "Ema",
+        "due_date": original_due,
+    }

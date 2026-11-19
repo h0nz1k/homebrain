@@ -67,3 +67,18 @@ export function nextDistinctName(name: string, max = 80): string {
   const suffix = ` (${m ? Number(m[2]) + 1 : 2})`;
   return `${base.slice(0, max - suffix.length).trimEnd()}${suffix}`;
 }
+
+const CHORE_MANAGEMENT_ERRORS = new Map([
+  ['not_found', 'Úkol už není dostupný.'],
+  ['not_configured', 'Úkoly nejsou nastavené.'],
+  ['unauthorized', 'Úkoly může mazat jen rodič.'],
+  ['unsupported_chore', 'Dnešní termín tohoto úkolu nelze smazat.'],
+  ['conflict', 'Úkol se mezitím změnil. Otevři jeho akce znovu.'],
+  ['restore_failed', 'Původní termín už nelze obnovit.'],
+  ['partial_delete', 'Některé časy se nepodařilo smazat. Zkontroluj zbývající úkoly.'],
+]);
+
+export function choreManagementError(err: unknown, fallback: string): string {
+  const code = (err as { code?: unknown } | null)?.code;
+  return (typeof code === 'string' && CHORE_MANAGEMENT_ERRORS.get(code)) || fallback;
+}

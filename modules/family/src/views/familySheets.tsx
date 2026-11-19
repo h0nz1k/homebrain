@@ -24,6 +24,7 @@ import { pointsWord } from '../czech.js';
 import { newRequestId } from '../uid.js';
 import {
   CREATE_CHORE_ERRORS,
+  choreManagementError,
   createChoreErrorCode,
   nextDistinctName,
   withTimeout,
@@ -41,6 +42,7 @@ import {
   timeLabel,
 } from '../format.js';
 import type {
+  ChoreManagement,
   CreateChoreInput,
   FamilyApproval,
   FamilyKid,
@@ -1229,6 +1231,14 @@ export function AddChoreSheet({
   );
 }
 
+const SWAP_ERRORS = new Map([
+  ['due_in_past', 'Termín úkolu už minul.'],
+  ['unsupported_chore', 'Tento úkol dnes nelze předat.'],
+  ['not_found', 'Úkol nebo příjemce už není dostupný.'],
+  ['unauthorized', 'K předání úkolu nemáš oprávnění.'],
+  ['not_configured', 'Úkoly nejsou nastavené.'],
+]);
+
 export function SwapSheet({
   api,
   snap,
@@ -1246,12 +1256,14 @@ export function SwapSheet({
   mode: 'give' | 'reassign';
   colors: Record<string, string>;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (targetName: string) => void;
 }) {
   useBackClosable(onClose);
   const [partners, setPartners] = useState<Array<{ id: string; name: string }>>([]);
   const [target, setTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const [error, setError] = useState<string | null>(null);
   const fromKid = snap.kids.find((k) => k.id === kidId);
   const chore = fromKid?.chores.find((c) => c.id === choreId);
   useEffect(() => {
@@ -1265,22 +1277,32 @@ export function SwapSheet({
       .catch(() => undefined);
   }, [api, choreId, fromKid?.kid_uuid, kidId]);
   const submit = async () => {
-    if (!fromKid || !target || !chore) return;
+    const recipient = partners.find((p) => p.id === target);
+    if (!fromKid || !recipient || !chore || submitting.current) return;
+    submitting.current = true;
+    setError(null);
     setBusy(true);
     try {
       const payload = {
         client_request_id: newRequestId(),
         chore: choreId,
         from_kid: fromKid.kid_uuid ?? fromKid.id,
-        to_kid: target,
+        to_kid: recipient.id,
         local_date: localKey(new Date()),
         direction: 'give' as const,
       };
       if (mode === 'reassign') await api.swapReassign(payload);
       else await api.swapRequest(payload);
-      onDone();
+      onDone(recipient.name);
       onClose();
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      setError(
+        (typeof code === 'string' && SWAP_ERRORS.get(code)) ||
+          'Přeřazení se nepovedlo, zkus to znovu.',
+      );
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -1293,16 +1315,23 @@ export function SwapSheet({
       stickyFooter
       closeLabel="Zavřít předání"
       footer={
-        <Button
-          variant="primary"
-          contrast="high"
-          disabled={!target || target === (fromKid?.kid_uuid ?? kidId) || busy}
-          onClick={() => void submit()}
-          data-testid="family-swap-submit"
-          className="fam-cta"
-        >
-          {mode === 'reassign' ? 'Přeřadit' : 'Poslat rodiči ke schválení'}
-        </Button>
+        <>
+          {error && (
+            <p className="fam-field-err" role="alert">
+              {error}
+            </p>
+          )}
+          <Button
+            variant="primary"
+            contrast="high"
+            disabled={!target || target === (fromKid?.kid_uuid ?? kidId) || busy}
+            onClick={() => void submit()}
+            data-testid="family-swap-submit"
+            className="fam-cta"
+          >
+            {mode === 'reassign' ? 'Přeřadit' : 'Poslat rodiči ke schválení'}
+          </Button>
+        </>
       }
       data-testid="family-swap-sheet"
     >
@@ -1422,16 +1451,18 @@ export function useApprovals(snap: FamilySnapshot): FamilyApproval[] {
 }
 
 export function ChoreMenuSheet({
+  title,
   onClose,
   children,
 }: {
+  title: string;
   onClose: () => void;
   children: ReactNode;
 }) {
   useBackClosable(onClose);
   return (
     <Sheet
-      title="Akce úkolu"
+      title={title}
       onClose={onClose}
       appearance="raised"
       isolation="strong"
@@ -1439,6 +1470,113 @@ export function ChoreMenuSheet({
       data-testid="family-chore-menu-sheet"
     >
       {children}
+    </Sheet>
+  );
+}
+
+export function DeleteChoreSheet({
+  chore,
+  onDelete,
+  onClose,
+}: {
+  chore: ChoreManagement;
+  onDelete: (seriesIds?: string[]) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [all, setAll] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const descriptionId = useId();
+  const multi = chore.slots.length > 1;
+  const close = () => {
+    if (!submitting.current) onClose();
+  };
+  useBackClosable(close);
+  const submit = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await onDelete(all ? chore.slots.map((slot) => slot.id) : undefined);
+    } catch (err) {
+      setError(choreManagementError(err, 'Úkol se nepodařilo smazat. Zkus to znovu.'));
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      title={chore.one_off ? 'Smazat úkol' : 'Smazat celou řadu'}
+      onClose={close}
+      appearance="raised"
+      isolation="strong"
+      variant="alert"
+      stickyFooter
+      describedBy={descriptionId}
+      data-testid="family-delete-chore-sheet"
+      footer={
+        <>
+          {error && (
+            <p className="fam-field-err" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="fam-delete-actions">
+            <Button data-autofocus variant="secondary" onClick={close} disabled={busy}>
+              Zrušit
+            </Button>
+            <Button variant="danger" onClick={() => void submit()} disabled={busy}>
+              {chore.one_off ? 'Smazat úkol' : 'Smazat řadu'}
+            </Button>
+          </div>
+        </>
+      }
+    >
+      <div className="fam-delete-summary">
+        <strong>{chore.series_name}</strong>
+        <p className="fam-hint">
+          {chore.assignees.join(', ')}
+          {!chore.one_off &&
+            ` · ${chore.slots.length > 1 ? `${chore.slots.length}× denně` : '1× za termín'}`}
+        </p>
+        {multi && (
+          <fieldset disabled={busy} className="fam-delete-slots">
+            <legend>Které časy smazat?</legend>
+            <label>
+              <input
+                type="radio"
+                name={descriptionId}
+                checked={!all}
+                onChange={() => setAll(false)}
+              />
+              Jen {chore.time ?? chore.slots.find((slot) => slot.id === chore.id)?.name}
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={descriptionId}
+                checked={all}
+                onChange={() => setAll(true)}
+              />
+              Smazat všechny časy ({chore.slots.length})
+            </label>
+            {all && (
+              <ul>
+                {chore.slots.map((slot) => (
+                  <li key={slot.id}>
+                    {slot.name} · {slot.assignees.join(', ')}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </fieldset>
+        )}
+        <p id={descriptionId}>Body, které už za něj někdo dostal, zůstanou.</p>
+      </div>
     </Sheet>
   );
 }
