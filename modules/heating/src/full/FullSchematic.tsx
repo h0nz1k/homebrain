@@ -2,7 +2,7 @@ import { Fragment, useId, useState, type ReactNode } from 'react';
 import { HEATING_LOGO_ROOT, useHeatingLogoManifest } from '../logo.js';
 import type { HeatingSnapshot } from '../types.js';
 import { logoFile, usePageTheme } from '../views/Schematic.js';
-import { fullState, type FullState, type PipeState } from './fullState.js';
+import { fullState, type FullState, type PipeState, type Tri } from './fullState.js';
 import { FULL_GEOMETRY as G } from './geometry.gen.js';
 import {
   Aquarium,
@@ -152,7 +152,10 @@ function Channel({ d, ticks = false }: { d: string; ticks?: boolean }) {
   );
 }
 
-/** House mixing valve: open path A↔AB / B↔AB, fault ring + badge on the body. */
+/**
+ * House mixing valve: open path A↔AB / B↔AB when the position is known, neutral body otherwise
+ * ("poloha –"). Fault ring + badge only for an explicitly mapped fault lamp (`MIXER_FAULT_KEY`).
+ */
 function MixingValve({ st }: { st: FullState }) {
   const [x, y] = G.glyphs.valveMix.c as [number, number];
   const { path, fault } = st.mixer;
@@ -188,10 +191,15 @@ function MixingValve({ st }: { st: FullState }) {
           </>
         )}
         {fault && (
-          <g data-fault-glyph="valve_mix">
+          <g
+            data-fault-glyph="valve_mix"
+            data-testid="heating-full-mix-fault"
+            role="img"
+            aria-label={`Porucha: ${fault.label}`}
+          >
             <circle r="17.5" className="fs-valve-fault-key" />
             <circle r="17.5" className="fs-valve-fault" />
-            <FaultIcon x={12} y={13} s={0.97} />
+            <FaultIcon x={21} y={21} s={0.97} />
           </g>
         )}
       </g>
@@ -394,7 +402,8 @@ function Architecture() {
   const [px, py, pw, ph] = pool;
   const waterTop = py + 16;
   const lw = 84;
-  const lx = pit[0] + pit[2] / 2 - lw / 2 - 50;
+  // manhole lid on the right half: the zone plate sits on the left of the pit edge
+  const lx = pit[0] + pit[2] - lw - 40;
   const [dx, dy, dw, dh] = b.dehumidifier as [number, number, number, number];
   return (
     <g data-layer="architecture">
@@ -463,168 +472,13 @@ function Architecture() {
           />
         );
       })}
-      {(() => {
-        const [x, y, w, h] = G.legend.box as [number, number, number, number];
-        return (
-          <>
-            <rect
-              x={x}
-              y={y}
-              width={w}
-              height={h}
-              rx="12"
-              className="fs-legend-panel"
-              data-legend-panel=""
-            />
-            {G.legend.seams.map((yy) => (
-              <path key={yy} d={`M${x + 16} ${yy}h${w - 32}`} className="fs-partition-seam" />
-            ))}
-          </>
-        );
-      })()}
     </g>
   );
 }
 
-function LegendSample({ item }: { item: (typeof G.legend.items)[number] }) {
-  const [[x1, y], [x2]] = item.sample as [[number, number], [number, number]];
-  const m = (x1 + x2) / 2;
-  const st = item.style;
-  if (item.circuit) {
-    return (
-      <path
-        d={`M${x1} ${y}H${x2}`}
-        className={`${pipeCls(item.circuit, st === 'dashed' ? 'idle' : 'flow')} fs-swatch`}
-      />
-    );
-  }
-  switch (st) {
-    case 'dash_note':
-      return (
-        <>
-          <path d={`M${x1} ${y}H${m}`} className="fs-pipe fs-swatch fs-neutral-pipe" />
-          <path
-            d={`M${m + 4} ${y}H${x2}`}
-            className="fs-pipe fs-swatch fs-s-idle fs-neutral-pipe"
-          />
-        </>
-      );
-    case 'cooling_coll':
-      return <path d={`M${x1} ${y}H${x2}`} className="fs-pipe fs-swatch fs-c-coll fs-s-idle" />;
-    case 'hp':
-      return (
-        <g
-          transform={`translate(${m} ${y}) scale(.6)`}
-          className="fs-comp fs-comp-on"
-          data-legend-symbol="compressor"
-        >
-          <ellipse rx="30" ry="31" className="fs-comp-halo" fill="url(#fs-comp-halo)" />
-          <rect x="-19.5" y="-23.5" width="39" height="47" rx="17" className="fs-comp-body" />
-        </g>
-      );
-    case 'offline':
-      return <path d={`M${x1} ${y}H${x2}`} className="fs-pipe fs-s-off" />;
-    case 'chevron':
-      return (
-        <>
-          <path d={`M${x1} ${y}H${x2}`} className="fs-pipe fs-c-heat_return" />
-          <Chevron x={m} y={y} />
-        </>
-      );
-    case 'mark':
-      return (
-        <>
-          <path d={`M${m} ${y - 11}V${y + 11}`} className="fs-wallband" />
-          <path d={`M${x1} ${y}H${x2}`} className="fs-pipe fs-c-heat_return" />
-          <rect x={m - 4} y={y - 8} width="8" height="16" rx="2.5" className="fs-sleeve" />
-        </>
-      );
-    case 'hop':
-      return (
-        <>
-          <path d={`M${m} ${y - 12}V${y + 12}`} className="fs-pipe fs-c-heat_return" />
-          <path
-            d={`M${m - 8} ${y}A8 8 0 0 1 ${m + 8} ${y}`}
-            className="fs-halo"
-            stroke="var(--fs-bg)"
-          />
-          <path
-            d={`M${x1} ${y}H${m - 8}A8 8 0 0 1 ${m + 8} ${y}H${x2}`}
-            className="fs-pipe fs-c-coll"
-          />
-        </>
-      );
-    case 'badge':
-      return (
-        <>
-          <rect x={m - 8} y={y - 8} width="16" height="16" rx="3" className="fs-badge-derived" />
-          <text x={m} y={y + 5.2} fontSize="15" textAnchor="middle" className="fs-t fs-t-derived">
-            ?
-          </text>
-        </>
-      );
-    case 'pill':
-      return (
-        <>
-          <rect x={x1 - 4} y={y - 11} width={x2 - x1 + 8} height="22" rx="11" className="fs-pill" />
-          <FaultIcon x={m} y={y + 0.5} s={0.9} />
-        </>
-      );
-    case 'open_valve':
-      return (
-        <g transform={`translate(${m} ${y - 3}) scale(.5)`} data-legend-symbol="open_valve">
-          <path d="M-40 0H40" className="fs-pipe fs-neutral-pipe" />
-          <path d="M0 0V30" className="fs-pipe fs-s-closed" />
-          <ValveBody ports={['l', 'r', 'd']} act="u" closed={['d']} bar={false} />
-          <Channel d="M-17 0H17" />
-          <path d="M-7 16H7" className="fs-closed-bar-key" />
-          <path d="M-7 16H7" className="fs-closed-bar" />
-        </g>
-      );
-    case 'ek':
-      return <path d={`M${x1} ${y - 4}H${x2 - 5}a4 4 0 0 1 0 8H${x1}`} className="fs-ek-rod" />;
-    case 'pump':
-      return (
-        <g transform={`translate(${m} ${y}) scale(.6)`}>
-          <circle r="15" className="fs-metal fs-ring" />
-          <circle r="10.5" className="fs-motor" />
-          <path d="M-4.6 -6.2L7.2 0L-4.6 6.2Z" className="fs-tri" />
-        </g>
-      );
-    case 'sensor':
-      return <Sensor c={[m, y]} />;
-    case 'hx':
-      return (
-        <g transform={`translate(${m} ${y}) scale(.24)`} data-legend-symbol="hx">
-          <Phe r={[-33, -45, 66, 90]} />
-        </g>
-      );
-    case 'valve':
-      return (
-        <g transform={`translate(${m} ${y + 5}) scale(.55)`}>
-          <ValveBody ports={['l', 'r']} act="u" />
-        </g>
-      );
-    case 'bypass':
-    case 'ports':
-      return (
-        <g
-          transform={`translate(${m} ${y + (st === 'ports' ? 3 : -3)}) scale(.46)`}
-          data-legend-symbol={st}
-        >
-          <path d="M-40 0H40M0 0V30" className="fs-pipe fs-neutral-pipe" />
-          <ValveBody ports={['l', 'r', 'd']} act="u" />
-          <path d={st === 'ports' ? 'M-40 0H-12' : 'M0 12V30'} className="fs-port-mark" />
-        </g>
-      );
-    default:
-      return null;
-  }
-}
-
 const HP_STATE: Record<string, string> = {
   on: 'kompresor běží',
-  off: 'TČ stojí',
+  off: 'kompresor stojí',
   unknown: 'stav neznámý',
 };
 
@@ -650,32 +504,37 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
   const ordered = [...G.pipes].sort((a, b) => Number(hops.has(a.id)) - Number(hops.has(b.id)));
   const labels = G.labels;
   const codes = snap.service_codes ?? {};
-  const idleCooling = st.coolValve.cooling !== true;
   const colourOf = Object.fromEntries(G.pipes.map((p) => [p.id, p.colour]));
-  const dep = st.compressor !== 'on';
   const [hx, hy, hw] = G.glyphs.hp as [number, number, number];
   const mixC = G.glyphs.valveMix.c as [number, number];
   const coolC = G.glyphs.valves.valve_cool!.c as [number, number];
-  const fault = st.mixer.fault;
-  const pillText = 'Směšovací ventil ÚT · porucha · nouzově otevřen';
-  const pillX = mixC[0] + 46;
-  const pillY = mixC[1] - 39;
-  const pillW = 396.3;
+  // Cooling has no "active" signal in the map (only the enable flag): muted "bez signálu".
   const coolLine =
     st.coolValve.path === 'A'
-      ? 'chlazení · cesta A'
+      ? 'chladí (A)'
       : st.coolValve.path === 'B'
-        ? 'vypnuto · cesta B'
-        : 'stav –';
-  const mixLine = st.mixer.pct === null ? null : `A ${st.readings.mixer_pct}`;
-  const outdoor = snap.outdoor.temp;
-  const [lgx, lgy, , lgh] = G.legend.box as [number, number, number, number];
-  const statusY = lgy + lgh + 34;
+        ? 'nechladí (B)'
+        : 'bez signálu';
+  const mixLine = st.mixer.pct === null ? 'poloha –' : `poloha A ${st.readings.mixer_pct}`;
+  const tankX = (G.glyphs.tank[0]! + G.glyphs.tank[2]! / 2) as number;
 
   const label = (k: string, extra?: ReactNode, extraClass?: string) => {
     const l = labels[k];
     if (!l) return null;
     const code = service && SERVICE_FIELD[k] ? codes[SERVICE_FIELD[k]] : undefined;
+    if (l.zone) return <ZonePlate key={k} k={k} l={l} />;
+    if (l.card && l.of !== 'tank_dhw') {
+      return (
+        <TankCard
+          key={k}
+          k={k}
+          l={l}
+          x={tankX}
+          value={l.reading ? (st.readings[k] ?? null) : undefined}
+          code={code}
+        />
+      );
+    }
     // Cards inside the tank: the code joins the line and the card grows (no free space around).
     const grow = code && l.card ? 64 : 0;
     const tl: GeoLabel = grow ? { ...l, x: l.box[0]! + 18 - grow / 2, anchor: 'start' } : l;
@@ -697,10 +556,7 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
             <Sensor c={l.pipeSensor} />
           </g>
         )}
-        <g
-          opacity={l.compressorDependent && dep ? 0.78 : undefined}
-          data-compressor-dependent={l.compressorDependent ? '' : undefined}
-        >
+        <g data-compressor-dependent={l.compressorDependent ? '' : undefined}>
           <Text l={tl} k={k} extraClass={extraClass}>
             {l.reading ? <Reading value={st.readings[k]} /> : null}
             {extra}
@@ -836,12 +692,6 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
           className="fs-leader"
         />
       ))}
-      {fault && (
-        <path
-          d={`M${mixC[0] + 13.4} ${mixC[1] - 13.4}L${pillX} ${pillY + 14}`}
-          className="fs-leader fs-leader-fault"
-        />
-      )}
       {/* glyphs */}
       <RadiatorPair
         box={G.glyphs.radiators.box}
@@ -856,10 +706,10 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
             <Fan r={r} />
           </g>
         ))}
-        <g data-glyph="ryb_water" className="fs-offline-glyph">
+        <g data-glyph="ryb_water" data-state="off">
           <Aquarium r={G.glyphs.aquarium} />
         </g>
-        <g data-glyph="hx_cool" className={idleCooling ? 'fs-idle-glyph' : undefined}>
+        <g data-glyph="hx_cool">
           <Phe r={G.glyphs.hx} />
         </g>
         <Solar box={G.glyphs.solar.box} legsTo={G.glyphs.solar.legsTo} />
@@ -895,19 +745,13 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
       <HeatPump st={st} logoHref={logoHref} onLogoError={() => setLogoFailed(true)} />
       <MixingValve st={st} />
       <ThreeWay id="valve_dhw" path={st.dhwValve} map={{ AB: 'l', A: 'u', B: 'd' }} />
-      <g className={idleCooling ? 'fs-idle-glyph-soft' : undefined}>
-        <ThreeWay id="valve_cool" path={st.coolValve.path} map={{ AB: 'u', A: 'd', B: 'l' }} />
-      </g>
+      <ThreeWay id="valve_cool" path={st.coolValve.path} map={{ AB: 'u', A: 'd', B: 'l' }} />
       <ZoneValve id="valve_ryb_heat" open={st.fishValve} />
-      <g className="fs-offline-glyph">
+      <g className="fs-offline-glyph" data-state="off">
         <ZoneValve id="valve_ryb_water" open={false} />
       </g>
       {Object.entries(G.glyphs.pumps).map(([k, p]) => (
-        <g
-          key={k}
-          className={`fs-lift${k === 'pump_chlad' && idleCooling ? ' fs-idle-glyph' : ''}`}
-          data-glyph={k}
-        >
+        <g key={k} className="fs-lift" data-glyph={k}>
           <Pump c={p.c} dir={p.dir} on={st.pumps[k] ?? null} id={k} label={PUMP_NAMES[k] ?? k} />
         </g>
       ))}
@@ -963,44 +807,25 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
           data-junction={j.id}
         />
       ))}
-      {G.badges.map((bd) => {
-        const derived = bd.text === '?';
-        return (
-          <g key={bd.of} data-badge-for={bd.of}>
-            {derived ? (
-              <rect
-                x={bd.x - bd.r}
-                y={bd.y - bd.r}
-                width={2 * bd.r}
-                height={2 * bd.r}
-                rx="3"
-                className="fs-badge-derived"
-              />
-            ) : (
-              <circle cx={bd.x} cy={bd.y} r={bd.r} className="fs-badge" />
-            )}
-            <text
-              x={bd.x}
-              y={bd.y + 5.2}
-              fontSize="15"
-              textAnchor="middle"
-              className={`fs-t ${derived ? 'fs-t-derived' : 'fs-t-badge'}`}
-            >
-              {bd.text}
-            </text>
-          </g>
-        );
-      })}
-      {G.legend.items.map((it, i) => (
-        <LegendSample key={i} item={it} />
+      {G.badges.map((bd) => (
+        <g key={bd.of} data-badge-for={bd.of} data-question={bd.text}>
+          <circle cx={bd.x} cy={bd.y} r={bd.r} className="fs-badge" />
+          <text
+            x={bd.x}
+            y={bd.y + 5.2}
+            fontSize="15"
+            textAnchor="middle"
+            className="fs-t fs-t-badge"
+          >
+            {bd.text}
+          </text>
+        </g>
       ))}
       {/* labels */}
       {Object.keys(labels).map((k) => {
         if (k === 'tank_dhw') return null;
         if (k === 'valve_ryb_water' || k === 'ryb_water_state')
           return label(k, undefined, 'fs-t-offline');
-        if (k === 'hx_cool' || k === 'pump_chlad')
-          return label(k, undefined, idleCooling ? 'fs-t-idle' : undefined);
         return label(k);
       })}
       {(() => {
@@ -1038,29 +863,38 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
           </g>
         );
       })()}
-      {/* heat pump header, centred over the cabinet */}
-      <text
-        x={hx + hw / 2}
-        y={hy - 40}
-        fontSize="15"
-        textAnchor="middle"
-        className="fs-t fs-t-T"
-        stroke="var(--fs-tech)"
-        strokeWidth="4"
-        data-label="hp"
-        data-testid="heating-full-hp-state"
-      >
-        {manifest?.model ? `TČ ${manifest.model}` : 'Tepelné čerpadlo'}
-        <tspan
-          className={`fs-t-m${st.compressor === 'on' ? ' fs-hp-run' : ''}`}
-        >{` · ${HP_STATE[st.compressor]}`}</tspan>
-      </text>
-      {service && codes['heat_pump.compressor_on'] && (
+      {/* heat pump nameplate: two lines sitting on the cabinet top */}
+      <g data-label-group="hp">
         <text
           x={hx + hw / 2}
-          y={hy - 19}
+          y={hy - 28}
           fontSize="15"
           textAnchor="middle"
+          className="fs-t fs-t-T"
+          stroke="var(--fs-tech)"
+          strokeWidth="4"
+          data-label="hp"
+        >
+          {manifest?.model ? `TČ ${manifest.model}` : 'Tepelné čerpadlo'}
+        </text>
+        <text
+          x={hx + hw / 2}
+          y={hy - 9}
+          fontSize="15"
+          textAnchor="middle"
+          className={`fs-t ${st.compressor === 'on' ? 'fs-hp-run' : 'fs-t-m'}`}
+          stroke="var(--fs-tech)"
+          strokeWidth="4"
+          data-testid="heating-full-hp-state"
+        >
+          {HP_STATE[st.compressor]}
+        </text>
+      </g>
+      {service && codes['heat_pump.compressor_on'] && (
+        <text
+          x={hx + hw + 10}
+          y={hy - 9}
+          fontSize="15"
           className="fs-t fs-t-code"
           stroke="var(--fs-tech)"
           strokeWidth="4"
@@ -1069,6 +903,31 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
           {codes['heat_pump.compressor_on']}
         </text>
       )}
+      {/* mixing valve: name + position right of the body, below the supply */}
+      <g data-valve-label="valve_mix">
+        <text
+          x={mixC[0] + 34}
+          y={mixC[1] + 27}
+          fontSize="15"
+          className="fs-t fs-t-p"
+          stroke="var(--fs-tech)"
+          strokeWidth="4"
+          data-label="valve_mix"
+        >
+          Směšovací ventil
+        </text>
+        <text
+          x={mixC[0] + 34}
+          y={mixC[1] + 45}
+          fontSize="15"
+          className={`fs-t ${st.mixer.pct === null ? 'fs-nodata' : 'fs-t-m'}`}
+          stroke="var(--fs-tech)"
+          strokeWidth="4"
+          data-testid="heating-full-mix-pct"
+        >
+          {mixLine}
+        </text>
+      </g>
       {/* cooling valve: name + state beside its actuator */}
       <g data-valve-label="valve_cool">
         <text
@@ -1094,72 +953,8 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
           {coolLine}
         </text>
       </g>
-      {mixLine && (
-        <text
-          x={mixC[0] - 30}
-          y={mixC[1] + 38}
-          fontSize="15"
-          textAnchor="end"
-          className="fs-t fs-t-m"
-          stroke="var(--fs-tech)"
-          strokeWidth="4"
-          data-testid="heating-full-mix-pct"
-        >
-          {mixLine}
-        </text>
-      )}
-      {fault && (
-        <g data-testid="heating-full-mix-fault" role="img" aria-label={`Porucha: ${fault.label}`}>
-          <rect x={pillX} y={pillY} width={pillW} height="28" rx="14" className="fs-pill" />
-          <FaultIcon x={pillX + 17} y={pillY + 14.5} />
-          <text x={pillX + 32} y={pillY + 19.5} fontSize="15" className="fs-t fs-t-pill">
-            {pillText}
-          </text>
-        </g>
-      )}
-      {/* live status under the legend (fills the former empty sky) */}
-      <g data-testid="heating-full-status">
-        <text
-          x={lgx + 24}
-          y={statusY}
-          fontSize="15"
-          className="fs-t fs-t-h"
-          stroke="var(--fs-bg)"
-          strokeWidth="4"
-        >
-          STAV
-        </text>
-        {(
-          [
-            [
-              'Venku',
-              outdoor === null
-                ? null
-                : `${outdoor.toLocaleString('cs-CZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}\u202f°C`,
-            ],
-            ['Tepelné čerpadlo', HP_STATE[st.compressor]!],
-            [
-              'Data',
-              st.live ? 'živě z regulace' : snap.source === 'ok' ? 'neaktuální' : 'nedostupná',
-            ],
-          ] as const
-        ).map(([name, value], i) => (
-          <text
-            key={name}
-            x={lgx + 24}
-            y={statusY + 28 + i * 24}
-            fontSize="15"
-            className="fs-t fs-t-s"
-            stroke="var(--fs-bg)"
-            strokeWidth="4"
-          >
-            {name}
-            <tspan x={lgx + 200} className={value ? 'fs-val' : 'fs-nodata'}>
-              {value ?? '–'}
-            </tspan>
-          </text>
-        ))}
-      </g>
+      <FishState st={st} />
+      <PoolCard st={st} />
       {service && (
         <text
           x={G.arch.blockR + 360}
@@ -1205,5 +1000,142 @@ function ServiceCode({
     >
       {code}
     </text>
+  );
+}
+
+/** Text width estimate (Inter, tabular digits) for cards sized before layout. */
+const textW = (text: string, font = 15) => text.length * font * 0.56;
+
+/** Zone title: a plate on the top-left wall edge of its zone (same position for every zone). */
+function ZonePlate({ k, l }: { k: string; l: GeoLabel }) {
+  const [x, y, w] = l.box as [number, number, number];
+  const text = l.lines[0] ?? '';
+  const width = Math.max(w, textW(text)) + 16;
+  return (
+    <g data-label-group={k} data-zone-title="">
+      <rect x={x - 8} y={y - 2} width={width} height="22" rx="4" className="fs-zone-plate" />
+      <text x={x} y={y + 14.5} fontSize="15" className="fs-t fs-t-zone" data-label={k}>
+        {text}
+      </text>
+    </g>
+  );
+}
+
+/** Card inside the tank: centred on the tank axis, sized to its text, never over the wall. */
+function TankCard({
+  k,
+  l,
+  x,
+  value,
+  code,
+}: {
+  k: string;
+  l: GeoLabel;
+  x: number;
+  value: string | null | undefined;
+  code: string | undefined;
+}) {
+  const name = (l.lines[0] ?? '').replace(/^T /u, '');
+  const shown = k === 'ek' ? 'Elektrický dohřev' : name;
+  const val = value === undefined ? '' : `\u00a0\u00a0${value ?? '–'}`;
+  const tail = code ? ` · ${code}` : '';
+  const sensor = l.sensor ? 20 : 0;
+  const w = sensor + textW(shown + val + tail) + 16;
+  const left = x - w / 2;
+  const cy = l.box[1]! + l.box[3]! / 2;
+  return (
+    <g data-label-group={k} data-tank-card="">
+      <rect x={left} y={cy - 12} width={w} height="24" rx="6" className="fs-card" />
+      {l.sensor && <Sensor c={[left + 15, cy]} />}
+      <text
+        x={left + 8 + sensor}
+        y={cy + 5.3}
+        fontSize="15"
+        className="fs-t fs-tank-detail"
+        data-label={k}
+      >
+        {shown}
+        {value !== undefined &&
+          (value ? (
+            <tspan className="fs-val-card" data-reading="">
+              {val}
+            </tspan>
+          ) : (
+            <tspan className="fs-nodata-card" data-reading="none">
+              {val}
+            </tspan>
+          ))}
+        {code && (
+          <tspan className="fs-t-code" data-service-code={k}>
+            {tail}
+          </tspan>
+        )}
+      </text>
+    </g>
+  );
+}
+
+const RUN: Record<string, string> = { true: 'běží', false: 'stojí', null: '–' };
+
+/** Rybárna: tempering state from the valve to heating + heating-enabled flag + temperatures. */
+function FishState({ st }: { st: FullState }) {
+  if (!st.fish) return null;
+  const l = G.labels.chip_fish;
+  if (!l) return null;
+  return (
+    <text
+      x={l.x}
+      y={l.y + 22}
+      fontSize="15"
+      className={`fs-t ${st.fish.label === 'stav –' ? 'fs-nodata' : 'fs-t-s'}`}
+      stroke="var(--fs-room)"
+      strokeWidth="4"
+      data-testid="heating-full-fish-state"
+      data-active={String(st.fish.active)}
+    >
+      {st.fish.label}
+    </text>
+  );
+}
+
+/** Pool card inside the basin: return temperature, floor-heating pump, filtration pump. */
+function PoolCard({ st }: { st: FullState }) {
+  const [px, py, pw] = G.glyphs.pool as [number, number, number];
+  const x = px + 14;
+  const w = pw - 28;
+  const y = py + 30;
+  const p = st.pool;
+  const rows: Array<[string, string | null, Tri | 'temp']> = [
+    ['Zpátečka ohřevu', p?.temp ?? null, 'temp'],
+    ['Ohřev dna', p ? RUN[String(p.heating)]! : null, p?.heating ?? null],
+    ['Filtrace', p ? RUN[String(p.filter)]! : null, p?.filter ?? null],
+  ];
+  return (
+    <g data-testid="heating-full-pool-card" data-label-group="pool">
+      <rect x={x} y={y} width={w} height="104" rx="8" className="fs-card fs-card-edge" />
+      <text x={x + 12} y={y + 22} fontSize="15" className="fs-t fs-t-w" data-label="pool">
+        Bazén
+      </text>
+      {rows.map(([name, value, kind], i) => (
+        <text
+          key={name}
+          x={x + 12}
+          y={y + 46 + i * 22}
+          fontSize="15"
+          className="fs-t fs-tank-detail"
+          data-pool-row={name}
+        >
+          {name}
+          <tspan
+            x={x + w - 12}
+            textAnchor="end"
+            className={value && value !== '–' ? 'fs-val-card' : 'fs-nodata-card'}
+            data-state={kind === 'temp' ? undefined : String(kind)}
+          >
+            {value ?? '–'}
+          </tspan>
+        </text>
+      ))}
+    </g>
   );
 }

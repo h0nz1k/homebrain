@@ -218,6 +218,11 @@ export function Aquarium({ r }: { r: readonly number[] }) {
     <g className="fs-aquarium">
       <rect x={x} y={y} width={w} height={h} rx="6" className="fs-glass" />
       <path d={`M${x + 4} ${y + 14}H${x + w - 4}V${y + h - 4}H${x + 4}Z`} className="fs-aq-water" />
+      {/* out of service: power-off mark, same grey as the dotted pipes of the legend */}
+      <g transform={`translate(${x + w / 2} ${y + h / 2 + 5})`} data-off-mark="">
+        <path d="M-6.4 -6.4A9 9 0 1 0 6.4 -6.4" className="fs-off-mark" />
+        <path d="M0 -11V-1" className="fs-off-mark" />
+      </g>
     </g>
   );
 }

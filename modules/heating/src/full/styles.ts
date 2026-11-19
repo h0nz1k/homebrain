@@ -52,6 +52,9 @@ const DARK = {
   t3: '#b6c0cc',
   muted: '#b3bdc8',
   inactive: '#8e9692',
+  'off-fill': '#262c33',
+  plate: '#2a3139',
+  'card-edge': '#5a6573',
   'warn-s': '#8b281e',
   'warn-ink': '#ffffff',
   'warn-key': '#1a2027',
@@ -105,7 +108,10 @@ const LIGHT = {
   t2: '#323d49',
   t3: '#353c46',
   muted: '#3b424b',
-  inactive: '#333333',
+  inactive: '#59636e',
+  'off-fill': '#f3f5f7',
+  plate: '#ffffff',
+  'card-edge': '#9aa5b1',
   'warn-s': '#fff3cc',
   'warn-ink': '#3a2900',
   'warn-key': '#3a2900',
@@ -145,6 +151,9 @@ const LIGHT = {
   ...FS_PALETTE.light,
 };
 
+/** Theme variables (exported for the contrast test). */
+export const FS_THEME = { dark: DARK, light: LIGHT } as const;
+
 const COLOURS = [
   'heat_supply',
   'heat_return',
@@ -165,13 +174,12 @@ export const fullSchematicStyles = `
 .ht-fs .fs-bg { fill:var(--fs-bg); }
 .ht-fs .fs-pipe { fill:none; stroke-width:5; stroke-linecap:round; stroke-linejoin:round; }
 ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}{fill:var(--fs-${c})}`).join('\n')}
-.ht-fs .fs-s-still { stroke-opacity:.7; }
-.ht-fs .fs-s-unknown { stroke-opacity:.5; stroke-dasharray:14 5; stroke-linecap:butt; }
-.ht-fs .fs-s-idle { stroke-dasharray:10 7; stroke-linecap:butt; stroke-opacity:var(--fs-idle-op); stroke-width:4.2; }
-.ht-fs .fs-s-idle.fs-c-cool { stroke:var(--fs-cool-idle); stroke-opacity:var(--fs-idle-op2); }
-.ht-fs .fs-s-idle.fs-c-coll { stroke:var(--fs-coll-idle); stroke-opacity:var(--fs-idle-op2); }
-.ht-fs .fs-s-closed { stroke:var(--fs-neutral) !important; stroke-dasharray:7 6; stroke-linecap:butt; stroke-opacity:1; }
-.ht-fs .fs-s-off { stroke:var(--fs-inactive) !important; stroke-dasharray:3 9; stroke-linecap:round; }
+/* One encoding per state (legend "Stavy potrubí"): flow = colour + chevrons, still = colour,
+   idle = colour dashed (the only dash), unknown = faded colour, closed = grey, off = grey dots. */
+.ht-fs .fs-s-unknown { stroke-opacity:.4; }
+.ht-fs .fs-s-idle { stroke-dasharray:12 8; stroke-linecap:butt; }
+.ht-fs .fs-s-closed { stroke:var(--fs-neutral) !important; stroke-opacity:1; }
+.ht-fs .fs-s-off { stroke:var(--fs-inactive) !important; stroke-dasharray:.5 9; stroke-linecap:round; stroke-width:5.5; }
 .ht-fs .fs-bridge-arc { stroke-dasharray:none; stroke-linecap:butt; }
 .ht-fs .fs-coil { stroke-width:4; }
 .ht-fs .fs-swatch { stroke-width:7; }
@@ -195,7 +203,7 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-tri { fill:#f4f6f8; }
 .ht-fs .fs-pump-on .fs-ring { stroke:#5fd38d; stroke-width:2.2; }
 .ht-fs .fs-pump-off .fs-tri { fill:#9aa4ae; }
-.ht-fs .fs-pump-unknown .fs-ring { stroke-dasharray:3 3; }
+.ht-fs .fs-pump-unknown .fs-ring { stroke:var(--fs-neutral); stroke-width:1.6; }
 .ht-fs .fs-pump-unknown .fs-tri { fill:none; stroke:#c3cad1; stroke-width:1.4; }
 .ht-fs .fs-sensor-ring { fill:var(--fs-tech); stroke:var(--fs-t1); stroke-width:2; }
 .ht-fs .fs-sensor-core { fill:var(--fs-t1); }
@@ -205,8 +213,9 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-hub { fill:#d5dbe0; }
 .ht-fs .fs-hx-body { fill:#586775; stroke:#a8b4be; stroke-width:1.2; }
 .ht-fs .fs-hx-plates { stroke:#b4bec3; stroke-width:1.3; opacity:.85; fill:none; }
-.ht-fs .fs-glass { fill:none; stroke:var(--fs-inactive); stroke-width:2; stroke-dasharray:4 6; }
-.ht-fs .fs-aq-water { fill:var(--fs-inactive); opacity:.22; }
+.ht-fs .fs-glass { fill:var(--fs-off-fill); stroke:var(--fs-inactive); stroke-width:2.5; stroke-dasharray:.5 7; stroke-linecap:round; }
+.ht-fs .fs-aq-water { fill:var(--fs-inactive); opacity:.35; }
+.ht-fs .fs-off-mark { fill:none; stroke:var(--fs-inactive); stroke-width:3; stroke-linecap:round; }
 .ht-fs .fs-ceramic { fill:var(--fs-ceramic); stroke:var(--fs-fin); stroke-width:1; }
 .ht-fs .fs-fin { fill:var(--fs-fin); }
 .ht-fs .fs-solar-panel { fill:var(--fs-solar-fill); stroke:var(--fs-solar-edge); stroke-width:1.6; }
@@ -278,7 +287,9 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-idle-glyph { opacity:calc(var(--fs-idle-op) + .1); }
 .ht-fs .fs-idle-glyph-soft { opacity:.92; }
 .ht-fs .fs-offline-glyph { opacity:var(--fs-off-op); filter:grayscale(1); }
-.ht-fs .fs-card { fill:var(--fs-card); }
+.ht-fs .fs-card { fill:var(--fs-card); stroke:var(--fs-card-edge); stroke-width:1.2; }
+.ht-fs .fs-zone-plate { fill:var(--fs-plate); stroke:var(--fs-wallc); stroke-width:1.5; }
+.ht-fs .fs-t-zone { fill:var(--fs-t1); font-weight:700; letter-spacing:.04em; }
 /* Heat pump: production .ht-c3-hp colours (styles.ts), scaled into the p3i box. */
 .ht-fs .fs-hp-cabinet { fill:color-mix(in srgb, var(--hb-s2, #252b33) 70%, #7b858f); stroke:#78828c; stroke-width:2.2; }
 .ht-fs .fs-hp-foot { fill:none; stroke:#5d6873; stroke-linecap:butt; }
@@ -301,20 +312,20 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 /* Text */
 .ht-fs .fs-t-p { fill:var(--fs-t1); font-weight:500; }
 .ht-fs .fs-t-s { fill:var(--fs-t2); font-weight:400; }
-.ht-fs .fs-t-m { fill:var(--fs-muted); font-weight:400; }
+.ht-fs .fs-t-m { fill:var(--fs-muted); font-weight:500; }
 .ht-fs .fs-t-k { fill:var(--fs-t3); font-weight:500; }
 .ht-fs .fs-t-c, .ht-fs .fs-t-h { fill:var(--fs-t3); font-weight:600; }
 .ht-fs .fs-t-T { fill:var(--fs-t1); font-weight:600; }
 .ht-fs .fs-t-w, .ht-fs .fs-tank-detail { fill:var(--fs-card-ink); font-weight:500; }
 .ht-fs .fs-t-pill { fill:var(--fs-warn-ink); font-weight:600; }
-.ht-fs .fs-t-badge { fill:#fff; font-weight:600; stroke:none; }
+.ht-fs .fs-t-badge { fill:#fff; font-weight:700; stroke:none; }
 .ht-fs .fs-t-derived { fill:var(--fs-t1); font-weight:600; }
 .ht-fs .fs-t-code { fill:var(--fs-t3); font-weight:500; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
-.ht-fs .fs-t-idle, .ht-fs .fs-t-offline { fill:var(--fs-muted); font-weight:400; }
+.ht-fs .fs-t-offline { fill:var(--fs-muted); font-weight:500; }
 .ht-fs .fs-val { fill:var(--fs-t1); font-weight:600; }
 .ht-fs .fs-tank-detail .fs-val, .ht-fs .fs-val-card { fill:var(--fs-card-ink); font-weight:600; }
-.ht-fs .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-muted); font-style:italic; font-weight:400; }
-.ht-fs .fs-tank-detail .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-card-ink); opacity:.8; }
+.ht-fs .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-muted); font-style:italic; font-weight:500; }
+.ht-fs .fs-tank-detail .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-card-ink); }
 @media (prefers-reduced-motion: reduce) {
   .ht-fs .fs-flow-anim { display:none; }
   .ht-fs .fs-comp-halo, .ht-fs .fs-hp-led-on[data-pulse] { animation:none; }

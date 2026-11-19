@@ -5,12 +5,13 @@ import { FULL_GEOMETRY as G } from './geometry.gen.js';
 import { FS_PALETTE } from './styles.js';
 
 const MODULE = join(import.meta.dirname, '../..');
+const BACKEND = join(MODULE, '../../custom_components/homebrain/heating');
 // Built from parts so this file does not contain the words it forbids.
 const TERM = new RegExp(`${'sol'}${'ank'}|${'br'}${'ine'}`, 'i');
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
-    if (name === 'node_modules' || name === 'dist') return [];
+    if (name === 'node_modules' || name === 'dist' || name === '__pycache__') return [];
     const p = join(dir, name);
     return statSync(p).isDirectory() ? files(p) : [p];
   });
@@ -22,6 +23,22 @@ describe('owner rules', () => {
     expect(hits).toEqual([]);
   });
 
+  it('the backend names it only in the alias/migration table (exactly two lines)', () => {
+    const alias = (dir: 'in' | 'out') =>
+      `    "heat_pump.${'br'}${'ine'}_${dir}": "heat_pump.collector_${dir}",`;
+    const allowed = new Set([`legacy.py:${alias('in')}`, `legacy.py:${alias('out')}`]);
+    const hits = files(BACKEND).flatMap((f) => {
+      const name = f.slice(BACKEND.length + 1);
+      if (TERM.test(name)) return [name];
+      return readFileSync(f, 'utf8')
+        .split('\n')
+        .filter((line) => TERM.test(line))
+        .map((line) => `${name}:${line}`);
+    });
+    expect(hits.filter((h) => !allowed.has(h))).toEqual([]);
+    expect(hits.sort()).toEqual([...allowed].sort());
+  });
+
   it('frozen geometry carries no PLC register codes (public repo)', () => {
     const text = JSON.stringify(G);
     expect(text).not.toMatch(/\b[XYR]\d{1,4}(\.\d+)?\b/u);
@@ -31,8 +48,8 @@ describe('owner rules', () => {
   it('keeps the p3i hydraulics: 55 pipes, 2 declared bridges, the on-site questions', () => {
     expect(G.pipes).toHaveLength(55);
     expect(G.bridges.map((b) => b.over).sort()).toEqual(['jbr_to_ground', 'jbyp_to_mix']);
-    expect(G.questions.map((q) => q.id)).toEqual(['?1', '?2', '?3']);
-    expect(G.badges.map((b) => b.text).sort()).toEqual(['?', '?', '?', '?1', '?2', '?3']);
+    expect(G.questions.map((q) => q.id)).toEqual(['?1', '?2', '?3', '?4']);
+    expect(G.badges.map((b) => b.text).sort()).toEqual(['?1', '?2', '?2', '?3', '?4', '?4']);
     // the mixer B leg meets the cooling valve B leg and the exchanger at ONE junction (tee) …
     const jbyp = G.junctions.find((j) => j.id === 'j_byp')!;
     const atJbyp = G.pipes.filter((p) => [p.from, p.to].some((e) => e.startsWith('j_byp.')));

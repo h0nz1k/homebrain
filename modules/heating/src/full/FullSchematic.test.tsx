@@ -33,10 +33,20 @@ describe('FullSchematic (live data)', () => {
     expect(out.querySelector('[data-reading=""]')?.textContent).toMatch(/46,0\s?°C/u);
   });
 
-  it('mixer fault: ring + badge on the valve body, pill and A→AB open path, B leg grey', () => {
+  it('default data: mixing valve neutral ("poloha –"), no fault ring, no fault text', () => {
+    render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
+    const valve = document.querySelector('[data-glyph="valve_mix"]')!;
+    expect(valve.getAttribute('data-path')).toBe('unknown');
+    expect(valve.querySelector('[data-fault-glyph]')).toBeNull();
+    expect(screen.getByTestId('heating-full-mix-pct').textContent).toBe('poloha –');
+    expect(document.querySelector('svg')!.textContent).not.toMatch(/porucha|nouzov/iu);
+  });
+
+  it('fault fixture (explicit key): ring + badge on the valve body, no callout pill', () => {
+    const base = buildMockSnapshot('house', 0, NOW);
     render(
       <FullSchematic
-        snap={withMixerFault(buildMockSnapshot('house', 0, NOW), NOW)}
+        snap={withMixerFault({ ...base, house: { ...base.house, mixing_valve_pct: 100 } }, NOW)}
         theme="light"
       />,
     );
@@ -45,11 +55,37 @@ describe('FullSchematic (live data)', () => {
     expect(valve.getAttribute('data-path')).toBe('A');
     expect(valve.querySelector('[data-fault-glyph]')).not.toBeNull();
     expect(valve.querySelector('[data-open-path]')).not.toBeNull();
+    expect(document.querySelector('.fs-pill')).toBeNull();
     expect(
       document.querySelector('path[data-route="jbyp_to_mix"]')?.getAttribute('data-state'),
     ).toBe('closed');
     expect(document.querySelector('[data-junction="j_byp"]')).not.toBeNull();
     expect(document.querySelector('[data-bridge="jbyp_to_mix"]')).not.toBeNull();
+  });
+
+  it('rybárna shows its tempering state; fish water drawn as off (power mark), not empty', () => {
+    render(<FullSchematic snap={buildMockSnapshot('idle', 0, NOW)} theme="dark" />);
+    expect(screen.getByTestId('heating-full-fish-state').textContent).toBe('netopí – teplo stačí');
+    expect(
+      document.querySelector('[data-glyph="ryb_water"][data-state="off"] [data-off-mark]'),
+    ).not.toBeNull();
+    expect(screen.getByTestId('heating-full-cool-state').textContent).toBe('bez signálu');
+  });
+
+  it('pool card: return temperature, floor heating and filtration pumps', () => {
+    render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
+    const card = screen.getByTestId('heating-full-pool-card');
+    expect(card.textContent).toContain('Bazén');
+    expect(card.textContent).toMatch(/Zpátečka ohřevu27,9\u00a0°C/u);
+    expect(card.textContent).toContain('Ohřev dnastojí');
+    expect(card.textContent).toContain('Filtracestojí');
+  });
+
+  it('tank says just AKN; zone titles are plates', () => {
+    render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
+    expect(document.querySelector('[data-label="tank"]')?.textContent).toBe('AKN');
+    expect(document.querySelector('svg')!.textContent).not.toContain('akumulační');
+    expect(document.querySelectorAll('[data-zone-title]').length).toBe(7);
   });
 
   it('no PLC codes in the normal view; service view shows the addresses of the private map', () => {
@@ -79,18 +115,16 @@ describe('FullSchematic (live data)', () => {
     const cut = hp.querySelector('.fs-hp-cutaway')!;
     expect(Number(cut.getAttribute('height')) / h).toBeCloseTo(29 / 88, 3);
     expect(hp.querySelector('.fs-comp-off')).not.toBeNull();
-    expect(screen.getByTestId('heating-full-hp-state').textContent).toContain('TČ stojí');
+    expect(screen.getByTestId('heating-full-hp-state').textContent).toBe('kompresor stojí');
   });
 
-  it('keeps the on-site questions visible as ? markers and in the legend', () => {
+  it('keeps the on-site questions visible as one numbered marker system', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
     const badges = Array.from(
       document.querySelectorAll('[data-badge-for] text'),
       (el) => el.textContent,
     );
-    expect(badges).toEqual(expect.arrayContaining(['?1', '?2', '?3', '?']));
-    const text = document.querySelector('svg')!.textContent!;
-    expect(text).toContain('OVĚŘIT NA MÍSTĚ');
-    expect(text).toContain('Zemní kolektor');
+    expect([...new Set(badges)].sort()).toEqual(['?1', '?2', '?3', '?4']);
+    expect(document.querySelectorAll('[data-badge-for] rect')).toHaveLength(0);
   });
 });

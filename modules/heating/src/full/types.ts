@@ -36,6 +36,8 @@ export interface GeoLabel {
   compressorDependent?: boolean;
   /** The first line is followed by a live reading (°C). */
   reading?: boolean;
+  /** Zone title, drawn as a plate on the top-left wall edge of its zone. */
+  zone?: boolean;
 }
 
 export interface FullGeometry {
@@ -104,10 +106,5 @@ export interface FullGeometry {
   labels: Record<string, GeoLabel>;
   badges: Array<{ of: string; text: string; x: number; y: number; r: number }>;
   leaders: Array<{ of: string; pts: number[][] }>;
-  legend: {
-    box: number[];
-    seams: number[];
-    items: Array<{ circuit: string | null; style: string; sample: number[][] }>;
-  };
   questions: Array<{ id: string; text: string }>;
 }

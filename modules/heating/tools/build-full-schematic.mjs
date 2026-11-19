@@ -7,7 +7,7 @@
  *   node modules/heating/tools/build-full-schematic.mjs <p3i>/layout.json <p3i>/topology.json
  *
  * What is copied: canvas, rooms, walls, pipe routes (with p3i stubs, rounded corners and bridge
- * hops), flow chevrons, junctions, fittings, glyph anchors, labels, '?' badges and the legend.
+ * hops), flow chevrons, junctions, fittings, glyph anchors, labels and the on-site question badges (the legend is HTML).
  * What is NOT copied (public repo): PLC register codes (service labels come from the live
  * backend map instead), the heat-pump model name and every embedded logo. Hydraulics are
  * unchanged; label moves that fix the p3i review are listed in LABEL_FIXES below.
@@ -231,7 +231,16 @@ const glyphs = {
 
 // ---------------------------------------------------------------- labels
 /** Labels the app renders itself (live state) or drops (public repo / sheet title). */
-const DROP = new Set(['hp', 'hp_state', 'status_valve_mix', 'caption', 'valve_cool']);
+const DROP = new Set([
+  'hp',
+  'hp_state',
+  'status_valve_mix',
+  'caption',
+  'valve_cool',
+  // r2: the pool card (live temperature + pumps) names the basin and its floor heating
+  'pool',
+  'pool_floor_label',
+]);
 /**
  * p3i review fixes (LANA 2026-11-18 18:59): port letters at the port ends, labels attached to
  * their glyph. Values are [dx, dy] relative to the glyph centre, box = text box at font 14.
@@ -240,19 +249,36 @@ const mix = glyphs.valveMix.c;
 const cool = glyphs.valves.valve_cool.c;
 const LABEL_FIXES = {
   // Y67: AB above the outlet (left) flange end, A below the tank (right) leg, B left of the B leg.
-  port_valve_mix_AB: { x: mix[0] - 24, y: mix[1] - 26, anchor: 'end' },
-  port_valve_mix_A: { x: mix[0] + 24, y: mix[1] + 10, anchor: 'start' },
-  port_valve_mix_B: { x: mix[0] - 12, y: mix[1] + 22, anchor: 'end' },
-  // Cooling valve: each letter beside the end of its own leg (AB top, B left, A bottom).
-  port_valve_cool_AB: { x: cool[0] + 10, y: cool[1] - 34, anchor: 'start' },
-  port_valve_cool_B: { x: cool[0] - 18, y: cool[1] - 24, anchor: 'end' },
-  port_valve_cool_A: { x: cool[0] + 10, y: cool[1] + 14, anchor: 'start' },
+  // r2: AB above the outlet leg, A above the tank leg, B beside the bypass leg (no value nearby).
+  port_valve_mix_AB: { x: mix[0] - 26, y: mix[1] - 26, anchor: 'end' },
+  port_valve_mix_A: { x: mix[0] + 26, y: mix[1] - 26, anchor: 'start' },
+  port_valve_mix_B: { x: mix[0] - 9, y: mix[1] + 20, anchor: 'end' },
+  // Cooling valve: each letter at the end of its own port, clear of every pipe line.
+  port_valve_cool_AB: { x: cool[0] + 9, y: cool[1] - 52, anchor: 'start' },
+  port_valve_cool_B: { x: cool[0] - 19, y: cool[1] - 22, anchor: 'end' },
+  port_valve_cool_A: { x: cool[0] - 9, y: cool[1] + 18, anchor: 'end' },
 };
+/**
+ * r2: every zone title is a plate on the top-left wall edge of its zone (one position for all).
+ * [x, y] = left / top of the plate text box.
+ */
+const ZONE_PLATES = {
+  attic_caption: [726, 96],
+  floor1_caption: [726, 222],
+  tech_caption: [726, 332],
+  ryb_caption: [300, 350],
+  pit_caption: [2502, 942],
+  lawn_caption: [40, 942],
+  garden_caption: [2380, 942],
+};
+/** r2 wording: tank = AKN only (the legend explains it once). */
+const LINES = { tank: ['AKN'], pool_temp: ['Zpátečka bazénu'] };
 const BASE_LH = L.lh;
 const labels = {};
 for (const [key, l] of Object.entries(L.labels)) {
-  if (DROP.has(key) || key.startsWith('tag_')) continue;
-  const fix = LABEL_FIXES[key];
+  if (DROP.has(key) || key.startsWith('tag_') || key.startsWith('legend_')) continue;
+  const plate = ZONE_PLATES[key];
+  const fix = plate ? { x: plate[0], y: plate[1], anchor: 'start' } : LABEL_FIXES[key];
   let lines = [...l.lines];
   let reading = null;
   if (l.reading) {
@@ -263,9 +289,14 @@ for (const [key, l] of Object.entries(L.labels)) {
     lines[0] = lines[0].slice(0, -' — °C'.length);
     reading = true;
   }
+  if (LINES[key]) lines = [...LINES[key]];
   const font = l.size ?? l.font;
   const lh = l.lh ?? BASE_LH;
   const box = [...l.box];
+  if (LINES[key]) {
+    box[3] = lh * (lines.length - 1) + font * 1.2;
+    box[2] = Math.max(...lines.map((t) => t.length)) * font * 0.62;
+  }
   let x = l.x;
   let anchor = l.anchor;
   if (fix) {
@@ -294,6 +325,7 @@ for (const [key, l] of Object.entries(L.labels)) {
     ...(l.pipe_sensor ? { pipeSensor: l.pipe_sensor } : {}),
     ...(l.compressor_dependent ? { compressorDependent: true } : {}),
     ...(reading ? { reading: true } : {}),
+    ...(plate ? { zone: true } : {}),
   };
 }
 
@@ -303,15 +335,35 @@ for (const [key, l] of Object.entries(labels)) {
   if (l.lines.some((t) => PLC.test(t))) throw new Error(`PLC code in label ${key}: ${l.lines}`);
 }
 
-const badges = L.badges.map((b) => ({ of: b.of, text: b.text, x: b.at[0], y: b.at[1], r: b.r }));
+/**
+ * r2: one marker system – every on-site question is a numbered circle. The plain '?' tags of
+ * p3i become the question they belong to: the bypass tee (j_mix) is part of ?2, the two derived
+ * cooling branches of the ground collector are the new ?4.
+ */
+const BADGE_TEXT = { j_mix: '?2', j_coll_r: '?4', j_coll_s: '?4' };
+const BADGE_AT = { j_mix: [1228, 500] };
+const badges = L.badges.map((b) => ({
+  of: b.of,
+  text: BADGE_TEXT[b.of] ?? b.text,
+  x: (BADGE_AT[b.of] ?? b.at)[0],
+  y: (BADGE_AT[b.of] ?? b.at)[1],
+  r: 12,
+}));
 const leaders = L.leaders
   .filter((ld) => ld.of !== 'valve_mix')
-  .map((ld) => ({ of: ld.of, pts: ld.pts }));
+  .map((ld) => {
+    const at = BADGE_AT[ld.of];
+    if (!at) return { of: ld.of, pts: ld.pts };
+    const end = ld.pts.at(-1);
+    const d = Math.hypot(end[0] - at[0], end[1] - at[1]);
+    const k = 12 / d;
+    return { of: ld.of, pts: [[at[0] + (end[0] - at[0]) * k, at[1] + (end[1] - at[1]) * k], end] };
+  });
 
-const legendItems = L.legend.items
-  .filter((it) => it.style !== 'text')
-  .map((it) => ({ circuit: it.circuit, style: it.style, sample: it.sample }));
-const questions = T.open_questions.map((q) => ({ id: q.id, text: q.text }));
+const questions = [
+  ...T.open_questions.map((q) => ({ id: q.id, text: q.text })),
+  { id: '?4', text: 'Odbočky chlazení ze zemního kolektoru – odvozené, ověřit na místě.' },
+];
 
 const arch = {
   roof: A.roof,
@@ -366,7 +418,6 @@ const out = {
   labels,
   badges,
   leaders,
-  legend: { box: L.legend.box, seams: L.legend.seams, items: legendItems },
   questions,
 };
 const json = JSON.stringify(out);
