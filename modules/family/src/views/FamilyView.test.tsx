@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { toastStore } from '@homebrain/ui';
 import { setFamilyApiFactory } from '../api.js';
 import { createMockFamilyApi } from '../mock.js';
 import type { FamilyRole } from '../types.js';
-import FamilyView from './FamilyView.js';
+import FamilyView, { CLAIM_UNDO_MS } from './FamilyView.js';
+import { PointsFigure } from './familySheets.js';
 
 const store = { subscribe: () => () => {}, getSnapshot: () => undefined } as never;
 
@@ -16,7 +18,11 @@ async function mount(role: FamilyRole, scenario: 'full' | 'empty' = 'full', kios
   return api;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  toastStore.reset();
+});
 
 describe('FamilyView', () => {
   it('owner: chores of both kids, approve calls the API', async () => {
@@ -168,5 +174,71 @@ describe('FamilyView', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it.each([
+    [0, '+0 bodů'],
+    [1, '+1 bod'],
+    [2, '+2 body'],
+    [4, '+4 body'],
+    [5, '+5 bodů'],
+  ])('points sheet figure %s → %s (shared plural helper)', (n, text) => {
+    const { container } = render(<PointsFigure points={n} sign />);
+    expect(container.textContent).toBe(text);
+  });
+
+  const claims = (api: Awaited<ReturnType<typeof mount>>) =>
+    api.log.filter((e) => (e as { kind: string }).kind === 'claim');
+  const openKuba = async () => {
+    fireEvent.click(
+      screen.getAllByTestId('family-person-tile').find((t) => t.textContent?.includes('Kuba'))!,
+    );
+    return screen.findByTestId('family-free-done');
+  };
+
+  it('„Udělal jsem“ sends the claim only after the undo window', async () => {
+    const api = await mount('child');
+    const done = await openKuba();
+    expect(done.textContent).toContain('Udělal jsem · +3');
+    vi.useFakeTimers();
+    fireEvent.click(done);
+    expect(claims(api)).toHaveLength(0);
+    const toast = toastStore.getSnapshot().toasts.at(-1)!;
+    expect(toast.message).toBe('Vyskládat myčku · posíláme ke schválení');
+    expect(toast.action?.label).toBe('Vrátit');
+    const row = screen
+      .getAllByTestId('family-person-chore')
+      .find((li) => li.textContent?.includes('Vyskládat myčku'))!;
+    expect(row.dataset.highlight).toBe('true');
+    expect(row.textContent).toContain('Čeká na schválení');
+    expect(row.textContent).toContain('po schválení');
+    expect(row.textContent).not.toContain('Převzato');
+    await act(async () => vi.advanceTimersByTime(CLAIM_UNDO_MS - 100));
+    expect(claims(api)).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTime(200));
+    expect(claims(api)).toEqual([{ kind: 'claim', kid: 'syn', id: 'free-syn' }]);
+  });
+
+  it('„Vrátit“ drops the claim; closing the toast or leaving sends it at once', async () => {
+    const api = await mount('child');
+    const done = await openKuba();
+    vi.useFakeTimers();
+    fireEvent.click(done);
+    act(() => toastStore.getSnapshot().toasts.at(-1)!.action!.onAction());
+    await act(async () => vi.advanceTimersByTime(CLAIM_UNDO_MS * 2));
+    expect(claims(api)).toHaveLength(0);
+    fireEvent.click(screen.getByTestId('family-free-done'));
+    act(() => toastStore.dismiss(toastStore.getSnapshot().toasts.at(-1)!.id));
+    expect(claims(api)).toHaveLength(1);
+    cleanup();
+    expect(claims(api)).toHaveLength(1);
+  });
+
+  it('unmount flushes a staged claim instead of losing it', async () => {
+    const api = await mount('child');
+    fireEvent.click(await openKuba());
+    expect(claims(api)).toHaveLength(0);
+    cleanup();
+    expect(claims(api)).toHaveLength(1);
   });
 });

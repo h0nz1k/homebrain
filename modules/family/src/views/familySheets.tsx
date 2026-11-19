@@ -19,7 +19,6 @@ import {
   type IconName,
 } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
-import { pointsWord } from '../czech.js';
 import { newRequestId } from '../uid.js';
 import {
   CREATE_CHORE_ERRORS,
@@ -37,6 +36,7 @@ import {
   monthPoints,
   pointsAmount,
   pointsLabel,
+  pointsParts,
   timeLabel,
 } from '../format.js';
 import type {
@@ -197,6 +197,22 @@ export function chartCeiling(max: number): number {
   return Math.max(2, Math.ceil((max * 1.2) / 2) * 2);
 }
 
+/** Big number + small unit, both from `pointsParts` (one plural path for the whole module). */
+export function PointsFigure({
+  points,
+  sign,
+}: {
+  points: number | null | undefined;
+  sign?: boolean;
+}) {
+  const { value, word } = pointsParts(points, { sign });
+  return (
+    <>
+      {value} <small>{word}</small>
+    </>
+  );
+}
+
 export function PointsSheet({
   kid,
   api,
@@ -243,7 +259,7 @@ export function PointsSheet({
         <header className="fam-points-intro">
           <p className="fam-points-label">K dispozici</p>
           <p className="fam-points-hero" data-testid="family-points-balance">
-            {summary?.balance ?? '—'} <small>{pointsWord(summary?.balance ?? 0)}</small>
+            <PointsFigure points={summary?.balance} />
           </p>
           <p className="fam-earned" data-testid="family-points-month">
             Tento měsíc čistě {signed(net)}
@@ -257,20 +273,19 @@ export function PointsSheet({
           <div>
             <dt>Dnes</dt>
             <dd>
-              +{summary?.earned_today ?? '—'}{' '}
-              <small>{pointsWord(summary?.earned_today ?? 0)}</small>
+              <PointsFigure points={summary?.earned_today} sign />
             </dd>
           </div>
           <div>
             <dt>7 dní</dt>
             <dd>
-              +{summary?.earned_week ?? '—'} <small>{pointsWord(summary?.earned_week ?? 0)}</small>
+              <PointsFigure points={summary?.earned_week} sign />
             </dd>
           </div>
           <div>
             <dt>Měsíc získáno</dt>
             <dd data-testid="family-points-month-earned">
-              +{earned ?? '—'} <small>{pointsWord(earned ?? 0)}</small>
+              <PointsFigure points={earned} sign />
             </dd>
           </div>
           <div data-kind="streak">
@@ -443,7 +458,7 @@ const RECURRENCE_HINT: Record<Recurrence, string> = {
   once: 'Jednou – jen v jeden den',
   daily: 'Denně – jednou za den',
   daily_multi: 'Vícekrát denně – každý čas zvlášť',
-  weekly: 'Dny v týdnu – jen ve vybrané dny',
+  weekly: 'Týdně – jen ve vybrané dny',
 };
 
 /** Date field text: „Dnes (19. 11.)“, „Zítra (20. 11.)“, otherwise „26. 11. 2026“. */
@@ -516,6 +531,30 @@ export function AddChoreSheet({
   const recurrenceHintId = useId();
   const dupWaitId = useId();
   const dupPanelId = useId();
+  const dupHintId = useId();
+  const footRef = useRef<HTMLDivElement>(null);
+  // Live footer height: when the footer overlays the scroll area (sticky layouts), the body
+  // gets the same bottom padding so no section can end up under it (duplicate, multi, errors).
+  useEffect(() => {
+    const foot = footRef.current?.closest<HTMLElement>('.hb-sheet-foot');
+    const sheet = foot?.closest<HTMLElement>('.hb-sheet');
+    if (!foot || !sheet || typeof ResizeObserver === 'undefined') return;
+    const sync = () => {
+      const overlay = getComputedStyle(foot).position !== 'static';
+      sheet.style.setProperty(
+        '--fam-foot-h',
+        `${Math.ceil(foot.getBoundingClientRect().height)}px`,
+      );
+      sheet.style.setProperty(
+        '--fam-foot-overlap',
+        overlay ? `${Math.ceil(foot.getBoundingClientRect().height)}px` : '0px',
+      );
+    };
+    const observer = new ResizeObserver(sync);
+    observer.observe(foot);
+    sync();
+    return () => observer.disconnect();
+  }, []);
   const [openedAt] = useState(() => clock().getTime());
   const [name, setName] = useState('');
   const [points, setPoints] = useState(2);
@@ -616,7 +655,7 @@ export function AddChoreSheet({
   const dayList = WEEKDAYS.filter((d) => weekdays.includes(d.id)).map((d) => d.label);
   const chosen = kids.filter((k) => assignees.includes(k.kid_uuid ?? k.id));
   const who = chosen.map((k) => k.name).join(' a ') || 'Nikdo';
-  const pointsText = `${points}\u00a0${pointsWord(points)}`;
+  const pointsText = pointsAmount(points);
   // Date/time tokens stay on one line (no-break spaces + nowrap span).
   const tok = (text: string) => (
     <span className="fam-nowrap" data-testid="family-summary-token">
@@ -655,7 +694,7 @@ export function AddChoreSheet({
   const perDay = points * slots.length;
   const rewardText = multi ? (
     <>
-      {pointsText} za každé splnění ({tok(`${perDay}\u00a0${pointsWord(perDay)} denně`)})
+      {pointsText} za každé splnění ({tok(`${pointsAmount(perDay)} denně`)})
     </>
   ) : (
     pointsText
@@ -783,7 +822,7 @@ export function AddChoreSheet({
       stickyFooter
       closeLabel="Zavřít formulář"
       footer={
-        <div className="fam-add-foot">
+        <div className="fam-add-foot" ref={footRef}>
           {error && (
             <div
               ref={alertRef}
@@ -805,7 +844,8 @@ export function AddChoreSheet({
                 <div className="fam-save-err-actions">
                   <Button
                     size="sm"
-                    variant="primary"
+                    variant="secondary"
+                    className="fam-save-err-action"
                     data-testid="family-duplicate-multi"
                     disabled={busy}
                     onClick={switchToMulti}
@@ -814,8 +854,8 @@ export function AddChoreSheet({
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="fam-save-err-alt"
+                    variant="secondary"
+                    className="fam-save-err-action fam-save-err-alt"
                     data-testid="family-duplicate-rename"
                     disabled={busy}
                     onClick={() => {
@@ -831,14 +871,15 @@ export function AddChoreSheet({
           )}
           {duplicate && (
             <p id={dupWaitId} className="fam-dup-wait" data-testid="family-add-chore-dup-wait">
-              Nejdřív vyber jednu z možností výše
+              Uložit nejde: stejný název už existuje. Přidej další čas, ulož pod jiným názvem, nebo
+              název změň.
             </p>
           )}
           <Button
             // With the duplicate error shown the same name would fail again: the panel's
             // actions are the only way forward, so the plain save is disabled until then.
-            variant={duplicate ? 'secondary' : 'primary'}
-            contrast={duplicate ? undefined : 'high'}
+            variant="primary"
+            contrast="high"
             type="submit"
             form="fam-add-chore"
             disabled={busy}
@@ -847,7 +888,6 @@ export function AddChoreSheet({
             data-testid="family-add-chore-save"
             data-invalid={!valid || undefined}
             data-busy={busy || undefined}
-            data-demoted={duplicate || undefined}
             className="fam-cta"
           >
             {busy ? 'Ukládám…' : 'Uložit úkol'}
@@ -881,8 +921,15 @@ export function AddChoreSheet({
             maxLength={80}
             placeholder="Např. Zalít květiny"
             aria-invalid={showName || duplicate ? true : undefined}
-            aria-describedby={showName ? nameErrId : duplicate ? dupPanelId : undefined}
+            aria-describedby={showName ? nameErrId : duplicate ? dupHintId : undefined}
           />
+          {duplicate && !showName && (
+            <p id={dupHintId} className="fam-dup-hint" data-testid="family-dup-hint">
+              {dupOwner
+                ? `Tento název už ${dupOwner.name} má – viz možnosti dole`
+                : 'Tento název už existuje – viz možnosti dole'}
+            </p>
+          )}
           {showName && (
             <p id={nameErrId} className="fam-field-err" data-testid="family-name-error">
               {problems.name}
@@ -935,7 +982,7 @@ export function AddChoreSheet({
               data-testid="family-points-value"
             >
               <b>{points}</b>
-              <span>{pointsWord(points)}</span>
+              <span>{pointsParts(points).word}</span>
             </output>
             <Button
               variant="secondary"
@@ -994,7 +1041,7 @@ export function AddChoreSheet({
             ['once', 'Jednou'],
             ['daily', 'Denně'],
             ['daily_multi', 'Vícekrát'],
-            ['weekly', 'Dny v týdnu'],
+            ['weekly', 'Týdně'],
           ]}
         />
         <p

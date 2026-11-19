@@ -88,9 +88,11 @@ describe('AddChoreSheet', () => {
     expect(btn.textContent).toBe('Uložit úkol');
     // Saving the same name again would fail: the plain Save is disabled until a panel choice.
     expect(btn.getAttribute('aria-disabled')).toBe('true');
-    expect(btn.dataset.variant).toBe('secondary');
+    expect(btn.dataset.variant).toBe('primary');
     const wait = within(sheet).getByTestId('family-add-chore-dup-wait');
-    expect(wait.textContent).toBe('Nejdřív vyber jednu z možností výše');
+    expect(wait.textContent?.replace(/\s+/gu, ' ')).toBe(
+      'Uložit nejde: stejný název už existuje. Přidej další čas, ulož pod jiným názvem, nebo název změň.',
+    );
     expect(btn.getAttribute('aria-describedby')).toBe(wait.id);
     await save(sheet);
     expect(created(api)).toHaveLength(1);
@@ -100,12 +102,13 @@ describe('AddChoreSheet', () => {
       'Přidat další čas (vícekrát denně)',
       'Uložit jako „Vyskládat myčku (2)“',
     ]);
-    expect(actions[0]!.dataset.variant).toBe('primary');
+    // Both ways forward are secondary (outlined); the one primary stays „Uložit úkol“.
+    expect(actions.map((b) => b.dataset.variant)).toEqual(['secondary', 'secondary']);
     expect(within(sheet).queryByText('Změnit název')).toBeNull();
     expect(within(sheet).queryByTestId('family-name-duplicate')).toBeNull();
-    expect(nameInput(sheet).getAttribute('aria-describedby')).toBe(
-      within(alert).getByTestId('family-add-chore-error-text').id,
-    );
+    const hint = within(sheet).getByTestId('family-dup-hint');
+    expect(hint.textContent).toBe('Tento název už Ema má – viz možnosti dole');
+    expect(nameInput(sheet).getAttribute('aria-describedby')).toBe(hint.id);
     expect(nameInput(sheet).getAttribute('aria-invalid')).toBe('true');
     // The form body no longer carries the old generic error at its very bottom.
     expect(sheet.querySelector('.hb-sheet-body [role="alert"]')).toBeNull();
@@ -305,7 +308,7 @@ describe('AddChoreSheet', () => {
       within(group)
         .getAllByRole('radio')
         .map((r) => r.textContent),
-    ).toEqual(['Jednou', 'Denně', 'Vícekrát', 'Dny v týdnu']);
+    ).toEqual(['Jednou', 'Denně', 'Vícekrát', 'Týdně']);
   });
 
   it('„Vícekrát denně“ needs two different times', async () => {

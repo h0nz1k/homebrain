@@ -11,6 +11,7 @@ import {
   czCount,
   czPlural,
   presenceHex,
+  toastStore,
   useToast,
 } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
@@ -26,6 +27,7 @@ import {
   pointsLabel,
   sortChores,
   timeLabel,
+  timeRange,
   todayEvents,
   upcomingParts,
 } from '../format.js';
@@ -44,6 +46,8 @@ import {
 } from './familySheets.js';
 
 const POLL_MS = 60_000;
+/** „Udělal jsem“ on a free task: the claim is sent to ChoreOps only after this undo window. */
+export const CLAIM_UNDO_MS = 5000;
 /** Calendar categories use non-person hues (blue-grey, amber) so they never read as a kid. */
 export const SRC_COLOR = { family: '#8a9bb8', school: '#e0a23a' } as const;
 const KID_COLORS = ['#e879a8', '#2dd4bf', '#f59e0b', '#a78bfa'];
@@ -137,6 +141,41 @@ function Who({ ids, members }: { ids: string[]; members: Member[] }) {
   );
 }
 
+/** Shared (whole-family) event: a neutral house avatar so every title starts at the same x. */
+function FamilyAvatar() {
+  return (
+    <span
+      className="fam-avatar fam-avatar-sm fam-avatar-family"
+      role="img"
+      aria-label="Rodina"
+      title="Rodina"
+      data-testid="family-avatar-family"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 11.5 12 5l8 6.5" />
+        <path d="M6.5 10v8.5h11V10" />
+      </svg>
+    </span>
+  );
+}
+
+/** Fixed avatar column of event rows: the person(s) or the family placeholder. */
+function EventLead({
+  ids,
+  members,
+  family = true,
+}: {
+  ids: string[];
+  members: Member[];
+  family?: boolean;
+}) {
+  return (
+    <span className="fam-ev-lead" data-testid="family-event-lead">
+      {ids.length ? <Who ids={ids} members={members} /> : family ? <FamilyAvatar /> : null}
+    </span>
+  );
+}
+
 function Legend({ snap }: { snap: FamilySnapshot }) {
   const kinds = (['family', 'school'] as const).filter((k) =>
     snap.calendars.some((c) => c.kind === k),
@@ -206,27 +245,31 @@ function TodayCard({
                       <time data-allday>celý den</time>
                     ) : (
                       <time
-                        aria-label={`${timeLabel(ev.start)} až ${timeLabel(ev.end)}`}
+                        aria-label={`${timeLabel(ev.start)} až ${timeLabel(ev.end)}${past ? ', proběhlo' : ''}`}
                         data-testid="family-event-time"
                       >
-                        {timeLabel(ev.start)}
-                        <small>{timeLabel(ev.end)}</small>
+                        {timeRange(ev)}
                       </time>
                     )}
                     <i />
                     <div className="fam-ev-t">
-                      <Who ids={who} members={members} />
+                      <EventLead ids={who} members={members} />
                       <div>
                         <b>{title}</b>
                         {(running || ev.id === next?.id) && (
-                          <span className="fam-event-state">{running ? 'teď' : 'další'}</span>
+                          <span
+                            className="fam-event-state"
+                            data-kind={running ? 'now' : 'next'}
+                            data-testid="family-event-state"
+                          >
+                            {running ? 'teď' : 'další'}
+                          </span>
                         )}
                         {(ev.location || ev.description) && (
                           <p className="fam-detail" data-testid="family-event-detail">
                             {[ev.location, ev.description].filter(Boolean).join(' · ')}
                           </p>
                         )}
-                        {past && <p className="fam-detail fam-ev-past-note">Proběhlo</p>}
                       </div>
                     </div>
                     {ev.kind === 'school' ? <SchoolTag ev={ev} /> : <span />}
@@ -275,7 +318,7 @@ function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; mem
                       </span>
                       <i aria-hidden="true" />
                       <span className="fam-wk-t">
-                        <Who ids={who} members={members} />
+                        <EventLead ids={who} members={members} family={false} />
                         <em>
                           {title}
                           {ev.kind === 'school' && (
@@ -520,7 +563,6 @@ function KidCard({
   collapseDone,
   collapsible,
   self,
-  members,
   highlight,
   onPerson,
 }: {
@@ -539,7 +581,6 @@ function KidCard({
   collapsible?: boolean;
   /** Child's own view: the card header already names the viewer. */
   self?: boolean;
-  members: Member[];
 }) {
   const [open, setOpen] = useState(true);
   const [showDone, setShowDone] = useState(false);
@@ -687,9 +728,6 @@ function KidCard({
             const ui = c.state === 'overdue' ? 'todo' : c.state;
             const key = `${kid.id}/${c.id}`;
             const out = c.swap_today?.kind === 'transferred_out';
-            const partner = out
-              ? members.find((m) => m.name === c.swap_today?.partner_name)
-              : undefined;
             const showMenu = act.onMenu && isActionableChore(c);
             const nameId = `${bodyId}-${c.id}`;
             return (
@@ -703,15 +741,14 @@ function KidCard({
                 data-testid="family-chore"
               >
                 {out ? (
+                  // Handed over: a state glyph (same swap mark as in the person detail), not
+                  // the receiver's avatar – the row is about this kid's list.
                   <span
-                    className="fam-avatar fam-avatar-sm fam-handed-avatar"
-                    style={
-                      partner ? ({ '--fam-kid': partner.color } as React.CSSProperties) : undefined
-                    }
-                    data-testid="family-handed-avatar"
+                    className="fam-handed-mark"
+                    data-testid="family-handed-mark"
                     aria-hidden="true"
                   >
-                    {(c.swap_today?.partner_name ?? '?').slice(0, 1)}
+                    <Icon name="swap" size={18} />
                   </span>
                 ) : (
                   <button
@@ -897,7 +934,6 @@ function ChoresCard({
             collapseDone={parent && phone}
             collapsible={parent}
             self={!!viewer}
-            members={members}
             highlight={highlight?.kids.includes(kid.kid_uuid ?? kid.id) ? highlight.name : null}
             act={{
               ...kidAct(kid),
@@ -1019,6 +1055,19 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const phone = usePhone();
   const notify = useToast();
+  // A staged free-task claim not sent yet: flushed when the view goes away (never lost).
+  const pendingClaim = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const flush = () => pendingClaim.current?.();
+    const host = hostWindow();
+    window.addEventListener('pagehide', flush);
+    if (host !== window) host.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      if (host !== window) host.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, []);
 
   // A just-created chore: scroll its row into view once the refreshed snapshot has it (once
   // per creation). Closing the sheet goes `history.back()`, whose popstate restores the scroll
@@ -1270,26 +1319,44 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     if (stagedClaim || !row) return;
     setStagedClaim({ member, chore, free: row });
 
-    // ChoreOps can only reverse a claim through an approver. Allow cancellation before sending it.
-    const delay = 4000;
-    const toastId = notify.undo(
-      'Úkol je tvůj',
-      () => {
-        window.clearTimeout(timer);
-        setStagedClaim(null);
-      },
-      { actionLabel: 'Zpět', duration: delay },
-    );
-    const timer = window.setTimeout(() => {
+    // „Kdo dřív“ has no reservation: „Udělal jsem“ submits the task for a parent's approval
+    // (ChoreOps claim). ChoreOps has no child-side unclaim, so the claim is held back for
+    // 5 s – „Vrátit“ drops it; timeout, closing the toast or leaving the view sends it.
+    let settled = false;
+    const finish = () => {
+      settled = true;
+      window.clearTimeout(timer);
+      unsubscribe();
+      pendingClaim.current = null;
+    };
+    const commit = () => {
+      if (settled) return;
+      finish();
       notify.dismiss(toastId);
       void run(chore, async () => {
         try {
           await api.claim(member, chore);
         } catch {
-          notify.error('Úkol už nelze převzít.');
+          notify.error(`${row.name}: ke schválení se nepodařilo odeslat.`);
         }
       }).finally(() => setStagedClaim(null));
-    }, delay);
+    };
+    const toastId = notify.undo(
+      `${row.name} · posíláme ke schválení`,
+      () => {
+        if (settled) return;
+        finish();
+        setStagedClaim(null);
+      },
+      { actionLabel: 'Vrátit', duration: CLAIM_UNDO_MS },
+    );
+    const timer = window.setTimeout(commit, CLAIM_UNDO_MS);
+    const unsubscribe = toastStore.subscribe(() => {
+      const toast = toastStore.getSnapshot().toasts.find((t) => t.id === toastId);
+      // Closed with ✕ (or pushed out of the stack): send now instead of waiting.
+      if (!toast || toast.state === 'closing') commit();
+    });
+    pendingClaim.current = commit;
   };
   const freeSlot = free.length
     ? slot('free', <FreeTasks rows={free} members={familyMembers} />)
@@ -1323,6 +1390,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
             onBack={() => setPersonId(null)}
             onClaim={claimFree}
             claimDisabled={!!stagedClaim}
+            placed={stagedClaim?.member === selected.id ? stagedClaim.chore : null}
             onComplete={(chore) => act.claim(selected.id, chore)}
           />
         ) : (

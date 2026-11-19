@@ -262,7 +262,7 @@ test.describe('Rodina', () => {
     // No error before the user touched the name; it appears inline after a submit attempt.
     await expect(page.getByTestId('family-name-error')).toHaveCount(0);
     await expect(page.getByTestId('family-icon-pick')).toHaveText(/Vybrat/);
-    await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
+    await page.getByRole('radio', { name: 'Týdně' }).click();
     await expect(page.getByRole('button', { name: 'Po', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -275,7 +275,7 @@ test.describe('Rodina', () => {
     );
     await page.getByRole('radio', { name: 'Denně', exact: true }).click();
     await expect(summary).toContainText('každý den do\u00a018:00');
-    await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
+    await page.getByRole('radio', { name: 'Týdně' }).click();
     await page.getByTestId('family-add-chore-save').click();
     await expect(page.getByTestId('family-name-error')).toHaveText('Doplň název úkolu.');
     await expect(page.getByTestId('family-add-chore-sheet')).toBeVisible();
@@ -517,7 +517,7 @@ test.describe('Rodina', () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await open(page);
     await page.getByTestId('family-add-chore').first().click();
-    await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
+    await page.getByRole('radio', { name: 'Týdně' }).click();
     for (const d of ['St', 'Pá', 'So'])
       await page.getByRole('button', { name: d, exact: true }).click();
     const tokens = page.getByTestId('family-summary-token');
@@ -586,11 +586,16 @@ test.describe('Rodina – přidání úkolu', () => {
       await expect(save).toHaveText('Uložit úkol');
       // The same name would fail again: plain Save is visibly disabled, the panel leads.
       await expect(save).toHaveAttribute('aria-disabled', 'true');
-      await expect(save).toHaveAttribute('data-variant', 'secondary');
+      await expect(save).toHaveAttribute('data-variant', 'primary');
       expect(Number(await save.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(0.7);
       await expect(sheet.getByTestId('family-add-chore-dup-wait')).toHaveText(
-        'Nejdřív vyber jednu z možností výše',
+        'Uložit nejde: stejný název už existuje. Přidej další čas, ulož pod jiným názvem, nebo název změň.',
       );
+      await expect(sheet.getByTestId('family-dup-hint')).toHaveText(
+        'Tento název už Ema má – viz možnosti dole',
+      );
+      for (const action of await alert.getByRole('button').all())
+        await expect(action).toHaveAttribute('data-variant', 'secondary');
       await expect(sheet.getByTestId('family-add-chore-dup-wait')).toBeInViewport({ ratio: 1 });
       // Playwright refuses to click an aria-disabled button; a real click event must not save.
       await save.dispatchEvent('click');
@@ -609,7 +614,7 @@ test.describe('Rodina – přidání úkolu', () => {
       const a = (await alert.boundingBox())!;
       const b = (await save.boundingBox())!;
       expect(a.y + a.height).toBeLessThanOrEqual(b.y);
-      if ((page.viewportSize()?.width ?? 0) <= 400) expect(a.height).toBeLessThanOrEqual(124);
+      if ((page.viewportSize()?.width ?? 0) <= 400) expect(a.height).toBeLessThanOrEqual(132);
       await expectLastControlClear(page);
       await sheet.getByTestId('family-duplicate-rename').click();
       await expect(sheet).toHaveCount(0);
@@ -721,7 +726,7 @@ test.describe('Rodina – přidání úkolu', () => {
     await expectLastControlClear(page); // empty, „Denně“
     await sheet.getByRole('radio', { name: 'Jednou' }).click();
     await expectLastControlClear(page);
-    await sheet.getByRole('radio', { name: 'Dny v týdnu' }).click();
+    await sheet.getByRole('radio', { name: 'Týdně' }).click();
     await expectLastControlClear(page);
     await sheet.getByRole('radio', { name: 'Vícekrát' }).click();
     for (let i = 0; i < 4; i += 1) await sheet.getByTestId('family-multi-add').click();
@@ -858,12 +863,10 @@ test.describe('Rodina – seznam dětí', () => {
     );
     await expect(out.getByTestId('family-pts-out')).toContainText('→\u00a0Kuba');
     await expect(out.locator('.fam-pts s')).toHaveCSS('text-decoration-line', 'line-through');
-    // Same avatar fill for the same kid: handed-to avatar vs. the kid's own card avatar.
-    const fill = (loc: ReturnType<Page['locator']>) =>
-      loc.evaluate((el) => getComputedStyle(el).backgroundImage);
-    expect(await fill(out.getByTestId('family-handed-avatar'))).toBe(
-      await fill(page.locator('[data-kid="syn"] [data-testid="family-kid-avatar"]')),
-    );
+    // Handed over = a swap state glyph (one glyph system), not the receiver's avatar.
+    await expect(out.getByTestId('family-handed-mark')).toBeVisible();
+    await expect(out.locator('.fam-avatar')).toHaveCount(0);
+    await expect(out.getByTestId('family-swap-note')).toHaveText('Předáno Kubovi');
     await expect(
       page.locator('[data-testid="family-pending-pill"][data-pending="swap"]').first(),
     ).toHaveText('Předání Kubovi čeká na schválení');
@@ -976,7 +979,8 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
       await sheet.locator('#fam-chore-name').fill('Vyskládat myčku');
       await sheet.getByTestId('family-add-chore-save').click();
       await expect(sheet.getByRole('alert')).toBeVisible();
-      await sheet.getByRole('radiogroup', { name: 'Opakování' }).scrollIntoViewIfNeeded();
+      await sheet.locator('.hb-sheet-body').evaluate((el) => (el.scrollTop = 0));
+      await page.waitForTimeout(200);
       await shot('phone-form-duplicate');
       await sheet.getByTestId('family-duplicate-multi').click();
       await page.waitForTimeout(1900);
@@ -1035,7 +1039,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(detail.getByText('Večer', { exact: false }).first()).toBeVisible();
     await detail.getByRole('tab', { name: 'Týden' }).click();
     await expect(detail.getByRole('heading', { name: 'Tento týden' })).toBeVisible();
-    await expect(detail.getByText('Vyskládat myčku')).toBeVisible();
+    await expect(detail.locator('.fam-person-week').getByText('Vyskládat myčku')).toBeVisible();
     await detail.getByRole('tab', { name: 'Historie' }).click();
     await expect(
       detail.getByTestId('family-history-row').filter({ hasText: 'Ustlat postel' }),
@@ -1053,18 +1057,44 @@ test.describe('Rodina – detail osoby P1', () => {
     const task = detail.getByTestId('family-person-chore').filter({ hasText: 'Odvézt papír' });
     await expect(task.getByRole('checkbox')).toBeEnabled();
     const sections = detail.locator('.fam-person-group-head');
-    await expect(sections.locator('span')).toHaveText([
+    await expect(sections.locator('.fam-person-group-label')).toHaveText([
       'Po termínu',
       'Ráno',
-      'Odpoledne · teď',
+      'Odpoledne',
       'Večer',
     ]);
+    // Same affordance on every group: a chevron; „teď“ is the accent pill of the current part.
+    await expect(sections.locator('.fam-person-chev')).toHaveCount(4);
+    await expect(sections.locator('.fam-now-pill')).toHaveCount(1);
+    await expect(sections.nth(2).locator('.fam-now-pill')).toHaveText('teď');
+    await expect(detail.locator('details[data-finished]')).not.toHaveAttribute('open', '');
+    // Red only on the „Po termínu“ label and the carry-over line, not on the checkbox.
+    const ring = await task
+      .locator('.fam-person-mark')
+      .evaluate((el) => getComputedStyle(el).borderTopColor);
+    const label = await sections
+      .first()
+      .locator('.fam-person-group-label')
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(ring).not.toBe(label);
+    await expect(task.getByTestId('family-carried-line')).toHaveCSS('color', label);
     await expect(task).toContainText('Nesplněno od st');
     await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
     await detail.getByRole('tab', { name: 'Týden' }).click();
     const origin = detail.getByRole('heading', { name: /Středa 18./ }).locator('..');
-    await expect(origin).toContainText('přeneseno');
+    await expect(origin).toContainText('přeneseno\u00a0→ čt\u00a019.\u00a011.');
+    await expect(origin).toContainText('+4\u00a0body');
     await expect(origin).not.toContainText('Bez úkolů');
+    // Týden: today's overdue item keeps the red carry-over line; no calendar glyphs for tasks.
+    const todayBlock = detail.locator('.fam-person-day[data-today]');
+    await expect(todayBlock.getByTestId('family-carried-line')).toContainText('Nesplněno od st');
+    const marks = await detail
+      .locator('.fam-person-day .fam-person-mark')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('data-mark')));
+    expect(marks.length).toBeGreaterThan(3);
+    for (const mark of marks)
+      expect(['open', 'done', 'waiting', 'handed', 'carried', 'missed']).toContain(mark);
+    await expect(detail.getByTestId('family-week-summary')).toContainText('Hotovo');
     await detail.getByRole('tab', { name: 'Dnes' }).click();
     for (let days = 1; days <= 3; days++) {
       await expect(task).toHaveAttribute('data-carried-days', String(days));
@@ -1080,30 +1110,140 @@ test.describe('Rodina – detail osoby P1', () => {
     ).toContainText('0 bodů');
   });
 
-  test('Beru připíše volný úkol jen vybranému členu', async ({ page }) => {
+  test('volný úkol: „Udělal jsem“ pošle ke schválení až po 5 s, „Vrátit“ ho vrátí', async ({
+    page,
+  }) => {
     await open(page, '?role=child');
     await page.getByTestId('family-person-tile').filter({ hasText: 'Ema' }).click();
     const detail = page.getByTestId('family-person');
-    await expect(detail.getByTestId('family-free')).toContainText('Vyskládat myčku');
-    await expect(detail.getByRole('button', { name: /Vezmu si to/ })).toHaveCount(0);
+    const free = detail.getByTestId('family-free');
+    await expect(free).toContainText('Vyskládat myčku');
+    await expect(free).toContainText(
+      'Body dostane, kdo to udělá první · po\u00a0schválení rodičem',
+    );
+    await expect(detail.getByRole('button', { name: /Udělal jsem/ })).toHaveCount(0);
+    await expect(page.getByText(/Beru|Vezmu si to|Úkol je tvůj/)).toHaveCount(0);
     await detail.getByRole('button', { name: /Zpět/ }).click();
     await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
-    await detail.getByRole('button', { name: /Vezmu si to.*Vyskládat myčku/ }).click();
-    const toast = page.getByTestId('hb-toast').filter({ hasText: 'Úkol je tvůj' });
+    const doneButton = detail.getByRole('button', { name: /Udělal jsem · \+3.*Vyskládat myčku/ });
+    await doneButton.click();
+    const toast = page.getByTestId('hb-toast').filter({
+      hasText: 'Vyskládat myčku · posíláme ke schválení',
+    });
     await expect(toast).toBeVisible();
-    const evening = detail.getByRole('heading', { name: /Večer/ }).locator('..');
-    await expect(
-      evening.getByTestId('family-person-chore').filter({ hasText: 'Vyskládat myčku' }),
-    ).toContainText('Čeká na schválení');
-    await toast.getByRole('button', { name: 'Zpět' }).click();
-    await expect(detail.getByTestId('family-free')).toBeVisible();
+    // Docked at the bottom, above the safe area; the list keeps room so nothing is covered.
+    const box = (await toast.boundingBox())!;
+    const viewport = page.viewportSize()!;
+    expect(viewport.height - (box.y + box.height)).toBeLessThanOrEqual(40);
+    const evening = detail
+      .getByRole('heading', { name: /Večer/ })
+      .locator('xpath=ancestor::details[1]');
+    const placed = evening
+      .getByTestId('family-person-chore')
+      .filter({ hasText: 'Vyskládat myčku' });
+    await expect(placed).toContainText('Čeká na schválení');
+    await expect(placed).toContainText('+3\u00a0body');
+    await expect(placed).toContainText('po schválení');
+    await expect(placed).not.toContainText('Převzato');
+    await expect(placed).toHaveAttribute('data-highlight', 'true');
+    await expect(placed).toBeInViewport();
+    await toast.getByRole('button', { name: 'Vrátit' }).click();
+    await expect(free).toBeVisible();
     await expect(evening.getByText('Vyskládat myčku')).toHaveCount(0);
-    await detail.getByRole('button', { name: /Vezmu si to.*Vyskládat myčku/ }).click();
-    await expect(toast).toBeHidden();
+    await doneButton.click();
+    await expect(toast).toBeHidden({ timeout: 8000 });
     await expect(detail.getByTestId('family-free')).toHaveCount(0);
+    await expect(placed).toContainText('Čeká na schválení');
     await detail.getByRole('button', { name: /Zpět/ }).click();
     await page.getByTestId('family-person-tile').filter({ hasText: 'Ema' }).click();
     await expect(detail.getByText('Vyskládat myčku')).toHaveCount(0);
+  });
+
+  test('přehled: agenda má jeden formát času, sloupec avatarů a „teď“/„další“', async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    for (const kiosk of [false, true]) {
+      if (kiosk) await page.setViewportSize({ width: 1280, height: 800 });
+      await open(page, kiosk ? '?kiosk=1' : '');
+      const rows = page.getByTestId('family-today').getByTestId('family-event');
+      await expect(rows.getByTestId('family-event-time')).toHaveText([
+        '7:45–8:15',
+        '14:00–16:10',
+        '16:30–18:00',
+        '19:00–20:30',
+      ]);
+      await expect(rows.first()).toHaveAttribute('data-past', 'true');
+      expect(
+        Number(await rows.first().evaluate((el) => getComputedStyle(el).opacity)),
+      ).toBeLessThan(1);
+      await expect(rows.first().getByTestId('family-avatar-family')).toBeVisible();
+      const lefts = await rows
+        .locator('b')
+        .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+      expect(new Set(lefts).size).toBe(1);
+      const now = rows.getByTestId('family-event-state').filter({ hasText: 'teď' });
+      const next = rows.getByTestId('family-event-state').filter({ hasText: 'další' });
+      const presence = page.locator('.fam-person-presence[data-home]').first();
+      expect(await now.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(
+        await presence.evaluate((el) => getComputedStyle(el).backgroundColor),
+      );
+      expect(await next.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+        'rgba(0, 0, 0, 0)',
+      );
+      const shadows = await rows
+        .locator('xpath=self::*[@data-running or @data-next]')
+        .evaluateAll((els) => els.map((el) => getComputedStyle(el).boxShadow));
+      expect(shadows).toHaveLength(2);
+      expect(shadows[0]).toBe(shadows[1]);
+      if (kiosk) {
+        // „celý den“ never touches the dot of the 7-day list.
+        for (const li of await page
+          .locator('[data-testid="family-week-event"][data-allday]')
+          .all()) {
+          const time = (await li.locator('.fam-wk-time').boundingBox())!;
+          const dot = (await li.locator('i').boundingBox())!;
+          expect(dot.x - (time.x + time.width)).toBeGreaterThanOrEqual(4);
+        }
+        await expect(page.getByTestId('family-free').locator('h2')).toHaveText('Volné úkoly');
+        await expect(page.getByTestId('family-free')).toHaveClass(/fam-card/);
+      }
+    }
+  });
+
+  test('detail na tabletu/desktopu nemá prázdný sloupec > 150 px', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    for (const [width, height, query] of [
+      [800, 1280, ''],
+      [1440, 900, ''],
+      [1280, 800, '?kiosk=1'],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await open(page, query);
+      await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+      const detail = page.getByTestId('family-person');
+      for (const tab of ['Dnes', 'Týden', 'Historie']) {
+        await detail.getByRole('tab', { name: tab }).click();
+        const flow = detail.locator('.fam-person-flow');
+        const gap = await flow.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const mid = box.left + box.width / 2;
+          const bottoms = [0, 0];
+          for (const child of Array.from(
+            el.querySelectorAll(':scope section, :scope details, :scope .fam-person-section-head'),
+          )) {
+            const r = child.getBoundingClientRect();
+            if (!r.height) continue;
+            const col = r.left < mid - 4 ? 0 : 1;
+            bottoms[col] = Math.max(bottoms[col]!, r.bottom);
+          }
+          return Math.abs(bottoms[0]! - bottoms[1]!);
+        });
+        expect(gap, `${width}px ${tab}`).toBeLessThanOrEqual(150);
+      }
+      await detail.getByRole('button', { name: /Zpět/ }).click();
+    }
   });
 
   test('kiosk otevře dospělého a ukáže jen přítomnost z Wi-Fi', async ({ page }) => {
@@ -1217,15 +1357,16 @@ test.describe('Rodina P1 – snímky (lokálně)', () => {
         await shot('person-history');
         await detail.getByRole('button', { name: /Zpět/ }).click();
         await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
-        await expect(detail.getByRole('button', { name: /Vezmu si to/ })).toBeVisible();
+        await expect(detail.getByRole('button', { name: /Udělal jsem/ })).toBeVisible();
         await expect(detail.getByRole('button', { name: /Zpět/ })).toBeInViewport({ ratio: 1 });
         await shot('person-claim');
         if (device === 'phone') {
-          await detail.getByRole('button', { name: /Vezmu si to/ }).click();
-          const toast = page.getByTestId('hb-toast').filter({ hasText: 'Úkol je tvůj' });
+          await detail.getByRole('button', { name: /Udělal jsem/ }).click();
+          const toast = page.getByTestId('hb-toast').filter({ hasText: 'posíláme ke schválení' });
           await expect(toast).toBeVisible();
+          await page.waitForTimeout(400);
           await shot('person-claim-toast');
-          await toast.getByRole('button', { name: 'Zpět' }).click();
+          await toast.getByRole('button', { name: 'Vrátit' }).click();
         }
         if (device !== 'kiosk') {
           await detail.getByRole('button', { name: /Zpět/ }).click();

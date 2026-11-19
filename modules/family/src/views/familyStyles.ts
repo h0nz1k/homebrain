@@ -896,4 +896,209 @@ export const familyStyles = `
 @media (max-width: 600px) {
   .fam-add-chore { row-gap: 14px; }
 }
+
+/* ── r3 polish (final) ───────────────────────────────────────────────────── */
+/* Agenda: one time format, fixed avatar column, past dimmed, teď/další one pill family. */
+.fam-ev { grid-template-columns: 104px 4px minmax(0, 1fr) auto; }
+.fam-ev time { white-space: nowrap; }
+.fam-ev-lead { flex: 0 0 34px; width: 34px; display: flex; align-items: center; }
+.fam-ev-lead .fam-who .fam-avatar-sm + .fam-avatar-sm { margin-left: -18px; }
+.fam .fam-avatar-family { color: var(--hb-t2); background: color-mix(in srgb, var(--hb-t1) 9%, var(--hb-s1)); box-shadow: inset 0 0 0 1px var(--hb-edge); }
+.fam-avatar-family svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.fam-ev[data-past] { opacity: 0.66; }
+.fam-ev[data-past] .fam-ev-lead { filter: grayscale(1); }
+.fam .fam-ev:is([data-running], [data-next]) {
+  margin-inline: -8px; padding-inline: 8px; margin-block: 3px; border-radius: 10px; border-top-color: transparent;
+  background: color-mix(in srgb, var(--hb-ac) 7%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 30%, transparent);
+}
+.fam .fam-ev:is([data-running], [data-next]) + .fam-ev { border-top-color: transparent; }
+.fam .fam-event-state, .fam .fam-now-pill {
+  display: inline-block; margin-top: 3px; border-radius: 99px; padding: 0 9px; line-height: 20px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+}
+.fam .fam-event-state[data-kind='now'], .fam .fam-now-pill { color: #fff; background: var(--hb-ac-solid); box-shadow: none; }
+.fam .fam-event-state[data-kind='next'] { color: var(--hb-ac); background: transparent; box-shadow: inset 0 0 0 1.5px var(--hb-ac); }
+/* 7-day list: time column fits „celý den“, titles share one indent (empty avatar slot). */
+.fam .fam-day li { grid-template-columns: 70px 8px minmax(0, 1fr); }
+.fam-day .fam-ev-lead { flex: 0 0 26px; width: 26px; }
+.fam-day .fam-ev-lead:empty { visibility: hidden; }
+.fam .fam-day > .fam-free { padding-left: 0; }
+@media (max-width: 760px) {
+  .fam-ev { grid-template-columns: 100px 4px minmax(0, 1fr); gap: 10px; }
+  .fam .fam-day li { grid-template-columns: 66px 8px minmax(0, 1fr); gap: 6px; }
+}
+/* Handed-over chore: dimmed row with a swap state glyph, readable „Předáno Kubovi“. */
+.fam-handed-mark {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: var(--hb-t2);
+  border: 2px solid color-mix(in srgb, var(--hb-t1) 22%, transparent);
+}
+.fam .fam-chore[data-muted] .fam-chore-t b { color: var(--hb-t2); font-weight: 600; }
+.fam .fam-chore-meta .fam-swap-tag[data-kind='transferred_out'] { background: none; padding: 0; color: var(--hb-t2); font-size: 13px; font-weight: 600; }
+.fam[data-kiosk] .fam-handed-mark { width: 40px; height: 40px; }
+/* Free tasks on the overview: a card like the others, heading inside the panel. */
+.fam-free-list .fam-person-task + .fam-person-task { border-top: 1px solid var(--hb-edge); }
+.fam-person-free-icon {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  color: var(--hb-t2); background: var(--hb-s2);
+}
+.fam-person-free > .hb-btn { font-weight: 650; }
+
+/* Person detail – one task glyph system: ring = open, filled check = done, swap = handed over. */
+.fam .fam-person-task .fam-person-mark[data-mark] {
+  width: 28px; height: 28px; border-radius: 50%; background: none; color: var(--hb-t2);
+  border: 1.5px solid color-mix(in srgb, var(--hb-t1) 45%, transparent);
+}
+.fam .fam-person-task .fam-person-mark[data-mark='done'] { color: #fff; background: var(--hb-ok); border-color: var(--hb-ok); }
+.fam .fam-person-task .fam-person-mark[data-mark='waiting'] {
+  color: var(--fam-pending); border-color: color-mix(in srgb, var(--fam-pending) 70%, transparent);
+  background: color-mix(in srgb, var(--hb-warn) 14%, var(--fam-person-surface));
+}
+.fam .fam-person-task .fam-person-mark:is([data-mark='handed'], [data-mark='missed']) { border-color: color-mix(in srgb, var(--hb-t1) 25%, transparent); }
+.fam .fam-person-task .fam-person-mark[data-mark='carried'] { border-style: dashed; }
+.fam-person-task-text small.fam-person-overdue { color: var(--hb-crit); font-weight: 600; }
+.fam .fam-person-task:is([data-muted], [data-missed]) strong { color: var(--hb-t2); }
+.fam .fam-person-day .fam-person-task .fam-person-points { color: var(--hb-t1); }
+.fam .fam-person-task:is([data-muted], [data-missed]) .fam-person-points { color: var(--hb-t2); font-weight: 600; }
+.fam-person-points[data-waiting] { color: var(--fam-pending); }
+.fam-person-points small { display: block; font-size: 12px; font-weight: 500; line-height: 1.2; }
+.fam-person-task[data-highlight] { border-radius: 10px; animation: fam-placed 2s ease-out 1; }
+@keyframes fam-placed {
+  0%, 60% { background: color-mix(in srgb, var(--hb-ac) 18%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--hb-ac) 18%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .fam-person-task[data-highlight] { animation-duration: 0.01s; } }
+/* Group headers: the same chevron on every group; finished = ✓ + muted, folded. */
+.fam .fam-person-group > summary.fam-person-group-head { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 6px 0; }
+.fam-person-group > summary::-webkit-details-marker { display: none; }
+.fam-person-group > summary:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; border-radius: 8px; }
+.fam-person-group-title { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; font-size: 15px; font-weight: 650; color: var(--hb-t1); }
+.fam-person-group-title > small { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--hb-t2); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.fam-person-group-title .fam-now-pill { margin-top: 0; }
+.fam-person-chev { display: inline-grid; place-items: center; width: 18px; color: var(--hb-t2); transition: rotate 0.15s; }
+.fam-person-group[open] > summary .fam-person-chev { rotate: 90deg; }
+.fam-person-group[data-late] .fam-person-group-label { color: var(--hb-crit); }
+.fam-person-group[data-finished] .fam-person-group-label { color: var(--hb-t2); }
+.fam-person-group[data-finished] .fam-person-group-title > small svg { color: var(--hb-ok); }
+/* Person calendar: same time format as the overview; past events dimmed. */
+.fam .fam-person-event { grid-template-columns: 104px minmax(0, 1fr); align-items: center; }
+.fam-person-event time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fam-person-event[data-past] { opacity: 0.6; }
+.fam-person-event[data-past] > span { border-inline-start-color: color-mix(in srgb, var(--person-color) 40%, transparent); }
+/* Week summary (Týden / Historie): points per day, counts, what is still ahead. */
+.fam-person-summary .fam-person-surface { padding: 12px 14px; display: grid; gap: 14px; }
+.fam-week-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; align-items: end; }
+.fam-week-bars li { display: grid; justify-items: center; gap: 4px; }
+.fam-week-bars b { min-height: 18px; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.fam-week-bar { display: flex; align-items: flex-end; width: 100%; max-width: 30px; height: 56px; border-radius: 7px; overflow: hidden; background: color-mix(in srgb, var(--hb-t1) 8%, transparent); }
+.fam-week-bar i { display: block; width: 100%; min-height: 0; border-radius: 7px 7px 0 0; background: var(--person-color); }
+.fam-week-bars li[data-today] small { color: var(--hb-t1); font-weight: 700; }
+.fam-week-bars li[data-today] .fam-week-bar { box-shadow: inset 0 0 0 1.5px var(--person-color); }
+.fam-week-bars li[data-future] .fam-week-bar { background: color-mix(in srgb, var(--hb-t1) 4%, transparent); }
+.fam-week-bars small { color: var(--hb-t2); font-size: 13px; }
+.fam-week-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.fam-week-stats div { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--hb-t1) 5%, transparent); }
+.fam-week-stats dt { color: var(--hb-t2); font-size: 13px; }
+.fam-week-stats dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fam-week-stats div[data-tone='crit'] dd { color: var(--hb-crit); }
+.fam-week-ahead h3 { font-size: 14px; font-weight: 650; color: var(--hb-t2); margin-bottom: 4px; }
+.fam-week-ahead li { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 6px 0; }
+.fam-week-ahead li + li { border-top: 1px solid var(--hb-edge); }
+.fam-week-ahead li > span:first-child { color: var(--hb-t2); font-size: 14px; white-space: nowrap; }
+.fam-week-ahead strong { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.fam-week-ahead .fam-person-points { min-width: 0; }
+@media (max-width: 420px) { .fam-week-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Claim toast: dock at the bottom above the safe area; the list keeps room for it. */
+.hb-shell:has(.fam-person-view) .hb-toast-stack { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+.fam-person-view[data-toast] { padding-bottom: 104px; }
+
+/* ≥ 768 px: sections flow through two balanced columns – no half-empty column. */
+.fam-person-flow { display: grid; gap: 20px; min-width: 0; }
+@media (max-width: 767px) {
+  .fam-person-flow[data-tab='Historie'] .fam-person-summary { display: none; }
+}
+@media (min-width: 768px) {
+  .fam .fam-person-flow { display: block; columns: 2; column-gap: 20px; }
+  .fam-person-flow > section, .fam-person-flow .fam-person-day, .fam-person-flow .fam-person-group {
+    break-inside: avoid; margin-bottom: 16px;
+  }
+  .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history),
+  .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history) > .fam-person-surface { display: contents; }
+  .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history) > .fam-person-section-head { break-after: avoid; padding-top: 2px; }
+  .fam .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history) .fam-person-group {
+    display: block; background: var(--fam-person-surface); border-radius: 18px; padding: 4px 12px 6px; box-shadow: var(--hb-elev-1); border-top: 0;
+  }
+  .fam .fam-person-flow .fam-person-day[data-today] {
+    margin-inline: 0; padding-inline: 12px; border-radius: 18px;
+    background: color-mix(in srgb, var(--person-color) 12%, var(--fam-person-surface));
+    box-shadow: var(--hb-elev-1), inset 4px 0 var(--person-color);
+  }
+  .fam-person-flow > section:last-child { margin-bottom: 0; }
+  .fam-person-flow .fam-person-empty { break-inside: avoid; }
+}
+
+/* Kiosk: every secondary text ≥ 16 px and ≥ 4.5:1 (subtitles, pills, dates, legend, counters…). */
+.fam[data-kiosk] { --hb-t2: color-mix(in srgb, var(--hb-t1) 80%, var(--hb-s1)); }
+.fam[data-kiosk] :is(small, .fam-meta, .fam-legend, .fam-event-state, .fam-now-pill, .fam-person-presence,
+  .fam-person-progress, .fam-wk-time, .fam-free, .fam-shop-more, .fam-upcoming-more, .fam-detail, .fam-due,
+  .fam-swap-tag, .fam-pending-pill, .fam-handover-pending, .fam-person-points, .fam-pts, .fam-tile-points,
+  .fam-day > div:first-child small, .fam-week-bars small, .fam-week-bars b, .fam-week-stats dt,
+  .fam-person-group-title, .fam-week-ahead li > span:first-child, .fam-person-section-head p) { font-size: max(16px, 1em); }
+.fam[data-kiosk] .fam-event-state, .fam[data-kiosk] .fam-now-pill { line-height: 24px; padding-inline: 10px; }
+.fam[data-kiosk] .fam-chore-meta .fam-swap-tag[data-kind='transferred_out'] { font-size: 16px; color: var(--hb-t2); }
+.fam[data-kiosk] .fam-ev { grid-template-columns: 108px 3px minmax(0, 1fr) auto; }
+.fam[data-kiosk] .fam-day li { grid-template-columns: 84px 8px minmax(0, 1fr); gap: 6px; }
+.fam[data-kiosk] .fam-day { grid-template-columns: 58px minmax(0, 1fr); }
+.fam[data-kiosk] .fam-day .fam-ev-lead { flex-basis: 24px; width: 24px; }
+.fam[data-kiosk] .fam-item { min-height: 0; padding-block: 8px; }
+.fam[data-kiosk] .fam-free-card .fam-person-task { min-height: 52px; }
+.fam[data-kiosk] .fam-free-card .fam-person-task-text strong { font-size: 18px; }
+.fam[data-kiosk] .fam-person-points small { font-size: 16px; }
+
+/* Add-chore form (phone): live footer room, 2-col person grid, equal segments, outlined fixes. */
+.hb-scrim[data-isolation='strong']:has(.fam-add-chore) .hb-sheet-body {
+  padding-top: 16px; scroll-padding-top: 16px;
+  padding-bottom: calc(20px + var(--fam-foot-overlap, 0px));
+  scroll-padding-bottom: calc(20px + var(--fam-foot-overlap, 0px));
+}
+.fam-add-chore fieldset > .fam-chips:has(.fam-who-chip) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.fam-add-chore .fam-who-chip.hb-chip { width: 100%; min-width: 0; justify-content: flex-start; }
+.fam-add-chore .fam-who-chip .fam-chip-tick { margin-left: auto; }
+.fam .fam-add-chore .fam-recurrence .hb-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: row; }
+.fam .fam-add-chore .fam-recurrence .hb-seg button { min-width: 0; padding-inline: 2px; white-space: nowrap; text-wrap: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 400px) { .fam .fam-add-chore .fam-recurrence .hb-seg button { font-size: 13px; } }
+.fam-dup-hint { margin: 6px 0 0; color: var(--hb-crit); font-size: 13px; font-weight: 600; }
+.fam .hb-sheet-foot .fam-save-err-actions .hb-btn.fam-save-err-action {
+  width: auto; min-height: 40px; padding-inline: 12px; color: var(--hb-t1); text-decoration: none; font-weight: 600;
+  background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--hb-t1) 40%, transparent);
+}
+.fam .hb-sheet-foot .fam-dup-wait { text-align: left; font-size: 13px; line-height: 1.4; color: var(--hb-t2); text-wrap: pretty; }
+.fam .hb-sheet-foot .fam-save-err { margin-inline: 0; }
+
+/* Kiosk fit: middle column = 7 days (shrinks, scrolls) + free tasks always visible. */
+.fam[data-kiosk] .fam-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.16fr); }
+.fam[data-kiosk] .fam-col > .fam-slot[data-slot='week'] { flex: 0 1 auto; min-height: 0; }
+.fam[data-kiosk] .fam-col > .fam-slot[data-slot='week'] > .fam-card { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+.fam[data-kiosk] .fam-col > .fam-slot[data-slot='free'] { flex: none; }
+.fam[data-kiosk] .fam-day li { grid-template-columns: 80px 8px minmax(0, 1fr); }
+.fam[data-kiosk] .fam-day { grid-template-columns: 54px minmax(0, 1fr); }
+.fam[data-kiosk] .fam-box { flex-basis: 48px; width: 48px; height: 48px; border-radius: 12px; }
+.fam[data-kiosk] .fam-shop-more { margin-top: 4px; }
+@media (max-width: 760px) { .fam-ev { grid-template-columns: 94px 4px minmax(0, 1fr); } }
+
+.fam[data-kiosk] .fam-person-view .fam-person-event { grid-template-columns: 150px minmax(0, 1fr); }
+
+.fam[data-kiosk] .fam-col > .fam-slot[data-slot='free'] > .fam-card { flex: none; overflow: visible; }
+.fam[data-kiosk] .fam-ev { gap: 6px; padding-block: 5px; }
+.fam[data-kiosk] .fam-ev-lead { flex-basis: 30px; width: 30px; }
+.fam[data-kiosk] .fam-ev-t { gap: 6px; }
+.fam[data-kiosk] .fam-add input, .fam[data-kiosk] .fam-add button { height: 42px; }
+.fam[data-kiosk] .fam-add { margin-bottom: 4px; }
+
+.fam[data-kiosk] .fam-ev { padding-block: 2px; }
+[data-kiosk].fam .fam-ev:is([data-running], [data-next]) { margin-block: 2px; padding-block: 3px; }
+.fam[data-kiosk] .fam-slot[data-slot='shop'] > .fam-card { padding-block: 10px; }
+.fam[data-kiosk] .fam-slot[data-slot='shop'] .fam-card-h { margin-bottom: 6px; }
+.fam[data-kiosk] .fam-add input, .fam[data-kiosk] .fam-add button { height: 40px; }
+.fam[data-kiosk] .fam-shop-more { margin-top: 0; }
 `;

@@ -38,6 +38,11 @@ export function czDate(d: Date, opts: { year?: boolean } = {}): string {
   return opts.year ? `${dm}\u00a0${d.getFullYear()}` : dm;
 }
 
+/** One time format for timed events everywhere: „7:45–8:15“ (en dash, no spaces). */
+export function timeRange(ev: Pick<FamilyEvent, 'start' | 'end'>): string {
+  return `${timeLabel(ev.start)}–${timeLabel(ev.end)}`;
+}
+
 export function shortDate(day: Date): string {
   return `${(DAY[day.getDay()] ?? '').toLowerCase()}\u00a0${czDate(day)}`;
 }
@@ -120,7 +125,9 @@ export function choreNote(
 }
 
 export function fmtPoints(points: number): string {
-  return Number.isInteger(points) ? String(points) : points.toFixed(1).replace('.', ',');
+  // Float sums from the backend (3.9999…) must read „4“, not „4,0“.
+  const shown = Math.round(points * 10) / 10;
+  return Number.isInteger(shown) ? String(shown) : shown.toFixed(1).replace('.', ',');
 }
 
 /** One points style in the whole module: „+1 bod“, „+3 body“, „+5 bodů“. */
@@ -131,7 +138,25 @@ export function pointsLabel(points: number | null): string {
 
 /** Same without the sign: „1 bod“, „128 bodů“, „2,5 bodu“. */
 export function pointsAmount(points: number): string {
-  return `${fmtPoints(points)}\u00a0${pointsWord(points)}`;
+  const { value, word } = pointsParts(points);
+  return `${value}\u00a0${word}`;
+}
+
+/**
+ * Number and unit as separate parts for big-number layouts („+4“ + „body“). The unit is
+ * declined from the same value that is shown, so the two can never disagree; a missing value
+ * is „—“ with the neutral „bodů“.
+ */
+export function pointsParts(
+  points: number | null | undefined,
+  opts: { sign?: boolean } = {},
+): { value: string; word: string } {
+  if (points == null || Number.isNaN(points)) return { value: '—', word: 'bodů' };
+  const value = fmtPoints(points);
+  return {
+    value: opts.sign && points >= 0 ? `+${value}` : value,
+    word: pointsWord(Number(value.replace(',', '.'))),
+  };
 }
 
 /** Does the spoken genitive of `n` start with s/š/z/ž or a hard cluster (dvou, tří, čtyř)? */

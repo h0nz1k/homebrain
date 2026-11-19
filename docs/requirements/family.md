@@ -211,8 +211,9 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 
 ### FAM-025 – Volné úkoly
 
-- Volný úkol ChoreOps typu `shared_first` má jediný řádek v přehledu a nezapočítává se do přidělených úkolů před převzetím. V detailu oprávněného člena ho lze převzít tlačítkem **Vezmu si to**. Úkol se ihned ukáže ve své části dne a čtyři sekundy ho lze vrátit volbou **Zpět**. Po této lhůtě HomeBrain odešle převzetí do ChoreOps, který rozhodne o prvním úspěšném převzetí.
-- Přehled uvádí všechny dnešní události podle času. Probíhající a nejbližší budoucí událost mají vlastní štítky „teď“ a „další“.
+- Volný úkol ChoreOps typu `shared_first` („kdo dřív“) má jediný řádek v přehledu a nezapočítává se do přidělených úkolů. Rezervace neexistuje: body dostane, kdo úkol udělá první, po schválení rodičem. V detailu oprávněného člena tlačítko **Udělal jsem · +N** odešle úkol ke schválení (ChoreOps claim).
+- ChoreOps nemá zrušení převzetí ze strany dítěte, proto HomeBrain odesílá s 5s zpožděním: oznámení „<úkol> · posíláme ke schválení · Vrátit“ je ukotvené dole nad safe area a nezakrývá seznam. **Vrátit** akci zahodí; po 5 s, zavřením oznámení, opuštěním pohledu nebo `pagehide` se odešle hned (akce se neztratí). Řádek se ihned ukáže ve své části dne (2 s zvýraznění, posun do zobrazení) jako „Čeká na schválení · +N body po schválení“ a zmizí z volných úkolů ostatních.
+- Přehled uvádí všechny dnešní události podle času v jednom formátu „7:45–8:15“, s pevným sloupcem avatarů (společné události mají avatar Rodina) a ztlumenými proběhlými událostmi. Probíhající událost má štítek „teď“ (plný akcent), nejbližší budoucí „další“ (obrys); obě řádky mají stejné ohraničení.
 
 ### FAM-026 – Přítomnost a kiosk
 
