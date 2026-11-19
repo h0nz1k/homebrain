@@ -7,8 +7,25 @@ import { FULL_GEOMETRY as G } from './geometry.gen.js';
 import { OVERVIEW_BELOW, OV_FONT, OV_VALUE, overviewBounds } from './overview.js';
 import { READABLE_SCALE, fitView } from './panZoom.js';
 import { LABEL_FONT, VALUE_FONT } from './pill.js';
-import { CONTENT, PRESET_GROUPS, boxView, presetsFor, type Preset } from './presets.js';
+import {
+  CONTENT,
+  PRESET_GROUPS,
+  boxView,
+  bestFrame,
+  presetFrame,
+  presetsFor,
+  snapFrame,
+  type Preset,
+} from './presets.js';
 import { FS_PALETTE, FS_THEME, stillOf } from './styles.js';
+
+/** Glyph and label boxes (the viewer measures the real ones in the browser). */
+const ITEMS = END_AVOID.filter((b) => b[2] > 12 && b[3] > 12).map(([x, y, w, h]) => ({
+  x,
+  y,
+  w,
+  h,
+}));
 
 const all: Preset[] = PRESET_GROUPS.flatMap((g) => (g.alwaysFine ? g.fine : [g, ...g.fine]));
 
@@ -80,8 +97,27 @@ describe('overview (whole drawing on a desktop)', () => {
 
 describe('end labels', () => {
   it('every pipe leaving a preset frame has an end label naming equipment outside it', () => {
-    for (const p of all) {
+    // r4: the frames each offered preset grows to on a phone, a tablet and a desktop, placed /
+    // snapped as in the viewer (the bare box is never shown as such any more)
+    const frames = (
+      [
+        [360, 670],
+        [800, 1150],
+        [1280, 690],
+        [1440, 840],
+      ] as const
+    ).flatMap(([w, h]) =>
+      presetsFor(w, h).map((p) => ({
+        id: `${p.id}@${w}`,
+        box: bestFrame(presetFrame(w, h, p.box).frame, p.box, ITEMS),
+      })),
+    );
+    for (const p of frames) {
       const labels = endLabels(G.pipes, p.box, END_AVOID, G.boxes);
+      const texts = labels.map((l) => l.text);
+      expect(new Set(texts).size, `${p.id}: unique end labels ${texts.join(' | ')}`).toBe(
+        texts.length,
+      );
       const named = new Set(labels.flatMap((l) => l.pipe.split(' ')));
       const leaving = G.pipes.filter(
         (q) =>
@@ -105,6 +141,18 @@ describe('end labels', () => {
       for (const q of leaving) expect(named.has(q.id), `${p.id}: ${q.id}`).toBe(true);
       for (const l of labels) expect(l.text).not.toContain('…');
     }
+  });
+  it('a grown frame snaps its new edges off a straddling item, never into the box', () => {
+    const box = { x: 100, y: 100, w: 100, h: 100 };
+    const frame = { x: 50, y: 0, w: 200, h: 300 };
+    const f = snapFrame(frame, box, [
+      { x: 120, y: -10, w: 40, h: 20 },
+      { x: 60, y: 280, w: 30, h: 40 },
+      { x: 90, y: 150, w: 30, h: 10 },
+    ]);
+    expect(f.y).toBe(12);
+    expect(f.y + f.h).toBe(278);
+    expect(f.x).toBe(50);
   });
   it('far end follows the circuit past pumps and tees', () => {
     expect(farEnd(G.pipes, 'tank_to_ppool', 'pump_pool')).toBe('bazén');

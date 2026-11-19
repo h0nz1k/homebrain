@@ -33,7 +33,20 @@ export function Pump({
     >
       <circle r="15" className="fs-metal fs-ring" />
       <circle r="10.5" className="fs-motor" />
-      <path d="M-4.6 -6.2L7.2 0L-4.6 6.2Z" className="fs-tri" transform={`rotate(${ANG[dir]})`} />
+      {/* r4: ISO pump symbol – the triangle touches the motor circle (not a "play" button);
+          filled only while the pump runs */}
+      <path
+        d="M10.5 0L-5.25 -9.09M10.5 0L-5.25 9.09"
+        className="fs-tri-line"
+        transform={`rotate(${ANG[dir]})`}
+      />
+      {state === 'on' && (
+        <path
+          d="M10.5 0L-5.25 -9.09L-5.25 9.09Z"
+          className="fs-tri"
+          transform={`rotate(${ANG[dir]})`}
+        />
+      )}
     </g>
   );
 }

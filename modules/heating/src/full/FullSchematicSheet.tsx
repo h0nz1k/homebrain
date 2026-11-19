@@ -18,7 +18,16 @@ import { fullState, mixerFault } from './fullState.js';
 import { LegendPanel, legendStyles } from './Legend.js';
 import { OVERVIEW_BELOW, overviewBounds } from './overview.js';
 import { clampView, fitView, zoomAt, type Rect, type View } from './panZoom.js';
-import { CONTENT, boxView, equivalentPreset, presetById, presetsFor } from './presets.js';
+import {
+  CONTENT,
+  equivalentPreset,
+  frameView,
+  presetById,
+  presetFrame,
+  presetsFor,
+  bestPlacement,
+  padFor,
+} from './presets.js';
 import { fullSchematicStyles } from './styles.js';
 
 const NARROW = 700;
@@ -92,6 +101,8 @@ function Viewer({
   const [size, setSize] = useState({ w: 0, h: 0, top: 0 });
   const [view, setView] = useState<View>({ scale: 0.3, tx: 0, ty: 0 });
   const [preset, setPresetState] = useState<string | null>(null);
+  // r4: visible frame of the preset (its box grown to the viewport), snapped after measuring
+  const [frame, setFrame] = useState<{ box: Rect; frame: Rect; snapped: boolean } | null>(null);
   const [service, setService] = useState(false);
   const [touched, setTouched] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -133,7 +144,14 @@ function Viewer({
       if (!size.w) return;
       setPresetState(id);
       const p = id === 'all' ? undefined : presetById(id);
-      setView(p ? boxView(size.w, size.h, p.box) : fitView(size.w, size.h, allBox, 12));
+      if (p) {
+        const fit = presetFrame(size.w, size.h, p.box);
+        setFrame({ box: p.box, frame: fit.frame, snapped: false });
+        setView(fit.view);
+      } else {
+        setFrame(null);
+        setView(fitView(size.w, size.h, allBox, 12));
+      }
     },
     [size.h, size.w, allBox],
   );
@@ -165,6 +183,77 @@ function Viewer({
     goPreset(preset === 'all' ? 'all' : (equivalentPreset(preset, offered) ?? 'all'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
+
+  // Leaving a preset (pan, zoom, Celé) shows everything again.
+  useLayoutEffect(() => {
+    if (preset && preset !== 'all') return;
+    for (const el of Array.from(port.current?.querySelectorAll('[data-cut]') ?? [])) {
+      el.removeAttribute('data-cut');
+    }
+  }, [preset]);
+
+  // Grown frame edges must not cut a text, pill or glyph: measure what the frame shows (drawing
+  // units) and pull such edges in (never into the preset box itself), keeping the scale.
+  useLayoutEffect(() => {
+    if (!frame || frame.snapped || !size.w) return;
+    const svg = port.current?.querySelector<SVGSVGElement>('svg[data-testid="heating-full-svg"]');
+    const inv = svg?.getScreenCTM()?.inverse();
+    if (!svg || !inv) return;
+    const items: Rect[] = [];
+    const els: SVGGraphicsElement[] = [];
+    const sel =
+      'text, rect.fs-vpill, rect.fs-card, [data-glyph], [data-badge-for], [data-zone-title], [data-snap]';
+    for (const el of Array.from(svg.querySelectorAll<SVGGraphicsElement>(sel))) {
+      if (el.closest('[data-layer="end-labels"]')) continue;
+      const m = el.getScreenCTM();
+      if (!m) continue;
+      const b = el.getBBox();
+      if (!b.width && !b.height) continue;
+      const k = inv.multiply(m);
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const [px, py] of [
+        [b.x, b.y],
+        [b.x + b.width, b.y],
+        [b.x, b.y + b.height],
+        [b.x + b.width, b.y + b.height],
+      ] as const) {
+        const q = new DOMPoint(px, py).matrixTransform(k);
+        xs.push(q.x);
+        ys.push(q.y);
+      }
+      const x = Math.min(...xs);
+      const y = Math.min(...ys);
+      items.push({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y });
+      els.push(el);
+    }
+    const place = bestPlacement(frame.frame, frame.box, items);
+    // snapping must not undo the fill: if it would leave > 15 % of the canvas empty, keep the
+    // grown frame – whatever its edges cut is hidden below instead
+    const shrunk = place.snapped.h < place.raw.h * 0.85 || place.snapped.w < place.raw.w * 0.85;
+    const next = shrunk ? place.raw : place.snapped;
+    // whatever still straddles the final frame (a fixed side edge on a narrow screen) belongs to
+    // equipment outside it: hidden rather than cut in half
+    for (const el of Array.from(svg.querySelectorAll<SVGGraphicsElement>('[data-cut]'))) {
+      el.removeAttribute('data-cut');
+    }
+    els.forEach((el, i) => {
+      const it = items[i]!;
+      const touches =
+        it.x < next.x + next.w &&
+        it.x + it.w > next.x &&
+        it.y < next.y + next.h &&
+        it.y + it.h > next.y;
+      const whole =
+        it.x >= next.x - 0.5 &&
+        it.y >= next.y - 0.5 &&
+        it.x + it.w <= next.x + next.w + 0.5 &&
+        it.y + it.h <= next.y + next.h + 0.5;
+      if (touches && !whole) (el.closest('.fs-pill-g') ?? el).setAttribute('data-cut', '');
+    });
+    setFrame({ ...frame, frame: next, snapped: true });
+    setView((v) => frameView(size.w, next, v.scale, padFor(size.w)));
+  }, [frame, size.w]);
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -309,10 +398,11 @@ function Viewer({
   const active = preset && preset !== 'all' ? presetById(preset) : undefined;
   const lod = view.scale < OVERVIEW_BELOW ? 'overview' : 'detail';
   // Preset frame: the drawing is clipped to the preset box (drawing units, before scaling).
-  const clip = active
-    ? `inset(${active.box.y}px ${FULL_CANVAS.w - active.box.x - active.box.w}px ${
-        FULL_CANVAS.h - active.box.y - active.box.h
-      }px ${active.box.x}px)`
+  const shown = active && frame ? frame.frame : undefined;
+  const clip = shown
+    ? `inset(${shown.y}px ${FULL_CANVAS.w - shown.x - shown.w}px ${
+        FULL_CANVAS.h - shown.y - shown.h
+      }px ${shown.x}px)`
     : undefined;
 
   return (
@@ -447,7 +537,9 @@ function Viewer({
           className="ht-fs-world"
           data-clip={active?.id}
           data-clip-box={
-            active ? `${active.box.x} ${active.box.y} ${active.box.w} ${active.box.h}` : undefined
+            shown
+              ? `${shown.x.toFixed(1)} ${shown.y.toFixed(1)} ${shown.w.toFixed(1)} ${shown.h.toFixed(1)}`
+              : undefined
           }
           style={{
             transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
@@ -459,7 +551,9 @@ function Viewer({
             service={service}
             theme={theme}
             lod={lod}
-            frame={active?.box ?? null}
+            frame={frame?.snapped ? (shown ?? null) : null}
+            scale={view.scale}
+            poolCard={active?.id === 'basin' ? 'above' : 'pit'}
           />
         </div>
         {showLegend && (

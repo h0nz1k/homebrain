@@ -74,11 +74,16 @@ describe('FullSchematic (live data)', () => {
     expect(screen.getByTestId('heating-full-cool-state').textContent).toBe('bez signálu');
   });
 
-  it('pool card: no water sensor (said so), return of the floor heating, pumps as glyphs', () => {
+  it('pool card: return of the floor heating inline, water "neměřeno", outside the basin', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
     const card = screen.getByTestId('heating-full-pool-card');
-    expect(card.textContent).toContain('Teplota vodybez čidla');
-    expect(card.textContent).toMatch(/Zpátečka ohřevu bazénu27,9\u00a0°C/u);
+    expect(card.textContent).toMatch(/Zpátečka z ohřevu bazénu27,9\u00a0°C/u);
+    expect(card.textContent).toContain('Voda v bazénuneměřeno');
+    expect(card.querySelector('.fs-pill-unmeasured')).not.toBeNull();
+    // r4: the card never covers the basin (pool box) – it sits in the air above the pit
+    const rect = card.querySelector('rect')!;
+    const bottom = Number(rect.getAttribute('y')) + Number(rect.getAttribute('height'));
+    expect(bottom).toBeLessThan(950);
     expect(card.textContent).toContain('Ohřev dnastojí');
     expect(card.textContent).toContain('Filtracestojí');
     expect(card.querySelectorAll('[data-pump][data-state="off"]')).toHaveLength(2);
@@ -98,8 +103,11 @@ describe('FullSchematic (live data)', () => {
     expect(screen.getByTestId('heating-full-overview')).toBeTruthy();
     expect(document.querySelector('[data-label="hp_t_out"]')).toBeNull();
     const text = document.querySelector('svg')!.textContent!;
-    for (const v of ['46,0', '41,8', '49,8', '41,7', '27,9', 'bez čidla', 'kompresor běží'])
+    for (const v of ['46,0', '41,8', '49,8', '41,7', '37,8', '27,9', 'neměřeno', 'kompresor běží'])
       expect(text).toContain(v);
+    // r4: the key values sit at their equipment, not in the card
+    for (const k of ['tank_high', 'tank_low', 'hp_t_out', 'hp_t_in', 't_ut'])
+      expect(document.querySelector(`[data-ov-value="${k}"] [data-pill]`)).not.toBeNull();
     // same wording as the detail drawing and the status panel
     expect(text).toContain('bez signálu');
   });

@@ -73,6 +73,20 @@ const PUMP_NAMES: Record<string, string> = {
   pump_filt: 'Čerpadlo filtrace',
 };
 
+/** r4: status chip of each pump (x, centre y, anchor) – filled from the label boxes below. */
+const PUMP_CHIP: Record<string, [number, number, 'start' | 'middle' | 'end']> = Object.fromEntries(
+  Object.keys(PUMP_NAMES).flatMap((k) => {
+    const l = G.labels[k];
+    // the pool pumps carry their state in the pool card (each value once)
+    if (!l || k === 'pump_pool' || k === 'pump_filt') return [];
+    const [x, y, w, h] = l.box as [number, number, number, number];
+    const ax = l.anchor === 'start' ? x : l.anchor === 'end' ? x + w : x + w / 2;
+    return [[k, [ax, y + h + 14, l.anchor] as [number, number, 'start' | 'middle' | 'end']]];
+  }),
+);
+
+const OV_BADGE_AT: Record<string, [number, number]> = { '?2': [1290, 655] };
+
 const HALO: Record<string, string> = {
   none: 'none',
   concrete2: 'var(--fs-concrete2)',
@@ -482,6 +496,10 @@ export interface FullSchematicProps {
   lod?: 'overview' | 'detail';
   /** Visible preset box: pipes leaving it get an end label at the edge. */
   frame?: Rect | null;
+  /** Current view scale (CSS px per unit): pipe ends stay 12 px inside the frame. */
+  scale?: number;
+  /** Where the pool card sits (phone "Bazén": above the enclosure). */
+  poolCard?: PoolCardAt;
 }
 
 /** Labels drawn as name + value pill under each other (narrow places, e.g. at the TČ ports). */
@@ -512,6 +530,8 @@ export function FullSchematic({
   theme,
   lod = 'detail',
   frame = null,
+  scale = 1,
+  poolCard = 'pit',
 }: FullSchematicProps) {
   const overview = lod === 'overview';
   const uid = useId().replace(/:/g, '');
@@ -535,17 +555,34 @@ export function FullSchematic({
   // Cooling has no "active" signal in the map (only the enable flag): muted "bez signálu".
   const coolLine = COOL_STATE(st);
   const mixLine = `poloha: ${MIX_STATE(st)}`;
+  // r4: pipes leaving a preset end 12 px inside its frame (a clear stub, not cut by the edge)
+  const inset = frame ? 12 / Math.max(scale, 0.05) : 0;
+  const pipeClip = frame ? `url(#${uid}-pipes)` : undefined;
+  const inFrame = (x: number, y: number, m: number) =>
+    !frame ||
+    (x > frame.x + m && x < frame.x + frame.w - m && y > frame.y + m && y < frame.y + frame.h - m);
 
   const label = (k: string, extra?: ReactNode, extraClass?: string) => {
     const l = labels[k];
     if (!l) return null;
+    // r4: a label the frame edge would cut belongs to equipment outside the frame – not shown
+    if (frame && !l.zone) {
+      const [bx, by, bw, bh] = l.box as Box4;
+      const xin = bx >= frame.x - 1 && bx + bw <= frame.x + frame.w + 1;
+      const yin = by >= frame.y - 1 && by + bh <= frame.y + frame.h + 1;
+      const touches =
+        bx < frame.x + frame.w && bx + bw > frame.x && by < frame.y + frame.h && by + bh > frame.y;
+      if (touches && !(xin && yin)) return null;
+    }
     const code = service && SERVICE_FIELD[k] ? codes[SERVICE_FIELD[k]] : undefined;
     if (l.zone) return <ZonePlate key={k} k={k} l={l} />;
     if (TANK_ROWS[k]) return null;
     if (l.reading && !l.card) {
       const stack = STACKED.has(k);
       const pipeSensor = l.pipeSensor;
-      const lead = l.sensor ? 20 : 0;
+      // r4: one marker per sensor – the ring on the pipe when there is one, else by the name
+      const nameSensor = l.sensor && !pipeSensor;
+      const lead = nameSensor ? 20 : 0;
       return (
         <g key={k} data-compressor-dependent={l.compressorDependent ? '' : undefined}>
           {pipeSensor && (
@@ -569,7 +606,7 @@ export function FullSchematic({
               const y = READING_AT[k]?.[1] ?? (stack && READING_UP[k] ? l.y - READING_UP[k] : l.y);
               return (
                 <>
-                  {l.sensor && <Sensor c={[x0 + 7, y - 5]} />}
+                  {nameSensor && <Sensor c={[x0 + 7, y - 5]} />}
                   {/* service code right of the value pill (never over the name or the pill) */}
                   {code && (
                     <text
@@ -628,6 +665,15 @@ export function FullSchematic({
         {code && !l.card && (
           <ServiceCode k={k} l={l} code={code} reading={l.reading ? st.readings[k] : undefined} />
         )}
+        {PUMP_CHIP[k] && k in st.pumps && (
+          <StatusChip
+            x={PUMP_CHIP[k][0]}
+            cy={PUMP_CHIP[k][1]}
+            anchor={PUMP_CHIP[k][2]}
+            on={st.pumps[k] ?? null}
+            k={`chip_${k}`}
+          />
+        )}
       </g>
     );
   };
@@ -648,6 +694,16 @@ export function FullSchematic({
       aria-label="Plné schéma topení: tepelné čerpadlo, akumulační nádrž, okruhy domu, rybárny, bazénu a zemního kolektoru"
     >
       <defs>
+        {frame && (
+          <clipPath id={`${uid}-pipes`} clipPathUnits="userSpaceOnUse">
+            <rect
+              x={frame.x + inset}
+              y={frame.y + inset}
+              width={Math.max(0, frame.w - 2 * inset)}
+              height={Math.max(0, frame.h - 2 * inset)}
+            />
+          </clipPath>
+        )}
         <linearGradient id={`${uid}-water`} x1="0" y1="0" x2="0" y2="1">
           <stop stopColor={st.readings.tank_high ? '#ba6970' : 'var(--fs-inactive)'} />
           <stop offset=".27" stopColor="#bb7b80" />
@@ -703,10 +759,12 @@ export function FullSchematic({
       <rect y={overview ? -400 : 0} width={W} height={H + (overview ? 800 : 0)} className="fs-bg" />
       <Architecture />
       <TankShell r={G.glyphs.tank} water={`url(#${uid}-water)`} />
-      {G.bridges.map((b) => (
-        <path key={`halo-${b.over}`} d={b.arc} className="fs-halo" stroke={HALO[b.halo]} />
-      ))}
-      <g data-layer="pipes">
+      <g clipPath={pipeClip}>
+        {G.bridges.map((b) => (
+          <path key={`halo-${b.over}`} d={b.arc} className="fs-halo" stroke={HALO[b.halo]} />
+        ))}
+      </g>
+      <g data-layer="pipes" clipPath={pipeClip}>
         {ordered.map((p) => {
           const state = (P[p.id] ?? 'unknown') as PipeState;
           return (
@@ -722,6 +780,20 @@ export function FullSchematic({
             </Fragment>
           );
         })}
+        {/* r4: the filtration pipes visibly enter the water (inlet nozzles in the basin) */}
+        {(['pool_to_pfilt', 'acid_to_pool'] as const).map((id) => {
+          const pt = G.pipes.find((q) => q.id === id)!.pts;
+          const end = id === 'pool_to_pfilt' ? pt[0]! : pt.at(-1)!;
+          const state = (P[id] ?? 'unknown') as PipeState;
+          return (
+            <path
+              key={`inlet-${id}`}
+              d={`M${end[0]} ${end[1]}H${end[0]! + 30}`}
+              className={pipeCls('pool', state)}
+              data-inlet={id}
+            />
+          );
+        })}
         {G.bridges.map((b) => (
           <path
             key={`arc-${b.over}`}
@@ -731,26 +803,28 @@ export function FullSchematic({
           />
         ))}
       </g>
-      <path
-        d={G.coils.ground}
-        className={`fs-coil ${pipeCls('coll', P.jbr_to_ground!)}`}
-        data-coil="ground"
-      />
-      <path
-        d={G.coils.poolFeed}
-        className={`fs-coil ${pipeCls('heat_supply', P.ppool_to_bottom!)}`}
-        data-coil="floor_pool_feed"
-      />
-      {/* the supply → return gradient only while the pump runs; standing water = one colour */}
-      <path
-        d={G.coils.poolMeander}
-        className={`fs-coil fs-pipe fs-s-${P.ppool_to_bottom}${
-          P.ppool_to_bottom === 'flow' ? '' : ' fs-c-heat_supply'
-        }`}
-        stroke={P.ppool_to_bottom === 'flow' ? 'url(#fs-meander)' : undefined}
-        data-coil="floor_pool_meander"
-        data-state={P.ppool_to_bottom}
-      />
+      <g clipPath={pipeClip}>
+        <path
+          d={G.coils.ground}
+          className={`fs-coil ${pipeCls('coll', P.jbr_to_ground!)}`}
+          data-coil="ground"
+        />
+        <path
+          d={G.coils.poolFeed}
+          className={`fs-coil ${pipeCls('heat_supply', P.ppool_to_bottom!)}`}
+          data-coil="floor_pool_feed"
+        />
+        {/* the supply → return gradient only while the pump runs; standing water = one colour */}
+        <path
+          d={G.coils.poolMeander}
+          className={`fs-coil fs-pipe fs-s-${P.ppool_to_bottom}${
+            P.ppool_to_bottom === 'flow' ? '' : ' fs-c-heat_supply'
+          }`}
+          stroke={P.ppool_to_bottom === 'flow' ? 'url(#fs-meander)' : undefined}
+          data-coil="floor_pool_meander"
+          data-state={P.ppool_to_bottom}
+        />
+      </g>
       {G.leaders.map((ld) => (
         <path
           key={ld.of}
@@ -759,13 +833,15 @@ export function FullSchematic({
         />
       ))}
       {/* glyphs */}
-      <RadiatorPair
-        box={G.glyphs.radiators.box}
-        ys={G.glyphs.radiators.ys}
-        slab={G.glyphs.radiators.slab}
-        supplyClass={pipeCls('heat_supply', P.jsup_to_rad!)}
-        returnClass={pipeCls('heat_return', P.rad_to_jret!)}
-      />
+      <g clipPath={pipeClip}>
+        <RadiatorPair
+          box={G.glyphs.radiators.box}
+          ys={G.glyphs.radiators.ys}
+          slab={G.glyphs.radiators.slab}
+          supplyClass={pipeCls('heat_supply', P.jsup_to_rad!)}
+          returnClass={pipeCls('heat_return', P.rad_to_jret!)}
+        />
+      </g>
       <g className="fs-lift">
         {Object.entries(G.glyphs.fans).map(([k, r]) => (
           <g key={k} data-glyph={k}>
@@ -825,39 +901,36 @@ export function FullSchematic({
         <Sensor key={k} c={c} />
       ))}
       {/* wall pass-through: two short bars across the pipe (a dot is only ever a joint) */}
-      {G.marks.map((mk, i) => {
-        const d =
-          mk.orient === 'h'
-            ? `M${mk.x - 5} ${mk.y - 10}V${mk.y + 10}M${mk.x + 5} ${mk.y - 10}V${mk.y + 10}`
-            : `M${mk.x - 10} ${mk.y - 5}H${mk.x + 10}M${mk.x - 10} ${mk.y + 5}H${mk.x + 10}`;
-        return (
-          <g key={i} data-sleeve="">
-            <path d={d} className="fs-sleeve-key" />
-            <path d={d} className="fs-sleeve-bar" />
-          </g>
-        );
-      })}
-      {G.fittings.map((f) => {
-        const hpPort = f.port.startsWith('hp.');
-        const route = G.pipes.find((p) => p.from === f.port || p.to === f.port);
-        return hpPort ? (
-          <g key={f.port} data-fitting={f.port} transform={`translate(${f.x} ${f.y})`}>
-            <circle r="5.5" className={`fs-port-collar fs-f-${route?.colour ?? 'heat_supply'}`} />
-            <circle r="2.2" className="fs-port-core" />
-          </g>
-        ) : (
-          <g
-            key={f.port}
-            transform={`translate(${f.x} ${f.y}) rotate(${f.orient === 'v' ? 90 : 0})`}
-            data-fitting={f.port}
-          >
-            <rect x="-5" y="-7" width="10" height="14" rx="2.5" className="fs-fitting" />
-          </g>
-        );
-      })}
+      <g clipPath={pipeClip}>
+        {G.marks.map((mk, i) => {
+          const d =
+            mk.orient === 'h'
+              ? `M${mk.x - 5} ${mk.y - 10}V${mk.y + 10}M${mk.x + 5} ${mk.y - 10}V${mk.y + 10}`
+              : `M${mk.x - 10} ${mk.y - 5}H${mk.x + 10}M${mk.x - 10} ${mk.y + 5}H${mk.x + 10}`;
+          return (
+            <g key={i} data-sleeve="">
+              <path d={d} className="fs-sleeve-key" />
+              <path d={d} className="fs-sleeve-bar" />
+            </g>
+          );
+        })}
+        {G.fittings.map((f) => {
+          const hpPort = f.port.startsWith('hp.');
+          // r4: at the heat-pump ports the pipe sensor ring is the only marker (no collar dot)
+          return hpPort ? null : (
+            <g
+              key={f.port}
+              transform={`translate(${f.x} ${f.y}) rotate(${f.orient === 'v' ? 90 : 0})`}
+              data-fitting={f.port}
+            >
+              <rect x="-5" y="-7" width="10" height="14" rx="2.5" className="fs-fitting" />
+            </g>
+          );
+        })}
+      </g>
       <g data-layer="chevrons">
         {G.chevrons
-          .filter((cv) => P[cv.route] === 'flow')
+          .filter((cv) => P[cv.route] === 'flow' && inFrame(cv.x, cv.y, inset + 12))
           .map((cv, i) => (
             <g key={i} data-flow-route={cv.route}>
               <Chevron x={cv.x} y={cv.y} angle={cv.angle} size={cv.scale * (overview ? 1.6 : 1)} />
@@ -875,20 +948,29 @@ export function FullSchematic({
           data-junction={j.id}
         />
       ))}
-      {G.badges.map((bd) => (
-        <g key={bd.of} data-badge-for={bd.of} data-question={bd.text}>
-          <circle cx={bd.x} cy={bd.y} r={bd.r * (overview ? 2.4 : 1)} className="fs-badge" />
-          <text
-            x={bd.x}
-            y={bd.y + (overview ? 12.4 : 5.2)}
-            fontSize={overview ? 35 : 15}
-            textAnchor="middle"
-            className="fs-t fs-t-badge"
-          >
-            {bd.text}
-          </text>
-        </g>
-      ))}
+      {G.badges.map((bd) => {
+        // r4: at overview size the ?2 badge would cover the cooling pipes – it moves into the
+        // free room right of the valve with a thin leader back to it
+        const at = overview ? OV_BADGE_AT[bd.text] : undefined;
+        const [bx, by] = at ?? [bd.x, bd.y];
+        return (
+          <g key={bd.of} data-badge-for={bd.of} data-question={bd.text}>
+            {at && (
+              <path d={`M${bd.x} ${bd.y}L${bx} ${by}`} className="fs-leader" data-badge-leader="" />
+            )}
+            <circle cx={bx} cy={by} r={bd.r * (overview ? 2.4 : 1)} className="fs-badge" />
+            <text
+              x={bx}
+              y={by + (overview ? 12.4 : 5.2)}
+              fontSize={overview ? 35 : 15}
+              textAnchor="middle"
+              className="fs-t fs-t-badge"
+            >
+              {bd.text}
+            </text>
+          </g>
+        );
+      })}
       {/* labels */}
       {!overview &&
         Object.keys(labels).map((k) => {
@@ -903,7 +985,7 @@ export function FullSchematic({
           <g data-label-group="hp">
             <text
               x={hx + hw / 2}
-              y={hy - 28}
+              y={hy - 34}
               fontSize="15"
               textAnchor="middle"
               className="fs-t fs-t-T"
@@ -913,18 +995,17 @@ export function FullSchematic({
             >
               {manifest?.model ? `TČ ${manifest.model}` : 'Tepelné čerpadlo'}
             </text>
-            <text
-              x={hx + hw / 2}
-              y={hy - 9}
-              fontSize="15"
-              textAnchor="middle"
-              className={`fs-t ${st.compressor === 'on' ? 'fs-hp-run' : 'fs-t-m'}`}
-              stroke="var(--fs-tech)"
-              strokeWidth="4"
-              data-testid="heating-full-hp-state"
-            >
-              {HP_STATE[st.compressor]}
-            </text>
+            <g data-testid="heating-full-hp-state" data-state={st.compressor}>
+              <StatusChip
+                x={hx + hw / 2}
+                cy={hy - 15}
+                anchor="middle"
+                on={st.compressor === 'unknown' ? null : st.compressor === 'on'}
+                k="hp_state"
+                run={HP_STATE.on!}
+                stop={HP_STATE.off!}
+              />
+            </g>
           </g>
           {service && codes['heat_pump.compressor_on'] && (
             <text
@@ -953,17 +1034,15 @@ export function FullSchematic({
             >
               Směšovací ventil
             </text>
-            <text
-              x={mixC[0] + (st.mixer.fault ? 46 : 34)}
-              y={mixC[1] + 45}
-              fontSize="15"
-              className={`fs-t ${st.mixer.pct === null ? 'fs-nodata' : 'fs-t-m'}`}
-              stroke="var(--fs-tech)"
-              strokeWidth="4"
-              data-testid="heating-full-mix-pct"
-            >
-              {mixLine}
-            </text>
+            <g data-testid="heating-full-mix-pct">
+              <Pill
+                x={mixC[0] + (st.mixer.fault ? 46 : 34)}
+                cy={mixC[1] + 45}
+                value={mixLine}
+                k="mix_state"
+                className={st.mixer.pct === null ? 'fs-pill-warn' : 'fs-pill-stop'}
+              />
+            </g>
           </g>
           {/* cooling valve: name + state beside its actuator */}
           <g data-valve-label="valve_cool">
@@ -978,20 +1057,18 @@ export function FullSchematic({
             >
               Ventil chlazení
             </text>
-            <text
-              x={coolC[0] + 32}
-              y={coolC[1] + 14}
-              fontSize="15"
-              className={`fs-t ${st.coolValve.path === 'unknown' ? 'fs-nodata' : 'fs-t-m'}`}
-              stroke="var(--fs-tech)"
-              strokeWidth="4"
-              data-testid="heating-full-cool-state"
-            >
-              {coolLine}
-            </text>
+            <g data-testid="heating-full-cool-state">
+              <Pill
+                x={coolC[0] + 32}
+                cy={coolC[1] + 16}
+                value={coolLine}
+                k="cool_state"
+                className={st.coolValve.path === 'unknown' ? 'fs-pill-warn' : 'fs-pill-stop'}
+              />
+            </g>
           </g>
           <FishState st={st} />
-          <PoolCard st={st} />
+          <PoolCard st={st} at={poolCard} />
         </>
       )}
       {overview && <Overview st={st} />}
@@ -1044,14 +1121,33 @@ function ServiceCode({
   );
 }
 
-/** Zone title: a plate on the top-left edge of its zone (same position for every zone). */
-function ZonePlate({ k, l }: { k: string; l: GeoLabel }) {
+/**
+ * r4: zone titles sit inside their zone, clear of its border (a plate on the border read like a
+ * label on a pipe). The channel is too low for a plate: its title sits under it in the soil.
+ */
+const ZONE_DY: Record<string, number> = { channel_caption: 70 };
+const ZONE_DX: Record<string, number> = { ryb_caption: 6 };
+/** The supply riser runs along the top-left of the attic: its plate takes the top-right. */
+const ZONE_RIGHT: Record<string, number> = { attic_caption: G.arch.blockR - 10 };
+export function zonePlateBox(k: string, l: GeoLabel): Box4 {
   const [x, y, w] = l.box as [number, number, number];
   const text = l.lines[0] ?? '';
   const width = Math.max(w, text.length * 15 * 0.68) + 16;
+  const dx = ZONE_DX[k] ?? 0;
+  const dy = ZONE_DY[k] ?? 16;
+  const left = ZONE_RIGHT[k] !== undefined ? ZONE_RIGHT[k] - width : x - 8 + dx;
+  return [left, y - 2 + dy, width, l.sub ? 46 : 22];
+}
+
+/** Zone title: a plate in the top-left corner of its zone (same position for every zone). */
+function ZonePlate({ k, l }: { k: string; l: GeoLabel }) {
+  const [bx, by, width] = zonePlateBox(k, l);
+  const x = bx + 8;
+  const y = by + 2;
+  const text = l.lines[0] ?? '';
   return (
     <g data-label-group={k} data-zone-title="">
-      <rect x={x - 8} y={y - 2} width={width} height="22" rx="4" className="fs-zone-plate" />
+      <rect x={bx} y={by} width={width} height="22" rx="4" className="fs-zone-plate" />
       <text x={x} y={y + 14.5} fontSize="15" className="fs-t fs-t-zone" data-label={k}>
         {text}
       </text>
@@ -1098,7 +1194,7 @@ const TANK_FIELD: Record<string, string> = { tank_high: 'tank.top', tank_low: 't
 function TankColumn({ st, codes }: { st: FullState; codes: Record<string, string> }) {
   const [tx, , tw] = G.glyphs.tank as [number, number, number];
   const wall = tx + tw;
-  const x0 = wall + 16;
+  const x0 = wall + 12;
   const dhw = G.glyphs.tankDhw;
   const coil = G.glyphs.tankCoil;
   const target = {
@@ -1185,68 +1281,110 @@ function FishState({ st }: { st: FullState }) {
 }
 
 /**
- * Pool card inside the basin (r3): the basin has no water-temperature sensor – said so plainly;
- * 27,9 °C is the return of the floor heating. Pump rows carry the pump glyph (legend encoding).
+ * Pool card (r4): outside the basin – in the free air above the pit (whole drawing, desktop,
+ * tablet) or above the enclosure (phone "Bazén"). Every value sits on the line of its label; the
+ * water itself has no sensor and says so in its own outlined amber state ("neměřeno"), the 27,9 °C
+ * is the return of the floor heating. Pump rows carry the pump glyph and a status chip.
  */
-function PoolCard({ st }: { st: FullState }) {
-  const [px, py, pw] = G.glyphs.pool as [number, number, number];
-  const x = px + 12;
-  const w = pw - 24;
-  const y = py + 22;
+export const POOL_CARD_AT = {
+  pit: { x: 2852, y: 750, w: 396 },
+  above: { x: 3280, y: 568, w: 272 },
+} as const;
+export type PoolCardAt = keyof typeof POOL_CARD_AT;
+const POOL_ROW = 30;
+const poolCardH = (at: PoolCardAt) => 34 + POOL_ROW * (at === 'above' ? 4.7 : 4) + 8;
+const POOL_CARD_AVOID: Box4[] = (Object.keys(POOL_CARD_AT) as PoolCardAt[]).map((k) => {
+  const c = POOL_CARD_AT[k];
+  return [c.x - 4, c.y - 4, c.w + 8, poolCardH(k) + 8];
+});
+
+function PoolCard({ st, at }: { st: FullState; at: PoolCardAt }) {
+  const { x, y, w } = POOL_CARD_AT[at];
   const p = st.pool;
-  const right = x + w - 10;
-  const row = (i: number) => y + 22 + i * 30;
+  const right = x + w - 12;
+  const narrow = at === 'above';
+  let cy = y + 34 + POOL_ROW / 2;
+  const name = (text: string, ty: number, nx = x + 12) => (
+    <text x={nx} y={ty + 5} fontSize={LABEL_FONT} className="fs-t fs-tank-detail">
+      {text}
+    </text>
+  );
+  // the return row is two lines on the narrow card (name, then the value on the next line)
+  const retY = cy;
+  const retValueY = narrow ? cy + POOL_ROW * 0.7 : cy;
+  cy = retValueY + POOL_ROW;
+  const waterY = cy;
+  const pumpY = [cy + POOL_ROW, cy + 2 * POOL_ROW];
   return (
-    <g data-testid="heating-full-pool-card" data-label-group="pool">
-      <rect x={x} y={y} width={w} height="160" rx="8" className="fs-card fs-card-edge" />
-      <text
-        x={x + 10}
-        y={row(0) + 5}
-        fontSize={LABEL_FONT}
-        className="fs-t fs-tank-detail"
-        data-pool-row="Teplota vody"
-      >
-        Teplota vody
+    <g data-testid="heating-full-pool-card" data-label-group="pool" data-pool-at={at}>
+      <rect x={x} y={y} width={w} height={poolCardH(at)} rx="8" className="fs-card fs-card-edge" />
+      <text x={x + 12} y={y + 24} fontSize={LABEL_FONT} className="fs-t fs-t-card-title">
+        Bazén
       </text>
-      <Pill x={right} cy={row(0)} anchor="end" value={null} missing="bez čidla" k="pool_water" />
-      <text
-        x={x + 10}
-        y={row(1) + 5}
-        fontSize={LABEL_FONT}
-        className="fs-t fs-tank-detail"
-        data-pool-row="Zpátečka ohřevu bazénu"
-      >
-        Zpátečka ohřevu bazénu
-      </text>
-      <Pill x={right} cy={row(1) + 28} anchor="end" value={p?.temp ?? null} k="pool_return" />
+      <g data-pool-row="Zpátečka z ohřevu bazénu">
+        {name('Zpátečka z ohřevu bazénu', retY)}
+        <Pill x={right} cy={retValueY} anchor="end" value={p?.temp ?? null} k="pool_return" />
+      </g>
+      <g data-pool-row="Voda v bazénu">
+        {name('Voda v bazénu', waterY)}
+        <Pill
+          x={right}
+          cy={waterY}
+          anchor="end"
+          value={null}
+          missing="neměřeno"
+          k="pool_water"
+          className="fs-pill-unmeasured"
+        />
+      </g>
       {(
         [
           ['Ohřev dna', 'pump_pool', p?.heating ?? null],
           ['Filtrace', 'pump_filt', p?.filter ?? null],
         ] as const
-      ).map(([name, id, on], i) => {
-        const cy = row(2.9 + i);
+      ).map(([label, id, on], i) => {
+        const ry = pumpY[i]!;
         return (
-          <g key={id} data-pool-row={name} data-state={String(on)}>
-            <g transform={`translate(${x + 20} ${cy}) scale(.8) translate(${-x - 20} ${-cy})`}>
-              <Pump c={[x + 20, cy]} dir="r" on={on} id={`card_${id}`} label={name} />
+          <g key={id} data-pool-row={label} data-state={String(on)}>
+            <g transform={`translate(${x + 22} ${ry}) scale(.8) translate(${-x - 22} ${-ry})`}>
+              <Pump c={[x + 22, ry]} dir="r" on={on} id={`card_${id}`} label={label} />
             </g>
-            <text x={x + 40} y={cy + 5} fontSize={LABEL_FONT} className="fs-t fs-tank-detail">
-              {name}
-            </text>
-            <Pill
-              x={right}
-              cy={cy}
-              anchor="end"
-              value={on === null ? null : on ? 'běží' : 'stojí'}
-              missing="bez signálu"
-              k={`pool_${id}`}
-              className={on ? 'fs-pill-run' : undefined}
-            />
+            {name(label, ry, x + 44)}
+            <StatusChip x={right} cy={ry} anchor="end" on={on} k={`pool_${id}`} />
           </g>
         );
       })}
     </g>
+  );
+}
+
+/** Pump / compressor status chip: running green, stopped neutral, no signal amber. */
+export function StatusChip({
+  x,
+  cy,
+  on,
+  k,
+  anchor = 'start',
+  run = 'běží',
+  stop = 'stojí',
+}: {
+  x: number;
+  cy: number;
+  on: boolean | null;
+  k: string;
+  anchor?: 'start' | 'middle' | 'end';
+  run?: string;
+  stop?: string;
+}) {
+  return (
+    <Pill
+      x={x}
+      cy={cy}
+      anchor={anchor}
+      value={on === null ? 'bez signálu' : on ? run : stop}
+      k={k}
+      className={on === null ? 'fs-pill-warn' : on ? 'fs-pill-run' : 'fs-pill-stop'}
+    />
   );
 }
 
@@ -1267,11 +1405,24 @@ export const END_AVOID: Box4[] = (() => {
   }
   for (const l of Object.values(G.labels)) {
     const [x, y, w, h] = l.box as Box4;
+    // tank labels live in the side column (its rows are pushed below), not at their p3i spot
+    if (TANK_ROWS[Object.keys(G.labels).find((n) => G.labels[n] === l) ?? '']) continue;
     if (l.zone) {
-      out.push([x - 10, y - 4, (l.lines[0]?.length ?? 0) * 15 * 0.68 + 20, l.sub ? 48 : 26]);
+      const k = Object.keys(G.labels).find((n) => G.labels[n] === l)!;
+      const [zx, zy, zw, zh] = zonePlateBox(k, l);
+      out.push([zx - 4, zy - 4, zw + (l.sub ? 60 : 8), zh + 8]);
       continue;
     }
-    const at = READING_AT[Object.keys(G.labels).find((k) => G.labels[k] === l) ?? ''];
+    const key = Object.keys(G.labels).find((k) => G.labels[k] === l) ?? '';
+    if (STACKED.has(key) && !READING_AT[key]) {
+      // name with the value pill under it (moved up by READING_UP above its pipe)
+      const top = l.y - (READING_UP[key] ?? 0) - 15;
+      const w0 = Math.max(w, 110);
+      const x0 = l.anchor === 'end' ? x + w - w0 : x;
+      out.push([x0 - 4, top - 3, w0 + 8, 56]);
+      continue;
+    }
+    const at = READING_AT[key];
     if (at) {
       // moved room sensor: sensor + name with the value pill under it
       out.push([at[0] - 26, at[1] - 16, 130, 48]);
@@ -1283,15 +1434,46 @@ export const END_AVOID: Box4[] = (() => {
   }
   const [tx, , tw] = G.glyphs.tank as Box4;
   out.push([tx, G.glyphs.tank[1]! - 10, tw, G.glyphs.tank[3]! + 30]);
-  for (const r of Object.values(TANK_ROWS)) out.push([tx + tw, r.cy - 14, 240, 28]);
+  // name + value pill rows are wider than the name-only rows
+  for (const [k, r] of Object.entries(TANK_ROWS))
+    out.push([tx + tw, r.cy - 14, k === 'tank_dhw' || r.sensor ? 196 : 170, 28]);
   const [hx, hy, hw] = G.glyphs.hp as Box4;
   out.push([hx - 20, hy - 46, hw + 40, 46]);
   const [mx, my] = G.glyphs.valveMix.c as [number, number];
-  out.push([mx + 30, my + 10, 170, 42]);
+  out.push([mx + 30, my + 10, 200, 50]);
   const [cx, cy] = G.glyphs.valves.valve_cool!.c as [number, number];
-  out.push([cx + 28, cy - 20, 140, 42]);
-  const [px, py, pw] = G.glyphs.pool as Box4;
-  out.push([px, py, pw, 200]);
+  out.push([cx + 28, cy - 20, 140, 50]);
+  for (const [, [x, y, anchor]] of Object.entries(PUMP_CHIP)) {
+    const w = 64;
+    const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    out.push([x0 - 4, y - 15, w + 8, 30]);
+  }
+  // water surface, basin walls and wall sleeves
+  const [px, py, pw, ph] = G.boxes.pool as Box4;
+  out.push(
+    [px - 8, py + 8, pw + 16, 16],
+    [px - 10, py - 4, 20, ph + 8],
+    [px + pw - 10, py - 4, 20, ph + 8],
+  );
+  for (const mk of G.marks) out.push([mk.x - 12, mk.y - 12, 24, 24]);
+  // r4: zone borders and ?N badges are obstacles too (no label on a border or a badge)
+  for (const e of G.regionEdges) {
+    const [x1, y1, x2, y2] = e as [number, number, number, number];
+    out.push([
+      Math.min(x1, x2) - 2,
+      Math.min(y1, y2) - 2,
+      Math.abs(x2 - x1) + 4,
+      Math.abs(y2 - y1) + 4,
+    ]);
+  }
+  for (const b of G.bridges) {
+    const [bx, by] = b.at as [number, number];
+    // the hop bulges to one side of its pipe (up, or sideways on a riser)
+    out.push([bx - b.r - 2, by - b.r - 2, 2 * b.r + 4, 2 * b.r + 4]);
+  }
+  for (const bd of G.badges)
+    out.push([bd.x - bd.r - 3, bd.y - bd.r - 3, 2 * bd.r + 6, 2 * bd.r + 6]);
+  out.push(...POOL_CARD_AVOID);
   return out;
 })();
 
@@ -1316,7 +1498,11 @@ function EndLabels({ frame }: { frame: Rect }) {
             stroke="var(--fs-tech)"
             strokeWidth="4"
           >
-            {e.text}
+            {e.lines.map((ln, i) => (
+              <tspan key={i} x={e.x} dy={i ? 18 : 0}>
+                {ln}
+              </tspan>
+            ))}
           </text>
         </g>
       ))}

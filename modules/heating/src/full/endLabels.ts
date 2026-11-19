@@ -81,10 +81,15 @@ export interface EndLabel {
   pipe: string;
   /** Thin leader from the exit to a label that had to move away from its pipe. */
   bracket?: [number, number, number, number];
+  /** r4: a supply/return pair (or two ports of one valve) shares one label between its pipes. */
+  pair?: [number, number, number, number];
   edge: Edge;
   /** Crossing point on the frame edge. */
   at: [number, number];
+  /** Full single-line text (also what tests read). */
   text: string;
+  /** Lines as drawn (a short or two-line form where the full text has no room). */
+  lines: string[];
   x: number;
   y: number;
   anchor: 'start' | 'end';
@@ -92,6 +97,25 @@ export interface EndLabel {
 
 const ARROW: Record<Edge, string> = { l: '←', r: '→', t: '↑', b: '↓' };
 const FONT = 15;
+const LH = 18;
+/** Circuit words for two pairs going to the same place (pool water vs pool floor heating). */
+const CIRCUIT: Record<string, string> = {
+  pool: 'filtrace',
+  heat_supply: 'ohřev dna',
+  heat_return: 'ohřev dna',
+  coll: 'kolektor',
+  solar: 'solár',
+  cool: 'chlazení',
+};
+/** Shorter names for tight places (a narrow gap between the frame and a big glyph). */
+const SHORT: Record<string, string> = {
+  'zpátečka z domu': 'dům',
+  'přepínání TUV': 'ventil TUV',
+  'zemní kolektor': 'kolektor',
+  'solární kolektor': 'solár',
+  'výměník chlazení': 'výměník',
+  'ventil chlazení': 'ventil',
+};
 
 /** Crossings of the polyline with the frame edge, with the side that lies outside. */
 function exits(pts: number[][], f: Rect) {
@@ -140,6 +164,20 @@ function exits(pts: number[][], f: Rect) {
 }
 
 export type Box4 = [number, number, number, number];
+/** Width of a 15-unit semibold label (Inter): narrow, wide and capital glyphs differ a lot. */
+export function textWidth(t: string, font = FONT): number {
+  let em = 0;
+  for (const ch of t) {
+    if ("iljtfr.,:;()·'| ".includes(ch)) em += 0.32;
+    else if ('mwMW'.includes(ch)) em += 0.86;
+    else if (ch === '←' || ch === '→' || ch === '↑' || ch === '↓') em += 0.8;
+    else if (/[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]/u.test(ch)) em += 0.68;
+    else if (/\d/u.test(ch)) em += 0.6;
+    else em += 0.56;
+  }
+  return em * font * 1.03;
+}
+
 const overlaps = (a: Box4, b: Box4) =>
   a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -166,10 +204,11 @@ export function pipeBoxes(pipes: readonly GeoPipe[], half = 4): Box4[] {
 }
 
 /**
- * End labels for `frame`; parallel exits to the same place share one label. A label never
- * overlaps another end label or anything in `avoid` (pipes, glyphs, labels): it tries a few spots
- * next to its pipe. Exits without a free spot on one edge share one bracket along that edge with
- * a single label in the nearest free place.
+ * End labels for `frame` (r4): one label per exit, or one label between the two pipes of a pair
+ * (supply/return or two ports of one valve). A label never overlaps another end label or anything
+ * in `avoid` (pipes, glyphs, labels, zone borders): it tries spots next to its pipe, then a short
+ * or two-line form, then the nearest free spot with a leader. Two labels of one view never read
+ * the same: equal names get "přívod" / "zpátečka" by the flow direction.
  */
 export function endLabels(
   pipes: readonly GeoPipe[],
@@ -187,12 +226,27 @@ export function endLabels(
   const raw = pipes.flatMap((p) =>
     exits(p.pts, frame).map((e) => ({
       pipe: p.id,
+      colour: p.colour,
       ...e,
-      name: farEnd(pipes, p.id, partOf(e.outer === 'to' ? p.to : p.from), inFrame),
+      name: ((n) =>
+        // a pipe that only loops out over the edge and back: named after where it goes
+        n === '…' ? (nameOf(partOf(p.to)) ?? nameOf(partOf(p.from)) ?? n) : n)(
+        farEnd(pipes, p.id, partOf(e.outer === 'to' ? p.to : p.from), inFrame),
+      ),
     })),
   );
-  const near = avoid.filter((b) =>
-    overlaps(b, [frame.x - 2, frame.y - 2, frame.w + 4, frame.h + 4]),
+  // glyphs and labels of equipment outside the frame are cut away (their labels are hidden), so
+  // only thin boxes (pipes, borders) and boxes centred inside the frame are obstacles
+  // (the viewer hides what a frame edge would cut, so only boxes wholly inside count)
+  const centredIn = (b: Box4) =>
+    b[0] >= frame.x - 6 &&
+    b[0] + b[2] <= frame.x + frame.w + 6 &&
+    b[1] >= frame.y - 6 &&
+    b[1] + b[3] <= frame.y + frame.h + 6;
+  const near = avoid.filter(
+    (b) =>
+      overlaps(b, [frame.x - 2, frame.y - 2, frame.w + 4, frame.h + 4]) &&
+      (b[2] <= 12 || b[3] <= 12 || centredIn(b)),
   );
   const side = (e: Edge) => e === 'l' || e === 'r';
   const along = (v: { at: [number, number]; edge: Edge }) => (side(v.edge) ? v.at[1] : v.at[0]);
@@ -203,143 +257,187 @@ export function endLabels(
       (gr) =>
         gr[0]!.edge === e.edge &&
         gr[0]!.name === e.name &&
-        Math.abs(along(gr.at(-1)!) - along(e)) <= (side(e.edge) ? 90 : 160),
+        gr.length < 2 &&
+        // r4: two exits to the same place in the same direction share one label up to 200 apart
+        Math.abs(along(gr.at(-1)!) - along(e)) <=
+          (gr[0]!.outer === e.outer ? 200 : side(e.edge) ? 90 : 160),
     );
     if (g) g.push(e);
     else groups.push([e]);
   }
+  // equal names in one view: tell them apart by the flow direction (towards the far end or back)
+  const count = new Map<string, number>();
+  for (const g of groups) count.set(g[0]!.name, (count.get(g[0]!.name) ?? 0) + 1);
+  const nameOfGroup = (g: typeof raw) => {
+    const n = g[0]!.name;
+    if ((count.get(n) ?? 0) < 2) return n;
+    // a supply/return pair: told apart from another pair of the same name by its circuit
+    if (g.length > 1) {
+      const pairs = groups.filter((o) => o.length > 1 && o[0]!.name === n).length;
+      return pairs > 1 && CIRCUIT[g[0]!.colour] ? `${n} · ${CIRCUIT[g[0]!.colour]}` : n;
+    }
+    return `${n} (${g[0]!.outer === 'to' ? 'přívod' : 'zpátečka'})`;
+  };
   const placed: Box4[] = [];
   const out: EndLabel[] = [];
   type Cand = { x: number; y: number; anchor: 'start' | 'end' };
-  const boxOf = (c: Cand, w: number): Box4 => [
-    c.anchor === 'start' ? c.x : c.x - w,
-    c.y - FONT + 1,
-    w,
-    FONT + 3,
-  ];
+  const width = (lines: string[]) => Math.max(...lines.map((t) => textWidth(t)));
+  const boxOf = (c: Cand, lines: string[]): Box4 => {
+    const w = width(lines);
+    return [
+      c.anchor === 'start' ? c.x : c.x - w,
+      c.y - FONT + 1,
+      w,
+      FONT + 3 + (lines.length - 1) * LH,
+    ];
+  };
   const free = (box: Box4) =>
     box[0] >= frame.x + 2 &&
     box[0] + box[2] <= frame.x + frame.w - 2 &&
     box[1] >= frame.y + 2 &&
     box[1] + box[3] <= frame.y + frame.h - 2 &&
     ![...placed, ...near].some((b) => overlaps(box, b));
-  const width = (text: string) => text.length * FONT * 0.6;
-  const leftover: Record<Edge, typeof raw> = { l: [], r: [], t: [], b: [] };
   const glyphs = near.filter((b) => b[2] > 12 && b[3] > 12);
   const textOf = (edge: Edge, name: string) =>
     edge === 'r' ? `${name} ${ARROW.r}` : `${ARROW[edge]} ${name}`;
+  /** One- and two-line forms of the full and the short name. */
+  const forms = (edge: Edge, name: string): string[][] => {
+    const m = /^(.*) \((přívod|zpátečka)\)$/u.exec(name);
+    const base = m ? m[1]! : name;
+    const qual = m ? ` (${m[2]})` : '';
+    const out: string[][] = [];
+    for (const n of [base, ...(SHORT[base] ? [SHORT[base]!] : [])]) {
+      const t = textOf(edge, n + qual);
+      out.push([t]);
+      if (qual) {
+        out.push([textOf(edge, n), qual.trim()]);
+        continue;
+      }
+      const words = t.split(' ');
+      if (words.length >= 3) {
+        // break at the word that balances the two lines best
+        let best: string[] | null = null;
+        for (let i = 2; i < words.length; i++) {
+          const ls = [words.slice(0, i).join(' '), words.slice(i).join(' ')];
+          if (!best || width(ls) < width(best)) best = ls;
+        }
+        if (best) out.push(best);
+      }
+    }
+    return out;
+  };
   for (const g of groups) {
     const first = g[0]!;
     const { edge } = first;
-    const text = textOf(edge, first.name);
-    const w = width(text);
-    const cands: Cand[] = [];
-    if (side(edge)) {
-      const anchor = edge === 'l' ? ('start' as const) : ('end' as const);
-      const top = Math.min(...g.map((e) => e.at[1]));
-      const bottom = Math.max(...g.map((e) => e.at[1]));
-      for (const dx of [6, 30, 60])
-        for (const y of [top - 9, bottom + 21, top - 29, bottom + 41])
-          cands.push({ x: edge === 'l' ? frame.x + dx : frame.x + frame.w - dx, y, anchor });
-    } else {
-      const xs = g.map((e) => e.at[0]);
-      for (let k = 0; k < 5; k++) {
-        const y = edge === 't' ? frame.y + FONT + 6 + 20 * k : frame.y + frame.h - 8 - 20 * k;
-        cands.push({ x: Math.max(...xs) + 9, y, anchor: 'start' });
-        cands.push({ x: Math.min(...xs) - 9, y, anchor: 'end' });
+    const name = nameOfGroup(g);
+    const text = textOf(edge, name);
+    let pick: (Cand & { lines: string[] }) | undefined;
+    let leader: [number, number, number, number] | undefined;
+    let pair: [number, number, number, number] | undefined;
+    const candsFor = (lines: string[], tier: number): Cand[] => {
+      const n = lines.length;
+      const cands: Cand[] = [];
+      if (side(edge)) {
+        const anchor = edge === 'l' ? ('start' as const) : ('end' as const);
+        const top = Math.min(...g.map((e) => e.at[1]));
+        const bottom = Math.max(...g.map((e) => e.at[1]));
+        const between = g.length > 1 && bottom - top >= n * LH + 14;
+        const ys =
+          tier === 0
+            ? [
+                ...(between ? [(top + bottom) / 2 - ((n - 1) * LH) / 2 + 5] : []),
+                top - 9 - (n - 1) * LH,
+                bottom + 21,
+              ]
+            : [top - 29 - (n - 1) * LH, bottom + 41, top - 47 - (n - 1) * LH, bottom + 59];
+        const dxs = tier === 0 ? [6, 20, 2] : [6, 20, 2, 34, 60];
+        for (const dx of dxs)
+          for (const y of ys)
+            cands.push({ x: edge === 'l' ? frame.x + dx : frame.x + frame.w - dx, y, anchor });
+      } else {
+        const xs = g.map((e) => e.at[0]);
+        for (const k of tier === 0 ? [0, 1] : [2, 3, 4]) {
+          const y =
+            edge === 't'
+              ? frame.y + FONT + 6 + 20 * k
+              : frame.y + frame.h - 8 - (n - 1) * LH - 20 * k;
+          for (const d of [9, 6]) {
+            cands.push({ x: Math.max(...xs) + d, y, anchor: 'start' });
+            cands.push({ x: Math.min(...xs) - d, y, anchor: 'end' });
+          }
+        }
+      }
+      return cands;
+    };
+    // near spots with the full / short / two-line text first, then farther spots, and only then
+    // the compact "←TČ" form (no space) right at the pipe
+    const compact = (lines: string[]) => [lines[0]!.replace(' ', '')];
+    const tries: Array<[number, string[]]> = [
+      ...forms(edge, name).map((l) => [0, l] as [number, string[]]),
+      ...forms(edge, name).map((l) => [1, l] as [number, string[]]),
+      ...forms(edge, name)
+        .filter((l) => l.length === 1 && l[0]!.split(' ').length === 2)
+        .map((l) => [0, compact(l)] as [number, string[]]),
+    ];
+    search: for (const [tier, lines] of tries) {
+      {
+        const c = candsFor(lines, tier).find((cd) => free(boxOf(cd, lines)));
+        if (!c) continue;
+        pick = { ...c, lines };
+        if (side(edge) && g.length > 1) {
+          const top = Math.min(...g.map((e) => e.at[1]));
+          const bottom = Math.max(...g.map((e) => e.at[1]));
+          const b = boxOf(c, lines);
+          if (b[1] > top && b[1] + b[3] < bottom) pair = [first.at[0], top, first.at[0], bottom];
+        }
+        break search;
       }
     }
-    let pick = cands.find((c) => free(boxOf(c, w)));
-    let leader: [number, number, number, number] | undefined;
     if (!pick) {
-      // nearest free spot whose leader crosses no glyph
+      // nearest free spot whose leader crosses no glyph (a leader only when the label is away)
       const [ax, ay] = first.at;
       const inx = edge === 'l' ? 6 : edge === 'r' ? -6 : 0;
       const iny = edge === 't' ? 6 : edge === 'b' ? -6 : 0;
-      const spots: Array<Cand & { d: number }> = [];
-      for (let gx = frame.x + 4; gx < frame.x + frame.w - 20; gx += 8) {
-        for (let gy = frame.y + FONT + 4; gy < frame.y + frame.h - 4; gy += 6) {
-          const d = Math.hypot(gx - ax, gy - ay);
-          if (d < 160) spots.push({ x: gx, y: gy, anchor: 'start', d });
+      for (const radius of [90, 140]) {
+        const lines = forms(edge, name).at(-1)!;
+        const spots: Array<Cand & { d: number }> = [];
+        for (let gx = frame.x + 4; gx < frame.x + frame.w - 20; gx += 8) {
+          for (let gy = frame.y + FONT + 4; gy < frame.y + frame.h - 4; gy += 6) {
+            const d = Math.hypot(gx - ax, gy - ay);
+            if (d < radius) spots.push({ x: gx, y: gy, anchor: 'start', d });
+          }
         }
-      }
-      spots.sort((a, b) => a.d - b.d);
-      for (const c of spots) {
-        const b = boxOf(c, w);
-        if (!free(b)) continue;
-        const tx = Math.min(Math.max(ax, b[0]), b[0] + b[2]);
-        const ty = Math.min(Math.max(ay, b[1]), b[1] + b[3]);
-        const seg: [number, number, number, number] = [ax + inx, ay + iny, tx, ty];
-        if (glyphs.some((gb) => crosses(seg, gb))) continue;
-        pick = c;
-        leader = seg;
-        break;
+        spots.sort((a, b) => a.d - b.d);
+        for (const c of spots) {
+          const b = boxOf(c, lines);
+          if (!free(b)) continue;
+          const tx = Math.min(Math.max(ax, b[0]), b[0] + b[2]);
+          const ty = Math.min(Math.max(ay, b[1]), b[1] + b[3]);
+          const seg: [number, number, number, number] = [ax + inx, ay + iny, tx, ty];
+          // (a glyph box the exit itself lies in does not count: the leader starts there)
+          const inBox = (gb: Box4) =>
+            seg[0] > gb[0] && seg[0] < gb[0] + gb[2] && seg[1] > gb[1] && seg[1] < gb[1] + gb[3];
+          if (glyphs.some((gb) => !inBox(gb) && crosses(seg, gb))) continue;
+          pick = { ...c, lines };
+          if (Math.hypot(tx - ax, ty - ay) > 36) leader = seg;
+          break;
+        }
+        if (pick) break;
       }
     }
-    if (!pick) {
-      leftover[edge].push(...g);
-      continue;
-    }
-    placed.push(boxOf(pick, w));
+    if (!pick) continue;
+    placed.push(boxOf(pick, pick.lines));
     out.push({
       pipe: g.map((e) => e.pipe).join(' '),
       edge,
       at: first.at,
       text,
-      ...pick,
+      lines: pick.lines,
+      x: pick.x,
+      y: pick.y,
+      anchor: pick.anchor,
       ...(leader ? { bracket: leader } : {}),
-    });
-  }
-  // Exits still without a label (blocked by a big glyph at the edge): one bracket line along the
-  // edge over all of them and one label where the bracket ends in free space.
-  for (const edge of ['l', 'r', 't', 'b'] as const) {
-    const g = leftover[edge];
-    if (!g.length) continue;
-    const text = textOf(edge, [...new Set(g.map((e) => e.name))].join(', '));
-    const w = width(text);
-    const vals = g.map(along);
-    const lo = Math.min(...vals);
-    const hi = Math.max(...vals);
-    const fixed = side(edge)
-      ? edge === 'l'
-        ? frame.x + 5
-        : frame.x + frame.w - 5
-      : edge === 't'
-        ? frame.y + 5
-        : frame.y + frame.h - 5;
-    const extent = side(edge) ? [frame.y, frame.y + frame.h] : [frame.x, frame.x + frame.w];
-    let best: { c: Cand; end: number } | null = null;
-    for (let d = 10; !best && d < extent[1]! - extent[0]!; d += 6) {
-      for (const end of [hi + d, lo - d]) {
-        if (end < extent[0]! + 4 || end > extent[1]! - 4) continue;
-        const c: Cand = side(edge)
-          ? {
-              x: edge === 'l' ? frame.x + 12 : frame.x + frame.w - 12,
-              y: end + 5,
-              anchor: edge === 'l' ? 'start' : 'end',
-            }
-          : {
-              x: end + 6,
-              y: edge === 't' ? frame.y + FONT + 8 : frame.y + frame.h - 10,
-              anchor: 'start',
-            };
-        if (free(boxOf(c, w))) {
-          best = { c, end };
-          break;
-        }
-      }
-    }
-    if (!best) continue;
-    placed.push(boxOf(best.c, w));
-    const a = Math.min(lo, best.end);
-    const b = Math.max(hi, best.end);
-    out.push({
-      pipe: g.map((e) => e.pipe).join(' '),
-      edge,
-      at: g[0]!.at,
-      text,
-      ...best.c,
-      bracket: side(edge) ? [fixed, a, fixed, b] : [a, fixed, b, fixed],
+      ...(pair ? { pair } : {}),
     });
   }
   return out;

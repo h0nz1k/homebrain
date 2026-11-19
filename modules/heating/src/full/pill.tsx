@@ -75,7 +75,8 @@ export function Pill({
 }: PillProps) {
   const text = value ?? missing;
   const { bind, widths } = useWidths([estimateW(text, font, true)], [text, font]);
-  const w = widths[0]! + 2 * PAD_X * font;
+  // a lone "–" still reads as a (missing) value pill, not as a dashed circle
+  const w = Math.max(widths[0]! + 2 * PAD_X * font, 3 * font);
   const h = font * 1.42;
   const x0 = anchor === 'start' ? x : anchor === 'middle' ? x - w / 2 : x - w;
   return (
@@ -87,8 +88,9 @@ export function Pill({
       <rect x={x0} y={cy - h / 2} width={w} height={h} rx={h / 2} className="fs-vpill" />
       <text
         ref={bind(0)}
-        x={x0 + PAD_X * font}
+        x={x0 + w / 2}
         y={cy + font * 0.36}
+        textAnchor="middle"
         fontSize={font}
         className={value ? 'fs-t fs-pv' : 'fs-t fs-pv-none'}
         data-value={k}
@@ -142,7 +144,7 @@ export function ValueLabel({
     [name, text, font, valueFont],
   );
   const nw = widths[0]!;
-  const pw = widths[1]! + 2 * PAD_X * valueFont;
+  const pw = Math.max(widths[1]! + 2 * PAD_X * valueFont, 3 * valueFont);
   const h = valueFont * 1.42;
   const inline = layout === 'inline';
   const total = inline ? lead + nw + GAP * font + pw : lead + Math.max(nw, pw);
@@ -185,8 +187,9 @@ export function ValueLabel({
         <rect x={pillX} y={cy - h / 2} width={pw} height={h} rx={h / 2} className="fs-vpill" />
         <text
           ref={bind(1)}
-          x={pillX + PAD_X * valueFont}
+          x={pillX + pw / 2}
           y={cy + valueFont * 0.36}
+          textAnchor="middle"
           fontSize={valueFont}
           className={value ? 'fs-t fs-pv' : 'fs-t fs-pv-none'}
           data-value={k}

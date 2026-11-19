@@ -1,6 +1,6 @@
 import type { FullState, Tri } from './fullState.js';
 import { FULL_GEOMETRY as G } from './geometry.gen.js';
-import { Pump } from './glyphs.js';
+import { Pump, Sensor } from './glyphs.js';
 import { Pill, estimateW } from './pill.js';
 import type { Rect } from './panZoom.js';
 
@@ -11,17 +11,23 @@ import type { Rect } from './panZoom.js';
  * per zone, placed in the sky / soil next to the zone. Zooming in (or a preset) brings the
  * detail labels back.
  */
-export const OV_FONT = 34;
-export const OV_VALUE = 36;
-const ROW = 54;
-const HEAD = 14;
+export const OV_FONT = 38;
+export const OV_VALUE = 40;
+const ROW = 60;
+/** r4: the card header is its zone title (the plates on the zone borders are gone). */
+const HEAD = 66;
 const PAD = 18;
 
 /** Below this scale the overview set is shown (detail text would be < 9 px). */
 export const OVERVIEW_BELOW = 0.6;
 
 export type OvRow =
-  | { name: string; value: string | null; missing?: string; kind?: 'value' | 'text' }
+  | {
+      name: string;
+      value: string | null;
+      missing?: string;
+      kind?: 'value' | 'text' | 'unmeasured';
+    }
   | { name: string; pump: string; on: Tri };
 
 export interface OvCard {
@@ -38,6 +44,16 @@ export interface OvCard {
 }
 
 const RUN = (on: Tri) => (on === null ? 'bez signálu' : on ? 'běží' : 'stojí');
+/** r4 chips: running green, stopped neutral, no signal amber, not measured amber outline. */
+const rowClass = (r: OvRow) => {
+  if ('pump' in r) return r.on === null ? 'fs-pill-warn' : r.on ? 'fs-pill-run' : 'fs-pill-stop';
+  if (r.kind === 'unmeasured') return 'fs-pill-unmeasured';
+  if (r.value === null && r.kind === 'text') return 'fs-pill-warn';
+  if (r.value === 'bez signálu') return 'fs-pill-warn';
+  if (r.value === 'kompresor běží') return 'fs-pill-run';
+  if (r.kind === 'text') return 'fs-pill-stop';
+  return undefined;
+};
 
 /** Wording shared with the detail drawing and the status panel (one source). */
 export const MIX_STATE = (st: FullState) =>
@@ -102,12 +118,7 @@ export function overviewCards(st: FullState): OvCard[] {
           missing: 'bez signálu',
           kind: 'text',
         },
-        { name: 'AKN nahoře', value: R.tank_high ?? null },
-        { name: 'Výstup do topení', value: R.hp_t_out ?? null },
-        { name: 'AKN dole', value: R.tank_low ?? null },
-        { name: 'Zpátečka do TČ', value: R.hp_t_in ?? null },
         { name: 'Teplá voda', value: R.tank_dhw ?? null },
-        { name: 'T do topení', value: R.t_ut ?? null },
         { name: 'T kolektor (solár)', value: R.solar_temp ?? null },
         { name: 'Směšovací ventil', value: MIX_STATE(st), kind: 'text' },
         { name: 'Ventil chlazení', value: COOL_STATE(st), kind: 'text' },
@@ -125,8 +136,8 @@ export function overviewCards(st: FullState): OvCard[] {
       bottom: pool[1]! - 36,
       cols: 1,
       rows: [
-        { name: 'Teplota vody', value: null, missing: 'bez čidla' },
-        { name: 'Zpátečka ohřevu bazénu', value: st.pool?.temp ?? null },
+        { name: 'Zpátečka z ohřevu bazénu', value: st.pool?.temp ?? null },
+        { name: 'Voda v bazénu', value: null, missing: 'neměřeno', kind: 'unmeasured' },
         { name: 'Ohřev dna', pump: 'pump_pool', on: st.pool?.heating ?? null },
         { name: 'Filtrace', pump: 'pump_filt', on: st.pool?.filter ?? null },
       ],
@@ -165,13 +176,15 @@ const KEY: Array<[string, string]> = [
 function Band({ x, w }: { x: number; w: number }) {
   const qs = G.questions;
   const half = (w - 2 * PAD) / 2;
-  const keyY = BAND_Y + 30;
-  const step = (w - 2 * PAD) / (KEY.length + 2);
+  // r4: the key on two rows (4 + 4) so the larger overview text never collides
+  const keyY = BAND_Y + 34;
+  const step = (w - 2 * PAD) / 4;
+  const at = (i: number) => ({ kx: x + PAD + (i % 4) * step, ky: keyY + Math.floor(i / 4) * 54 });
   return (
     <g data-ov-card="band" aria-label="Klíč a otázky k ověření">
       <rect x={x} y={BAND_Y} width={w} height={BAND_H} rx="14" className="fs-ov-card" />
       {KEY.map(([state, text], i) => {
-        const kx = x + PAD + i * step;
+        const { kx, ky: keyY } = at(i);
         return (
           <g key={state} data-ov-key={state}>
             <path d={`M${kx} ${keyY}h70`} className={`fs-pipe fs-c-heat_supply fs-s-${state}`} />
@@ -200,7 +213,8 @@ function Band({ x, w }: { x: number; w: number }) {
           [false, 'Čerpadlo stojí'],
         ] as const
       ).map(([on, text], i) => {
-        const kx = x + PAD + (KEY.length + i) * step + 20;
+        const { kx: kx0, ky: keyY } = at(KEY.length + i);
+        const kx = kx0 + 20;
         return (
           <g key={text}>
             <g transform={`translate(${kx} ${keyY}) scale(1.25) translate(${-kx} ${-keyY})`}>
@@ -220,7 +234,7 @@ function Band({ x, w }: { x: number; w: number }) {
       })}
       {qs.map((q, i) => {
         const qx = x + PAD + (i % 2) * half;
-        const qy = BAND_Y + 96 + Math.floor(i / 2) * 58;
+        const qy = BAND_Y + 150 + Math.floor(i / 2) * 58;
         return (
           <g key={q.id} data-ov-question={q.id}>
             <circle cx={qx + 22} cy={qy} r="25" className="fs-badge" />
@@ -248,7 +262,7 @@ function Band({ x, w }: { x: number; w: number }) {
     </g>
   );
 }
-const BAND_H = 96 + 2 * 58 - 14;
+const BAND_H = 150 + 2 * 58 - 14;
 
 export const cardHeight = (c: OvCard) => HEAD + Math.ceil(c.rows.length / c.cols) * ROW + PAD / 2;
 
@@ -273,6 +287,15 @@ function Card({ c }: { c: OvCard }) {
   return (
     <g data-ov-card={c.id} aria-label={c.title}>
       <rect x={c.x} y={c.y} width={c.w} height={h} rx="14" className="fs-ov-card" />
+      <text
+        x={c.x + PAD}
+        y={c.y + 14 + OV_FONT * 0.86}
+        fontSize={OV_FONT}
+        className="fs-t fs-t-zone"
+        data-ov-label={`${c.id}_title`}
+      >
+        {c.title}
+      </text>
       {c.rows.map((r, i) => {
         const col = c.cols === 1 ? 0 : Math.floor(i / perCol);
         const row = c.cols === 1 ? i : i % perCol;
@@ -304,7 +327,7 @@ function Card({ c }: { c: OvCard }) {
               value={isPump ? RUN(r.on) : r.value}
               missing={isPump ? 'bez signálu' : (r.missing ?? '–')}
               k={`ov_${c.id}_${i}`}
-              className={isPump && r.on ? 'fs-pill-run' : undefined}
+              className={rowClass(r)}
             />
           </g>
         );
@@ -341,11 +364,9 @@ function ovNames(): Array<{
   anchor: 'start' | 'middle' | 'end';
 }> {
   const [hx, hy, hw] = G.glyphs.hp as [number, number, number];
-  const [tx, ty, tw] = G.glyphs.tank as [number, number, number];
   const rad = G.glyphs.radiators.box;
   return [
     { k: 'ov_hp', x: hx + hw / 2, y: hy - 22, text: 'Tepelné čerpadlo', anchor: 'middle' },
-    { k: 'ov_tank', x: tx + tw + 18, y: ty + 40, text: 'AKN', anchor: 'start' },
     { k: 'ov_rad', x: rad[0]! + rad[2]! + 44, y: rad[1]! + 50, text: 'Radiátory', anchor: 'start' },
   ];
 }
@@ -354,15 +375,130 @@ function ovNames(): Array<{
  * Zone plates at overview size. The two storeys share one plate (their values are one card), the
  * garden needs none (pit, channel and pool carry their own), long titles are shortened.
  */
-const OV_PLATE_SKIP = new Set(['floor1_caption', 'garden_caption', 'channel_caption']);
+const OV_PLATE_SKIP = new Set([
+  'floor1_caption',
+  'garden_caption',
+  'channel_caption',
+  // r4: zones with a value card carry their title in the card header
+  'attic_caption',
+  'ryb_caption',
+  'tech_caption',
+  'ground_caption',
+  'enclosure',
+]);
 const OV_PLATE_TEXT: Record<string, string> = { attic_caption: 'PATRA', ryb_caption: 'RYBÁRNA' };
 /**
  * At overview size the top-left corner of the technical room is full of risers (the storeys sit
  * on it); its plate takes the top-left corner of the room's own free roof edge instead.
  */
 const OV_PLATE_AT: Record<string, [number, number]> = {
-  tech_caption: [G.arch.blockR + 12, G.arch.plantTop - 8],
+  // the pit is full of pipes: its title sits in the soil under the channel
+  pit_caption: [G.regions.pit![0]! + 12, G.regions.channel![1]! + G.regions.channel![3]! + 10],
 };
+
+/**
+ * r4: the key values sit at their equipment (short leader pills) instead of in the card: tank
+ * top / bottom beside the tank at their wall sensors, the heat-pump flow and return each just
+ * under its own pipe at the port sensor, the supply temperature next to the mixing valve.
+ */
+export function ovAtEquipment(st: FullState) {
+  const R = st.readings;
+  const [tx, , tw] = G.glyphs.tank as [number, number, number];
+  const wall = tx + tw;
+  const sOut = G.labels.hp_t_out!.pipeSensor!;
+  const sIn = G.labels.hp_t_in!.pipeSensor!;
+  const mix = G.glyphs.valveMix.c;
+  const below = (pipeY: number) => pipeY + 3.5 + 6 + (OV_VALUE * 1.42) / 2;
+  return [
+    {
+      k: 'tank_high',
+      name: 'AKN nahoře',
+      value: R.tank_high ?? null,
+      x: wall + 18,
+      y: 556,
+      stack: true,
+      sensor: [wall, 572],
+    },
+    {
+      k: 'tank_low',
+      name: 'AKN dole',
+      value: R.tank_low ?? null,
+      x: wall + 18,
+      y: 838,
+      stack: true,
+      sensor: [wall, 852],
+    },
+    {
+      k: 'hp_t_out',
+      name: 'výstup',
+      value: R.hp_t_out ?? null,
+      x: sOut[0]! + 14,
+      cy: below(sOut[1]!),
+      sensor: sOut,
+    },
+    {
+      k: 'hp_t_in',
+      name: 'zpátečka',
+      value: R.hp_t_in ?? null,
+      x: sIn[0]! + 14,
+      cy: below(sIn[1]!) + 9,
+      sensor: sIn,
+    },
+    {
+      k: 't_ut',
+      name: 'T do topení',
+      value: R.t_ut ?? null,
+      x: mix[0]! + 28,
+      cy: below(435),
+    },
+  ] as Array<{
+    k: string;
+    name: string;
+    value: string | null;
+    x: number;
+    y?: number;
+    cy?: number;
+    stack?: boolean;
+    sensor?: readonly number[];
+  }>;
+}
+
+function AtEquipment({ st }: { st: FullState }) {
+  return (
+    <g data-ov-at-equipment="">
+      {ovAtEquipment(st).map((v) => {
+        const h = OV_VALUE * 1.42;
+        const cy = v.stack ? v.y! + 10 + h / 2 : v.cy!;
+        const nameY = v.stack ? v.y! : cy + OV_FONT * 0.35;
+        const pillX = v.stack ? v.x : v.x + estimateW(v.name, OV_FONT) + 14;
+        return (
+          <g key={v.k} data-ov-value={v.k}>
+            {v.sensor && v.stack && (
+              <path
+                d={`M${v.sensor[0]! + 7} ${v.sensor[1]}H${v.x - 4}`}
+                className="fs-leader"
+                data-ov-leader={v.k}
+              />
+            )}
+            {v.sensor && <Sensor c={v.sensor} />}
+            <text
+              x={v.x}
+              y={nameY}
+              fontSize={OV_FONT}
+              className="fs-t fs-t-p"
+              stroke="var(--fs-tech)"
+              strokeWidth="6"
+              data-ov-label={`at_${v.k}`}
+            >
+              {v.name}
+            </text>
+            <Pill x={pillX} cy={cy} value={v.value} font={OV_VALUE} k={`ov_at_${v.k}`} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
 
 export function Overview({ st }: { st: FullState }) {
   const plates = Object.entries(G.labels)
@@ -394,6 +530,7 @@ export function Overview({ st }: { st: FullState }) {
           {n.text}
         </text>
       ))}
+      <AtEquipment st={st} />
       {overviewCards(st).map((c) => (
         <Card key={c.id} c={c} />
       ))}

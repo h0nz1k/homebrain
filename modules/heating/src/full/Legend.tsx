@@ -29,6 +29,35 @@ function Sample({ children, w = 44 }: { children: ReactNode; w?: number }) {
   );
 }
 
+function Chip({
+  cls,
+  text,
+  w = 44,
+  none = false,
+}: {
+  cls: string;
+  text: string;
+  w?: number;
+  none?: boolean;
+}) {
+  return (
+    <>
+      <g className={`fs-pill-g ${cls}${none ? ' fs-pill-none' : ''}`}>
+        <rect x="1" y="2" width={w - 2} height="20" rx="10" className="fs-vpill" />
+        <text
+          x={w / 2}
+          y="16.5"
+          fontSize="12"
+          textAnchor="middle"
+          className={none ? 'fs-t fs-pv-none' : 'fs-t fs-pv'}
+        >
+          {text}
+        </text>
+      </g>
+    </>
+  );
+}
+
 const pipe = (colour: string, state: PipeState) => (
   <path d="M4 12H40" className={`fs-pipe fs-c-${colour} fs-s-${state}`} />
 );
@@ -54,7 +83,7 @@ const STATES: Array<[ReactNode, string]> = [
   [pipe('heat_return', 'off'), 'Šedé tečky = mimo provoz'],
 ];
 
-const SYMBOLS: Array<[ReactNode, string]> = [
+const SYMBOLS: Array<[ReactNode, string, number?]> = [
   [
     <g transform="translate(22 12) scale(.62) translate(-22 -12)">
       <Pump c={[22, 12]} dir="r" on id="lg_on" label="běží" />
@@ -65,7 +94,19 @@ const SYMBOLS: Array<[ReactNode, string]> = [
     <g transform="translate(22 12) scale(.62) translate(-22 -12)">
       <Pump c={[22, 12]} dir="r" on={false} id="lg_off" label="stojí" />
     </g>,
-    'Čerpadlo stojí (šedé)',
+    'Čerpadlo stojí (šedé, prázdný trojúhelník)',
+  ],
+  [
+    <path d="M4 12H40" className="fs-wallband" />,
+    'Tenká čárkovaná = hranice místnosti / zóny (není potrubí)',
+  ],
+  [<Chip cls="fs-pill-run" text="běží" />, 'Zelený štítek = běží'],
+  [<Chip cls="fs-pill-stop" text="stojí" />, 'Šedý štítek = stojí'],
+  [<Chip cls="fs-pill-warn" text="bez signálu" w={86} />, 'Jantarový štítek = bez signálu', 86],
+  [
+    <Chip cls="fs-pill-unmeasured" text="neměřeno" w={86} none />,
+    'Jantarový obrys = neměří se (bez čidla)',
+    86,
   ],
   [
     <g transform="translate(22 10) scale(.5)">
@@ -153,7 +194,11 @@ export function LegendPanel({ st, snap }: { st: FullState; snap: HeatingSnapshot
           {status.map(([k, v]) => (
             <div key={k}>
               <dt>{k}</dt>
-              <dd className={v && !v.includes('bez signálu') ? undefined : 'fs-lg-nodata'}>
+              <dd
+                className={
+                  !v ? 'fs-lg-nodata' : v.includes('bez signálu') ? 'fs-lg-warn' : undefined
+                }
+              >
                 {v ?? '–'}
               </dd>
             </div>
@@ -194,9 +239,9 @@ export function LegendPanel({ st, snap }: { st: FullState; snap: HeatingSnapshot
         <section aria-label="Značky" className="fs-lg-2">
           <h3>Značky</h3>
           <ul>
-            {SYMBOLS.map(([svg, name]) => (
+            {SYMBOLS.map(([svg, name, w]) => (
               <li key={name}>
-                <Sample>{svg}</Sample>
+                <Sample w={w}>{svg}</Sample>
                 {name}
               </li>
             ))}
@@ -241,6 +286,7 @@ export const legendStyles = `
 .ht-fs .fs-lg li[data-question] { align-items:start; }
 .ht-fs .fs-lg-svg { overflow:visible; width:44px; height:24px; }
 .ht-fs .fs-lg-nodata { font-style:italic; font-weight:600 !important; color:var(--fs-muted); }
+.ht-fs .fs-lg-warn { font-weight:700 !important; color:var(--fs-amber-ink) !important; background:var(--fs-amber-fill); border:1.5px solid var(--fs-amber-edge); border-radius:999px; padding:0 8px; justify-self:end; }
 .ht-fs .fs-lg-badge { justify-self:center; display:inline-grid; place-items:center; width:24px; height:24px; border-radius:12px; background:var(--fs-badge); border:1.5px solid var(--fs-badge-edge); color:#fff; font-size:11px; font-weight:700; }
 .ht-fs .fs-lg-abbr { text-align:center; font-weight:700; }
 .ht-fs .fs-lg .fs-pipe { stroke-width:5; }
