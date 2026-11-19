@@ -28,6 +28,7 @@ import {
   choreNote,
   choreTally,
   eventWho,
+  formatOutOf,
   pointsAmount,
   isPast,
   longDate,
@@ -442,7 +443,6 @@ function UpcomingList({
   now,
   compact,
   line,
-  words,
   highlight,
 }: {
   kid: FamilyKid;
@@ -450,7 +450,6 @@ function UpcomingList({
   compact?: boolean;
   /** Kiosk: a single summary line. */
   line?: boolean;
-  words?: boolean;
   highlight?: string | null;
 }) {
   const all = kid.upcoming ?? [];
@@ -468,8 +467,8 @@ function UpcomingList({
     >
       <h3 className="fam-list-h fam-upcoming-h" data-testid="family-upcoming-h">
         <Icon name="calendar" size={14} />
-        Naplánované
-        <small data-testid="family-upcoming-count">· další dny · {all.length}</small>
+        Naplánované · {czCount(all.length, 'úkol', 'úkoly', 'úkolů')}
+        <small data-testid="family-upcoming-count">· další dny</small>
       </h3>
       <ul>
         {rows.map((c) => {
@@ -482,14 +481,20 @@ function UpcomingList({
               data-group={c.group}
               data-highlight={isHighlighted(c.name, highlight) || undefined}
             >
-              <span className="fam-upcoming-when" data-testid="family-upcoming-day">
-                {when.day}
+              {/* Same lead column as today's tick boxes, so the titles share one left edge. */}
+              <span className="fam-upcoming-lead" aria-hidden="true">
+                <Icon name="calendar" size={16} />
               </span>
-              <span className="fam-upcoming-time">{when.time}</span>
-              <span className="fam-upcoming-name">{c.name}</span>
-              {c.points != null && (
-                <span className="fam-upcoming-pts">{pointsLabel(c.points, { words })}</span>
-              )}
+              <span className="fam-upcoming-t">
+                <span className="fam-upcoming-name">{c.name}</span>
+                <small className="fam-upcoming-meta">
+                  <span className="fam-upcoming-when" data-testid="family-upcoming-day">
+                    {when.day}
+                  </span>
+                  {when.time && <span className="fam-upcoming-time">{` · do ${when.time}`}</span>}
+                </small>
+              </span>
+              {c.points != null && <Pts className="fam-upcoming-pts" value={c.points} />}
             </li>
           );
         })}
@@ -503,8 +508,26 @@ function UpcomingList({
 
 /**
  * Kiosk plan line: whole items only. Items that do not fit the line are hidden and counted
- * in „+N další“ – never an ellipsis in the middle of a word.
+ * in „a N další“ – never an ellipsis in the middle of a word.
  */
+const capFirst = (s: string) => s.charAt(0).toLocaleUpperCase('cs') + s.slice(1);
+
+/**
+ * Row points as a narrow two-line column („+3“ over „body“), so long status chips keep
+ * their room; the text stays „+3\u00a0body“ for tests and screen readers.
+ */
+function Pts({ value, className }: { value: number | null; className: string }) {
+  if (value === null) return null;
+  const [num, word] = pointsLabel(value).split('\u00a0');
+  return (
+    <span className={className} data-stack>
+      <b>{num}</b>
+      <span className="hb-sr-only">{'\u00a0'}</span>
+      <small>{word}</small>
+    </span>
+  );
+}
+
 function UpcomingLine({ chores, now }: { chores: NonNullable<FamilyKid['upcoming']>; now: Date }) {
   const boxRef = useRef<HTMLSpanElement>(null);
   const [shown, setShown] = useState(chores.length);
@@ -517,8 +540,8 @@ function UpcomingLine({ chores, now }: { chores: NonNullable<FamilyKid['upcoming
       const more = box.querySelector<HTMLElement>('.fam-upcoming-more-inline');
       more?.removeAttribute('hidden');
       const limit = box.getBoundingClientRect().right;
-      // While the counter is not rendered yet, keep room for it („+3 další“ ≈ 64 px).
-      const reserve = more ? 0 : 72;
+      // While the counter is not rendered yet, keep room for it („a 3 další“ ≈ 90 px at 18 px).
+      const reserve = more ? 0 : 100;
       let n = items.length;
       if (items.some((el) => el.getBoundingClientRect().right > limit + 0.5)) {
         n = items.findIndex((el) => el.getBoundingClientRect().right > limit - reserve);
@@ -549,17 +572,18 @@ function UpcomingLine({ chores, now }: { chores: NonNullable<FamilyKid['upcoming
   return (
     <p className="fam-upcoming fam-upcoming-line" data-testid="family-upcoming" data-compact="line">
       <Icon name="calendar" size={14} />
-      <b>Naplánované:</b>{' '}
+      {/* „Zítra: …“ already says it is planned; the label stays for screen readers. */}
+      <span className="hb-sr-only">Naplánované: </span>
       <span ref={boxRef} className="fam-upcoming-items">
         {chores.map((c) => (
           <span key={c.id} className="fam-upcoming-item" data-testid="family-upcoming-item">
-            {`${c.name} (${upcomingParts(c.due, now).day})`}
+            {`${capFirst(upcomingParts(c.due, now, { short: true }).day)}: ${c.name}`}
           </span>
         ))}
       </span>
       {hidden > 0 && (
         <span className="fam-upcoming-more-inline" data-testid="family-upcoming-more">
-          +{czCount(hidden, 'další', 'další', 'dalších')}
+          a {czCount(hidden, 'další', 'další', 'dalších')}
         </span>
       )}
     </p>
@@ -575,7 +599,6 @@ function KidCard({
   collapseDone,
   collapsible,
   self,
-  words,
   members,
   highlight,
 }: {
@@ -593,8 +616,6 @@ function KidCard({
   collapsible?: boolean;
   /** Child's own view: the card header already names the viewer. */
   self?: boolean;
-  /** Kid-facing unit („3 body“) instead of „3 b.“. */
-  words?: boolean;
   members: Member[];
 }) {
   const [open, setOpen] = useState(true);
@@ -606,9 +627,7 @@ function KidCard({
   const fold = compact || (collapseDone && !showDone);
   const doneRows = sorted.filter((c) => c.state === 'done');
   const rows = fold ? sorted.filter((c) => c.state !== 'done') : sorted;
-  const swapsPending = kid.chores.filter((c) => c.swap_today?.kind === 'pending_give').length;
-  const progress = t.total ? `${t.done} z ${t.total} hotovo` : 'Dnes nic';
-  const unit = { words };
+  const progress = t.total ? `${formatOutOf(t.done, t.total)} hotovo` : 'Dnes nic';
   // Every row reserves the same trailing slot (menu button, done-expander or an empty
   // spacer) whenever any row can have one, so the points column lines up in each list.
   const menuSlot = !!act.onMenu || (!!collapseDone && !compact);
@@ -626,7 +645,7 @@ function KidCard({
       {kid.points !== null && (
         <div className="fam-points" data-testid="family-points">
           <strong data-testid="family-today-points">
-            {pointsLabel(kid.points_today ?? t.earned, unit)}
+            {pointsLabel(kid.points_today ?? t.earned)}
           </strong>
           <small>dnes</small>
         </div>
@@ -665,7 +684,7 @@ function KidCard({
           aria-valuemin={0}
           aria-valuemax={t.total}
           aria-valuenow={t.done}
-          aria-label={`${kid.name}: hotovo ${t.done} z ${t.total}`}
+          aria-label={`${kid.name}: hotovo ${formatOutOf(t.done, t.total)}`}
         >
           <i style={{ width: `${(t.done / t.total) * 100}%` }} />
           <i
@@ -675,7 +694,8 @@ function KidCard({
           />
         </div>
       )}
-      {(t.waiting > 0 || swapsPending > 0) && (
+      {/* Handover waiting is shown on its own row only (no second pill here). */}
+      {t.waiting > 0 && (
         <div className="fam-kid-pending" data-testid="family-kid-pending">
           {t.waiting > 0 && (
             <span
@@ -685,21 +705,7 @@ function KidCard({
               data-testid="family-pending-points"
             >
               <Icon name="clock" size={14} />
-              {pointsLabel(t.waiting, unit)}{' '}
-              {words ? czPlural(t.waiting, 'čeká', 'čekají', 'čeká') : 'čeká'} na schválení
-            </span>
-          )}
-          {swapsPending > 0 && (
-            <span
-              className="fam-wait-chip"
-              data-tone="warn"
-              data-status="pending"
-              data-testid="family-pending-swaps"
-            >
-              <Icon name="swap" size={14} />
-              {swapsPending === 1
-                ? 'Předání čeká na schválení'
-                : `${swapsPending} předání čekají na schválení`}
+              {pointsLabel(t.waiting)} {czPlural(t.waiting, 'čeká', 'čekají', 'čeká')} na schválení
             </span>
           )}
         </div>
@@ -714,7 +720,7 @@ function KidCard({
                 data-testid="family-total"
                 onClick={act.onPoints}
               >
-                celkem {pointsAmount(Math.round(kid.points), unit)}
+                celkem {pointsAmount(Math.round(kid.points))}
                 <Icon name="chevron" size={16} />
               </button>
             )}
@@ -793,14 +799,14 @@ function KidCard({
                 {out ? (
                   // Handed to the sibling: the points go with the chore, not counted twice.
                   <span className="fam-pts" data-out data-testid="family-pts-out">
-                    <s aria-hidden="true">{pointsLabel(c.points, unit)}</s>
+                    <s aria-hidden="true">{pointsLabel(c.points)}</s>
                     <span aria-hidden="true">→&nbsp;{c.swap_today?.partner_name ?? '?'}</span>
                     <span className="hb-sr-only">
                       {`Body dostane ${c.swap_today?.partner_name ?? 'sourozenec'}`}
                     </span>
                   </span>
                 ) : (
-                  <span className="fam-pts">{pointsLabel(c.points, unit)}</span>
+                  <Pts className="fam-pts" value={c.points} />
                 )}
                 {menuSlot && (
                   <span className="fam-menu-slot" data-testid="family-menu-slot">
@@ -831,12 +837,10 @@ function KidCard({
                   <small>{doneRows.map((c) => c.name).join(' · ')}</small>
                 </div>
               </div>
-              <span className="fam-pts">
-                {pointsLabel(
-                  doneRows.reduce((sum, c) => sum + (c.points ?? 0), 0),
-                  unit,
-                )}
-              </span>
+              <Pts
+                className="fam-pts"
+                value={doneRows.reduce((sum, c) => sum + (c.points ?? 0), 0)}
+              />
               {menuSlot && (
                 <span className="fam-menu-slot" data-testid="family-menu-slot">
                   {collapseDone && !compact && (
@@ -861,7 +865,6 @@ function KidCard({
           now={now}
           compact={compact || self}
           line={compact}
-          words={words}
           highlight={highlight}
         />
       </div>
@@ -954,7 +957,6 @@ function ChoresCard({
             collapseDone={parent && phone}
             collapsible={parent}
             self={!!viewer}
-            words={child}
             members={members}
             highlight={highlight?.kids.includes(kid.kid_uuid ?? kid.id) ? highlight.name : null}
             act={{
@@ -1282,12 +1284,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         </div>
       )}
       {pointsKid && api && (
-        <PointsSheet
-          kid={pointsKid}
-          api={api}
-          words={snap.role === 'child'}
-          onClose={() => setPointsKid(null)}
-        />
+        <PointsSheet kid={pointsKid} api={api} onClose={() => setPointsKid(null)} />
       )}
       {addChore && api && (
         <AddChoreSheet

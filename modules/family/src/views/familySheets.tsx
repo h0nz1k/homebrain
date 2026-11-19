@@ -113,7 +113,7 @@ export function ApprovalsBlock({
                 </span>
                 {points != null && (
                   <span className="fam-approval-pts" data-testid="family-approval-points">
-                    +{points} b.
+                    {pointsLabel(points)}
                   </span>
                 )}
               </div>
@@ -202,13 +202,10 @@ export function PointsSheet({
   kid,
   api,
   onClose,
-  words,
 }: {
   kid: FamilyKid;
   api: FamilyApi;
   onClose: () => void;
-  /** Kid-facing unit („128 bodů“) when a child looks at their own points. */
-  words?: boolean;
 }) {
   useBackClosable(onClose);
   const [days, setDays] = useState<7 | 30>(7);
@@ -229,10 +226,9 @@ export function PointsSheet({
   }, [api, kid.id, kid.kid_uuid, days, showAll]);
   const month = monthPoints(summary);
   const { net, earned } = month;
-  const unit = { words };
   const ceiling = history?.chart ? chartCeiling(history.chart.max) : 0;
   const signed = (v: number | null | undefined) =>
-    v == null ? '—' : v >= 0 ? pointsLabel(v, unit) : `−${pointsAmount(Math.abs(v), unit)}`;
+    v == null ? '—' : v >= 0 ? pointsLabel(v) : `−${pointsAmount(Math.abs(v))}`;
   return (
     <Sheet
       title={`Body · ${kid.name}`}
@@ -248,8 +244,7 @@ export function PointsSheet({
         <header className="fam-points-intro">
           <p className="fam-points-label">K dispozici</p>
           <p className="fam-points-hero" data-testid="family-points-balance">
-            {summary?.balance ?? '—'}{' '}
-            <small>{words && summary?.balance != null ? pointsWord(summary.balance) : 'b.'}</small>
+            {summary?.balance ?? '—'} <small>{pointsWord(summary?.balance ?? 0)}</small>
           </p>
           <p className="fam-earned" data-testid="family-points-month">
             Tento měsíc čistě {signed(net)}
@@ -264,20 +259,19 @@ export function PointsSheet({
             <dt>Dnes</dt>
             <dd>
               +{summary?.earned_today ?? '—'}{' '}
-              <small>{words ? pointsWord(summary?.earned_today ?? 0) : 'b.'}</small>
+              <small>{pointsWord(summary?.earned_today ?? 0)}</small>
             </dd>
           </div>
           <div>
             <dt>7 dní</dt>
             <dd>
-              +{summary?.earned_week ?? '—'}{' '}
-              <small>{words ? pointsWord(summary?.earned_week ?? 0) : 'b.'}</small>
+              +{summary?.earned_week ?? '—'} <small>{pointsWord(summary?.earned_week ?? 0)}</small>
             </dd>
           </div>
           <div>
             <dt>Měsíc získáno</dt>
             <dd data-testid="family-points-month-earned">
-              +{earned ?? '—'} <small>{words ? pointsWord(earned ?? 0) : 'b.'}</small>
+              +{earned ?? '—'} <small>{pointsWord(earned ?? 0)}</small>
             </dd>
           </div>
           <div data-kind="streak">
@@ -375,7 +369,7 @@ export function PointsSheet({
                       {label}
                       <strong className={group === 'Získáno' ? 'fam-earned' : 'fam-spent'}>
                         {group === 'Získáno' ? '+' : '−'}
-                        {pointsAmount(value, unit)}
+                        {pointsAmount(value)}
                       </strong>
                     </li>
                   ),
@@ -400,7 +394,7 @@ export function PointsSheet({
                   </span>
                   <strong className={Number(entry.amount) >= 0 ? 'fam-earned' : 'fam-spent'}>
                     {Number(entry.amount) >= 0 ? '+' : '−'}
-                    {pointsAmount(Math.abs(Number(entry.amount)), unit)}
+                    {pointsAmount(Math.abs(Number(entry.amount)))}
                   </strong>
                 </li>
               ))}
@@ -446,6 +440,42 @@ export interface CreatedChore {
   when: string;
 }
 
+const RECURRENCE_HINT: Record<Recurrence, string> = {
+  once: 'Jednou – jen v jeden den',
+  daily: 'Denně – jednou za den',
+  daily_multi: 'Vícekrát denně – každý čas zvlášť',
+  weekly: 'Dny v týdnu – jen ve vybrané dny',
+};
+
+/** Date field text: „Dnes (19. 11.)“, „Zítra (20. 11.)“, otherwise „26. 11. 2026“. */
+function dateFieldText(d: Date, now: Date): string {
+  const word = dayWord(d, now);
+  if (word === 'dnes') return `Dnes (${czDate(d)})`;
+  if (word === 'zítra') return `Zítra (${czDate(d)})`;
+  return d.toLocaleDateString('cs-CZ');
+}
+
+/**
+ * Field text → `YYYY-MM-DD`: „19. 11. 2026“, „Dnes (19. 11.)“, „26. 11.“ (no year: this
+ * year, or the next one for a day already past), „dnes“ / „zítra“. Anything else is
+ * returned as is, so the date check reports it.
+ */
+function parseFieldDate(text: string, now: Date): string {
+  const t = text.trim().toLocaleLowerCase('cs');
+  const m = /(\d{1,2})\.\s*(\d{1,2})\.?(?:\s*(\d{4}))?/u.exec(t);
+  if (m) {
+    const [, dd, mm, yyyy] = m;
+    let year = yyyy ? Number(yyyy) : now.getFullYear();
+    if (!yyyy && localKey(new Date(year, Number(mm) - 1, Number(dd))) < localKey(now)) year += 1;
+    return `${year}-${mm!.padStart(2, '0')}-${dd!.padStart(2, '0')}`;
+  }
+  if (t === 'dnes' || t === 'zítra') {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (t === 'dnes' ? 0 : 1));
+    return localKey(d);
+  }
+  return t;
+}
+
 const MAX_TIMES = 6;
 const MIN_TIMES = 2;
 const DEFAULT_TIMES = ['12:00', '18:00'];
@@ -484,6 +514,9 @@ export function AddChoreSheet({
   const footRef = useRef<HTMLDivElement>(null);
   const timesRef = useRef<HTMLFieldSetElement>(null);
   const [timesFlash, setTimesFlash] = useState(false);
+  const [timesNote, setTimesNote] = useState('');
+  const recurrenceHintId = useId();
+  const dupWaitId = useId();
   const dupHintId = useId();
   const [openedAt] = useState(() => clock().getTime());
   const [name, setName] = useState('');
@@ -495,17 +528,14 @@ export function AddChoreSheet({
   const [weekdays, setWeekdays] = useState<Weekday[]>(['mon', 'thu']);
   const [dueTime, setDueTime] = useState('18:00');
   const [times, setTimes] = useState<string[]>(DEFAULT_TIMES);
+  // „Dnes (19. 11.)“ / „Zítra (20. 11.)“ / „26. 11. 2026“: the field uses the summary's words.
+  const dateText = (d: Date) => dateFieldText(d, new Date(openedAt));
   const [firstDateText, setFirstDateText] = useState(() =>
-    defaultFirstDate(new Date(openedAt), '18:00').toLocaleDateString('cs-CZ'),
+    dateText(defaultFirstDate(new Date(openedAt), '18:00')),
   );
   // The first day follows the due time until the user edits the date themself.
   const [dateEdited, setDateEdited] = useState(false);
-  const firstDate = firstDateText
-    .trim()
-    .split(/\.\s*/)
-    .reverse()
-    .map((v, i) => (i === 0 ? v : v.padStart(2, '0')))
-    .join('-');
+  const firstDate = parseFieldDate(firstDateText, new Date(openedAt));
   const [icon, setIcon] = useState('');
   const [iconOpen, setIconOpen] = useState(false);
   const [requestId, setRequestId] = useState(newRequestId);
@@ -519,7 +549,7 @@ export function AddChoreSheet({
   const defaultDay = (time: string) =>
     defaultFirstDate(new Date(openedAt), TIME_RE.test(time) ? time : '18:00');
   const followDefault = (time: string) => {
-    if (!dateEdited) setFirstDateText(defaultDay(time).toLocaleDateString('cs-CZ'));
+    if (!dateEdited) setFirstDateText(dateText(defaultDay(time)));
   };
   const chooseSchedule = (nextRecurrence: Recurrence, nextDays: Weekday[]) => {
     setRecurrence(nextRecurrence);
@@ -534,7 +564,7 @@ export function AddChoreSheet({
       if (nextDays.includes(WEEKDAYS[(day.getDay() + 6) % 7]!.id)) break;
       day.setDate(day.getDate() + 1);
     }
-    setFirstDateText(day.toLocaleDateString('cs-CZ'));
+    setFirstDateText(dateText(day));
   };
   const toggleAssignee = (id: string) =>
     setAssignees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -631,11 +661,37 @@ export function AddChoreSheet({
         {tok(onceDay)} {due}
       </>
     );
-  const summaryText = (
+  const perDay = points * slots.length;
+  const summaryText = multi ? (
+    <>
+      {pointsText} za každé splnění ({tok(`${perDay}\u00a0${pointsWord(perDay)} denně`)}) ·{' '}
+      {scheduleText}
+    </>
+  ) : (
     <>
       {pointsText} · {scheduleText}
     </>
   );
+  /** Merge duplicate times and sort them once the user leaves the times group. */
+  const tidyTimes = () => {
+    const norm = times.map(normTime);
+    const ok = norm.filter((t) => TIME_RE.test(t));
+    const uniq = [...new Set(ok)].sort();
+    const rest = norm.filter((t) => !TIME_RE.test(t));
+    const next = [...uniq, ...rest];
+    while (next.length < MIN_TIMES) next.push('');
+    const merged = uniq.length < ok.length;
+    const reordered = !merged && ok.join() !== uniq.join();
+    if (next.join('|') !== times.join('|')) setTimes(next);
+    setTimesNote(
+      merged
+        ? 'Stejné časy jsme sloučili do jednoho.'
+        : reordered
+          ? 'Časy jsme seřadili podle dne.'
+          : '',
+    );
+    followDefault(uniq.at(-1) ?? '18:00');
+  };
   const dueLabel =
     recurrence === 'daily'
       ? 'Každý den do'
@@ -680,7 +736,8 @@ export function AddChoreSheet({
     if (!timesFlash) return;
     const el = timesRef.current;
     el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-    el?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    // Focus the group (announced, no input focus ring); the inputs stay one Tab away.
+    el?.focus({ preventScroll: true });
     const t = setTimeout(() => setTimesFlash(false), 1600);
     return () => clearTimeout(t);
   }, [timesFlash]);
@@ -728,6 +785,13 @@ export function AddChoreSheet({
   };
   const duplicate = error?.code === 'duplicate_name';
   const suggestion = duplicate ? nextDistinctName(error.name) : '';
+  const dupOwner = duplicate
+    ? (chosen.find((k) =>
+        [...k.chores, ...(k.upcoming ?? [])].some(
+          (c) => c.name.trim().toLocaleLowerCase('cs') === error.name.toLocaleLowerCase('cs'),
+        ),
+      ) ?? (chosen.length === 1 ? chosen[0] : undefined))
+    : undefined;
   const chosenIcon = ICONS.find(([value]) => value === icon);
   const fieldErr = (text: string, testid?: string) =>
     submitted && text ? (
@@ -767,9 +831,13 @@ export function AddChoreSheet({
               data-testid="family-add-chore-error"
               data-code={error.code}
             >
-              <strong>
+              <strong data-testid="family-add-chore-error-text">
                 <Icon name="info" size={18} />
-                {CREATE_CHORE_ERRORS[error.code]}
+                {duplicate
+                  ? dupOwner
+                    ? `${dupOwner.name} už má úkol „${error.name}“.`
+                    : `Úkol „${error.name}“ už existuje.`
+                  : CREATE_CHORE_ERRORS[error.code]}
               </strong>
               {duplicate && (
                 <div className="fam-save-err-actions">
@@ -780,7 +848,7 @@ export function AddChoreSheet({
                     disabled={busy}
                     onClick={switchToMulti}
                   >
-                    Nastavit vícekrát denně
+                    Přidat další čas (vícekrát denně)
                   </Button>
                   <Button
                     size="sm"
@@ -821,15 +889,21 @@ export function AddChoreSheet({
               {footWhen}
             </span>
           </p>
+          {duplicate && (
+            <p id={dupWaitId} className="fam-dup-wait" data-testid="family-add-chore-dup-wait">
+              Nejdřív vyber jednu z možností výše
+            </p>
+          )}
           <Button
             // With the duplicate error shown the same name would fail again: the panel's
-            // actions are the way forward, the plain save steps back to secondary.
+            // actions are the only way forward, so the plain save is disabled until then.
             variant={duplicate ? 'secondary' : 'primary'}
             contrast={duplicate ? undefined : 'high'}
             type="submit"
             form="fam-add-chore"
             disabled={busy}
-            aria-describedby={submitted && !valid ? errId : undefined}
+            aria-disabled={duplicate || undefined}
+            aria-describedby={duplicate ? dupWaitId : submitted && !valid ? errId : undefined}
             data-testid="family-add-chore-save"
             data-invalid={!valid || undefined}
             data-busy={busy || undefined}
@@ -848,7 +922,7 @@ export function AddChoreSheet({
         noValidate
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
-          void save();
+          if (!duplicate) void save();
         }}
       >
         <div className="fam-field">
@@ -984,10 +1058,17 @@ export function AddChoreSheet({
           options={[
             ['once', 'Jednou'],
             ['daily', 'Denně'],
-            ['daily_multi', 'Vícekrát denně'],
-            ['weekly', 'Vybrané dny'],
+            ['daily_multi', 'Vícekrát'],
+            ['weekly', 'Dny v týdnu'],
           ]}
         />
+        <p
+          id={recurrenceHintId}
+          className="fam-hint fam-recurrence-hint"
+          data-testid="family-recurrence-hint"
+        >
+          {RECURRENCE_HINT[recurrence]}
+        </p>
         {recurrence === 'weekly' && (
           <div className="fam-weekdays-wrap">
             <div className="fam-chips fam-weekdays" role="group" aria-label="Dny v týdnu">
@@ -1011,12 +1092,13 @@ export function AddChoreSheet({
             className="fam-times"
             data-testid="family-multi-times"
             data-flash={timesFlash || undefined}
+            tabIndex={-1}
             aria-describedby={`${errId}-times`}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) tidyTimes();
+            }}
           >
             <legend>Časy splnění</legend>
-            <p id={`${errId}-times`} className="fam-hint fam-times-hint">
-              Každé splnění má vlastní body.
-            </p>
             <ol>
               {times.map((t, i) => (
                 <li key={i}>
@@ -1034,12 +1116,6 @@ export function AddChoreSheet({
                       onChange={(e) =>
                         setTimes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
                       }
-                      onBlur={() => {
-                        const next = times.map((x, j) => (j === i ? normTime(x) : x));
-                        setTimes(next);
-                        const all = [...new Set(next.map(normTime))].sort();
-                        followDefault(all.at(-1) ?? '18:00');
-                      }}
                     />
                     <Icon name="clock" size={20} />
                   </span>
@@ -1049,7 +1125,7 @@ export function AddChoreSheet({
                     className="fam-times-remove"
                     icon={<Icon name="close" size={18} />}
                     aria-label={`Odebrat ${i + 1}. čas`}
-                    title={times.length <= MIN_TIMES ? 'Aspoň dva časy' : undefined}
+                    title={times.length <= MIN_TIMES ? 'Aspoň 2 časy' : undefined}
                     data-testid="family-multi-remove"
                     disabled={times.length <= MIN_TIMES}
                     onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))}
@@ -1057,6 +1133,15 @@ export function AddChoreSheet({
                 </li>
               ))}
             </ol>
+            <p
+              id={`${errId}-times`}
+              className="fam-hint fam-times-hint"
+              data-testid="family-multi-note"
+              aria-live="polite"
+            >
+              {timesNote ||
+                (times.length <= MIN_TIMES ? 'Aspoň 2 časy.' : `Nejvýš ${MAX_TIMES} časů.`)}
+            </p>
             {times.length < MAX_TIMES && (
               <Button
                 variant="secondary"
@@ -1080,11 +1165,15 @@ export function AddChoreSheet({
                 inputMode="numeric"
                 value={firstDateText}
                 data-testid="family-first-date"
+                data-date={firstDate}
                 onChange={(e) => {
                   setFirstDateText(e.target.value);
                   setDateEdited(true);
                 }}
-                onBlur={() => chooseSchedule(recurrence, weekdays)}
+                onBlur={() => {
+                  if (dateOk) setFirstDateText(dateText(new Date(`${firstDate}T12:00:00`)));
+                  chooseSchedule(recurrence, weekdays);
+                }}
               />
               <Icon name="calendar" size={20} />
             </span>
@@ -1120,7 +1209,7 @@ export function AddChoreSheet({
             </strong>
             <p className="fam-hint">
               {multi
-                ? 'Každé splnění má vlastní body a schvaluje ho rodič.'
+                ? 'Každé splnění schvaluje rodič.'
                 : assignees.length > 1
                   ? 'Každý plní svůj úkol. Splnění schvaluje rodič.'
                   : 'Splnění schvaluje rodič.'}
@@ -1234,9 +1323,7 @@ export function SwapSheet({
               {[
                 mode === 'reassign' ? fromKid?.name : null,
                 chore?.due ? `dnes do ${timeLabel(chore.due)}` : 'dnes',
-                chore?.points != null
-                  ? pointsAmount(chore.points, { words: mode === 'give' })
-                  : null,
+                chore?.points != null ? pointsAmount(chore.points) : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}

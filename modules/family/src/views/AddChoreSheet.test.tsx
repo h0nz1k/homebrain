@@ -71,7 +71,11 @@ describe('AddChoreSheet', () => {
     fireEvent.change(nameInput(sheet), { target: { value: 'Vyndat myčku' } });
     await save(sheet);
     const alert = within(sheet).getByRole('alert');
-    expect(alert.textContent).toContain(CREATE_CHORE_ERRORS.duplicate_name);
+    // One sentence naming the kid, no generic duplicate sentence on top.
+    expect(within(sheet).getByTestId('family-add-chore-error-text').textContent).toBe(
+      'Dcera už má úkol „Vyndat myčku“.',
+    );
+    expect(alert.textContent).not.toContain(CREATE_CHORE_ERRORS.duplicate_name);
     // Inside the sticky footer (always on screen), right above the Save button.
     const foot = sheet.querySelector('.hb-sheet-foot')!;
     expect(foot.contains(alert)).toBe(true);
@@ -81,15 +85,19 @@ describe('AddChoreSheet', () => {
     ).toBeTruthy();
     expect(document.activeElement).toBe(alert);
     const btn = within(sheet).getByTestId('family-add-chore-save') as HTMLButtonElement;
-    expect(btn.disabled).toBe(false);
     expect(btn.textContent).toBe('Uložit úkol');
-    // Saving the same name again would fail: the plain Save steps back to secondary.
+    // Saving the same name again would fail: the plain Save is disabled until a panel choice.
+    expect(btn.getAttribute('aria-disabled')).toBe('true');
     expect(btn.dataset.variant).toBe('secondary');
-    expect(btn.hasAttribute('data-demoted')).toBe(true);
+    const wait = within(sheet).getByTestId('family-add-chore-dup-wait');
+    expect(wait.textContent).toBe('Nejdřív vyber jednu z možností výše');
+    expect(btn.getAttribute('aria-describedby')).toBe(wait.id);
+    await save(sheet);
+    expect(created(api)).toHaveLength(1);
     // Primary way forward first, the rename second; no separate „Změnit název“.
     const actions = within(alert).getAllByRole('button');
     expect(actions.map((b) => b.textContent)).toEqual([
-      'Nastavit vícekrát denně',
+      'Přidat další čas (vícekrát denně)',
       'Uložit jako „Vyndat myčku (2)“',
     ]);
     expect(actions[0]!.dataset.variant).toBe('primary');
@@ -121,7 +129,7 @@ describe('AddChoreSheet', () => {
     expect(within(sheet).queryByTestId('family-name-duplicate')).toBeNull();
     expect(nameInput(sheet).value).toBe('Vyndat myčku');
     expect(
-      within(sheet).getByRole('radio', { name: 'Vícekrát denně' }).getAttribute('aria-checked'),
+      within(sheet).getByRole('radio', { name: 'Vícekrát' }).getAttribute('aria-checked'),
     ).toBe('true');
     const times = within(sheet).getByTestId('family-multi-times');
     expect(times.hasAttribute('data-flash')).toBe(true);
@@ -181,9 +189,17 @@ describe('AddChoreSheet', () => {
     expect(within(morning.sheet).getByTestId('family-add-chore-when').textContent).toBe(
       'dnes do 18:00',
     );
-    expect((within(morning.sheet).getByTestId('family-first-date') as HTMLInputElement).value).toBe(
-      '19. 11. 2026',
-    );
+    const date = within(morning.sheet).getByTestId('family-first-date') as HTMLInputElement;
+    // Same words as the summary („od dneška“), still a plain editable date underneath.
+    expect(date.value).toBe('Dnes (19.\u00a011.)');
+    expect(date.dataset.date).toBe('2026-11-19');
+    fireEvent.change(date, { target: { value: '26. 11.' } });
+    expect(date.dataset.date).toBe('2026-11-26');
+    fireEvent.blur(date);
+    expect(date.value).toBe('26. 11. 2026');
+    fireEvent.change(date, { target: { value: '20. 11. 2026' } });
+    fireEvent.blur(date);
+    expect(date.value).toBe('Zítra (20.\u00a011.)');
     cleanup();
     const evening = await mountSheet(
       vi.fn(async () => ({})),
@@ -196,19 +212,29 @@ describe('AddChoreSheet', () => {
     expect(within(evening.sheet).getByTestId('family-chore-summary').textContent).toContain(
       'zítra do 18:00',
     );
+    expect((within(evening.sheet).getByTestId('family-first-date') as HTMLInputElement).value).toBe(
+      'Zítra (20.\u00a011.)',
+    );
   });
 
   it('„Vícekrát denně“: time list, sorted daily_multi payload, summary 2×', async () => {
     const createChore = vi.fn(async () => ({}));
     const { sheet, onCreated } = await mountSheet(createChore, new Date(2026, 10, 19, 10));
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát denně' }));
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát' }));
     const times = () => within(sheet).getAllByTestId('family-multi-time') as HTMLInputElement[];
     expect(times().map((i) => i.value)).toEqual(['12:00', '18:00']);
     expect(within(sheet).queryByTestId('family-due-time')).toBeNull();
     fireEvent.click(within(sheet).getByTestId('family-multi-add'));
     fireEvent.change(times()[2]!, { target: { value: '7.30' } });
     fireEvent.blur(times()[2]!);
-    expect(times()[2]!.value).toBe('07:30');
+    // Leaving the group sorts the times and says so.
+    expect(times().map((i) => i.value)).toEqual(['07:30', '12:00', '18:00']);
+    expect(within(sheet).getByTestId('family-multi-note').textContent).toBe(
+      'Časy jsme seřadili podle dne.',
+    );
+    expect(within(sheet).getByTestId('family-chore-summary').textContent).toContain(
+      '2\u00a0body za každé splnění (6\u00a0bodů denně)',
+    );
     expect(within(sheet).getByTestId('family-chore-summary').textContent).toContain(
       'každý den 3× (7:30, 12:00 a 18:00)',
     );
@@ -230,9 +256,12 @@ describe('AddChoreSheet', () => {
 
   it('„Vícekrát denně“: ✕ on every row (min 2), up to 6 times, helper text', async () => {
     const { sheet } = await mountSheet(vi.fn(async () => ({})));
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát denně' }));
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát' }));
     const fs = within(sheet).getByTestId('family-multi-times');
-    expect(fs.textContent).toContain('Každé splnění má vlastní body.');
+    // „Každé splnění…“ lives once, in the summary; the group only states its limit.
+    expect(sheet.textContent?.match(/Každé splnění má vlastní body/g) ?? []).toHaveLength(0);
+    expect(within(fs).getByTestId('family-multi-note').textContent).toBe('Aspoň 2 časy.');
+    expect(within(fs).getAllByTestId('family-multi-remove')[0]!.title).toBe('Aspoň 2 časy');
     const removes = () => within(fs).getAllByTestId('family-multi-remove') as HTMLButtonElement[];
     expect(removes()).toHaveLength(2);
     expect(removes().every((b) => b.disabled)).toBe(true);
@@ -276,18 +305,25 @@ describe('AddChoreSheet', () => {
       within(group)
         .getAllByRole('radio')
         .map((r) => r.textContent),
-    ).toEqual(['Jednou', 'Denně', 'Vícekrát denně', 'Vybrané dny']);
+    ).toEqual(['Jednou', 'Denně', 'Vícekrát', 'Dny v týdnu']);
   });
 
   it('„Vícekrát denně“ needs two different times', async () => {
     const createChore = vi.fn(async () => ({}));
     const { sheet } = await mountSheet(createChore);
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát denně' }));
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát' }));
     const [first] = within(sheet).getAllByTestId('family-multi-time') as HTMLInputElement[];
     fireEvent.change(first!, { target: { value: '18:00' } });
     await save(sheet);
     expect(createChore).not.toHaveBeenCalled();
     expect(sheet.textContent).toContain('Každý čas zadej jen jednou.');
+    // Leaving the group merges the duplicate and keeps a slot open for a second time.
+    fireEvent.blur(first!);
+    const after = within(sheet).getAllByTestId('family-multi-time') as HTMLInputElement[];
+    expect(after.map((i) => i.value)).toEqual(['18:00', '']);
+    expect(within(sheet).getByTestId('family-multi-note').textContent).toBe(
+      'Stejné časy jsme sloučili do jednoho.',
+    );
   });
 
   it('preselected kid is unmistakable: filled chip, title and „Pro:“ above Save', async () => {
@@ -311,12 +347,17 @@ describe('FamilyView upcoming + confirmation', () => {
     const up = within(dcera).getByTestId('family-upcoming');
     expect(up.textContent).toContain('Naplánované');
     const rows = within(up).getAllByTestId('family-upcoming-chore');
-    expect(within(rows[0]!).getByTestId('family-upcoming-day').textContent).toBe('zítra');
+    expect(within(rows[0]!).getByTestId('family-upcoming-day').textContent).toBe(
+      'zítra\u00a0·\u00a0pá\u00a020.\u00a011.',
+    );
+    expect(within(up).getByTestId('family-upcoming-h').textContent).toMatch(
+      /Naplánované · \d+ úkol(y|ů)?· další dny/u,
+    );
     expect(rows[0]!.textContent).toContain('18:00');
     // One date style: lowercase weekday + date, never a bare weekday.
     for (const day of within(up).getAllByTestId('family-upcoming-day'))
       expect(day.textContent).toMatch(
-        /^(dnes|zítra|(po|út|st|čt|pá|so|ne)\u00a0\d{1,2}\.\u00a0\d{1,2}\.)$/u,
+        /^(dnes|(zítra\u00a0·\u00a0)?(po|út|st|čt|pá|so|ne)\u00a0\d{1,2}\.\u00a0\d{1,2}\.)$/u,
       );
     expect(within(up).getByTestId('family-upcoming-h').textContent).toContain('Naplánované');
     // „Dnes“ heads today's list, above the plan.
@@ -334,7 +375,7 @@ describe('FamilyView upcoming + confirmation', () => {
     const dcera = document.querySelector<HTMLElement>('[data-kid="dcera"]')!;
     const up = within(dcera).getByTestId('family-upcoming');
     expect(up.dataset.compact).toBe('line');
-    expect(up.textContent).toContain('Vyndat myčku (zítra)');
+    expect(up.textContent).toContain('Zítra: Vyndat myčku');
     // Today's list comes first.
     expect(
       dcera.querySelector('.fam-chores')!.compareDocumentPosition(up) &

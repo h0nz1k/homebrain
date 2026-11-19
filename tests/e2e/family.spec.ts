@@ -126,11 +126,10 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-kid')).toHaveCount(2);
     await expect(page.getByTestId('family-total').first()).toContainText('128');
     await expect(page.getByTestId('family-pending-points').first()).toHaveText(
-      '+2\u00a0b. čeká na schválení',
+      '+2\u00a0body čekají na schválení',
     );
-    await expect(page.getByTestId('family-pending-swaps').first()).toHaveText(
-      'Předání čeká na schválení',
-    );
+    // The handover wait shows on its row only (not repeated in the kid header).
+    await expect(page.getByTestId('family-pending-swaps')).toHaveCount(0);
     await expect(page.getByTestId('family-shop-item')).toHaveCount(6);
     await noSidewaysScroll(page);
   });
@@ -220,7 +219,7 @@ test.describe('Rodina', () => {
     const approval = page.locator('.fam-approval[data-kind="swap"]');
     await expect(approval).toContainText('Žádá Dcera');
     await expect(approval).toContainText('Vyluxovat pokoj');
-    await expect(approval.getByTestId('family-approval-points')).toHaveText('+4 b.');
+    await expect(approval.getByTestId('family-approval-points')).toHaveText('+4 body');
     await expect(approval).toContainText('Syn');
     const original = page
       .locator('[data-kid="dcera"] [data-testid="family-chore"]')
@@ -257,7 +256,7 @@ test.describe('Rodina', () => {
     // No error before the user touched the name; it appears inline after a submit attempt.
     await expect(page.getByTestId('family-name-error')).toHaveCount(0);
     await expect(page.getByTestId('family-icon-pick')).toHaveText(/Vybrat/);
-    await page.getByRole('radio', { name: 'Vybrané dny' }).click();
+    await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
     await expect(page.getByRole('button', { name: 'Po', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -267,7 +266,7 @@ test.describe('Rodina', () => {
     await expect(summary).toContainText('Dcera · 2\u00a0body · Po a Čt do\u00a018:00 · od\u00a0');
     await page.getByRole('radio', { name: 'Denně', exact: true }).click();
     await expect(summary).toContainText('každý den do\u00a018:00');
-    await page.getByRole('radio', { name: 'Vybrané dny' }).click();
+    await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
     await page.getByTestId('family-add-chore-save').click();
     await expect(page.getByTestId('family-name-error')).toHaveText('Doplň název úkolu.');
     await expect(page.getByTestId('family-add-chore-sheet')).toBeVisible();
@@ -286,7 +285,7 @@ test.describe('Rodina', () => {
     expect(chart!.y).toBeGreaterThan(0);
     expect(chart!.y + chart!.height).toBeLessThan(844);
     await expect(page.getByTestId('family-points-month')).toHaveText(
-      'Tento měsíc čistě +116\u00a0b.',
+      'Tento měsíc čistě +116\u00a0bodů',
     );
     await expect(page.getByTestId('family-points-sheet')).not.toContainText('k dispozici ·');
   });
@@ -460,7 +459,6 @@ test.describe('Rodina', () => {
         };
       });
       expect(res.kinds).toEqual(expect.arrayContaining(['family-pending-pill', 'I']));
-      if (!query) expect(res.kinds).toEqual(expect.arrayContaining(['family-pending-swaps']));
       expect(new Set(res.colors).size).toBe(1);
       // Completed handover tags keep the blue accent, distinct from „needs a parent“.
       for (const c of res.done) expect(c).not.toBe(res.colors[0]);
@@ -473,9 +471,9 @@ test.describe('Rodina', () => {
     await open(page);
     await page.getByTestId('family-total').first().click();
     await expect(page.getByTestId('family-points-month')).toHaveText(
-      'Tento měsíc čistě +116\u00a0b.',
+      'Tento měsíc čistě +116\u00a0bodů',
     );
-    await expect(page.getByTestId('family-points-month-earned')).toHaveText('+156 b.');
+    await expect(page.getByTestId('family-points-month-earned')).toHaveText('+156 bodů');
     const sum = async (id: string) =>
       (await page.getByTestId(id).locator('strong').allInnerTexts())
         .map((t) => Number(t.replace(/[^\d]/g, '')))
@@ -512,7 +510,7 @@ test.describe('Rodina', () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await open(page);
     await page.getByTestId('family-add-chore').first().click();
-    await page.getByRole('radio', { name: 'Vybrané dny' }).click();
+    await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
     for (const d of ['St', 'Pá', 'So'])
       await page.getByRole('button', { name: d, exact: true }).click();
     const tokens = page.getByTestId('family-summary-token');
@@ -561,7 +559,7 @@ test.describe('Rodina – přidání úkolu', () => {
         .locator('[data-kid="dcera"] [data-testid="family-upcoming-chore"]')
         .filter({ hasText: 'Vytřít chodbu' });
       await expect(row).toHaveAttribute('data-highlight', 'true');
-      await expect(row.getByTestId('family-upcoming-day')).toHaveText('zítra');
+      await expect(row.getByTestId('family-upcoming-day')).toHaveText(/^zítra\u00a0·\u00a0/u);
       await expect(row).toContainText('18:00');
       await expect(row).toBeInViewport();
       await noSidewaysScroll(page);
@@ -574,18 +572,28 @@ test.describe('Rodina – přidání úkolu', () => {
       await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
       await sheet.getByTestId('family-add-chore-save').click();
       const alert = sheet.getByRole('alert');
-      await expect(alert).toContainText('Úkol s tímto názvem už existuje.');
+      await expect(sheet.getByTestId('family-add-chore-error-text')).toHaveText(
+        'Dcera už má úkol „Vyndat myčku“.',
+      );
+      await expect(alert).not.toContainText('Úkol s tímto názvem už existuje.');
       await expect(alert).toBeInViewport({ ratio: 1 });
       await expect(sheet.getByTestId('family-add-chore-save')).toBeInViewport({ ratio: 1 });
-      await expect(sheet.getByTestId('family-add-chore-save')).toBeEnabled();
-      await expect(sheet.getByTestId('family-add-chore-save')).toHaveText('Uložit úkol');
-      // The same name would fail again: plain Save is secondary, the panel leads.
-      await expect(sheet.getByTestId('family-add-chore-save')).toHaveAttribute(
-        'data-variant',
-        'secondary',
+      const save = sheet.getByTestId('family-add-chore-save');
+      await expect(save).toHaveText('Uložit úkol');
+      // The same name would fail again: plain Save is visibly disabled, the panel leads.
+      await expect(save).toHaveAttribute('aria-disabled', 'true');
+      await expect(save).toHaveAttribute('data-variant', 'secondary');
+      expect(Number(await save.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(0.7);
+      await expect(sheet.getByTestId('family-add-chore-dup-wait')).toHaveText(
+        'Nejdřív vyber jednu z možností výše',
       );
+      await expect(sheet.getByTestId('family-add-chore-dup-wait')).toBeInViewport({ ratio: 1 });
+      // Playwright refuses to click an aria-disabled button; a real click event must not save.
+      await save.dispatchEvent('click');
+      await expect(alert).toBeVisible();
+      await expect(sheet).toBeVisible();
       await expect(alert.getByRole('button')).toHaveText([
-        'Nastavit vícekrát denně',
+        'Přidat další čas (vícekrát denně)',
         'Uložit jako „Vyndat myčku (2)“',
       ]);
       await expect(sheet.getByText('Změnit název')).toHaveCount(0);
@@ -594,7 +602,7 @@ test.describe('Rodina – přidání úkolu', () => {
       );
       // Error sits directly above Save inside the pinned footer.
       const a = (await alert.boundingBox())!;
-      const b = (await sheet.getByTestId('family-add-chore-save').boundingBox())!;
+      const b = (await save.boundingBox())!;
       expect(a.y + a.height).toBeLessThanOrEqual(b.y);
       if ((page.viewportSize()?.width ?? 0) <= 400) expect(a.height).toBeLessThanOrEqual(124);
       await expectLastControlClear(page);
@@ -614,7 +622,7 @@ test.describe('Rodina – přidání úkolu', () => {
     await page.getByTestId('family-add-chore').first().click();
     const sheet = page.getByTestId('family-add-chore-sheet');
     await sheet.locator('#fam-chore-name').fill('Myčka horní koš');
-    await sheet.getByRole('radio', { name: 'Vícekrát denně' }).click();
+    await sheet.getByRole('radio', { name: 'Vícekrát' }).click();
     await expect(sheet.getByTestId('family-multi-time')).toHaveCount(2);
     const tomorrow = await page.evaluate(() =>
       new Date(Date.now() + 86_400_000).toLocaleDateString('cs-CZ'),
@@ -630,12 +638,12 @@ test.describe('Rodina – přidání úkolu', () => {
     });
     await expect(rows).toHaveCount(2);
     for (const [i, time] of ['12:00', '18:00'].entries()) {
-      await expect(rows.nth(i).getByTestId('family-upcoming-day')).toHaveText('zítra');
+      await expect(rows.nth(i).getByTestId('family-upcoming-day')).toHaveText(/^zítra\u00a0·/u);
       await expect(rows.nth(i)).toContainText(time);
     }
   });
 
-  test('duplicita → „Nastavit vícekrát denně“: časy vidět, jméno zůstane, chyba zmizí', async ({
+  test('duplicita → „Přidat další čas“: časy vidět, jméno zůstane, chyba zmizí', async ({
     page,
   }) => {
     await open(page);
@@ -646,7 +654,7 @@ test.describe('Rodina – přidání úkolu', () => {
     await sheet.getByTestId('family-duplicate-multi').click();
     await expect(sheet.getByRole('alert')).toHaveCount(0);
     await expect(sheet.locator('#fam-chore-name')).toHaveValue('Vyndat myčku');
-    await expect(sheet.getByRole('radio', { name: 'Vícekrát denně' })).toHaveAttribute(
+    await expect(sheet.getByRole('radio', { name: 'Vícekrát' })).toHaveAttribute(
       'aria-checked',
       'true',
     );
@@ -654,6 +662,30 @@ test.describe('Rodina – přidání úkolu', () => {
     await expect(times).toHaveAttribute('data-flash', 'true');
     await expect(times.getByTestId('family-multi-time')).toHaveCount(2);
     await expect(times.getByTestId('family-multi-time').first()).toBeInViewport({ ratio: 1 });
+    // No input focus ring in this state: the group itself takes focus.
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('FIELDSET');
+    // ✕ targets ≥ 44 px, ≥ 3:1 even when disabled at the minimum of 2, with the reason.
+    for (const f of await contrastOf(page, '[data-testid="family-multi-remove"]'))
+      expect(f.ratio, 'remove ✕').toBeGreaterThanOrEqual(3);
+    for (const box of await times
+      .getByTestId('family-multi-remove')
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    await expect(times.getByTestId('family-multi-remove').first()).toBeDisabled();
+    await expect(times.getByTestId('family-multi-note')).toHaveText('Aspoň 2 časy.');
+    // Times panel shares the left inset of the other blocks.
+    const insets = await sheet.evaluate((el) =>
+      ['#fam-chore-name', '[data-testid="family-multi-times"]', '.fam-summary'].map((q) =>
+        Math.round(el.querySelector(q)!.getBoundingClientRect().left),
+      ),
+    );
+    expect(new Set(insets).size).toBe(1);
+    await expect(sheet.getByText('Každé splnění má vlastní body')).toHaveCount(0);
+    await expect(sheet.getByTestId('family-chore-summary')).toContainText(
+      'za každé splnění (4\u00a0body denně)',
+    );
     const tomorrow = await page.evaluate(() =>
       new Date(Date.now() + 86_400_000).toLocaleDateString('cs-CZ'),
     );
@@ -680,9 +712,9 @@ test.describe('Rodina – přidání úkolu', () => {
     await expectLastControlClear(page); // empty, „Denně“
     await sheet.getByRole('radio', { name: 'Jednou' }).click();
     await expectLastControlClear(page);
-    await sheet.getByRole('radio', { name: 'Vybrané dny' }).click();
+    await sheet.getByRole('radio', { name: 'Dny v týdnu' }).click();
     await expectLastControlClear(page);
-    await sheet.getByRole('radio', { name: 'Vícekrát denně' }).click();
+    await sheet.getByRole('radio', { name: 'Vícekrát' }).click();
     for (let i = 0; i < 4; i += 1) await sheet.getByTestId('family-multi-add').click();
     await expect(sheet.getByTestId('family-multi-time')).toHaveCount(6);
     await expectLastControlClear(page); // 6 times
@@ -713,6 +745,25 @@ test.describe('Rodina – přidání úkolu', () => {
       .getByRole('radio')
       .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
     expect(new Set(tops).size).toBe(1);
+    // Every label on one line (no wrapped segment) at this width.
+    const wrapped = await sheet
+      .getByRole('radiogroup', { name: 'Opakování' })
+      .getByRole('radio')
+      .evaluateAll((els) =>
+        els
+          .filter((el) => {
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            return r.getClientRects().length > 1 || el.scrollWidth > el.clientWidth + 1;
+          })
+          .map((el) => el.textContent),
+      );
+    expect(wrapped).toEqual([]);
+    await expect(sheet.getByTestId('family-recurrence-hint')).toHaveText('Denně – jednou za den');
+    await sheet.getByRole('radio', { name: 'Vícekrát' }).click();
+    await expect(sheet.getByTestId('family-recurrence-hint')).toHaveText(
+      'Vícekrát denně – každý čas zvlášť',
+    );
     await sheet.getByTestId('family-who-chip').nth(1).click();
     await expect(sheet.getByTestId('family-add-chore-title-who')).toHaveText(' · 2 děti');
     const titleColor = await sheet
@@ -736,9 +787,17 @@ test.describe('Rodina – přidání úkolu', () => {
       await expect(up).toHaveAttribute('data-compact', 'line');
       await expect(up).toContainText('Naplánované:');
       await expect(up.getByTestId('family-upcoming-item').first()).toHaveText(
-        'Vyndat myčku (zítra)',
+        'Zítra: Vyndat myčku',
       );
-      // Whole items only: every shown item fits, the rest is counted as „+N další“.
+      // Readable from across the kitchen: ≥ 18 px and ≥ 4,5:1.
+      for (const f of await contrastOf(page, '.fam-upcoming-item, .fam-upcoming-more-inline'))
+        expect(f.ratio, `plan line „${f.text}“`).toBeGreaterThanOrEqual(4.5);
+      expect(
+        parseFloat(await up.evaluate((el) => getComputedStyle(el).fontSize)),
+      ).toBeGreaterThanOrEqual(18);
+      // The handover wait is on its row; the kid header does not repeat it.
+      await expect(page.getByTestId('family-pending-swaps')).toHaveCount(0);
+      // Whole items only: every shown item fits, the rest is counted as „a N další“.
       for (const kid of ['dcera', 'syn']) {
         const line = page.locator(`[data-kid="${kid}"] [data-testid="family-upcoming"]`);
         const fit = await line.evaluate((el) => {
@@ -758,7 +817,7 @@ test.describe('Rodina – přidání úkolu', () => {
         // A 1280 px kiosk always has room for at least the nearest planned chore.
         expect(fit.shown).toBeGreaterThan(0);
         expect(fit.ellipsis).not.toBe('ellipsis');
-        if (fit.shown < fit.total) expect(fit.more).toMatch(/^\+\d+ další(ch)?$/);
+        if (fit.shown < fit.total) expect(fit.more).toMatch(/^a \d+ další(ch)?$/);
         else expect(fit.more).toBe('');
       }
       const card = (await page.getByTestId('family-chores').boundingBox())!;
@@ -870,9 +929,15 @@ test.describe('Rodina – seznam dětí', () => {
     const days = await kid.getByTestId('family-upcoming-day').allTextContents();
     expect(days.length).toBeGreaterThan(1);
     for (const d of days)
-      expect(d).toMatch(/^(dnes|zítra|(po|út|st|čt|pá|so|ne)\u00a0\d{1,2}\.\u00a0\d{1,2}\.)$/u);
+      expect(d).toMatch(
+        /^(dnes|(zítra\u00a0·\u00a0)?(po|út|st|čt|pá|so|ne)\u00a0\d{1,2}\.\u00a0\d{1,2}\.)$/u,
+      );
+    await expect(kid.getByTestId('family-upcoming-h')).toHaveText(
+      /^Naplánované · \d+ úkol(y|ů)?· další dny$/u,
+    );
+    // Upcoming titles share the left edge of today's titles.
     const lefts = await kid
-      .locator('.fam-upcoming-name')
+      .locator('.fam-upcoming-name, [data-testid="family-chore"] .fam-chore-t > b')
       .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
     expect(new Set(lefts).size).toBe(1);
   });
@@ -932,9 +997,8 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
       await expect(sheet.getByRole('alert')).toBeVisible();
       await shot('phone-form-duplicate');
       await sheet.getByTestId('family-duplicate-multi').click();
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(1900);
       await shot('phone-form-multi');
-      await page.waitForTimeout(1600);
       await sheet.locator('.hb-sheet-body').evaluate((el) => (el.scrollTop = el.scrollHeight));
       await page.waitForTimeout(200);
       await shot('phone-form-bottom');

@@ -631,4 +631,50 @@ export const familyStyles = `
 .fam-upcoming-item[data-hidden] { display: none; }
 .fam-upcoming-item + .fam-upcoming-item::before { content: ' · '; white-space: pre; color: var(--hb-t2); }
 .fam-upcoming-more-inline { flex: none; margin-left: 6px; color: var(--hb-t2); font-weight: 600; }
+/* ── round 3 ──────────────────────────────────────────────────────────────── */
+/* Upcoming rows: a lead column as wide as today's tick box, title first, date/time under it,
+   so upcoming titles share the left edge of today's titles. */
+.fam-upcoming-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; min-height: 52px; }
+.fam-upcoming-lead { flex: 0 0 44px; width: 44px; display: grid; place-items: center; color: var(--hb-t2); }
+.fam[data-kiosk] .fam-upcoming-lead { flex-basis: 48px; width: 48px; }
+.fam-upcoming-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fam-upcoming-name { font-size: var(--hb-type-body); font-weight: 600; color: var(--hb-t1); }
+.fam-upcoming-meta { font-size: var(--hb-type-caption); color: var(--hb-t2); font-variant-numeric: tabular-nums; }
+.fam-upcoming-meta .fam-upcoming-when, .fam-upcoming-meta .fam-upcoming-time { font-size: inherit; color: inherit; white-space: nowrap; text-align: left; }
+.fam-upcoming-row > .fam-upcoming-pts { align-self: center; }
+.fam-upcoming[data-compact] .fam-upcoming-row { padding: 4px 0; min-height: 44px; }
+@media (max-width: 760px) {
+  .fam-upcoming-row { gap: 8px; }
+  .fam-upcoming-lead { margin-left: -6px; }
+}
+/* Handed-off row: full-contrast title; only the points are struck. */
+.fam-chore[data-muted] .fam-chore-t b { color: var(--hb-t1); font-weight: 600; }
+.fam-pts[data-out] s, .fam-pts[data-out] span { color: var(--hb-t2); }
+/* Kiosk plan line: readable from across the kitchen (18 px, full text colour). */
+.fam-upcoming-line { font-size: 18px; line-height: 24px; color: var(--hb-t1); }
+.fam-upcoming-line b, .fam-upcoming-more-inline { color: var(--hb-t1); }
+.fam-upcoming-line > svg { width: 18px; height: 18px; }
+/* Add-chore form, round 3 */
+.fam-add-chore .fam-recurrence .hb-seg { display: flex; }
+.fam-add-chore .fam-recurrence .hb-seg button { flex: 1 1 auto; white-space: nowrap; text-wrap: nowrap; min-height: 44px; padding: 4px 6px; font-size: 14px; }
+.fam-recurrence-hint { margin: -12px 0 0; }
+.fam-times-hint { margin: 0; }
+.fam-times:focus { outline: none; }
+.fam-times[data-flash] { box-shadow: none; background: none; outline: 2px solid color-mix(in srgb, var(--hb-ac) 70%, transparent); outline-offset: 6px; }
+.fam-times li { gap: 8px; }
+.fam-times-remove.hb-btn { width: 44px; height: 44px; min-height: 44px; color: var(--hb-t1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 45%, transparent); border-radius: 12px; }
+.fam-times-remove.hb-btn:disabled { opacity: 1; color: var(--hb-t2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t2) 70%, transparent); cursor: not-allowed; }
+.fam-dup-wait { margin: 0; font-size: 13px; color: var(--hb-t2); text-align: center; }
+.fam .hb-sheet-foot .fam-cta[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+/* Row points: number over unit, a narrow right column. */
+.fam-pts[data-stack], .fam-upcoming-pts[data-stack] { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.1; min-width: 40px; }
+.fam-pts[data-stack] b, .fam-upcoming-pts[data-stack] b { font-size: 15px; font-weight: 700; color: inherit; }
+.fam-pts[data-stack] small, .fam-upcoming-pts[data-stack] small { font-size: 12px; font-weight: 600; color: inherit; }
+@media (max-width: 760px) {
+  .fam-handed-avatar.fam-avatar { margin-left: 1px; }
+  .fam-done-sum .fam-done-sum-i { margin-left: -6px; }
+}
+/* Kiosk: same narrow column, read from a distance. */
+.fam[data-kiosk] .fam-pts[data-stack] b { font-size: 18px; }
+.fam[data-kiosk] .fam-pts[data-stack] small { font-size: 13px; }
 `;

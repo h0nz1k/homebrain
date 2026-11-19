@@ -124,7 +124,7 @@ describe('FamilyView', () => {
       .getAllByTestId('family-chore')
       .find((li) => li.dataset.swap === 'transferred_out')!;
     const pts = within(out).getByTestId('family-pts-out');
-    expect(pts.querySelector('s')!.textContent).toBe('+3\u00a0b.');
+    expect(pts.querySelector('s')!.textContent).toBe('+3\u00a0body');
     expect(pts.textContent).toContain('→\u00a0Syn');
   });
 
@@ -149,11 +149,13 @@ describe('FamilyView', () => {
     expect(done.length).toBeGreaterThan(0);
     for (const li of done) expect(li.querySelector('.fam-chore-meta')).toBeNull();
     expect(screen.getByTestId('family-pending-points').textContent).toBe(
-      '+2\u00a0b. čeká na schválení',
+      '+2\u00a0body čekají na schválení',
     );
-    expect(screen.getByTestId('family-pending-swaps').textContent).toBe(
-      'Předání čeká na schválení',
-    );
+    // The handover wait is on its row only, not repeated in the kid header.
+    expect(screen.queryByTestId('family-pending-swaps')).toBeNull();
+    expect(
+      screen.getAllByTestId('family-pending-pill').some((p) => p.textContent?.includes('Předání')),
+    ).toBe(true);
   });
 
   it('child: kid-facing unit spelled out („3 body“), no abbreviations', async () => {

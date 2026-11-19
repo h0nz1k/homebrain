@@ -8,6 +8,9 @@ import {
   upcomingLabel,
   upcomingParts,
   eventWho,
+  formatOutOf,
+  outOfPrep,
+  pointsAmount,
   isPast,
   monthPoints,
   nextDays,
@@ -72,8 +75,49 @@ describe('family format', () => {
       text: 'Po termínu (8:00)',
       tone: 'crit',
     });
-    expect(pointsLabel(2)).toBe('+2\u00a0b.');
-    expect(pointsLabel(1.5)).toBe('+1,5\u00a0b.');
+    expect(pointsLabel(2)).toBe('+2\u00a0body');
+    expect(pointsLabel(1.5)).toBe('+1,5\u00a0bodu');
+  });
+
+  it.each([
+    [0, 1, '0\u00a0z\u00a01'],
+    [1, 2, '1\u00a0ze\u00a02'],
+    [1, 3, '1\u00a0ze\u00a03'],
+    [2, 3, '2\u00a0ze\u00a03'],
+    [1, 4, '1\u00a0ze\u00a04'],
+    [3, 5, '3\u00a0z\u00a05'],
+    [2, 6, '2\u00a0ze\u00a06'], // ze šesti
+    [2, 7, '2\u00a0ze\u00a07'], // ze sedmi
+    [4, 8, '4\u00a0z\u00a08'],
+    [4, 9, '4\u00a0z\u00a09'],
+    [5, 10, '5\u00a0z\u00a010'],
+    [5, 11, '5\u00a0z\u00a011'],
+    [5, 12, '5\u00a0ze\u00a012'],
+    [5, 15, '5\u00a0z\u00a015'],
+    [5, 17, '5\u00a0ze\u00a017'],
+    [5, 20, '5\u00a0ze\u00a020'],
+    [5, 25, '5\u00a0ze\u00a025'],
+    [5, 50, '5\u00a0z\u00a050'],
+    [5, 70, '5\u00a0ze\u00a070'],
+    [5, 100, '5\u00a0ze\u00a0100'],
+    [5, 500, '5\u00a0z\u00a0500'],
+    [5, 1000, '5\u00a0z\u00a01000'],
+  ])('formatOutOf(%i, %i) → %s', (done, total, text) => {
+    expect(formatOutOf(done, total)).toBe(text);
+    expect(outOfPrep(total)).toBe(text.includes('ze') ? 'ze' : 'z');
+  });
+
+  it.each([
+    [0, '0\u00a0bodů'],
+    [1, '1\u00a0bod'],
+    [2, '2\u00a0body'],
+    [4, '4\u00a0body'],
+    [5, '5\u00a0bodů'],
+    [128, '128\u00a0bodů'],
+    [2.5, '2,5\u00a0bodu'],
+  ])('pointsAmount(%s) → %s (no „b.“ anywhere)', (n, text) => {
+    expect(pointsAmount(n)).toBe(text);
+    expect(pointsLabel(n)).toBe(`+${text}`);
   });
 
   const chore = (

@@ -115,15 +115,35 @@ export function fmtPoints(points: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1).replace('.', ',');
 }
 
-/** „+3 b.“ for parents and the kiosk; kid-facing views spell it out („+3 body“, „+5 bodů“). */
-export function pointsLabel(points: number | null, opts: { words?: boolean } = {}): string {
+/** One points style in the whole module: „+1 bod“, „+3 body“, „+5 bodů“. */
+export function pointsLabel(points: number | null): string {
   if (points === null) return '';
-  return `+${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
+  return `+${pointsAmount(points)}`;
 }
 
-/** Same unit rule without the sign: „128 b.“ / „128 bodů“. */
-export function pointsAmount(points: number, opts: { words?: boolean } = {}): string {
-  return `${fmtPoints(points)}\u00a0${opts.words ? pointsWord(points) : 'b.'}`;
+/** Same without the sign: „1 bod“, „128 bodů“, „2,5 bodu“. */
+export function pointsAmount(points: number): string {
+  return `${fmtPoints(points)}\u00a0${pointsWord(points)}`;
+}
+
+/** Does the spoken genitive of `n` start with s/š/z/ž or a hard cluster (dvou, tří, čtyř)? */
+function zeBefore(n: number): boolean {
+  if (n < 10) return [2, 3, 4, 6, 7].includes(n); // dvou, tří, čtyř, šesti, sedmi
+  if (n < 20) return [12, 13, 14, 16, 17].includes(n); // dvanácti … sedmnácti
+  if (n < 100) return zeBefore(Math.floor(n / 10)); // dvaceti, šedesáti, sedmdesáti
+  if (n < 1000) return n < 200 || zeBefore(Math.floor(n / 100)); // sta, dvou set
+  if (n < 1_000_000) return n >= 2000 && zeBefore(Math.floor(n / 1000)); // tisíce, dvou tisíc
+  return false;
+}
+
+/** „ze“ before 2, 3, 4, 6, 7, 12–14, 16, 17, 20…; „z“ before 1, 5, 8, 9, 10, 11, 15… */
+export function outOfPrep(total: number): 'z' | 'ze' {
+  return zeBefore(Math.abs(Math.trunc(total))) ? 'ze' : 'z';
+}
+
+/** „1 ze 3“, „3 z 5“ with no-break spaces so it never wraps. */
+export function formatOutOf(done: number, total: number): string {
+  return `${done}\u00a0${outOfPrep(total)}\u00a0${total}`;
 }
 
 const SPENT_SOURCES = ['Odměny', 'Sankce'];
@@ -248,16 +268,29 @@ export function dayWord(day: Date, now: Date): string {
   return `${(DAY[day.getDay()] ?? '').toLowerCase()}\u00a0${czDate(day)}`;
 }
 
-/** Upcoming chore: day („zítra“ / „ne 30. 11.“) and due time („18:00“) as separate columns. */
-export function upcomingParts(due: string | null, now: Date): { day: string; time: string } {
+/**
+ * Upcoming chore: day and due time („18:00“) as separate parts. Tomorrow keeps its date
+ * („zítra\u00a0·\u00a0so\u00a020.\u00a011.“) so it never has to be worked out; later days
+ * are „ne\u00a022.\u00a011.“. `short` (kiosk line) drops the date after „zítra“.
+ */
+export function upcomingParts(
+  due: string | null,
+  now: Date,
+  opts: { short?: boolean } = {},
+): { day: string; time: string } {
   const d = due ? new Date(due) : null;
   if (!d || Number.isNaN(d.getTime())) return { day: 'později', time: '' };
-  return { day: dayWord(d, now), time: timeLabel(due!) };
+  const word = dayWord(d, now);
+  const day =
+    word === 'zítra' && !opts.short
+      ? `zítra\u00a0·\u00a0${(DAY[d.getDay()] ?? '').toLowerCase()}\u00a0${czDate(d)}`
+      : word;
+  return { day, time: timeLabel(due!) };
 }
 
 /** „zítra 18:00“, „ne 30. 11. 17:00“. */
 export function upcomingLabel(due: string | null, now: Date): string {
-  const { day, time } = upcomingParts(due, now);
+  const { day, time } = upcomingParts(due, now, { short: true });
   return time ? `${day} ${time}` : day;
 }
 
