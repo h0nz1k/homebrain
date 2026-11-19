@@ -236,22 +236,29 @@ export function eventWho(
   return { who: [], title: ev.summary };
 }
 
-/** Day word relative to today: „dnes“, „zítra“, „St“ (this week), „20.\u00a011.“ (later). */
+/**
+ * Day relative to today, one style everywhere: „dnes“, „zítra“, otherwise a lowercase
+ * weekday + date („ne\u00a030.\u00a011.“) – never a bare weekday.
+ */
 export function dayWord(day: Date, now: Date): string {
   const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const diff = Math.round((start(day) - start(now)) / 86_400_000);
   if (diff === 0) return 'dnes';
   if (diff === 1) return 'zítra';
-  if (diff > 1 && diff < 7) return DAY[day.getDay()] ?? czDate(day);
-  return czDate(day);
+  return `${(DAY[day.getDay()] ?? '').toLowerCase()}\u00a0${czDate(day)}`;
 }
 
-/** Upcoming chore: „zítra do 18:00“, „St do 18:00“, „20.\u00a011. do 18:00“. */
+/** Upcoming chore: day („zítra“ / „ne 30. 11.“) and due time („18:00“) as separate columns. */
+export function upcomingParts(due: string | null, now: Date): { day: string; time: string } {
+  const d = due ? new Date(due) : null;
+  if (!d || Number.isNaN(d.getTime())) return { day: 'později', time: '' };
+  return { day: dayWord(d, now), time: timeLabel(due!) };
+}
+
+/** „zítra 18:00“, „ne 30. 11. 17:00“. */
 export function upcomingLabel(due: string | null, now: Date): string {
-  if (!due) return 'Naplánováno';
-  const d = new Date(due);
-  if (Number.isNaN(d.getTime())) return 'Naplánováno';
-  return `${dayWord(d, now)} do\u00a0${timeLabel(due)}`;
+  const { day, time } = upcomingParts(due, now);
+  return time ? `${day} ${time}` : day;
 }
 
 /**

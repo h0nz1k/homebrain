@@ -6,6 +6,7 @@ import {
   dayWord,
   defaultFirstDate,
   upcomingLabel,
+  upcomingParts,
   eventWho,
   isPast,
   monthPoints,
@@ -172,15 +173,17 @@ describe('family format', () => {
 
 describe('chore-fix dates', () => {
   const now = new Date(2026, 10, 19, 10); // Thursday
-  it('dayWord: dnes / zítra / weekday this week / date later', () => {
+  it('dayWord: dnes / zítra / otherwise lowercase weekday + date, never a bare weekday', () => {
     expect(dayWord(new Date(2026, 10, 19, 20), now)).toBe('dnes');
     expect(dayWord(new Date(2026, 10, 20, 8), now)).toBe('zítra');
-    expect(dayWord(new Date(2026, 10, 22, 8), now)).toBe('Ne');
-    expect(dayWord(new Date(2026, 10, 27, 8), now)).toBe('27. 11.');
+    expect(dayWord(new Date(2026, 10, 22, 8), now)).toBe('ne\u00a022.\u00a011.');
+    expect(dayWord(new Date(2026, 10, 28, 8), now)).toBe('so\u00a028.\u00a011.');
   });
-  it('upcomingLabel adds the due time', () => {
-    expect(upcomingLabel(new Date(2026, 10, 20, 18).toISOString(), now)).toBe('zítra do 18:00');
-    expect(upcomingLabel(null, now)).toBe('Naplánováno');
+  it('upcomingParts / upcomingLabel: day and due time', () => {
+    const due = new Date(2026, 10, 30, 17).toISOString();
+    expect(upcomingParts(due, now)).toEqual({ day: 'po\u00a030.\u00a011.', time: '17:00' });
+    expect(upcomingLabel(new Date(2026, 10, 20, 18).toISOString(), now)).toBe('zítra 18:00');
+    expect(upcomingLabel(null, now)).toBe('později');
   });
   it('defaultFirstDate: today while the due time is ≥ 15 min ahead, else tomorrow', () => {
     expect(defaultFirstDate(now, '18:00').getDate()).toBe(19);

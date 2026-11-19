@@ -423,13 +423,13 @@ export const familyStyles = `
 /* rows */
 .fam-chore { min-height: 64px; }
 .fam-chore[data-state='done'] { min-height: 56px; }
-.fam-chore-meta .hb-pill.fam-pending-pill { white-space: nowrap; max-width: none; flex: none; }
+.fam-chore-meta .hb-pill.fam-pending-pill { white-space: nowrap; max-width: 100%; flex: 0 1 auto; }
 .fam-chore-meta .fam-due { color: var(--hb-t2); white-space: nowrap; }
 .fam-chore-meta .fam-due[data-tone='crit'] { color: var(--hb-crit); }
 .fam-pts { color: color-mix(in srgb, var(--hb-t1) 82%, transparent); }
 .fam-chore[data-state='done'] .fam-pts, .fam-chore[data-muted] .fam-pts { color: color-mix(in srgb, var(--hb-t1) 70%, transparent); font-weight: 600; }
 .fam-chore[data-muted] .fam-chore-t b { color: color-mix(in srgb, var(--hb-t1) 70%, transparent); }
-.fam-handed-avatar.fam-avatar { flex: 0 0 30px; width: 30px; height: 30px; margin-inline: 7px; font-size: 13px; opacity: 0.8; box-shadow: none; }
+.fam-handed-avatar.fam-avatar { flex: 0 0 30px; width: 30px; height: 30px; margin-inline: 7px; font-size: 13px; box-shadow: none; }
 .fam-swap-tag { padding: 3px 9px 3px 7px; }
 .fam-overflow.hb-btn { color: color-mix(in srgb, var(--hb-t1) 78%, transparent); border-radius: 50%; }
 @media (hover: hover) {
@@ -469,7 +469,7 @@ export const familyStyles = `
 .fam [data-status='pending']:not(i) { color: var(--fam-pending) !important; }
 .fam .hb-pill[data-status='pending'], .fam .fam-wait-chip[data-status='pending'] { background: color-mix(in srgb, var(--hb-warn) 14%, transparent); }
 .fam .hb-pill[data-status='pending'] .hb-icon, .fam [data-status='pending'] svg { color: var(--fam-pending); }
-.fam .fam-bar i[data-status='pending'] { background: var(--fam-pending); opacity: 0.6; }
+.fam .fam-bar i[data-status='pending'] { background: var(--fam-pending); }
 .fam-approval-type svg { color: var(--fam-pending); }
 /* fixed trailing slot on every chore row: the points column ends at the same x */
 .fam-menu-slot { flex: 0 0 44px; width: 44px; min-width: 44px; display: grid; place-items: center; }
@@ -517,7 +517,7 @@ export const familyStyles = `
 .fam .hb-sheet-body { scroll-padding-bottom: 24px; }
 .fam-add-chore > .fam-summary { margin-top: 2px; }
 /* add chore: assignee in the title + footer, errors pinned above Save (#chore-fix) */
-.fam-title-who { color: var(--hb-ac); }
+.fam-title-who { color: var(--hb-t2); font-weight: 500; }
 .fam-add-foot { display: flex; flex-direction: column; gap: 10px; }
 .fam-foot-who { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; font-size: 14px; color: var(--hb-t2); min-width: 0; }
 .fam-foot-label { font-weight: 600; }
@@ -535,7 +535,6 @@ export const familyStyles = `
 .fam-save-err p { margin: 2px 0 0; color: var(--hb-t2); font-size: 13px; line-height: 1.45; }
 .fam-save-err-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .fam .hb-sheet-foot .fam-save-err-actions button { width: auto; min-height: 44px; }
-.fam-recurrence .hb-seg { flex-wrap: wrap; }
 .fam-times { display: flex; flex-direction: column; gap: 10px; border: 0; padding: 0; margin: 0; min-width: 0; }
 .fam-times legend { font-size: 13px; color: var(--hb-t2); margin-bottom: 8px; padding: 0; }
 .fam-times ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -562,9 +561,74 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-kids:has(.fam-upcoming-line) { gap: 6px; }
 .fam[data-kiosk] .fam-kids:has(.fam-upcoming-line) .fam-kid + .fam-kid { padding-top: 8px; }
 .fam-upcoming-line b { font-weight: 650; flex: none; }
-.fam-upcoming-line > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--hb-t1); }
+.fam-upcoming-line > .fam-upcoming-items { color: var(--hb-t1); }
 .fam-chore[data-highlight], .fam-upcoming-row[data-highlight] { background: color-mix(in srgb, var(--hb-ac) 16%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--hb-ac) 16%, transparent); border-radius: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .fam-chore[data-highlight], .fam-upcoming-row[data-highlight] { transition: background 0.6s, box-shadow 0.6s; }
 }
+/* ── round 2 (chore-fix UX polish) ─────────────────────────────────────────── */
+/* Add-chore sheet: the footer floats over the scroll area; the body reserves its measured
+   height + 16 px (JS sets --fam-foot-h), so the last field always scrolls fully above it. */
+.hb-scrim .hb-sheet[data-fam-float-foot] { position: relative; }
+.hb-scrim .hb-sheet[data-fam-float-foot] .hb-sheet-body { padding-bottom: calc(var(--fam-foot-h, 0px) + 16px); scroll-padding-bottom: calc(var(--fam-foot-h, 0px) + 16px); }
+.hb-scrim .hb-sheet[data-fam-float-foot] .hb-sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; box-shadow: 0 -10px 18px -12px rgb(0 0 0 / 45%); transition: box-shadow 0.2s; }
+.hb-scrim .hb-sheet[data-fam-float-foot] .hb-sheet-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 36px; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--hb-s1) 0%, transparent), var(--hb-s1)); transition: opacity 0.2s; }
+.hb-scrim .hb-sheet[data-fam-float-foot][data-fam-scroll-end] .hb-sheet-foot { box-shadow: none; }
+.hb-scrim .hb-sheet[data-fam-float-foot][data-fam-scroll-end] .hb-sheet-foot::before { opacity: 0; }
+.fam-add-chore { padding-bottom: 0; }
+/* Duplicate error: one line + the two ways forward (≤ ~120 px on a 360 px phone). */
+.fam-save-err { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 12px; }
+.fam-save-err strong { display: flex; align-items: center; gap: 8px; line-height: 20px; }
+.fam-save-err strong > svg { flex: none; color: var(--hb-crit); }
+.fam-save-err-actions { align-items: center; gap: 4px 8px; margin-top: 0; }
+.fam .hb-sheet-foot .fam-save-err-actions button { min-height: 40px; }
+.fam .hb-sheet-foot .fam-save-err-actions .fam-save-err-alt { min-height: 32px; padding-inline: 8px; color: var(--hb-t1); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; max-width: 100%; }
+.fam-save-err-alt > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fam .hb-sheet-foot .fam-cta[data-demoted] { font-weight: 600; }
+/* Opakování: one row, four equal segments; long labels wrap inside their segment. */
+.fam-add-chore .fam-recurrence .hb-seg { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); overflow: visible; }
+.fam-add-chore .fam-recurrence .hb-seg button { white-space: normal; text-wrap: balance; line-height: 1.2; min-height: 48px; padding: 4px; font-size: 13px; }
+/* Vícekrát denně */
+.fam-times legend { margin-bottom: 2px; }
+.fam-times-hint { margin: -6px 0 2px; line-height: 1.4; }
+.fam-times li .fam-input-icon { max-width: 200px; }
+.fam-times-remove.hb-btn { flex: none; width: 44px; min-height: 44px; }
+.fam-times-remove.hb-btn:disabled { opacity: 0.45; }
+.fam-times[data-flash] { border-radius: 12px; box-shadow: 0 0 0 8px color-mix(in srgb, var(--hb-ac) 18%, transparent); background: color-mix(in srgb, var(--hb-ac) 18%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .fam-times { transition: background 0.5s, box-shadow 0.5s; } }
+
+/* Kid list: „Dnes“ / „Naplánované“ sub-headings */
+.fam-list-h { display: flex; align-items: baseline; gap: 6px; margin: 10px 0 2px; font-size: 13px; font-weight: 650; color: var(--hb-t2); }
+.fam-list-h small { font-size: 13px; font-weight: 500; color: var(--hb-t2); }
+.fam-list-h > svg { align-self: center; flex: none; }
+.fam-upcoming .fam-list-h { margin-top: 0; }
+/* Upcoming: fixed day + time columns, so the titles line up. */
+.fam-upcoming-row { grid-template-columns: 76px 40px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.fam-upcoming-when { font-size: 13px; color: var(--hb-t2); }
+.fam-upcoming-time { font-size: 13px; color: var(--hb-t2); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.fam-upcoming-pts { color: var(--hb-t2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.fam[data-kiosk] .fam-upcoming-row { grid-template-columns: 84px 44px minmax(0, 1fr) auto; }
+/* Rows: deadline always first in the meta line, points centred in their column. */
+.fam-chore { align-items: center; }
+.fam-chore > .fam-pts { align-self: center; text-align: right; }
+.fam-pts[data-out] { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.2; }
+.fam-pts[data-out] s { color: var(--hb-t2); font-weight: 500; text-decoration-thickness: 1.5px; }
+.fam-pts[data-out] span { font-size: 12px; font-weight: 600; color: var(--hb-t2); }
+.fam-chore[data-muted] .fam-chore-t b { color: var(--hb-t2); }
+/* Narrow rows: status chips wrap inside the text column instead of running under the points. */
+.fam-chore-meta .fam-swap-tag { white-space: normal; max-width: 100%; }
+.fam-chore-meta .hb-pill.fam-pending-pill { white-space: normal; line-height: 1.25; text-wrap: balance; }
+/* Contrast: kid-coloured text/segments mix toward the text colour (darker in light, lighter in dark). */
+.fam-kid { --fam-kid-ink: color-mix(in oklab, var(--fam-kid) 62%, var(--hb-t1)); --fam-kid-bar: color-mix(in oklab, var(--fam-kid) 78%, var(--hb-t1)); }
+.fam-points strong, .fam-total-link { color: var(--fam-kid-ink); }
+.fam-bar { background: color-mix(in srgb, var(--hb-t1) 12%, transparent); }
+.fam-bar i { background: var(--fam-kid-bar); }
+.fam-bar i + i { box-shadow: inset 2px 0 0 var(--hb-s1); }
+/* Kiosk plan line: whole items only, the rest as „+N další“ (no mid-word ellipsis). */
+.fam-upcoming-line > .fam-upcoming-items { overflow: hidden; text-overflow: clip; display: flex; min-width: 0; flex: 0 1 auto; }
+.fam-upcoming-item { flex: none; white-space: nowrap; }
+.fam-upcoming-item[data-hidden] { display: none; }
+.fam-upcoming-item + .fam-upcoming-item::before { content: ' · '; white-space: pre; color: var(--hb-t2); }
+.fam-upcoming-more-inline { flex: none; margin-left: 6px; color: var(--hb-t2); font-weight: 600; }
 `;

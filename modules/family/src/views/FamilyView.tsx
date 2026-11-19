@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { hostWindow, usePeople, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
@@ -29,7 +38,7 @@ import {
   sortChores,
   timeLabel,
   todayEvents,
-  upcomingLabel,
+  upcomingParts,
 } from '../format.js';
 import { handedToLabel, takenFromLabel } from '../czech.js';
 import type { FamilyEvent, FamilyKid, FamilySnapshot } from '../types.js';
@@ -328,6 +337,20 @@ interface Actions {
 
 type ChoreRow = FamilyKid['chores'][number];
 
+/**
+ * Today's row the viewer can still act on (tick off / hand over): every such row – and only
+ * such rows – gets the „⋯“ menu, so its presence is predictable. Transfer itself may still be
+ * unavailable (see `canTransferChore`); the menu then explains it with a disabled action.
+ */
+export function isActionableChore(c: ChoreRow | null | undefined): boolean {
+  return (
+    !!c &&
+    (c.state === 'todo' || c.state === 'overdue') &&
+    c.swap_today?.kind !== 'pending_give' &&
+    c.swap_today?.kind !== 'transferred_out'
+  );
+}
+
 /** A chore the viewer can hand over / reassign for today (the only „⋯“ action). */
 export function canTransferChore(c: ChoreRow | null | undefined): boolean {
   return (
@@ -365,8 +388,7 @@ function PendingPill({ kind }: { kind: 'swap' | 'completion' }) {
       data-status="pending"
       className="fam-pending-pill"
     >
-      <span className="hb-sr-only">{kind === 'swap' ? 'Předání: ' : 'Splnění: '}</span>
-      Čeká na schválení
+      {kind === 'swap' ? 'Předání čeká na schválení' : 'Splnění čeká na schválení'}
     </Pill>
   );
 }
@@ -388,10 +410,11 @@ function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'war
   const pending =
     swap?.kind === 'pending_give' ? 'swap' : c.state === 'claimed' ? 'completion' : null;
   if (!pending && !deadline && !swap) return null;
+  // Deadline always first (same place in every row), then the status chips.
   return (
     <div className="fam-chore-meta">
-      {pending && <PendingPill kind={pending} />}
       {deadline}
+      {pending && <PendingPill kind={pending} />}
       {swap?.kind === 'transferred_in' && <SwapTag swap={swap} />}
     </div>
   );
@@ -405,7 +428,7 @@ export interface Highlight {
 
 const UPCOMING_COMPACT = 3;
 
-/** „Víckrát denně“ creates „<name> (12:00)“, „<name> (19:00)“: highlight all of them. */
+/** „Vícekrát denně“ creates „<name> (12:00)“, „<name> (19:00)“: highlight all of them. */
 const isHighlighted = (name: string, highlight?: string | null) =>
   !!highlight && (name === highlight || name.startsWith(`${highlight} (`));
 
@@ -433,24 +456,7 @@ function UpcomingList({
   const all = kid.upcoming ?? [];
   if (!all.length) return null;
   // Kiosk: the chores card has a fixed height, so the plan is one line under today's rows.
-  if (line)
-    return (
-      <p
-        className="fam-upcoming fam-upcoming-line"
-        data-testid="family-upcoming"
-        data-compact="line"
-      >
-        <Icon name="calendar" size={14} />
-        <b>Naplánované:</b>{' '}
-        <span>
-          {all
-            .slice(0, UPCOMING_COMPACT)
-            .map((c) => `${c.name} (${upcomingLabel(c.due, now).replace(/\sdo\s.*$/u, '')})`)
-            .join(' · ')}
-          {all.length > UPCOMING_COMPACT ? ` · +${all.length - UPCOMING_COMPACT}` : ''}
-        </span>
-      </p>
-    );
+  if (line) return <UpcomingLine chores={all} now={now} />;
   const rows = compact ? all.slice(0, UPCOMING_COMPACT) : all;
   const more = all.length - rows.length;
   return (
@@ -460,32 +466,103 @@ function UpcomingList({
       data-compact={compact || undefined}
       aria-label={`Naplánované úkoly: ${kid.name}`}
     >
-      <h3 className="fam-upcoming-h">
+      <h3 className="fam-list-h fam-upcoming-h" data-testid="family-upcoming-h">
         <Icon name="calendar" size={14} />
         Naplánované
-        <small>· {all.length}</small>
+        <small data-testid="family-upcoming-count">· další dny · {all.length}</small>
       </h3>
       <ul>
-        {rows.map((c) => (
-          <li
-            key={c.id}
-            className="fam-upcoming-row"
-            data-testid="family-upcoming-chore"
-            data-group={c.group}
-            data-highlight={isHighlighted(c.name, highlight) || undefined}
-          >
-            <span className="fam-upcoming-when">{upcomingLabel(c.due, now)}</span>
-            <span className="fam-upcoming-name">{c.name}</span>
-            {c.points != null && (
-              <span className="fam-upcoming-pts">{pointsLabel(c.points, { words })}</span>
-            )}
-          </li>
-        ))}
+        {rows.map((c) => {
+          const when = upcomingParts(c.due, now);
+          return (
+            <li
+              key={c.id}
+              className="fam-upcoming-row"
+              data-testid="family-upcoming-chore"
+              data-group={c.group}
+              data-highlight={isHighlighted(c.name, highlight) || undefined}
+            >
+              <span className="fam-upcoming-when" data-testid="family-upcoming-day">
+                {when.day}
+              </span>
+              <span className="fam-upcoming-time">{when.time}</span>
+              <span className="fam-upcoming-name">{c.name}</span>
+              {c.points != null && (
+                <span className="fam-upcoming-pts">{pointsLabel(c.points, { words })}</span>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {more > 0 && (
         <p className="fam-upcoming-more">a {czCount(more, 'další', 'další', 'dalších')}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * Kiosk plan line: whole items only. Items that do not fit the line are hidden and counted
+ * in „+N další“ – never an ellipsis in the middle of a word.
+ */
+function UpcomingLine({ chores, now }: { chores: NonNullable<FamilyKid['upcoming']>; now: Date }) {
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const [shown, setShown] = useState(chores.length);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const fit = () => {
+      const items = [...box.querySelectorAll<HTMLElement>('.fam-upcoming-item')];
+      items.forEach((el) => el.removeAttribute('data-hidden'));
+      const more = box.querySelector<HTMLElement>('.fam-upcoming-more-inline');
+      more?.removeAttribute('hidden');
+      const limit = box.getBoundingClientRect().right;
+      // While the counter is not rendered yet, keep room for it („+3 další“ ≈ 64 px).
+      const reserve = more ? 0 : 72;
+      let n = items.length;
+      if (items.some((el) => el.getBoundingClientRect().right > limit + 0.5)) {
+        n = items.findIndex((el) => el.getBoundingClientRect().right > limit - reserve);
+        if (n < 0) n = items.length;
+      }
+      items.forEach((el, i) => (i >= n ? el.setAttribute('data-hidden', '') : null));
+      setShown(n);
+    };
+    fit();
+    let frame = 0;
+    // Refit on the next frame: hiding items inside the callback would loop the observer.
+    const ro =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(fit);
+          });
+    ro?.observe(box);
+    // The item box shrink-wraps its items; the line itself tells when there is more room.
+    if (box.parentElement) ro?.observe(box.parentElement);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro?.disconnect();
+    };
+  }, [chores, now]);
+  const hidden = chores.length - shown;
+  return (
+    <p className="fam-upcoming fam-upcoming-line" data-testid="family-upcoming" data-compact="line">
+      <Icon name="calendar" size={14} />
+      <b>Naplánované:</b>{' '}
+      <span ref={boxRef} className="fam-upcoming-items">
+        {chores.map((c) => (
+          <span key={c.id} className="fam-upcoming-item" data-testid="family-upcoming-item">
+            {`${c.name} (${upcomingParts(c.due, now).day})`}
+          </span>
+        ))}
+      </span>
+      {hidden > 0 && (
+        <span className="fam-upcoming-more-inline" data-testid="family-upcoming-more">
+          +{czCount(hidden, 'další', 'další', 'dalších')}
+        </span>
+      )}
+    </p>
   );
 }
 
@@ -656,6 +733,11 @@ function KidCard({
             )}
           </div>
         )}
+        {!compact && (rows.length > 0 || doneRows.length > 0) && (
+          <h3 className="fam-list-h" data-testid="family-today-h">
+            Dnes
+          </h3>
+        )}
         <ul className="fam-chores">
           {rows.map((c) => {
             const note = choreNote(c, now, { parentApproves: !c.can_approve });
@@ -665,7 +747,7 @@ function KidCard({
             const partner = out
               ? members.find((m) => m.name === c.swap_today?.partner_name)
               : undefined;
-            const showMenu = act.onMenu && canTransferChore(c);
+            const showMenu = act.onMenu && isActionableChore(c);
             const nameId = `${bodyId}-${c.id}`;
             return (
               <li
@@ -708,7 +790,18 @@ function KidCard({
                   <b id={nameId}>{c.name}</b>
                   <ChoreMeta c={c} note={note} />
                 </div>
-                <span className="fam-pts">{pointsLabel(c.points, unit)}</span>
+                {out ? (
+                  // Handed to the sibling: the points go with the chore, not counted twice.
+                  <span className="fam-pts" data-out data-testid="family-pts-out">
+                    <s aria-hidden="true">{pointsLabel(c.points, unit)}</s>
+                    <span aria-hidden="true">→&nbsp;{c.swap_today?.partner_name ?? '?'}</span>
+                    <span className="hb-sr-only">
+                      {`Body dostane ${c.swap_today?.partner_name ?? 'sourozenec'}`}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="fam-pts">{pointsLabel(c.points, unit)}</span>
+                )}
                 {menuSlot && (
                   <span className="fam-menu-slot" data-testid="family-menu-slot">
                     {showMenu && (
