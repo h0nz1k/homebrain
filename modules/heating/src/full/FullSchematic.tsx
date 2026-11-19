@@ -565,11 +565,30 @@ export function FullSchematic({
             halo={HALO[l.halo] === 'none' ? undefined : HALO[l.halo]}
             lead={lead}
           >
-            {({ x0 }) =>
-              l.sensor ? <Sensor c={[x0 + 7, (READING_AT[k]?.[1] ?? l.y) - 5]} /> : null
-            }
+            {({ x0, w }) => {
+              const y = READING_AT[k]?.[1] ?? (stack && READING_UP[k] ? l.y - READING_UP[k] : l.y);
+              return (
+                <>
+                  {l.sensor && <Sensor c={[x0 + 7, y - 5]} />}
+                  {/* service code right of the value pill (never over the name or the pill) */}
+                  {code && (
+                    <text
+                      x={l.anchor === 'end' ? x0 - 8 : x0 + w + 8}
+                      y={stack ? y + 25 : y}
+                      textAnchor={l.anchor === 'end' ? 'end' : 'start'}
+                      fontSize="14"
+                      className="fs-t fs-t-code"
+                      stroke={HALO[l.halo] === 'none' ? 'none' : HALO[l.halo]}
+                      strokeWidth="4"
+                      data-service-code={k}
+                    >
+                      {code}
+                    </text>
+                  )}
+                </>
+              );
+            }}
           </ValueLabel>
-          {code && <ServiceCode k={k} l={l} code={code} reading={st.readings[k]} />}
         </g>
       );
     }
@@ -909,9 +928,10 @@ export function FullSchematic({
           </g>
           {service && codes['heat_pump.compressor_on'] && (
             <text
-              x={hx + hw + 10}
+              x={hx - 12}
               y={hy - 9}
-              fontSize="15"
+              fontSize="14"
+              textAnchor="end"
               className="fs-t fs-t-code"
               stroke="var(--fs-tech)"
               strokeWidth="4"
@@ -923,7 +943,7 @@ export function FullSchematic({
           {/* mixing valve: name + position right of the body, below the supply */}
           <g data-valve-label="valve_mix">
             <text
-              x={mixC[0] + 34}
+              x={mixC[0] + (st.mixer.fault ? 46 : 34)}
               y={mixC[1] + 27}
               fontSize="15"
               className="fs-t fs-t-p"
@@ -934,7 +954,7 @@ export function FullSchematic({
               Směšovací ventil
             </text>
             <text
-              x={mixC[0] + 34}
+              x={mixC[0] + (st.mixer.fault ? 46 : 34)}
               y={mixC[1] + 45}
               fontSize="15"
               className={`fs-t ${st.mixer.pct === null ? 'fs-nodata' : 'fs-t-m'}`}
