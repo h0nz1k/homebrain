@@ -11,7 +11,10 @@ from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
+from . import model
+from .person_history import PersonHistory
 from .swap_store import FamilySwapStore
+from .ws_common import family_options
 
 
 async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -20,6 +23,16 @@ async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await store.async_load()
     hb = hass.data.setdefault(DOMAIN, {})
     hb["family_swap"] = store
+    history = PersonHistory(hass)
+    await history.async_load()
+    hb["family_history"] = history
+
+    def _record_missed() -> None:
+        history.reconcile(
+            hass, model.discover_members(hass.states.async_all(), family_options(hass))
+        )
+
+    _record_missed()
 
     def _schedule_midnight() -> None:
         local = dt_util.start_of_local_day() + timedelta(days=1)
@@ -27,6 +40,7 @@ async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
         @callback
         def _reconcile(_now) -> None:
             tz = ZoneInfo(hass.config.time_zone)
+            _record_missed()
             store.reconcile_all(dt_util.now(), tz)
             hass.async_create_task(store.async_save())
             _schedule_midnight()

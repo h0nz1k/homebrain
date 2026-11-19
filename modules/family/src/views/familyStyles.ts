@@ -666,15 +666,185 @@ export const familyStyles = `
 .fam-times-remove.hb-btn:disabled { opacity: 1; color: var(--hb-t2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t2) 70%, transparent); cursor: not-allowed; }
 .fam-dup-wait { margin: 0; font-size: 13px; color: var(--hb-t2); text-align: center; }
 .fam .hb-sheet-foot .fam-cta[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
-/* Row points: number over unit, a narrow right column. */
-.fam-pts[data-stack], .fam-upcoming-pts[data-stack] { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.1; min-width: 40px; }
-.fam-pts[data-stack] b, .fam-upcoming-pts[data-stack] b { font-size: 15px; font-weight: 700; color: inherit; }
-.fam-pts[data-stack] small, .fam-upcoming-pts[data-stack] small { font-size: 12px; font-weight: 600; color: inherit; }
-@media (max-width: 760px) {
-  .fam-handed-avatar.fam-avatar { margin-left: 1px; }
-  .fam-done-sum .fam-done-sum-i { margin-left: -6px; }
+
+/* Family identity and person detail. */
+.fam {
+  --fam-person-1: #6897fa; --fam-person-2: #d76ae6; --fam-person-3: #a884fc; --fam-person-4: #35bfaf;
+  --fam-person-surface: var(--hb-s1);
+  --fam-task-lead: 44px;
+  --fam-task-point: 68px;
 }
-/* Kiosk: same narrow column, read from a distance. */
-.fam[data-kiosk] .fam-pts[data-stack] b { font-size: 18px; }
-.fam[data-kiosk] .fam-pts[data-stack] small { font-size: 13px; }
+[data-theme='light'] .fam {
+  --fam-person-1: #265ac2; --fam-person-2: #a52fb4; --fam-person-3: #6744c6; --fam-person-4: #008376;
+}
+.fam-settings-link { margin-left: auto; }
+.fam-persons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fam-person-tile, .fam-person-tabs button {
+  color: var(--hb-t1); border: 0; text-align: left; cursor: pointer;
+}
+.fam-person-tile {
+  min-width: 0; display: grid; gap: 8px; padding: 12px; border-radius: 20px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--person-color) 13%, var(--fam-person-surface)), var(--fam-person-surface) 72%);
+  box-shadow: var(--hb-elev-1);
+}
+.fam-person-tile:hover { box-shadow: inset 0 0 0 1px var(--person-color); }
+.fam-person-tile:focus-visible, .fam-person-tabs button:focus-visible, .fam-person-finished summary:focus-visible {
+  outline: 2px solid var(--hb-ac); outline-offset: 2px;
+}
+.fam-person-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.fam-person-avatar {
+  display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%;
+  color: var(--hb-t1); font-size: 19px; font-weight: 700;
+  background: color-mix(in srgb, var(--person-color) 32%, var(--fam-person-surface));
+}
+.fam-person-name { min-width: 0; overflow-wrap: anywhere; }
+.fam-person-name strong { display: block; font-size: 17px; font-weight: 700; }
+.fam-person-presence {
+  width: fit-content; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; margin-top: 3px;
+  border-radius: 99px; padding: 2px 8px; color: var(--hb-t1);
+  background: color-mix(in srgb, var(--hb-t1) 6%, var(--fam-person-surface)); font-size: 13px; font-weight: 600;
+}
+.fam-person-presence > span { width: 8px; height: 8px; border: 1.5px solid currentColor; border-radius: 50%; }
+.fam-person-presence > span[data-home] { background: currentColor; }
+.fam-person-meter { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: color-mix(in srgb, var(--hb-t1) 16%, transparent); }
+.fam-person-meter i { flex: none; background: var(--person-color); }
+.fam-person-meter i[data-waiting] {
+  background: repeating-linear-gradient(135deg, var(--person-color) 0 3px, transparent 3px 6px);
+}
+.fam-person-progress { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; color: var(--hb-t2); font-size: 13px; }
+.fam-person-wait { display: inline-flex; gap: 3px; align-items: center; color: var(--fam-pending); white-space: nowrap; }
+.fam-now {
+  align-self: flex-start; display: flex; align-items: baseline; gap: 8px;
+  color: var(--hb-t1); font-size: 14px; font-weight: 550; padding: 5px 9px !important; margin-top: 6px !important;
+  border-radius: 14px; background: color-mix(in srgb, var(--hb-t1) 7%, var(--hb-s1));
+}
+.fam-now i { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--hb-crit); }
+.fam-person-view { --fam-person-title: 21px; min-width: 0; display: grid; gap: 16px; }
+.fam-person-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.fam-person-back.hb-btn { justify-self: start; padding-inline: 9px; font-weight: 650; }
+.fam-person-head .fam-person-avatar { width: 48px; height: 48px; font-size: 23px; }
+.fam-person-head .fam-person-name > div { display: flex; flex-wrap: wrap; align-items: center; column-gap: 9px; }
+.fam-person-head h1, .fam-person-settings h1 { font-size: 25px; line-height: 1.15; }
+.fam-person-name p, .fam-person-settings p { color: var(--hb-t2); font-size: 14px; margin-top: 3px; }
+.fam-person-tabs {
+  position: sticky; top: 0; z-index: 1; padding: 3px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px; border-radius: 15px; background-color: var(--hb-s1);
+}
+.fam-person-tabs button { text-align: center; min-height: 42px; border-radius: 12px; background: transparent; font-weight: 600; color: var(--hb-t2); }
+.fam-person-tabs button[aria-selected='true'] { color: var(--hb-t1); background: var(--hb-s2); box-shadow: var(--hb-elev-1); }
+.fam-person-columns, .fam-person-side { display: grid; gap: 20px; align-content: start; min-width: 0; }
+.fam-person-side:empty { display: none; }
+.fam-person-section-head {
+  display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 3px 8px;
+}
+.fam-person-section-head h2 { font-size: var(--fam-person-title, 20px); font-weight: 700; letter-spacing: -0.02em; }
+.fam-person-section-head small, .fam-person-group h3, .fam-person-finished summary { color: var(--hb-t2); font-size: 14px; }
+.fam .fam-person-surface {
+  background: var(--fam-person-surface); border-radius: 20px; padding: 4px 12px; box-shadow: var(--hb-elev-1);
+}
+.fam-person-group + .fam-person-group { margin-top: 3px; }
+.fam-person-group h3 {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 0 4px; font-weight: 650;
+}
+.fam-person-group h3 > span:last-child { white-space: nowrap; font-weight: 500; }
+.fam-person-group[data-late] h3, .fam-person-task-text small.fam-person-overdue, .fam-person-task[data-missed] small { color: var(--hb-crit); }
+.fam-person-task {
+  display: grid; align-items: center; grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) auto;
+  gap: 8px; padding: 8px 0; min-height: 53px;
+}
+.fam-person-task + .fam-person-task, .fam-person-event + .fam-person-event,
+.fam-person-finished, .fam-person-day + .fam-person-day { border-top: 1px solid var(--hb-edge); }
+.fam-person-task-text { min-width: 0; overflow-wrap: anywhere; }
+.fam-person-task-text strong { display: block; font-size: 16px; font-weight: 650; }
+.fam-person-task-text small, .fam-person-event small { color: var(--hb-t2); display: block; font-size: 14px; margin-top: 2px; }
+.fam-person-task-text small[data-pending] { color: var(--fam-pending); }
+.fam-person-task[data-muted] strong, .fam-person-task[data-state='done'] strong { color: var(--hb-t2); }
+.fam-person-task[data-state='done'] strong { text-decoration: line-through; }
+.fam-person-points { min-width: var(--fam-task-point); white-space: nowrap; text-align: right; font-size: 14px; font-weight: 650; }
+.fam-person-mark {
+  color: var(--hb-t2); display: grid; place-items: center; justify-self: center;
+  border-radius: 50%; width: 28px; height: 28px; border: 1.5px solid currentColor;
+}
+.fam-person-task[data-state='done'] .fam-person-mark { color: var(--hb-ok); }
+.fam-person-task[data-state='claimed'] .fam-person-mark {
+  color: var(--fam-pending); border-color: transparent; border-radius: 8px;
+  background: color-mix(in srgb, var(--hb-warn) 17%, var(--fam-person-surface));
+}
+.fam-person-task[data-missed] .fam-person-mark, .fam-person-task[data-state='overdue'] .fam-person-mark { color: var(--hb-crit); }
+.fam-person-free .fam-person-mark { border-style: dashed; }
+.fam-person-free > .hb-btn { grid-column: 2 / -1; justify-self: end; }
+.fam-person-finished summary { padding: 12px 0; min-height: 44px; cursor: pointer; }
+.fam-person-day { padding-bottom: 6px; }
+.fam-person-day[data-today] h3 { color: var(--hb-t1); }
+.fam-person-event {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr); padding: 10px 0; gap: 6px; font-weight: 600;
+}
+.fam-person-event > span { border-inline-start: 3px solid var(--person-color); padding-inline-start: 10px; }
+.fam .fam-person-empty { color: var(--hb-t2); padding: 12px 0; }
+.fam-person-settings form { display: grid; gap: 12px; justify-items: start; }
+.fam-person-settings fieldset {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; min-width: 0; gap: 12px; border: 0; margin: 0;
+}
+.fam-person-settings legend { font-weight: 700; padding: 6px; }
+.fam-person-settings legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-inline-end: 6px; }
+.fam-person-settings label { display: grid; min-width: 0; gap: 4px; font-weight: 600; }
+.fam-person-settings select {
+  min-height: 44px; width: 100%; color: var(--hb-t1); background: var(--hb-s2); padding: 6px;
+  border: 1px solid var(--hb-edge); border-radius: 9px; font: inherit;
+}
+.fam-person-settings small { color: var(--hb-t2); }
+.fam-list-detail.hb-btn { margin-inline-end: auto; }
+
+.fam-chore, .fam-upcoming-row {
+  display: grid; grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) var(--fam-task-point) 36px; gap: 8px;
+}
+.fam-chore > :first-child, .fam-upcoming-row > :first-child { justify-self: center; }
+.fam-chore .fam-check, .fam-upcoming-row .fam-upcoming-lead, .fam-done-sum .fam-done-sum-i,
+.fam-handed-avatar.fam-avatar { margin-inline: 0; }
+.fam-handed-avatar.fam-avatar { width: 28px; height: 28px; }
+.fam-done-sum .fam-done-sum-i { width: 44px; }
+.fam-done-sum .fam-done-sum-i svg { width: 28px; height: 28px; }
+.fam-pts, .fam-upcoming-pts { min-width: 0; text-align: right; font-size: 13px; white-space: nowrap; font-weight: 650; }
+.fam-menu-slot { width: 36px; min-width: 36px; margin-inline: 0; }
+.fam-chore-meta .hb-pill.fam-pending-pill { white-space: nowrap; text-wrap: nowrap; }
+.fam-handover-pending { font-weight: 650; overflow-wrap: anywhere; line-height: 1.3; }
+.fam-handover-pending svg { vertical-align: -2px; }
+
+@media (min-width: 761px) {
+  .fam-person-columns { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .fam-person-free:has(button) { grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) auto auto; }
+  .fam-person-free > .hb-btn { grid-column: auto; }
+}
+@media (max-width: 760px) {
+  .fam-persons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fam-person-head { align-items: start; flex-direction: column; }
+  .fam-person-settings fieldset { grid-template-columns: minmax(0, 1fr); }
+  .fam-chore, .fam-upcoming-row { grid-template-columns: 36px minmax(0, 1fr) 59px 32px; gap: 4px; }
+  .fam-menu-slot { width: 32px; min-width: 32px; }
+  .fam-chore-meta .hb-pill.fam-pending-pill { font-size: 11px; gap: 3px; padding-inline: 3px; }
+}
+.fam[data-kiosk] { --fam-task-lead: 48px; --fam-task-point: 84px; --hb-type-caption: 16px; }
+.fam[data-kiosk]:has(.fam-person-view) { height: auto; min-height: 0; overflow: visible; }
+.fam[data-kiosk] .fam-person-tile { padding: 10px 14px; gap: 6px; }
+.fam[data-kiosk] .fam-person-avatar { width: 48px; height: 48px; font-size: 24px; }
+.fam[data-kiosk] .fam-person-name strong, .fam[data-kiosk] .fam-person-head h1 { font-size: 25px; }
+.fam[data-kiosk] .fam-person-head .fam-person-avatar { width: 64px; height: 64px; }
+.fam[data-kiosk] .fam-person-view { --fam-person-title: 26px; }
+.fam[data-kiosk] .fam-person-task { min-height: 64px; }
+.fam[data-kiosk] .fam-person-task-text strong, .fam[data-kiosk] .fam-person-event { font-size: 21px; }
+.fam[data-kiosk] .fam-person-mark { width: 34px; height: 34px; }
+.fam[data-kiosk] .fam-chore { grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) var(--fam-task-point); }
+.fam[data-kiosk] .fam-person-task-text small, .fam[data-kiosk] .fam-person-presence,
+.fam[data-kiosk] .fam-person-event small, .fam[data-kiosk] .fam-person-section-head small,
+.fam[data-kiosk] .fam-person-progress, .fam[data-kiosk] .fam-person-name p,
+.fam[data-kiosk] .fam-person-group h3, .fam[data-kiosk] .fam-person-finished summary,
+.fam[data-kiosk] .fam-person-tabs button, .fam[data-kiosk] .fam-person-free > .hb-btn,
+.fam[data-kiosk] .fam-person-points, .fam[data-kiosk] .fam-pts, .fam[data-kiosk] .fam-pts[data-out] span,
+.fam[data-kiosk] .fam-pending-pill, .fam[data-kiosk] .fam-handover-pending,
+.fam[data-kiosk] .fam-swap-tag, .fam[data-kiosk] .fam-wait-chip, .fam[data-kiosk] .fam-now,
+.fam[data-kiosk] .fam-day li > span.fam-wk-time, .fam[data-kiosk] .fam-src,
+.fam[data-kiosk] .fam-wk-school, .fam[data-kiosk] .fam-points small { font-size: 16px; }
+.fam[data-kiosk] .fam-upcoming-line { font-weight: 500; }
+.fam[data-kiosk] .fam-upcoming-more-inline { font-weight: inherit; }
+.fam[data-kiosk] .fam-slot[data-slot='chores'] > .fam-card { scrollbar-gutter: stable; }
 `;

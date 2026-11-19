@@ -14,9 +14,9 @@ from homeassistant.exceptions import Unauthorized
 from homeassistant.util import dt as dt_util
 
 from ..roles import FAMILY_APPROVE_ROLES
-from . import choreops_adapter, model, points_model, swap_model, swap_service
+from . import choreops_adapter, model, persons, points_model, swap_model, swap_service
 from .swap_store import FamilySwapStore
-from .ws_common import _role, _visible_kids, family_options
+from .ws_common import _children, _role, _visible_kids, family_options
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ async def websocket_family_swap_options(
             )
     partners = [
         {"id": k.get("kid_uuid"), "name": k["name"]}
-        for k in model.discover_kids(hass.states.async_all(), family_options(hass))
+        for k in _children(hass)
         if msg["direction"] != "take" or k.get("user_id") == actor or role in {"owner", "adult"}
     ]
     connection.send_result(msg["id"], {"occurrences": occs, "partners": partners})
@@ -106,7 +106,7 @@ async def websocket_family_swap_request(
     tz = ZoneInfo(hass.config.time_zone)
     now = dt_util.now()
     actor = str(getattr(connection.user, "id", "") or "")
-    kids = model.discover_kids(hass.states.async_all(), family_options(hass))
+    kids = _children(hass)
     by_uuid = _kids_index(kids)
     from_k = by_uuid.get(msg["from_kid"])
     to_k = by_uuid.get(msg["to_kid"])
@@ -194,7 +194,7 @@ async def websocket_family_swap_decide(
         if not cfg:
             connection.send_error(msg["id"], "not_configured", "ChoreOps není nastaven")
             return
-        kids = model.discover_kids(hass.states.async_all(), family_options(hass))
+        kids = _children(hass)
         by_uuid = _kids_index(kids)
         from_k = by_uuid.get(str(updated.get("from_kid_id")))
         to_k = by_uuid.get(str(updated.get("to_kid_id")))
@@ -247,7 +247,7 @@ async def websocket_family_swap_reassign(
     if not cfg:
         connection.send_error(msg["id"], "not_configured", "ChoreOps není nastaven")
         return
-    kids = model.discover_kids(hass.states.async_all(), family_options(hass))
+    kids = _children(hass)
     by_uuid = _kids_index(kids)
     from_k = by_uuid.get(msg["from_kid"])
     to_k = by_uuid.get(msg["to_kid"])
@@ -375,7 +375,7 @@ async def websocket_family_chore_create(
     if not cfg:
         _create_error(connection, msg, "not_configured")
         return
-    kids = model.discover_kids(hass.states.async_all(), family_options(hass))
+    kids = persons.members(hass, hass.states.async_all(), family_options(hass))
     by_uuid = _kids_index(kids)
     names = [by_uuid[a]["name"] for a in fields["assignees"] if a in by_uuid]
     if len(names) != len(fields["assignees"]):

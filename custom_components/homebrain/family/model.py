@@ -16,6 +16,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any, Final
 
 import voluptuous as vol
+from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from . import points_model
@@ -101,38 +102,67 @@ def shopping_entity(
     return todos[0] if todos else None
 
 
-def discover_kids(states: Iterable[Any], opts: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """ChoreOps assignees (children) with their helper/points sensors and mapped HA user."""
+def discover_members(states: Iterable[Any], opts: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Discover ChoreOps assignees, including adults, and preserve legacy public IDs."""
     users = {
         str(k.get("name")): k.get("user_id")
         for k in opts.get("kids") or []
         if isinstance(k, Mapping) and k.get("name")
     }
     points_by_name: dict[str, str] = {}
-    helpers: dict[str, str] = {}
+    helpers: dict[str, Any] = {}
+    people: dict[str, list[Any]] = {}
+    profiles = {p["choreops_user_id"]: p for p in opts.get("persons") or []}
     for state in states:
+        if state.entity_id.startswith("person."):
+            people.setdefault(_name(state).strip().casefold(), []).append(state)
         purpose = state.attributes.get("purpose")
         name = state.attributes.get("user_name")
         if not name:
             continue
-        if purpose == PURPOSE_HELPER:
-            helpers[str(name)] = state.entity_id
+        if (
+            purpose == PURPOSE_HELPER
+            and state.attributes.get("chore_workflow_enabled") is not False
+        ):
+            helpers[str(name)] = state
             core = state.attributes.get("core_sensors")
             if isinstance(core, Mapping) and core.get("points_eid"):
                 points_by_name.setdefault(str(name), str(core["points_eid"]))
         elif purpose == PURPOSE_POINTS:
             points_by_name[str(name)] = state.entity_id
-    return [
-        {
-            "id": slugify(name),
-            "kid_uuid": str(users.get(name) or slugify(name)),
-            "name": name,
-            "helper_entity": helper,
-            "points_entity": points_by_name.get(name),
-            "user_id": users.get(name),
-        }
-        for name, helper in sorted(helpers.items())
-    ]
+    members = []
+    for index, (name, helper) in enumerate(sorted(helpers.items())):
+        public_id = slugify(name)
+        choreops_id = str(helper.attributes.get("user_id") or public_id)
+        profile = profiles.get(choreops_id, {})
+        matches = people.get(name.strip().casefold(), [])
+        person = (
+            profile.get("person")
+            if profile
+            else (matches[0].entity_id if len(matches) == 1 else None)
+        )
+        members.append(
+            {
+                "id": public_id,
+                "kid_uuid": str(users.get(name) or public_id),
+                "choreops_user_id": choreops_id,
+                "name": name,
+                "helper_entity": helper.entity_id,
+                "points_entity": points_by_name.get(name),
+                "user_id": users.get(name) or profile.get("user_id"),
+                "role": profile.get("role", "child"),
+                "color": profile.get("color", index % 4 + 1),
+                "person": person,
+                "configured": bool(profile),
+                "tracker": profile.get("tracker"),
+            }
+        )
+    return members
+
+
+def discover_kids(states: Iterable[Any], opts: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Child-only handover workflow."""
+    return [m for m in discover_members(states, opts) if m["role"] == "child"]
 
 
 def _swap_block_reason(attrs: Mapping[str, Any]) -> str | None:
@@ -171,7 +201,13 @@ def _enrich_chore_row(
         "state": state,
         "points": _float(attrs.get("default_points", attrs.get("points"))),
         "due": attrs.get("due_date") if isinstance(attrs.get("due_date"), str) else None,
-        "can_request_swap": can_swap,
+        "can_request_swap": can_swap and kid.get("role", "child") == "child",
+        "claim_allowed": attrs.get("can_claim") is not False,
+        "shared_first": attrs.get("completion_criteria") == "shared_first",
+        "shared_taken": bool(attrs.get("claimed_by") or attrs.get("completed_by")),
+        "raw_state": raw,
+        "frequency": attrs.get("recurring_frequency"),
+        "rotation_turn": attrs.get("turn_user_name"),
         "swap_unavailable_reason": block,
         "kid_uuid": kid.get("kid_uuid") or kid["id"],
     }
@@ -434,18 +470,39 @@ def _chore_state(raw: str) -> str:
     return "todo"
 
 
+def _helper_rows(get_state: Callable[[str], Any], member: Mapping[str, Any]) -> list[Any]:
+    helper = get_state(member["helper_entity"])
+    if not helper:
+        return []
+    attrs = helper.attributes
+    rows = attrs.get("chores") or []
+    refs = (attrs.get("dashboard_helpers") or {}).get("chore_helper_eids") or []
+    if not refs:
+        return rows if isinstance(rows, list) else []
+    return [
+        row
+        for eid in refs
+        if (shard := get_state(eid))
+        for row in shard.attributes.get("chores", [])
+    ]
+
+
 def kid_chores(get_state: Callable[[str], Any], kid: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Today's chores of one kid (ChoreOps ``today`` group + anything waiting for approval)."""
-    helper = get_state(kid["helper_entity"])
-    rows = helper.attributes.get("chores") if helper else None
     out: list[dict[str, Any]] = []
-    for row in rows if isinstance(rows, list) else []:
+    for row in _helper_rows(get_state, kid):
         if not isinstance(row, Mapping) or not row.get("name"):
             continue
         state = _chore_state(str(row.get("state") or ""))
-        if row.get("primary_group") != "today" and state != "claimed":
-            continue
         sensor = get_state(row["eid"]) if row.get("eid") else None
+        attrs = sensor.attributes if sensor else {}
+        shared = attrs.get("completion_criteria") == "shared_first"
+        if (
+            row.get("primary_group") != "today"
+            and state not in ("claimed", "overdue")
+            and not shared
+        ):
+            continue
         out.append(_enrich_chore_row(row, sensor, kid))
     return out
 
@@ -454,17 +511,17 @@ UPCOMING_GROUPS: Final = ("this_week", "other")
 UPCOMING_LIMIT: Final = 8
 
 
-def kid_upcoming(get_state: Callable[[str], Any], kid: Mapping[str, Any]) -> list[dict[str, Any]]:
+def kid_upcoming(
+    get_state: Callable[[str], Any], kid: Mapping[str, Any], *, limit: int | None = UPCOMING_LIMIT
+) -> list[dict[str, Any]]:
     """Planned chores of later days (ChoreOps ``this_week`` / ``other`` groups).
 
     A new chore due tomorrow lands in ``this_week``; without this list it was invisible in
     Rodina and looked as if it had not been saved. Rows are read-only (ChoreOps does not
     allow claiming before the due window), sorted by due date, dated rows first.
     """
-    helper = get_state(kid["helper_entity"])
-    rows = helper.attributes.get("chores") if helper else None
     out: list[dict[str, Any]] = []
-    for row in rows if isinstance(rows, list) else []:
+    for row in _helper_rows(get_state, kid):
         if not isinstance(row, Mapping) or not row.get("name"):
             continue
         group = row.get("primary_group")
@@ -474,6 +531,12 @@ def kid_upcoming(get_state: Callable[[str], Any], kid: Mapping[str, Any]) -> lis
         sensor = get_state(row["eid"]) if row.get("eid") else None
         attrs = sensor.attributes if sensor else {}
         due = attrs.get("due_date") if isinstance(attrs.get("due_date"), str) else None
+        if attrs.get("completion_criteria") == "shared_first" or attrs.get("claim_mode") in (
+            "blocked_not_my_turn",
+            "blocked_standby",
+            "blocked_paused",
+        ):
+            continue
         item: dict[str, Any] = {
             "id": str(row.get("eid") or row["name"]),
             "name": str(row["name"]),
@@ -483,7 +546,69 @@ def kid_upcoming(get_state: Callable[[str], Any], kid: Mapping[str, Any]) -> lis
         }
         out.append(item)
     out.sort(key=lambda r: (r["due"] is None, r["due"] or "", r["name"]))
-    return out[:UPCOMING_LIMIT]
+    return out[:limit]
+
+
+def last_approvals(
+    get_state: Callable[[str], Any], member: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """Chore status also records approvals without a points transaction."""
+    entries = []
+    for row in _helper_rows(get_state, member):
+        if not isinstance(row, Mapping) or not row.get("eid") or not row.get("name"):
+            continue
+        sensor = get_state(row["eid"])
+        if not sensor:
+            continue
+        stamp = sensor.attributes.get("last_approved")
+        if isinstance(stamp, str) and stamp:
+            entries.append({"name": str(row["name"]), "date": stamp, "points": None})
+    return entries
+
+
+def chore_date(value: str | None, now: datetime) -> date | None:
+    if not value or not (stamp := dt_util.parse_datetime(value)):
+        return None
+    return (stamp.astimezone(now.tzinfo) if stamp.tzinfo else stamp).date()
+
+
+def partition_chores(rows: list[dict[str, Any]], now: datetime) -> tuple[list, list, list]:
+    """Use civil days so the three-day window also works across clock changes."""
+    today, missed, free = [], [], []
+    for row in rows:
+        if row["raw_state"] == "completed_by_other":
+            continue
+        due_day = chore_date(row["due"], now)
+        age = (now.date() - due_day).days if due_day else 0
+        expired = row["raw_state"] == "missed" or (
+            row["state"] == "overdue"
+            and age > 3
+            and row["frequency"] not in ("custom_from_complete", "custom_from_complete_date_only")
+        )
+        if expired:
+            if not row["shared_first"]:
+                missed.append({"id": row["id"], "name": row["name"], "date": row["due"]})
+            continue
+        if row["shared_first"] and row["state"] in ("todo", "overdue"):
+            if not row["shared_taken"] and row["raw_state"] != "paused":
+                free.append(row)
+            continue
+        if age > 0 and row["state"] == "overdue":
+            row = {**row, "carried_days": age}
+        today.append(row)
+    return today, missed, free
+
+
+def chore_counts(chores: list[dict[str, Any]]) -> dict[str, int]:
+    rows = [c for c in chores if c.get("counts_today") is not False]
+    done = sum(c["state"] == "done" for c in rows)
+    pending = sum(c["state"] == "claimed" for c in rows)
+    return {
+        "total": len(rows),
+        "done": done,
+        "pending": pending,
+        "open": len(rows) - done - pending,
+    }
 
 
 def kid_payload(
@@ -495,11 +620,12 @@ def kid_payload(
     store_data: Mapping[str, Any] | None = None,
     kids_by_uuid: Mapping[str, Mapping[str, Any]] | None = None,
     include_points_detail: bool = False,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     points_state = get_state(kid["points_entity"]) if kid.get("points_entity") else None
     claim = role in ("owner", "adult", "kiosk") or (role == "child" and own)
     approve = role in ("owner", "adult")
-    chores = kid_chores(get_state, kid)
+    chores, missed, free = partition_chores(kid_chores(get_state, kid), now or dt_util.now())
     if store_data and kids_by_uuid:
         chores = apply_swap_overlays(
             chores, kid=kid, store_data=store_data, kids_by_uuid=kids_by_uuid
@@ -509,11 +635,13 @@ def kid_payload(
             **c,
             "can_claim": claim
             and c["state"] in ("todo", "overdue")
+            and c["claim_allowed"]
             and not (c.get("swap_today") or {}).get("muted"),
             "can_approve": approve and c["state"] == "claimed",
         }
         for c in chores
     ]
+    present = {c["id"] for c in chores}
     balance = _float(points_state.state) if points_state else None
     payload: dict[str, Any] = {
         "id": kid["id"],
@@ -524,8 +652,23 @@ def kid_payload(
         if points_state
         else None,
         "chores": chores,
-        "upcoming": kid_upcoming(get_state, kid),
+        "upcoming": [u for u in kid_upcoming(get_state, kid, limit=None) if u["id"] not in present],
+        "missed": missed,
+        "free": [
+            {
+                **{k: c[k] for k in ("id", "name", "points", "due")},
+                "can_claim": claim and c["claim_allowed"],
+            }
+            for c in free
+        ],
+        "points_week": _float(points_state.attributes.get("point_stat_points_earned_week"))
+        if points_state
+        else None,
+        "counts": chore_counts(chores),
     }
+    for row in payload["chores"]:
+        for field in ("claim_allowed", "shared_first", "shared_taken", "raw_state", "frequency"):
+            row.pop(field, None)
     if include_points_detail and points_state:
         attrs = dict(points_state.attributes)
         payload["points_summary"] = points_model.build_points_summary(

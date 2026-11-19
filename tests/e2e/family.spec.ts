@@ -172,7 +172,7 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-day')).toHaveCount(7);
     await expect(
       page.locator('[data-testid="family-pending-pill"][data-pending="completion"]'),
-    ).toHaveText('Splnění čeká na schválení');
+    ).toHaveText('Čeká na schválení');
     // The chores card fits the 800 px kiosk: bottom edge (with its padding) inside the viewport.
     const card = await page.getByTestId('family-chores').boundingBox();
     expect(card!.y + card!.height).toBeLessThanOrEqual(800);
@@ -231,14 +231,14 @@ test.describe('Rodina', () => {
       'swap',
     );
     await expect(original.getByTestId('family-pending-pill')).toHaveText(
-      'Předání čeká na schválení',
+      'Předání Synovi čeká na schválení',
     );
     await expect(
       page
         .locator('[data-kid="syn"] [data-testid="family-chore"]')
         .filter({ hasText: 'Uklidit boty' })
         .getByTestId('family-pending-pill'),
-    ).toHaveText('Splnění čeká na schválení');
+    ).toHaveText('Čeká na schválení');
     await approval.getByTestId('family-swap-approve').click();
     await expect(original).toHaveAttribute('data-swap', 'transferred_out');
     await expect(original.getByTestId('family-swap-note')).toHaveText('Předáno Synovi · jen dnes');
@@ -293,12 +293,13 @@ test.describe('Rodina', () => {
   test('jedna barva osoby: přítomnost i povinnosti', async ({ page }) => {
     await open(page);
     const presence = await page
-      .locator('[data-testid="presence-person"]', { hasText: 'Syn' })
-      .evaluate((el) => getComputedStyle(el).getPropertyValue('--hb-presence-c').trim());
+      .getByTestId('family-person-tile')
+      .filter({ hasText: 'Syn' })
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--person-color').trim());
     const chores = await page
       .locator('[data-kid="syn"]')
       .evaluate((el) => getComputedStyle(el).getPropertyValue('--fam-kid').trim());
-    expect(presence).toBe('#0d9488');
+    expect(presence).toMatch(/^#[a-f0-9]{6}$/i);
     expect(chores).toBe(presence);
   });
 
@@ -332,7 +333,7 @@ test.describe('Rodina', () => {
     expect(text).toContain('Předáno Synovi');
     const pills = page.getByTestId('family-pending-pill');
     expect(await pills.count()).toBeGreaterThan(0);
-    // Distinct labels („Předání…“ / „Splnění čeká na schválení“): at most two lines, and
+    // Distinct labels („Předání…“ / „Čeká na schválení“): at most two lines, and
     // neither they nor the handover tags run under the points column (phone + tablet columns).
     for (const width of [360, 800]) {
       await page.setViewportSize({ width, height: 800 });
@@ -383,11 +384,11 @@ test.describe('Rodina', () => {
     expect(dE(hex.kids[0]!, hex.kids[1]!)).toBeGreaterThanOrEqual(20);
     for (const kid of hex.kids)
       for (const src of hex.src) expect(dE(kid, src)).toBeGreaterThanOrEqual(20);
-    // Grandparents (presence only) stay clearly apart from the kids too.
-    const deda = await page
-      .locator('[data-testid="presence-person"]', { hasText: 'Děda' })
-      .evaluate((el) => getComputedStyle(el).getPropertyValue('--hb-presence-c').trim());
-    for (const kid of hex.kids) expect(dE(kid, deda)).toBeGreaterThanOrEqual(20);
+    const adult = await page
+      .getByTestId('family-person-tile')
+      .filter({ hasText: 'Táta' })
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--person-color').trim());
+    for (const kid of hex.kids) expect(dE(kid, adult)).toBeGreaterThanOrEqual(20);
   });
 
   for (const [label, query] of [
@@ -414,7 +415,7 @@ test.describe('Rodina', () => {
             getComputedStyle(el).getPropertyValue('--fam-kid').trim(),
           ),
           ...Array.from(document.querySelectorAll('[data-testid="presence-person"]')).map((el) =>
-            getComputedStyle(el).getPropertyValue('--hb-presence-c').trim(),
+            getComputedStyle(el).getPropertyValue('--person-color').trim(),
           ),
         ]
           .filter(Boolean)
@@ -887,10 +888,10 @@ test.describe('Rodina – seznam dětí', () => {
     );
     await expect(
       page.locator('[data-testid="family-pending-pill"][data-pending="swap"]').first(),
-    ).toHaveText('Předání čeká na schválení');
+    ).toHaveText('Předání Synovi čeká na schválení');
     await expect(
       page.locator('[data-testid="family-pending-pill"][data-pending="completion"]').first(),
-    ).toHaveText('Splnění čeká na schválení');
+    ).toHaveText('Čeká na schválení');
     const rows = page.locator('[data-testid="family-chore"]');
     for (let i = 0; i < (await rows.count()); i += 1) {
       const row = rows.nth(i);
@@ -1022,6 +1023,145 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
       await open(page, `?role=child&theme=${theme}`);
       await page.getByTestId('family-upcoming').scrollIntoViewIfNeeded();
       await shot('phone-child');
+    });
+  }
+});
+
+test.describe('Rodina – detail osoby P1', () => {
+  test('přehled a seznam otevřou detail, karty přepínají obsah', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    await open(page);
+    const tiles = page.getByTestId('family-person-tile');
+    await expect(tiles).toHaveCount(4);
+    await tiles.filter({ hasText: 'Dcera' }).click();
+    const detail = page.getByTestId('family-person');
+    await expect(detail.getByRole('heading', { name: 'Dcera', exact: true })).toBeVisible();
+    await expect(detail.getByRole('tab', { name: 'Dnes' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(detail.getByText('Večer', { exact: false }).first()).toBeVisible();
+    await detail.getByRole('tab', { name: 'Týden' }).click();
+    await expect(detail.getByRole('heading', { name: 'Tento týden' })).toBeVisible();
+    await expect(detail.getByText('Vyndat myčku')).toBeVisible();
+    await detail.getByRole('tab', { name: 'Historie' }).click();
+    await expect(
+      detail.getByTestId('family-history-row').filter({ hasText: 'Ustlat postel' }),
+    ).toBeVisible();
+    await page.goBack();
+    await page.locator('[data-kid="syn"]').getByTestId('family-list-person').click();
+    await expect(detail.getByRole('heading', { name: 'Syn', exact: true })).toBeVisible();
+  });
+
+  test('tři další kalendářní dny, čtvrtý den Zmeškané', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-11-19T16:05:00+01:00') });
+    await open(page);
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = page.getByTestId('family-person');
+    const task = detail.getByTestId('family-person-chore').filter({ hasText: 'Odvézt papír' });
+    for (let days = 1; days <= 3; days++) {
+      await expect(task).toHaveAttribute('data-carried-days', String(days));
+      await page.clock.fastForward(86_400_000);
+    }
+    await expect(task).toHaveCount(0);
+    await detail.getByRole('tab', { name: 'Historie' }).click();
+    await expect(
+      detail.getByTestId('family-history-row').filter({ hasText: 'Odvézt papír' }),
+    ).toContainText('Zmeškané');
+  });
+
+  test('Beru připíše volný úkol jen vybranému členu', async ({ page }) => {
+    await open(page, '?role=child');
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Dcera' }).click();
+    const detail = page.getByTestId('family-person');
+    await expect(detail.getByTestId('family-free')).toContainText('Vyskládat myčku');
+    await expect(detail.getByRole('button', { name: /Beru/ })).toHaveCount(0);
+    await detail.getByRole('button', { name: /Rodina/ }).click();
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
+    await detail.getByRole('button', { name: /Beru.*Vyskládat myčku/ }).click();
+    await expect(detail.getByTestId('family-free')).toHaveCount(0);
+    await expect(
+      detail.getByTestId('family-person-chore').filter({ hasText: 'Vyskládat myčku' }),
+    ).toContainText('Čeká na schválení');
+    await detail.getByRole('button', { name: /Rodina/ }).click();
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Dcera' }).click();
+    await expect(detail.getByText('Vyskládat myčku')).toHaveCount(0);
+  });
+
+  test('kiosk otevře dospělého a ukáže jen přítomnost z Wi-Fi', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page, '?kiosk=1');
+    const family = page.getByTestId('family');
+    const presence = await family.getByTestId('family-wifi-presence').allTextContents();
+    expect(new Set(presence)).toEqual(new Set(['doma', 'pryč']));
+    await family.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = family.getByTestId('family-person');
+    await expect(detail.getByRole('heading', { name: 'Táta', exact: true })).toBeVisible();
+    await expect(detail).toContainText('pro radost');
+    const task = detail.getByTestId('family-person-chore').filter({ hasText: 'Odvézt papír' });
+    await expect(task).toContainText('+4 body');
+    await expect(task.locator('small')).toHaveCSS('font-size', '16px');
+    await expect(detail).not.toContainText(
+      /Kč|baterie|v práci|na kroužku|ve škole|Sportovní hala|Vzít dres/i,
+    );
+    await expect(detail.getByRole('button', { name: /Rodina/ })).toBeVisible();
+  });
+
+  test('vlastník nastaví barvu osoby', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'Nastavení osob' }).click();
+    const settings = page.getByTestId('family-person-settings');
+    await settings.getByRole('group', { name: 'Táta' }).getByLabel('Barva').selectOption('4');
+    await settings.getByRole('button', { name: 'Uložit' }).click();
+    await expect(
+      page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }),
+    ).toHaveAttribute('style', /--fam-person-4/);
+  });
+});
+
+const personShots = process.env.HB_FAMILY_P1_SHOTS;
+test.describe('Rodina P1 – snímky (lokálně)', () => {
+  test.skip(!personShots, 'nastav HB_FAMILY_P1_SHOTS');
+  for (const theme of ['dark', 'light'] as const) {
+    test(`P1 snímky ${theme}`, async ({ page }, testInfo) => {
+      test.skip(
+        testInfo.project.name !== 'desktop',
+        'stejné rozměry se pořizují v projektu desktop',
+      );
+      test.setTimeout(120_000);
+      await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+      for (const [device, width, height] of [
+        ['phone', 360, 800],
+        ['tablet', 800, 1280],
+        ['kiosk', 1280, 800],
+        ['desktop', 1440, 900],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        await open(page, `?theme=${theme}${device === 'kiosk' ? '&kiosk=1' : ''}`);
+        await page.evaluate(() => document.fonts.ready);
+        const shot = (view: string) =>
+          page.screenshot({ path: join(personShots!, `${view}-${device}-${theme}.png`) });
+        await shot('overview');
+        await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+        const detail = page.getByTestId('family-person');
+        await expect(detail).toBeVisible();
+        await shot('person-today');
+        await detail.getByRole('tab', { name: 'Týden' }).click();
+        await shot('person-week');
+        await detail.getByRole('tab', { name: 'Historie' }).click();
+        await expect(detail.getByTestId('family-history-row').first()).toBeVisible();
+        await shot('person-history');
+        await detail.getByRole('button', { name: /Rodina/ }).click();
+        await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
+        await expect(detail.getByRole('button', { name: /Beru/ })).toBeVisible();
+        await shot('person-claim');
+        if (device !== 'kiosk') {
+          await detail.getByRole('button', { name: /Rodina/ }).click();
+          await page.getByRole('button', { name: 'Nastavení osob' }).click();
+          await expect(page.getByRole('group', { name: 'Táta' })).toBeVisible();
+          await shot('persons-settings');
+        }
+      }
     });
   }
 });

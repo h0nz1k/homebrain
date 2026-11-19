@@ -179,7 +179,7 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 
 ### FAM-020 – Přidat úkol (rodič)
 
-- **Popis:** Sheet s názvem, body, přiřazenými dětmi, opakováním a časem splnění; zápis přes WS `homebrain/family/chore/create`.
+- **Popis:** Sheet s názvem, body, přiřazenými členy rodiny, opakováním a časem splnění; zápis přes WS `homebrain/family/chore/create`.
 - **Priorita:** MVP+ (#123)
 - **Akceptace:** Dítě/kiosk tlačítko nevidí; po úspěchu se úkol objeví v dnešním seznamu; chyba zachová formulář.
 
@@ -195,9 +195,33 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 - **Priorita:** MVP+ (#123)
 - **Akceptace:** Dítě jen vlastní; mock konzistentní s progress; truncated historie ukáže „Zobrazit vše“.
 
-## Mimo rozsah
+## P1 – Detail osoby (#123)
 
-Směny (D7); zápisy do externích kalendářů z UI; náhrada HA todo vlastní aplikací; odvozování přítomnosti ze síťových trackerů; sledování polohy mimo HA zóny; nádražní tabule.
+### FAM-023 – Členové rodiny a detail
+
+- `homebrain/family/get` vrací `members` s dětmi i dospělými z ChoreOps. Přechodné pole `kids` obsahuje děti a zachovává původní filtrování pro účet dítěte.
+- Vlastník potvrdí vazbu osoby na účet ChoreOps, roli, barvu a tracker v Nastavení osob. Návrh vazby vychází ze shody názvů. Barvy jsou stejné v přehledu, seznamech a detailu.
+- Ťuknutí v přehledu, seznamu nebo na kiosku otevře detail Dnes / Týden / Historie. Ráno končí v 11.00, Odpoledne v 17.00, potom začíná Večer. Úkol bez času je v Odpoledne.
+- Dospělí mají úkoly a body pro radost. Body dospělých se nikdy nepřepočítávají na peníze.
+
+### FAM-024 – Z minula a historie
+
+- Nesplněný úkol se ukazuje ve skupině Po termínu po dobu tří následujících kalendářních dnů. Čtvrtý den se přesune do Historie jako Zmeškané. Úkoly opakované s odstupem od splnění zůstávají po termínu až do splnění.
+- Zmeškané výskyty zachycené HomeBrainem jsou v historii 90 dní. Splnění s body se načítají z ChoreOps za posledních 30 dní podle dostupnosti záznamů. Týden zobrazuje aktuální výskyty dostupné v ChoreOps.
+
+### FAM-025 – Volné úkoly
+
+- Volný úkol ChoreOps typu `shared_first` má jediný řádek v přehledu a nezapočítává se do přidělených úkolů před převzetím. V detailu oprávněného člena ho lze převzít tlačítkem **Beru**. ChoreOps rozhoduje o prvním převzetí a HomeBrain obnoví data po úspěchu i po souběhu.
+- Karta Další v přehledu uvádí probíhající událost v řádku Teď.
+
+### FAM-026 – Přítomnost a kiosk
+
+- Stav `doma` / `pryč` pochází výhradně z přiřazeného UniFi trackeru. Nedostupný tracker nemá štítek. Kiosk zobrazuje body, stav a úkoly. Vazby na osoby a trackery zůstávají v nastavení Home Assistantu.
+- Částky v Kč, baterie, GPS, zóny a detaily místa nebo poznámky událostí na kiosku zůstávají skryté. Odvozený stav podle rozvrhu je rezervován pro pozdější fázi.
+
+## Mimo rozsah P1
+
+Správa úkolů (P2), kapesné (P3), čtení a zápisy Google kalendáře (P4/P5), školní rozvrh a import školního webu. Směny (D7), náhrada HA todo vlastní aplikací a nádražní tabule zůstávají mimo rozsah modulu.
 
 ## Otevřené otázky (pro vlastníka, #14)
 

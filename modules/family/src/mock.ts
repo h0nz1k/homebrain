@@ -4,12 +4,15 @@ import type {
   FamilyChore,
   FamilyEvent,
   FamilyKid,
+  FamilyMember,
+  PersonsSettings,
   FamilyRole,
   FamilySnapshot,
   PointsHistory,
   PointsSummary,
   FamilyUpcomingChore,
 } from './types.js';
+import { choreTally } from './format.js';
 
 /** Synthetic household for dev/e2e: generic names only („Dcera“, „Syn“). */
 export interface FamilyMockOptions {
@@ -216,9 +219,76 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   const role = opts.role ?? 'owner';
   const now = opts.now ?? (() => new Date());
   const empty = opts.scenario === 'empty';
+  const today = now();
+  const adults: FamilyKid[] = empty
+    ? []
+    : [
+        {
+          id: 'tata',
+          name: 'Táta',
+          points: 18,
+          points_today: 5,
+          chores: [
+            {
+              id: 'demo-breakfast',
+              name: 'Připravit snídani',
+              state: 'done',
+              due: at(today, 0, 8),
+              points: 5,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-recycling',
+              name: 'Odvézt papír',
+              state: 'overdue',
+              due: at(today, -1, 16),
+              points: 4,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-table',
+              name: 'Prostřít stůl',
+              state: 'todo',
+              due: at(today, 0, 19),
+              points: 3,
+              can_claim: false,
+              can_approve: false,
+            },
+          ],
+          upcoming: [upcoming(today, 'kvetiny', 'Přesadit květiny', 4, 2, 10)],
+        },
+        {
+          id: 'mama',
+          name: 'Máma',
+          points: 16,
+          points_today: 4,
+          chores: [
+            {
+              id: 'demo-laundry',
+              name: 'Pověsit prádlo',
+              state: 'done',
+              due: at(today, 0, 10),
+              points: 4,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-plants',
+              name: 'Zalít bylinky',
+              state: 'todo',
+              due: at(today, 0, 16),
+              points: 4,
+              can_claim: false,
+              can_approve: false,
+            },
+          ],
+        },
+      ];
   const state = {
     kids: empty ? [] : kids(now()),
-    swapPending: 'swap-req-1',
+    swapPending: empty ? '' : 'swap-req-1',
     items: empty
       ? []
       : ['Mléko 2×', 'Rohlíky', 'Jablka', 'Prací gel', 'Máslo', 'Vejce'].map((summary, i) => ({
@@ -230,22 +300,74 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   };
   const log: unknown[] = [];
   const own = 'syn';
+  const all = [...state.kids, ...adults];
+  const freeName = 'Vyskládat myčku';
+  let free = !empty;
+  let profiles: PersonsSettings['persons'] = all.map((k, i) => ({
+    choreops_user_id: k.id,
+    name: k.name,
+    role: i < 2 ? 'child' : 'adult',
+    color: [3, 4, 1, 2][i]!,
+    person: `person.demo_${k.id}`,
+    tracker: `device_tracker.demo_wifi_${k.id}`,
+    configured: false,
+  }));
+  const settings = (): PersonsSettings => ({
+    persons: profiles,
+    candidates: {
+      people: all.map((k) => ({ id: `person.demo_${k.id}`, name: k.name })),
+      trackers: all.map((k) => ({
+        id: `device_tracker.demo_wifi_${k.id}`,
+        name: `Wi-Fi · ${k.name}`,
+      })),
+    },
+  });
   const snapshot = (): FamilySnapshot => {
     const detail = role === 'owner' || role === 'adult';
-    const visibleKids = state.kids
-      .filter((k) => role !== 'child' || k.id === own)
-      .map((k) => ({
-        ...k,
-        upcoming: k.upcoming?.map((u) => ({ ...u })),
-        chores: k.chores.map((c) => ({
+    const members: FamilyMember[] = all.map((k, i) => {
+      const profile = profiles.find((p) => p.choreops_user_id === k.id)!;
+      const chores: FamilyChore[] = [];
+      const missed: FamilyMember['missed'] = [];
+      for (const c of k.chores) {
+        const day = c.due ? new Date(c.due) : null;
+        const age = day
+          ? Math.round(
+              (new Date(dateOnly(now(), 0)).getTime() - new Date(dateOnly(day, 0)).getTime()) /
+                86_400_000,
+            )
+          : 0;
+        if (c.state === 'overdue' && age > 3) {
+          missed.push({ id: c.id, name: c.name, date: c.due });
+          continue;
+        }
+        chores.push({
           ...c,
+          carried_days: c.state === 'overdue' && age > 0 ? age : undefined,
           can_claim:
             (role !== 'child' || k.id === own) &&
             (c.state === 'todo' || c.state === 'overdue') &&
             !c.swap_today?.muted,
           can_approve: detail && c.state === 'claimed',
-        })),
-      }));
+        });
+      }
+      const { total, done, pending, open } = choreTally(
+        chores.filter((c) => c.counts_today !== false),
+      );
+      return {
+        ...k,
+        points_summary: detail ? k.points_summary : undefined,
+        role: profile.role,
+        color: profile.color,
+        own: k.id === own,
+        presence: profile.tracker ? { kind: i % 2 ? 'home' : 'away' } : null,
+        chores,
+        missed,
+        counts: { total, done, pending, open },
+        points_week: k.points_summary?.earned_week ?? k.points,
+        upcoming: k.upcoming?.map((u) => ({ ...u })),
+      };
+    });
+    const visibleKids = members.filter((k) => k.role === 'child' && (role !== 'child' || k.own));
     return {
       role,
       revision: 3,
@@ -277,6 +399,21 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
               return rest;
             }),
       kids: visibleKids,
+      members,
+      free_chores: free
+        ? [
+            {
+              name: freeName,
+              points: 3,
+              due: at(today, 0, 19),
+              assignees: state.kids.map((k) => ({
+                member: k.id,
+                chore: `free-${k.id}`,
+                can_claim: role !== 'child' || k.id === own,
+              })),
+            },
+          ]
+        : [],
       pending_approvals: detail
         ? [
             ...(state.swapPending
@@ -295,21 +432,21 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
                   },
                 ]
               : []),
-            ...(state.kids
-              .find((k) => k.id === 'syn')
-              ?.chores.find((c) => c.id === 'sensor.demo_boty')?.state === 'claimed'
-              ? [
-                  {
-                    kind: 'completion' as const,
-                    type_label: 'Splnění ke kontrole',
-                    kid_id: 'syn',
-                    kid_name: 'Syn',
-                    chore_id: 'sensor.demo_boty',
-                    chore_name: 'Uklidit boty',
-                    points: 2,
-                  },
-                ]
-              : []),
+            ...members.flatMap((member) =>
+              member.chores
+                .filter(
+                  (chore) => chore.state === 'claimed' && chore.swap_today?.kind !== 'pending_give',
+                )
+                .map((chore) => ({
+                  kind: 'completion' as const,
+                  type_label: 'Splnění ke kontrole',
+                  kid_id: member.id,
+                  kid_name: member.name,
+                  chore_id: chore.id,
+                  chore_name: chore.name,
+                  points: chore.points,
+                })),
+            ),
           ]
         : [],
       shopping: empty
@@ -324,7 +461,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     };
   };
   const chore = (kid: string, id: string) =>
-    state.kids.find((k) => k.id === kid)?.chores.find((c) => c.id === id);
+    all.find((k) => k.id === kid)?.chores.find((c) => c.id === id);
 
   const chart = (days: number, kid: string): PointsHistory['chart'] => {
     const earned =
@@ -344,8 +481,38 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   return {
     log,
     get: async () => snapshot(),
+    personHistory: async (member) => ({
+      entries: (all.find((k) => k.id === member)?.chores ?? [])
+        .filter((c) => c.state === 'done')
+        .map((c) => ({ date: c.due ?? now().toISOString(), name: c.name, points: c.points })),
+    }),
+    personsSettings: async () => settings(),
+    savePersons: async (input) => {
+      profiles = profiles.map((p) => ({
+        ...p,
+        ...input.find((row) => row.choreops_user_id === p.choreops_user_id),
+        configured: true,
+      }));
+      return settings();
+    },
     claim: async (kid, id) => {
       log.push({ kind: 'claim', kid, id });
+      if (id === `free-${kid}`) {
+        const taker = state.kids.find((k) => k.id === kid);
+        if (!free || !taker || (role === 'child' && kid !== own))
+          throw new Error('Úkol už nelze převzít.');
+        free = false;
+        taker.chores.push({
+          id,
+          name: freeName,
+          points: 3,
+          due: at(today, 0, 19),
+          state: 'claimed',
+          can_claim: false,
+          can_approve: false,
+        });
+        return;
+      }
       const c = chore(kid, id);
       if (c) c.state = 'claimed';
     },
@@ -410,7 +577,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     createChore: async (input) => {
       log.push({ kind: 'createChore', input });
       const taken = new Set(
-        state.kids.flatMap((k) => [...k.chores, ...(k.upcoming ?? [])].map((c) => c.name)),
+        all.flatMap((k) => [...k.chores, ...(k.upcoming ?? [])].map((c) => c.name)),
       );
       const slots = slotsOf(input);
       // ChoreOps: names are unique across the whole install (case-sensitive).
@@ -419,7 +586,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
           code: 'duplicate_name',
         });
       const today = dateOnly(now(), 0);
-      for (const kid of state.kids.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id)))
+      for (const kid of all.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id)))
         for (const slot of slots) {
           const id = `sensor.demo_new_${state.seq++}`;
           if (slot.date === today)

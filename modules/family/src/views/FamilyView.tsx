@@ -15,7 +15,6 @@ import {
   EmptyState,
   ErrorState,
   Icon,
-  PresenceStrip,
   Pill,
   Skeleton,
   czCount,
@@ -41,9 +40,11 @@ import {
   todayEvents,
   upcomingParts,
 } from '../format.js';
-import { handedToLabel, takenFromLabel } from '../czech.js';
+import { handedToLabel, pendingHandoverLabel, takenFromLabel } from '../czech.js';
 import type { FamilyEvent, FamilyKid, FamilySnapshot } from '../types.js';
 import { familyStyles } from './familyStyles.js';
+import { FreeTasks, PersonsRow, PersonView, personColor } from './PersonView.js';
+import { PersonsSettings } from './PersonsSettings.js';
 import {
   AddChoreSheet,
   ChoreMenuSheet,
@@ -112,13 +113,15 @@ interface Member {
 }
 
 const membersOf = (snap: FamilySnapshot): Member[] =>
-  snap.kids.map((k) => ({
+  (snap.members ?? snap.kids).map((k) => ({
     id: k.id,
     name: k.name,
     color:
-      KID_COLORS[
-        Array.from(k.id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % KID_COLORS.length
-      ]!,
+      'color' in k
+        ? personColor(k.color as number)
+        : KID_COLORS[
+            Array.from(k.id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % KID_COLORS.length
+          ]!,
   }));
 
 function Who({ ids, members }: { ids: string[]; members: Member[] }) {
@@ -173,7 +176,12 @@ function TodayCard({
   members: Member[];
 }) {
   const today = todayEvents(snap.events, now);
-  const next = nextEvent(snap.events, now);
+  const running = today.filter(
+    (event) => !event.all_day && new Date(event.start) <= now && new Date(event.end) > now,
+  );
+  const next =
+    today.find((event) => !event.all_day && new Date(event.start) > now) ??
+    nextEvent(snap.events, now);
   const rest = today.filter((ev) => ev.id !== next?.id);
   const nextWho = next ? eventWho(next, members) : null;
   const nextDetail = next ? [next.location, next.description].filter(Boolean).join(' · ') : '';
@@ -197,7 +205,10 @@ function TodayCard({
         <>
           {next && nextWho && (
             <div className="fam-next" style={srcStyle(next)} data-testid="family-next">
-              <small>{relLabel(next, now)}</small>
+              <small>
+                {new Date(next.start) > now && 'Další · '}
+                {relLabel(next, now)}
+              </small>
               <div className="fam-next-t">
                 <Who ids={nextWho.who} members={members} />
                 <strong>{nextWho.title}</strong>
@@ -210,6 +221,12 @@ function TodayCard({
                 </span>
                 {nextDetail ? ` · ${nextDetail}` : ''}
               </span>
+              {running.length > 0 && (
+                <p className="fam-now">
+                  <i />
+                  Teď: {running.map((event) => eventWho(event, members).title).join(' · ')}
+                </p>
+              )}
             </div>
           )}
           {today.length === 0 ? (
@@ -378,18 +395,30 @@ function SwapTag({ swap }: { swap: NonNullable<ChoreRow['swap_today']> }) {
 }
 
 /** Pending: one short single-line pill (icon says which kind); deadline is its own meta. */
-function PendingPill({ kind }: { kind: 'swap' | 'completion' }) {
+function PendingPill({ kind, recipient }: { kind: 'swap' | 'completion'; recipient?: string }) {
+  if (kind === 'swap') {
+    return (
+      <small
+        className="fam-handover-pending"
+        data-testid="family-pending-pill"
+        data-pending="swap"
+        data-status="pending"
+      >
+        <Icon name="swap" size={14} /> {pendingHandoverLabel(recipient)}
+      </small>
+    );
+  }
   return (
     <Pill
       size="sm"
       tone="warn"
-      icon={<Icon name={kind === 'swap' ? 'swap' : 'clock'} size={14} />}
+      icon={<Icon name="clock" size={14} />}
       data-testid="family-pending-pill"
       data-pending={kind}
       data-status="pending"
       className="fam-pending-pill"
     >
-      {kind === 'swap' ? 'Předání čeká na schválení' : 'Splnění čeká na schválení'}
+      Čeká na schválení
     </Pill>
   );
 }
@@ -415,7 +444,7 @@ function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'war
   return (
     <div className="fam-chore-meta">
       {deadline}
-      {pending && <PendingPill kind={pending} />}
+      {pending && <PendingPill kind={pending} recipient={swap?.partner_name} />}
       {swap?.kind === 'transferred_in' && <SwapTag swap={swap} />}
     </div>
   );
@@ -443,6 +472,7 @@ function UpcomingList({
   now,
   compact,
   line,
+  menuSlot,
   highlight,
 }: {
   kid: FamilyKid;
@@ -450,6 +480,7 @@ function UpcomingList({
   compact?: boolean;
   /** Kiosk: a single summary line. */
   line?: boolean;
+  menuSlot: boolean;
   highlight?: string | null;
 }) {
   const all = kid.upcoming ?? [];
@@ -494,7 +525,8 @@ function UpcomingList({
                   {when.time && <span className="fam-upcoming-time">{` · do ${when.time}`}</span>}
                 </small>
               </span>
-              {c.points != null && <Pts className="fam-upcoming-pts" value={c.points} />}
+              <Pts className="fam-upcoming-pts" value={c.points} />
+              {menuSlot && <span className="fam-menu-slot" aria-hidden="true" />}
             </li>
           );
         })}
@@ -513,19 +545,10 @@ function UpcomingList({
 const capFirst = (s: string) => s.charAt(0).toLocaleUpperCase('cs') + s.slice(1);
 
 /**
- * Row points as a narrow two-line column („+3“ over „body“), so long status chips keep
- * their room; the text stays „+3\u00a0body“ for tests and screen readers.
+ * Keep a shared trailing column, including tasks with no points.
  */
 function Pts({ value, className }: { value: number | null; className: string }) {
-  if (value === null) return null;
-  const [num, word] = pointsLabel(value).split('\u00a0');
-  return (
-    <span className={className} data-stack>
-      <b>{num}</b>
-      <span className="hb-sr-only">{'\u00a0'}</span>
-      <small>{word}</small>
-    </span>
-  );
+  return <span className={className}>{pointsLabel(value)}</span>;
 }
 
 function UpcomingLine({ chores, now }: { chores: NonNullable<FamilyKid['upcoming']>; now: Date }) {
@@ -601,8 +624,10 @@ function KidCard({
   self,
   members,
   highlight,
+  onPerson,
 }: {
   kid: FamilyKid;
+  onPerson?: () => void;
   color: string;
   /** Name of a just-created chore to highlight. */
   highlight?: string | null;
@@ -622,7 +647,7 @@ function KidCard({
   const [showDone, setShowDone] = useState(false);
   const bodyId = useId();
   const active = kid.chores.filter((c) => c.counts_today !== false);
-  const t = choreTally(active.length ? active : kid.chores);
+  const t = choreTally(active);
   const sorted = sortChores(kid.chores);
   const fold = compact || (collapseDone && !showDone);
   const doneRows = sorted.filter((c) => c.state === 'done');
@@ -630,7 +655,7 @@ function KidCard({
   const progress = t.total ? `${formatOutOf(t.done, t.total)} hotovo` : 'Dnes nic';
   // Every row reserves the same trailing slot (menu button, done-expander or an empty
   // spacer) whenever any row can have one, so the points column lines up in each list.
-  const menuSlot = !!act.onMenu || (!!collapseDone && !compact);
+  const menuSlot = !compact;
   const head = (
     <>
       {!self && (
@@ -674,6 +699,10 @@ function KidCard({
             <Icon name="chevron" size={18} />
           </span>
         </button>
+      ) : onPerson ? (
+        <button type="button" className="fam-kid-h fam-kid-toggle" onClick={onPerson}>
+          {head}
+        </button>
       ) : (
         <div className="fam-kid-h">{head}</div>
       )}
@@ -711,8 +740,19 @@ function KidCard({
         </div>
       )}
       <div id={bodyId} className="fam-kid-body" hidden={collapsible && !open}>
-        {((kid.points !== null && act.onPoints) || act.onAdd) && (
+        {((kid.points !== null && act.onPoints) || act.onAdd || (collapsible && onPerson)) && (
           <div className="fam-kid-tools">
+            {collapsible && onPerson && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="fam-list-detail"
+                data-testid="family-list-person"
+                onClick={onPerson}
+              >
+                Detail osoby
+              </Button>
+            )}
             {kid.points !== null && act.onPoints && (
               <button
                 type="button"
@@ -865,6 +905,7 @@ function KidCard({
           now={now}
           compact={compact || self}
           line={compact}
+          menuSlot={menuSlot}
           highlight={highlight}
         />
       </div>
@@ -882,12 +923,14 @@ function ChoresCard({
   kidAct,
   phone,
   highlight,
+  onPerson,
 }: {
   snap: FamilySnapshot;
   now: Date;
   act: Actions;
   members: Member[];
   phone?: boolean;
+  onPerson?: (id: string) => void;
   highlight?: Highlight | null;
   onAdd: (kid: FamilyKid) => void;
   kidAct: (kid: FamilyKid) => Actions;
@@ -899,7 +942,7 @@ function ChoresCard({
   };
 }) {
   const approvals = useApprovals(snap);
-  if (snap.kids.length === 0) return null;
+  if (snap.kids.length === 0 && !approvals.length) return null;
   const waiting = approvals.length;
   const parent = snap.role === 'owner' || snap.role === 'adult';
   const child = snap.role === 'child';
@@ -936,7 +979,7 @@ function ChoresCard({
       </div>
       {parent && (
         <ApprovalsBlock
-          kids={snap.kids}
+          kids={snap.members ?? snap.kids}
           colors={Object.fromEntries(members.map((m) => [m.id, m.color]))}
           items={approvals}
           busy={act.busy}
@@ -947,11 +990,12 @@ function ChoresCard({
         />
       )}
       <div className="fam-kids">
-        {snap.kids.map((kid, i) => (
+        {snap.kids.map((kid) => (
           <KidCard
             key={kid.id}
             kid={kid}
-            color={members[i]?.color ?? KID_COLORS[0]!}
+            color={members.find((member) => member.id === kid.id)?.color ?? KID_COLORS[0]!}
+            onPerson={onPerson && (() => onPerson(kid.id))}
             now={now}
             compact={snap.role === 'kiosk'}
             collapseDone={parent && phone}
@@ -1051,6 +1095,9 @@ function ShoppingCard({
 export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const api = useMemo(() => getFamilyApi(connection), [connection]);
   const people = usePeople(connection);
+  const [personId, setPersonId] = useState<string | null>(null);
+  const [editingPersons, setEditingPersons] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null);
   const [snap, setSnap] = useState<FamilySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1104,14 +1151,18 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     return () => window.clearInterval(t);
   }, [kiosk]);
 
+  const snapshotRequest = useRef(0);
   const load = useCallback(async () => {
     if (!api) return;
+    const request = ++snapshotRequest.current;
     try {
-      setSnap(await api.get());
+      const next = await api.get();
+      if (request !== snapshotRequest.current) return;
+      setSnap(next);
       setNow(new Date());
       setError(null);
     } catch {
-      setError('Rodinný přehled se nepodařilo načíst.');
+      if (request === snapshotRequest.current) setError('Rodinný přehled se nepodařilo načíst.');
     }
   }, [api]);
 
@@ -1120,6 +1171,16 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     const t = window.setInterval(() => void load(), POLL_MS);
     return () => window.clearInterval(t);
   }, [load]);
+
+  useEffect(() => {
+    if (personId || editingPersons) {
+      const frame = window.requestAnimationFrame(() => {
+        detailRef.current?.scrollIntoView?.({ block: 'start' });
+        detailRef.current?.querySelector('button')?.focus({ preventScroll: true });
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [personId, editingPersons]);
 
   const run = useCallback(
     async (key: string, fn: () => Promise<void>) => {
@@ -1184,14 +1245,29 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         await api.swapDecide(item.request_id!, 'reject', item.revision);
       }),
   };
+  const familyMembers = snap.members ?? [];
+  const selected = familyMembers.find((member) => member.id === personId);
+  const activeSnapshot = kiosk
+    ? {
+        ...snap,
+        role: 'kiosk' as const,
+        events: snap.events.map((event) => ({
+          ...event,
+          location: undefined,
+          description: undefined,
+        })),
+      }
+    : snap;
   const members = membersOf(snap).map((member) => ({
     ...member,
-    color: (() => {
-      const person = people?.find(
-        (p) => p.id === member.id || p.id === `person.${member.id}` || p.name === member.name,
-      );
-      return person ? presenceHex(person.color) : member.color;
-    })(),
+    color: snap.members
+      ? member.color
+      : (() => {
+          const person = people?.find(
+            (p) => p.id === member.id || p.id === `person.${member.id}` || p.name === member.name,
+          );
+          return person ? presenceHex(person.color) : member.color;
+        })(),
   }));
   // Calendar ownership resolves against the whole household (a child's snapshot only lists itself).
   const calendarMembers: Member[] = [
@@ -1201,11 +1277,11 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       .map((p) => ({ id: p.id, name: p.name, color: presenceHex(p.color) })),
   ];
   const identityColors = Object.fromEntries([
+    ...(people ?? []).map((person) => [person.name, presenceHex(person.color)]),
     ...members.flatMap((member) => [
       [member.id, member.color],
       [member.name, member.color],
     ]),
-    ...(people ?? []).map((person) => [person.name, presenceHex(person.color)]),
   ]);
   const slot = (name: string, node: React.ReactNode) => (
     <div className="fam-slot" data-slot={name}>
@@ -1214,13 +1290,13 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   );
   const today = slot(
     'today',
-    <TodayCard snap={snap} now={now} admin={admin} members={calendarMembers} />,
+    <TodayCard snap={activeSnapshot} now={now} admin={admin} members={calendarMembers} />,
   );
-  const week = slot('week', <WeekCard snap={snap} now={now} members={calendarMembers} />);
+  const week = slot('week', <WeekCard snap={activeSnapshot} now={now} members={calendarMembers} />);
   const chores = slot(
     'chores',
     <ChoresCard
-      snap={kiosk ? { ...snap, role: 'kiosk' } : snap}
+      snap={activeSnapshot}
       now={now}
       act={act}
       members={members}
@@ -1229,6 +1305,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       onApproval={approvalHandlers}
       phone={phone}
       highlight={highlight}
+      onPerson={snap.members ? setPersonId : undefined}
     />,
   );
   const shop = slot(
@@ -1244,6 +1321,57 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     ? snap.kids.find((k) => k.id === menu.kid)?.chores.find((c) => c.id === menu.chore)
     : null;
   const canTransfer = canTransferChore(menuChore);
+  const free = snap.free_chores ?? [];
+  if (selected || editingPersons) {
+    return (
+      <div
+        ref={detailRef}
+        className="fam"
+        data-kiosk={kiosk || undefined}
+        data-testid="family"
+        data-role={snap.role}
+      >
+        <style>{familyStyles}</style>
+        {error && (
+          <p className="fam-err" role="alert">
+            {error}
+          </p>
+        )}
+        {selected ? (
+          <PersonView
+            key={selected.id}
+            api={api}
+            member={selected}
+            members={familyMembers}
+            now={kiosk ? clock : now}
+            events={activeSnapshot.events}
+            free={free}
+            busy={busy}
+            onBack={() => setPersonId(null)}
+            onClaim={(member, chore) =>
+              void run(chore, async () => {
+                try {
+                  await api.claim(member, chore);
+                  notify.success('Úkol převzat.');
+                } catch {
+                  notify.error('Úkol už nelze převzít.');
+                }
+              })
+            }
+          />
+        ) : (
+          <PersonsSettings
+            api={api}
+            onBack={() => setEditingPersons(false)}
+            onSaved={() => {
+              setEditingPersons(false);
+              void load();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
   return (
     <div className="fam" data-kiosk={kiosk || undefined} data-testid="family" data-role={snap.role}>
       <style>{familyStyles}</style>
@@ -1255,8 +1383,18 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </time>
         )}
         <p>{longDate(kiosk ? clock : now)}</p>
-        <PresenceStrip people={people} layout="grid" className="fam-presence" />
+        {admin && snap.members && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="fam-settings-link"
+            onClick={() => setEditingPersons(true)}
+          >
+            Nastavení osob
+          </Button>
+        )}
       </header>
+      {familyMembers.length > 0 && <PersonsRow members={familyMembers} onPerson={setPersonId} />}
       {error && (
         <p className="fam-err" role="alert">
           {error}
@@ -1269,7 +1407,10 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
             {week}
           </div>
           <div className="fam-col">{chores}</div>
-          <div className="fam-col">{shop}</div>
+          <div className="fam-col">
+            <FreeTasks rows={free} members={familyMembers} />
+            {shop}
+          </div>
         </div>
       ) : (
         <div className="fam-grid" data-testid="family-grid">
@@ -1279,6 +1420,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </div>
           <div className="fam-col">
             {chores}
+            <FreeTasks rows={free} members={familyMembers} />
             {shop}
           </div>
         </div>
@@ -1288,7 +1430,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       )}
       {addChore && api && (
         <AddChoreSheet
-          kids={snap.kids}
+          kids={snap.members ?? snap.kids}
           api={api}
           colors={identityColors}
           initialKid={addChore}

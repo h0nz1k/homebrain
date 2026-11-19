@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant, HomeAssistantError
 ALLOWED: Final = frozenset(
     {
         ("choreops", "create_chore"),
+        ("choreops", "claim_chore"),
         ("choreops", "skip_chore_due_date"),
         ("choreops", "delete_chore"),
         ("choreops", "get_ledger"),

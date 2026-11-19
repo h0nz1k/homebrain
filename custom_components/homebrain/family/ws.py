@@ -22,8 +22,10 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.util import dt as dt_util
 
+from ..const import DOMAIN as HB_DOMAIN
 from ..roles import FAMILY_APPROVE_ROLES
-from . import model
+from . import choreops_adapter, model, persons
+from .person_history import PersonHistory
 from .swap_store import FamilySwapStore
 from .ws_common import (
     CONF_FAMILY,
@@ -31,7 +33,6 @@ from .ws_common import (
     _entry,
     _role,
     _service,
-    _visible_kids,
     family_options,
 )
 from .ws_swap import SWAP_COMMANDS
@@ -94,24 +95,52 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         except (HomeAssistantError, vol.Invalid):
             errors.append(eid)
     uid = getattr(connection.user, "id", None)
-    from ..const import DOMAIN as HB_DOMAIN
 
     store: FamilySwapStore | None = hass.data.get(HB_DOMAIN, {}).get("family_swap")
     store_data = store.data if isinstance(store, FamilySwapStore) else {}
-    all_kids = model.discover_kids(states, opts)
-    kids_by_uuid = {str(k.get("kid_uuid") or k["id"]): k for k in all_kids}
+    history: PersonHistory | None = hass.data.get(HB_DOMAIN, {}).get("family_history")
+    profiles = persons.members(hass, hass.states.async_all(), opts)
+    kids_by_uuid = {str(k.get("kid_uuid") or k["id"]): k for k in profiles}
+    now = dt_util.now()
+    members = []
+    free: dict[tuple, dict[str, Any]] = {}
     include_detail = role in ("owner", "adult")
-    kids = [
-        model.kid_payload(
+    for profile in profiles:
+        own = bool(uid and profile.get("user_id") == uid)
+        member = model.kid_payload(
             hass.states.get,
-            k,
+            profile,
             role,
-            bool(uid and k.get("user_id") == uid),
+            own,
             store_data=store_data,
             kids_by_uuid=kids_by_uuid,
-            include_points_detail=include_detail and role != "kiosk",
+            include_points_detail=include_detail,
+            now=now,
         )
-        for k in _visible_kids(hass, connection, role)
+        if history:
+            member["missed"] = history.observe(profile, member["missed"], now)
+        for chore in member.pop("free"):
+            entry = free.setdefault(
+                (chore["name"], chore["due"]),
+                {**{k: chore[k] for k in ("name", "points", "due")}, "assignees": []},
+            )
+            entry["assignees"].append(
+                {
+                    "member": member["id"],
+                    "chore": chore["id"],
+                    "can_claim": chore["can_claim"],
+                }
+            )
+        member.update({k: profile[k] for k in ("role", "color", "presence")}, own=own)
+        if role == "kiosk" or (role == "child" and not own):
+            for chore in member["chores"]:
+                chore.pop("kid_uuid", None)
+            member.pop("kid_uuid", None)
+        members.append(member)
+    kids = [
+        {**m, "upcoming": m["upcoming"][: model.UPCOMING_LIMIT]}
+        for m in members
+        if m["role"] == "child" and (role != "child" or m["own"])
     ]
     payload: dict[str, Any] = {
         "role": role,
@@ -119,9 +148,11 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         "calendars": [{k: c[k] for k in ("entity_id", "name", "kind")} for c in calendars],
         "events": model.build_events(raw, calendars, role),
         "kids": kids,
+        "members": members,
+        "free_chores": list(free.values()),
         "shopping": shopping,
         "errors": errors,
-        "generated_at": dt_util.now().isoformat(),
+        "generated_at": now.isoformat(),
         "capabilities": {
             "can_create_chore": role in ("owner", "adult"),
             "can_swap": role in ("owner", "adult", "child"),
@@ -129,7 +160,7 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         },
     }
     if role in ("owner", "adult"):
-        payload["pending_approvals"] = model.pending_approvals({"kids": kids}, store_data)
+        payload["pending_approvals"] = model.pending_approvals({"kids": members}, store_data)
         payload["swap_requests"] = [
             r for r in (store_data.get("requests") or {}).values() if r.get("status") == "pending"
         ]
@@ -139,7 +170,7 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
                 "text": c.get("swap_today", {}).get("label"),
                 "kid": k["name"],
             }
-            for k in kids
+            for k in members
             for c in k.get("chores") or []
             if c.get("swap_today")
         ][:3]
@@ -147,7 +178,7 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
 
 
 def _find_chore(hass, connection, role, msg) -> tuple[dict[str, Any], dict[str, Any]]:
-    kids = model.discover_kids(hass.states.async_all(), family_options(hass))
+    kids = persons.members(hass, hass.states.async_all(), family_options(hass))
     kid = next((k for k in kids if k["id"] == msg["kid"]), None)
     chore = (
         next((c for c in model.kid_chores(hass.states.get, kid) if c["id"] == msg["chore"]), None)
@@ -156,7 +187,9 @@ def _find_chore(hass, connection, role, msg) -> tuple[dict[str, Any], dict[str, 
     )
     if kid is None or chore is None:
         raise LookupError
-    if role == "child" and kid.get("user_id") != getattr(connection.user, "id", None):
+    if role == "child" and (
+        not kid.get("user_id") or kid["user_id"] != getattr(connection.user, "id", None)
+    ):
         raise Unauthorized
     return kid, chore
 
@@ -178,17 +211,27 @@ async def websocket_family_claim(hass: HomeAssistant, connection: Any, msg: dict
     except LookupError:
         connection.send_error(msg["id"], "not_found", "Povinnost nenalezena")
         return
+    today, _, free = model.partition_chores([chore], dt_util.now())
+    if (
+        not (today or free)
+        or not chore["claim_allowed"]
+        or chore["state"] not in ("todo", "overdue")
+    ):
+        connection.send_error(msg["id"], "service_failed", "Úkol už nelze převzít.")
+        return
     try:
-        await _service(
+        data = {"user_name": kid["name"], "chore_name": chore["name"]}
+        if cfg := choreops_adapter.config_entry_id(hass):
+            data["config_entry_id"] = cfg
+        await choreops_adapter.call_choreops(
             hass,
-            connection,
-            msg,
             "choreops",
             "claim_chore",
-            {"user_name": kid["name"], "chore_name": chore["name"]},
+            data,
+            context=connection.context(msg),
         )
-    except HomeAssistantError as err:
-        connection.send_error(msg["id"], "service_failed", str(err))
+    except (HomeAssistantError, vol.Invalid):
+        connection.send_error(msg["id"], "service_failed", "Úkol už nelze převzít.")
         return
     connection.send_result(msg["id"], {"ok": True})
 
@@ -222,6 +265,55 @@ async def websocket_family_approve(
         connection.send_error(msg["id"], "service_failed", str(err))
         return
     connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "homebrain/family/person/history",
+        vol.Required("member"): vol.All(str, vol.Length(min=1, max=64)),
+    }
+)
+@websocket_api.async_response
+async def websocket_family_person_history(hass, connection, msg) -> None:
+    _role(hass, connection)
+    profiles = persons.members(hass, hass.states.async_all(), family_options(hass))
+    person = next((p for p in profiles if p["id"] == msg["member"]), None)
+    if not person:
+        connection.send_error(msg["id"], "not_found", "Osoba nenalezena")
+        return
+    now = dt_util.now()
+    cutoff = now.date() - timedelta(days=29)
+    entries = []
+    if cfg := choreops_adapter.config_entry_id(hass):
+        try:
+            response = await choreops_adapter.call_choreops(
+                hass,
+                "choreops",
+                "get_ledger",
+                {"config_entry_id": cfg, "user_name": person["name"], "limit": 250},
+                context=connection.context(msg),
+                response=True,
+            )
+        except (HomeAssistantError, vol.Invalid):
+            connection.send_error(msg["id"], "service_failed", "Historii se nepodařilo načíst.")
+            return
+        for row in (response or {}).get("entries", []):
+            if not isinstance(row, dict) or row.get("source") != "chores":
+                continue
+            stamp, name = row.get("timestamp"), row.get("item_name")
+            if not isinstance(stamp, str) or not isinstance(name, str) or not name.strip():
+                continue
+            day = model.chore_date(stamp, now)
+            if day and day >= cutoff:
+                entries.append(
+                    {"date": stamp, "name": name, "points": model._float(row.get("amount"))}
+                )
+    from_ledger = {(row["name"], model.chore_date(row["date"], now)) for row in entries}
+    for row in model.last_approvals(hass.states.get, person):
+        day = model.chore_date(row["date"], now)
+        if day and day >= cutoff and (row["name"], day) not in from_ledger:
+            entries.append(row)
+    connection.send_result(msg["id"], {"entries": entries})
 
 
 def _shopping(hass: HomeAssistant) -> str | None:
@@ -276,6 +368,21 @@ def _settings(hass: HomeAssistant) -> dict[str, Any]:
         "calendars": opts.get("calendars") or None,
         "shopping": opts.get("shopping"),
         "kids": opts.get("kids") or [],
+        "persons": [
+            {
+                k: m[k]
+                for k in (
+                    "choreops_user_id",
+                    "name",
+                    "role",
+                    "color",
+                    "person",
+                    "tracker",
+                    "configured",
+                )
+            }
+            for m in persons.members(hass, states, opts)
+        ],
         "approver_name": opts.get("approver_name"),
         "effective": {
             "calendars": model.family_calendars(states, _bindings(hass), opts),
@@ -289,6 +396,14 @@ def _settings(hass: HomeAssistant) -> dict[str, Any]:
                 if s.entity_id.startswith("calendar.")
             ],
             "todos": [s.entity_id for s in states if s.entity_id.startswith("todo.")],
+            "people": [
+                {"id": s.entity_id, "name": model._name(s)}
+                for s in states
+                if s.entity_id.startswith("person.")
+            ],
+            "trackers": [
+                {"id": eid, "name": name} for eid, name in persons.unifi_trackers(hass).items()
+            ],
         },
     }
 
@@ -331,6 +446,24 @@ def websocket_family_settings_get(
             ],
             vol.Length(max=12),
         ),
+        vol.Optional("persons"): vol.All(
+            [
+                vol.Schema(
+                    {
+                        vol.Required("choreops_user_id"): vol.All(str, vol.Length(min=1, max=128)),
+                        vol.Required("role"): vol.In(("owner", "adult", "child")),
+                        vol.Required("color"): vol.All(int, vol.Range(min=1, max=4)),
+                        vol.Optional("person"): vol.Any(
+                            None, vol.All(str, vol.Match(r"^person\.[a-z0-9_]+$"))
+                        ),
+                        vol.Optional("tracker"): vol.Any(
+                            None, vol.All(str, vol.Match(r"^device_tracker\.[a-z0-9_]+$"))
+                        ),
+                    }
+                )
+            ],
+            vol.Length(max=32),
+        ),
         vol.Optional("approver_name"): vol.Any(None, vol.All(str, vol.Length(max=64))),
     }
 )
@@ -344,7 +477,16 @@ def websocket_family_settings_set(
         connection.send_error(msg["id"], "not_configured", "HomeBrain není nastaven")
         return
     opts = family_options(hass)
-    for key in ("calendars", "shopping", "kids", "approver_name"):
+    if "persons" in msg:
+        profiles = msg["persons"]
+        ids = {p["choreops_user_id"] for p in profiles}
+        trackers = persons.unifi_trackers(hass)
+        if len(ids) != len(profiles) or any(
+            p.get("tracker") and p["tracker"] not in trackers for p in profiles
+        ):
+            connection.send_error(msg["id"], "invalid_input", "Zkontrolujte nastavení osob.")
+            return
+    for key in ("calendars", "shopping", "kids", "approver_name", "persons"):
         if key in msg:
             opts[key] = msg[key]
     hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_FAMILY: opts})
@@ -353,6 +495,7 @@ def websocket_family_settings_set(
 
 COMMANDS: Final = (
     websocket_family_get,
+    websocket_family_person_history,
     websocket_family_claim,
     websocket_family_approve,
     websocket_family_shopping_add,

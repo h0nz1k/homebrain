@@ -39,7 +39,7 @@ export function czDate(d: Date, opts: { year?: boolean } = {}): string {
 }
 
 export function longDate(now: Date): string {
-  return `${DAY_LONG[now.getDay()]} ${now.getDate()}. ${MONTH_GEN[now.getMonth()]}`;
+  return `${DAY_LONG[now.getDay()]} ${now.getDate()}.\u00a0${MONTH_GEN[now.getMonth()]}`;
 }
 
 export function todayEvents(events: FamilyEvent[], now: Date): FamilyEvent[] {
@@ -229,7 +229,7 @@ export function sortChores(chores: FamilyChore[]): FamilyChore[] {
     .map(({ c }) => c);
 }
 
-export interface FamilyMember {
+interface EventMember {
   id: string;
   name: string;
 }
@@ -242,7 +242,7 @@ const norm = (s: string) => s.trim().toLocaleLowerCase('cs');
  */
 export function eventWho(
   ev: Pick<FamilyEvent, 'summary' | 'source'>,
-  members: FamilyMember[],
+  members: EventMember[],
 ): { who: string[]; title: string } {
   const byName = new Map(members.map((m) => [norm(m.name), m.id]));
   const own = byName.get(norm(ev.source));

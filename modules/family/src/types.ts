@@ -32,6 +32,8 @@ export interface FamilyChore {
   swap_unavailable_reason?: string | null;
   swap_today?: FamilySwapToday | null;
   counts_today?: boolean;
+  carried_days?: number;
+  rotation_turn?: string | null;
 }
 /** A chore of a later day (ChoreOps groups `this_week` / `other`): shown, not claimable yet. */
 export interface FamilyUpcomingChore {
@@ -105,6 +107,8 @@ export interface FamilySnapshot {
   calendars: Array<{ entity_id: string; name: string; kind: 'family' | 'school' }>;
   events: FamilyEvent[];
   kids: FamilyKid[];
+  members?: FamilyMember[];
+  free_chores?: FreeChore[];
   shopping: { entity_id: string; name: string; items: ShoppingItem[] } | null;
   pending_approvals?: FamilyApproval[];
   swap_requests?: Array<Record<string, unknown>>;
@@ -138,4 +142,61 @@ export interface SwapRequestInput {
   local_date: string;
   direction?: 'give' | 'take';
   expected_revision?: number;
+}
+
+export type MemberRole = 'owner' | 'adult' | 'child';
+export type WifiPresence = { kind: 'home' | 'away' };
+// Later sources can extend presence without treating a calendar entry as a location.
+export type FamilyPresence = WifiPresence | { kind: 'derived'; source: 'school_timetable' };
+
+export interface ChoreCounts {
+  total: number;
+  done: number;
+  pending: number;
+  open: number;
+}
+
+export interface MissedChore {
+  id: string;
+  name: string;
+  date: string | null;
+}
+
+export interface PersonHistoryEntry {
+  date: string;
+  name: string;
+  points: number | null;
+}
+
+export interface FamilyMember extends FamilyKid {
+  role: MemberRole;
+  color: number;
+  presence: FamilyPresence | null;
+  own: boolean;
+  counts: ChoreCounts;
+  points_week: number | null;
+  missed: MissedChore[];
+}
+
+export interface FreeChore {
+  name: string;
+  points: number | null;
+  due: string | null;
+  assignees: Array<{ member: string; chore: string; can_claim: boolean }>;
+}
+
+export interface PersonSettings {
+  choreops_user_id: string;
+  role: MemberRole;
+  color: number;
+  person: string | null;
+  tracker: string | null;
+}
+
+export interface PersonsSettings {
+  persons: Array<PersonSettings & { name: string; configured: boolean }>;
+  candidates: {
+    people: Array<{ id: string; name: string }>;
+    trackers: Array<{ id: string; name: string }>;
+  };
 }
