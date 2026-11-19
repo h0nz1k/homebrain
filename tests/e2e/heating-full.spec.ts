@@ -241,7 +241,7 @@ async function crossedLabels(page: Page) {
     ];
     const pts: Array<[number, number]> = [];
     for (const p of Array.from(
-      svg.querySelectorAll<SVGPathElement>('path[data-route], path[data-coil]'),
+      svg.querySelectorAll<SVGPathElement>('path.fs-pipe, path[data-coil]'),
     )) {
       const len = p.getTotalLength();
       for (let t = 0; t <= len; t += 2) {

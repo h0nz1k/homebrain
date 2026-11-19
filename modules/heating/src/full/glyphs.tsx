@@ -264,34 +264,34 @@ export function RadiatorPair({
   returnClass: string;
 }) {
   const [x, y, , h] = box as [number, number, number, number];
-  const xs = x + 16;
+  // r3: the shared supply riser runs right of the storey plates ("1. PATRO" sits on the slab at
+  // the zone's top-left corner); the radiators are narrower so the return riser stays put.
+  const xs = x + 80;
   const xr = x + RAD_X + 128 + 18;
+  const rx0 = x + 90;
+  const rw = x + RAD_X + 128 - rx0;
   const top = ys[0]!;
   const bot = ys[ys.length - 1]!;
   return (
     <g data-glyph="radiators">
-      <path
-        d={`M${x} ${top}H${x + RAD_X}M${xs} ${top}V${bot}H${x + RAD_X}`}
-        className={supplyClass}
-      />
+      <path d={`M${x} ${top}H${rx0}M${xs} ${top}V${bot}H${rx0}`} className={supplyClass} />
       <path
         d={`M${x + RAD_X + 128} ${top}H${xr}M${x + RAD_X + 128} ${bot}H${xr}M${xr} ${top}V${y + h}`}
         className={returnClass}
       />
       {ys.map((yy) => (
-        <Radiator key={yy} r={[x + RAD_X, yy - 18, 128, 36]} />
+        <Radiator key={yy} r={[rx0, yy - 18, rw, 36]} />
       ))}
-      {[xs, xr].map((xx) => (
-        <rect
-          key={xx}
-          x={xx - 8}
-          y={slab - 4}
-          width="16"
-          height="8"
-          rx="2.5"
-          className="fs-sleeve"
-        />
-      ))}
+      {/* slab pass-through: the same two bars as every wall sleeve */}
+      {[xs, xr].map((xx) => {
+        const d = `M${xx - 10} ${slab - 5}H${xx + 10}M${xx - 10} ${slab + 5}H${xx + 10}`;
+        return (
+          <g key={xx} data-sleeve="">
+            <path d={d} className="fs-sleeve-key" />
+            <path d={d} className="fs-sleeve-bar" />
+          </g>
+        );
+      })}
     </g>
   );
 }

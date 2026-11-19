@@ -13,6 +13,8 @@ export interface Preset {
 }
 export interface PresetGroup extends Preset {
   fine: Preset[];
+  /** r3: the coarse box would cut the valve cluster (rooms sit above it) – always the fine ones. */
+  alwaysFine?: boolean;
 }
 
 const r = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
@@ -41,10 +43,11 @@ export const PRESET_GROUPS: PresetGroup[] = [
   {
     id: 'house',
     label: 'Dům',
-    box: r(280, 90, 710, 880),
+    box: r(280, 90, 868, 880),
+    alwaysFine: true,
     fine: [
       { id: 'fish', label: 'Rybárna', box: r(280, 340, 410, 630) },
-      { id: 'rooms', label: 'Patra', box: r(690, 90, 300, 240) },
+      { id: 'rooms', label: 'Patra', box: r(690, 90, 458, 240) },
     ],
   },
 ];
@@ -78,7 +81,7 @@ export function boxView(
 /** Presets offered on a viewport of `vw` × `vh` CSS px (coarse when readable, else fine). */
 export function presetsFor(vw: number, vh: number): Preset[] {
   return PRESET_GROUPS.flatMap((g) =>
-    boxView(vw, vh, g.box).scale >= READABLE_SCALE ? [g] : g.fine,
+    !g.alwaysFine && boxView(vw, vh, g.box).scale >= READABLE_SCALE ? [g] : g.fine,
   );
 }
 

@@ -485,11 +485,24 @@ export interface FullSchematicProps {
 }
 
 /** Labels drawn as name + value pill under each other (narrow places, e.g. at the TČ ports). */
-const STACKED = new Set(['hp_t_out', 'hp_t_in', 'hp_coll_out', 'hp_coll_in']);
+const STACKED = new Set([
+  'hp_t_out',
+  'hp_t_in',
+  'hp_coll_out',
+  'hp_coll_in',
+  'chip_attic',
+  'chip_floor1',
+]);
 /** Stacked labels above their pipe move up by the pill height. */
 const READING_UP: Record<string, number> = { hp_t_out: 26, hp_t_in: 65 };
-/** r3: room sensors start right of the rybárna riser so their pill ends before the radiator riser. */
-const READING_X: Record<string, number> = { chip_attic: 746, chip_floor1: 746 };
+/**
+ * r3: the room sensors sit in the free part of their room right of the riser (between the
+ * radiator loop's pipes there is no room for a name + value without crossing one).
+ */
+const READING_AT: Record<string, [number, number]> = {
+  chip_attic: [1028, 172],
+  chip_floor1: [1028, 276],
+};
 /** r3 wording: the same text in the drawing, the cards and the status panel. */
 const NAME_FIX: Record<string, string> = {};
 
@@ -542,8 +555,8 @@ export function FullSchematic({
           )}
           <ValueLabel
             k={k}
-            x={(READING_X[k] ?? l.x) - (l.anchor === 'start' ? lead : 0)}
-            y={stack && READING_UP[k] ? l.y - READING_UP[k] : l.y}
+            x={(READING_AT[k]?.[0] ?? l.x) - (l.anchor === 'start' ? lead : 0)}
+            y={READING_AT[k]?.[1] ?? (stack && READING_UP[k] ? l.y - READING_UP[k] : l.y)}
             name={NAME_FIX[k] ?? l.lines[0] ?? ''}
             value={st.readings[k]}
             anchor={l.anchor}
@@ -552,7 +565,9 @@ export function FullSchematic({
             halo={HALO[l.halo] === 'none' ? undefined : HALO[l.halo]}
             lead={lead}
           >
-            {({ x0 }) => (l.sensor ? <Sensor c={[x0 + 7, l.y - 5]} /> : null)}
+            {({ x0 }) =>
+              l.sensor ? <Sensor c={[x0 + 7, (READING_AT[k]?.[1] ?? l.y) - 5]} /> : null
+            }
           </ValueLabel>
           {code && <ServiceCode k={k} l={l} code={code} reading={st.readings[k]} />}
         </g>
@@ -1135,19 +1150,17 @@ function FishState({ st }: { st: FullState }) {
   if (!st.fish) return null;
   const l = G.labels.chip_fish;
   if (!l) return null;
+  const none = st.fish.label === 'stav –';
   return (
-    <text
-      x={l.x}
-      y={l.y + 22}
-      fontSize="15"
-      className={`fs-t ${st.fish.label === 'stav –' ? 'fs-nodata' : 'fs-t-s'}`}
-      stroke="var(--fs-room)"
-      strokeWidth="4"
-      data-testid="heating-full-fish-state"
-      data-active={String(st.fish.active)}
-    >
-      {st.fish.label}
-    </text>
+    <g data-testid="heating-full-fish-state" data-active={String(st.fish.active)}>
+      <Pill
+        x={l.x + 20}
+        cy={l.y + 20}
+        value={none ? null : st.fish.label}
+        missing="bez signálu"
+        k="fish_state"
+      />
+    </g>
   );
 }
 
@@ -1222,12 +1235,26 @@ export const END_AVOID: Box4[] = (() => {
   const out: Box4[] = pipeBoxes(G.pipes);
   for (const [k, b] of Object.entries(G.boxes)) {
     if (k === 'ground' || k === 'pool' || k === 'floor_pool') continue;
+    if (k === 'radiators') {
+      // the layout box is the whole loop; only the radiators and the riser between them block
+      const [x] = b as Box4;
+      const [top, bot] = G.glyphs.radiators.ys as [number, number];
+      out.push([x + 76, top - 4, 8, bot - top + 8], [x - 4, top - 4, 100, 8]);
+      for (const yy of [top, bot]) out.push([x + 86, yy - 22, 100, 44]);
+      continue;
+    }
     out.push([b[0]! - 4, b[1]! - 4, b[2]! + 8, b[3]! + 8]);
   }
   for (const l of Object.values(G.labels)) {
     const [x, y, w, h] = l.box as Box4;
     if (l.zone) {
       out.push([x - 10, y - 4, (l.lines[0]?.length ?? 0) * 15 * 0.68 + 20, l.sub ? 48 : 26]);
+      continue;
+    }
+    const at = READING_AT[Object.keys(G.labels).find((k) => G.labels[k] === l) ?? ''];
+    if (at) {
+      // moved room sensor: sensor + name with the value pill under it
+      out.push([at[0] - 26, at[1] - 16, 130, 48]);
       continue;
     }
     const extra = l.reading ? 100 : 0;

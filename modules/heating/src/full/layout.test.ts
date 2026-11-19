@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildMockSnapshot } from '../mock.js';
 import { endLabels, farEnd } from './endLabels.js';
+import { END_AVOID } from './FullSchematic.js';
 import { fullState } from './fullState.js';
 import { FULL_GEOMETRY as G } from './geometry.gen.js';
 import { OVERVIEW_BELOW, OV_FONT, OV_VALUE, overviewBounds } from './overview.js';
@@ -9,7 +10,7 @@ import { LABEL_FONT, VALUE_FONT } from './pill.js';
 import { CONTENT, PRESET_GROUPS, boxView, presetsFor, type Preset } from './presets.js';
 import { FS_PALETTE, FS_THEME, stillOf } from './styles.js';
 
-const all: Preset[] = PRESET_GROUPS.flatMap((g) => [g, ...g.fine]);
+const all: Preset[] = PRESET_GROUPS.flatMap((g) => (g.alwaysFine ? g.fine : [g, ...g.fine]));
 
 // Whether a preset cuts a label is checked in the browser on the real text boxes
 // (tests/e2e/heating-full.spec.ts) – estimates here would only drift from the rendering.
@@ -80,7 +81,7 @@ describe('overview (whole drawing on a desktop)', () => {
 describe('end labels', () => {
   it('every pipe leaving a preset frame has an end label naming equipment outside it', () => {
     for (const p of all) {
-      const labels = endLabels(G.pipes, p.box, [], G.boxes);
+      const labels = endLabels(G.pipes, p.box, END_AVOID, G.boxes);
       const named = new Set(labels.flatMap((l) => l.pipe.split(' ')));
       const leaving = G.pipes.filter(
         (q) =>

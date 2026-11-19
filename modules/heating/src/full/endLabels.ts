@@ -15,7 +15,7 @@ const TERMINAL: Record<string, string> = {
   pool: 'bazén',
   floor_pool: 'bazén',
   hx_cool: 'výměník chlazení',
-  valve_mix: 'směšovací ventil',
+  valve_mix: 'směšovač',
   valve_cool: 'ventil chlazení',
   valve_dhw: 'přepínání TUV',
   tap: 'TUV',
@@ -79,7 +79,7 @@ export function farEnd(
 export type Edge = 'l' | 'r' | 't' | 'b';
 export interface EndLabel {
   pipe: string;
-  /** Dotted leader from the exit to a label that had to move away from its pipe. */
+  /** Thin leader from the exit to a label that had to move away from its pipe. */
   bracket?: [number, number, number, number];
   edge: Edge;
   /** Crossing point on the frame edge. */
@@ -103,6 +103,25 @@ function exits(pts: number[][], f: Rect) {
     const b = pts[i]!;
     const ia = inside(a);
     const ib = inside(b);
+    if (!ia && !ib) {
+      // a straight run through the whole frame: it enters on one edge and leaves on the other
+      if (a[1] === b[1] && a[1]! > f.y && a[1]! < f.y + f.h) {
+        const [lo, hi] = [Math.min(a[0]!, b[0]!), Math.max(a[0]!, b[0]!)];
+        if (lo < f.x && hi > f.x + f.w) {
+          const aLeft = a[0]! < b[0]!;
+          out.push({ at: [f.x, a[1]!], edge: 'l', outer: aLeft ? 'from' : 'to' });
+          out.push({ at: [f.x + f.w, a[1]!], edge: 'r', outer: aLeft ? 'to' : 'from' });
+        }
+      } else if (a[0] === b[0] && a[0]! > f.x && a[0]! < f.x + f.w) {
+        const [lo, hi] = [Math.min(a[1]!, b[1]!), Math.max(a[1]!, b[1]!)];
+        if (lo < f.y && hi > f.y + f.h) {
+          const aTop = a[1]! < b[1]!;
+          out.push({ at: [a[0]!, f.y], edge: 't', outer: aTop ? 'from' : 'to' });
+          out.push({ at: [a[0]!, f.y + f.h], edge: 'b', outer: aTop ? 'to' : 'from' });
+        }
+      }
+      continue;
+    }
     if (ia === ib) continue;
     const [p, q] = ia ? [a, b] : [b, a];
     let at: [number, number];
@@ -233,7 +252,7 @@ export function endLabels(
     let pick = cands.find((c) => free(boxOf(c, w)));
     let leader: [number, number, number, number] | undefined;
     if (!pick) {
-      // nearest free spot whose dotted leader crosses no glyph
+      // nearest free spot whose leader crosses no glyph
       const [ax, ay] = first.at;
       const inx = edge === 'l' ? 6 : edge === 'r' ? -6 : 0;
       const iny = edge === 't' ? 6 : edge === 'b' ? -6 : 0;
@@ -271,7 +290,7 @@ export function endLabels(
       ...(leader ? { bracket: leader } : {}),
     });
   }
-  // Exits still without a label (blocked by a big glyph at the edge): one dotted bracket along the
+  // Exits still without a label (blocked by a big glyph at the edge): one bracket line along the
   // edge over all of them and one label where the bracket ends in free space.
   for (const edge of ['l', 'r', 't', 'b'] as const) {
     const g = leftover[edge];

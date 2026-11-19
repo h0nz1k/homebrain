@@ -382,7 +382,7 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-pill-run .fs-pv { fill:var(--fs-run-ink); }
 .ht-fs .fs-ov-card { fill:var(--fs-room); stroke:var(--fs-card-edge); stroke-width:2; }
 .ht-fs .fs-t-end { fill:var(--fs-t1); font-weight:600; }
-.ht-fs .fs-end-bracket { fill:none; stroke:var(--fs-t2); stroke-width:2.5; stroke-linecap:round; stroke-dasharray:1 5; }
+.ht-fs .fs-end-bracket { fill:none; stroke:var(--fs-leader); stroke-width:1.6; stroke-linecap:round; }
 .ht-fs .fs-tank-detail .fs-val, .ht-fs .fs-val-card { fill:var(--fs-card-ink); font-weight:600; }
 .ht-fs .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-muted); font-style:italic; font-weight:500; }
 .ht-fs .fs-tank-detail .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-card-ink); }
