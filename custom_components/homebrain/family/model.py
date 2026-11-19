@@ -344,7 +344,7 @@ def plan_create_chores(
 ) -> list[dict[str, Any]]:
     """``choreops.create_chore`` payloads for one Rodina „Přidat úkol“ submit.
 
-    ``daily_multi`` („Víckrát denně“): ChoreOps 1.6 ``create_chore`` accepts neither the
+    ``daily_multi`` („Vícekrát denně“): ChoreOps 1.6 ``create_chore`` accepts neither the
     ``daily_multi`` frequency nor ``daily_multi_times`` (Options flow only), so each time of
     the day becomes its own daily chore „<název> (12:00)“. Every slot is a separate claim
     with its own points and approval, resets at midnight like any daily chore and stays

@@ -196,7 +196,7 @@ function kids(now: Date): FamilyKid[] {
   ];
 }
 
-/** Mirrors backend `plan_create_chores`: „Víckrát denně“ = one daily chore per time. */
+/** Mirrors backend `plan_create_chores`: „Vícekrát denně“ = one daily chore per time. */
 function slotsOf(input: CreateChoreInput): { name: string; date: string; due: string }[] {
   const iso = (date: string, time: string) => new Date(`${date}T${time}:00`).toISOString();
   if (input.recurrence !== 'daily_multi' || !input.times?.length)

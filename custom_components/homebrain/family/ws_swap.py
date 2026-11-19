@@ -430,7 +430,7 @@ def _create_error(connection: Any, msg: dict[str, Any], code: str) -> None:
 async def _rollback_created(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any], cfg: str, created: list[str]
 ) -> None:
-    """„Víckrát denně“ is all-or-nothing: delete slots created before a later slot failed."""
+    """„Vícekrát denně“ is all-or-nothing: delete slots created before a later slot failed."""
     for chore_id in created:
         try:
             await choreops_adapter.call_choreops(

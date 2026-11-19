@@ -506,7 +506,7 @@ def test_swap_create_effect_has_only_choreops_fields():
     assert set(effect.data) <= set(CHOREOPS_CREATE_FIELDS)
 
 
-# --- Rodina „Přidat úkol“ fix: upcoming chores, stable error codes, „Víckrát denně“ -------
+# --- Rodina „Přidat úkol“ fix: upcoming chores, stable error codes, „Vícekrát denně“ -------
 
 
 def test_upcoming_lists_this_week_and_other_sorted_by_due(hass: HomeAssistant):
