@@ -52,10 +52,12 @@ new start. Gaps longer than 20 min (HA or PLC down) are not credited.
 
 `mode.{winter, auto_season, setback_active, main_switch, cooling, hdo_low_tariff}`,
 `house.{ref_temp, ref_target, ref_target_effective, hysteresis, attic_temp, circuit_on, supply_temp, mixing_valve_pct}`,
-`heat_pump.{compressor_on, condenser_out, return_temp, brine_in, brine_out, primary_prerun,
+`heat_pump.{compressor_on, condenser_out, return_temp, collector_in, collector_out, primary_prerun,
 discharge_temp, discharge_bar, suction_temp, suction_bar, motohours, motominutes}`
-(the two ground-collector keys keep their original names because they are also entity ids; the
-payload calls the fields `heat_pump.collector_in` / `collector_out`),
+(`collector_in` / `collector_out` = from / to the ground collector; the older names of these two
+keys are still accepted as deprecated aliases with a warning, and on setup their registered
+entities are moved to the new unique id and – if still the default – the new entity id
+`sensor.heating_heat_pump_collector_in` / `_out`, so history and statistics carry over),
 `tank.{top, bottom, target, hysteresis, curve_target}`, `dhw.{temp, target, hysteresis, valve_to_dhw}`,
 `outdoor.temp`, `pumps.{heating, secondary, circulation}`, `backup_heater.on`,
 `faults.{fatal, compressor_block}`, `curve.p1_outdoor … curve.p4_water`,

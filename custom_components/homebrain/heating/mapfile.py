@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 
 from .keys import KEYS
+from .legacy import LEGACY_KEYS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,6 +124,13 @@ def parse_map(text: str) -> HeatingMap:
     hmap = HeatingMap()
     warn = hmap.warnings
     for key, value in keys.items():
+        if key in LEGACY_KEYS:
+            new_key = LEGACY_KEYS[key]
+            if new_key in keys:
+                warn.append(f"deprecated key '{key}' ignored: '{new_key}' is set")
+                continue
+            warn.append(f"deprecated key '{key}': rename it to '{new_key}'")
+            key = new_key
         if key not in KEYS:
             warn.append(f"unknown key '{key}' ignored")
             continue

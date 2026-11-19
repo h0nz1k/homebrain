@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from ..bindings import get_bindings
 from ..const import DOMAIN
 from ..modules import CONF_DISABLED_MODULES, record_failure
+from .legacy import async_migrate_entities
 from .poller import CONF_HEATING, DATA_KEY, HeatingOptions, HeatingPoller
 
 PLATFORMS: Final = ["sensor", "binary_sensor"]
@@ -36,6 +37,7 @@ async def async_setup_heating(hass: HomeAssistant, entry: ConfigEntry) -> None:
         return
     data = hass.data.setdefault(DOMAIN, {})
     try:
+        async_migrate_entities(hass)
         poller = HeatingPoller(hass, opts, lambda: get_bindings(entry).get("heating", {}))
         await poller.async_start()
         data[DATA_KEY] = poller

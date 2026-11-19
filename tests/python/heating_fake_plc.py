@@ -160,8 +160,8 @@ keys:
   heat_pump.compressor_on: {page: 17, var: Y50.7}
   heat_pump.condenser_out: {page: 17, var: X336}
   heat_pump.return_temp: {page: 17, var: X348}
-  heat_pump.brine_in: {page: 17, var: X360}
-  heat_pump.brine_out: {page: 17, var: X372}
+  heat_pump.collector_in: {page: 17, var: X360}
+  heat_pump.collector_out: {page: 17, var: X372}
   heat_pump.motohours: {page: 17, var: R7040}
   heat_pump.motominutes: {page: 17, var: R7042}
   tank.top: {page: 17, var: X384}

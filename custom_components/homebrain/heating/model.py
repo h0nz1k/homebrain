@@ -65,13 +65,6 @@ class Resolved:
         return {key for key, _label, active in self.faults if active}
 
 
-# Contract keys whose payload field is named differently (the keys are also entity ids).
-_PAYLOAD_FIELD: dict[str, str] = {
-    "heat_pump.brine_in": "heat_pump.collector_in",
-    "heat_pump.brine_out": "heat_pump.collector_out",
-}
-
-
 def resolve(
     hmap: HeatingMap, pages: dict[int, dict[str, str]], weekday: int | None = None
 ) -> Resolved:
@@ -80,7 +73,7 @@ def resolve(
     res = Resolved(mapped=set(hmap.keys))
     for key, spec in hmap.keys.items():
         res.values[key] = _value(spec, pages, idx)
-        res.codes[_PAYLOAD_FIELD.get(key, key)] = spec.var
+        res.codes[key] = spec.var
     for fault in hmap.faults:
         active = _value(fault.var, pages, idx)
         res.faults.append((fault.key, fault.label, active if isinstance(active, bool) else None))
@@ -393,8 +386,8 @@ def build_payload(
             "power_w": None if power_w is None else round(power_w),
             "condenser_out": _r(v("heat_pump.condenser_out")),
             "return_temp": _r(v("heat_pump.return_temp")),
-            "collector_in": _r(v("heat_pump.brine_in")),
-            "collector_out": _r(v("heat_pump.brine_out")),
+            "collector_in": _r(v("heat_pump.collector_in")),
+            "collector_out": _r(v("heat_pump.collector_out")),
             "primary_prerun": v("heat_pump.primary_prerun"),
             "discharge_temp": _r(v("heat_pump.discharge_temp")),
             "discharge_bar": _r(v("heat_pump.discharge_bar")),
