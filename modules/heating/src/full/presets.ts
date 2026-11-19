@@ -10,22 +10,30 @@ export interface Preset {
   id: string;
   label: string;
   box: Rect;
+  /**
+   * Right edge of the clip when it differs from the box (framing unchanged): the tank presets end
+   * the right-hand pipe stubs at their fittings instead of letting a sliver run into the frame edge.
+   */
+  clipRight?: number;
 }
 export interface PresetGroup extends Preset {
   fine: Preset[];
 }
 
 const r = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
+/** Outer edge of the fittings on the right tank wall (x 2124 + half the 10-unit fitting). */
+export const TANK_FITTING_EDGE = 2130;
 
 export const PRESET_GROUPS: PresetGroup[] = [
   {
     id: 'tech',
     label: 'Technika',
     box: r(700, 329, 1434, 640),
+    clipRight: TANK_FITTING_EDGE,
     fine: [
       { id: 'valves', label: 'Ventily', box: r(980, 352, 360, 423) },
       { id: 'hp', label: 'TČ', box: r(1172, 530, 530, 415) },
-      { id: 'tank', label: 'Nádrž', box: r(1706, 352, 428, 590) },
+      { id: 'tank', label: 'Nádrž', box: r(1706, 352, 428, 590), clipRight: TANK_FITTING_EDGE },
     ],
   },
   {

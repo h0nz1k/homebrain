@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { buildMockSnapshot, withMixerFault } from '../mock.js';
 import { FullSchematic } from './FullSchematic.js';
+import { fullState } from './fullState.js';
+import { focusFacts } from './Legend.js';
 
 afterEach(cleanup);
 const NOW = Date.parse('2026-01-12T10:00:00Z');
@@ -76,13 +78,27 @@ describe('FullSchematic (live data)', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
     const card = screen.getByTestId('heating-full-pool-card');
     expect(card.textContent).toContain('Bazén');
-    expect(card.textContent).toMatch(/Zpátečka ohřevu27,9\u00a0°C/u);
+    // the return value is named in full and tied to the return pipe by a sensor dot + leader
+    const ret = card.querySelector('[data-pool-row="Zpátečka ohřevu bazénu"]')!;
+    expect(ret.getAttribute('data-pipe')).toBe('bottom_to_tank');
+    expect(ret.textContent).toBe('Zpátečka ohřevu bazénu27,9\u00a0°C');
+    expect(ret.querySelector('[data-leader="pool_return"]')).not.toBeNull();
+    expect(ret.querySelector('[data-sensor-for="pool_return"] .fs-sensor')).not.toBeNull();
     // the return is not the water temperature: the basin water has no sensor (neutral style)
     const water = card.querySelector('[data-pool-row="Voda v bazénu"] tspan')!;
     expect(water.textContent).toBe('neměřeno');
     expect(water.getAttribute('class')).toBe('fs-nodata-card');
     expect(card.textContent).toContain('Ohřev dnastojí');
     expect(card.textContent).toContain('Filtracestojí');
+  });
+
+  it('summary panel: same pool rows and labels as the card, unmeasured water muted', () => {
+    const st = fullState(buildMockSnapshot('heating', 0, NOW));
+    const facts = focusFacts('basin', st);
+    expect(facts[0]).toEqual(['Zpátečka ohřevu bazénu', '27,9\u00a0°C']);
+    expect(facts[1]).toEqual(['Voda v bazénu', 'neměřeno', true]);
+    expect(focusFacts('hp', st).map(([k]) => k)).toContain('Výstup TČ');
+    expect(focusFacts('hp', st).map(([k]) => k)).not.toContain('Výstup do topení');
   });
 
   it('tank says just AKN; zone titles are plates', () => {
@@ -154,6 +170,10 @@ describe('FullSchematic (live data)', () => {
     const text = (k: string) => document.querySelector(`[data-label="${k}"]`)?.textContent;
     expect(text('stub_tank_ut_out')).toBe('do topení');
     expect(text('stub_tank_ut_in')).toBe('z topení');
-    expect(text('stub_tank_pool')).toBe('bazén');
+    expect(text('stub_tank_pool_out')).toBe('do bazénu');
+    expect(text('stub_tank_pool_in')).toBe('z bazénu');
+    expect(text('stub_tank_solar_in')).toBe('ze soláru');
+    expect(text('stub_tank_solar_out')).toBe('do soláru');
+    expect(text('stub_valve_dhw_a')).toBe('do horní části (TUV)');
   });
 });

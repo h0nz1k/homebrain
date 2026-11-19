@@ -101,7 +101,7 @@ for (const theme of ['dark', 'light'] as const) {
     await expect(sheet.getByTestId('heating-full-cool-state')).toHaveText('bez signálu');
     // heat pump: compressor running, readouts outside the cabinet
     await expect(sheet.getByTestId('heating-full-hp')).toHaveAttribute('data-compressor', 'on');
-    await expect(sheet.locator('[data-label="hp_t_out"]')).toContainText('Výstup do topení');
+    await expect(sheet.locator('[data-label="hp_t_out"]')).toContainText('Výstup TČ');
     await expect(sheet.locator('[data-label="hp_coll_in"] [data-reading="none"]')).toHaveText(/–/u);
     // rybárna: valve to heating open = tempering active
     await expect(sheet.getByTestId('heating-full-fish-state')).toHaveText('topí');

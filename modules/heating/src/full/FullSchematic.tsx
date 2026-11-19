@@ -1102,31 +1102,36 @@ function FishState({ st }: { st: FullState }) {
   );
 }
 
-/** Pool card inside the basin: return temperature, unmeasured water, floor heating, filtration. */
+/**
+ * Pool card inside the basin: unmeasured water, floor heating, filtration and – at the bottom, tied
+ * to the pipe by a sensor dot and a short leader – the return of the floor heating (the only pool
+ * temperature; it must not read as the water temperature).
+ */
 function PoolCard({ st }: { st: FullState }) {
   const [px, py, pw] = G.glyphs.pool as [number, number, number];
   const x = px + 14;
   const w = pw - 28;
   const y = py + 30;
   const p = st.pool;
-  // The only pool temperature is the floor-heating return; the basin water has no sensor, so the
-  // card says so instead of letting the return read as water temperature.
-  const rows: Array<[string, string | null, Tri | 'temp' | 'unmeasured']> = [
-    ['Zpátečka ohřevu', p?.temp ?? null, 'temp'],
+  const rows: Array<[string, string | null, Tri | 'unmeasured']> = [
     ['Voda v bazénu', p ? 'neměřeno' : null, 'unmeasured'],
     ['Ohřev dna', p ? RUN[String(p.heating)]! : null, p?.heating ?? null],
     ['Filtrace', p ? RUN[String(p.filter)]! : null, p?.filter ?? null],
   ];
+  // The return row takes two lines (full name, then the value above the leader).
+  const ret = y + 46 + rows.length * 22;
+  const h = 38 + (rows.length + 2) * 22;
+  // The return pipe starts at floor_pool.out and runs left through the basin wall: the dot sits on
+  // it between the wall sleeve and the meander.
+  const [rx, ry] = (G.pipes.find((q) => q.id === 'bottom_to_tank')?.d ?? '')
+    .slice(1)
+    .split(/[ L]/u)
+    .map(Number) as [number, number];
+  const dot: [number, number] = [rx - 3, ry];
+  const lead: [number, number] = [x + 20, y + h];
   return (
     <g data-testid="heating-full-pool-card" data-label-group="pool">
-      <rect
-        x={x}
-        y={y}
-        width={w}
-        height={38 + rows.length * 22}
-        rx="8"
-        className="fs-card fs-card-edge"
-      />
+      <rect x={x} y={y} width={w} height={h} rx="8" className="fs-card fs-card-edge" />
       <text x={x + 12} y={y + 22} fontSize="15" className="fs-t fs-t-w" data-label="pool">
         Bazén
       </text>
@@ -1146,12 +1151,34 @@ function PoolCard({ st }: { st: FullState }) {
             className={
               value && value !== '–' && kind !== 'unmeasured' ? 'fs-val-card' : 'fs-nodata-card'
             }
-            data-state={kind === 'temp' || kind === 'unmeasured' ? undefined : String(kind)}
+            data-state={kind === 'unmeasured' ? undefined : String(kind)}
           >
             {value ?? '–'}
           </tspan>
         </text>
       ))}
+      <g data-pool-row="Zpátečka ohřevu bazénu" data-pipe="bottom_to_tank">
+        <text x={x + 12} y={ret} fontSize="15" className="fs-t fs-tank-detail">
+          Zpátečka ohřevu bazénu
+        </text>
+        <text
+          x={x + 12}
+          y={ret + 22}
+          fontSize="15"
+          className={`fs-t fs-tank-detail ${p?.temp ? 'fs-val-card' : 'fs-nodata-card'}`}
+          data-reading={p?.temp ? '' : 'none'}
+        >
+          {p?.temp ?? '–'}
+        </text>
+        <path
+          d={`M${lead[0]} ${lead[1]}L${dot[0] + 4} ${dot[1] - 5}`}
+          className="fs-leader"
+          data-leader="pool_return"
+        />
+        <g transform={`translate(${dot[0]} ${dot[1]}) scale(0.7)`} data-sensor-for="pool_return">
+          <Sensor c={[0, 0]} />
+        </g>
+      </g>
     </g>
   );
 }

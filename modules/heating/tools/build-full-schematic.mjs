@@ -271,8 +271,11 @@ const ZONE_PLATES = {
   lawn_caption: [40, 942],
   garden_caption: [2380, 942],
 };
-/** r2 wording: tank = AKN only (the legend explains it once). */
-const LINES = { tank: ['AKN'], pool_temp: ['Zpátečka bazénu'] };
+/**
+ * r2 wording: tank = AKN only (the legend explains it once). r2fix2: the heat-pump outlet is the
+ * TČ's own output – where it goes is shown by the TUV / nádrž changeover, not by this label.
+ */
+const LINES = { tank: ['AKN'], pool_temp: ['Zpátečka bazénu'], hp_t_out: ['Výstup TČ'] };
 const BASE_LH = L.lh;
 const labels = {};
 for (const [key, l] of Object.entries(L.labels)) {
@@ -334,16 +337,27 @@ for (const [key, l] of Object.entries(L.labels)) {
  * Short words, no arrows (the chevrons carry the direction). The solar pair is named by the coil
  * card it feeds, TUV / SV by their terminals, the four charge legs by the changeover and the
  * charging pump next to them. [text, x, top, anchor, port(s), card]
+ * r2fix2: the four right-hand stubs (pool, solar coil) leave the tank where both presets end, so
+ * each gets its own tag at the tank wall (the frame edge): the solar legs end in their tag, which
+ * covers the fitting; the pool tags sit just under their fitting (the coil card and the heater
+ * card fill the tank beside the fittings). Port A of the TUV / nádrž changeover is named with the
+ * model's wording for valve_dhw.to_tuv / tank.tuv_in ("do horní části nádrže (TUV)").
  */
+// right edge of a wall tag (card = box + 4) = outer edge of the fittings = clip of both presets
+const WALL_TAG = 2126;
 const STUB_LABELS = {
   stub_tank_ut_out: ['do topení', 1950, 441, 'end', 'tank.ut_out', false],
   stub_tank_ut_in: ['z topení', 1925, 492, 'end', 'tank.ut_in', false],
-  // inside the tank between the two pool ports, clear of the coil card and the heater rod
-  stub_tank_pool: ['bazén', 2112, 722, 'end', 'tank.pool_in tank.pool_out', true],
+  stub_tank_solar_in: ['ze soláru', WALL_TAG, 623, 'end', 'tank.solar_in', true],
+  stub_tank_solar_out: ['do soláru', WALL_TAG, 656, 'end', 'tank.solar_out', true],
+  stub_tank_pool_in: ['z bazénu', WALL_TAG - 8, 722, 'end', 'tank.pool_in', true],
+  stub_tank_pool_out: ['do bazénu', WALL_TAG - 8, 798, 'end', 'tank.pool_out', true],
+  stub_valve_dhw_a: ['do horní části (TUV)', 1928, 545, 'end', 'valve_dhw.to_tuv', false],
 };
 for (const [key, [text, x, top, anchor, port, card]] of Object.entries(STUB_LABELS)) {
   const font = 15;
-  const w = r1(text.length * font * 0.56);
+  // card tags hug their text (measured ≈ 0.53 em per glyph for these short words)
+  const w = r1(text.length * font * (card ? 0.53 : 0.56));
   const box = [anchor === 'end' ? x - w : x, top, w, 18];
   labels[key] = {
     x,

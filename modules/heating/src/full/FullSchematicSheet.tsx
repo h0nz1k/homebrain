@@ -330,7 +330,7 @@ function Viewer({
   const frameBottom = active ? view.ty + (active.box.y + active.box.h) * view.scale : 0;
   // Preset frame: the drawing is clipped to the preset box (drawing units, before scaling).
   const clip = active
-    ? `inset(${active.box.y}px ${FULL_CANVAS.w - active.box.x - active.box.w}px ${
+    ? `inset(${active.box.y}px ${FULL_CANVAS.w - (active.clipRight ?? active.box.x + active.box.w)}px ${
         FULL_CANVAS.h - active.box.y - active.box.h
       }px ${active.box.x}px)`
     : undefined;
@@ -474,10 +474,10 @@ function Viewer({
           style={{ top: size.top + frameBottom + 12 }}
           data-testid="heating-full-facts"
         >
-          {focusFacts(active.id, st).map(([k, v]) => (
-            <div key={k}>
+          {focusFacts(active.id, st).map(([k, v, muted]) => (
+            <div key={k} data-fact={k}>
               <dt>{k}</dt>
-              <dd className={v ? undefined : 'fs-lg-nodata'}>{v ?? '–'}</dd>
+              <dd className={v && !muted ? undefined : 'fs-lg-nodata'}>{v ?? '–'}</dd>
             </div>
           ))}
         </dl>

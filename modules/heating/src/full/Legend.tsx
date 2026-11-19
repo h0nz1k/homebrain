@@ -122,12 +122,17 @@ const HP: Record<string, string> = {
 
 const VALVE: Record<string, string> = { A: 'na TUV (A)', B: 'na nádrž (B)', unknown: '–' };
 
+/** A fact row: label, value (null = no data) and whether the value is a muted "no data" text. */
+export type Fact = [string, string | null, boolean?];
+
 /** The live values that belong to a focus preset (phone: listed under the framed drawing). */
-export function focusFacts(id: string, st: FullState): Array<[string, string | null]> {
+export function focusFacts(id: string, st: FullState): Fact[] {
   const r = st.readings;
   const pump = (k: string) => RUN(st.pumps[k] ?? null);
-  const pool: Array<[string, string | null]> = [
+  // Same rows as the pool card: the return of the floor heating is the only pool temperature.
+  const pool: Fact[] = [
     ['Zpátečka ohřevu bazénu', st.pool?.temp ?? null],
+    ['Voda v bazénu', st.pool ? 'neměřeno' : null, true],
     ['Ohřev dna (čerpadlo)', st.pool ? RUN(st.pool.heating) : null],
     ['Filtrace (čerpadlo)', st.pool ? RUN(st.pool.filter) : null],
   ];
@@ -149,7 +154,7 @@ export function focusFacts(id: string, st: FullState): Array<[string, string | n
     case 'hp':
       return [
         ['Kompresor', st.compressor === 'on' ? 'běží' : st.compressor === 'off' ? 'stojí' : null],
-        ['Výstup do topení', r.hp_t_out ?? null],
+        ['Výstup TČ', r.hp_t_out ?? null],
         ['Zpátečka do TČ', r.hp_t_in ?? null],
         [
           'Z kolektoru / do kolektoru',

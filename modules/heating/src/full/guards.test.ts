@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FULL_GEOMETRY as G } from './geometry.gen.js';
+import { TANK_FITTING_EDGE, presetById } from './presets.js';
 import { FS_PALETTE } from './styles.js';
 
 const MODULE = join(import.meta.dirname, '../..');
@@ -75,7 +76,8 @@ describe('owner rules', () => {
       expect(inside, k).toBe(false);
       expect(G.labels[k]!.pipeSensor, k).toBeDefined();
     }
-    expect(G.labels.hp_t_out!.lines[0]).toBe('Výstup do topení');
+    // the outlet of the TČ, not a route: the changeover shows where it goes
+    expect(G.labels.hp_t_out!.lines[0]).toBe('Výstup TČ');
     expect(G.labels.hp_t_in!.lines[0]).toBe('Zpátečka do TČ');
     expect(G.labels.hp_coll_in!.lines[0]).toBe('Z kolektoru');
     expect(G.labels.hp_coll_out!.lines[0]).toBe('Do kolektoru');
@@ -217,7 +219,7 @@ describe('flow direction', () => {
     }
     // the r2 drawing carries the direction in chevrons only; stub labels are plain words
     const stubs = Object.entries(G.labels).filter(([, l]) => l.stub);
-    expect(stubs.length).toBe(3);
+    expect(stubs.length).toBe(7);
     for (const [k, l] of stubs) expect(/[←→↑↓]/u.test(l.lines.join('')), k).toBe(false);
   });
 
@@ -231,8 +233,6 @@ describe('flow direction', () => {
       'tank.akn_in': 'valve_dhw',
       'tank.ret_mid_out': 'pump_sek',
       'tank.ret_bottom_out': 'pump_sek',
-      'tank.solar_in': 'tank_solar_coil',
-      'tank.solar_out': 'tank_solar_coil',
       'tank.dhw_out': 'tap',
       'tank.cold_in': 'cold',
     };
@@ -242,5 +242,38 @@ describe('flow direction', () => {
       const ok = named.has(port) || (byNeighbour[port] && G.labels[byNeighbour[port]!]);
       expect(ok, port).toBeTruthy();
     }
+    // r2fix2: each right-hand stub (cut by the frame edge) has its own tag, one port per tag
+    for (const port of ['tank.solar_in', 'tank.solar_out', 'tank.pool_in', 'tank.pool_out']) {
+      const tags = Object.values(G.labels).filter((l) => l.stub === port);
+      expect(tags, port).toHaveLength(1);
+    }
+  });
+
+  it('right-hand stub tags end at the frame edge of Technika / Nádrž, port A of TUV / nádrž named', () => {
+    for (const id of ['tech', 'tank']) {
+      const p = presetById(id)!;
+      const b = p.box;
+      // the clip ends the stubs at the outer edge of the fittings
+      expect(p.clipRight).toBe(TANK_FITTING_EDGE);
+      for (const f of G.fittings.filter((q) => q.port.startsWith('tank.') && q.x > 2100)) {
+        expect(f.x + 5, f.port).toBeLessThanOrEqual(TANK_FITTING_EDGE);
+      }
+      for (const k of ['solar_in', 'solar_out', 'pool_in', 'pool_out']) {
+        const [x, y, w, h] = G.labels[`stub_tank_${k}`]!.box as [number, number, number, number];
+        // fully inside the clip (the card adds 4 units on each side)
+        expect(
+          x - 4 >= b.x && x + w + 4 <= TANK_FITTING_EDGE && y >= b.y && y + h <= b.y + b.h,
+          k,
+        ).toBe(true);
+      }
+    }
+    // the solar legs end in their tag: it covers the fitting where the leg leaves the tank
+    for (const k of ['solar_in', 'solar_out'] as const) {
+      const f = G.fittings.find((q) => q.port === `tank.${k}`)!;
+      const [x, y, w, h] = G.labels[`stub_tank_${k}`]!.box as [number, number, number, number];
+      expect(x < f.x && f.x < x + w + 4 && y <= f.y && f.y <= y + h, k).toBe(true);
+    }
+    expect(G.labels.stub_valve_dhw_a!.lines).toEqual(['do horní části (TUV)']);
+    expect(G.labels.stub_valve_dhw_a!.stub).toBe('valve_dhw.to_tuv');
   });
 });

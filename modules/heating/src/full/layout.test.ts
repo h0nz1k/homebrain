@@ -42,7 +42,7 @@ function textBoxes(): Array<[string, Box]> {
   const f = G.labels.chip_fish!;
   out.push(['fish_state', [f.x, f.y + 8, W('netopí – teplo stačí'), 18]]);
   const [px, py, pw] = G.glyphs.pool as Box;
-  out.push(['pool_card', [px + 14, py + 30, pw - 28, 126]]);
+  out.push(['pool_card', [px + 14, py + 30, pw - 28, 148]]);
   for (const b of G.badges) out.push([`badge_${b.of}`, [b.x - b.r, b.y - b.r, 2 * b.r, 2 * b.r]]);
   return out;
 }
