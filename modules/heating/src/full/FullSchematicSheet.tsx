@@ -249,7 +249,12 @@ function Viewer({
         it.y >= next.y - 0.5 &&
         it.x + it.w <= next.x + next.w + 0.5 &&
         it.y + it.h <= next.y + next.h + 0.5;
-      if (touches && !whole) (el.closest('.fs-pill-g') ?? el).setAttribute('data-cut', '');
+      // a name + value label goes as a whole (never a name without its value or vice versa)
+      if (touches && !whole)
+        (el.closest('[data-value-label]') ?? el.closest('.fs-pill-g') ?? el).setAttribute(
+          'data-cut',
+          '',
+        );
     });
     setFrame({ ...frame, frame: next, snapped: true });
     setView((v) => frameView(size.w, next, v.scale, padFor(size.w)));

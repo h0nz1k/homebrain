@@ -266,14 +266,16 @@ export function endLabels(
     else groups.push([e]);
   }
   // equal names in one view: tell them apart by the flow direction (towards the far end or back)
+  // (per edge: on different edges the arrows already make the texts differ)
+  const key = (g: typeof raw) => `${g[0]!.edge}|${g[0]!.name}`;
   const count = new Map<string, number>();
-  for (const g of groups) count.set(g[0]!.name, (count.get(g[0]!.name) ?? 0) + 1);
+  for (const g of groups) count.set(key(g), (count.get(key(g)) ?? 0) + 1);
   const nameOfGroup = (g: typeof raw) => {
     const n = g[0]!.name;
-    if ((count.get(n) ?? 0) < 2) return n;
+    if ((count.get(key(g)) ?? 0) < 2) return n;
     // a supply/return pair: told apart from another pair of the same name by its circuit
     if (g.length > 1) {
-      const pairs = groups.filter((o) => o.length > 1 && o[0]!.name === n).length;
+      const pairs = groups.filter((o) => o.length > 1 && key(o) === key(g)).length;
       return pairs > 1 && CIRCUIT[g[0]!.colour] ? `${n} · ${CIRCUIT[g[0]!.colour]}` : n;
     }
     return `${n} (${g[0]!.outer === 'to' ? 'přívod' : 'zpátečka'})`;
@@ -319,6 +321,8 @@ export function endLabels(
         let best: string[] | null = null;
         for (let i = 2; i < words.length; i++) {
           const ls = [words.slice(0, i).join(' '), words.slice(i).join(' ')];
+          // an arrow never stands alone on its line
+          if (ls.some((l) => !/\p{L}/u.test(l))) continue;
           if (!best || width(ls) < width(best)) best = ls;
         }
         if (best) out.push(best);

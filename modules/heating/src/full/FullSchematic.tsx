@@ -985,7 +985,7 @@ export function FullSchematic({
           <g data-label-group="hp">
             <text
               x={hx + hw / 2}
-              y={hy - 34}
+              y={hy - 50}
               fontSize="15"
               textAnchor="middle"
               className="fs-t fs-t-T"
@@ -998,7 +998,7 @@ export function FullSchematic({
             <g data-testid="heating-full-hp-state" data-state={st.compressor}>
               <StatusChip
                 x={hx + hw / 2}
-                cy={hy - 15}
+                cy={hy - 26}
                 anchor="middle"
                 on={st.compressor === 'unknown' ? null : st.compressor === 'on'}
                 k="hp_state"
@@ -1438,7 +1438,7 @@ export const END_AVOID: Box4[] = (() => {
   for (const [k, r] of Object.entries(TANK_ROWS))
     out.push([tx + tw, r.cy - 14, k === 'tank_dhw' || r.sensor ? 196 : 170, 28]);
   const [hx, hy, hw] = G.glyphs.hp as Box4;
-  out.push([hx - 20, hy - 46, hw + 40, 46]);
+  out.push([hx - 20, hy - 64, hw + 40, 64]);
   const [mx, my] = G.glyphs.valveMix.c as [number, number];
   out.push([mx + 30, my + 10, 200, 50]);
   const [cx, cy] = G.glyphs.valves.valve_cool!.c as [number, number];
