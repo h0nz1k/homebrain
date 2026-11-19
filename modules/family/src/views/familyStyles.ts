@@ -601,7 +601,7 @@ export const familyStyles = `
 .fam-upcoming-lead { flex: 0 0 44px; width: 44px; display: grid; place-items: center; color: var(--hb-t2); }
 .fam[data-kiosk] .fam-upcoming-lead { flex-basis: 48px; width: 48px; }
 .fam-upcoming-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.fam-upcoming-name { font-size: var(--hb-type-body); font-weight: 600; color: var(--hb-t1); }
+.fam-upcoming-name { font-size: var(--hb-type-body); font-weight: 600; color: var(--hb-t1); text-wrap: pretty; }
 .fam-upcoming-meta { font-size: var(--hb-type-caption); color: var(--hb-t2); font-variant-numeric: tabular-nums; }
 .fam-upcoming-meta .fam-upcoming-when, .fam-upcoming-meta .fam-upcoming-time { font-size: inherit; color: inherit; white-space: nowrap; text-align: left; }
 .fam-upcoming-row > .fam-upcoming-pts { align-self: center; }

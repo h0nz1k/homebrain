@@ -180,9 +180,9 @@ export function pointsWord(points: number): string {
 }
 
 export function pendingHandoverLabel(name?: string): string {
-  if (!name) return 'Předání čeká na schválení';
+  if (!name) return 'Předání čeká na\u00a0schválení';
   const recipient = nameDative(name);
   return recipient
-    ? `Předání ${recipient} čeká na schválení`
-    : `Předání pro ${nameGenitive(name) ?? name} čeká na schválení`;
+    ? `Předání ${recipient} čeká na\u00a0schválení`
+    : `Předání pro ${nameGenitive(name) ?? name} čeká na\u00a0schválení`;
 }

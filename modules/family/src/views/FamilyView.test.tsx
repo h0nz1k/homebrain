@@ -108,7 +108,7 @@ describe('FamilyView', () => {
     expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
     const label = (kind: string) =>
       pills.find((p) => p.dataset.pending === kind)!.textContent?.trim();
-    expect(label('swap')).toBe('Předání Kubovi čeká na schválení');
+    expect(label('swap')).toBe('Předání Kubovi čeká na\u00a0schválení');
     expect(label('completion')).toBe('Čeká na schválení');
     expect(screen.getAllByTestId('family-done-summary')[0]!.textContent).toContain('Hotovo: 2');
     expect(screen.queryByTestId('family-approvals')).toBeNull();
