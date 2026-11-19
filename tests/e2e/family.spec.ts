@@ -1056,15 +1056,16 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
       }
       await expect(rows.nth(1)).toHaveAttribute('data-variant', 'danger');
       await expect(rows.nth(2)).toHaveAttribute('data-variant', 'danger');
+      await expect(menu.locator('li').nth(1)).toHaveCSS('border-top-width', '1px');
       await expect(creationToast).toHaveCount(0);
       await capture(page, info.project.name, 'skip-today-menu', theme);
       await menu.getByRole('button', { name: 'Smazat jen dnes' }).click();
       const toast = page.getByTestId('hb-toast').filter({ hasText: 'Dnešní termín smazán' });
       await expect(toast).toBeVisible();
       await expect(today).toHaveCount(0);
-      await expect(
-        page.getByTestId('family-upcoming-chore').filter({ hasText: 'Utřít stůl' }),
-      ).toBeVisible();
+      const upcoming = page.getByTestId('family-upcoming-chore').filter({ hasText: 'Utřít stůl' });
+      await expect(upcoming).toBeVisible();
+      await upcoming.evaluate((row) => row.scrollIntoView({ block: 'center' }));
       await capture(page, info.project.name, 'skip-today-undo', theme);
       await toast.getByRole('button', { name: 'Zpět' }).click();
       await expect(today).toBeVisible();
@@ -1073,6 +1074,7 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
     test(`potvrzení řady umožní smazat libovolný čas i všechny časy (${theme})`, async ({
       page,
     }, info) => {
+      test.slow();
       await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
       await open(page, `?theme=${theme}`);
       const createSeries = async (name: string) => {
