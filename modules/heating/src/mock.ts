@@ -186,7 +186,10 @@ const MOCK_SERVICE_CODES: Record<string, string> = {
   'extras.fish_valve_open': 'Y52.3',
 };
 
-/** Dev/e2e (`&ventil=porucha`): the house mixing valve reports a fault and stands emergency-open. */
+/**
+ * Dev/e2e fault fixture only (`&ventil=porucha`): a mixing-valve fault lamp mapped under the
+ * explicit key. The real regulation has no such lamp today; the default mock has no faults.
+ */
 export function withMixerFault(snap: HeatingSnapshot, now = Date.now()): HeatingSnapshot {
   return {
     ...snap,
@@ -195,8 +198,8 @@ export function withMixerFault(snap: HeatingSnapshot, now = Date.now()): Heating
       active: [
         ...snap.faults.active,
         {
-          key: 'f_mixing_valve',
-          label: 'Směšovací ventil ÚT – porucha, nouzově otevřen',
+          key: 'mixing_valve',
+          label: 'Směšovací ventil ÚT – porucha',
           since: new Date(now - 2 * HOUR).toISOString(),
         },
       ],
@@ -251,7 +254,8 @@ export function buildMockSnapshot(
       attic_temp: 19.6,
       circuit_on: scenario === 'house',
       supply_temp: 37.8,
-      mixing_valve_pct: scenario === 'house' ? 72 : 100,
+      // live regulation: the valve position is not mapped (null); the house scenario shows a value
+      mixing_valve_pct: scenario === 'house' ? 72 : null,
     },
     heat_pump: {
       compressor_on: running,
