@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
-import { usePeople, type ModuleViewProps } from '@homebrain/ha-client';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { hostWindow, usePeople, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
   Card,
@@ -973,17 +973,35 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const phone = usePhone();
   const notify = useToast();
 
-  // A just-created chore: scroll its row into view once the refreshed snapshot has it,
-  // keep the highlight for a few seconds.
+  // A just-created chore: scroll its row into view once the refreshed snapshot has it (once
+  // per creation). Closing the sheet goes `history.back()`, whose popstate restores the scroll
+  // position from before the sheet opened (two frames later) – so scroll after that restore,
+  // with a timeout fallback when no popstate comes.
+  const scrolledFor = useRef<Highlight | null>(null);
+  useEffect(() => {
+    if (!highlight || scrolledFor.current === highlight) return;
+    const selector =
+      '[data-testid="family-chore"][data-highlight], [data-testid="family-upcoming-chore"][data-highlight]';
+    if (!document.querySelector(selector)) return;
+    scrolledFor.current = highlight;
+    const host = hostWindow();
+    const reveal = () => {
+      const frames = (n: number) =>
+        n
+          ? window.requestAnimationFrame(() => frames(n - 1))
+          : document.querySelector<HTMLElement>(selector)?.scrollIntoView?.({ block: 'center' });
+      frames(3);
+    };
+    // No cleanup: a later snapshot/poll must not cancel the pending reveal (it is idempotent
+    // and finds nothing once the highlight is gone).
+    host.addEventListener('popstate', reveal, { once: true });
+    window.setTimeout(reveal, 400);
+  }, [highlight, snap]);
   useEffect(() => {
     if (!highlight) return;
-    const el = document.querySelector<HTMLElement>(
-      '[data-testid="family-chore"][data-highlight], [data-testid="family-upcoming-chore"][data-highlight]',
-    );
-    el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     const t = window.setTimeout(() => setHighlight(null), 6000);
     return () => window.clearTimeout(t);
-  }, [highlight, snap]);
+  }, [highlight]);
 
   useEffect(() => {
     if (!kiosk) return;
