@@ -406,7 +406,9 @@ test.describe('Rodina', () => {
     for (const d of ['St', 'Pá', 'So'])
       await page.getByRole('button', { name: d, exact: true }).click();
     const tokens = page.getByTestId('family-summary-token');
-    await expect(tokens.filter({ hasText: /^od\u00a0\d{1,2}\.\u00a0\d{1,2}\.$/ })).toHaveCount(1);
+    await expect(
+      tokens.filter({ hasText: /^od\u00a0(dneška|zítřka|\d{1,2}\.\u00a0\d{1,2}\.)$/ }),
+    ).toHaveCount(1);
     for (let i = 0; i < (await tokens.count()); i += 1) {
       const rects = await tokens.nth(i).evaluate((el) => el.getClientRects().length);
       expect(rects).toBe(1);
@@ -418,6 +420,103 @@ test.describe('Rodina', () => {
     await expect(page.getByTestId('family-no-calendar')).toContainText('zatím není nastaven');
     await expect(page.getByTestId('family-chores')).toHaveCount(0);
   });
+});
+
+// Owner test on rc.66: a chore due tomorrow was invisible, a second save failed with a generic
+// error hidden under the sticky footer. Both must be visible without scrolling.
+test.describe('Rodina – přidání úkolu', () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`vytvoření: potvrzení a úkol je hned vidět (${theme})`, async ({ page }) => {
+      await open(page, `?theme=${theme}`);
+      await page.getByTestId('family-add-chore').first().click();
+      const sheet = page.getByTestId('family-add-chore-sheet');
+      await expect(sheet.getByTestId('family-add-chore-title-who')).toHaveText(' · Dcera');
+      await expect(sheet.getByTestId('family-add-chore-for')).toContainText('Pro:Dcera');
+      await sheet.locator('#fam-chore-name').fill('Vytřít chodbu');
+      await sheet.getByRole('radio', { name: 'Jednou' }).click();
+      const tomorrow = await page.evaluate(() =>
+        new Date(Date.now() + 86_400_000).toLocaleDateString('cs-CZ'),
+      );
+      await sheet.getByTestId('family-first-date').fill(tomorrow);
+      await expect(sheet.getByTestId('family-add-chore-when')).toHaveText('zítra do\u00a018:00');
+      await sheet.getByTestId('family-add-chore-save').click();
+      await expect(sheet).toHaveCount(0);
+      await expect(page.getByTestId('hb-toast').last()).toContainText(
+        'Úkol přidán: Dcera · zítra do\u00a018:00',
+      );
+      const row = page
+        .locator('[data-kid="dcera"] [data-testid="family-upcoming-chore"]')
+        .filter({ hasText: 'Vytřít chodbu' });
+      await expect(row).toHaveAttribute('data-highlight', 'true');
+      await expect(row).toContainText('zítra do\u00a018:00');
+      await expect(row).toBeInViewport();
+      await noSidewaysScroll(page);
+    });
+
+    test(`duplicitní název: chyba je vidět u tlačítka bez scrollu (${theme})`, async ({ page }) => {
+      await open(page, `?theme=${theme}`);
+      await page.getByTestId('family-add-chore').first().click();
+      const sheet = page.getByTestId('family-add-chore-sheet');
+      await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
+      await sheet.getByTestId('family-add-chore-save').click();
+      const alert = sheet.getByRole('alert');
+      await expect(alert).toContainText('Úkol s tímto názvem už existuje.');
+      await expect(alert).toBeInViewport({ ratio: 1 });
+      await expect(sheet.getByTestId('family-add-chore-save')).toBeInViewport({ ratio: 1 });
+      await expect(sheet.getByTestId('family-add-chore-save')).toBeEnabled();
+      await expect(sheet.getByTestId('family-add-chore-save')).toHaveText('Uložit úkol');
+      // Error sits directly above Save inside the pinned footer.
+      const a = (await alert.boundingBox())!;
+      const b = (await sheet.getByTestId('family-add-chore-save').boundingBox())!;
+      expect(a.y + a.height).toBeLessThanOrEqual(b.y);
+      await sheet.getByTestId('family-duplicate-rename').click();
+      await expect(sheet).toHaveCount(0);
+      await expect(
+        page.locator('[data-testid="family-chore"], [data-testid="family-upcoming-chore"]', {
+          hasText: 'Vyndat myčku (2)',
+        }),
+      ).toHaveCount(1);
+      await noSidewaysScroll(page);
+    });
+  }
+
+  test('víckrát denně: dva časy → dva úkoly s vlastním termínem', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('family-add-chore').first().click();
+    const sheet = page.getByTestId('family-add-chore-sheet');
+    await sheet.locator('#fam-chore-name').fill('Myčka horní koš');
+    await sheet.getByRole('radio', { name: 'Víckrát denně' }).click();
+    await expect(sheet.getByTestId('family-multi-time')).toHaveCount(2);
+    const tomorrow = await page.evaluate(() =>
+      new Date(Date.now() + 86_400_000).toLocaleDateString('cs-CZ'),
+    );
+    await sheet.getByTestId('family-first-date').fill(tomorrow);
+    await expect(sheet.getByTestId('family-chore-summary')).toContainText(
+      'každý den 2× (12:00 a 18:00) · od\u00a0zítřka',
+    );
+    await sheet.getByTestId('family-add-chore-save').click();
+    await expect(sheet).toHaveCount(0);
+    const rows = page.locator('[data-kid="dcera"] [data-testid="family-upcoming-chore"]', {
+      hasText: 'Myčka horní koš',
+    });
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('zítra do\u00a012:00');
+    await expect(rows.nth(1)).toContainText('zítra do\u00a018:00');
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`kiosk: naplánované kompaktně pod dneškem, karta se vejde (${theme})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await open(page, `?kiosk=1&theme=${theme}`);
+      const up = page.locator('[data-kid="dcera"] [data-testid="family-upcoming"]');
+      await expect(up).toHaveAttribute('data-compact', 'true');
+      await expect(up.getByTestId('family-upcoming-chore')).toHaveCount(3);
+      const card = (await page.getByTestId('family-chores').boundingBox())!;
+      expect(card.y + card.height).toBeLessThanOrEqual(800);
+    });
+  }
 });
 
 const evidenceDir = process.env.HB_FAMILY_SCREENSHOT_DIR;
@@ -445,6 +544,56 @@ test.describe('Rodina – vizuální důkaz (lokálně)', () => {
         path: join(evidenceDir!, `family-points-${size.label}.png`),
         fullPage: true,
       });
+    });
+  }
+});
+
+// Owner visual check of the add-chore fix (outside git): HB_FAMILY_CHORE_SHOTS=<dir>.
+const choreShots = process.env.HB_FAMILY_CHORE_SHOTS;
+
+test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
+  test.skip(!choreShots, 'nastav HB_FAMILY_CHORE_SHOTS');
+  for (const theme of ['dark', 'light'] as const) {
+    test(`snímky ${theme}`, async ({ page }) => {
+      const shot = (name: string, fullPage = false) =>
+        page.screenshot({ path: join(choreShots!, `${name}-${theme}.png`), fullPage });
+      await page.setViewportSize({ width: 360, height: 800 });
+      await open(page, `?theme=${theme}`);
+      await page.evaluate(() => document.fonts.ready);
+      await page
+        .locator('[data-kid="dcera"] [data-testid="family-upcoming"]')
+        .scrollIntoViewIfNeeded();
+      await shot('phone-list-upcoming');
+      await page.getByTestId('family-add-chore').first().click();
+      const sheet = page.getByTestId('family-add-chore-sheet');
+      await shot('phone-form-empty');
+      await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
+      await sheet.getByTestId('family-add-chore-save').click();
+      await expect(sheet.getByRole('alert')).toBeVisible();
+      await shot('phone-form-duplicate');
+      await sheet.locator('#fam-chore-name').fill('Myčka horní koš');
+      await sheet.getByRole('radio', { name: 'Víckrát denně' }).click();
+      await sheet.getByTestId('family-multi-time').first().scrollIntoViewIfNeeded();
+      await shot('phone-form-multi');
+      await sheet.getByTestId('family-add-chore-save').click();
+      await expect(sheet).toHaveCount(0);
+      await expect(page.getByTestId('hb-toast').last()).toBeVisible();
+      await shot('phone-created-toast');
+
+      await page.setViewportSize({ width: 800, height: 1280 });
+      await open(page, `?theme=${theme}`);
+      await shot('tablet-list', true);
+      await page.getByTestId('family-add-chore').nth(1).click();
+      await shot('tablet-form');
+
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await open(page, `?kiosk=1&theme=${theme}`);
+      await shot('kiosk');
+
+      await page.setViewportSize({ width: 360, height: 800 });
+      await open(page, `?role=child&theme=${theme}`);
+      await page.getByTestId('family-upcoming').scrollIntoViewIfNeeded();
+      await shot('phone-child');
     });
   }
 });
