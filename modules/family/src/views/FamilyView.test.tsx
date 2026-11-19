@@ -55,6 +55,25 @@ describe('FamilyView', () => {
     expect(api.log.some((e) => (e as { kind: string }).kind === 'claim')).toBe(true);
   });
 
+  it('add chore opens on plain-http LAN (no crypto.randomUUID) and saves', async () => {
+    const c = globalThis.crypto as Crypto & { randomUUID?: unknown };
+    const original = c.randomUUID;
+    Object.defineProperty(c, 'randomUUID', { value: undefined, configurable: true });
+    try {
+      const api = await mount('owner');
+      await act(async () => fireEvent.click(screen.getAllByTestId('family-add-chore')[0]!));
+      const sheet = await screen.findByTestId('family-add-chore-sheet');
+      fireEvent.change(within(sheet).getByLabelText(/Název/), { target: { value: 'Zalít kytky' } });
+      await act(async () => fireEvent.click(within(sheet).getByTestId('family-add-chore-save')));
+      const created = api.log.find((e) => (e as { kind: string }).kind === 'createChore') as
+        { input: { client_request_id: string } } | undefined;
+      expect(created).toBeTruthy();
+      expect(created!.input.client_request_id).toMatch(/^[0-9a-f-]{36}$/);
+    } finally {
+      Object.defineProperty(c, 'randomUUID', { value: original, configurable: true });
+    }
+  });
+
   it('nothing configured: neutral text, no chores/shopping cards', async () => {
     await mount('adult', 'empty');
     expect(screen.getByTestId('family-no-calendar').textContent).toContain('zatím není nastaven');

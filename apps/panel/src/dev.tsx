@@ -7,6 +7,12 @@ import {
   type NetworkScenario,
 } from '@homebrain/module-network';
 import {
+  ANOMALY_SCENARIOS,
+  createMockAnomalyApi,
+  setAnomalyApiFactory,
+  type AnomalyScenario,
+} from '@homebrain/module-anomaly';
+import {
   createMockServerApi,
   setServerApiFactory,
   type ServerScenario,
@@ -30,6 +36,7 @@ import {
   setCookingSourceFactory,
   type CookingScenario,
   setTodayAdapterFactory,
+  fixtureNow,
   setTodayHomeApiFactory,
   type HomeRole,
   stateFromUrl,
@@ -202,6 +209,20 @@ const serverApi = createMockServerApi({
   scenario: (recipesQuery.get('server') as ServerScenario | null) ?? 'ok',
 });
 setServerApiFactory(() => serverApi);
+// Hlídání domu: synthetic house. `?anomaly=ok|observations|suspicion|confirmed|learning`; the
+// detail page defaults to `confirmed`, Dnes shows the card only with an explicit `?anomaly=`.
+// One clock for the page: the mock's „now“ is the Dnes fixture clock (real time with `?live=1`).
+const anomalyParam = recipesQuery.get('anomaly') as AnomalyScenario | null;
+const anomalyNow = live ? new Date().toISOString() : fixtureNow(stateFromUrl(location.search));
+const anomalyApi =
+  anomalyParam && ANOMALY_SCENARIOS.includes(anomalyParam)
+    ? createMockAnomalyApi({ scenario: anomalyParam, now: anomalyNow })
+    : null;
+const anomalyDetailApi =
+  anomalyApi ?? createMockAnomalyApi({ scenario: 'confirmed', now: anomalyNow });
+setAnomalyApiFactory(() =>
+  location.pathname.startsWith('/homebrain-hlidani') ? anomalyDetailApi : anomalyApi,
+);
 // Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|solar|solar-nogain|…`,
 // `&rooms=0|4` (bound room sensors/TRVs; default 0 like the current backend),
 // `&extras=none` = side circuits unmapped (null payloads), `&ventil=porucha` = mixing-valve fault.
@@ -616,6 +637,8 @@ const invoiceGate = () => {
 // `?session=adult|child|kiosk|guest`: answer `homebrain/session/get` like the integration does for
 // a non-admin HA user with that role (guest = unmapped -> „Nemáte přístup“). Absent = no session.
 const DEV_VISIBLE: Record<string, string[]> = {
+  // HA admin owner (e.g. „Otevřít zařízení“ in Hlídání domu opens the HA device page).
+  owner: Object.keys(PANEL_PATHS_BY_MODULE),
   adult: [
     'kitchen',
     'energy',
@@ -640,7 +663,7 @@ const devSession =
           visible_modules: DEV_VISIBLE[devSessionRole],
           unavailable_modules: [],
           disabled_modules: [],
-          is_admin: false,
+          is_admin: devSessionRole === 'owner',
           kiosk: devSessionRole === 'kiosk',
         },
       }

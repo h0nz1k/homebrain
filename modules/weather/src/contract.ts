@@ -28,10 +28,21 @@ export interface Extreme {
   v: number;
   at: string;
 }
+/** How the comparable MSL pressure was obtained (spec §4.2, WEA-016, issue #131). */
+export interface PressureInfo {
+  msl: number | null;
+  source: 'derived' | 'relative_as_absolute' | 'station' | null;
+  absolute: number | null;
+  relative: number | null;
+  /** Station "relative" pressure equals the absolute one (no offset set) → not used. */
+  relative_ignored: boolean;
+  elevation_m: number | null;
+}
 export interface StationBlock {
   status: SourceStatus;
   updated_at: string | null;
   values: Record<string, StationValue>;
+  pressure?: PressureInfo;
   derived: {
     temp_trend_c_h: number | null;
     pressure_tendency: PressureTendency | null;
@@ -100,6 +111,13 @@ export interface BlendPoint {
   condition: Condition;
   confidence: Confidence;
   contributors: Contributor[];
+  /** PoP before station calibration (reliability binning). */
+  pop_raw?: number | null;
+  pop_calibrated?: boolean;
+  pop_ensemble?: number | null;
+  /** Precipitation has its own weights (Brier/ETS vs. station), not the temperature ones. */
+  precip_contributors?: Contributor[];
+  precip_weights?: 'prior' | 'verified';
 }
 export interface ModelPoint {
   t: string;
@@ -192,6 +210,51 @@ export interface VerificationRow {
   bias: number;
   enough: boolean;
 }
+export interface CategoricalScore {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  pod: number | null;
+  far: number | null;
+  csi: number | null;
+  ets: number | null;
+  freq_bias: number | null;
+}
+/** Precipitation verification of one source and lead bucket vs. the station gauge. */
+export interface PrecipVerificationRow {
+  source: string;
+  /** '0-24' | '24-48' | '48-72' | '72+' (h). */
+  lead: string;
+  n: number;
+  n_wet: number;
+  /** Distinct verified hours / wet hours (≥ 0,2 mm) / local days (several issues share one hour). */
+  hours?: number;
+  wet_hours?: number;
+  days?: number;
+  /** Blend only: scored on its own archived forecasts, never on pairs its weights came from. */
+  out_of_sample?: boolean;
+  enough: boolean;
+  bias_mm: number | null;
+  amount_ratio: number | null;
+  probabilistic: boolean;
+  brier: number | null;
+  bss: number | null;
+  base_rate: number | null;
+  /** Keys '0.2' and '1' (mm/h). */
+  hourly: Record<string, CategoricalScore>;
+  n_days: number;
+  /** Keys '1' and '5' (mm/day). */
+  daily: Record<string, CategoricalScore>;
+}
+export interface VerificationInfo {
+  status: 'pending' | 'ok' | 'unbound' | 'failed';
+  last: string | null;
+  at?: string;
+  pairs?: number;
+  pop_calibrated: boolean;
+  ensemble: boolean;
+}
 export interface SourceMeta {
   id: string;
   label: string;
@@ -213,7 +276,13 @@ export interface Attribution {
 export interface WeatherSnapshot {
   schema_version: 1;
   generated_at: string;
-  location: { elevation_m: number | null; region: string | null; area?: HomeArea | null };
+  location: {
+    elevation_m: number | null;
+    /** 'ha' = HA core config, 'option' = options.weather.elevation_m (HA had 0). */
+    elevation_source?: 'ha' | 'option' | null;
+    region: string | null;
+    area?: HomeArea | null;
+  };
   station: StationBlock;
   current: CurrentConditions;
   nowcast: Nowcast;
@@ -224,6 +293,8 @@ export interface WeatherSnapshot {
   warnings: WeatherWarning[];
   radar?: RadarBlock;
   verification: VerificationRow[];
+  verification_precip?: PrecipVerificationRow[];
+  verification_info?: VerificationInfo;
   sources: SourceMeta[];
   attribution: Attribution[];
 }
@@ -240,4 +311,54 @@ export function isWeatherSnapshot(value: unknown): value is WeatherSnapshot {
     typeof v.station === 'object' &&
     typeof v.current === 'object'
   );
+}
+
+/** One local day of `homebrain/weather/history` (HA long-term statistics of the station). */
+export interface HistoryDay {
+  date: string;
+  /** Today: only the hours compiled so far. */
+  partial: boolean;
+  t_min: number | null;
+  t_max: number | null;
+  t_mean: number | null;
+  rain: number | null;
+  rain_rate_max: number | null;
+  gust_max: number | null;
+  rh_mean: number | null;
+  msl_mean: number | null;
+  solar_kwh_m2: number | null;
+  hours: Record<string, number>;
+  expected_hours: number;
+  /** Bound variables with fewer hours than the day had: shown as gaps, never filled in. */
+  gaps: string[];
+}
+export interface HistoryHour {
+  t: string;
+  t2m: number | null;
+  t_min: number | null;
+  t_max: number | null;
+  rh: number | null;
+  msl: number | null;
+  gust: number | null;
+  rain: number | null;
+  rain_rate: number | null;
+  solar_wh_m2: number | null;
+}
+export interface WeatherHistory {
+  status: 'ok' | 'unconfigured' | 'unsupported';
+  period: 'day' | 'hour';
+  first: string;
+  last: string;
+  generated_at: string;
+  elevation_m: number | null;
+  elevation_source: 'ha' | 'option' | null;
+  vars: string[];
+  days: HistoryDay[];
+  hours: HistoryHour[];
+}
+
+export function isWeatherHistory(value: unknown): value is WeatherHistory {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Partial<WeatherHistory>;
+  return typeof v.status === 'string' && Array.isArray(v.days) && Array.isArray(v.hours);
 }

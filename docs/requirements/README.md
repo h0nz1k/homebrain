@@ -17,6 +17,7 @@
 | `HEA` | Zdraví | [health.md](./health.md) |
 | `WIN` | Vinotéka | [wine.md](./wine.md) |
 | `FAM` | Rodina | [family.md](./family.md) |
+| `ANW` | Hlídání domu (#128, fáze 1) | [anomaly-watch.md](./anomaly-watch.md) |
 | `X` | Průřezové | tento README |
 
 Každý požadavek (`XXX-NNN`) musí obsahovat: **Popis**, **Zdroj** (repo@SHA, PR diff, `HA revize 2026-10-31`, nebo `ADR-0001 §…`), **Priorita** (`MVP` | `later`; podmíněné požadavky se počítají jako `later`; vyřazené (zamítnuté vlastníkem) se nepočítají), **Akceptace** (měřitelné nebo Given/When/Then).
@@ -34,6 +35,7 @@ Logické klíče v tabulkách nejsou `entity_id`. Vazba klíč → entita se nas
 | Zdraví | [health.md](./health.md) | HEA | 11 | 4 | 15 |
 | Vinotéka | [wine.md](./wine.md) | WIN | 12 | 3 | 15 |
 | Rodina | [family.md](./family.md) | FAM | 10 | 4 | 14 |
+| Hlídání domu | [anomaly-watch.md](./anomaly-watch.md) | ANW | 11 | 1 | 12 |
 
 ## Zdroje (harvest)
 

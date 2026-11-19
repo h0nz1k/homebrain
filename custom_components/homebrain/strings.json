@@ -352,7 +352,8 @@
         "server": "Server",
         "heating": "Topení",
         "kitchen": "Kitchen",
-        "communication": "Communication hub"
+        "communication": "Communication hub",
+        "anomaly": "House watch"
       }
     },
     "meals_display": {

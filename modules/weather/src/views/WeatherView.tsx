@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import type { CSSProperties, PointerEvent as RPointerEvent, ReactNode } from 'react';
+import type { CSSProperties, PointerEvent as RPointerEvent } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
 import { ErrorState, Pill, Skeleton } from '@homebrain/ui';
 import type { Tone } from '@homebrain/ui';
@@ -8,13 +8,29 @@ import type {
   BlendPoint,
   Condition,
   DailyPoint,
+  PrecipVerificationRow,
   SourceMeta,
   SourceStatus,
   WeatherSnapshot,
 } from '../contract.js';
 import { weatherStyles } from './weatherStyles.js';
+import { Card, Cell, cap, nf, signed } from './parts.js';
 import { chartTimeMarks } from './chartTime.js';
 import { RadarCard } from './RadarCard.js';
+import { HistoryCard, YesterdayTodayCard, type HistoryState } from './HistoryCards.js';
+import {
+  PRECIP_MIN_PAIRS,
+  PRECIP_MIN_WET,
+  RAIN_FEW_WET_HOURS,
+  commonSample,
+  etsGrade,
+  fewBlocker,
+  outOfTen,
+  rankPrecip,
+  round2,
+  sampleDays,
+  wetHours,
+} from './rainScore.js';
 import { bandPath, smoothPath, type Pt } from './curve.js';
 import {
   conditionSentence,
@@ -26,18 +42,6 @@ import {
 } from './sky.js';
 
 // ---------- formatting ----------
-const nf = (v: number | null | undefined, d = 1) =>
-  v == null || !Number.isFinite(v)
-    ? '—'
-    : // normalise −0 (e.g. −0,3 rounded to 0 digits) so axes never show “-0°”
-      (Number(v.toFixed(d)) === 0 ? 0 : v)
-        .toLocaleString('cs-CZ', {
-          minimumFractionDigits: d,
-          maximumFractionDigits: d,
-        })
-        // cs-CZ ICU vrací spojovník; typograficky správné je znaménko minus (U+2212)
-        .replace(/^-/, '−');
-const signed = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${nf(Math.abs(v), d)}`;
 const hm = new Intl.DateTimeFormat('cs-CZ', { hour: 'numeric', minute: '2-digit' });
 const hourOnly = new Intl.DateTimeFormat('cs-CZ', { hour: 'numeric' });
 const weekday = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short' });
@@ -49,7 +53,6 @@ const fullDate = new Intl.DateTimeFormat('cs-CZ', {
   hour: 'numeric',
   minute: '2-digit',
 });
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/\.$/, '');
 const COMPASS = ['S', 'SV', 'V', 'JV', 'J', 'JZ', 'Z', 'SZ'];
 const compass = (deg: number | null | undefined) =>
   deg == null ? '' : COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8]!;
@@ -87,7 +90,7 @@ const MODEL_COLOR: Record<string, string> = {
   ecmwf_ifs: 'var(--hb-model-ecmwf)',
   gfs_seamless: 'var(--hb-model-gfs)',
   metno: 'var(--hb-model-met-no)',
-  geosphere_arome_austria: 'var(--wx-m-arome)',
+  geosphere_claef_austria: 'var(--wx-m-arome)',
   icon_eu: 'var(--wx-m-icon-eu)',
   ukmo_seamless: 'var(--wx-m-ukmo)',
   ecmwf_aifs025_single: 'var(--wx-m-aifs)',
@@ -147,59 +150,6 @@ function CondIcon({
     </svg>
   );
 }
-function Card({
-  id,
-  title,
-  sub,
-  right,
-  className = '',
-  children,
-  testId,
-}: {
-  id?: string;
-  title: string;
-  sub?: ReactNode;
-  right?: ReactNode;
-  className?: string;
-  children: ReactNode;
-  testId?: string;
-}) {
-  return (
-    <section id={id} className={`wx-card ${className}`} aria-label={title} data-testid={testId}>
-      <header className="wx-ch">
-        <div className="wx-ch-l">
-          <h2 className="wx-ct">{title}</h2>
-          {sub && <span className="wx-cs">{sub}</span>}
-        </div>
-        {right && <div className="wx-ch-r">{right}</div>}
-      </header>
-      {children}
-    </section>
-  );
-}
-function Cell({
-  label,
-  value,
-  unit,
-  sub,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  sub?: ReactNode;
-}) {
-  return (
-    <div className="wx-cell">
-      <span className="wx-lbl">{label}</span>
-      <span className="wx-val">
-        {value}
-        {unit && value !== '—' && <small> {unit}</small>}
-      </span>
-      {sub && <span className="wx-sub">{sub}</span>}
-    </div>
-  );
-}
-
 // ---------- cards ----------
 function ObservedSpark({ d, now }: { d: WeatherSnapshot; now: number }) {
   const fillId = useId();
@@ -518,7 +468,18 @@ function WeatherHero({ d, now }: { d: WeatherSnapshot; now: number }) {
         <p className="wx-hero-k">
           <i className={`wx-dot wx-dot--${STATUS_TONE[st]}`} aria-hidden="true" />
           Doma
-          {d.location.elevation_m != null && ` · ${nf(d.location.elevation_m, 0)} m n. m.`}
+          {d.location.elevation_m != null && (
+            <span
+              data-testid="weather-elevation"
+              title={
+                d.location.elevation_source === 'option'
+                  ? 'Výška z nastavení HomeBrain (v Home Assistantu není vyplněná)'
+                  : undefined
+              }
+            >
+              {` · ${nf(d.location.elevation_m, 0)} m n. m.`}
+            </span>
+          )}
           {' · '}
           {st === 'fresh' ? 'stanice živě' : st === 'stale' ? 'stanice zastaralá' : 'bez stanice'}
         </p>
@@ -1006,7 +967,7 @@ function biasText(b: number): string {
   if (Math.abs(b) < 0.05) return 'bez odchylky';
   return b > 0 ? `teplejší o ${nf(b)}°` : `chladnější o ${nf(-b)}°`;
 }
-function ScoreCard({ d }: { d: WeatherSnapshot }) {
+function TempScore({ d }: { d: WeatherSnapshot }) {
   const rows = d.verification.filter((r) => r.enough).sort((a, b) => a.mae - b.mae);
   const label = (id: string) =>
     id === 'blend' ? 'Mix (vážený)' : (d.models.find((m) => m.id === id)?.label ?? id);
@@ -1015,12 +976,7 @@ function ScoreCard({ d }: { d: WeatherSnapshot }) {
   const best = rows.find((r) => r.source !== 'blend');
   const weight = (id: string) => d.models.find((m) => m.id === id)?.weight;
   return (
-    <Card
-      title="Kdo se trefuje"
-      sub="teplota 0–24 h · průměrná chyba vs. stanice"
-      className="wx-score"
-      testId="weather-score"
-    >
+    <>
       {rows.length === 0 ? (
         <p className="wx-empty">
           Skóre se zobrazí po nasbírání alespoň 48 párů předpověď–měření (zhruba 2 dny provozu
@@ -1069,6 +1025,348 @@ function ScoreCard({ d }: { d: WeatherSnapshot }) {
           )}
         </>
       )}
+    </>
+  );
+}
+
+/** Lead bucket shown: own archive (0–24 h) once it has verified rows, else Previous Runs. */
+function precipBucket(rows: PrecipVerificationRow[]): string | null {
+  for (const lead of ['0-24', '24-48', '48-72'])
+    if (rows.some((r) => r.lead === lead && r.enough)) return lead;
+  return null;
+}
+const leadText = (lead: string | null) =>
+  lead === '24-48'
+    ? 'předpověď 1–2 dny dopředu'
+    : lead === '48-72'
+      ? 'předpověď 2–3 dny dopředu'
+      : 'předpověď na příští den';
+const daysCs = (n: number) => (n === 1 ? 'den' : n >= 2 && n <= 4 ? 'dny' : 'dní');
+const NB2 = ' ';
+/** "86 hodin s deštěm za 40 dní" – the one term for the sample everywhere. */
+function sampleText(wet: number, days: number): string {
+  const hours = wet === 1 ? 'hodina' : wet >= 2 && wet <= 4 ? 'hodiny' : 'hodin';
+  return `${wet}${NB2}${hours} s deštěm za ${days}${NB2}${daysCs(days)}`;
+}
+const xOf10 = (v: number | null) => (v == null ? '–' : `${v}${NB2}z${NB2}10`);
+
+/** Labels of the precipitation weights of the blend, heaviest first (from the snapshot). */
+function blendParts(d: WeatherSnapshot, label: (id: string) => string): string | null {
+  const h = d.hourly[0];
+  const ws = [...(h?.precip_contributors ?? h?.contributors ?? [])]
+    .filter((c) => c.weight > 0)
+    .sort((a, b) => b.weight - a.weight);
+  if (ws.length === 0) return null;
+  // never truncated: the first three by weight, the rest as a count („a 2 další“, „a 6 dalších“)
+  const names = ws.slice(0, 3).map((c) => label(c.source));
+  const more = ws.length - names.length;
+  // Czech count agreement: „a 1 další“, „a 2–4 další“, „a 5+ dalších“
+  const moreWord = more >= 5 ? 'dalších' : 'další';
+  return `vážený průměr ${names.join(', ')}${more > 0 ? ` a${NB2}${more}${NB2}${moreWord}` : ''}`;
+}
+
+/**
+ * Header lines of the rain tab: the common sample once (rows only repeat it when theirs differs)
+ * and Mix's own sample right next to it – Mix is scored only out of sample.
+ */
+function precipSample(d: WeatherSnapshot): { all: string; mix: string | null } | null {
+  const rows = (d.verification_precip ?? []).filter((r) => r.enough);
+  const lead = precipBucket(d.verification_precip ?? []);
+  const inBucket = rows.filter((r) => r.lead === lead);
+  const s = commonSample(inBucket);
+  if (!s) return null;
+  const b = inBucket.find((r) => r.source === 'blend');
+  return {
+    all: `hodnoceno ${sampleText(s.wet, s.days)}`,
+    mix: b
+      ? `Mix ${sampleText(wetHours(b), sampleDays(b))}${
+          b.out_of_sample ? ', jen dny, ze kterých se neučil' : ''
+        }`
+      : null,
+  };
+}
+
+function PrecipScore({ d }: { d: WeatherSnapshot }) {
+  const all = d.verification_precip ?? [];
+  const lead = precipBucket(all);
+  const inBucket = all.filter((r) => r.lead === lead);
+  const { rows: ranked, noise } = rankPrecip(inBucket.filter((r) => r.enough));
+  const few = inBucket.filter((r) => !r.enough);
+  const label = (id: string) =>
+    id === 'blend' ? 'Mix' : (d.models.find((m) => m.id === id)?.label ?? id);
+  const info = d.verification_info;
+  if (ranked.length === 0) {
+    const most = [...all].sort((a, b) => b.n - a.n)[0];
+    return (
+      <div className="wx-empty" data-testid="weather-score-rain-empty">
+        <p>
+          <b>
+            {upper1(
+              most
+                ? fewBlocker(most)
+                : `zatím málo dat: 0 z ${PRECIP_MIN_PAIRS} potřebných porovnání`,
+            )}
+            .
+          </b>{' '}
+          Skóre deště se ukáže, až bude aspoň {PRECIP_MIN_PAIRS} porovnání předpovědi se
+          srážkoměrem, z toho {PRECIP_MIN_WET} s deštěm.
+        </p>
+        <p>
+          Porovnává se jednou za noc
+          {info?.status === 'unbound' ? ' – chybí navázaný denní srážkoměr stanice' : ''}.
+        </p>
+      </div>
+    );
+  }
+  const common = commonSample(ranked.map((r) => r.row));
+  const bestWet = Math.max(...ranked.map((r) => wetHours(r.row)));
+  const mix = blendParts(d, label);
+  return (
+    <>
+      {bestWet < RAIN_FEW_WET_HOURS && (
+        <p className="wx-info wx-info--warn" data-testid="weather-score-rain-few">
+          <b>Pořadí je zatím orientační</b> – nejvíc {bestWet} z {RAIN_FEW_WET_HOURS} hodin s
+          deštěm, po kterých se pořadí ustálí.
+        </p>
+      )}
+      <div className="wx-prank-head" aria-hidden="true">
+        <span />
+        <span>Model</span>
+        <span>Skóre 0–1</span>
+        <span />
+        <span>
+          zachytil<small>z 10 hodin s deštěm</small>
+        </span>
+        <span>
+          planý poplach<small>z 10 předpovědí deště</small>
+        </span>
+      </div>
+      <ol
+        className="wx-prank"
+        aria-label="Pořadí podle trefy deště"
+        data-testid="weather-score-rain"
+      >
+        {ranked.map((rr, i) => {
+          const { row: r, ets } = rr;
+          const h = r.hourly['0.2'];
+          const grade = etsGrade(ets);
+          const blend = r.source === 'blend';
+          // Mix's sample is stated in the header next to the common one
+          const own =
+            !blend && common && (wetHours(r) !== common.wet || sampleDays(r) !== common.days)
+              ? sampleText(wetHours(r), sampleDays(r))
+              : null;
+          const hit = outOfTen(h?.pod);
+          const fa = outOfTen(h?.far);
+          const prev = i > 0 ? ranked[i - 1]! : null;
+          return (
+            <li
+              key={r.source}
+              className={`wx-prank-i ${rr.nearPrev ? 'is-near' : ''}`}
+              style={{ '--c': MODEL_COLOR[r.source] ?? 'var(--hb-t3)' } as CSSProperties}
+              data-testid={`weather-score-rain-${r.source}`}
+            >
+              {rr.nearPrev && prev && noise != null && (
+                <span
+                  className="wx-prank-near"
+                  role="img"
+                  aria-label={`téměř stejně jako ${label(prev.row.source)}: rozdíl ${nf(rr.diffPrev, 2)} je menší než ${nf(noise, 2)}`}
+                  title={`rozdíl ${nf(rr.diffPrev, 2)} < ${nf(noise, 2)} – pořadí není spolehlivé`}
+                  data-testid="weather-score-rain-near"
+                >
+                  ≈
+                </span>
+              )}
+              <span className="wx-rank-n" aria-label={`${rr.rank}. místo`}>
+                {rr.rank}.
+              </span>
+              <span className="wx-prank-name">
+                <span className="wx-prank-nl">
+                  <i aria-hidden="true" />
+                  <span className="wx-rank-name">{label(r.source)}</span>
+                  {blend && <span className="wx-chip">kombinace</span>}
+                </span>
+              </span>
+              {((blend && mix) || own) && (
+                <span className="wx-prank-notes">
+                  {blend && mix && <span data-testid="weather-score-rain-mix">{mix}</span>}
+                  {own && <span>{own}</span>}
+                </span>
+              )}
+              <span className="wx-prank-bar" aria-hidden="true">
+                <i style={{ width: `${Math.max(0, Math.min(1, ets ?? 0)) * 100}%` }} />
+              </span>
+              <span className="wx-prank-v">
+                <b aria-label={`skóre ${nf(ets == null ? null : round2(ets), 2)}`}>
+                  {nf(ets == null ? null : round2(ets), 2)}
+                </b>
+                <span className={`wx-grade wx-grade--${grade.tone}`}>{grade.word}</span>
+              </span>
+              <span
+                className="wx-prank-c wx-prank-hit"
+                title={h ? `${h.a} z ${h.a + h.c} hodin s deštěm` : undefined}
+              >
+                <span className="wx-prank-lbl">zachytil </span>
+                <b>{xOf10(hit)}</b>
+                <span className="wx-prank-lbl"> hodin s deštěm</span>
+              </span>
+              <span
+                className="wx-prank-c wx-prank-fa"
+                title={h ? `${h.b} z ${h.a + h.b} předpovědí deště bylo planých` : undefined}
+              >
+                <span className="wx-prank-lbl">planý poplach </span>
+                <b>{xOf10(fa)}</b>
+                <span className="wx-prank-lbl"> předpovědí deště</span>
+              </span>
+            </li>
+          );
+        })}
+        {few.map((r) => (
+          <li
+            key={r.source}
+            className="wx-prank-i is-few"
+            style={{ '--c': MODEL_COLOR[r.source] ?? 'var(--hb-t3)' } as CSSProperties}
+            data-testid={`weather-score-rain-${r.source}`}
+          >
+            <span className="wx-rank-n" aria-label="bez pořadí">
+              –
+            </span>
+            <span className="wx-prank-name">
+              <span className="wx-prank-nl">
+                <i aria-hidden="true" />
+                <span className="wx-rank-name">{label(r.source)}</span>
+              </span>
+            </span>
+            <span className="wx-prank-few">{fewBlocker(r)}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="wx-rank-k wx-prank-key" data-testid="weather-score-rain-key">
+        <span data-testid="weather-score-rain-scale">
+          Skóre 0–1: 1{NB2}={NB2}bez chyby, 0{NB2}={NB2}jako náhodný tip.
+        </span>
+        <br />
+        <span className="wx-grade wx-grade--good">dobré ≥{NB2}0,4</span>
+        {NB2}· <span className="wx-grade wx-grade--mid">průměrné 0,2 až &lt;{NB2}0,4</span>
+        {NB2}· <span className="wx-grade wx-grade--weak">slabé &lt;{NB2}0,2</span>
+        {noise != null && (
+          <>
+            <br />
+            <span data-testid="weather-score-rain-noise">
+              ≈ mezi sousedy = rozdíl skóre menší než {nf(noise, 2)}, takové pořadí není spolehlivé.
+            </span>
+          </>
+        )}
+      </p>
+      <details className="wx-prank-more" data-testid="weather-score-rain-how">
+        <summary>Jak se to počítá</summary>
+        <p>
+          Hodina s deštěm = aspoň 0,2{NB2}mm za hodinu (slabý déšť a více) na srážkoměru stanice.
+          Skóre je ETS (equitable threat score): 1 = vše trefil, 0 = jako náhoda, pod 0 = horší než
+          náhoda.
+        </p>
+        <p data-testid="weather-score-rain-defs">
+          „Zachytil 7{NB2}z{NB2}10“ = z 10 hodin, kdy pršelo, model déšť ohlásil na 7 (POD). „Planý
+          poplach 3{NB2}z{NB2}10“ = z 10 hodin, na které model déšť předpověděl, ve 3 nepršelo – 3 z
+          10 předpovědí deště byly plané (FAR).
+        </p>
+        <p>
+          Spolehlivost: 95{NB2}% interval rozdílu skóre ze směrodatné chyby ETS (delta metoda na
+          tabulce trefa / planý poplach / minul / správně sucho). Práh je jeden pro celou tabulku –
+          největší z prahů všech dvojic modelů. Pořadí se nesdílí: „≈“ stojí mezi každými dvěma
+          sousedy, jejichž zobrazená skóre se liší o méně než práh; dá se to ověřit odečtením čísel
+          na kartě.
+        </p>
+      </details>
+      <details className="wx-prank-more" data-testid="weather-score-rain-details">
+        <summary>Jak přesná je pravděpodobnost deště</summary>
+        <p>Brierovo skóre – průměrná chyba ohlášené pravděpodobnosti, nižší = lepší:</p>
+        <ul>
+          {ranked.map(({ row: r }) => (
+            <li key={r.source}>
+              <span>{label(r.source)}</span>
+              <b>{nf(r.brier, 3)}</b>
+            </li>
+          ))}
+        </ul>
+        <p>
+          Modely bez vlastní pravděpodobnosti se hodnotí jako 0 nebo 100{NB2}% podle předpovězeného
+          množství.
+        </p>
+      </details>
+      <p className="wx-info">
+        Na déšť má kombinace <b>vlastní váhy</b>: víc váží modely, které tu déšť trefují lépe.
+        Pravděpodobnost deště{' '}
+        {info?.pop_calibrated
+          ? 'je doladěná podle srážkoměru stanice'
+          : 'se zatím dolaďuje – sbírají se porovnání předpovědi se srážkoměrem'}
+        .
+      </p>
+    </>
+  );
+}
+const upper1 = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+type ScoreTab = 'temp' | 'rain';
+function ScoreCard({ d }: { d: WeatherSnapshot }) {
+  const [tab, setTab] = useState<ScoreTab>('temp');
+  const lead = precipBucket(d.verification_precip ?? []);
+  const sample = precipSample(d);
+  return (
+    <Card
+      title="Kdo se trefuje"
+      sub={
+        tab === 'temp' ? (
+          'teplota 0–24 h · průměrná chyba vs. stanice'
+        ) : (
+          <>
+            <span className="wx-cs-l">
+              Jak často model správně trefil, jestli bude pršet (slabý déšť a více, {leadText(lead)}
+              ){NB2}· porovnáno s tvým srážkoměrem
+            </span>
+            {sample && (
+              <span className="wx-cs-l" data-testid="weather-score-rain-sample">
+                {sample.all}
+                {sample.mix && (
+                  <>
+                    {' '}
+                    <span data-testid="weather-score-rain-sample-mix">({sample.mix})</span>
+                  </>
+                )}
+              </span>
+            )}
+          </>
+        )
+      }
+      className={`wx-score ${tab === 'rain' ? 'is-rain' : ''}`}
+      testId="weather-score"
+      right={
+        <div
+          className="wx-seg wx-seg--touch wx-seg--strong"
+          role="tablist"
+          aria-label="Hodnocená veličina"
+        >
+          {(
+            [
+              ['temp', 'Teplota'],
+              ['rain', 'Déšť'],
+            ] as const
+          ).map(([key, text]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              className={tab === key ? 'on' : ''}
+              onClick={() => setTab(key)}
+              data-testid={`weather-score-tab-${key}`}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {tab === 'temp' ? <TempScore d={d} /> : <PrecipScore d={d} />}
     </Card>
   );
 }
@@ -1354,6 +1652,25 @@ export default function WeatherView({ connection }: Partial<ModuleViewProps>) {
       if (timer) clearInterval(timer);
     };
   }, [adapter, attempt]);
+  // Measured history (HA statistics): one 366-day request; tabs slice it client-side.
+  const [hist, setHist] = useState<HistoryState>({ kind: 'loading' });
+  useEffect(() => {
+    if (!adapter?.history) return;
+    let alive = true;
+    const load = () =>
+      adapter.history!(366).then(
+        (data) => alive && setHist({ kind: 'ready', data }),
+        (err: unknown) =>
+          alive &&
+          setHist({ kind: 'error', message: err instanceof Error ? err.message : String(err) }),
+      );
+    void load();
+    const timer = adapter.pollMs ? setInterval(() => void load(), 15 * 60_000) : undefined;
+    return () => {
+      alive = false;
+      if (timer) clearInterval(timer);
+    };
+  }, [adapter, attempt]);
   const retry = () => {
     setState({ kind: 'loading' });
     setAttempt((n) => n + 1);
@@ -1395,6 +1712,12 @@ export default function WeatherView({ connection }: Partial<ModuleViewProps>) {
         <StationCard d={d} now={now} />
         <RadarCard d={d} now={now} radarImage={adapter?.radarImage} />
         <ScoreCard d={d} />
+        {adapter?.history && (
+          <>
+            <YesterdayTodayCard hist={hist} d={d} />
+            <HistoryCard hist={hist} now={now} />
+          </>
+        )}
         <MeteogramCard d={d} now={now} />
         <ModelsCard d={d} now={now} />
         <DailyCard d={d} />

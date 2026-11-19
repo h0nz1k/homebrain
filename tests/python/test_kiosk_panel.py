@@ -27,6 +27,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/roles/set": {"user_id": "someone", "role": "kiosk"},
     "homebrain/weather/get": {},
     "homebrain/weather/alerts": {},
+    "homebrain/weather/history": {},
     "homebrain/energy/pv_forecast": {},
     "homebrain/energy/compare": {},
     "homebrain/energy/settings/get": {},
@@ -182,6 +183,11 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/family/swap/cancel": {"request_id": "testreq01"},
     "homebrain/family/points/get": {"kid": "nobody"},
     "homebrain/family/points/history": {"kid": "nobody"},
+    "homebrain/anomaly/list": {},
+    "homebrain/anomaly/summary": {},
+    "homebrain/anomaly/ack": {"key": "device:nothing", "kind": "ok"},
+    "homebrain/anomaly/mute": {"key": "device:nothing"},
+    "homebrain/anomaly/unmute": {"key": "device:nothing"},
 }
 
 

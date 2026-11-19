@@ -26,7 +26,7 @@ test.describe('Dnes v HA iframe – živý adaptér', () => {
     await expect(temp).toContainText('7,8');
     await expect(panel.getByText('Počasí není k dispozici')).toHaveCount(0);
     await expect(panel.getByTestId('ha-freshness')).toContainText('HA · před');
-    await expect(panel.getByTestId('ribbon-card')).toContainText('východ 06:58');
+    await expect(panel.getByTestId('ribbon-card')).toContainText('východ 6:58');
     await expect(panel.getByTestId('ribbon-card')).toContainText('západ 16:47');
     // Family/school calendars: today's upcoming events, title + time only.
     await expect(

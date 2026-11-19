@@ -21,6 +21,7 @@ from homeassistant.loader import async_get_integration
 
 from . import communication, weather
 from .access import ws as access_ws
+from .anomaly import ws as anomaly_ws
 from .bindings import get_bindings
 from .const import (
     DOMAIN,
@@ -73,7 +74,12 @@ from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
 from .weather.fetch import USER_AGENT
-from .weather.ws import RadarImageView, websocket_weather_alerts, websocket_weather_get
+from .weather.ws import (
+    RadarImageView,
+    websocket_weather_alerts,
+    websocket_weather_get,
+    websocket_weather_history,
+)
 from .websocket import (
     websocket_get_bindings,
     websocket_get_roles,
@@ -122,7 +128,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:
-        _commands(websocket_weather_get, websocket_weather_alerts)(hass)(reg)
+        _commands(websocket_weather_get, websocket_weather_alerts, websocket_weather_history)(hass)(
+            reg
+        )
         _http_view(hass, RadarImageView())
 
     def robots_reg(reg: Registrar) -> None:
@@ -159,6 +167,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "kitchen": _commands(*kitchen_ws.COMMANDS)(hass),
             "heating": _commands(*heating_ws.COMMANDS)(hass),
             "communication": _commands(communication.websocket_recent)(hass),
+            "anomaly": _commands(*anomaly_ws.COMMANDS)(hass),
         },
     )
     if module_states(hass).get("wine") is None:
@@ -313,6 +322,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "robots": _setup_robots,
             "network": network_ws.async_setup,
             "communication": communication.async_setup,
+            "anomaly": anomaly_ws.async_setup,
         },
     )
     # Topení (read-only Tecomat poller + entities). Own isolation until it is a MODULES entry.
@@ -393,6 +403,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("network", network_ws.async_unload),
             ("server", server_ws.async_unload),
             ("communication", communication.async_unload),
+            ("anomaly", anomaly_ws.async_unload),
         ),
     )
     await heating_setup.async_unload_heating(hass, entry)
