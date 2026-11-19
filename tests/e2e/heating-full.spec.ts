@@ -13,8 +13,8 @@ async function open(page: Page, query: string, lod: 'any' | 'detail' = 'any') {
   await expect(svg).toBeVisible({ timeout: 30_000 });
   // desktop opens on the overview (zone cards); the detail labels come with zooming in
   if (lod === 'detail') {
-    for (let i = 0; i < 6 && (await svg.getAttribute('data-lod')) !== 'detail'; i++)
-      await page.getByRole('button', { name: 'Přiblížit' }).click();
+    for (let i = 0; i < 8 && (await svg.getAttribute('data-lod')) !== 'detail'; i++)
+      await sheet.getByTestId('heating-full-viewport').press('+');
     await expect(svg).toHaveAttribute('data-lod', 'detail');
   }
   return sheet;
@@ -194,7 +194,8 @@ test('celé schéma: předvolby sedí na obsah, nic neořezávají, tablet ≥ 1
   await expect(sheet.getByTestId('heating-full-hint')).toHaveCount(0);
   await sheet.getByTestId('heating-full-preset-all').click();
   const fit = Number(await sheet.getAttribute('data-scale'));
-  await page.getByRole('button', { name: 'Přiblížit' }).click();
+  // keyboard zoom works everywhere (the − / + buttons are hidden on phones: pinch there)
+  await sheet.getByTestId('heating-full-viewport').press('+');
   await expect
     .poll(async () => Number(await sheet.getAttribute('data-scale')))
     .toBeGreaterThan(fit);
