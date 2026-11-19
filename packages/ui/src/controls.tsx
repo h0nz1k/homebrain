@@ -172,9 +172,9 @@ export function Sheet({
   }, [onClose]);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    const first =
-      ref.current?.querySelector<HTMLElement>('[data-autofocus], [autofocus]') ??
-      ref.current?.querySelector<HTMLElement>('input, button[data-variant="primary"]');
+    const first = ref.current?.querySelector<HTMLElement>(
+      '[data-autofocus], [autofocus], input, button[data-variant="primary"]',
+    );
     (first ?? ref.current)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeRef.current();

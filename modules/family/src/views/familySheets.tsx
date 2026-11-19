@@ -1487,6 +1487,10 @@ export function DeleteChoreSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitting = useRef(false);
+  const actions = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    actions.current?.querySelector<HTMLButtonElement>('[data-autofocus]')?.focus();
+  }, []);
   const descriptionId = useId();
   const multi = chore.slots.length > 1;
   const close = () => {
@@ -1525,7 +1529,7 @@ export function DeleteChoreSheet({
               {error}
             </p>
           )}
-          <div className="fam-delete-actions">
+          <div className="fam-delete-actions" ref={actions}>
             <Button data-autofocus variant="secondary" onClick={close} disabled={busy}>
               Zrušit
             </Button>
