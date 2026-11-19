@@ -44,7 +44,7 @@ async function frameCheck(page: Page) {
     let minValue = Infinity;
     for (const el of Array.from(svg.querySelectorAll<SVGTextElement>('text'))) {
       const q = el.getBoundingClientRect();
-      if (q.width === 0 || !el.textContent?.trim()) continue;
+      if (q.width === 0 || !el.textContent?.trim() || el.closest('[data-cut]')) continue;
       const out = q.right <= l + 1 || q.left >= r - 1 || q.bottom <= t + 1 || q.top >= b - 1;
       if (out) continue;
       const inside = q.left >= l - 1 && q.right <= r + 1 && q.top >= t - 1 && q.bottom <= b + 1;
@@ -54,6 +54,24 @@ async function frameCheck(page: Page) {
       else min = Math.min(min, px);
     }
     return { cut, min, minValue };
+  });
+}
+
+/** Visible preset frame (clip box ∩ viewport) as a share of the canvas, and its top gap (px). */
+async function frameFill(page: Page) {
+  return page.getByTestId('heating-full-viewport').evaluate((port) => {
+    const pr = port.getBoundingClientRect();
+    const svg = port.querySelector('svg')!;
+    const sr = svg.getBoundingClientRect();
+    const k = sr.width / Number(svg.getAttribute('width'));
+    const box = port.querySelector<HTMLElement>('[data-clip-box]')?.dataset.clipBox;
+    if (!box) return { w: 0, h: 0, top: Infinity };
+    const [x, y, w, h] = box.split(' ').map(Number) as [number, number, number, number];
+    const l = Math.max(pr.left, sr.left + x * k);
+    const t = Math.max(pr.top, sr.top + y * k);
+    const r = Math.min(pr.right, sr.left + (x + w) * k);
+    const b = Math.min(pr.bottom, sr.top + (y + h) * k);
+    return { w: (r - l) / pr.width, h: (b - t) / pr.height, top: t - pr.top };
   });
 }
 
@@ -121,13 +139,15 @@ for (const theme of ['dark', 'light'] as const) {
       await expect(sheet.locator(`[data-badge-for][data-question="${q}"]`)).toHaveCount(1);
     }
     // secondary labels ≥ 4.5:1 on the technical room, never thinned by opacity
-    for (const sel of [
-      '[data-testid="heating-full-cool-state"]',
-      '[data-testid="heating-full-mix-pct"]',
-      '[data-label="hp_coll_out"]',
-      '[data-label="hx_cool"]',
-    ]) {
-      const c = await contrastOf(page, sel, 'var(--fs-tech)');
+    // r4: "bez signálu" is an amber chip – its text is measured against the chip fill
+    for (const [sel, against] of [
+      ['[data-testid="heating-full-cool-state"] text', 'var(--fs-amber-fill)'],
+      ['[data-testid="heating-full-mix-pct"] text', 'var(--fs-amber-fill)'],
+      ['[data-testid="heating-full-hp-state"] text', 'var(--fs-run-fill)'],
+      ['[data-label="hp_coll_out"]', 'var(--fs-tech)'],
+      ['[data-label="hx_cool"]', 'var(--fs-tech)'],
+    ] as const) {
+      const c = await contrastOf(page, sel, against);
       expect(c.ratio, sel).toBeGreaterThanOrEqual(4.5);
       expect(c.opacity, sel).toBe(1);
     }
@@ -190,6 +210,14 @@ test('celé schéma: předvolby sedí na obsah, nic neořezávají, tablet ≥ 1
     expect(min, `${id}: smallest label`).toBeGreaterThanOrEqual(phone ? 10.95 : 11.95);
     expect(minValue, `${id}: smallest value`).toBeGreaterThanOrEqual(11.95);
     expect(await crossedLabels(page), `${id}: labels crossed by a pipe`).toEqual([]);
+    // r4: the preset fills the canvas (no empty band above / below or beside the drawing)
+    const fill = await frameFill(page);
+    expect(fill.h, `${id}: frame height / canvas height`).toBeGreaterThanOrEqual(0.85);
+    expect(fill.w, `${id}: frame width / canvas width`).toBeGreaterThanOrEqual(0.85);
+    expect(fill.top, `${id}: frame top under the toolbar`).toBeLessThanOrEqual(24);
+    // r4: no two end labels of one view read the same
+    const ends = await sheet.locator('[data-end-label] text').allTextContents();
+    expect(ends.length, `${id}: duplicate end labels ${ends.join(' | ')}`).toBe(new Set(ends).size);
   }
   await expect(sheet.getByTestId('heating-full-hint')).toHaveCount(0);
   await sheet.getByTestId('heating-full-preset-all').click();
@@ -243,8 +271,11 @@ async function crossedLabels(page: Page) {
       number,
     ];
     const pts: Array<[number, number]> = [];
+    // r4: zone borders count like pipes (no label, plate or badge may sit on one)
     for (const p of Array.from(
-      svg.querySelectorAll<SVGPathElement>('path.fs-pipe, path[data-coil]'),
+      svg.querySelectorAll<SVGPathElement>(
+        'path.fs-pipe, path[data-coil], path.fs-wallband, path.fs-slabline',
+      ),
     )) {
       const len = p.getTotalLength();
       // every 4 units: any text (≥ 15 units tall) a pipe passes through gets several samples
@@ -256,17 +287,26 @@ async function crossedLabels(page: Page) {
     const out: string[] = [];
     const items = [
       ...Array.from(svg.querySelectorAll<SVGTextElement>('text')),
-      ...Array.from(svg.querySelectorAll<SVGRectElement>('rect.fs-vpill')),
+      ...Array.from(svg.querySelectorAll<SVGGraphicsElement>('rect.fs-vpill, rect.fs-zone-plate')),
+      ...Array.from(svg.querySelectorAll<SVGGraphicsElement>('circle.fs-badge')),
     ];
     for (const el of items) {
       if (el instanceof SVGTextElement && !el.textContent?.trim()) continue;
-      if (el.closest('[data-pump], [data-badge-for]')) continue;
+      if (el.closest('[data-pump], [data-cut]')) continue;
       const b = el.getBBox();
       if (b.width === 0) continue;
       const [x0, y0, x1, y1] = [b.x + 1, b.y + 1, b.x + b.width - 1, b.y + b.height - 1];
       if (x1 < fx || x0 > fx + fw! || y1 < fy || y0 > fy + fh!) continue;
       if (pts.some(([x, y]) => x > x0 && x < x1 && y > y0 && y < y1))
-        out.push((el.textContent ?? el.parentElement?.getAttribute('data-pill') ?? '?').trim());
+        out.push(
+          (
+            el.textContent ||
+            el.parentElement?.getAttribute('data-pill') ||
+            el.closest('[data-label-group], [data-badge-for]')?.getAttribute('data-label-group') ||
+            el.closest('[data-badge-for]')?.getAttribute('data-question') ||
+            '?'
+          ).trim(),
+        );
     }
     return out;
   });
