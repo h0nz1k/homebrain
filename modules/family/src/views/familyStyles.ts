@@ -618,7 +618,8 @@ export const familyStyles = `
 .fam-pts[data-out] span { font-size: 12px; font-weight: 600; color: var(--hb-t2); }
 .fam-chore[data-muted] .fam-chore-t b { color: var(--hb-t2); }
 /* Narrow rows: status chips wrap inside the text column instead of running under the points. */
-.fam-chore-meta .fam-swap-tag { white-space: normal; max-width: 100%; }
+.fam-chore-meta .fam-swap-tag { display: inline; white-space: normal; max-width: 100%; line-height: 1.15; padding: 2px 4px; }
+.fam-chore-meta .fam-swap-tag svg { vertical-align: -2px; margin-inline-end: 3px; }
 .fam-chore-meta .hb-pill.fam-pending-pill { white-space: normal; line-height: 1.25; text-wrap: balance; }
 /* Contrast: kid-coloured text/segments mix toward the text colour (darker in light, lighter in dark). */
 .fam-kid { --fam-kid-ink: color-mix(in oklab, var(--fam-kid) 62%, var(--hb-t1)); --fam-kid-bar: color-mix(in oklab, var(--fam-kid) 78%, var(--hb-t1)); }
@@ -845,7 +846,7 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-day li > span.fam-wk-time, .fam[data-kiosk] .fam-src,
 .fam[data-kiosk] .fam-wk-school, .fam[data-kiosk] .fam-points small { font-size: 16px; }
 .fam[data-kiosk] .fam-upcoming-line { font-weight: 500; }
-.fam[data-kiosk] .fam-upcoming-more-inline { font-weight: inherit; }
+.fam[data-kiosk] .fam-upcoming-more-inline { margin-inline-start: 0; font-weight: inherit; }
 .fam[data-kiosk] .fam-slot[data-slot='chores'] > .fam-card { scrollbar-gutter: stable; }
 .fam[data-kiosk] .fam-kid-h .fam-avatar, .fam[data-kiosk] .fam-kid-h small,
 .fam[data-kiosk] .fam-kid-h .fam-points, .fam[data-kiosk] .fam-kid > .fam-bar,
