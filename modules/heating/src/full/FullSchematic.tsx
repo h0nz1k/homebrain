@@ -985,7 +985,7 @@ export function FullSchematic({
           <g data-label-group="hp">
             <text
               x={hx + hw / 2}
-              y={hy - 50}
+              y={hy - 22}
               fontSize="15"
               textAnchor="middle"
               className="fs-t fs-t-T"
@@ -998,7 +998,7 @@ export function FullSchematic({
             <g data-testid="heating-full-hp-state" data-state={st.compressor}>
               <StatusChip
                 x={hx + hw / 2}
-                cy={hy - 26}
+                cy={hy - 52}
                 anchor="middle"
                 on={st.compressor === 'unknown' ? null : st.compressor === 'on'}
                 k="hp_state"
