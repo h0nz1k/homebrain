@@ -369,7 +369,7 @@ const ZONE_PLATES = {
   // the pool – is the same plate at the top-left edge of its zone.
   garden_caption: [sx(2380), 942],
   ground_caption: [40, 942],
-  channel_caption: [sx(2312) + 44, 1132],
+  channel_caption: [sx(2312) + 26, 1132],
   solar: [sx(2137), 250],
   enclosure: [sx(2948) + 8, 752],
 };

@@ -169,6 +169,8 @@ test('celé schéma: rybárna – ventil zavřený, teplo stačí', async ({ pag
 test('celé schéma: předvolby sedí na obsah, nic neořezávají, tablet ≥ 12 px', async ({
   page,
 }, info) => {
+  // up to 7 presets × (frame check + label/pipe geometry)
+  test.setTimeout(300_000);
   const sheet = await open(page, 'topeni=heating&theme=dark');
   const narrow = (page.viewportSize()?.width ?? 0) < 700;
   await expect(sheet).toHaveAttribute('data-preset', narrow ? 'hp' : 'all');
@@ -244,7 +246,8 @@ async function crossedLabels(page: Page) {
       svg.querySelectorAll<SVGPathElement>('path.fs-pipe, path[data-coil]'),
     )) {
       const len = p.getTotalLength();
-      for (let t = 0; t <= len; t += 2) {
+      // every 4 units: any text (≥ 15 units tall) a pipe passes through gets several samples
+      for (let t = 0; t <= len; t += 4) {
         const q = p.getPointAtLength(t);
         pts.push([q.x, q.y]);
       }

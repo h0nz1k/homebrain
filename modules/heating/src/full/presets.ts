@@ -37,7 +37,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
     box: r(2620, 724, 940, 506),
     fine: [
       { id: 'basin', label: 'Bazén', box: r(3270, 742, 290, 480) },
-      { id: 'pit', label: 'Jímka', box: r(2818, 904, 444, 316) },
+      { id: 'pit', label: 'Jímka', box: r(2840, 904, 422, 316) },
     ],
   },
   {
