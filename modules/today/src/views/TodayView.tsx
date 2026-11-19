@@ -42,6 +42,7 @@ import { TodayHome } from './TodayHome.js';
 import { getTodayHomeApi } from '../data/home.js';
 import { needsRemoval, useCooking } from '../data/cooking.js';
 import { CookingCard } from './CookingCard.js';
+import { renderTodayWatchCard, type TodayWatchLevel } from '../data/watch.js';
 import { todayStyles } from './todayStyles.js';
 
 function useMedia(query: string) {
@@ -57,6 +58,12 @@ function useMedia(query: string) {
 const clockFormat = new Intl.DateTimeFormat('cs-CZ', {
   timeZone: TIME_ZONE,
   hour: '2-digit',
+  minute: '2-digit',
+});
+/** Times in text („východ 6:56“): Czech writes the hour without a leading zero. */
+const timeFormat = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: TIME_ZONE,
+  hour: 'numeric',
   minute: '2-digit',
 });
 const dateFormat = new Intl.DateTimeFormat('cs-CZ', {
@@ -183,6 +190,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
       clearInterval(timer);
     };
   }, [adapter, layout, visible]);
+  const [watchLevel, setWatchLevel] = useState<TodayWatchLevel>(null);
   const [hidden, setHidden] = useState(() => document.hidden);
   const [shift, setShift] = useState(0);
   useEffect(() => {
@@ -218,7 +226,10 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const kioskPortrait = kiosk && portrait;
   const night = kiosk && scene.nightDim;
   // Meat waiting to come off the heat is not a „Klidný den“.
-  const summary = buildSummary(data, ranked, { suppressCalm: needsRemoval(cooking) });
+  // An open Hlídání domu card (suspicion/fault) is not a „Klidný den“ either.
+  const summary = buildSummary(data, ranked, {
+    suppressCalm: needsRemoval(cooking) || !!watchLevel,
+  });
   const model = buildDayRibbonModel(data);
   // Events already shown as a hero/card stay on the ribbon only as a marker (no duplicate label).
   const shownSignals = new Set([ranked.hero, ...ranked.cards].map((signal) => signal?.id));
@@ -298,16 +309,38 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
       <CookingCard probes={cooking} kiosk={kiosk} />
     ) : null;
   const kioskCooking = kiosk && !!cookingCard;
+  // Hlídání domu: from a suspicion up the card leads the everyday cards (under the clock).
+  const watchCard =
+    !night && !(kiosk && highestSeverity === 'critical') && !kioskCooking
+      ? renderTodayWatchCard({
+          connection: context.connection,
+          layout,
+          now: data.now,
+          onLevel: setWatchLevel,
+        })
+      : null;
+  const watchOn = !!watchCard && !!watchLevel;
+  // Wall kiosk has no spare row: with the card the ribbon is slim, the home tiles step aside.
+  const kioskWatch = kiosk && watchOn;
+  // Landscape tablet/desktop with the card: the summary („Přebytek FVE 1,6 kW“) fills the empty
+  // right side of the compact clock row instead of taking a row of its own (portrait has no room).
+  const summaryInHero = !kiosk && !mobile && !portrait && watchOn;
+  const summaryLine = !!summary.sentence && (
+    <p className="today-summary" data-testid="today-summary">
+      {summary.sentence}
+    </p>
+  );
   const position = pixelShift(shift);
   return (
     <section
-      className={`hb-today today-${layout}${ranked.hero ? ' today-busy' : ' today-calm'}${night ? ' today-night' : ''}${reducedMotion ? ' today-reduced-motion' : ''}${hidden ? ' today-paused' : ''}${kioskPortrait ? ' today-portrait' : ''}${kiosk && freshnessState.state !== 'fresh' ? ' today-stale' : ''}${kioskCooking ? ' today-cooking-on' : ''}`}
+      className={`hb-today today-${layout}${ranked.hero ? ' today-busy' : ' today-calm'}${night ? ' today-night' : ''}${reducedMotion ? ' today-reduced-motion' : ''}${hidden ? ' today-paused' : ''}${kioskPortrait ? ' today-portrait' : ''}${kiosk && freshnessState.state !== 'fresh' ? ' today-stale' : ''}${kioskCooking ? ' today-cooking-on' : ''}${watchOn ? ' today-watch-on' : ''}`}
       data-testid="today"
       data-layout={layout}
       data-state-severity={highestSeverity}
       data-night={String(night)}
       data-orientation={kiosk ? (portrait ? 'portrait' : 'landscape') : undefined}
       data-freshness={freshnessState.state}
+      data-watch={watchOn ? watchLevel : undefined}
       aria-label="Dnes"
     >
       <style>{todayStyles}</style>
@@ -357,6 +390,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
             )}
           </div>
           {presenceInHero && presence}
+          {summaryInHero && summaryLine}
         </div>
         {night ? (
           <>
@@ -369,19 +403,16 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
         ) : (
           <>
             {kiosk && cookingCard}
-            {!kioskCooking && !!summary.sentence && (
-              <p className="today-summary" data-testid="today-summary">
-                {summary.sentence}
-              </p>
-            )}
+            {!kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
             {heroFirst && hero}
+            {watchCard}
             <div className="today-ribbon-card" data-testid="ribbon-card">
               <div className="today-ribbon-heading">
                 Průběh dne{' '}
                 {sunKnown ? (
                   <span>
-                    východ {clockFormat.format(new Date(data.sun.sunrise))} · západ{' '}
-                    {clockFormat.format(new Date(data.sun.sunset))} ·{' '}
+                    východ {timeFormat.format(new Date(data.sun.sunrise))} · západ{' '}
+                    {timeFormat.format(new Date(data.sun.sunset))} ·{' '}
                     {Math.floor(daylightMinutes / 60)} h {daylightMinutes % 60} min světla
                   </span>
                 ) : (
@@ -391,7 +422,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 )}
               </div>
               <DayRibbon
-                slim={kiosk && (highestSeverity === 'critical' || kioskCooking)}
+                slim={kiosk && (highestSeverity === 'critical' || kioskCooking || kioskWatch)}
                 start={model.startHour}
                 end={model.endHour}
                 now={model.nowHour}
@@ -431,10 +462,10 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 ))}
               </div>
             )}
-            {!(kiosk && highestSeverity === 'critical') && !kioskCooking && (
+            {!(kiosk && highestSeverity === 'critical') && !kioskCooking && !kioskWatch && (
               <TodayHome api={homeApi} kiosk={kiosk} />
             )}
-            {!!chips.length && !kioskCooking && (
+            {!!chips.length && !kioskCooking && !kioskWatch && (
               <div className="today-chips" data-testid="status-chips">
                 {chips.map((signal) => (
                   <Chip

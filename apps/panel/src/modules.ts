@@ -12,6 +12,7 @@ import * as access from '@homebrain/module-access';
 import * as network from '@homebrain/module-network';
 import * as server from '@homebrain/module-server';
 import * as heating from '@homebrain/module-heating';
+import * as anomaly from '@homebrain/module-anomaly';
 import { createLiveTodayAdapter } from './today/liveAdapter';
 // Dnes: live HA data (connection state, station, sun, hourly blend, day ribbon). dev.tsx may
 // replace it with fixtures; production never does.
@@ -28,6 +29,8 @@ today.registerTodaySignalSource('recipes.timers', recipes.recipesTimersTodaySign
 // Dnes: network problem headline (adults + kitchen kiosk get only this summary).
 today.registerTodaySignalSource('network', network.networkTodaySignalSource);
 today.registerTodaySignalSource('heating', heating.heatingTodaySignalSource);
+// Dnes: Hlídání domu card from a suspicion up (summary API: adults + kitchen kiosk).
+today.setTodayWatchCard(anomaly.AnomalyWatchCard);
 const standardModules = [
   today,
   weather,
@@ -42,6 +45,7 @@ const standardModules = [
   access,
   network,
   server,
+  anomaly,
 ].map((module) => ({
   ...module.moduleManifest,
   View: lazy(module.loadView),

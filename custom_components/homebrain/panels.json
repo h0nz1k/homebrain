@@ -107,6 +107,13 @@
       "icon": "mdi:countertop",
       "module": "kitchen",
       "require_admin": false
+    },
+    {
+      "url_path": "homebrain-hlidani",
+      "title": "Hlídání domu",
+      "icon": "mdi:shield-home",
+      "module": "anomaly",
+      "require_admin": false
     }
   ]
 }

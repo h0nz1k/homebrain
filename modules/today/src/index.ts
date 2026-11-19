@@ -16,7 +16,7 @@ export {
 export type { TodayAdapter } from './data/adapter.js';
 export type { TodayData, RibbonKind, WeatherIcon } from './data/types.js';
 export type { TodayAdapterFactory } from './views/runtime.js';
-export { createMockAdapter, stateFromUrl } from './data/adapter.js';
+export { createMockAdapter, fixtureNow, stateFromUrl } from './data/adapter.js';
 export {
   registerTodaySignalSource,
   clearTodaySignalSources,
@@ -41,3 +41,5 @@ export {
   setCookingSourceFactory,
 } from './data/cooking.js';
 export type { CookingProbe, CookingScenario, CookingSource, CookState } from './data/cooking.js';
+export { setTodayWatchCard, getTodayWatchCard } from './data/watch.js';
+export type { TodayWatchCardProps, TodayWatchLevel } from './data/watch.js';

@@ -54,7 +54,8 @@ Běhy na `main` se proto už navzájem neruší (`cancel-in-progress` jen pro PR
 | `apps/**`, `packages/**`, ostatní `tests/e2e/**`, `playwright.config.ts`, `package.json`, lockfile, `pnpm-workspace.yaml`, `tsconfig*.json`, `.nvmrc` | ✓ | – | vše |
 | cokoli jiného | ✓ | – | – |
 
-Moduly navíc: producenti signálů (`energy health weather wine waste today`) → `today*.spec.ts`;
+Moduly navíc: producenti signálů (`energy health weather wine waste today anomaly`) → `today*.spec.ts`;
+`today` → `anomaly*.spec.ts` (karta Hlídání domu na Dnes a kiosku);
 `energy health wine today` → `back-navigation.spec.ts`; `waste` → `toast.spec.ts`.
 Nový modul bez vlastního specu dostane aspoň `shell.spec.ts`. **Přidáváte-li spec, který testuje
 jiný modul než jeho prefix, doplňte mapování v `changes.sh` i zde.**

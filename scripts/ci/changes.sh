@@ -23,7 +23,11 @@ add_module() {
   add_glob tests/e2e/"$m"*.spec.ts tests/e2e/shell.spec.ts
   case "$m" in
     # Signal producers feed the "Dnes" (today) dashboard and kiosk.
-    energy | health | weather | wine | waste | today) add_glob tests/e2e/today*.spec.ts ;;
+    energy | health | weather | wine | waste | today | anomaly) add_glob tests/e2e/today*.spec.ts ;;
+  esac
+  case "$m" in
+    # The Dnes card of Hlídání domu is tested in anomaly.spec.ts (kiosk included).
+    today) add_glob tests/e2e/anomaly*.spec.ts ;;
   esac
   case "$m" in
     energy | health | wine | today) add_glob tests/e2e/back-navigation.spec.ts ;;

@@ -27,6 +27,7 @@ NON_ADMIN_MODULES = {
     "recipes",
     "network",
     "heating",
+    "anomaly",
 }
 ADMIN_ONLY_MODULES = {"wine", "health", "robots", "access", "server"}
 

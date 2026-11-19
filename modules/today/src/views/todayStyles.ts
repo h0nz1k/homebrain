@@ -92,6 +92,10 @@ export const todayStyles = `
 .today-busy .today-content{gap:12px;padding-top:20px}
 .today-busy .today-hero{min-height:110px}
 .today-busy .today-clock{font-size:96px}
+.today-watch-on .today-hero{min-height:110px;padding-bottom:40px}
+.today-watch-on .today-clock{font-size:96px}
+.today-watch-on .today-weather{--temp-size:64px}
+.today-kiosk.today-watch-on .today-clock{font-size:96px}
 .today-busy .today-weather{--temp-size:72px}
 .today-busy .today-summary{font-size:18px}
 .today-busy .today-ribbon-card{min-height:0;flex:none;padding:10px 20px}
@@ -346,4 +350,14 @@ export const todayStyles = `
 .today-kiosk.today-cooking-on .today-hero{min-height:110px}
 .today-kiosk.today-cooking-on .today-content{gap:8px;padding-top:16px;padding-bottom:14px}
 .today-night .today-cooking{width:min(100%,960px);--hb-glass:rgba(10,12,16,.6)}
+/* Tablet/desktop with the Hlídání domu card: the hero collapses to one compact row (clock,
+   weather, condition), no sun arc, so the card and the whole „Průběh dne“ fit 1280×800 (e2e). */
+.today-desktop.today-watch-on .today-content{gap:12px;padding-top:16px;padding-bottom:16px}
+.today-desktop.today-watch-on .today-hero{min-height:0;padding-bottom:0;align-items:center;justify-content:flex-start;gap:32px}
+.today-desktop.today-watch-on .today-sun-band{display:none}
+.today-desktop.today-watch-on .today-clock{font-size:64px;line-height:1}
+.today-desktop.today-watch-on .today-weather{--temp-size:44px;display:flex;align-items:center;gap:16px;text-align:left;align-self:center}
+.today-desktop.today-watch-on .today-temperature{gap:12px}
+.today-desktop.today-watch-on .today-condition,.today-desktop.today-watch-on .today-station{position:static;margin:0;font-size:17px}
+.today-desktop.today-watch-on .today-hero>.today-summary{margin-left:auto;align-self:center;font-size:18px;color:var(--hb-t2);text-align:right}
 `;

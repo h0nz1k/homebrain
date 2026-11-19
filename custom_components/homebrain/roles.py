@@ -35,6 +35,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "server",
             "heating",
             "settings",
+            "anomaly",
             "about",
         }
     ),
@@ -52,6 +53,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "recipes",
             "network",
             "heating",
+            "anomaly",
             "about",
         }
     ),
@@ -192,6 +194,18 @@ FAMILY_APPROVE_ROLES: Final = frozenset({"adult"})
 # the reduced ``get`` payload for Dnes signals. ``import_history`` stays admin-only.
 HEATING_GET_ROLES: Final = frozenset({"adult", "kiosk"})
 HEATING_DETAIL_ROLES: Final = frozenset({"adult"})
+# Hlídání domu: adults read and acknowledge reports (local HomeBrain state only); the kiosk
+# tablet gets the Dnes summary without entity or device ids. Children see nothing.
+ANOMALY_ROLES: Final = frozenset({"adult"})
+ANOMALY_SUMMARY_ROLES: Final = frozenset({"adult", "kiosk"})
+ANOMALY_WS_COMMANDS: Final = frozenset(
+    {
+        "homebrain/anomaly/list",
+        "homebrain/anomaly/ack",
+        "homebrain/anomaly/mute",
+        "homebrain/anomaly/unmute",
+    }
+)
 # Energie details (period comparison): HA admins and adults; the kiosk keeps the summary only.
 ENERGY_DETAIL_ROLES: Final = frozenset({"adult"})
 
@@ -225,6 +239,10 @@ def role_ws_commands(role: str) -> frozenset[str]:
             "homebrain/heating/seasons",
             "homebrain/heating/changes",
         }
+    if role in ANOMALY_ROLES:
+        extra |= ANOMALY_WS_COMMANDS
+    if role in ANOMALY_SUMMARY_ROLES:
+        extra |= {"homebrain/anomaly/summary"}
     if role in ENERGY_DETAIL_ROLES:
         extra |= {
             "homebrain/energy/compare",

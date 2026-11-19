@@ -342,7 +342,8 @@
         "network": "Network",
         "server": "Server",
         "heating": "Heating",
-        "kitchen": "Kitchen"
+        "kitchen": "Kitchen",
+        "anomaly": "House watch"
       }
     },
     "meals_display": {

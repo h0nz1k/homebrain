@@ -21,6 +21,7 @@ from homeassistant.loader import async_get_integration
 
 from . import weather
 from .access import ws as access_ws
+from .anomaly import ws as anomaly_ws
 from .bindings import get_bindings
 from .const import (
     DOMAIN,
@@ -165,6 +166,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "family": _commands(*family_ws.COMMANDS)(hass),
             "kitchen": _commands(*kitchen_ws.COMMANDS)(hass),
             "heating": _commands(*heating_ws.COMMANDS)(hass),
+            "anomaly": _commands(*anomaly_ws.COMMANDS)(hass),
         },
     )
     if module_states(hass).get("wine") is None:
@@ -318,6 +320,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "access": _setup_access,
             "robots": _setup_robots,
             "network": network_ws.async_setup,
+            "anomaly": anomaly_ws.async_setup,
         },
     )
     # Topení (read-only Tecomat poller + entities). Own isolation until it is a MODULES entry.
@@ -397,6 +400,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("waste", _unload_waste),
             ("network", network_ws.async_unload),
             ("server", server_ws.async_unload),
+            ("anomaly", anomaly_ws.async_unload),
         ),
     )
     await heating_setup.async_unload_heating(hass, entry)

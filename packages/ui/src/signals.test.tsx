@@ -402,3 +402,29 @@ it('toggle Chip keeps a non-neutral tone (amber maintenance toggle)', () => {
   expect(warn?.getAttribute('data-tone')).toBe('warn');
   expect(neutral?.hasAttribute('data-tone')).toBe(false);
 });
+
+it('centres a band label on its segment and an event label (text) on its time', () => {
+  const centre = (item: Parameters<typeof DayRibbon>[0]['items'][number]) => {
+    const { container, unmount } = render(
+      <DayRibbon start={6} end={24} now={10.67} sunrise={6.93} sunset={16.78} items={[item]} />,
+    );
+    const el = container.querySelector<HTMLElement>('[data-testid="ribbon-label"]')!;
+    expect(el.dataset.anchor).toBe('center');
+    const at = parseFloat(el.style.left) + parseFloat(el.style.width) / 2;
+    unmount();
+    return at;
+  };
+  // 14:00 is the middle of 13–15 h; 18:00 the dinner (positions in % of 6–24 h)
+  expect(
+    centre({
+      id: 'cheap',
+      kind: 'cheap',
+      from: 13,
+      to: 15,
+      label: 'Levný proud 13–15 h · 0,9 Kč/kWh',
+    }),
+  ).toBeCloseTo(((14 - 6) / 18) * 100, 0);
+  expect(
+    centre({ id: 'dinner', kind: 'event', from: 18, label: '18:00 Večeře u babičky' }),
+  ).toBeCloseTo(((18 - 6) / 18) * 100, 0);
+});
