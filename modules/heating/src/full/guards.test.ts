@@ -49,7 +49,7 @@ describe('owner rules', () => {
     expect(G.pipes).toHaveLength(55);
     expect(G.bridges.map((b) => b.over).sort()).toEqual(['jbr_to_ground', 'jbyp_to_mix']);
     expect(G.questions.map((q) => q.id)).toEqual(['?1', '?2', '?3', '?4']);
-    expect(G.badges.map((b) => b.text).sort()).toEqual(['?1', '?2', '?2', '?3', '?4', '?4']);
+    expect(G.badges.map((b) => b.text).sort()).toEqual(['?1', '?2', '?3', '?4']);
     // the mixer B leg meets the cooling valve B leg and the exchanger at ONE junction (tee) …
     const jbyp = G.junctions.find((j) => j.id === 'j_byp')!;
     const atJbyp = G.pipes.filter((p) => [p.from, p.to].some((e) => e.startsWith('j_byp.')));
@@ -139,10 +139,9 @@ describe('palette (both themes)', () => {
       expect(de2000(p.glow, p.warn)).toBeGreaterThanOrEqual(24);
       expect(de2000(p.glow, '#b7aa82')).toBeGreaterThanOrEqual(20);
     });
-    it(`${theme}: fault colour distinct from solar`, () => {
-      // Dark keeps the p3i amber (ΔE ≈ 17 to the solar yellow): the fault is a ring + dark red
-      // pill on the valve, never a pipe, so form carries the difference there.
-      expect(de2000(p.warn, p.solar)).toBeGreaterThanOrEqual(theme === 'dark' ? 15 : 20);
+    it(`${theme}: fault colour clearly distinct from solar (ΔE2000 ≥ 30)`, () => {
+      expect(de2000(p.warn, p.solar)).toBeGreaterThanOrEqual(30);
+      expect(de2000(p.warn, p.heat_supply)).toBeGreaterThanOrEqual(25);
     });
   }
   it('pool heating uses the heating colours, no extra pool-heating hue', () => {
