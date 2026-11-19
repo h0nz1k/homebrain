@@ -17,24 +17,25 @@ export interface PresetGroup extends Preset {
 
 const r = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 
+// r3: drawing units after the two free columns (valves | TČ +110, tank | right side +230).
 export const PRESET_GROUPS: PresetGroup[] = [
   {
     id: 'tech',
     label: 'Technika',
-    box: r(700, 329, 1434, 640),
+    box: r(700, 329, 1766, 640),
     fine: [
-      { id: 'valves', label: 'Ventily', box: r(980, 352, 360, 423) },
-      { id: 'hp', label: 'TČ', box: r(1172, 530, 530, 415) },
-      { id: 'tank', label: 'Nádrž', box: r(1706, 352, 428, 590) },
+      { id: 'valves', label: 'Ventily', box: r(940, 332, 410, 628) },
+      { id: 'hp', label: 'TČ', box: r(1338, 470, 440, 520) },
+      { id: 'tank', label: 'Nádrž', box: r(2028, 352, 438, 640) },
     ],
   },
   {
     id: 'pool',
     label: 'Bazén',
-    box: r(2292, 800, 926, 430),
+    box: r(2620, 724, 940, 506),
     fine: [
-      { id: 'basin', label: 'Bazén', box: r(2930, 790, 290, 440) },
-      { id: 'pit', label: 'Jímka', box: r(2478, 904, 444, 316) },
+      { id: 'basin', label: 'Bazén', box: r(3270, 742, 290, 480) },
+      { id: 'pit', label: 'Jímka', box: r(2818, 904, 444, 316) },
     ],
   },
   {
@@ -49,7 +50,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 ];
 
 /** Whole drawing without the empty margins of the canvas. */
-export const CONTENT: Rect = r(16, 86, 3205, 1146);
+export const CONTENT: Rect = r(16, 86, 3543, 1146);
 
 export const PRESET_PAD = 12;
 /** Presets never magnify beyond this (a small box on a big screen stays a sensible size). */

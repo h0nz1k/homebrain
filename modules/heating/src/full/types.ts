@@ -15,6 +15,8 @@ export interface GeoPipe {
   to: string;
   certainty: string;
   d: string;
+  /** Polyline of the route incl. port stubs (drawing units) – for the geometry tests. */
+  pts: number[][];
 }
 
 export interface GeoLabel {
@@ -38,6 +40,8 @@ export interface GeoLabel {
   reading?: boolean;
   /** Zone title, drawn as a plate on the top-left wall edge of its zone. */
   zone?: boolean;
+  /** Optional second line under a zone plate (regular weight). */
+  sub?: string;
 }
 
 export interface FullGeometry {

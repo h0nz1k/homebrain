@@ -23,6 +23,63 @@ if (!layoutPath || !topologyPath) {
 }
 const L = JSON.parse(readFileSync(layoutPath, 'utf8')).layouts.wide;
 const T = JSON.parse(readFileSync(topologyPath, 'utf8'));
+
+/**
+ * r3 (owner 2026-11-19: layout may change, topology may not): a free column right of the tank
+ * for its labels. Every point right of TANK_GAP moves TANK_COLUMN units to the right – a monotone
+ * shift, so all segments stay orthogonal, no crossing appears or disappears and every clearance
+ * only grows. The tank keeps its place; its right-side pipes simply get longer.
+ */
+const TANK_GAP = 2136;
+const TANK_COLUMN = 230;
+/**
+ * r3: a second free column between the valve cluster and the heat pump (x 1236 lies between the
+ * cooling valve and the first TČ label): the valves get air on their right and the TČ preset no
+ * longer shares its left edge with the cooling-valve labels.
+ */
+const VALVE_GAP = 1236;
+const VALVE_COLUMN = 110;
+const BANDS = [
+  [VALVE_GAP, VALVE_COLUMN],
+  [TANK_GAP, TANK_COLUMN],
+];
+const sx = (x) => x + BANDS.reduce((d, [at, w]) => d + (x >= at ? w : 0), 0);
+{
+  const pt = (p) => {
+    p[0] = sx(p[0]);
+  };
+  const rect = (r) => {
+    const x2 = sx(r[0] + r[2]);
+    r[0] = sx(r[0]);
+    r[2] = x2 - r[0];
+  };
+  L.canvas[0] += VALVE_COLUMN + TANK_COLUMN;
+  for (const r of Object.values(L.boxes)) {
+    for (const [at] of BANDS)
+      if (r[2] && r[0] < at && r[0] + r[2] > at) throw new Error('box spans a free column');
+    rect(r);
+  }
+  for (const r of Object.values(L.regions)) rect(r);
+  for (const p of Object.values(L.ports)) pt(p);
+  for (const pts of Object.values(L.routes)) pts.forEach(pt);
+  for (const st of L.stubs) st.pts.forEach(pt);
+  for (const e of L.region_edges) e.slice(0, 2).forEach(pt);
+  for (const k of ['bridges', 'chevrons', 'drawn_marks', 'tank_fittings', 'hp_fittings', 'badges'])
+    for (const m of L[k]) pt(m.at);
+  for (const ld of L.leaders) ld.pts.forEach(pt);
+  for (const ib of L.internal_boxes) rect(ib.box);
+  for (const c of Object.values(L.coils)) c.forEach(pt);
+  L.arch.block_r = sx(L.arch.block_r);
+  L.arch.house = L.arch.house.map(sx);
+  L.arch.shaft_x = sx(L.arch.shaft_x);
+  for (const l of Object.values(L.labels)) {
+    const mid = l.box[0] + l.box[2] / 2;
+    const d = sx(mid) - mid;
+    l.x += d;
+    l.box[0] += d;
+    if (l.pipe_sensor) l.pipe_sensor[0] = sx(l.pipe_sensor[0]);
+  }
+}
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '../src/full/geometry.gen.ts');
 
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -92,6 +149,9 @@ function pdata(pts, r = 8, hops = []) {
 }
 
 // ---------------------------------------------------------------- pipes
+// r3: hops big enough to read at the overview scale (≈ 0.4): r 8 → 13.
+const HOP_R = 13;
+for (const br of L.bridges) br.r = HOP_R;
 const hops = {};
 for (const br of L.bridges) (hops[br.over] ??= []).push([br.at[0], br.at[1], br.r]);
 const extensions = {};
@@ -121,8 +181,41 @@ const pipes = T.connections.map((c) => {
     to: c.to,
     certainty: c.certainty,
     d: pdata(full, corner, hops[c.id] ?? []),
+    pts: full.map(([x, y]) => [r1(x), r1(y)]),
   };
 });
+
+/**
+ * r3: every crossing of two pipes that are not joined must carry a hop (bridge). Joints are tee
+ * junctions (shared end points); anything else that crosses without a declared bridge fails the
+ * build, so a later layout change cannot sneak in an ambiguous crossing.
+ */
+{
+  const lines = [
+    ...pipes.map((p) => [p.id, p.pts]),
+    ['coil_ground', L.coils.ground],
+    ['coil_pool', L.coils.floor_pool],
+  ];
+  const segsOf = (pts) => pts.slice(1).map((b, i) => [pts[i], b]);
+  const all = lines.flatMap(([id, pts]) => segsOf(pts).map(([a, b]) => [id, a, b]));
+  const declared = new Set(L.bridges.map((b) => `${b.at[0]},${b.at[1]}`));
+  const between = (v, a, b) => Math.min(a, b) < v && v < Math.max(a, b);
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      const [p, a1, b1] = all[i];
+      const [q, a2, b2] = all[j];
+      if (p === q) continue;
+      const h1 = a1[1] === b1[1];
+      const h2 = a2[1] === b2[1];
+      if (h1 === h2) continue;
+      const [ha, hb, va, vb] = h1 ? [a1, b1, a2, b2] : [a2, b2, a1, b1];
+      const [x, y] = [va[0], ha[1]];
+      if (between(x, ha[0], hb[0]) && between(y, va[1], vb[1]) && !declared.has(`${x},${y}`)) {
+        throw new Error(`crossing without a hop: ${p} × ${q} at ${x},${y}`);
+      }
+    }
+  }
+}
 
 const segs = (p) => p.slice(1).map((b, i) => [p[i], b]);
 const bridges = L.bridges.map((br) => {
@@ -240,6 +333,9 @@ const DROP = new Set([
   // r2: the pool card (live temperature + pumps) names the basin and its floor heating
   'pool',
   'pool_floor_label',
+  // r3: one ZAHRADA; the collector depth is the second line of the ZEMNÍ KOLEKTOR plate
+  'lawn_caption',
+  'ground_depth',
 ]);
 /**
  * p3i review fixes (LANA 2026-11-18 18:59): port letters at the port ends, labels attached to
@@ -267,9 +363,22 @@ const ZONE_PLATES = {
   floor1_caption: [726, 222],
   tech_caption: [726, 332],
   ryb_caption: [300, 350],
-  pit_caption: [2502, 942],
-  lawn_caption: [40, 942],
-  garden_caption: [2380, 942],
+  pit_caption: [sx(2502), 942],
+  // r3: one ZAHRADA (the garden with pit, channel and pool); the lawn left of the house is the
+  // ground collector's zone. Every zone title – incl. collector, channel, solar collector and
+  // the pool – is the same plate at the top-left edge of its zone.
+  garden_caption: [sx(2380), 942],
+  ground_caption: [40, 942],
+  channel_caption: [sx(2312) + 44, 1132],
+  solar: [sx(2137), 250],
+  enclosure: [sx(2948) + 8, 752],
+};
+/** r3: zone titles (caps plate) and their optional second line. */
+const ZONE_TEXT = {
+  ground_caption: ['ZEMNÍ KOLEKTOR', 'plošný · hloubka cca 1,5 m'],
+  channel_caption: ['PODZEMNÍ KANÁL'],
+  solar: ['SOLÁRNÍ KOLEKTOR'],
+  enclosure: ['BAZÉN', 'posuvné zastřešení'],
 };
 /** r2 wording: tank = AKN only (the legend explains it once). */
 const LINES = { tank: ['AKN'], pool_temp: ['Zpátečka bazénu'] };
@@ -290,6 +399,8 @@ for (const [key, l] of Object.entries(L.labels)) {
     reading = true;
   }
   if (LINES[key]) lines = [...LINES[key]];
+  const zoneText = ZONE_TEXT[key];
+  if (zoneText) lines = [zoneText[0]];
   const font = l.size ?? l.font;
   const lh = l.lh ?? BASE_LH;
   const box = [...l.box];
@@ -326,6 +437,7 @@ for (const [key, l] of Object.entries(L.labels)) {
     ...(l.compressor_dependent ? { compressorDependent: true } : {}),
     ...(reading ? { reading: true } : {}),
     ...(plate ? { zone: true } : {}),
+    ...(zoneText?.[1] ? { sub: zoneText[1] } : {}),
   };
 }
 
@@ -340,17 +452,24 @@ for (const [key, l] of Object.entries(labels)) {
  * p3i become the question they belong to: the bypass tee (j_mix) is part of ?2, the two derived
  * cooling branches of the ground collector are the new ?4.
  */
-const BADGE_TEXT = { j_mix: '?2', j_coll_r: '?4', j_coll_s: '?4' };
-const BADGE_AT = { j_mix: [1228, 500] };
-const badges = L.badges.map((b) => ({
-  of: b.of,
+/*
+ * r3: one marker per question, always on a device: ?2 sits on the cooling valve only (the bypass
+ * tee is part of the same question), ?4 on the cooling pump of the derived collector branches.
+ */
+const BADGE_TEXT = { j_coll_r: '?4' };
+const BADGE_DROP = new Set(['j_mix', 'j_coll_s']);
+const BADGE_OF = { j_coll_r: 'pump_chlad' };
+const pc = glyphs.pumps.pump_chlad.c;
+const BADGE_AT = { j_coll_r: [pc[0] - 34, pc[1] - 34] };
+const badges = L.badges.filter((b) => !BADGE_DROP.has(b.of)).map((b) => ({
+  of: BADGE_OF[b.of] ?? b.of,
   text: BADGE_TEXT[b.of] ?? b.text,
   x: (BADGE_AT[b.of] ?? b.at)[0],
   y: (BADGE_AT[b.of] ?? b.at)[1],
   r: 12,
 }));
 const leaders = L.leaders
-  .filter((ld) => ld.of !== 'valve_mix')
+  .filter((ld) => ld.of !== 'valve_mix' && !BADGE_DROP.has(ld.of) && !BADGE_AT[ld.of])
   .map((ld) => {
     const at = BADGE_AT[ld.of];
     if (!at) return { of: ld.of, pts: ld.pts };
