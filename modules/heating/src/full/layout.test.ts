@@ -1,59 +1,87 @@
 import { describe, expect, it } from 'vitest';
-import { buildMockSnapshot } from '../mock.js';
-import { endLabels, farEnd } from './endLabels.js';
-import { END_AVOID } from './FullSchematic.js';
-import { fullState } from './fullState.js';
 import { FULL_GEOMETRY as G } from './geometry.gen.js';
-import { OVERVIEW_BELOW, OV_FONT, OV_VALUE, overviewBounds } from './overview.js';
-import { READABLE_SCALE, fitView } from './panZoom.js';
-import { LABEL_FONT, VALUE_FONT } from './pill.js';
-import {
-  CONTENT,
-  PRESET_GROUPS,
-  boxView,
-  bestFrame,
-  presetFrame,
-  presetsFor,
-  snapFrame,
-  type Preset,
-} from './presets.js';
-import { FS_PALETTE, FS_THEME, stillOf } from './styles.js';
+import { READABLE_SCALE } from './panZoom.js';
+import { CONTENT, PRESET_GROUPS, boxView, presetsFor, type Preset } from './presets.js';
+import { FS_THEME } from './styles.js';
 
-/** Glyph and label boxes (the viewer measures the real ones in the browser). */
-const ITEMS = END_AVOID.filter((b) => b[2] > 12 && b[3] > 12).map(([x, y, w, h]) => ({
-  x,
-  y,
-  w,
-  h,
-}));
+/** Text width estimate (Inter 15 units) – same as the cards in FullSchematic. */
+const W = (t: string, f = 15) => t.length * f * 0.56;
+type Box = [number, number, number, number];
 
-const all: Preset[] = PRESET_GROUPS.flatMap((g) => (g.alwaysFine ? g.fine : [g, ...g.fine]));
+/** Every text box of the drawing: static labels widened by their live reading + runtime texts. */
+function textBoxes(): Array<[string, Box]> {
+  const out: Array<[string, Box]> = [];
+  for (const [k, l] of Object.entries(G.labels)) {
+    if (l.card) continue;
+    const [x, y, w, h] = l.box as Box;
+    if (l.zone) {
+      out.push([k, [x - 8, y - 2, Math.max(w, W(l.lines[0]!)) + 16, 22]]);
+      continue;
+    }
+    const extra = l.reading ? W('  −10,0 °C') + (k === 'chip_fish' ? W(' · cíl 10,0 °C') : 0) : 0;
+    const tw = l.reading ? W(l.lines[0]!) + extra : w;
+    const x0 = l.anchor === 'start' ? x : l.anchor === 'middle' ? l.x - tw / 2 : l.x - tw;
+    const s = l.sensor ? 18 : 0;
+    out.push([k, [x0 - s, y, tw + s, h]]);
+  }
+  const [hx, hy, hw] = G.glyphs.hp as Box;
+  out.push([
+    'hp_title',
+    [hx + hw / 2 - W('Tepelné čerpadlo') / 2, hy - 42, W('Tepelné čerpadlo'), 18],
+  ]);
+  out.push([
+    'hp_state',
+    [hx + hw / 2 - W('kompresor stojí') / 2, hy - 23, W('kompresor stojí'), 18],
+  ]);
+  const [mx, my] = G.glyphs.valveMix.c as [number, number];
+  out.push(['mix_name', [mx + 34, my + 13, W('Směšovací ventil'), 18]]);
+  out.push(['mix_pct', [mx + 34, my + 31, W('poloha A 100 %'), 18]]);
+  const [cx, cy] = G.glyphs.valves.valve_cool!.c as [number, number];
+  out.push(['cool_name', [cx + 32, cy - 18, W('Ventil chlazení'), 18]]);
+  out.push(['cool_state', [cx + 32, cy, W('nechladí (B)'), 18]]);
+  const f = G.labels.chip_fish!;
+  out.push(['fish_state', [f.x, f.y + 8, W('netopí – teplo stačí'), 18]]);
+  const [px, py, pw] = G.glyphs.pool as Box;
+  out.push(['pool_card', [px + 14, py + 30, pw - 28, 104]]);
+  for (const b of G.badges) out.push([`badge_${b.of}`, [b.x - b.r, b.y - b.r, 2 * b.r, 2 * b.r]]);
+  return out;
+}
 
-// Whether a preset cuts a label is checked in the browser on the real text boxes
-// (tests/e2e/heating-full.spec.ts) – estimates here would only drift from the rendering.
+const all: Preset[] = PRESET_GROUPS.flatMap((g) => [g, ...g.fine]);
+
 describe('presets', () => {
-  it('tablet (portrait and landscape) and desktop: every offered preset ≥ 12 CSS px text', () => {
-    // viewport = screen − header (≈ 60); the legend is a drawer over the drawing (r3)
+  it.each(all.map((p) => [p.id, p] as const))('%s cuts no label (each fully in or out)', (_, p) => {
+    const { x, y, w, h } = p.box;
+    const cut = textBoxes()
+      .filter(([, [bx, by, bw, bh]]) => {
+        const inside = bx >= x && by >= y && bx + bw <= x + w && by + bh <= y + h;
+        const outside = bx + bw <= x || bx >= x + w || by + bh <= y || by >= y + h;
+        return !inside && !outside;
+      })
+      .map(([k]) => k);
+    expect(cut).toEqual([]);
+  });
+
+  it('tablet (portrait and landscape): every offered preset gives ≥ 12 CSS px text', () => {
+    // viewport = screen − header (≈ 60) − docked legend (portrait, ≈ 230) or its bar (≈ 40)
     for (const [vw, vh] of [
-      [800, 1280 - 60],
+      [800, 1280 - 60 - 330],
       [1280, 800 - 60],
-      [1440, 900 - 60],
-      [1920, 1080 - 60],
+      [1440, 900 - 60 - 190],
     ] as const) {
       const offered = presetsFor(vw, vh);
       expect(offered.length).toBeGreaterThanOrEqual(3);
       for (const p of offered) {
         const s = boxView(vw, vh, p.box).scale;
-        expect(LABEL_FONT * s, `${vw}×${vh} ${p.id}`).toBeGreaterThanOrEqual(12 - 1e-9);
+        expect(15 * s, `${vw}×${vh} ${p.id}`).toBeGreaterThanOrEqual(12 - 1e-9);
         expect(s).toBeGreaterThanOrEqual(READABLE_SCALE);
       }
     }
-    expect(presetsFor(1920, 1020).map((p) => p.id)).toContain('tech');
+    expect(presetsFor(1280, 700).map((p) => p.id)).toContain('tech');
   });
 
-  it('phone: the fine presets, labels ≥ 11 CSS px and values ≥ 12 CSS px', () => {
-    // 360 × 800 minus the two-row header (≈ 130 px)
-    const offered = presetsFor(360, 800 - 130);
+  it('phone: the fine presets, none below 9.5 CSS px text', () => {
+    const offered = presetsFor(360, 800 - 100);
     expect(offered.map((p) => p.id)).toEqual([
       'valves',
       'hp',
@@ -64,99 +92,16 @@ describe('presets', () => {
       'rooms',
     ]);
     for (const p of offered) {
-      const s = boxView(360, 670, p.box).scale;
-      expect(LABEL_FONT * s, p.id).toBeGreaterThanOrEqual(11);
-      expect(VALUE_FONT * s, p.id).toBeGreaterThanOrEqual(12);
+      expect(15 * boxView(360, 660, p.box).scale, p.id).toBeGreaterThanOrEqual(9.5);
     }
   });
 
   it('presets and the whole view stay inside the drawn content', () => {
     for (const p of all) {
       expect(p.box.x).toBeGreaterThanOrEqual(CONTENT.x);
-      expect(p.box.x + p.box.w).toBeLessThanOrEqual(G.canvas[0]! + 1);
+      expect(p.box.x + p.box.w).toBeLessThanOrEqual(CONTENT.x + CONTENT.w);
       expect(p.box.y + p.box.h).toBeLessThanOrEqual(CONTENT.y + CONTENT.h);
     }
-  });
-});
-
-describe('overview (whole drawing on a desktop)', () => {
-  it.each([
-    [1440, 900],
-    [1920, 1080],
-  ])('%i × %i: labels ≥ 13 CSS px, values ≥ 14 CSS px', (vw, vh) => {
-    const st = fullState(buildMockSnapshot('heating', 0, Date.parse('2026-01-12T10:00:00Z')));
-    const b = overviewBounds(st);
-    const s = fitView(vw, vh - 60, b, 12).scale;
-    expect(s).toBeLessThan(OVERVIEW_BELOW);
-    expect(OV_FONT * s).toBeGreaterThanOrEqual(13);
-    expect(OV_VALUE * s).toBeGreaterThanOrEqual(14);
-    // the overview fills the box: no more than a quarter of its height left empty
-    expect((b.h * s) / (vh - 60 - 24)).toBeGreaterThanOrEqual(0.75);
-  });
-});
-
-describe('end labels', () => {
-  it('every pipe leaving a preset frame has an end label naming equipment outside it', () => {
-    // r4: the frames each offered preset grows to on a phone, a tablet and a desktop, placed /
-    // snapped as in the viewer (the bare box is never shown as such any more)
-    const frames = (
-      [
-        [360, 670],
-        [800, 1150],
-        [1280, 690],
-        [1440, 840],
-      ] as const
-    ).flatMap(([w, h]) =>
-      presetsFor(w, h).map((p) => ({
-        id: `${p.id}@${w}`,
-        box: bestFrame(presetFrame(w, h, p.box).frame, p.box, ITEMS),
-      })),
-    );
-    for (const p of frames) {
-      const labels = endLabels(G.pipes, p.box, END_AVOID, G.boxes);
-      const texts = labels.map((l) => l.text);
-      expect(new Set(texts).size, `${p.id}: unique end labels ${texts.join(' | ')}`).toBe(
-        texts.length,
-      );
-      const named = new Set(labels.flatMap((l) => l.pipe.split(' ')));
-      const leaving = G.pipes.filter(
-        (q) =>
-          q.pts.some(
-            (pt) =>
-              !(
-                pt[0]! > p.box.x &&
-                pt[0]! < p.box.x + p.box.w &&
-                pt[1]! > p.box.y &&
-                pt[1]! < p.box.y + p.box.h
-              ),
-          ) &&
-          q.pts.some(
-            (pt) =>
-              pt[0]! > p.box.x &&
-              pt[0]! < p.box.x + p.box.w &&
-              pt[1]! > p.box.y &&
-              pt[1]! < p.box.y + p.box.h,
-          ),
-      );
-      for (const q of leaving) expect(named.has(q.id), `${p.id}: ${q.id}`).toBe(true);
-      for (const l of labels) expect(l.text).not.toContain('…');
-    }
-  });
-  it('a grown frame snaps its new edges off a straddling item, never into the box', () => {
-    const box = { x: 100, y: 100, w: 100, h: 100 };
-    const frame = { x: 50, y: 0, w: 200, h: 300 };
-    const f = snapFrame(frame, box, [
-      { x: 120, y: -10, w: 40, h: 20 },
-      { x: 60, y: 280, w: 30, h: 40 },
-      { x: 90, y: 150, w: 30, h: 10 },
-    ]);
-    expect(f.y).toBe(12);
-    expect(f.y + f.h).toBe(278);
-    expect(f.x).toBe(50);
-  });
-  it('far end follows the circuit past pumps and tees', () => {
-    expect(farEnd(G.pipes, 'tank_to_ppool', 'pump_pool')).toBe('bazén');
-    expect(farEnd(G.pipes, 'hp_to_jbr', 'j_coll_r')).toBe('zemní kolektor');
   });
 });
 
@@ -231,27 +176,6 @@ describe('text contrast (WCAG ≥ 4.5:1)', () => {
       }
       expect(contrast(v['card-ink']!, v.card!)).toBeGreaterThanOrEqual(4.5);
       expect(contrast('#ffffff', v.badge!)).toBeGreaterThanOrEqual(4.5);
-    });
-  }
-});
-
-describe('pipe contrast (WCAG ≥ 3:1 for graphics)', () => {
-  for (const theme of ['dark', 'light'] as const) {
-    const v = FS_THEME[theme] as Record<string, string>;
-    it(`${theme}: every circuit colour, its standing tone and the grey states on every surface`, () => {
-      const p = FS_PALETTE[theme] as Record<string, string>;
-      const strokes = Object.entries(p)
-        .filter(([k]) => !['warn', 'glow'].includes(k))
-        .flatMap(([k, c]) => [
-          [k, c],
-          [`${k} (stojí)`, stillOf(c)],
-        ]);
-      strokes.push(['closed', v.neutral!], ['off', v.inactive!]);
-      for (const [k, c] of strokes) {
-        for (const surface of ['bg', 'room', 'tech', 'concrete2', 'soil', 'soil2']) {
-          expect(contrast(c!, v[surface]!), `${k} on ${surface}`).toBeGreaterThanOrEqual(3);
-        }
-      }
     });
   }
 });

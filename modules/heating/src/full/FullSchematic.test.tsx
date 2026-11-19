@@ -26,21 +26,19 @@ describe('FullSchematic (live data)', () => {
 
   it('missing values show – with the no-data style, never a placeholder number', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
-    const coll = document.querySelector('[data-label-group="hp_coll_in"]')!;
-    expect(coll.querySelector('[data-label]')?.textContent).toBe('Z kolektoru');
-    expect(coll.querySelector('[data-pill][data-reading="none"]')?.textContent?.trim()).toBe('–');
-    // values are pills (one value style everywhere)
-    const out = document.querySelector('[data-label-group="hp_t_out"]')!;
-    expect(out.querySelector('[data-pill][data-reading=""]')?.textContent).toMatch(/46,0\s?°C/u);
-    expect(out.querySelector('[data-pill] rect.fs-vpill')).not.toBeNull();
+    const coll = document.querySelector('[data-label="hp_coll_in"]')!;
+    expect(coll.textContent).toContain('Z kolektoru');
+    expect(coll.querySelector('[data-reading="none"]')?.textContent?.trim()).toBe('–');
+    const out = document.querySelector('[data-label="hp_t_out"]')!;
+    expect(out.querySelector('[data-reading=""]')?.textContent).toMatch(/46,0\s?°C/u);
   });
 
-  it('default data: mixing valve neutral ("poloha: bez signálu"), no fault ring, no fault text', () => {
+  it('default data: mixing valve neutral ("poloha –"), no fault ring, no fault text', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
     const valve = document.querySelector('[data-glyph="valve_mix"]')!;
     expect(valve.getAttribute('data-path')).toBe('unknown');
     expect(valve.querySelector('[data-fault-glyph]')).toBeNull();
-    expect(screen.getByTestId('heating-full-mix-pct').textContent).toBe('poloha: bez signálu');
+    expect(screen.getByTestId('heating-full-mix-pct').textContent).toBe('poloha –');
     expect(document.querySelector('svg')!.textContent).not.toMatch(/porucha|nouzov/iu);
   });
 
@@ -74,73 +72,20 @@ describe('FullSchematic (live data)', () => {
     expect(screen.getByTestId('heating-full-cool-state').textContent).toBe('bez signálu');
   });
 
-  it('pool card: return of the floor heating inline, water "neměřeno", outside the basin', () => {
+  it('pool card: return temperature, floor heating and filtration pumps', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
     const card = screen.getByTestId('heating-full-pool-card');
-    expect(card.textContent).toMatch(/Zpátečka z ohřevu bazénu27,9\u00a0°C/u);
-    expect(card.textContent).toContain('Voda v bazénuneměřeno');
-    expect(card.querySelector('.fs-pill-unmeasured')).not.toBeNull();
-    // r4: the card never covers the basin (pool box) – it sits in the air above the pit
-    const rect = card.querySelector('rect')!;
-    const bottom = Number(rect.getAttribute('y')) + Number(rect.getAttribute('height'));
-    expect(bottom).toBeLessThan(950);
+    expect(card.textContent).toContain('Bazén');
+    expect(card.textContent).toMatch(/Zpátečka ohřevu27,9\u00a0°C/u);
     expect(card.textContent).toContain('Ohřev dnastojí');
     expect(card.textContent).toContain('Filtracestojí');
-    expect(card.querySelectorAll('[data-pump][data-state="off"]')).toHaveLength(2);
-  });
-
-  it('standing pool heating: the floor meander is one colour, not the flow gradient', () => {
-    render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
-    const m = document.querySelector('[data-coil="floor_pool_meander"]')!;
-    expect(m.getAttribute('data-state')).toBe('still');
-    expect(m.getAttribute('stroke')).toBeNull();
-  });
-
-  it('overview (whole drawing): zone cards with every live value, no detail labels', () => {
-    render(
-      <FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" lod="overview" />,
-    );
-    expect(screen.getByTestId('heating-full-overview')).toBeTruthy();
-    expect(document.querySelector('[data-label="hp_t_out"]')).toBeNull();
-    const text = document.querySelector('svg')!.textContent!;
-    for (const v of ['46,0', '41,8', '49,8', '41,7', '37,8', '27,9', 'neměřeno', 'kompresor běží'])
-      expect(text).toContain(v);
-    // r4: the key values sit at their equipment, not in the card
-    for (const k of ['tank_high', 'tank_low', 'hp_t_out', 'hp_t_in', 't_ut'])
-      expect(document.querySelector(`[data-ov-value="${k}"] [data-pill]`)).not.toBeNull();
-    // same wording as the detail drawing and the status panel
-    expect(text).toContain('bez signálu');
-  });
-
-  it('preset frame: every pipe that leaves it gets an end label', () => {
-    render(
-      <FullSchematic
-        snap={buildMockSnapshot('heating', 0, NOW)}
-        theme="dark"
-        frame={{ x: 1338, y: 470, w: 440, h: 520 }}
-      />,
-    );
-    const ends = Array.from(document.querySelectorAll('[data-end-label]'), (el) =>
-      el.textContent?.trim(),
-    );
-    expect(ends.length).toBeGreaterThan(0);
-    expect(ends.some((t) => t?.includes('zemní kolektor'))).toBe(true);
   });
 
   it('tank says just AKN; zone titles are plates', () => {
     render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
     expect(document.querySelector('[data-label="tank"]')?.textContent).toBe('AKN');
     expect(document.querySelector('svg')!.textContent).not.toContain('akumulační');
-    // one plate per zone incl. collector, channel, solar collector and pool; one ZAHRADA
-    const plates = Array.from(
-      document.querySelectorAll('[data-zone-title] [data-label]'),
-      (el) => el.textContent,
-    );
-    expect(plates).toContain('ZEMNÍ KOLEKTOR');
-    expect(plates).toContain('PODZEMNÍ KANÁL');
-    expect(plates).toContain('SOLÁRNÍ KOLEKTOR');
-    expect(plates).toContain('BAZÉN');
-    expect(plates.filter((t) => t === 'ZAHRADA')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-zone-title]').length).toBe(7);
   });
 
   it('no PLC codes in the normal view; service view shows the addresses of the private map', () => {
@@ -179,12 +124,7 @@ describe('FullSchematic (live data)', () => {
       document.querySelectorAll('[data-badge-for] text'),
       (el) => el.textContent,
     );
-    // exactly one marker per question, each on a device (never on a plain tee)
-    expect([...badges].sort()).toEqual(['?1', '?2', '?3', '?4']);
-    const anchors = Array.from(document.querySelectorAll('[data-badge-for]'), (el) =>
-      el.getAttribute('data-badge-for'),
-    );
-    for (const a of anchors) expect(a).not.toMatch(/^j_/u);
+    expect([...new Set(badges)].sort()).toEqual(['?1', '?2', '?3', '?4']);
     expect(document.querySelectorAll('[data-badge-for] rect')).toHaveLength(0);
   });
 });

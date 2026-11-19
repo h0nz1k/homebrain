@@ -8,14 +8,14 @@ export const FS_PALETTE = {
   dark: {
     heat_supply: '#ff5260',
     heat_return: '#628bff',
-    solar: '#ecf27c',
+    solar: '#ffe674',
     coll: '#22dc96',
     dhw: '#ebadcc',
     cold_water: '#f0f2f4',
     pool: '#42dfff',
     cool: '#c95eed',
-    warn: '#ff9500',
-    glow: '#ffbcae',
+    warn: '#ffb000',
+    glow: '#ffab91',
   },
   light: {
     heat_supply: '#ad143f',
@@ -26,33 +26,10 @@ export const FS_PALETTE = {
     cold_water: '#6c6b79',
     pool: '#006e7f',
     cool: '#a100d6',
-    warn: '#ffbf00',
-    glow: '#ffbcae',
+    warn: '#e0a200',
+    glow: '#ffab91',
   },
 } as const;
-
-const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-/** WCAG relative luminance of a `#rrggbb` colour. */
-export const luminance = (hex: string) => {
-  const [r, g, b] = rgb(hex).map(lin) as [number, number, number];
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-/**
- * "Standing water" tone (r3): the circuit colour half-way to the grey of the same luminance –
- * visibly calmer than flowing water, but its contrast to the room stays the same (≥ 3:1).
- */
-export function stillOf(hex: string): string {
-  const L = luminance(hex);
-  const g = L <= 0.0031308 ? 12.92 * L : 1.055 * L ** (1 / 2.4) - 0.055;
-  return `#${rgb(hex)
-    .map((v) =>
-      Math.round((v + (g - v) * 0.55) * 255)
-        .toString(16)
-        .padStart(2, '0'),
-    )
-    .join('')}`;
-}
 
 const vars = (p: Record<string, string>) =>
   Object.entries(p)
@@ -99,7 +76,7 @@ const DARK = {
   screed: '#47403a',
   card: '#18202b',
   'card-ink': '#f4f6f8',
-  heat: '#d9895b',
+  heat: '#ff9018',
   leader: '#b6bec9',
   'pool-alpha': '.24',
   encl: '#9aaec1',
@@ -109,22 +86,11 @@ const DARK = {
   'coll-idle': '#7fae98',
   'idle-op2': '.9',
   neutral: '#9aa4ae',
-  'glow-core': '#ffbcae',
+  'glow-core': '#ffab91',
   'glow-mid': '#df9a87',
   'glow-edge': '#8d8a8e',
   'glow-halo': '#ff9e7a',
   'hp-led-off': '#879099',
-  pill: '#2d3742',
-  'pill-edge': '#6b7a8a',
-  'pill-ink': '#ffffff',
-  run: '#3fd98a',
-  'run-fill': '#174a33',
-  'run-motor': '#2b8a5c',
-  'run-ink': '#d9ffe9',
-  'amber-fill': '#4a3300',
-  'amber-edge': '#ff9500',
-  'amber-ink': '#ffd28a',
-  'amber-text': '#ffc46b',
   ...FS_PALETTE.dark,
 };
 const LIGHT = {
@@ -177,34 +143,16 @@ const LIGHT = {
   'coll-idle': '#476b5b',
   'idle-op2': '.9',
   neutral: '#59636e',
-  'glow-core': '#ffbcae',
+  'glow-core': '#ffab91',
   'glow-mid': '#e3a08c',
   'glow-edge': '#8d8a8e',
   'glow-halo': '#ff8a5c',
   'hp-led-off': '#6d7680',
-  pill: '#ffffff',
-  'pill-edge': '#7d8a97',
-  'pill-ink': '#0e1116',
-  run: '#137a46',
-  'run-fill': '#d6f2e2',
-  'run-motor': '#2f9e66',
-  'run-ink': '#0b4a2a',
-  'amber-fill': '#fff1c7',
-  'amber-edge': '#a86a00',
-  'amber-ink': '#5c3800',
-  'amber-text': '#8a5200',
   ...FS_PALETTE.light,
 };
 
 /** Theme variables (exported for the contrast test). */
 export const FS_THEME = { dark: DARK, light: LIGHT } as const;
-
-for (const theme of ['dark', 'light'] as const) {
-  const t = theme === 'dark' ? DARK : LIGHT;
-  for (const [k, v] of Object.entries(FS_PALETTE[theme])) {
-    (t as Record<string, string>)[`still-${k}`] = stillOf(v);
-  }
-}
 
 const COLOURS = [
   'heat_supply',
@@ -224,15 +172,11 @@ export const fullSchematicStyles = `
 .ht-fs .fs-svg { display:block; overflow:visible; font-family:var(--hb-font-family, Inter, system-ui, sans-serif); }
 .ht-fs .fs-t { font-feature-settings:'tnum','cv11','ss03'; paint-order:stroke fill; stroke-linejoin:round; }
 .ht-fs .fs-bg { fill:var(--fs-bg); }
-.ht-fs [data-cut] { visibility:hidden; }
 .ht-fs .fs-pipe { fill:none; stroke-width:5; stroke-linecap:round; stroke-linejoin:round; }
-${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}{fill:var(--fs-${c})} .ht-fs .fs-c-${c}.fs-s-still{stroke:var(--fs-still-${c})}`).join('\n')}
-/* One encoding per state (legend "Stavy potrubí"): flow = colour + chevrons, still = calmer
-   colour, idle = colour dashed (the only dash), unknown = hollow line (colour edges, room core),
-   closed = grey, off = grey dots. Every stroke stays ≥ 3:1 against the room (contrast test). */
-.ht-fs .fs-pipe-core { fill:none; stroke:var(--fs-tech); stroke-width:2.4; stroke-linecap:butt; pointer-events:none; }
-.ht-fs .fs-svg[data-lod='overview'] .fs-pipe { stroke-width:7; }
-.ht-fs .fs-svg[data-lod='overview'] .fs-pipe-core { stroke-width:2.6; }
+${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}{fill:var(--fs-${c})}`).join('\n')}
+/* One encoding per state (legend "Stavy potrubí"): flow = colour + chevrons, still = colour,
+   idle = colour dashed (the only dash), unknown = faded colour, closed = grey, off = grey dots. */
+.ht-fs .fs-s-unknown { stroke-opacity:.4; }
 .ht-fs .fs-s-idle { stroke-dasharray:12 8; stroke-linecap:butt; }
 .ht-fs .fs-s-closed { stroke:var(--fs-neutral) !important; stroke-opacity:1; }
 .ht-fs .fs-s-off { stroke:var(--fs-inactive) !important; stroke-dasharray:.5 9; stroke-linecap:round; stroke-width:5.5; }
@@ -247,8 +191,6 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-chev { fill:none; stroke:#fff; stroke-width:2.8; stroke-linecap:round; stroke-linejoin:round; }
 .ht-fs .fs-chev-keyline { stroke:#0d1520; stroke-width:5.6; }
 .ht-fs .fs-dot { fill:var(--fs-dot); stroke-width:2; }
-.ht-fs .fs-sleeve-bar { fill:none; stroke:var(--fs-wall); stroke-width:3; stroke-linecap:round; }
-.ht-fs .fs-sleeve-key { fill:none; stroke:var(--fs-bg); stroke-width:6; stroke-linecap:round; }
 .ht-fs .fs-sleeve, .ht-fs .fs-metal, .ht-fs .fs-fitting { fill:#89979d; stroke:#b4bec3; stroke-width:1; }
 .ht-fs .fs-port-collar { stroke:#0f1519; stroke-width:1.4; }
 .ht-fs .fs-port-core { fill:var(--fs-tech); }
@@ -259,14 +201,10 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-servo { stroke:#b8d4ca; stroke-width:1.6; stroke-linecap:round; }
 .ht-fs .fs-posbar { stroke:#f4f6f8; stroke-width:3; stroke-linecap:round; }
 .ht-fs .fs-tri { fill:#f4f6f8; }
-.ht-fs .fs-pump-on .fs-ring { fill:var(--fs-run-fill); stroke:var(--fs-run); stroke-width:3.4; }
-.ht-fs .fs-pump-on .fs-motor { fill:var(--fs-run-motor); stroke:var(--fs-run); }
-.ht-fs .fs-tri-line { fill:none; stroke:#e3e8ec; stroke-width:1.8; stroke-linecap:round; }
-.ht-fs .fs-pump-on .fs-tri-line { stroke:var(--fs-run-ink); }
-.ht-fs .fs-pump-on .fs-tri { fill:var(--fs-run-ink); }
-.ht-fs .fs-pump-off .fs-motor { fill:#4a5561; }
+.ht-fs .fs-pump-on .fs-ring { stroke:#5fd38d; stroke-width:2.2; }
+.ht-fs .fs-pump-off .fs-tri { fill:#9aa4ae; }
 .ht-fs .fs-pump-unknown .fs-ring { stroke:var(--fs-neutral); stroke-width:1.6; }
-.ht-fs .fs-pump-unknown .fs-tri-line { stroke:var(--fs-amber-edge); stroke-dasharray:3 2; }
+.ht-fs .fs-pump-unknown .fs-tri { fill:none; stroke:#c3cad1; stroke-width:1.4; }
 .ht-fs .fs-sensor-ring { fill:var(--fs-tech); stroke:var(--fs-t1); stroke-width:2; }
 .ht-fs .fs-sensor-core { fill:var(--fs-t1); }
 .ht-fs .fs-cabinet { fill:var(--fs-cabinet); stroke:#78828c; stroke-width:1.2; }
@@ -301,8 +239,8 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-term { stroke:none; }
 .ht-fs .fs-room { fill:var(--fs-room); }
 .ht-fs .fs-techroom { fill:var(--fs-tech); }
-.ht-fs .fs-wallband { fill:none; stroke:var(--fs-wallc); stroke-width:2; stroke-dasharray:10 6; stroke-linecap:butt; }
-.ht-fs .fs-slabline { fill:none; stroke:var(--fs-wallc); stroke-width:2; stroke-dasharray:10 6; stroke-linecap:butt; }
+.ht-fs .fs-wallband { fill:none; stroke:var(--fs-wallc); stroke-width:7; stroke-linecap:square; }
+.ht-fs .fs-slabline { fill:none; stroke:var(--fs-wallc); stroke-width:7; stroke-linecap:butt; }
 .ht-fs .fs-slab { fill:var(--fs-slab); }
 .ht-fs .fs-soil { fill:var(--fs-soil); }
 .ht-fs .fs-hatch { stroke:var(--fs-hatch); stroke-width:1.5; fill:none; }
@@ -385,24 +323,6 @@ ${COLOURS.map((c) => `.ht-fs .fs-c-${c}{stroke:var(--fs-${c})} .ht-fs .fs-f-${c}
 .ht-fs .fs-t-code { fill:var(--fs-t3); font-weight:500; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
 .ht-fs .fs-t-offline { fill:var(--fs-muted); font-weight:500; }
 .ht-fs .fs-val { fill:var(--fs-t1); font-weight:600; }
-/* r3 value pills: one value style everywhere */
-.ht-fs .fs-vpill { fill:var(--fs-pill); stroke:var(--fs-pill-edge); stroke-width:1.3; }
-.ht-fs .fs-pv { fill:var(--fs-pill-ink); font-weight:700; }
-.ht-fs .fs-pill-none .fs-vpill { fill:none; stroke:var(--fs-pill-edge); stroke-dasharray:4 3; }
-.ht-fs .fs-pv-none { fill:var(--fs-muted); font-weight:600; font-style:italic; }
-.ht-fs .fs-pill-run .fs-vpill { fill:var(--fs-run-fill); stroke:var(--fs-run); }
-.ht-fs .fs-pill-run .fs-pv { fill:var(--fs-run-ink); }
-.ht-fs .fs-pill-stop .fs-vpill { fill:var(--fs-pill); stroke:var(--fs-pill-edge); }
-.ht-fs .fs-pill-stop .fs-pv { fill:var(--fs-pill-ink); font-weight:600; }
-/* r4: no signal / fault-ish = amber chip (filled); not measured at all = amber outline */
-.ht-fs .fs-pill-warn .fs-vpill { fill:var(--fs-amber-fill); stroke:var(--fs-amber-edge); stroke-width:1.6; stroke-dasharray:none; }
-.ht-fs .fs-pill-warn .fs-pv, .ht-fs .fs-pill-warn .fs-pv-none { fill:var(--fs-amber-ink); font-weight:700; font-style:normal; }
-.ht-fs .fs-pill-unmeasured .fs-vpill { fill:none; stroke:var(--fs-amber-edge); stroke-width:1.6; stroke-dasharray:5 3; }
-.ht-fs .fs-pill-unmeasured .fs-pv-none { fill:var(--fs-amber-text); font-weight:700; font-style:normal; }
-.ht-fs .fs-t-card-title { fill:var(--fs-card-ink); font-weight:700; letter-spacing:.03em; }
-.ht-fs .fs-ov-card { fill:var(--fs-room); stroke:var(--fs-card-edge); stroke-width:2; }
-.ht-fs .fs-t-end { fill:var(--fs-t1); font-weight:600; }
-.ht-fs .fs-end-bracket { fill:none; stroke:var(--fs-leader); stroke-width:1.6; stroke-linecap:round; }
 .ht-fs .fs-tank-detail .fs-val, .ht-fs .fs-val-card { fill:var(--fs-card-ink); font-weight:600; }
 .ht-fs .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-muted); font-style:italic; font-weight:500; }
 .ht-fs .fs-tank-detail .fs-nodata, .ht-fs .fs-nodata-card { fill:var(--fs-card-ink); }
