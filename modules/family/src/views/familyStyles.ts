@@ -618,7 +618,7 @@ export const familyStyles = `
 .fam-pts[data-out] span { font-size: 12px; font-weight: 600; color: var(--hb-t2); }
 .fam-chore[data-muted] .fam-chore-t b { color: var(--hb-t2); }
 /* Narrow rows: status chips wrap inside the text column instead of running under the points. */
-.fam-chore-meta .fam-swap-tag { display: inline; white-space: normal; max-width: 100%; line-height: 1.15; padding: 2px 4px; }
+.fam-chore-meta .fam-swap-tag { display: inline; white-space: normal; max-width: 100%; line-height: 1.1; padding: 1px 4px; }
 .fam-chore-meta .fam-swap-tag svg { vertical-align: -2px; margin-inline-end: 3px; }
 .fam-chore-meta .hb-pill.fam-pending-pill { white-space: normal; line-height: 1.25; text-wrap: balance; }
 /* Contrast: kid-coloured text/segments mix toward the text colour (darker in light, lighter in dark). */
@@ -820,6 +820,8 @@ export const familyStyles = `
   .fam-persons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fam-person-head { align-items: start; flex-direction: column; }
   .fam-person-settings fieldset { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1023px) {
   .fam-chore, .fam-upcoming-row { grid-template-columns: 36px minmax(0, 1fr) 59px 32px; gap: 4px; }
   .fam-menu-slot { width: 32px; min-width: 32px; }
   .fam-chore-meta .hb-pill.fam-pending-pill { font-size: 11px; gap: 3px; padding-inline: 3px; }
