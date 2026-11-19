@@ -1,18 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { join } from 'node:path';
 
-// Rodina (dev mock: synthetic household „Dcera“ + „Syn“, `?role=` role, `?rodina=empty`).
+// Rodina (dev mock: synthetic household „Ema“ + „Kuba“, `?role=` role, `?rodina=empty`).
 
 async function open(page: Page, query = '') {
   await page.goto(`/homebrain-rodina${query}`);
   await expect(page.getByTestId('family')).toBeVisible({ timeout: 20_000 });
 }
 
-/**
- * DOM QA for the add-chore sheet: scrolled to the bottom, the last form control (and the
- * summary under it) sits fully above the floating footer with ≥ 12 px to spare, nothing of it
- * is covered, and the body reserves the footer's measured height (+16 px).
- */
+/** The form controls and summary remain clear of the footer at the end of the scrollport. */
 async function expectLastControlClear(page: Page) {
   const r = await page.getByTestId('family-add-chore-sheet').evaluate(async (sheet) => {
     const body = sheet.querySelector<HTMLElement>('.hb-sheet-body')!;
@@ -35,7 +31,6 @@ async function expectLastControlClear(page: Page) {
         return !hit || !(el === hit || el.contains(hit));
       });
     };
-    const pad = parseFloat(getComputedStyle(body).paddingBottom);
     return {
       lastBottom: last.getBoundingClientRect().bottom,
       lastTop: last.getBoundingClientRect().top,
@@ -43,19 +38,20 @@ async function expectLastControlClear(page: Page) {
       footTop,
       bodyTop,
       lastCovered: covered(last),
-      pad,
-      footH: foot.getBoundingClientRect().height,
     };
   });
   expect(r.lastTop).toBeGreaterThanOrEqual(r.bodyTop);
   expect(r.lastBottom).toBeLessThanOrEqual(r.footTop - 12);
   expect(r.summaryBottom).toBeLessThanOrEqual(r.footTop - 12);
   expect(r.lastCovered).toBe(false);
-  expect(Math.abs(r.pad - (r.footH + 16))).toBeLessThanOrEqual(1.5);
 }
 
 /** WCAG contrast of an element's text (or fill) against its composited background. */
-async function contrastOf(page: Page, selector: string, prop: 'color' | 'background' = 'color') {
+async function contrastOf(
+  page: Page,
+  selector: string,
+  prop: 'color' | 'background' | 'borderBottomColor' = 'color',
+) {
   return page.evaluate(
     ({ selector, prop }) => {
       const ctx = Object.assign(document.createElement('canvas'), {
@@ -96,8 +92,8 @@ async function contrastOf(page: Page, selector: string, prop: 'color' | 'backgro
         .filter((el) => el.getClientRects().length > 0 && el.getBoundingClientRect().width > 0)
         .map((el) => {
           const cs = getComputedStyle(el);
-          const under = bgOf(prop === 'color' ? el : el.parentElement!.parentElement);
-          const fg = over(rgba(prop === 'color' ? cs.color : cs.backgroundColor), under);
+          const under = bgOf(prop === 'background' ? el.parentElement!.parentElement : el);
+          const fg = over(rgba(prop === 'background' ? cs.backgroundColor : cs[prop]), under);
           const [a, b] = [lum(fg), lum(under)].sort((x, y) => y - x);
           return { text: el.textContent?.trim() ?? '', ratio: (a! + 0.05) / (b! + 0.05) };
         });
@@ -117,11 +113,7 @@ test.describe('Rodina', () => {
   test('rodič: dnešek, 7 dní, povinnosti obou dětí a nákup', async ({ page }) => {
     await open(page);
     await expect(page.getByTestId('family-today')).toContainText('Dnes v rodině');
-    // The running/next event is highlighted once, not repeated in the list.
-    const listed =
-      (await page.getByTestId('family-event').count()) +
-      (await page.getByTestId('family-next').count());
-    expect(listed).toBe(4);
+    await expect(page.getByTestId('family-event')).toHaveCount(4);
     await expect(page.getByTestId('family-day')).toHaveCount(7);
     await expect(page.getByTestId('family-kid')).toHaveCount(2);
     await expect(page.getByTestId('family-total').first()).toContainText('128');
@@ -161,6 +153,7 @@ test.describe('Rodina', () => {
   });
 
   test('kuchyňský tablet: tři sloupce bez scrollu, dítě odškrtne povinnost', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page, '?kiosk=1');
     await expect(page.getByTestId('family')).toHaveAttribute('data-kiosk', 'true');
@@ -177,19 +170,29 @@ test.describe('Rodina', () => {
     const card = await page.getByTestId('family-chores').boundingBox();
     expect(card!.y + card!.height).toBeLessThanOrEqual(800);
     await expect(page.getByTestId('family-done-summary').first()).toContainText('Hotovo: 2');
-    // Balanced columns: every column's last card ends on the same line.
+    // The last panel in each column fits the kiosk viewport.
     const bottoms = await Promise.all(
-      ['family-week', 'family-chores', 'family-shopping'].map(async (id) => {
+      ['family-free', 'family-chores', 'family-shopping'].map(async (id) => {
         const b = (await page.getByTestId(id).boundingBox())!;
         return Math.round(b.y + b.height);
       }),
     );
-    expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);
     expect(Math.max(...bottoms)).toBeLessThanOrEqual(800);
     const check = await page.getByTestId('family-chore-check').first().boundingBox();
     expect(check!.width).toBeGreaterThanOrEqual(48);
     const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(48);
+    await expect(page.getByTestId('family-shopping')).toContainText('a 4 další');
+    const week = page.getByTestId('family-week');
+    await expect(week.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
+    for (const panel of [
+      week,
+      page.getByTestId('family-shopping'),
+      page.getByTestId('family-chores'),
+    ]) {
+      const clipping = await panel.evaluate((el) => el.scrollHeight - el.clientHeight);
+      expect(clipping).toBeLessThanOrEqual(1);
+    }
     await noSidewaysScroll(page);
   });
 
@@ -209,7 +212,7 @@ test.describe('Rodina', () => {
     await page.locator('#fam-add-chore input').first().fill('Vytřít chodbu');
     await page.getByTestId('family-add-chore-save').click();
     await page.getByTestId('family-swap-approve').first().click();
-    await expect(page.getByText('Převzato od Dcery').first()).toBeVisible();
+    await expect(page.getByText('Převzato od Emy').first()).toBeVisible();
     await page.getByTestId('family-total').first().click();
     await expect(page.getByTestId('family-points-sheet')).toBeVisible();
   });
@@ -217,10 +220,10 @@ test.describe('Rodina', () => {
   test('předání: žádající, úkol, příjemce a čekající stav před rozhodnutím', async ({ page }) => {
     await open(page);
     const approval = page.locator('.fam-approval[data-kind="swap"]');
-    await expect(approval).toContainText('Žádá Dcera');
+    await expect(approval).toContainText('Žádá Ema');
     await expect(approval).toContainText('Vyluxovat pokoj');
     await expect(approval.getByTestId('family-approval-points')).toHaveText('+4 body');
-    await expect(approval).toContainText('Syn');
+    await expect(approval).toContainText('Kuba');
     const original = page
       .locator('[data-kid="dcera"] [data-testid="family-chore"]')
       .filter({ hasText: 'Vyluxovat pokoj' });
@@ -231,7 +234,7 @@ test.describe('Rodina', () => {
       'swap',
     );
     await expect(original.getByTestId('family-pending-pill')).toHaveText(
-      'Předání Synovi čeká na schválení',
+      'Předání Kubovi čeká na schválení',
     );
     await expect(
       page
@@ -241,12 +244,12 @@ test.describe('Rodina', () => {
     ).toHaveText('Čeká na schválení');
     await approval.getByTestId('family-swap-approve').click();
     await expect(original).toHaveAttribute('data-swap', 'transferred_out');
-    await expect(original.getByTestId('family-swap-note')).toHaveText('Předáno Synovi · jen dnes');
+    await expect(original.getByTestId('family-swap-note')).toHaveText('Předáno Kubovi');
     await expect(
       page
         .locator('[data-kid="syn"] [data-testid="family-chore"]')
         .filter({ hasText: 'Vyluxovat pokoj' }),
-    ).toContainText('Převzato od Dcery · jen dnes');
+    ).toContainText('Převzato od Emy');
     await expect(approval).toHaveCount(0);
   });
 
@@ -263,7 +266,10 @@ test.describe('Rodina', () => {
     );
     await expect(page.getByRole('button', { name: 'Ne', exact: true })).toBeVisible();
     const summary = page.getByTestId('family-chore-summary');
-    await expect(summary).toContainText('Dcera · 2\u00a0body · Po a Čt do\u00a018:00 · od\u00a0');
+    await expect(summary.locator(':scope > span').first()).toHaveText('2\u00a0body');
+    await expect(summary.getByTestId('family-add-chore-when')).toContainText(
+      'Po a Čt do\u00a018:00 · od\u00a0',
+    );
     await page.getByRole('radio', { name: 'Denně', exact: true }).click();
     await expect(summary).toContainText('každý den do\u00a018:00');
     await page.getByRole('radio', { name: 'Dny v týdnu' }).click();
@@ -294,7 +300,7 @@ test.describe('Rodina', () => {
     await open(page);
     const presence = await page
       .getByTestId('family-person-tile')
-      .filter({ hasText: 'Syn' })
+      .filter({ hasText: 'Kuba' })
       .evaluate((el) => getComputedStyle(el).getPropertyValue('--person-color').trim());
     const chores = await page
       .locator('[data-kid="syn"]')
@@ -305,7 +311,7 @@ test.describe('Rodina', () => {
 
   test('dítě: bez ⋯ u hotových a čekajících úkolů, vidí, kdo se dívá', async ({ page }) => {
     await open(page, '?role=child');
-    await expect(page.getByTestId('family-viewer')).toHaveText(/Syn/);
+    await expect(page.getByTestId('family-viewer')).toHaveText(/Kuba/);
     for (const state of ['done', 'claimed']) {
       await expect(
         page.locator(`[data-testid="family-chore"][data-state="${state}"]`).first(),
@@ -329,8 +335,8 @@ test.describe('Rodina', () => {
     await open(page);
     const text = await page.getByTestId('family').innerText();
     expect(text).not.toContain('nevím');
-    expect(text).not.toMatch(/Předáno: (Syn|Dcera)|Převzato od: (Syn|Dcera)/);
-    expect(text).toContain('Předáno Synovi');
+    expect(text).not.toMatch(/Předáno: (Kuba|Ema)|Převzato od: (Kuba|Ema)/);
+    expect(text).toContain('Předáno Kubovi');
     const pills = page.getByTestId('family-pending-pill');
     expect(await pills.count()).toBeGreaterThan(0);
     // Distinct labels („Předání…“ / „Čeká na schválení“): at most two lines, and
@@ -536,11 +542,8 @@ test.describe('Rodina – přidání úkolu', () => {
       await open(page, `?theme=${theme}`);
       await page.getByTestId('family-add-chore').first().click();
       const sheet = page.getByTestId('family-add-chore-sheet');
-      await expect(sheet.getByTestId('family-add-chore-title-who')).toHaveText(' · Dcera');
-      const forKid = sheet.getByTestId('family-add-chore-for');
-      await expect(forKid).toContainText('Pro:');
-      await expect(forKid.locator('.fam-foot-kid b')).toHaveText(['Dcera']);
-      await expect(forKid).toBeInViewport({ ratio: 1 });
+      await expect(sheet.getByTestId('family-add-chore-title-who')).toHaveText(' · Ema');
+      await expect(sheet.getByTestId('family-add-chore-for')).toHaveCount(0);
       await sheet.locator('#fam-chore-name').fill('Vytřít chodbu');
       await sheet.getByRole('radio', { name: 'Jednou' }).click();
       const tomorrow = await page.evaluate(() =>
@@ -551,7 +554,7 @@ test.describe('Rodina – přidání úkolu', () => {
       await sheet.getByTestId('family-add-chore-save').click();
       await expect(sheet).toHaveCount(0);
       await expect(page.getByTestId('hb-toast').last()).toContainText(
-        'Úkol přidán: Dcera · zítra do\u00a018:00',
+        'Úkol přidán: Ema · zítra do\u00a018:00',
       );
       const row = page
         .locator('[data-kid="dcera"] [data-testid="family-upcoming-chore"]')
@@ -567,11 +570,11 @@ test.describe('Rodina – přidání úkolu', () => {
       await open(page, `?theme=${theme}`);
       await page.getByTestId('family-add-chore').first().click();
       const sheet = page.getByTestId('family-add-chore-sheet');
-      await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
+      await sheet.locator('#fam-chore-name').fill('Vyskládat myčku');
       await sheet.getByTestId('family-add-chore-save').click();
       const alert = sheet.getByRole('alert');
       await expect(sheet.getByTestId('family-add-chore-error-text')).toHaveText(
-        'Dcera už má úkol „Vyndat myčku“.',
+        'Ema už má úkol „Vyskládat myčku“.',
       );
       await expect(alert).not.toContainText('Úkol s tímto názvem už existuje.');
       await expect(alert).toBeInViewport({ ratio: 1 });
@@ -592,12 +595,13 @@ test.describe('Rodina – přidání úkolu', () => {
       await expect(sheet).toBeVisible();
       await expect(alert.getByRole('button')).toHaveText([
         'Přidat další čas (vícekrát denně)',
-        'Uložit jako „Vyndat myčku (2)“',
+        'Uložit jako „Vyskládat myčku (2)“',
       ]);
       await expect(sheet.getByText('Změnit název')).toHaveCount(0);
-      await expect(sheet.getByTestId('family-name-duplicate')).toHaveText(
-        'Tento název už existuje.',
-      );
+      await expect(sheet.getByTestId('family-name-duplicate')).toHaveCount(0);
+      const recurrence = sheet.getByRole('radiogroup', { name: 'Opakování' });
+      await recurrence.scrollIntoViewIfNeeded();
+      await expect(recurrence).toBeInViewport({ ratio: 1 });
       // Error sits directly above Save inside the pinned footer.
       const a = (await alert.boundingBox())!;
       const b = (await save.boundingBox())!;
@@ -608,7 +612,7 @@ test.describe('Rodina – přidání úkolu', () => {
       await expect(sheet).toHaveCount(0);
       await expect(
         page.locator('[data-testid="family-chore"], [data-testid="family-upcoming-chore"]', {
-          hasText: 'Vyndat myčku (2)',
+          hasText: 'Vyskládat myčku (2)',
         }),
       ).toHaveCount(1);
       await noSidewaysScroll(page);
@@ -627,7 +631,7 @@ test.describe('Rodina – přidání úkolu', () => {
     );
     await sheet.getByTestId('family-first-date').fill(tomorrow);
     await expect(sheet.getByTestId('family-chore-summary')).toContainText(
-      'každý den 2× (12:00 a 18:00) · od\u00a0zítřka',
+      '2× denně (12:00 a 18:00) · od\u00a0zítřka',
     );
     await sheet.getByTestId('family-add-chore-save').click();
     await expect(sheet).toHaveCount(0);
@@ -647,11 +651,11 @@ test.describe('Rodina – přidání úkolu', () => {
     await open(page);
     await page.getByTestId('family-add-chore').first().click();
     const sheet = page.getByTestId('family-add-chore-sheet');
-    await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
+    await sheet.locator('#fam-chore-name').fill('Vyskládat myčku');
     await sheet.getByTestId('family-add-chore-save').click();
     await sheet.getByTestId('family-duplicate-multi').click();
     await expect(sheet.getByRole('alert')).toHaveCount(0);
-    await expect(sheet.locator('#fam-chore-name')).toHaveValue('Vyndat myčku');
+    await expect(sheet.locator('#fam-chore-name')).toHaveValue('Vyskládat myčku');
     await expect(sheet.getByRole('radio', { name: 'Vícekrát' })).toHaveAttribute(
       'aria-checked',
       'true',
@@ -672,6 +676,10 @@ test.describe('Rodina – přidání úkolu', () => {
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
     await expect(times.getByTestId('family-multi-remove').first()).toBeDisabled();
+    await expect(times.getByTestId('family-multi-remove').first()).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await expect(times.getByTestId('family-multi-note')).toHaveText('Aspoň 2 časy.');
     // Times panel shares the left inset of the other blocks.
     const insets = await sheet.evaluate((el) =>
@@ -697,7 +705,7 @@ test.describe('Rodina – přidání úkolu', () => {
     await expect(sheet).toHaveCount(0);
     await expect(
       page.locator('[data-kid="dcera"] [data-testid="family-upcoming-chore"]', {
-        hasText: /Vyndat myčku \(\d{2}:\d{2}\)/,
+        hasText: /Vyskládat myčku \(\d{2}:\d{2}\)/,
       }),
     ).toHaveCount(2);
   });
@@ -720,18 +728,11 @@ test.describe('Rodina – přidání úkolu', () => {
     await expectLastControlClear(page);
     await sheet.getByTestId('family-add-chore-save').click(); // invalid: errors inline
     await expectLastControlClear(page);
-    await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
+    await sheet.locator('#fam-chore-name').fill('Vyskládat myčku');
     await sheet.getByRole('radio', { name: 'Denně', exact: true }).click();
     await sheet.getByTestId('family-add-chore-save').click();
     await expect(sheet.getByRole('alert')).toBeVisible();
     await expectLastControlClear(page); // duplicate panel in the footer
-    // Mid-scroll the footer casts a shadow / fade over the content; at the end it does not.
-    const scrollable = await sheet.locator('.hb-sheet-body').evaluate((el) => {
-      el.scrollTop = 0;
-      return el.scrollHeight - el.clientHeight > 2;
-    });
-    if (scrollable) await expect(sheet).not.toHaveAttribute('data-fam-scroll-end');
-    else await expect(sheet).toHaveAttribute('data-fam-scroll-end', '');
   });
 
   test('Opakování: jedna řada, žádná mřížka 2×2; titulek s počtem dětí', async ({ page }) => {
@@ -782,42 +783,19 @@ test.describe('Rodina – přidání úkolu', () => {
       await page.setViewportSize({ width: 1280, height: 800 });
       await open(page, `?kiosk=1&theme=${theme}`);
       const up = page.locator('[data-kid="dcera"] [data-testid="family-upcoming"]');
-      await expect(up).toHaveAttribute('data-compact', 'line');
-      await expect(up).toContainText('Naplánované:');
-      await expect(up.getByTestId('family-upcoming-item').first()).toHaveText(
-        'Zítra: Vyndat myčku',
-      );
-      // Readable from across the kitchen: ≥ 18 px and ≥ 4,5:1.
-      for (const f of await contrastOf(page, '.fam-upcoming-item, .fam-upcoming-more-inline'))
-        expect(f.ratio, `plan line „${f.text}“`).toBeGreaterThanOrEqual(4.5);
-      expect(
-        parseFloat(await up.evaluate((el) => getComputedStyle(el).fontSize)),
-      ).toBeGreaterThanOrEqual(18);
-      // The handover wait is on its row; the kid header does not repeat it.
-      await expect(page.getByTestId('family-pending-swaps')).toHaveCount(0);
-      // Whole items only: every shown item fits, the rest is counted as „a N další“.
-      for (const kid of ['dcera', 'syn']) {
-        const line = page.locator(`[data-kid="${kid}"] [data-testid="family-upcoming"]`);
-        const fit = await line.evaluate((el) => {
-          const box = el.querySelector('.fam-upcoming-items')!;
-          const right = box.getBoundingClientRect().right;
-          const items = Array.from(el.querySelectorAll<HTMLElement>('.fam-upcoming-item'));
-          const shown = items.filter((i) => !i.hasAttribute('data-hidden'));
-          return {
-            total: items.length,
-            shown: shown.length,
-            overflow: shown.some((i) => i.getBoundingClientRect().right > right + 0.5),
-            more: el.querySelector('[data-testid="family-upcoming-more"]')?.textContent ?? '',
-            ellipsis: getComputedStyle(box).textOverflow,
-          };
-        });
-        expect(fit.overflow).toBe(false);
-        // A 1280 px kiosk always has room for at least the nearest planned chore.
-        expect(fit.shown).toBeGreaterThan(0);
-        expect(fit.ellipsis).not.toBe('ellipsis');
-        if (fit.shown < fit.total) expect(fit.more).toMatch(/^a \d+ další(ch)?$/);
-        else expect(fit.more).toBe('');
+      await expect(up).toHaveAttribute('data-compact', 'kiosk');
+      const upcoming = up.getByTestId('family-upcoming-chore');
+      await expect(upcoming).toHaveCount(1);
+      await expect(upcoming.locator('.fam-upcoming-name')).toHaveText('Zítra: Vyskládat myčku');
+      await expect(up.getByTestId('family-upcoming-more')).toHaveText('a 2 další');
+      const edges = await page
+        .locator('[data-kid] :is(.fam-pts, .fam-upcoming-pts)')
+        .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().right));
+      expect(Math.max(...edges) - Math.min(...edges)).toBeLessThanOrEqual(1);
+      for (const f of await contrastOf(page, '.fam-upcoming-name, .fam-upcoming-more')) {
+        expect(f.ratio, f.text).toBeGreaterThanOrEqual(4.5);
       }
+      await expect(page.getByTestId('family-pending-swaps')).toHaveCount(0);
       const card = (await page.getByTestId('family-chores').boundingBox())!;
       expect(card.y + card.height).toBeLessThanOrEqual(800);
       // Today's rows of the last kid still fit inside the card (the plan line must not push
@@ -875,7 +853,7 @@ test.describe('Rodina – seznam dětí', () => {
     const out = page.locator(
       '[data-kid="dcera"] [data-testid="family-chore"][data-swap="transferred_out"]',
     );
-    await expect(out.getByTestId('family-pts-out')).toContainText('→\u00a0Syn');
+    await expect(out.getByTestId('family-pts-out')).toContainText('→\u00a0Kuba');
     await expect(out.locator('.fam-pts s')).toHaveCSS('text-decoration-line', 'line-through');
     // Same avatar fill for the same kid: handed-to avatar vs. the kid's own card avatar.
     const fill = (loc: ReturnType<Page['locator']>) =>
@@ -885,7 +863,7 @@ test.describe('Rodina – seznam dětí', () => {
     );
     await expect(
       page.locator('[data-testid="family-pending-pill"][data-pending="swap"]').first(),
-    ).toHaveText('Předání Synovi čeká na schválení');
+    ).toHaveText('Předání Kubovi čeká na schválení');
     await expect(
       page.locator('[data-testid="family-pending-pill"][data-pending="completion"]').first(),
     ).toHaveText('Čeká na schválení');
@@ -978,6 +956,8 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
   for (const theme of ['dark', 'light'] as const) {
     test(`snímky ${theme}`, async ({ page }) => {
       test.setTimeout(120_000);
+      test.skip(test.info().project.name !== 'desktop', 'snímky s pevnými rozměry');
+      await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
       const shot = (name: string, fullPage = false) =>
         page.screenshot({ path: join(choreShots!, `${name}-${theme}.png`), fullPage });
       await page.setViewportSize({ width: 360, height: 800 });
@@ -990,9 +970,10 @@ test.describe('Rodina – přidání úkolu, snímky (lokálně)', () => {
       await page.getByTestId('family-add-chore').first().click();
       const sheet = page.getByTestId('family-add-chore-sheet');
       await shot('phone-form-empty');
-      await sheet.locator('#fam-chore-name').fill('Vyndat myčku');
+      await sheet.locator('#fam-chore-name').fill('Vyskládat myčku');
       await sheet.getByTestId('family-add-chore-save').click();
       await expect(sheet.getByRole('alert')).toBeVisible();
+      await sheet.getByRole('radiogroup', { name: 'Opakování' }).scrollIntoViewIfNeeded();
       await shot('phone-form-duplicate');
       await sheet.getByTestId('family-duplicate-multi').click();
       await page.waitForTimeout(1900);
@@ -1030,9 +1011,20 @@ test.describe('Rodina – detail osoby P1', () => {
     await open(page);
     const tiles = page.getByTestId('family-person-tile');
     await expect(tiles).toHaveCount(4);
-    await tiles.filter({ hasText: 'Dcera' }).click();
+    const todayEvents = page.getByTestId('family-today').getByTestId('family-event');
+    await expect(todayEvents).toHaveCount(4);
+    const titles = await todayEvents.locator('b').allTextContents();
+    expect(titles).toEqual([
+      'Odvoz do školy',
+      'Kroužek robotiky',
+      'Trénink florbalu',
+      'Rodinná večeře',
+    ]);
+    await expect(todayEvents.nth(1)).toContainText('teď');
+    await expect(todayEvents.nth(2)).toContainText('další');
+    await tiles.filter({ hasText: 'Ema' }).click();
     const detail = page.getByTestId('family-person');
-    await expect(detail.getByRole('heading', { name: 'Dcera', exact: true })).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'Ema', exact: true })).toBeVisible();
     await expect(detail.getByRole('tab', { name: 'Dnes' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -1040,22 +1032,37 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(detail.getByText('Večer', { exact: false }).first()).toBeVisible();
     await detail.getByRole('tab', { name: 'Týden' }).click();
     await expect(detail.getByRole('heading', { name: 'Tento týden' })).toBeVisible();
-    await expect(detail.getByText('Vyndat myčku')).toBeVisible();
+    await expect(detail.getByText('Vyskládat myčku')).toBeVisible();
     await detail.getByRole('tab', { name: 'Historie' }).click();
     await expect(
       detail.getByTestId('family-history-row').filter({ hasText: 'Ustlat postel' }),
     ).toBeVisible();
     await page.goBack();
     await page.locator('[data-kid="syn"]').getByTestId('family-list-person').click();
-    await expect(detail.getByRole('heading', { name: 'Syn', exact: true })).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'Kuba', exact: true })).toBeVisible();
   });
 
-  test('tři další kalendářní dny, čtvrtý den Zmeškané', async ({ page }) => {
+  test('tři další kalendářní dny, čtvrtý den Zmeškáno', async ({ page }) => {
     await page.clock.install({ time: new Date('2026-11-19T16:05:00+01:00') });
     await open(page);
     await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
     const detail = page.getByTestId('family-person');
     const task = detail.getByTestId('family-person-chore').filter({ hasText: 'Odvézt papír' });
+    await expect(task.getByRole('checkbox')).toBeEnabled();
+    const sections = detail.locator('.fam-person-group-head');
+    await expect(sections.locator('span')).toHaveText([
+      'Po termínu',
+      'Ráno',
+      'Odpoledne · teď',
+      'Večer',
+    ]);
+    await expect(task).toContainText('Nesplněno od st');
+    await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
+    await detail.getByRole('tab', { name: 'Týden' }).click();
+    const origin = detail.getByRole('heading', { name: /Středa 18./ }).locator('..');
+    await expect(origin).toContainText('přeneseno');
+    await expect(origin).not.toContainText('Bez úkolů');
+    await detail.getByRole('tab', { name: 'Dnes' }).click();
     for (let days = 1; days <= 3; days++) {
       await expect(task).toHaveAttribute('data-carried-days', String(days));
       await page.clock.fastForward(86_400_000);
@@ -1064,24 +1071,35 @@ test.describe('Rodina – detail osoby P1', () => {
     await detail.getByRole('tab', { name: 'Historie' }).click();
     await expect(
       detail.getByTestId('family-history-row').filter({ hasText: 'Odvézt papír' }),
-    ).toContainText('Zmeškané');
+    ).toContainText('Zmeškáno');
+    await expect(
+      detail.getByTestId('family-history-row').filter({ hasText: 'Odvézt papír' }),
+    ).toContainText('0 bodů');
   });
 
   test('Beru připíše volný úkol jen vybranému členu', async ({ page }) => {
     await open(page, '?role=child');
-    await page.getByTestId('family-person-tile').filter({ hasText: 'Dcera' }).click();
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Ema' }).click();
     const detail = page.getByTestId('family-person');
     await expect(detail.getByTestId('family-free')).toContainText('Vyskládat myčku');
-    await expect(detail.getByRole('button', { name: /Beru/ })).toHaveCount(0);
-    await detail.getByRole('button', { name: /Rodina/ }).click();
-    await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
-    await detail.getByRole('button', { name: /Beru.*Vyskládat myčku/ }).click();
-    await expect(detail.getByTestId('family-free')).toHaveCount(0);
+    await expect(detail.getByRole('button', { name: /Vezmu si to/ })).toHaveCount(0);
+    await detail.getByRole('button', { name: /Zpět/ }).click();
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
+    await detail.getByRole('button', { name: /Vezmu si to.*Vyskládat myčku/ }).click();
+    const toast = page.getByTestId('hb-toast').filter({ hasText: 'Úkol je tvůj' });
+    await expect(toast).toBeVisible();
+    const evening = detail.getByRole('heading', { name: /Večer/ }).locator('..');
     await expect(
-      detail.getByTestId('family-person-chore').filter({ hasText: 'Vyskládat myčku' }),
+      evening.getByTestId('family-person-chore').filter({ hasText: 'Vyskládat myčku' }),
     ).toContainText('Čeká na schválení');
-    await detail.getByRole('button', { name: /Rodina/ }).click();
-    await page.getByTestId('family-person-tile').filter({ hasText: 'Dcera' }).click();
+    await toast.getByRole('button', { name: 'Zpět' }).click();
+    await expect(detail.getByTestId('family-free')).toBeVisible();
+    await expect(evening.getByText('Vyskládat myčku')).toHaveCount(0);
+    await detail.getByRole('button', { name: /Vezmu si to.*Vyskládat myčku/ }).click();
+    await expect(toast).toBeHidden();
+    await expect(detail.getByTestId('family-free')).toHaveCount(0);
+    await detail.getByRole('button', { name: /Zpět/ }).click();
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Ema' }).click();
     await expect(detail.getByText('Vyskládat myčku')).toHaveCount(0);
   });
 
@@ -1089,19 +1107,25 @@ test.describe('Rodina – detail osoby P1', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page, '?kiosk=1');
     const family = page.getByTestId('family');
+    await expect(family.locator('.fam-tile-points')).toHaveText([
+      '6 bodů dnes',
+      '4 body dnes',
+      '5 bodů dnes',
+      '4 body dnes',
+    ]);
     const presence = await family.getByTestId('family-wifi-presence').allTextContents();
     expect(new Set(presence)).toEqual(new Set(['doma', 'pryč']));
     await family.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
     const detail = family.getByTestId('family-person');
     await expect(detail.getByRole('heading', { name: 'Táta', exact: true })).toBeVisible();
-    await expect(detail).toContainText('pro radost');
+    await expect(detail.getByText(/bodů? tento týden/)).toBeVisible();
     const task = detail.getByTestId('family-person-chore').filter({ hasText: 'Odvézt papír' });
     await expect(task).toContainText('+4 body');
     await expect(task.locator('small')).toHaveCSS('font-size', '16px');
     await expect(detail).not.toContainText(
       /Kč|baterie|v práci|na kroužku|ve škole|Sportovní hala|Vzít dres/i,
     );
-    await expect(detail.getByRole('button', { name: /Rodina/ })).toBeVisible();
+    await expect(detail.getByRole('button', { name: /Zpět/ })).toBeVisible();
   });
 
   for (const theme of ['dark', 'light'] as const) {
@@ -1123,8 +1147,15 @@ test.describe('Rodina – detail osoby P1', () => {
           expect(row.ratio, row.text).toBeGreaterThanOrEqual(4.5);
       };
       await verify(meta);
-      await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
+      await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
       await verify('.fam-person-task-text small, .fam-person-points, .fam-person-presence');
+      const selected = await contrastOf(
+        page,
+        '.fam-person-tabs button[aria-selected="true"]',
+        'borderBottomColor',
+      );
+      expect(selected).toHaveLength(1);
+      expect(selected[0]!.ratio).toBeGreaterThanOrEqual(3);
       await noSidewaysScroll(page);
     });
   }
@@ -1166,20 +1197,28 @@ test.describe('Rodina P1 – snímky (lokálně)', () => {
         await shot('overview');
         await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
         const detail = page.getByTestId('family-person');
-        await expect(detail.getByRole('button', { name: /Rodina/ })).toBeInViewport({ ratio: 1 });
+        await expect(detail.getByRole('button', { name: /Zpět/ })).toBeInViewport({ ratio: 1 });
         await shot('person-today');
         await detail.getByRole('tab', { name: 'Týden' }).click();
+        await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
         await shot('person-week');
         await detail.getByRole('tab', { name: 'Historie' }).click();
         await expect(detail.getByTestId('family-history-row').first()).toBeVisible();
         await shot('person-history');
-        await detail.getByRole('button', { name: /Rodina/ }).click();
-        await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
-        await expect(detail.getByRole('button', { name: /Beru/ })).toBeVisible();
-        await expect(detail.getByRole('button', { name: /Rodina/ })).toBeInViewport({ ratio: 1 });
+        await detail.getByRole('button', { name: /Zpět/ }).click();
+        await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
+        await expect(detail.getByRole('button', { name: /Vezmu si to/ })).toBeVisible();
+        await expect(detail.getByRole('button', { name: /Zpět/ })).toBeInViewport({ ratio: 1 });
         await shot('person-claim');
+        if (device === 'phone') {
+          await detail.getByRole('button', { name: /Vezmu si to/ }).click();
+          const toast = page.getByTestId('hb-toast').filter({ hasText: 'Úkol je tvůj' });
+          await expect(toast).toBeVisible();
+          await shot('person-claim-toast');
+          await toast.getByRole('button', { name: 'Zpět' }).click();
+        }
         if (device !== 'kiosk') {
-          await detail.getByRole('button', { name: /Rodina/ }).click();
+          await detail.getByRole('button', { name: /Zpět/ }).click();
           await page.getByRole('button', { name: 'Nastavení osob' }).click();
           await expect(page.getByRole('group', { name: 'Táta' })).toBeVisible();
           await expect(

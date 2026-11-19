@@ -1,7 +1,6 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -511,13 +510,12 @@ export function AddChoreSheet({
   const errId = useId();
   const nameErrId = useId();
   const alertRef = useRef<HTMLDivElement>(null);
-  const footRef = useRef<HTMLDivElement>(null);
   const timesRef = useRef<HTMLFieldSetElement>(null);
   const [timesFlash, setTimesFlash] = useState(false);
   const [timesNote, setTimesNote] = useState('');
   const recurrenceHintId = useId();
   const dupWaitId = useId();
-  const dupHintId = useId();
+  const dupPanelId = useId();
   const [openedAt] = useState(() => clock().getTime());
   const [name, setName] = useState('');
   const [points, setPoints] = useState(2);
@@ -634,13 +632,6 @@ export function AddChoreSheet({
         : multi
           ? `každý den ${slots.length}× (${slotText}) · od\u00a0${startLabel}`
           : `${onceDay} do\u00a0${dueTime}`;
-  const footWhen = multi
-    ? `${slots.length}× denně · od\u00a0${startLabel}`
-    : recurrence === 'once'
-      ? `${onceDay} do\u00a0${dueTime}`
-      : recurrence === 'daily'
-        ? `denně do\u00a0${dueTime} · od\u00a0${startLabel}`
-        : `${joinCz(dayList)} · od\u00a0${startLabel}`;
   const due = tok(`do\u00a0${dueTime}`);
   const since = tok(`od\u00a0${startLabel}`);
   const scheduleText =
@@ -654,7 +645,7 @@ export function AddChoreSheet({
       </>
     ) : multi ? (
       <>
-        každý den {tok(`${slots.length}×`)} ({slotText}) · {since}
+        {tok(`${slots.length}×`)} denně ({slotText}) · {since}
       </>
     ) : (
       <>
@@ -662,15 +653,12 @@ export function AddChoreSheet({
       </>
     );
   const perDay = points * slots.length;
-  const summaryText = multi ? (
+  const rewardText = multi ? (
     <>
-      {pointsText} za každé splnění ({tok(`${perDay}\u00a0${pointsWord(perDay)} denně`)}) ·{' '}
-      {scheduleText}
+      {pointsText} za každé splnění ({tok(`${perDay}\u00a0${pointsWord(perDay)} denně`)})
     </>
   ) : (
-    <>
-      {pointsText} · {scheduleText}
-    </>
+    pointsText
   );
   /** Merge duplicate times and sort them once the user leaves the times group. */
   const tidyTimes = () => {
@@ -701,40 +689,6 @@ export function AddChoreSheet({
   useEffect(() => {
     if (error) alertRef.current?.focus({ preventScroll: true });
   }, [error]);
-  // The footer floats over the scroll area: the body reserves its measured height (+16 px, the
-  // error panel included) so the last field always scrolls fully above it; the fade/shadow over
-  // the content shows only while there is more below.
-  useLayoutEffect(() => {
-    const foot = footRef.current?.closest('.hb-sheet-foot');
-    const sheet = foot?.closest<HTMLElement>('.hb-sheet');
-    const body = sheet?.querySelector<HTMLElement>('.hb-sheet-body');
-    if (!(foot instanceof HTMLElement) || !sheet || !body) return;
-    sheet.dataset.famFloatFoot = '';
-    const measure = () => {
-      const h = `${Math.ceil(foot.getBoundingClientRect().height)}px`;
-      const previous = sheet.style.getPropertyValue('--fam-foot-h');
-      if (previous !== h) {
-        const wasAtEnd = body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
-        sheet.style.setProperty('--fam-foot-h', h);
-        if (previous && wasAtEnd) body.scrollTop = body.scrollHeight;
-      }
-      const end = body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
-      if (end) sheet.dataset.famScrollEnd = '';
-      else delete sheet.dataset.famScrollEnd;
-    };
-    measure();
-    // Footer (error panel) and form content; not the body itself, whose padding we set.
-    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
-    ro?.observe(foot);
-    if (body.firstElementChild) ro?.observe(body.firstElementChild);
-    body.addEventListener('scroll', measure, { passive: true });
-    window.addEventListener('resize', measure);
-    return () => {
-      ro?.disconnect();
-      body.removeEventListener('scroll', measure);
-      window.removeEventListener('resize', measure);
-    };
-  }, []);
   // „Nastavit vícekrát denně“: bring the times into view and flash them once.
   useEffect(() => {
     if (!timesFlash) return;
@@ -829,7 +783,7 @@ export function AddChoreSheet({
       stickyFooter
       closeLabel="Zavřít formulář"
       footer={
-        <div className="fam-add-foot" ref={footRef}>
+        <div className="fam-add-foot">
           {error && (
             <div
               ref={alertRef}
@@ -839,7 +793,7 @@ export function AddChoreSheet({
               data-testid="family-add-chore-error"
               data-code={error.code}
             >
-              <strong data-testid="family-add-chore-error-text">
+              <strong id={dupPanelId} data-testid="family-add-chore-error-text">
                 <Icon name="info" size={18} />
                 {duplicate
                   ? dupOwner
@@ -875,28 +829,6 @@ export function AddChoreSheet({
               )}
             </div>
           )}
-          <p className="fam-foot-who" data-testid="family-add-chore-for">
-            <span className="fam-foot-label">Pro:</span>
-            {chosen.length ? (
-              chosen.map((k) => (
-                <span key={k.id} className="fam-foot-kid">
-                  <span
-                    className="fam-partner-avatar"
-                    style={kidAvatarBg(colors[k.id])}
-                    aria-hidden="true"
-                  >
-                    {k.name[0]}
-                  </span>
-                  <b>{k.name}</b>
-                </span>
-              ))
-            ) : (
-              <b className="fam-foot-none">nikdo</b>
-            )}
-            <span className="fam-foot-when" data-testid="family-add-chore-when">
-              {footWhen}
-            </span>
-          </p>
           {duplicate && (
             <p id={dupWaitId} className="fam-dup-wait" data-testid="family-add-chore-dup-wait">
               Nejdřív vyber jednu z možností výše
@@ -949,16 +881,11 @@ export function AddChoreSheet({
             maxLength={80}
             placeholder="Např. Zalít květiny"
             aria-invalid={showName || duplicate ? true : undefined}
-            aria-describedby={showName ? nameErrId : duplicate ? dupHintId : undefined}
+            aria-describedby={showName ? nameErrId : duplicate ? dupPanelId : undefined}
           />
           {showName && (
             <p id={nameErrId} className="fam-field-err" data-testid="family-name-error">
               {problems.name}
-            </p>
-          )}
-          {duplicate && !showName && (
-            <p id={dupHintId} className="fam-field-err" data-testid="family-name-duplicate">
-              Tento název už existuje.
             </p>
           )}
         </div>
@@ -1131,11 +1058,12 @@ export function AddChoreSheet({
                     variant="ghost"
                     size="sm"
                     className="fam-times-remove"
-                    icon={<Icon name="close" size={18} />}
+                    icon={<Icon name="close" size={22} />}
                     aria-label={`Odebrat ${i + 1}. čas`}
                     title={times.length <= MIN_TIMES ? 'Aspoň 2 časy' : undefined}
                     data-testid="family-multi-remove"
                     disabled={times.length <= MIN_TIMES}
+                    aria-disabled={times.length <= MIN_TIMES || undefined}
                     onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))}
                   />
                 </li>
@@ -1210,10 +1138,10 @@ export function AddChoreSheet({
           {fieldErr(problems.when)}
         </div>
         <div className="fam-summary" data-testid="family-chore-summary-box">
-          <Icon name="calendar" size={18} />
           <div>
             <strong data-testid="family-chore-summary">
-              {who} · {summaryText}
+              <span>{rewardText}</span>
+              <span data-testid="family-add-chore-when">{scheduleText}</span>
             </strong>
             <p className="fam-hint">
               {multi

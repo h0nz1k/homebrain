@@ -93,14 +93,9 @@ describe('FamilyView', () => {
     expect(states).toEqual(['todo', 'todo', 'done', 'done']);
   });
 
-  it('calendar: next event is highlighted once and events show who they belong to', async () => {
+  it('calendar: the next event also stays in the agenda and events show who they belong to', async () => {
     await mount('owner');
-    const next = screen.queryByTestId('family-next');
-    const listed = screen.getAllByTestId('family-event').map((li) => li.textContent);
-    if (next)
-      expect(listed.some((t) => t?.includes(next.querySelector('strong')!.textContent!))).toBe(
-        false,
-      );
+    expect(screen.getAllByTestId('family-event')).toHaveLength(4);
     expect(document.querySelectorAll('[data-testid="family-who"]').length).toBeGreaterThan(0);
     expect(screen.getByTestId('family-legend').textContent).toContain('Škola');
   });
@@ -113,7 +108,7 @@ describe('FamilyView', () => {
     expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
     const label = (kind: string) =>
       pills.find((p) => p.dataset.pending === kind)!.textContent?.trim();
-    expect(label('swap')).toBe('Předání Synovi čeká na schválení');
+    expect(label('swap')).toBe('Předání Kubovi čeká na schválení');
     expect(label('completion')).toBe('Čeká na schválení');
     expect(screen.getAllByTestId('family-done-summary')[0]!.textContent).toContain('Hotovo: 2');
     expect(screen.queryByTestId('family-approvals')).toBeNull();
@@ -126,7 +121,7 @@ describe('FamilyView', () => {
       .find((li) => li.dataset.swap === 'transferred_out')!;
     const pts = within(out).getByTestId('family-pts-out');
     expect(pts.querySelector('s')!.textContent).toBe('+3\u00a0body');
-    expect(pts.textContent).toContain('→\u00a0Syn');
+    expect(pts.textContent).toContain('→\u00a0Kuba');
   });
 
   it('„⋯“ menu on every actionable row and on no other row', async () => {
@@ -143,8 +138,8 @@ describe('FamilyView', () => {
   it('handover tags decline names; done rows carry no extra „Hotovo“ text', async () => {
     await mount('owner');
     const notes = screen.getAllByTestId('family-swap-note').map((n) => n.textContent);
-    expect(notes).toContain('Předáno Synovi · jen dnes');
-    expect(notes).toContain('Převzato od Dcery · jen dnes');
+    expect(notes).toContain('Předáno Kubovi');
+    expect(notes).toContain('Převzato od Emy');
     expect(notes.some((t) => t?.includes(':'))).toBe(false);
     const done = screen.getAllByTestId('family-chore').filter((li) => li.dataset.state === 'done');
     expect(done.length).toBeGreaterThan(0);

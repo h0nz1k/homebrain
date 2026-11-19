@@ -38,16 +38,24 @@ export function czDate(d: Date, opts: { year?: boolean } = {}): string {
   return opts.year ? `${dm}\u00a0${d.getFullYear()}` : dm;
 }
 
+export function shortDate(day: Date): string {
+  return `${(DAY[day.getDay()] ?? '').toLowerCase()}\u00a0${czDate(day)}`;
+}
+
 export function longDate(now: Date): string {
-  return `${DAY_LONG[now.getDay()]} ${now.getDate()}.\u00a0${MONTH_GEN[now.getMonth()]}`;
+  const weekday = DAY_LONG[now.getDay()] ?? '';
+  return `${weekday.charAt(0).toLocaleUpperCase('cs') + weekday.slice(1)} ${now.getDate()}.\u00a0${MONTH_GEN[now.getMonth()]}`;
 }
 
 export function todayEvents(events: FamilyEvent[], now: Date): FamilyEvent[] {
   const key = localKey(now);
-  return events.filter(
-    (e) =>
-      eventDay(e) === key || (e.all_day && e.start.slice(0, 10) < key && e.end.slice(0, 10) > key),
-  );
+  return events
+    .filter(
+      (e) => eventDay(e) === key || (e.all_day && eventDay(e) < key && e.end.slice(0, 10) > key),
+    )
+    .sort(
+      (a, b) => Number(b.all_day) - Number(a.all_day) || Date.parse(a.start) - Date.parse(b.start),
+    );
 }
 
 export interface WeekDay {
@@ -265,7 +273,7 @@ export function dayWord(day: Date, now: Date): string {
   const diff = Math.round((start(day) - start(now)) / 86_400_000);
   if (diff === 0) return 'dnes';
   if (diff === 1) return 'zítra';
-  return `${(DAY[day.getDay()] ?? '').toLowerCase()}\u00a0${czDate(day)}`;
+  return shortDate(day);
 }
 
 /**

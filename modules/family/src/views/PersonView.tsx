@@ -5,6 +5,7 @@ import type { FamilyApi } from '../api.js';
 import {
   choreTally,
   czDate,
+  shortDate,
   eventWho,
   formatOutOf,
   localKey,
@@ -14,6 +15,7 @@ import {
   timeLabel,
   todayEvents,
 } from '../format.js';
+import { personActivity } from '../personActivity.js';
 import { handedToLabel, pendingHandoverLabel, takenFromLabel } from '../czech.js';
 import type {
   FamilyChore,
@@ -39,8 +41,12 @@ function Avatar({ member }: { member: FamilyMember }) {
 function Presence({ presence }: { presence: FamilyPresence | null }) {
   if (presence?.kind !== 'home' && presence?.kind !== 'away') return null;
   return (
-    <span className="fam-person-presence" data-testid="family-wifi-presence">
-      <span aria-hidden="true" data-home={presence.kind === 'home' || undefined} />
+    <span
+      className="fam-person-presence"
+      data-testid="family-wifi-presence"
+      data-home={presence.kind === 'home' || undefined}
+    >
+      <span aria-hidden="true" />
       {presence.kind === 'home' ? 'doma' : 'pryč'}
     </span>
   );
@@ -63,9 +69,11 @@ function Progress({ counts }: Pick<FamilyMember, 'counts'>) {
 export function PersonsRow({
   members,
   onPerson,
+  kiosk,
 }: {
   members: FamilyMember[];
   onPerson(id: string): void;
+  kiosk?: boolean | undefined;
 }) {
   return (
     <div className="fam-persons" data-testid="family-persons" aria-label="Členové rodiny">
@@ -92,6 +100,9 @@ export function PersonsRow({
               <i data-waiting style={{ width: `${total ? (pending / total) * 100 : 0}%` }} />
             </span>
             <Progress counts={member.counts} />
+            {kiosk && (
+              <span className="fam-tile-points">{pointsAmount(member.points_today ?? 0)} dnes</span>
+            )}
           </button>
         );
       })}
@@ -108,7 +119,17 @@ function part(due: string | null) {
   return hour < 11 ? parts[0] : hour < 17 ? parts[1] : parts[2];
 }
 
-function ChoreRows({ rows }: { rows: FamilyChore[] }) {
+type TaskRow = FamilyChore & { occurrence?: 'carried' | 'missed' };
+
+function ChoreRows({
+  rows,
+  busy,
+  onComplete,
+}: {
+  rows: TaskRow[];
+  busy?: string | null;
+  onComplete?(chore: string): void;
+}) {
   return (
     <ul>
       {rows.map((chore) => {
@@ -132,17 +153,40 @@ function ChoreRows({ rows }: { rows: FamilyChore[] }) {
             data-state={chore.state}
             data-carried-days={chore.carried_days}
             data-muted={swap?.muted || undefined}
+            data-missed={chore.occurrence === 'missed' || undefined}
           >
-            <span className="fam-person-mark" aria-hidden="true">
-              {chore.state === 'done' && <Icon name="check" size={20} />}
-              {chore.state === 'claimed' && <Icon name="clock" size={20} />}
-              {chore.state === 'overdue' && <Icon name="alert" size={20} />}
-            </span>
+            {onComplete && chore.can_claim ? (
+              <button
+                type="button"
+                className="fam-person-check"
+                role="checkbox"
+                aria-checked={false}
+                aria-label={`Splnit: ${chore.name}`}
+                disabled={busy === chore.id}
+                onClick={() => onComplete(chore.id)}
+              >
+                <span className="fam-person-mark" aria-hidden="true" />
+              </button>
+            ) : (
+              <span className="fam-person-mark" aria-hidden="true">
+                {chore.state === 'done' && <Icon name="check" size={20} />}
+                {chore.state === 'claimed' && <Icon name="clock" size={20} />}
+                {chore.occurrence === 'missed' && <Icon name="minus" size={20} />}
+                {chore.occurrence === 'carried' && <Icon name="arrow" size={20} />}
+                {!onComplete &&
+                  !chore.occurrence &&
+                  (chore.state === 'todo' || chore.state === 'overdue') && (
+                    <Icon name="calendar" size={20} />
+                  )}
+              </span>
+            )}
             <div className="fam-person-task-text">
               <strong>{chore.name}</strong>
-              {carried ? (
+              {chore.occurrence ? (
+                <small>{chore.occurrence === 'carried' ? 'přeneseno' : 'Zmeškáno'}</small>
+              ) : carried ? (
                 <small className="fam-person-overdue">
-                  Nesplněno od {czDate(new Date(chore.due!))}
+                  Nesplněno od {shortDate(new Date(chore.due!))}
                 </small>
               ) : chore.due && chore.state !== 'done' && chore.state !== 'claimed' ? (
                 <small>do&nbsp;{timeLabel(chore.due)}</small>
@@ -153,13 +197,19 @@ function ChoreRows({ rows }: { rows: FamilyChore[] }) {
                     chore.state === 'claimed' || swap?.kind === 'pending_give' || undefined
                   }
                 >
-                  {status}
+                  {status.replace(/ · jen dnes$/u, '')}
                 </small>
               )}
               {chore.rotation_turn && <small>Střídá se · na řadě {chore.rotation_turn}</small>}
             </div>
             <span className="fam-person-points">
-              {swap?.muted ? <s>{pointsLabel(chore.points)}</s> : pointsLabel(chore.points)}
+              {chore.occurrence === 'missed' ? (
+                pointsAmount(0)
+              ) : swap?.muted ? (
+                <s>{pointsLabel(chore.points)}</s>
+              ) : (
+                pointsLabel(chore.points)
+              )}
             </span>
           </li>
         );
@@ -168,7 +218,17 @@ function ChoreRows({ rows }: { rows: FamilyChore[] }) {
   );
 }
 
-function TodayChores({ member, now }: { member: FamilyMember; now: Date }) {
+function TodayChores({
+  member,
+  now,
+  busy,
+  onComplete,
+}: {
+  member: FamilyMember;
+  now: Date;
+  busy: string | null;
+  onComplete(chore: string): void;
+}) {
   const groups = [
     {
       label: 'Po termínu',
@@ -188,12 +248,6 @@ function TodayChores({ member, now }: { member: FamilyMember; now: Date }) {
     return `${formatOutOf(done, total)} hotovo`;
   };
   const current = part(now.toISOString());
-  const priority = (group: (typeof groups)[number]) =>
-    group.late
-      ? 0
-      : group.label === current
-        ? 1
-        : 2 + parts.indexOf(group.label as (typeof parts)[number]);
   return (
     <section>
       <div className="fam-person-section-head">
@@ -202,33 +256,33 @@ function TodayChores({ member, now }: { member: FamilyMember; now: Date }) {
       </div>
       <div className="fam-person-surface">
         {!groups.length && <p className="fam-person-empty">Dnes bez úkolů.</p>}
-        {groups
-          .filter((group) => !finished(group))
-          .sort((a, b) => priority(a) - priority(b))
-          .map((group) => (
+        {groups.map((group) => {
+          const label = (
+            <>
+              <span>
+                {group.label}
+                {group.label === current && ' · teď'}
+              </span>
+              <small>{count(group.rows)}</small>
+            </>
+          );
+          const chores = <ChoreRows rows={group.rows} busy={busy} onComplete={onComplete} />;
+          return finished(group) ? (
+            <details key={group.label} className="fam-person-group fam-person-finished">
+              <summary className="fam-person-group-head">{label}</summary>
+              {chores}
+            </details>
+          ) : (
             <section
               className="fam-person-group"
               data-late={group.late || undefined}
               key={group.label}
             >
-              <h3>
-                <span>
-                  {group.label}
-                  {group.label === current && ' · teď'}
-                </span>
-                <span>{count(group.rows)}</span>
-              </h3>
-              <ChoreRows rows={group.rows} />
+              <h3 className="fam-person-group-head">{label}</h3>
+              {chores}
             </section>
-          ))}
-        {groups.filter(finished).map((group) => (
-          <details key={group.label} className="fam-person-finished">
-            <summary>
-              {group.label} · {count(group.rows)}
-            </summary>
-            <ChoreRows rows={group.rows} />
-          </details>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -240,12 +294,14 @@ export function FreeTasks({
   member,
   busy,
   onClaim,
+  claimDisabled,
 }: {
   rows: FreeChore[];
   members: FamilyMember[];
   member?: FamilyMember;
   busy?: string | null;
   onClaim?(member: string, chore: string): void;
+  claimDisabled?: boolean;
 }) {
   const visible = rows.filter(
     (row) => !member || row.assignees.some((option) => option.member === member.id),
@@ -255,7 +311,7 @@ export function FreeTasks({
     <section data-testid="family-free">
       <div className="fam-person-section-head">
         <h2>Volné úkoly</h2>
-        <small>Kdo dřív, ten bere body</small>
+        {member && <p>Kdo si úkol vezme první, dostane body po splnění</p>}
       </div>
       <ul className="fam-person-surface">
         {visible.map((chore) => {
@@ -267,7 +323,9 @@ export function FreeTasks({
             .filter(Boolean);
           return (
             <li className="fam-person-task fam-person-free" key={chore.assignees[0]?.chore}>
-              <span className="fam-person-mark" aria-hidden="true" />
+              <span className="fam-person-mark" aria-hidden="true">
+                <Icon name="swap" size={20} />
+              </span>
               <div className="fam-person-task-text">
                 <strong>{chore.name}</strong>
                 <small>
@@ -275,15 +333,17 @@ export function FreeTasks({
                   {names.join(' nebo ')}
                 </small>
               </div>
-              <span className="fam-person-points">{pointsLabel(chore.points)}</span>
-              {option && onClaim && (
+              {option && onClaim ? (
                 <Button
                   variant="secondary"
-                  disabled={busy === option.chore}
+                  disabled={claimDisabled || busy === option.chore}
                   onClick={() => onClaim(option.member, option.chore)}
                 >
-                  Beru<span className="hb-sr-only">: {chore.name}</span>
+                  Vezmu si to{chore.points != null && ` · +${chore.points}`}
+                  <span className="hb-sr-only">: {chore.name}</span>
                 </Button>
+              ) : (
+                <span className="fam-person-points">{pointsLabel(chore.points)}</span>
               )}
             </li>
           );
@@ -295,54 +355,60 @@ export function FreeTasks({
 
 function Week({
   member,
-  now,
   history,
+  activity,
 }: {
   member: FamilyMember;
-  now: Date;
   history: ReturnType<typeof usePersonHistory>;
+  activity: ReturnType<typeof personActivity>;
 }) {
-  const start = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() - ((now.getDay() + 6) % 7),
-  );
-  const days = Array.from(
-    { length: 7 },
-    (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i),
-  );
-  const today = localKey(now);
-  const inWeek = (entry: PersonHistoryEntry) => {
-    const key = localKey(new Date(entry.date));
-    return key >= localKey(start) && key < today;
-  };
-  const rows = [
+  const { today, days, week } = activity;
+  const rows: (TaskRow & { weekDay: string | null })[] = [
     ...member.chores
-      .filter((chore) => chore.counts_today !== false)
+      .filter((chore) => chore.counts_today !== false && chore.state !== 'done')
       .map((chore) => ({ ...chore, weekDay: today })),
-    ...(history.entries ?? []).filter(inWeek).map((entry, index) => ({
+    ...member.chores.flatMap((chore) =>
+      chore.carried_days && chore.due
+        ? [
+            {
+              ...chore,
+              weekDay: localKey(new Date(chore.due)),
+              occurrence: 'carried' as const,
+              points: null,
+            },
+          ]
+        : [],
+    ),
+    ...week.map((entry) => ({
       ...entry,
-      weekDay: localKey(new Date(entry.date)),
-      id: `past-${index}`,
+      weekDay: entry.date ? localKey(new Date(entry.date)) : null,
       due: entry.date,
-      state: 'done' as const,
+      state: entry.missed ? ('overdue' as const) : ('done' as const),
+      ...(entry.missed && { occurrence: 'missed' as const }),
       can_claim: false,
       can_approve: false,
     })),
-    ...(member.upcoming ?? []).map((chore) => ({
-      ...chore,
-      weekDay: chore.due ? localKey(new Date(chore.due)) : null,
-      state: 'todo' as const,
-      can_claim: false,
-      can_approve: false,
-    })),
+    ...(member.upcoming ?? []).flatMap((chore) => {
+      const day = chore.due ? localKey(new Date(chore.due)) : null;
+      return day && day > today
+        ? [
+            {
+              ...chore,
+              weekDay: day,
+              state: 'todo' as const,
+              can_claim: false,
+              can_approve: false,
+            },
+          ]
+        : [];
+    }),
   ];
   return (
     <section>
       <div className="fam-person-section-head">
         <h2>Tento týden</h2>
         <small>
-          {czDate(start)} – {czDate(days[6]!)}
+          {czDate(days[0]!)} – {czDate(days[6]!)}
         </small>
       </div>
       <div className="fam-person-surface" aria-busy={!history.entries && !history.error}>
@@ -358,17 +424,23 @@ function Week({
           return (
             <section
               className="fam-person-group fam-person-day"
-              data-today={key === localKey(now) || undefined}
+              data-today={key === today || undefined}
               key={key}
             >
-              <h3>
+              <h3 className="fam-person-group-head">
                 <span>
-                  {key === localKey(now) ? 'Dnes · ' : ''}
+                  {key === today ? 'Dnes · ' : ''}
                   {longDate(day)}
                 </span>
-                <span>{total ? `${formatOutOf(done, total)} hotovo` : 'Bez úkolů'}</span>
+                <small>
+                  {total
+                    ? `${formatOutOf(done, total)} hotovo`
+                    : history.entries
+                      ? 'Bez úkolů'
+                      : ''}
+                </small>
               </h3>
-              <ChoreRows rows={chores} />
+              {chores.length > 0 && <ChoreRows rows={chores} />}
             </section>
           );
         })}
@@ -377,13 +449,12 @@ function Week({
   );
 }
 
-function usePersonHistory(api: FamilyApi, member: string, enabled: boolean) {
+function usePersonHistory(api: FamilyApi, member: string, refreshedAt: number) {
   const [history, setHistory] = useState<{ entries: PersonHistoryEntry[] | null; error: boolean }>({
     entries: null,
     error: false,
   });
   useEffect(() => {
-    if (!enabled) return;
     let active = true;
     void api.personHistory(member).then(
       (result) => {
@@ -396,26 +467,20 @@ function usePersonHistory(api: FamilyApi, member: string, enabled: boolean) {
     return () => {
       active = false;
     };
-  }, [api, member, enabled]);
+  }, [api, member, refreshedAt]);
   return history;
 }
 
 function History({
   history,
-  member,
-  now,
+  activity,
 }: {
   history: ReturnType<typeof usePersonHistory>;
-  member: FamilyMember;
-  now: Date;
+  activity: ReturnType<typeof personActivity>;
 }) {
   const { entries, error } = history;
-  const rows = [
-    ...member.missed.map((row) => ({ ...row, points: null, missed: true })),
-    ...(entries ?? []).map((row, index) => ({ ...row, id: `completed-${index}`, missed: false })),
-  ].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+  const { history: rows, today } = activity;
   const days = new Map<string, typeof rows>();
-  const today = localKey(now);
   for (const row of rows) {
     const key = row.date ? localKey(new Date(row.date)) : '';
     const day = days.get(key);
@@ -437,7 +502,7 @@ function History({
         {entries && !rows.length && <p className="fam-person-empty">Zatím žádné záznamy.</p>}
         {[...days].map(([day, items]) => (
           <section className="fam-person-group fam-person-day" key={day}>
-            <h3>
+            <h3 className="fam-person-group-head">
               {day === today && 'Dnes · '}
               {day ? longDate(new Date(`${day}T12:00:00`)) : 'Datum neznámé'}
             </h3>
@@ -447,28 +512,53 @@ function History({
                   className="fam-person-task"
                   data-testid="family-history-row"
                   data-missed={row.missed || undefined}
+                  data-state={row.missed ? undefined : 'approved'}
                   key={`${row.id}/${row.date}`}
                 >
                   <span className="fam-person-mark" aria-hidden="true">
-                    <Icon name={row.missed ? 'alert' : 'check'} size={20} />
+                    <Icon name={row.missed ? 'minus' : 'check'} size={20} />
                   </span>
                   <div className="fam-person-task-text">
                     <strong>{row.name}</strong>
                     <small>
                       {row.missed
-                        ? 'Zmeškané'
+                        ? 'Zmeškáno'
                         : row.date
                           ? `Hotovo v\u00a0${timeLabel(row.date)}`
                           : 'Hotovo'}
                     </small>
                   </div>
-                  <span className="fam-person-points">{pointsLabel(row.points)}</span>
+                  <span className="fam-person-points">
+                    {row.missed ? pointsAmount(0) : pointsLabel(row.points)}
+                  </span>
                 </li>
               ))}
             </ul>
           </section>
         ))}
       </div>
+    </section>
+  );
+}
+
+function PersonCalendar({ today }: { today: { event: FamilyEvent; title: string }[] }) {
+  if (!today.length) return null;
+  return (
+    <section>
+      <div className="fam-person-section-head">
+        <h2>Dnes v kalendáři</h2>
+      </div>
+      <ul className="fam-person-surface">
+        {today.map(({ event, title }) => (
+          <li className="fam-person-event" key={event.id}>
+            <time>{event.all_day ? 'Celý den' : timeLabel(event.start)}</time>
+            <span>
+              {title}
+              {!event.all_day && <small>do&nbsp;{timeLabel(event.end)}</small>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -483,6 +573,9 @@ export function PersonView({
   busy,
   onBack,
   onClaim,
+  onComplete,
+  claimDisabled,
+  refreshedAt,
 }: {
   api: FamilyApi;
   member: FamilyMember;
@@ -491,11 +584,15 @@ export function PersonView({
   events: FamilyEvent[];
   free: FreeChore[];
   busy: string | null;
+  refreshedAt: number;
+  claimDisabled: boolean;
   onBack(): void;
+  onComplete(chore: string): void;
   onClaim(member: string, chore: string): void;
 }) {
   const [tab, setTab] = useState<Tab>('Dnes');
-  const history = usePersonHistory(api, member.id, tab !== 'Dnes');
+  const history = usePersonHistory(api, member.id, refreshedAt);
+  const activity = personActivity(member, history.entries ?? [], now);
   const id = useId();
   useBackClosable(onBack);
   const keyTab = (event: KeyboardEvent, index: number) => {
@@ -524,7 +621,7 @@ export function PersonView({
     <article className="fam-person-view" style={colorStyle(member)} data-testid="family-person">
       <div className="fam-person-head">
         <Button variant="ghost" className="fam-person-back" onClick={onBack}>
-          ‹&nbsp; Rodina
+          ‹&nbsp; Zpět
         </Button>
         <div className="fam-person-identity">
           <Avatar member={member} />
@@ -533,12 +630,7 @@ export function PersonView({
               <h1>{member.name}</h1>
               <Presence presence={member.presence} />
             </div>
-            {member.points_week != null && (
-              <p>
-                {pointsAmount(member.points_week)} za týden
-                {member.role !== 'child' && ' · pro radost'}
-              </p>
-            )}
+            {history.entries && <p>{pointsAmount(activity.points)} tento týden</p>}
           </div>
         </div>
       </div>
@@ -567,7 +659,7 @@ export function PersonView({
       >
         {tab === 'Dnes' && (
           <div className="fam-person-columns">
-            <TodayChores member={member} now={now} />
+            <TodayChores member={member} now={now} busy={busy} onComplete={onComplete} />
             <div className="fam-person-side">
               <FreeTasks
                 rows={free}
@@ -575,30 +667,25 @@ export function PersonView({
                 member={member}
                 busy={busy}
                 onClaim={onClaim}
+                claimDisabled={claimDisabled}
               />
-              {today.length > 0 && (
-                <section>
-                  <div className="fam-person-section-head">
-                    <h2>Dnes v kalendáři</h2>
-                  </div>
-                  <ul className="fam-person-surface">
-                    {today.map(({ event, title }) => (
-                      <li className="fam-person-event" key={event.id}>
-                        <time>{event.all_day ? 'Celý den' : timeLabel(event.start)}</time>
-                        <span>
-                          {title}
-                          {!event.all_day && <small>do&nbsp;{timeLabel(event.end)}</small>}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              <PersonCalendar today={today} />
             </div>
           </div>
         )}
-        {tab === 'Týden' && <Week member={member} now={now} history={history} />}
-        {tab === 'Historie' && <History history={history} member={member} now={now} />}
+        {tab !== 'Dnes' && (
+          <div className="fam-person-columns">
+            {tab === 'Týden' ? (
+              <Week member={member} history={history} activity={activity} />
+            ) : (
+              <History history={history} activity={activity} />
+            )}
+            <aside className="fam-person-tab-aside fam-person-side">
+              <TodayChores member={member} now={now} busy={busy} onComplete={onComplete} />
+              <PersonCalendar today={today} />
+            </aside>
+          </div>
+        )}
       </div>
     </article>
   );

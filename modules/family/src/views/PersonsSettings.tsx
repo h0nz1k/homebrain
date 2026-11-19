@@ -78,6 +78,7 @@ export function PersonsSettings({
         Přiřaďte členy z ChoreOps k osobám v Home Assistantu a vyberte UniFi zařízení pro stav
         doma/pryč.
       </p>
+      <p>Dospělí sbírají body pro radost (bez kapesného).</p>
       {!data && !error && <p>Načítám nastavení osob…</p>}
       {error && (
         <p className="fam-err" role="alert">

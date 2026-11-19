@@ -202,17 +202,17 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 - `homebrain/family/get` vrací `members` s dětmi i dospělými z ChoreOps. Přechodné pole `kids` obsahuje děti a zachovává původní filtrování pro účet dítěte.
 - Vlastník potvrdí vazbu osoby na účet ChoreOps, roli, barvu a tracker v Nastavení osob. Návrh vazby vychází ze shody názvů. Barvy jsou stejné v přehledu, seznamech a detailu.
 - Ťuknutí v přehledu, seznamu nebo na kiosku otevře detail Dnes / Týden / Historie. Ráno končí v 11.00, Odpoledne v 17.00, potom začíná Večer. Úkol bez času je v Odpoledne.
-- Dospělí mají úkoly a body pro radost. Body dospělých se nikdy nepřepočítávají na peníze.
+- Dospělí mají úkoly a body pro radost (bez kapesného).
 
 ### FAM-024 – Z minula a historie
 
-- Nesplněný úkol se ukazuje ve skupině Po termínu po dobu tří následujících kalendářních dnů. Čtvrtý den se přesune do Historie jako Zmeškané. Úkoly opakované s odstupem od splnění zůstávají po termínu až do splnění.
-- Zmeškané výskyty zachycené HomeBrainem jsou v historii 90 dní. Splněné úkoly se načítají z bodového deníku a senzorů ChoreOps za posledních 30 dní podle dostupnosti záznamů. Týden zobrazuje aktuální výskyty dostupné v ChoreOps.
+- Nesplněný úkol se ukazuje ve skupině Po termínu po dobu tří následujících kalendářních dnů. Čtvrtý den se přesune do Historie jako Zmeškáno s 0 body. Týden zachovává výskyt v původním dni se stavem „přeneseno“ a mezi dnešními úkoly. Úkoly opakované s odstupem od splnění zůstávají po termínu až do splnění.
+- Zmeškané výskyty zachycené HomeBrainem jsou v historii 90 dní. Splněné úkoly se načítají z bodového deníku a senzorů ChoreOps za posledních 30 dní podle dostupnosti záznamů. Součet bodů v záhlaví je součet připsaných bodů od pondělí podle stejných záznamů jako v Týdnu a Historii.
 
 ### FAM-025 – Volné úkoly
 
-- Volný úkol ChoreOps typu `shared_first` má jediný řádek v přehledu a nezapočítává se do přidělených úkolů před převzetím. V detailu oprávněného člena ho lze převzít tlačítkem **Beru**. ChoreOps rozhoduje o prvním převzetí a HomeBrain obnoví data po úspěchu i po souběhu.
-- Karta Další v přehledu uvádí probíhající událost v řádku Teď.
+- Volný úkol ChoreOps typu `shared_first` má jediný řádek v přehledu a nezapočítává se do přidělených úkolů před převzetím. V detailu oprávněného člena ho lze převzít tlačítkem **Vezmu si to**. Úkol se ihned ukáže ve své části dne a čtyři sekundy ho lze vrátit volbou **Zpět**. Po této lhůtě HomeBrain odešle převzetí do ChoreOps, který rozhodne o prvním úspěšném převzetí.
+- Přehled uvádí všechny dnešní události podle času. Probíhající a nejbližší budoucí událost mají vlastní štítky „teď“ a „další“.
 
 ### FAM-026 – Přítomnost a kiosk
 

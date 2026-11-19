@@ -1,13 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { hostWindow, usePeople, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
@@ -32,16 +23,14 @@ import {
   isPast,
   longDate,
   nextDays,
-  nextEvent,
   pointsLabel,
-  relLabel,
   sortChores,
   timeLabel,
   todayEvents,
   upcomingParts,
 } from '../format.js';
 import { handedToLabel, pendingHandoverLabel, takenFromLabel } from '../czech.js';
-import type { FamilyEvent, FamilyKid, FamilySnapshot } from '../types.js';
+import type { FamilyEvent, FamilyKid, FamilySnapshot, FreeChore } from '../types.js';
 import { familyStyles } from './familyStyles.js';
 import { FreeTasks, PersonsRow, PersonView, personColor } from './PersonView.js';
 import { PersonsSettings } from './PersonsSettings.js';
@@ -176,15 +165,7 @@ function TodayCard({
   members: Member[];
 }) {
   const today = todayEvents(snap.events, now);
-  const running = today.filter(
-    (event) => !event.all_day && new Date(event.start) <= now && new Date(event.end) > now,
-  );
-  const next =
-    today.find((event) => !event.all_day && new Date(event.start) > now) ??
-    nextEvent(snap.events, now);
-  const rest = today.filter((ev) => ev.id !== next?.id);
-  const nextWho = next ? eventWho(next, members) : null;
-  const nextDetail = next ? [next.location, next.description].filter(Boolean).join(' · ') : '';
+  const next = today.find((event) => !event.all_day && new Date(event.start) > now);
   return (
     <Card className="fam-card" data-testid="family-today">
       <div className="fam-card-h">
@@ -203,39 +184,14 @@ function TodayCard({
         </p>
       ) : (
         <>
-          {next && nextWho && (
-            <div className="fam-next" style={srcStyle(next)} data-testid="family-next">
-              <small>
-                {new Date(next.start) > now && 'Další · '}
-                {relLabel(next, now)}
-              </small>
-              <div className="fam-next-t">
-                <Who ids={nextWho.who} members={members} />
-                <strong>{nextWho.title}</strong>
-              </div>
-              <span>
-                <span className="fam-nowrap">
-                  {timeLabel(next.start)}
-                  {'\u00a0–\u00a0'}
-                  {timeLabel(next.end)}
-                </span>
-                {nextDetail ? ` · ${nextDetail}` : ''}
-              </span>
-              {running.length > 0 && (
-                <p className="fam-now">
-                  <i />
-                  Teď: {running.map((event) => eventWho(event, members).title).join(' · ')}
-                </p>
-              )}
-            </div>
-          )}
           {today.length === 0 ? (
             <p className="fam-empty">Dnes nic v kalendáři.</p>
-          ) : rest.length === 0 ? null : (
+          ) : (
             <ul className="fam-events">
-              {rest.map((ev) => {
+              {today.map((ev) => {
                 const { who, title } = eventWho(ev, members);
                 const past = isPast(ev, now);
+                const running = !ev.all_day && !past && new Date(ev.start) <= now;
                 return (
                   <li
                     key={ev.id}
@@ -243,6 +199,8 @@ function TodayCard({
                     style={srcStyle(ev)}
                     data-testid="family-event"
                     data-past={past || undefined}
+                    data-running={running || undefined}
+                    data-next={ev.id === next?.id || undefined}
                   >
                     {ev.all_day ? (
                       <time data-allday>celý den</time>
@@ -260,6 +218,9 @@ function TodayCard({
                       <Who ids={who} members={members} />
                       <div>
                         <b>{title}</b>
+                        {(running || ev.id === next?.id) && (
+                          <span className="fam-event-state">{running ? 'teď' : 'další'}</span>
+                        )}
                         {(ev.location || ev.description) && (
                           <p className="fam-detail" data-testid="family-event-detail">
                             {[ev.location, ev.description].filter(Boolean).join(' · ')}
@@ -388,8 +349,7 @@ function SwapTag({ swap }: { swap: NonNullable<ChoreRow['swap_today']> }) {
       : takenFromLabel(swap.partner_name);
   return (
     <span className="fam-swap-tag" data-testid="family-swap-note" data-kind={swap.kind}>
-      <Icon name="swap" size={14} />
-      {text}
+      {text.replace(/ · jen dnes$/u, '')}
     </span>
   );
 }
@@ -471,39 +431,37 @@ function UpcomingList({
   kid,
   now,
   compact,
-  line,
-  menuSlot,
+  kiosk,
   highlight,
 }: {
   kid: FamilyKid;
   now: Date;
   compact?: boolean;
-  /** Kiosk: a single summary line. */
-  line?: boolean;
-  menuSlot: boolean;
+  kiosk?: boolean;
   highlight?: string | null;
 }) {
   const all = kid.upcoming ?? [];
   if (!all.length) return null;
-  // Kiosk: the chores card has a fixed height, so the plan is one line under today's rows.
-  if (line) return <UpcomingLine chores={all} now={now} />;
-  const rows = compact ? all.slice(0, UPCOMING_COMPACT) : all;
+  const rows = kiosk ? all.slice(0, 1) : compact ? all.slice(0, UPCOMING_COMPACT) : all;
   const more = all.length - rows.length;
   return (
     <section
       className="fam-upcoming"
       data-testid="family-upcoming"
-      data-compact={compact || undefined}
+      data-compact={kiosk ? 'kiosk' : compact || undefined}
       aria-label={`Naplánované úkoly: ${kid.name}`}
     >
-      <h3 className="fam-list-h fam-upcoming-h" data-testid="family-upcoming-h">
+      <h3
+        className={kiosk ? 'hb-sr-only' : 'fam-list-h fam-upcoming-h'}
+        data-testid="family-upcoming-h"
+      >
         <Icon name="calendar" size={14} />
         Naplánované · {czCount(all.length, 'úkol', 'úkoly', 'úkolů')}
         <small data-testid="family-upcoming-count">· další dny</small>
       </h3>
       <ul>
         {rows.map((c) => {
-          const when = upcomingParts(c.due, now);
+          const when = upcomingParts(c.due, now, kiosk ? { short: true } : undefined);
           return (
             <li
               key={c.id}
@@ -514,34 +472,36 @@ function UpcomingList({
             >
               {/* Same lead column as today's tick boxes, so the titles share one left edge. */}
               <span className="fam-upcoming-lead" aria-hidden="true">
-                <Icon name="calendar" size={16} />
+                <Icon name="calendar" size={28} />
               </span>
               <span className="fam-upcoming-t">
-                <span className="fam-upcoming-name">{c.name}</span>
-                <small className="fam-upcoming-meta">
-                  <span className="fam-upcoming-when" data-testid="family-upcoming-day">
-                    {when.day}
-                  </span>
-                  {when.time && <span className="fam-upcoming-time">{` · do ${when.time}`}</span>}
-                </small>
+                <span className="fam-upcoming-name">
+                  {kiosk ? `${capFirst(when.day)}: ${c.name}` : c.name}
+                </span>
+                {!kiosk && (
+                  <small className="fam-upcoming-meta">
+                    <span className="fam-upcoming-when" data-testid="family-upcoming-day">
+                      {when.day}
+                    </span>
+                    {when.time && <span className="fam-upcoming-time">{` · do ${when.time}`}</span>}
+                  </small>
+                )}
               </span>
               <Pts className="fam-upcoming-pts" value={c.points} />
-              {menuSlot && <span className="fam-menu-slot" aria-hidden="true" />}
+              <span className="fam-menu-slot" aria-hidden="true" />
             </li>
           );
         })}
       </ul>
       {more > 0 && (
-        <p className="fam-upcoming-more">a {czCount(more, 'další', 'další', 'dalších')}</p>
+        <p className="fam-upcoming-more" data-testid="family-upcoming-more">
+          a {more} další
+        </p>
       )}
     </section>
   );
 }
 
-/**
- * Kiosk plan line: whole items only. Items that do not fit the line are hidden and counted
- * in „a N další“ – never an ellipsis in the middle of a word.
- */
 const capFirst = (s: string) => s.charAt(0).toLocaleUpperCase('cs') + s.slice(1);
 
 /**
@@ -549,68 +509,6 @@ const capFirst = (s: string) => s.charAt(0).toLocaleUpperCase('cs') + s.slice(1)
  */
 function Pts({ value, className }: { value: number | null; className: string }) {
   return <span className={className}>{pointsLabel(value)}</span>;
-}
-
-function UpcomingLine({ chores, now }: { chores: NonNullable<FamilyKid['upcoming']>; now: Date }) {
-  const boxRef = useRef<HTMLSpanElement>(null);
-  const [shown, setShown] = useState(chores.length);
-  useLayoutEffect(() => {
-    const box = boxRef.current;
-    if (!box) return;
-    const fit = () => {
-      const items = [...box.querySelectorAll<HTMLElement>('.fam-upcoming-item')];
-      items.forEach((el) => el.removeAttribute('data-hidden'));
-      const more = box.querySelector<HTMLElement>('.fam-upcoming-more-inline');
-      more?.removeAttribute('hidden');
-      const limit = box.getBoundingClientRect().right;
-      // While the counter is not rendered yet, keep room for it („a 3 další“ ≈ 90 px at 18 px).
-      const reserve = more ? 0 : 100;
-      let n = items.length;
-      if (items.some((el) => el.getBoundingClientRect().right > limit + 0.5)) {
-        n = items.findIndex((el) => el.getBoundingClientRect().right > limit - reserve);
-        if (n < 0) n = items.length;
-      }
-      items.forEach((el, i) => (i >= n ? el.setAttribute('data-hidden', '') : null));
-      setShown(n);
-    };
-    fit();
-    let frame = 0;
-    // Refit on the next frame: hiding items inside the callback would loop the observer.
-    const ro =
-      typeof ResizeObserver === 'undefined'
-        ? null
-        : new ResizeObserver(() => {
-            cancelAnimationFrame(frame);
-            frame = requestAnimationFrame(fit);
-          });
-    ro?.observe(box);
-    // The item box shrink-wraps its items; the line itself tells when there is more room.
-    if (box.parentElement) ro?.observe(box.parentElement);
-    return () => {
-      cancelAnimationFrame(frame);
-      ro?.disconnect();
-    };
-  }, [chores, now]);
-  const hidden = chores.length - shown;
-  return (
-    <p className="fam-upcoming fam-upcoming-line" data-testid="family-upcoming" data-compact="line">
-      <Icon name="calendar" size={14} />
-      {/* „Zítra: …“ already says it is planned; the label stays for screen readers. */}
-      <span className="hb-sr-only">Naplánované: </span>
-      <span ref={boxRef} className="fam-upcoming-items">
-        {chores.map((c) => (
-          <span key={c.id} className="fam-upcoming-item" data-testid="family-upcoming-item">
-            {`${capFirst(upcomingParts(c.due, now, { short: true }).day)}: ${c.name}`}
-          </span>
-        ))}
-      </span>
-      {hidden > 0 && (
-        <span className="fam-upcoming-more-inline" data-testid="family-upcoming-more">
-          a {czCount(hidden, 'další', 'další', 'dalších')}
-        </span>
-      )}
-    </p>
-  );
 }
 
 function KidCard({
@@ -655,7 +553,6 @@ function KidCard({
   const progress = t.total ? `${formatOutOf(t.done, t.total)} hotovo` : 'Dnes nic';
   // Every row reserves the same trailing slot (menu button, done-expander or an empty
   // spacer) whenever any row can have one, so the points column lines up in each list.
-  const menuSlot = !compact;
   const head = (
     <>
       {!self && (
@@ -848,7 +745,7 @@ function KidCard({
                 ) : (
                   <Pts className="fam-pts" value={c.points} />
                 )}
-                {menuSlot && (
+                {!compact && (
                   <span className="fam-menu-slot" data-testid="family-menu-slot">
                     {showMenu && (
                       <Button
@@ -881,7 +778,7 @@ function KidCard({
                 className="fam-pts"
                 value={doneRows.reduce((sum, c) => sum + (c.points ?? 0), 0)}
               />
-              {menuSlot && (
+              {!compact && (
                 <span className="fam-menu-slot" data-testid="family-menu-slot">
                   {collapseDone && !compact && (
                     <button
@@ -904,8 +801,7 @@ function KidCard({
           kid={kid}
           now={now}
           compact={compact || self}
-          line={compact}
-          menuSlot={menuSlot}
+          kiosk={compact}
           highlight={highlight}
         />
       </div>
@@ -1029,6 +925,10 @@ function ShoppingCard({
   if (!snap.shopping) return null;
   const open = snap.shopping.items.filter((i) => !i.done);
   const done = snap.shopping.items.filter((i) => i.done);
+  const kiosk = snap.role === 'kiosk';
+  const visibleOpen = kiosk ? open.slice(0, 2) : open;
+  const visibleDone = kiosk ? done.slice(0, Math.max(0, 2 - visibleOpen.length)) : done.slice(0, 6);
+  const hiddenCount = open.length + done.length - visibleOpen.length - visibleDone.length;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const value = text.trim();
@@ -1080,14 +980,15 @@ function ShoppingCard({
       {open.length === 0 ? (
         <p className="fam-empty">Nic k nákupu</p>
       ) : (
-        <ul className="fam-items">{open.map(row)}</ul>
+        <ul className="fam-items">{visibleOpen.map(row)}</ul>
       )}
-      {done.length > 0 && (
+      {visibleDone.length > 0 && (
         <>
           <p className="fam-done-h">Koupeno · {done.length}</p>
-          <ul className="fam-items">{done.slice(0, 6).map(row)}</ul>
+          <ul className="fam-items">{visibleDone.map(row)}</ul>
         </>
       )}
+      {kiosk && hiddenCount > 0 && <p className="fam-shop-more">a {hiddenCount} další</p>}
     </Card>
   );
 }
@@ -1095,6 +996,11 @@ function ShoppingCard({
 export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const api = useMemo(() => getFamilyApi(connection), [connection]);
   const people = usePeople(connection);
+  const [stagedClaim, setStagedClaim] = useState<{
+    member: string;
+    chore: string;
+    free: FreeChore;
+  } | null>(null);
   const [personId, setPersonId] = useState<string | null>(null);
   const [editingPersons, setEditingPersons] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -1251,7 +1157,32 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       }),
   };
   const familyMembers = snap.members ?? [];
-  const selected = familyMembers.find((member) => member.id === personId);
+  const profile = familyMembers.find((member) => member.id === personId);
+  const selected =
+    profile &&
+    profile.id === stagedClaim?.member &&
+    !profile.chores.some((chore) => chore.id === stagedClaim.chore)
+      ? {
+          ...profile,
+          counts: {
+            ...profile.counts,
+            total: profile.counts.total + 1,
+            pending: profile.counts.pending + 1,
+          },
+          chores: [
+            ...profile.chores,
+            {
+              id: stagedClaim.chore,
+              name: stagedClaim.free.name,
+              due: stagedClaim.free.due,
+              points: stagedClaim.free.points,
+              state: 'claimed' as const,
+              can_claim: false,
+              can_approve: false,
+            },
+          ],
+        }
+      : profile;
   const activeSnapshot = kiosk
     ? {
         ...snap,
@@ -1316,7 +1247,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const shop = slot(
     'shop',
     <ShoppingCard
-      snap={snap}
+      snap={activeSnapshot}
       busy={busy}
       onAdd={(s) => run('add', () => api.addItem(s))}
       onToggle={(uid, done) => void run(uid, () => api.setItemDone(uid, done))}
@@ -1326,7 +1257,41 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     ? snap.kids.find((k) => k.id === menu.kid)?.chores.find((c) => c.id === menu.chore)
     : null;
   const canTransfer = canTransferChore(menuChore);
-  const free = snap.free_chores ?? [];
+  const free = (snap.free_chores ?? []).filter(
+    (row) =>
+      row !== stagedClaim?.free &&
+      !row.assignees.some((option) => option.chore === stagedClaim?.chore),
+  );
+  const claimFree = (member: string, chore: string) => {
+    const row = free.find((entry) =>
+      entry.assignees.some(
+        (option) => option.member === member && option.chore === chore && option.can_claim,
+      ),
+    );
+    if (stagedClaim || !row) return;
+    setStagedClaim({ member, chore, free: row });
+
+    // ChoreOps can only reverse a claim through an approver. Allow cancellation before sending it.
+    const delay = 4000;
+    const toastId = notify.undo(
+      'Úkol je tvůj',
+      () => {
+        window.clearTimeout(timer);
+        setStagedClaim(null);
+      },
+      { actionLabel: 'Zpět', duration: delay },
+    );
+    const timer = window.setTimeout(() => {
+      notify.dismiss(toastId);
+      void run(chore, async () => {
+        try {
+          await api.claim(member, chore);
+        } catch {
+          notify.error('Úkol už nelze převzít.');
+        }
+      }).finally(() => setStagedClaim(null));
+    }, delay);
+  };
   const freeSlot = free.length
     ? slot('free', <FreeTasks rows={free} members={familyMembers} />)
     : null;
@@ -1354,18 +1319,12 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
             now={kiosk ? clock : now}
             events={activeSnapshot.events}
             free={free}
-            busy={busy}
+            busy={busy?.startsWith(`${selected.id}/`) ? busy.slice(selected.id.length + 1) : busy}
+            refreshedAt={now.getTime()}
             onBack={() => setPersonId(null)}
-            onClaim={(member, chore) =>
-              void run(chore, async () => {
-                try {
-                  await api.claim(member, chore);
-                  notify.success('Úkol převzat.');
-                } catch {
-                  notify.error('Úkol už nelze převzít.');
-                }
-              })
-            }
+            onClaim={claimFree}
+            claimDisabled={!!stagedClaim}
+            onComplete={(chore) => act.claim(selected.id, chore)}
           />
         ) : (
           <PersonsSettings
@@ -1402,7 +1361,9 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </Button>
         )}
       </header>
-      {familyMembers.length > 0 && <PersonsRow members={familyMembers} onPerson={setPersonId} />}
+      {familyMembers.length > 0 && (
+        <PersonsRow members={familyMembers} onPerson={setPersonId} kiosk={kiosk} />
+      )}
       {error && (
         <p className="fam-err" role="alert">
           {error}
@@ -1412,13 +1373,13 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         <div className="fam-grid">
           <div className="fam-col">
             {today}
-            {week}
-          </div>
-          <div className="fam-col">{chores}</div>
-          <div className="fam-col">
-            {freeSlot}
             {shop}
           </div>
+          <div className="fam-col">
+            {week}
+            {freeSlot}
+          </div>
+          <div className="fam-col">{chores}</div>
         </div>
       ) : (
         <div className="fam-grid" data-testid="family-grid">

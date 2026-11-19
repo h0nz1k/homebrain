@@ -127,8 +127,8 @@ const peopleNow: PersonPresence[] =
         [
           ['jan', 'Jan', 'blue', 'home'],
           ['maminka', 'Mamínka', 'pink', 'home'],
-          ['syn', 'Syn', 'teal', 'away'],
-          ['dcera', 'Dcera', 'purple', 'home'],
+          ['syn', 'Kuba', 'teal', 'away'],
+          ['dcera', 'Ema', 'purple', 'home'],
           ['babi', 'Babi', 'amber', 'away'],
           ['deda', 'Děda', 'slate', 'unknown'],
         ] as const
@@ -232,7 +232,7 @@ const heatingApi = createMockHeatingApi({
   extrasMode: recipesQuery.get('extras') === 'none' ? 'none' : 'default',
 });
 setHeatingApiFactory(() => heatingApi);
-// Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.
+// Rodina: synthetic household („Ema“, „Kuba“). `?role=adult|child|kiosk`, `?rodina=empty`.
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
   scenario: recipesQuery.get('rodina') === 'empty' ? 'empty' : 'full',
