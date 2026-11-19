@@ -51,7 +51,7 @@ function events(now: Date): FamilyEvent[] {
     isWeekend(now)
       ? e('1', fam, 'Snídaně u babičky', at(now, 0, 8, 30), at(now, 0, 9, 30))
       : e('1', fam, 'Odvoz do školy', at(now, 0, 7, 45), at(now, 0, 8, 15)),
-    e('2', fam, 'Dcera: Kroužek robotiky', at(now, 0, 14), at(now, 0, 15, 30)),
+    e('2', fam, 'Dcera: Kroužek robotiky', at(now, 0, 14), at(now, 0, 16, 10)),
     e('3', fam, 'Syn: Trénink florbalu', at(now, 0, 16, 30), at(now, 0, 18), {
       location: 'Sportovní hala',
       description: 'Vzít dres',

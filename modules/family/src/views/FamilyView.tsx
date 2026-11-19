@@ -1173,13 +1173,18 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   }, [load]);
 
   useEffect(() => {
-    if (personId || editingPersons) {
-      const frame = window.requestAnimationFrame(() => {
-        detailRef.current?.scrollIntoView?.({ block: 'start' });
-        detailRef.current?.querySelector('button')?.focus({ preventScroll: true });
+    if (!personId && !editingPersons) return;
+    // The panel's Back handler restores the overview scroll over two frames.
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => {
+        const detail = detailRef.current;
+        const main = detail?.closest('main');
+        if (main) main.scrollTop = 0;
+        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+        detail?.querySelector('button')?.focus({ preventScroll: true });
       });
-      return () => window.cancelAnimationFrame(frame);
-    }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [personId, editingPersons]);
 
   const run = useCallback(

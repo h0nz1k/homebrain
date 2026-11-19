@@ -1166,7 +1166,7 @@ test.describe('Rodina P1 – snímky (lokálně)', () => {
         await shot('overview');
         await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
         const detail = page.getByTestId('family-person');
-        await expect(detail).toBeVisible();
+        await expect(detail.getByRole('button', { name: /Rodina/ })).toBeInViewport({ ratio: 1 });
         await shot('person-today');
         await detail.getByRole('tab', { name: 'Týden' }).click();
         await shot('person-week');
@@ -1176,11 +1176,15 @@ test.describe('Rodina P1 – snímky (lokálně)', () => {
         await detail.getByRole('button', { name: /Rodina/ }).click();
         await page.getByTestId('family-person-tile').filter({ hasText: 'Syn' }).click();
         await expect(detail.getByRole('button', { name: /Beru/ })).toBeVisible();
+        await expect(detail.getByRole('button', { name: /Rodina/ })).toBeInViewport({ ratio: 1 });
         await shot('person-claim');
         if (device !== 'kiosk') {
           await detail.getByRole('button', { name: /Rodina/ }).click();
           await page.getByRole('button', { name: 'Nastavení osob' }).click();
           await expect(page.getByRole('group', { name: 'Táta' })).toBeVisible();
+          await expect(
+            page.getByTestId('family-person-settings').getByRole('button', { name: /Rodina/ }),
+          ).toBeInViewport({ ratio: 1 });
           await shot('persons-settings');
         }
       }
