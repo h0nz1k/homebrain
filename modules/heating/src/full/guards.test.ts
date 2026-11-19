@@ -49,7 +49,13 @@ describe('owner rules', () => {
     expect(G.pipes).toHaveLength(55);
     expect(G.bridges.map((b) => b.over).sort()).toEqual(['jbr_to_ground', 'jbyp_to_mix']);
     expect(G.questions.map((q) => q.id)).toEqual(['?1', '?2', '?3', '?4']);
-    expect(G.badges.map((b) => b.text).sort()).toEqual(['?1', '?2', '?2', '?3', '?4', '?4']);
+    // one badge per question: ?2 on the cooling valve, ?4 between both cooling branches
+    expect(G.badges.map((b) => b.text).sort()).toEqual(['?1', '?2', '?3', '?4']);
+    expect(G.badges.find((b) => b.text === '?2')?.of).toBe('valve_cool');
+    expect(G.leaders.map((l) => l.of).filter((o) => /chlad|hx_to_jbr/u.test(o))).toEqual([
+      'jbs_to_chlad',
+      'hx_to_jbr',
+    ]);
     // the mixer B leg meets the cooling valve B leg and the exchanger at ONE junction (tee) …
     const jbyp = G.junctions.find((j) => j.id === 'j_byp')!;
     const atJbyp = G.pipes.filter((p) => [p.from, p.to].some((e) => e.startsWith('j_byp.')));
@@ -148,5 +154,93 @@ describe('palette (both themes)', () => {
   it('pool heating uses the heating colours, no extra pool-heating hue', () => {
     expect(G.pipes.find((p) => p.id === 'ppool_to_bottom')?.colour).toBe('heat_supply');
     expect(G.pipes.find((p) => p.id === 'bottom_to_tank')?.colour).toBe('heat_return');
+  });
+});
+
+/** Polyline vertices of a frozen route (`M`/`L`/`Q`/`A` end points, in drawing order). */
+function vertices(d: string): Array<[number, number]> {
+  const tok = d.match(/[MLQA]|-?\d+(?:\.\d+)?/gu)!;
+  const n: Record<string, number> = { M: 2, L: 2, Q: 4, A: 7 };
+  const out: Array<[number, number]> = [];
+  let cmd = 'M';
+  for (let i = 0; i < tok.length;) {
+    if (/[MLQA]/u.test(tok[i]!)) cmd = tok[i++]!;
+    const a = tok.slice(i, i + n[cmd]!).map(Number);
+    i += n[cmd]!;
+    out.push([a.at(-2)!, a.at(-1)!]);
+  }
+  return out;
+}
+const ANGLE: Record<string, number> = { r: 0, d: 90, l: 180, u: -90 };
+const angle = (a: [number, number], b: [number, number]) =>
+  Math.round((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI);
+const ARROW: Record<string, number> = { '→': 0, '↓': 90, '←': 180, '↑': -90 };
+
+describe('flow direction', () => {
+  // every route is drawn from → to in the real flow direction (p3i topology)
+  it('every chevron points along its own pipe, in the from → to direction', () => {
+    const wrong = G.chevrons.flatMap((c) => {
+      const v = vertices(G.pipes.find((p) => p.id === c.route)!.d);
+      const seg = v.slice(1).findIndex((b, i) => {
+        const a = v[i]!;
+        const straight = a[0] === b[0] || a[1] === b[1];
+        const on =
+          c.x >= Math.min(a[0], b[0]) - 1 &&
+          c.x <= Math.max(a[0], b[0]) + 1 &&
+          c.y >= Math.min(a[1], b[1]) - 1 &&
+          c.y <= Math.max(a[1], b[1]) + 1;
+        return straight && on;
+      });
+      if (seg < 0) return [`${c.route}@${c.x},${c.y}: not on its pipe`];
+      const dir = angle(v[seg]!, v[seg + 1]!);
+      return (((dir - c.angle) % 360) + 360) % 360 === 0 ? [] : [`${c.route}@${c.x},${c.y}`];
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it('every pump glyph points the way its outlet pipe leaves', () => {
+    for (const [k, p] of Object.entries(G.glyphs.pumps)) {
+      const out = G.pipes.find((q) => q.from.startsWith(`${k}.`))!;
+      const v = vertices(out.d);
+      expect(angle(v[0]!, v[1]!), k).toBe(ANGLE[p.dir]);
+    }
+  });
+
+  it('a label arrow (if any) matches the chevrons of the pipe it names', () => {
+    for (const [k, l] of Object.entries(G.labels)) {
+      const arrows = [...l.lines.join(' ')].filter((ch) => ch in ARROW);
+      if (!arrows.length) continue;
+      const route = G.pipes.find((p) => p.id === l.of);
+      expect(route, `${k} names a pipe`).toBeDefined();
+      const chev = G.chevrons.filter((c) => c.route === route!.id).map((c) => c.angle);
+      for (const a of arrows) expect(chev, k).toContain(ARROW[a]);
+    }
+    // the r2 drawing carries the direction in chevrons only; stub labels are plain words
+    const stubs = Object.entries(G.labels).filter(([, l]) => l.stub);
+    expect(stubs.length).toBe(3);
+    for (const [k, l] of stubs) expect(/[←→↑↓]/u.test(l.lines.join('')), k).toBe(false);
+  });
+
+  it('every pipe stub at the tank is named (label, coil card, terminal or adjacent glyph)', () => {
+    const named = new Set(
+      Object.values(G.labels).flatMap((l) => (l.stub ? l.stub.split(' ') : [])),
+    );
+    // ports whose pipe reaches a labelled glyph inside every preset that shows the tank
+    const byNeighbour: Record<string, string> = {
+      'tank.tuv_in': 'valve_dhw',
+      'tank.akn_in': 'valve_dhw',
+      'tank.ret_mid_out': 'pump_sek',
+      'tank.ret_bottom_out': 'pump_sek',
+      'tank.solar_in': 'tank_solar_coil',
+      'tank.solar_out': 'tank_solar_coil',
+      'tank.dhw_out': 'tap',
+      'tank.cold_in': 'cold',
+    };
+    const ports = G.fittings.filter((f) => f.port.startsWith('tank.')).map((f) => f.port);
+    expect(ports).toHaveLength(12);
+    for (const port of ports) {
+      const ok = named.has(port) || (byNeighbour[port] && G.labels[byNeighbour[port]!]);
+      expect(ok, port).toBeTruthy();
+    }
   });
 });

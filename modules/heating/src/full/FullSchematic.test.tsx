@@ -77,6 +77,10 @@ describe('FullSchematic (live data)', () => {
     const card = screen.getByTestId('heating-full-pool-card');
     expect(card.textContent).toContain('Bazén');
     expect(card.textContent).toMatch(/Zpátečka ohřevu27,9\u00a0°C/u);
+    // the return is not the water temperature: the basin water has no sensor (neutral style)
+    const water = card.querySelector('[data-pool-row="Voda v bazénu"] tspan')!;
+    expect(water.textContent).toBe('neměřeno');
+    expect(water.getAttribute('class')).toBe('fs-nodata-card');
     expect(card.textContent).toContain('Ohřev dnastojí');
     expect(card.textContent).toContain('Filtracestojí');
   });
@@ -124,7 +128,32 @@ describe('FullSchematic (live data)', () => {
       document.querySelectorAll('[data-badge-for] text'),
       (el) => el.textContent,
     );
-    expect([...new Set(badges)].sort()).toEqual(['?1', '?2', '?3', '?4']);
+    expect(badges.sort()).toEqual(['?1', '?2', '?3', '?4']);
     expect(document.querySelectorAll('[data-badge-for] rect')).toHaveLength(0);
+  });
+
+  it('"Čerpadlo topení" stojí: the heating loop and the fish branch draw no chevrons, no motion', () => {
+    const snap = buildMockSnapshot('heating', 0, NOW);
+    expect(snap.pumps.heating).toBe(false);
+    render(<FullSchematic snap={snap} theme="dark" />);
+    const routes = Array.from(document.querySelectorAll('[data-flow-route]'), (el) =>
+      el.getAttribute('data-flow-route'),
+    );
+    const heatingLoop = /mix|tut|jsup|rad|jret|jmix|vcool|hx_to_jbyp|jbyp|ryb|^js|^jr|lower|upper/u;
+    expect(routes.filter((r) => heatingLoop.test(r!))).toEqual([]);
+    expect(
+      document.querySelector('path[data-route="jret_to_pump"]')?.getAttribute('data-state'),
+    ).toBe('still');
+    // every animated pipe is a flowing one
+    const anim = document.querySelectorAll('.fs-flow-anim').length;
+    expect(anim).toBe(document.querySelectorAll('path[data-route][data-state="flow"]').length);
+  });
+
+  it('names every pipe stub at the tank that a preset cuts off', () => {
+    render(<FullSchematic snap={buildMockSnapshot('heating', 0, NOW)} theme="dark" />);
+    const text = (k: string) => document.querySelector(`[data-label="${k}"]`)?.textContent;
+    expect(text('stub_tank_ut_out')).toBe('do topení');
+    expect(text('stub_tank_ut_in')).toBe('z topení');
+    expect(text('stub_tank_pool')).toBe('bazén');
   });
 });

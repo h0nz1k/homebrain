@@ -93,13 +93,16 @@ export function fullState(snap: HeatingSnapshot): FullState {
   const poolHeat = pool ? L(pool.heating_pump) : null;
   const poolFilter = pool ? L(pool.filter_pump) : null;
   const fish = snap.extras.fish;
-  // The fish-house circulator has no signal of its own (its glyph stays neutral); the circuit
-  // follows the valve to heating: open = water moves, closed = filled and still. Without a valve
-  // signal only "tempering switched off" is certain.
+  // Tempering state of the fish house: valve to heating open = heat demanded, closed = not.
+  // Without a valve signal only "tempering switched off" is certain.
   const fishValve = fish ? L(fish.valve_open) : null;
   const fishRun: Tri =
     fishValve !== null ? fishValve : fish && live && fish.heating_on === false ? false : null;
+  // The fish-house circulator has no signal of its own (its glyph stays neutral). Flow is only
+  // drawn for a pump known to run, so an open valve does not draw chevrons: no demand = filled
+  // and still, demand = no data on the pump.
   const fishPump: Tri = null;
+  const fishFlow: Tri = fishRun === false ? false : fishPump;
   const notDhw: Tri = toDhw === null ? null : !toDhw;
   const bypassOn: Tri = house === null || mixB === null ? null : house && mixB;
   const coolPath = cooling === null ? 'unknown' : cooling ? 'A' : 'B';
@@ -137,17 +140,17 @@ export function fullState(snap: HeatingSnapshot): FullState {
     vcool_to_hx: cooling ? (mixB === false ? 'still' : run(bypassOn)) : 'idle',
     hx_to_jbyp: cooling ? (mixB === false ? 'still' : run(bypassOn)) : 'idle',
     jbyp_to_mix: mixB === false ? 'closed' : run(bypassOn),
-    // fish house (own circulator, no state signal yet)
-    jsup_to_ryb: run(fishRun),
-    pryb_to_js: run(fishRun),
-    js_to_lower: run(fishRun),
-    lower_to_jr: run(fishRun),
-    js_to_js2: run(fishRun),
-    js2_to_vheat: run(fishRun),
-    vryb_to_upper: leg(fishValve, fishRun),
-    upper_to_jr2: fishValve === false ? 'still' : run(fishRun),
-    jr2_to_jr: run(fishRun),
-    jrybr_to_jret: run(fishRun),
+    // fish house (own circulator, no state signal yet → never drawn as flowing)
+    jsup_to_ryb: run(fishFlow),
+    pryb_to_js: run(fishFlow),
+    js_to_lower: run(fishFlow),
+    lower_to_jr: run(fishFlow),
+    js_to_js2: run(fishFlow),
+    js2_to_vheat: run(fishFlow),
+    vryb_to_upper: leg(fishValve, fishFlow),
+    upper_to_jr2: fishValve === false ? 'still' : run(fishFlow),
+    jr2_to_jr: run(fishFlow),
+    jrybr_to_jret: run(fishFlow),
     js2_to_vwater: 'off',
     vrybw_to_water: 'off',
     water_to_jr2: 'off',

@@ -146,6 +146,68 @@ test('celé schéma: porucha směšovače jen z explicitní kontrolky (testovac�
   expect(a.y + a.height).toBeLessThanOrEqual(v.y + 0.5);
 });
 
+test('celé schéma: šipky jen u běžícího čerpadla, vždy po směru trubky', async ({ page }) => {
+  // heating scenario: "Čerpadlo topení" stojí → the heating loop (incl. the fish branch) is
+  // filled and still: no chevrons, no motion; house scenario: the pump runs → chevrons appear.
+  for (const [query, pumpRuns] of [
+    ['topeni=heating&theme=dark', false],
+    ['topeni=house&theme=dark', true],
+  ] as const) {
+    const sheet = await open(page, query);
+    const svg = sheet.getByTestId('heating-full-svg');
+    const result = await svg.evaluate((root) => {
+      const loop = /mix|tut|jsup|rad|jret|jmix|vcool|hx_to_jbyp|jbyp|ryb|^js|^jr|lower|upper/u;
+      const wrong: string[] = [];
+      const routes: string[] = [];
+      for (const g of Array.from(root.querySelectorAll<SVGGElement>('[data-flow-route]'))) {
+        const route = g.dataset.flowRoute!;
+        routes.push(route);
+        const pipe = root.querySelector<SVGPathElement>(`path[data-route="${route}"]`)!;
+        if (pipe.dataset.state !== 'flow')
+          wrong.push(`${route}: chevron on a ${pipe.dataset.state} pipe`);
+        const m = /translate\(([-\d.]+) ([-\d.]+)\) rotate\(([-\d.]+)\)/u.exec(
+          g.querySelector('g')!.getAttribute('transform')!,
+        )!;
+        const [x, y, angle] = [Number(m[1]), Number(m[2]), Number(m[3])];
+        // nearest point on the pipe, then the drawing (= flow) direction there
+        const len = pipe.getTotalLength();
+        let best = 0;
+        let bestD = Infinity;
+        for (let s = 0; s <= len; s += 1) {
+          const p = pipe.getPointAtLength(s);
+          const d = Math.hypot(p.x - x, p.y - y);
+          if (d < bestD) [best, bestD] = [s, d];
+        }
+        const a = pipe.getPointAtLength(Math.max(0, best - 2));
+        const b = pipe.getPointAtLength(Math.min(len, best + 2));
+        const dir = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        const delta = Math.abs(((dir - angle + 540) % 360) - 180);
+        if (bestD > 1.5 || delta > 5) wrong.push(`${route}@${x},${y}: ${angle}° vs pipe ${dir}°`);
+      }
+      // a label arrow (if any) must match the chevrons of its pipe: r2 has none
+      const arrows = Array.from(root.querySelectorAll('text'))
+        .map((t) => t.textContent ?? '')
+        .filter((t) => /[←→↑↓]/u.test(t));
+      return {
+        wrong,
+        arrows,
+        loop: routes.filter((r) => loop.test(r)),
+        anim: root.querySelectorAll('.fs-flow-anim').length,
+        flowing: root.querySelectorAll('path[data-route][data-state="flow"]').length,
+      };
+    });
+    expect(result.wrong, query).toEqual([]);
+    expect(result.arrows, query).toEqual([]);
+    expect(result.anim, query).toBe(result.flowing);
+    if (pumpRuns) expect(result.loop.length, query).toBeGreaterThan(0);
+    else expect(result.loop, query).toEqual([]);
+    await expect(sheet.locator('path[data-route="jrybr_to_jret"]')).not.toHaveAttribute(
+      'data-state',
+      'flow',
+    );
+  }
+});
+
 test('celé schéma: rybárna – ventil zavřený, teplo stačí', async ({ page }) => {
   const sheet = await open(page, 'topeni=idle&theme=dark');
   await expect(sheet.getByTestId('heating-full-fish-state')).toHaveText('netopí – teplo stačí');

@@ -329,6 +329,37 @@ for (const [key, l] of Object.entries(L.labels)) {
   };
 }
 
+/**
+ * r2fix: every pipe stub at the tank is named where the Technika / Nádrž presets cut the pipe off.
+ * Short words, no arrows (the chevrons carry the direction). The solar pair is named by the coil
+ * card it feeds, TUV / SV by their terminals, the four charge legs by the changeover and the
+ * charging pump next to them. [text, x, top, anchor, port(s), card]
+ */
+const STUB_LABELS = {
+  stub_tank_ut_out: ['do topení', 1950, 441, 'end', 'tank.ut_out', false],
+  stub_tank_ut_in: ['z topení', 1925, 492, 'end', 'tank.ut_in', false],
+  // inside the tank between the two pool ports, clear of the coil card and the heater rod
+  stub_tank_pool: ['bazén', 2112, 722, 'end', 'tank.pool_in tank.pool_out', true],
+};
+for (const [key, [text, x, top, anchor, port, card]] of Object.entries(STUB_LABELS)) {
+  const font = 15;
+  const w = r1(text.length * font * 0.56);
+  const box = [anchor === 'end' ? x - w : x, top, w, 18];
+  labels[key] = {
+    x,
+    y: r1(top + font * 0.94),
+    lines: [text],
+    styles: card ? 'w' : 'k',
+    anchor,
+    font,
+    lh: BASE_LH,
+    box,
+    halo: card ? 'none' : haloFor(box[0] + w / 2, top + 9),
+    stub: port,
+    ...(card ? { card: true } : {}),
+  };
+}
+
 // No PLC register code may leave this tool (they belong to the owner's private map).
 const PLC = /\b[XYR]\d{1,4}(\.\d+)?\b/;
 for (const [key, l] of Object.entries(labels)) {
@@ -337,28 +368,39 @@ for (const [key, l] of Object.entries(labels)) {
 
 /**
  * r2: one marker system – every on-site question is a numbered circle. The plain '?' tags of
- * p3i become the question they belong to: the bypass tee (j_mix) is part of ?2, the two derived
- * cooling branches of the ground collector are the new ?4.
+ * p3i become the question they belong to. r2fix: ONE badge per question. ?2 asks about the
+ * cooling valve in the bypass, so its badge stays on that valve (the j_mix tag is dropped);
+ * ?4 concerns both derived cooling branches of the ground collector: one badge between them
+ * with a leader to each branch.
  */
-const BADGE_TEXT = { j_mix: '?2', j_coll_r: '?4', j_coll_s: '?4' };
-const BADGE_AT = { j_mix: [1228, 500] };
-const badges = L.badges.map((b) => ({
-  of: b.of,
-  text: BADGE_TEXT[b.of] ?? b.text,
-  x: (BADGE_AT[b.of] ?? b.at)[0],
-  y: (BADGE_AT[b.of] ?? b.at)[1],
-  r: 12,
-}));
-const leaders = L.leaders
-  .filter((ld) => ld.of !== 'valve_mix')
-  .map((ld) => {
-    const at = BADGE_AT[ld.of];
-    if (!at) return { of: ld.of, pts: ld.pts };
-    const end = ld.pts.at(-1);
-    const d = Math.hypot(end[0] - at[0], end[1] - at[1]);
-    const k = 12 / d;
-    return { of: ld.of, pts: [[at[0] + (end[0] - at[0]) * k, at[1] + (end[1] - at[1]) * k], end] };
-  });
+const BADGE_DROP = new Set(['j_mix', 'j_coll_r', 'j_coll_s']);
+const COLL_BADGE = { of: 'coll_cooling_branches', text: '?4', x: 973, y: 905, r: 12 };
+const collLeaders = [
+  {
+    of: 'jbs_to_chlad',
+    pts: [
+      [COLL_BADGE.x - 12, COLL_BADGE.y],
+      [918, COLL_BADGE.y],
+    ],
+  },
+  {
+    of: 'hx_to_jbr',
+    pts: [
+      [COLL_BADGE.x + 12, COLL_BADGE.y],
+      [1028, COLL_BADGE.y],
+    ],
+  },
+];
+const badges = [
+  ...L.badges
+    .filter((b) => !BADGE_DROP.has(b.of))
+    .map((b) => ({ of: b.of, text: b.text, x: b.at[0], y: b.at[1], r: 12 })),
+  COLL_BADGE,
+];
+const leaders = [
+  ...L.leaders.filter((ld) => ld.of !== 'valve_mix' && !BADGE_DROP.has(ld.of)),
+  ...collLeaders,
+].map((ld) => ({ of: ld.of, pts: ld.pts }));
 
 const questions = [
   ...T.open_questions.map((q) => ({ id: q.id, text: q.text })),

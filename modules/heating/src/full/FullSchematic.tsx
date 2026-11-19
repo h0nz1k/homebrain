@@ -99,7 +99,11 @@ function Text({
       {l.lines.map((line, i) => {
         const st = l.styles[i] ?? l.styles.at(-1) ?? 's';
         const tank =
-          l.ink === 'tank' || l.of === 'tank_dhw' || l.of === 'tank_solar_coil' || l.of === 'ek';
+          l.ink === 'tank' ||
+          l.of === 'tank_dhw' ||
+          l.of === 'tank_solar_coil' ||
+          l.of === 'ek' ||
+          (l.card && !!l.stub);
         return (
           <text
             key={i}
@@ -523,7 +527,7 @@ export function FullSchematic({ snap, service = false, theme }: FullSchematicPro
     if (!l) return null;
     const code = service && SERVICE_FIELD[k] ? codes[SERVICE_FIELD[k]] : undefined;
     if (l.zone) return <ZonePlate key={k} k={k} l={l} />;
-    if (l.card && l.of !== 'tank_dhw') {
+    if (l.card && l.of !== 'tank_dhw' && !l.stub) {
       return (
         <TankCard
           key={k}
@@ -1098,21 +1102,31 @@ function FishState({ st }: { st: FullState }) {
   );
 }
 
-/** Pool card inside the basin: return temperature, floor-heating pump, filtration pump. */
+/** Pool card inside the basin: return temperature, unmeasured water, floor heating, filtration. */
 function PoolCard({ st }: { st: FullState }) {
   const [px, py, pw] = G.glyphs.pool as [number, number, number];
   const x = px + 14;
   const w = pw - 28;
   const y = py + 30;
   const p = st.pool;
-  const rows: Array<[string, string | null, Tri | 'temp']> = [
+  // The only pool temperature is the floor-heating return; the basin water has no sensor, so the
+  // card says so instead of letting the return read as water temperature.
+  const rows: Array<[string, string | null, Tri | 'temp' | 'unmeasured']> = [
     ['Zpátečka ohřevu', p?.temp ?? null, 'temp'],
+    ['Voda v bazénu', p ? 'neměřeno' : null, 'unmeasured'],
     ['Ohřev dna', p ? RUN[String(p.heating)]! : null, p?.heating ?? null],
     ['Filtrace', p ? RUN[String(p.filter)]! : null, p?.filter ?? null],
   ];
   return (
     <g data-testid="heating-full-pool-card" data-label-group="pool">
-      <rect x={x} y={y} width={w} height="104" rx="8" className="fs-card fs-card-edge" />
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={38 + rows.length * 22}
+        rx="8"
+        className="fs-card fs-card-edge"
+      />
       <text x={x + 12} y={y + 22} fontSize="15" className="fs-t fs-t-w" data-label="pool">
         Bazén
       </text>
@@ -1129,8 +1143,10 @@ function PoolCard({ st }: { st: FullState }) {
           <tspan
             x={x + w - 12}
             textAnchor="end"
-            className={value && value !== '–' ? 'fs-val-card' : 'fs-nodata-card'}
-            data-state={kind === 'temp' ? undefined : String(kind)}
+            className={
+              value && value !== '–' && kind !== 'unmeasured' ? 'fs-val-card' : 'fs-nodata-card'
+            }
+            data-state={kind === 'temp' || kind === 'unmeasured' ? undefined : String(kind)}
           >
             {value ?? '–'}
           </tspan>

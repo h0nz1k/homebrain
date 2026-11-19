@@ -117,11 +117,11 @@ describe('full schematic live state', () => {
     expect(st.pumps.pump_ryb).toBeNull();
   });
 
-  it('rybárna: valve to heating open = tempering active, the whole circuit flows', () => {
+  it('rybárna: valve open = tempering active, but its pump has no signal → no flow drawn', () => {
     const st = fullState(snap('heating'));
     expect(st.fish).toMatchObject({ active: true, label: 'topí' });
     for (const id of ['jsup_to_ryb', 'pryb_to_js', 'js_to_lower', 'vryb_to_upper', 'jrybr_to_jret'])
-      expect(st.pipes[id], id).toBe('flow');
+      expect(st.pipes[id], id).toBe('unknown');
   });
 
   it('rybárna: valve closed with heating enabled and warm enough = idle, filled, not "no data"', () => {
@@ -152,5 +152,127 @@ describe('full schematic live state', () => {
     expect(fsT(-1.8)).toBe('\u22121,8\u00a0°C');
     expect(fsT(null)).toBeNull();
     expect(fullState(snap('heating')).readings.outdoor).toBe('\u22121,8\u00a0°C');
+  });
+
+  describe('flow only where the pump driving the circuit is known to run', () => {
+    const ROUTES: Record<string, string[]> = {
+      house: [
+        'tank_to_mix',
+        'mix_to_tut',
+        'tut_to_jsup',
+        'jsup_to_rad',
+        'rad_to_jret',
+        'jret_to_pump',
+        'pump_to_jmix',
+        'jmix_to_tank',
+        'jmix_to_vcool',
+        'vcool_to_jbyp',
+        'vcool_to_hx',
+        'hx_to_jbyp',
+        'jbyp_to_mix',
+      ],
+      charge: ['hp_to_valve', 'valve_to_akn', 'tank_bot_to_vret', 'vret_to_sek', 'sek_to_hp'],
+      collector: ['hp_to_jbr', 'jbr_to_ground', 'ground_to_jbs', 'jbs_to_pbr', 'pbr_to_hp'],
+      cooling: ['jbs_to_chlad', 'chlad_to_hx', 'hx_to_jbr'],
+      solar: ['solar_to_tank', 'tank_to_psol', 'psol_to_solar'],
+      pool: ['tank_to_ppool', 'ppool_to_bottom', 'bottom_to_tank'],
+      filtration: [
+        'pool_to_pfilt',
+        'filt_to_filter',
+        'filter_to_ph',
+        'ph_to_sal',
+        'sal_to_acid',
+        'acid_to_pool',
+      ],
+      fish: G.pipes.map((p) => p.id).filter((id) => /ryb|^js|^jr|lower|upper/u.test(id)),
+    };
+    const flows = (s: HeatingSnapshot, c: string) =>
+      ROUTES[c]!.filter((id) => fullState(s).pipes[id] === 'flow');
+    const base = snap('heating');
+    const ex = base.extras;
+    const set = (c: string, on: boolean): HeatingSnapshot => {
+      const hp = { ...base.heat_pump, compressor_on: on, primary_prerun: on };
+      switch (c) {
+        case 'house':
+          return {
+            ...base,
+            pumps: { ...base.pumps, heating: on },
+            house: { ...base.house, mixing_valve_pct: 50 },
+          };
+        case 'charge':
+          return { ...base, pumps: { ...base.pumps, secondary: on } };
+        case 'collector':
+          return { ...base, heat_pump: hp, mode: { ...base.mode, cooling: false } };
+        case 'cooling':
+          return { ...base, mode: { ...base.mode, cooling: on } };
+        case 'solar':
+          return { ...base, extras: { ...ex, solar: { ...ex.solar!, pump: on } } };
+        case 'pool':
+          return { ...base, extras: { ...ex, pool: { ...ex.pool!, heating_pump: on } } };
+        case 'filtration':
+          return { ...base, extras: { ...ex, pool: { ...ex.pool!, filter_pump: on } } };
+        default:
+          return {
+            ...base,
+            extras: { ...ex, fish: { ...ex.fish!, heating_on: on, valve_open: on } },
+          };
+      }
+    };
+
+    it('covers every pipe that can ever flow', () => {
+      const listed = new Set(Object.values(ROUTES).flat());
+      const never = [
+        'tank_to_tap',
+        'cold_to_tank',
+        'js2_to_vwater',
+        'vrybw_to_water',
+        'water_to_jr2',
+      ];
+      const missing = G.pipes
+        .map((p) => p.id)
+        .filter((id) => !listed.has(id) && !never.includes(id));
+      // charge circuit DHW legs are covered by the changeover tests above
+      expect(missing.sort()).toEqual(['tank_mid_to_vret', 'valve_to_tuv']);
+    });
+
+    it.each(Object.keys(ROUTES).filter((c) => c !== 'fish'))(
+      '%s: pump stands → filled, still, no flow; pump runs → flow',
+      (c) => {
+        expect(flows(set(c, false), c), `${c} off`).toEqual([]);
+        expect(flows(set(c, true), c).length, `${c} on`).toBeGreaterThan(0);
+        const off = fullState(set(c, false));
+        expect(
+          ROUTES[c]!.filter((id) => !['still', 'closed', 'idle'].includes(off.pipes[id]!)),
+          `${c} off style`,
+        ).toEqual([]);
+      },
+    );
+
+    it('house: "Čerpadlo topení" stojí → whole heating loop incl. the fish branch shows no flow', () => {
+      const s = set('house', false);
+      const st = fullState(s);
+      expect(st.pumps.pump_ut).toBe(false);
+      expect(flows(s, 'house')).toEqual([]);
+      expect(flows(s, 'fish')).toEqual([]);
+      expect(st.pipes.mix_to_tut).toBe('still');
+      expect(st.pipes.jrybr_to_jret).not.toBe('flow');
+    });
+
+    it('fish: its circulator has no signal → never drawn as flowing (still when no demand)', () => {
+      expect(flows(set('fish', true), 'fish')).toEqual([]);
+      expect(flows(set('fish', false), 'fish')).toEqual([]);
+      const off = fullState(set('fish', false));
+      expect(
+        ROUTES.fish!.filter((id) => !['still', 'closed', 'off'].includes(off.pipes[id]!)),
+      ).toEqual([]);
+    });
+
+    it('cooling active + compressor off: the ground loop flows through the cooling pump only', () => {
+      const s = { ...set('collector', false), mode: { ...base.mode, cooling: true } };
+      const st = fullState(s);
+      expect(st.pipes.hp_to_jbr).toBe('still');
+      expect(st.pipes.jbr_to_ground).toBe('flow');
+      expect(st.pipes.jbs_to_chlad).toBe('flow');
+    });
   });
 });

@@ -38,6 +38,8 @@ export interface GeoLabel {
   reading?: boolean;
   /** Zone title, drawn as a plate on the top-left wall edge of its zone. */
   zone?: boolean;
+  /** Names the pipe stub(s) at these tank ports (space separated), e.g. `tank.ut_in`. */
+  stub?: string;
 }
 
 export interface FullGeometry {
