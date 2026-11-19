@@ -1229,7 +1229,7 @@ test.describe('Rodina P1 – snímky (lokálně)', () => {
           await page.getByRole('button', { name: 'Nastavení osob' }).click();
           await expect(page.getByRole('group', { name: 'Táta' })).toBeVisible();
           await expect(
-            page.getByTestId('family-person-settings').getByRole('button', { name: /Rodina/ }),
+            page.getByTestId('family-person-settings').getByRole('button', { name: /Zpět/ }),
           ).toBeInViewport({ ratio: 1 });
           await shot('persons-settings');
         }

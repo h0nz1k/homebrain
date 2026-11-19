@@ -71,14 +71,15 @@ export function PersonsSettings({
   return (
     <section className="fam-person-view fam-person-settings" data-testid="family-person-settings">
       <Button variant="ghost" className="fam-person-back" onClick={onBack}>
-        ‹&nbsp; Rodina
+        ‹&nbsp; Zpět
       </Button>
-      <h1>Nastavení osob</h1>
-      <p>
-        Přiřaďte členy z ChoreOps k osobám v Home Assistantu a vyberte UniFi zařízení pro stav
-        doma/pryč.
-      </p>
-      <p>Dospělí sbírají body pro radost (bez kapesného).</p>
+      <div className="fam-person-settings-intro">
+        <h1>Nastavení osob</h1>
+        <p>
+          Přiřaďte členy k osobám v Home Assistantu a vyberte UniFi zařízení pro stav doma/pryč.
+        </p>
+        <p>Dospělí sbírají body pro radost (bez kapesného).</p>
+      </div>
       {!data && !error && <p>Načítám nastavení osob…</p>}
       {error && (
         <p className="fam-err" role="alert">

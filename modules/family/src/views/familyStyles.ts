@@ -761,9 +761,13 @@ export const familyStyles = `
 }
 .fam-person-event > span { border-inline-start: 3px solid var(--person-color); padding-inline-start: 10px; }
 .fam .fam-person-empty { color: var(--hb-t2); padding: 12px 0; }
-.fam-person-settings form { display: grid; gap: 12px; justify-items: start; }
-.fam-person-settings fieldset {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; min-width: 0; gap: 12px; border: 0; margin: 0;
+.fam-person-settings { width: 100%; max-width: 1040px; }
+.fam-person-settings-intro { display: grid; gap: 4px; max-width: 68ch; }
+.fam-person-settings-intro p { text-wrap: pretty; }
+.fam-person-settings form { display: grid; gap: 14px; justify-items: start; }
+.fam .fam-person-settings fieldset {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; min-width: 0;
+  gap: 12px; border: 0; margin: 0; padding: 8px 14px 14px;
 }
 .fam-person-settings legend { font-weight: 700; padding: 6px; }
 .fam-person-settings legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-inline-end: 6px; }
@@ -772,7 +776,8 @@ export const familyStyles = `
   min-height: 44px; width: 100%; color: var(--hb-t1); background: var(--hb-s2); padding: 6px;
   border: 1px solid var(--hb-edge); border-radius: 9px; font: inherit;
 }
-.fam-person-settings small { color: var(--hb-t2); }
+.fam-person-settings small { color: var(--hb-t2); grid-column: 1 / -1; }
+.fam-person-settings form > button { grid-column: 1 / -1; }
 .fam-list-detail.hb-btn { margin-inline-end: auto; }
 
 .fam-chore, .fam-upcoming-row {
@@ -792,11 +797,12 @@ export const familyStyles = `
 @media (min-width: 768px) {
   .fam-person-columns { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
   .fam-person-tab-aside { display: grid; grid-column: 1; grid-row: 1; }
+  .fam-person-settings form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
   .fam-persons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fam-person-head { align-items: start; flex-direction: column; }
-  .fam-person-settings fieldset { grid-template-columns: minmax(0, 1fr); }
+  .fam .fam-person-settings fieldset { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 1023px) {
   .fam-chore, .fam-upcoming-row { grid-template-columns: 36px minmax(0, 1fr) 59px 32px; gap: 4px; }
