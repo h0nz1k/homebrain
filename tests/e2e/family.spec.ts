@@ -182,7 +182,10 @@ test.describe('Rodina', () => {
     expect(check!.width).toBeGreaterThanOrEqual(48);
     const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(48);
-    await expect(page.getByTestId('family-shopping')).toContainText('a 4 další');
+    const shopping = page.getByTestId('family-shopping');
+    await expect(shopping).toContainText('4 položky');
+    await expect(shopping.getByTestId('family-shop-item')).toHaveCount(2);
+    await expect(shopping).toContainText('a 2 další');
     const week = page.getByTestId('family-week');
     await expect(week.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
     for (const panel of [

@@ -927,8 +927,7 @@ function ShoppingCard({
   const done = snap.shopping.items.filter((i) => i.done);
   const kiosk = snap.role === 'kiosk';
   const visibleOpen = kiosk ? open.slice(0, 2) : open;
-  const visibleDone = kiosk ? done.slice(0, Math.max(0, 2 - visibleOpen.length)) : done.slice(0, 6);
-  const hiddenCount = open.length + done.length - visibleOpen.length - visibleDone.length;
+  const hiddenCount = open.length - visibleOpen.length;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const value = text.trim();
@@ -982,13 +981,13 @@ function ShoppingCard({
       ) : (
         <ul className="fam-items">{visibleOpen.map(row)}</ul>
       )}
-      {visibleDone.length > 0 && (
+      {!kiosk && done.length > 0 && (
         <>
           <p className="fam-done-h">Koupeno · {done.length}</p>
-          <ul className="fam-items">{visibleDone.map(row)}</ul>
+          <ul className="fam-items">{done.slice(0, 6).map(row)}</ul>
         </>
       )}
-      {kiosk && hiddenCount > 0 && <p className="fam-shop-more">a {hiddenCount} další</p>}
+      {hiddenCount > 0 && <p className="fam-shop-more">a {hiddenCount} další</p>}
     </Card>
   );
 }
