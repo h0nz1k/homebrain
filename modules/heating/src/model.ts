@@ -428,7 +428,7 @@ export function applySolarHero(base: ActivityModel, snap: HeatingSnapshot): Acti
 export interface SchematicState {
   compressor: 'off' | 'on' | 'prerun';
   /** 0 = still, otherwise relative flow speed 0.35…1 (scales particle speed). */
-  brine: number;
+  collector: number;
   charge: number;
   house: number;
   circulation: number;
@@ -458,7 +458,7 @@ export function schematicState(snap: HeatingSnapshot): SchematicState {
   const fault = snap.activity === 'fault' || snap.faults.fatal || snap.faults.compressor_block;
   return {
     compressor: running ? 'on' : prerun ? 'prerun' : 'off',
-    brine: running ? load : prerun ? 0.35 : 0,
+    collector: running ? load : prerun ? 0.35 : 0,
     charge: running ? load : 0,
     house:
       live && snap.house.circuit_on === true
@@ -489,7 +489,7 @@ export function schematicState(snap: HeatingSnapshot): SchematicState {
   };
 }
 
-/** Temperature → colour (cold brine blue … warm tank orange … hot red), oklch. */
+/** Temperature → colour (cold collector blue … warm tank orange … hot red), oklch. */
 export function tempColor(t: number | null): string {
   if (t === null) return 'oklch(0.6 0.02 250)';
   const f = Math.max(0, Math.min(1, (t + 5) / 60));

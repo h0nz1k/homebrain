@@ -52,8 +52,12 @@ new start. Gaps longer than 20 min (HA or PLC down) are not credited.
 
 `mode.{winter, auto_season, setback_active, main_switch, cooling, hdo_low_tariff}`,
 `house.{ref_temp, ref_target, ref_target_effective, hysteresis, attic_temp, circuit_on, supply_temp, mixing_valve_pct}`,
-`heat_pump.{compressor_on, condenser_out, return_temp, brine_in, brine_out, primary_prerun,
-discharge_temp, discharge_bar, suction_temp, suction_bar, motohours, motominutes}`,
+`heat_pump.{compressor_on, condenser_out, return_temp, collector_in, collector_out, primary_prerun,
+discharge_temp, discharge_bar, suction_temp, suction_bar, motohours, motominutes}`
+(`collector_in` / `collector_out` = from / to the ground collector; the older names of these two
+keys are still accepted as deprecated aliases with a warning, and on setup their registered
+entities are moved to the new unique id and – if still the default – the new entity id
+`sensor.heating_heat_pump_collector_in` / `_out`, so history and statistics carry over),
 `tank.{top, bottom, target, hysteresis, curve_target}`, `dhw.{temp, target, hysteresis, valve_to_dhw}`,
 `outdoor.temp`, `pumps.{heating, secondary, circulation}`, `backup_heater.on`,
 `faults.{fatal, compressor_block}`, `curve.p1_outdoor … curve.p4_water`,
@@ -62,6 +66,10 @@ fish_target, fish_hysteresis, fish_heating_on, fish_valve_open}`; plus the lists
 with a label) and `schedules:` (time programs). See the example file for the syntax.
 
 `house.mixing_valve_pct` is numeric percent (no device class), rounded to an integer in the payload; unmapped or unavailable → `null`. The private mapping is configured outside this repository.
+
+The full schematic shows a mixing-valve fault only for a fault lamp mapped under the exact key
+`mixing_valve` in `faults:` (the regulation exposes none today, so it never shows from live
+data); without `house.mixing_valve_pct` the valve is drawn neutral ("poloha –").
 
 Derived payload values: `dhw.reheat_below = dhw.target − dhw.hysteresis`;
 `heat_pump.motohours = motohours + motominutes / 60`; `outdoor.min_today/max_today` from

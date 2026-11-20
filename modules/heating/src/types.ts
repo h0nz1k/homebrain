@@ -97,9 +97,9 @@ export interface HeatingSnapshot {
     power_w: T;
     condenser_out: T;
     return_temp: T;
-    brine_in: T;
-    brine_out: T;
-    /** Logger bit pulsing before every compressor start: brine/primary pump pre-run, NOT a heater.
+    collector_in: T;
+    collector_out: T;
+    /** Logger bit pulsing before every compressor start: collector (primary) pump pre-run, NOT a heater.
      * Not mapped on the current regulation (always null). */
     primary_prerun: B;
     discharge_temp: T;
@@ -151,6 +151,9 @@ export interface HeatingSnapshot {
     } | null;
   };
   rooms: HeatingRoom[];
+  /** Payload field (`house.supply_temp`) → PLC address from the private map; service view only.
+   * Missing on older backends. */
+  service_codes?: Record<string, string>;
 }
 
 /** Subset of `homebrain/heating/get` the kiosk role receives (`kiosk_subset`). */

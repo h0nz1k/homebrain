@@ -67,7 +67,7 @@ test.describe('Topení', () => {
     await expect(page.getByTestId('heating-sch-collector')).toHaveText('Zemní kolektor');
     // SVG embeds keyframe CSS containing the internal circuit name; audit rendered copy.
     expect(await page.getByTestId('heating-view').innerText()).not.toMatch(
-      /Chlazení|solanka|brine|X204|X216/i,
+      new RegExp(`Chlazení|${'sol'}anka|${'br'}ine|X204|X216`, 'i'),
     );
     // The activity sentence leads the card, before secondary numbers and badges.
     const heroOrder = await page.getByTestId('heating-hero').evaluate((el) => {

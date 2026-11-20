@@ -79,11 +79,11 @@ describe('activityModel – plain Czech sentence', () => {
 });
 
 describe('schematicState', () => {
-  it('maps running compressor to brine + charge flow and spinning pumps', () => {
+  it('maps running compressor to collector + charge flow and spinning pumps', () => {
     const st = schematicState(snap('heating'));
     expect(st.compressor).toBe('on');
-    expect(st.brine).toBeGreaterThan(0.5);
-    expect(st.charge).toBe(st.brine);
+    expect(st.collector).toBeGreaterThan(0.5);
+    expect(st.charge).toBe(st.collector);
     expect(st.house).toBe(0);
     expect(st.valve).toBe('tank');
     expect(st.pumps).toMatchObject({ primary: true, charge: true, house: false });
@@ -94,17 +94,17 @@ describe('schematicState', () => {
     expect(schematicState(snap('dhw')).valve).toBe('dhw');
     const idle = schematicState(snap('idle'));
     expect(idle.compressor).toBe('off');
-    expect(idle.brine).toBe(0);
+    expect(idle.collector).toBe(0);
     expect(idle.charge).toBe(0);
     expect(idle.pumps.primary).toBe(false);
   });
-  it('primary pre-run moves brine slowly but is never the backup heater', () => {
+  it('primary pre-run moves the collector loop slowly but is never the backup heater', () => {
     const s = snap('idle');
     s.heat_pump.primary_prerun = true;
     s.backup_heater.on = true; // logger bit pulses with the pre-run
     const st = schematicState(s);
     expect(st.compressor).toBe('prerun');
-    expect(st.brine).toBeCloseTo(0.35);
+    expect(st.collector).toBeCloseTo(0.35);
     expect(st.backup).toBe('hidden');
   });
   it('never draws a backup heater the regulation does not have (available = false)', () => {
@@ -131,7 +131,7 @@ describe('schematicState', () => {
   });
   it('stale data stops every animation', () => {
     const st = schematicState(snap('stale'));
-    expect([st.brine, st.charge, st.house, st.circulation]).toEqual([0, 0, 0, 0]);
+    expect([st.collector, st.charge, st.house, st.circulation]).toEqual([0, 0, 0, 0]);
   });
   it('temperature colour runs from blue (cold) to orange (warm)', () => {
     const hue = (c: string) => Number(c.match(/ ([\d.]+)\)$/)![1]);
@@ -331,8 +331,8 @@ describe('unmapped dev measurements', () => {
   it.each(HEATING_SCENARIOS)('%s never invents collector temperatures or cooling', (scenario) => {
     const s = snap(scenario);
     expect(s.heat_pump).toMatchObject({
-      brine_in: null,
-      brine_out: null,
+      collector_in: null,
+      collector_out: null,
       primary_prerun: null,
       discharge_temp: null,
       discharge_bar: null,
@@ -350,7 +350,7 @@ describe('unmapped dev measurements', () => {
     expect(activityModel(s, NOW).state).toBe('house');
     expect(schematicState(s)).toMatchObject({
       compressor: 'off',
-      brine: 0,
+      collector: 0,
       pumps: { primary: false, house: true },
     });
   });

@@ -17,6 +17,8 @@ export const heatingLogoManifestSchema = z.object({
   schema: z.literal(1),
   logo: file,
   logoDark: file.optional(),
+  /** Optional model name shown next to „TČ“ on the full schematic (kept out of the repo). */
+  model: z.string().min(1).max(40).optional(),
 });
 
 export type HeatingLogoManifest = z.infer<typeof heatingLogoManifestSchema>;

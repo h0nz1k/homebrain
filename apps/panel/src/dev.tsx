@@ -225,11 +225,12 @@ setAnomalyApiFactory(() =>
 );
 // Topení: synthetic ground-source heat pump. `?topeni=heating|idle|dhw|fault|solar|solar-nogain|…`,
 // `&rooms=0|4` (bound room sensors/TRVs; default 0 like the current backend),
-// `&extras=none` = side circuits unmapped (null payloads).
+// `&extras=none` = side circuits unmapped (null payloads), `&ventil=porucha` = mixing-valve fault.
 const heatingApi = createMockHeatingApi({
   scenario: (recipesQuery.get('topeni') as HeatingScenario | null) ?? 'heating',
   rooms: recipesQuery.get('rooms') === '4' ? 4 : 0,
   extrasMode: recipesQuery.get('extras') === 'none' ? 'none' : 'default',
+  mixerFault: recipesQuery.get('ventil') === 'porucha',
 });
 setHeatingApiFactory(() => heatingApi);
 // Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.

@@ -41,6 +41,7 @@ CONTRACT_TOP = {
     "schedules",
     "extras",
     "rooms",
+    "service_codes",
 }
 
 
@@ -107,6 +108,12 @@ def test_resolve_and_payload_shape():
     assert payload["house"]["ref_temp"] == pytest.approx(21.4)
     assert payload["heat_pump"]["motohours"] == pytest.approx(1234.5)
     assert payload["heat_pump"]["discharge_temp"] is None  # not mapped
+    # Collector temperatures: payload fields named after the collector, values from the map.
+    assert payload["heat_pump"]["collector_in"] == pytest.approx(6.1)
+    assert payload["heat_pump"]["collector_out"] == pytest.approx(3.9)
+    assert payload["service_codes"]["heat_pump.collector_in"] == "X360"
+    assert payload["service_codes"]["house.ref_temp"] == "X300"
+    assert not any("heat_pump.b" in key for key in payload["service_codes"])
     assert payload["dhw"]["reheat_below"] == pytest.approx(42.0)
     assert payload["mode"]["season"] == "winter"
     assert payload["faults"]["monitored"] == 2
@@ -233,6 +240,7 @@ def test_kiosk_subset_drops_details():
     assert set(sub) <= CONTRACT_TOP
     assert "schedules" not in sub and "curve" not in sub and "heat_pump" in sub
     assert set(sub["heat_pump"]) == {"compressor_on", "running_since"}
+    assert "service_codes" not in sub
 
 
 def test_season_of():
