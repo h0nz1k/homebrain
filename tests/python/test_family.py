@@ -10,11 +10,14 @@ from typing import Any
 
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homebrain.const import DOMAIN
-from custom_components.homebrain.family import model
+from custom_components.homebrain.family import model, persons
+from custom_components.homebrain.family.person_history import PersonHistory
 from custom_components.homebrain.roles import role_ws_commands
 
 NOW = datetime.fromisoformat("2026-06-02T09:00:00+02:00")
@@ -40,9 +43,8 @@ def _kid(hass: HomeAssistant, slug: str, name: str, chores: list[dict[str, Any]]
 
 def _chore(hass, slug: str, key: str, name: str, state: str, group="today", points=2.0):
     eid = f"sensor.{slug}_choreops_chore_{key}"
-    hass.states.async_set(
-        eid, state, {"default_points": points, "due_date": "2026-06-02T16:00:00+00:00"}
-    )
+    due = dt_util.now().isoformat() if state == "overdue" else "2026-06-02T16:00:00+00:00"
+    hass.states.async_set(eid, state, {"default_points": points, "due_date": due})
     return {"eid": eid, "name": name, "state": state, "labels": [], "primary_group": group}
 
 
@@ -728,6 +730,129 @@ async def test_create_without_choreops_is_not_configured(
     assert msg["error"]["code"] == "not_configured"
 
 
+def test_member_roles_and_presence_only_from_unifi(hass):
+    household(hass)
+    _kid(hass, "tata", "Táta", [], 21)
+    registry = er.async_get(hass)
+    wifi = registry.async_get_or_create("device_tracker", "unifi", "demo-wifi")
+    gps = registry.async_get_or_create("device_tracker", "mobile_app", "demo-gps")
+    hass.states.async_set(wifi.entity_id, "not_home")
+    hass.states.async_set(gps.entity_id, "home", {"latitude": 0, "longitude": 0})
+    hass.states.async_set(
+        "person.tata",
+        "home",
+        {
+            "friendly_name": "Táta",
+            "source": gps.entity_id,
+            "device_trackers": [gps.entity_id, wifi.entity_id],
+        },
+    )
+    inferred = persons.members(hass, hass.states.async_all(), {})
+    assert inferred[-1]["presence"] == {"kind": "away"}
+    options = {
+        "persons": [
+            {
+                "choreops_user_id": "tata",
+                "role": "adult",
+                "color": 1,
+                "person": "person.tata",
+                "tracker": wifi.entity_id,
+            }
+        ]
+    }
+    member = persons.members(hass, hass.states.async_all(), options)[-1]
+    assert (member["role"], member["color"]) == ("adult", 1)
+    assert [kid["name"] for kid in model.discover_kids(hass.states.async_all(), options)] == [
+        "Dcera",
+        "Syn",
+    ]
+    hass.states.async_set(wifi.entity_id, "unknown")
+    assert persons.members(hass, hass.states.async_all(), options)[-1]["presence"] is None
+
+
+@pytest.mark.parametrize("days", [1, 2, 3, 4])
+def test_carry_over_and_from_completion_exception(hass, days):
+    row = _chore(hass, "syn", "boty", "Uklidit boty", "overdue")
+    due = (NOW - timedelta(days=days)).isoformat()
+    hass.states.async_set(row["eid"], "overdue", {"default_points": 4, "due_date": due})
+    _kid(hass, "syn", "Syn", [row], 4)
+    member = model.discover_members(hass.states.async_all(), {})[0]
+    payload = model.kid_payload(hass.states.get, member, "owner", False, now=NOW)
+    if days <= 3:
+        assert payload["counts"]["total"] == 1
+        assert payload["chores"][0]["carried_days"] == days
+        assert payload["missed"] == []
+    else:
+        assert payload["counts"]["total"] == 0
+        assert payload["missed"] == [{"id": row["eid"], "name": "Uklidit boty", "date": due}]
+    hass.states.async_set(
+        row["eid"],
+        "overdue",
+        {
+            "due_date": due,
+            "recurring_frequency": "custom_from_complete",
+        },
+    )
+    payload = model.kid_payload(hass.states.get, member, "owner", False, now=NOW)
+    assert payload["chores"][0]["carried_days"] == days
+
+
+async def test_missed_occurrence_survives_storage_reload(hass):
+    history = PersonHistory(hass)
+    member = {"choreops_user_id": "demo-syn"}
+    missed = [
+        {
+            "id": "sensor.demo_task",
+            "name": "Uklidit boty",
+            "date": (NOW - timedelta(days=4)).isoformat(),
+        }
+    ]
+    assert history.observe(member, missed, NOW) == missed
+    await history._store.async_save(history._rows)
+    reloaded = PersonHistory(hass)
+    await reloaded.async_load()
+    assert reloaded.observe(member, [], NOW) == missed
+    assert reloaded.observe(member, [], NOW + timedelta(days=91)) == []
+
+
+async def test_shared_first_free_pool_and_claim(
+    hass, entry, hass_ws_client, hass_admin_user, calls
+):
+    await _as(
+        hass, entry, hass_admin_user, "child", [{"name": "Syn", "user_id": hass_admin_user.id}]
+    )
+    for slug, name in (("dcera", "Dcera"), ("syn", "Syn")):
+        row = _chore(hass, slug, "mycka", "Vyskládat myčku", "pending", points=3)
+        hass.states.async_set(
+            row["eid"],
+            "pending",
+            {"completion_criteria": "shared_first", "default_points": 3, "can_claim": True},
+        )
+        _kid(hass, slug, name, [row], 0)
+    client = await hass_ws_client(hass)
+    snapshot = (await _ws(client, {"type": "homebrain/family/get"}))["result"]
+    assert [m["name"] for m in snapshot["members"]] == ["Dcera", "Syn"]
+    assert all(m["counts"]["total"] == 0 for m in snapshot["members"])
+    assert len(snapshot["free_chores"]) == 1
+    assert [a["can_claim"] for a in snapshot["free_chores"][0]["assignees"]] == [False, True]
+    msg = {
+        "type": "homebrain/family/chore/claim",
+        "kid": "syn",
+        "chore": "sensor.syn_choreops_chore_mycka",
+    }
+    assert (await _ws(client, msg))["success"]
+    assert calls[-1][-1]["user_name"] == "Syn"
+    for slug in ("dcera", "syn"):
+        eid = f"sensor.{slug}_choreops_chore_mycka"
+        hass.states.async_set(
+            eid,
+            "pending",
+            {"completion_criteria": "shared_first", "claimed_by": ["Syn"], "can_claim": False},
+        )
+    assert (await _ws(client, msg))["error"]["code"] == "service_failed"
+    assert (await _ws(client, {"type": "homebrain/family/get"}))["result"]["free_chores"] == []
+
+
 @pytest.mark.parametrize(
     ("mode", "source_due", "clone_due"),
     [
@@ -786,7 +911,8 @@ async def test_swap_choreops_create_and_skip(
             "user_name": "Ema",
             "mark_as_missed": False,
         }
-        _kid(hass, "ema", "Ema", [{**source, "primary_group": "this_week"}], 0)
+        # A real skip advances the due date, so the row is pending again (not carried over).
+        _kid(hass, "ema", "Ema", [{**source, "state": "pending", "primary_group": "this_week"}], 0)
 
     MockConfigEntry(domain="choreops", data={}, entry_id="choreops-entry").add_to_hass(hass)
     hass.services.async_register(

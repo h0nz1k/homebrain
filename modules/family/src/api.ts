@@ -4,6 +4,9 @@ import type {
   DeleteChoreInput,
   SkipChoreInput,
   FamilySnapshot,
+  PersonHistoryEntry,
+  PersonSettings,
+  PersonsSettings,
   PointsHistory,
   PointsSummary,
   SwapRequestInput,
@@ -11,6 +14,9 @@ import type {
 
 export interface FamilyApi {
   get(): Promise<FamilySnapshot>;
+  personHistory(member: string): Promise<{ entries: PersonHistoryEntry[] }>;
+  personsSettings(): Promise<PersonsSettings>;
+  savePersons(persons: PersonSettings[]): Promise<PersonsSettings>;
   claim(kid: string, chore: string): Promise<void>;
   approve(kid: string, chore: string): Promise<void>;
   addItem(summary: string): Promise<void>;
@@ -44,6 +50,9 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
     connection.sendMessagePromise<T>({ type, ...extra } as { type: string });
   return {
     get: () => call<FamilySnapshot>('homebrain/family/get'),
+    personHistory: (member) => call('homebrain/family/person/history', { member }),
+    personsSettings: () => call('homebrain/family/settings/get'),
+    savePersons: (persons) => call('homebrain/family/settings/set', { persons }),
     claim: async (kid, chore) => void (await call('homebrain/family/chore/claim', { kid, chore })),
     approve: async (kid, chore) =>
       void (await call('homebrain/family/chore/approve', { kid, chore })),

@@ -127,8 +127,8 @@ const peopleNow: PersonPresence[] =
         [
           ['jan', 'Jan', 'blue', 'home'],
           ['maminka', 'Mamínka', 'pink', 'home'],
-          ['syn', 'Syn', 'teal', 'away'],
-          ['dcera', 'Dcera', 'purple', 'home'],
+          ['syn', 'Kuba', 'teal', 'away'],
+          ['dcera', 'Ema', 'purple', 'home'],
           ['babi', 'Babi', 'amber', 'away'],
           ['deda', 'Děda', 'slate', 'unknown'],
         ] as const
@@ -233,7 +233,7 @@ const heatingApi = createMockHeatingApi({
   mixerFault: recipesQuery.get('ventil') === 'porucha',
 });
 setHeatingApiFactory(() => heatingApi);
-// Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.
+// Rodina: synthetic household („Ema“, „Kuba“). `?role=adult|child|kiosk`, `?rodina=empty`.
 const reassignDemo = recipesQuery.get('reassign');
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',

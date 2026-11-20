@@ -29,13 +29,17 @@ export interface MealsSnapshot {
 }
 
 /** The part of `homebrain/family/get` the Dnes summary needs (server filters per role). */
+interface FamilyKidLike {
+  id: string;
+  name: string;
+  chores: Array<{ state: string; counts_today?: boolean }>;
+  swap_badge?: string;
+}
+
 export interface FamilyLike {
-  kids: Array<{
-    id: string;
-    name: string;
-    chores: Array<{ state: string }>;
-    swap_badge?: string;
-  }>;
+  kids: FamilyKidLike[];
+  members?: Array<FamilyKidLike & { role: 'owner' | 'adult' | 'child'; own: boolean }>;
+  role?: string;
 }
 
 export interface KidChores {
@@ -49,14 +53,22 @@ export interface KidChores {
 }
 
 export function summarizeChores(family: FamilyLike | null | undefined): KidChores[] {
-  return (family?.kids ?? []).map((kid) => ({
-    id: kid.id,
-    name: kid.name,
-    done: kid.chores.filter((c) => c.state === 'done' || c.state === 'claimed').length,
-    total: kid.chores.length,
-    overdue: kid.chores.filter((c) => c.state === 'overdue').length,
-    swap_badge: kid.swap_badge,
-  }));
+  const children = family?.members
+    ? family.members.filter(
+        (person) => person.role === 'child' && (family.role !== 'child' || person.own),
+      )
+    : (family?.kids ?? []);
+  return children.map((kid) => {
+    const chores = kid.chores.filter((chore) => chore.counts_today !== false);
+    return {
+      id: kid.id,
+      name: kid.name,
+      done: chores.filter((chore) => chore.state === 'done' || chore.state === 'claimed').length,
+      total: chores.length,
+      overdue: chores.filter((chore) => chore.state === 'overdue').length,
+      swap_badge: kid.swap_badge,
+    };
+  });
 }
 
 export interface HomeApi {

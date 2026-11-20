@@ -190,3 +190,11 @@ export function pointsWord(points: number): string {
   if (abs === 1) return 'bod';
   return abs >= 2 && abs <= 4 ? 'body' : 'bodů';
 }
+
+export function pendingHandoverLabel(name?: string): string {
+  if (!name) return 'Předání čeká na\u00a0schválení';
+  const recipient = nameDative(name);
+  return recipient
+    ? `Předání ${recipient} čeká na\u00a0schválení`
+    : `Předání pro ${nameGenitive(name) ?? name} čeká na\u00a0schválení`;
+}

@@ -9,7 +9,7 @@ from homeassistant.exceptions import Unauthorized
 
 from ..const import DOMAIN
 from ..roles import entry_roles, resolve_role
-from . import model
+from . import persons
 
 CONF_FAMILY: Final = "family"
 
@@ -38,8 +38,16 @@ def _role(hass: HomeAssistant, connection: Any) -> str:
     return role
 
 
+def _children(hass: HomeAssistant) -> list[dict[str, Any]]:
+    return [
+        m
+        for m in persons.members(hass, hass.states.async_all(), family_options(hass))
+        if m["role"] == "child"
+    ]
+
+
 def _visible_kids(hass: HomeAssistant, connection: Any, role: str) -> list[dict[str, Any]]:
-    kids = model.discover_kids(hass.states.async_all(), family_options(hass))
+    kids = _children(hass)
     if role == "child":
         uid = getattr(connection.user, "id", None)
         return [k for k in kids if uid and k.get("user_id") == uid]

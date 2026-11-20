@@ -8,8 +8,8 @@ import { expect, test, type Page } from '@playwright/test';
 const EXPECTED = [
   'Jan: doma',
   'Mamínka: doma',
-  'Syn: pryč',
-  'Dcera: doma',
+  'Kuba: pryč',
+  'Ema: doma',
   'Babi: pryč',
   'Děda: neznámo',
 ];
@@ -62,7 +62,7 @@ test.describe('Kdo je doma', () => {
     );
     await expect(page.getByTestId('presence-person').nth(2)).toHaveAttribute(
       'aria-label',
-      'Syn: doma',
+      'Kuba: doma',
     );
     // Privacy: no places, times or ETA anywhere in the strip.
     await expect(strip).not.toContainText(/Práce|Škola|min|:\d\d/);
@@ -81,8 +81,19 @@ test.describe('Kdo je doma', () => {
   test('Rodina: přehled ukazuje kdo je doma', async ({ page }) => {
     await page.goto('/homebrain-rodina');
     await expect(page.getByTestId('family')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('presence')).toBeVisible({ timeout: 20_000 });
-    expect(await labels(page)).toEqual(EXPECTED);
+    const tiles = page.getByTestId('family-person-tile');
+    await expect(tiles.getByTestId('family-wifi-presence')).toHaveText([
+      'pryč',
+      'doma',
+      'pryč',
+      'doma',
+    ]);
+    await expect(
+      tiles.filter({ hasText: 'Ema' }).getByTestId('family-wifi-presence'),
+    ).not.toHaveAttribute('data-home');
+    await expect(
+      tiles.filter({ hasText: 'Kuba' }).getByTestId('family-wifi-presence'),
+    ).toHaveAttribute('data-home', 'true');
     await insideViewport(page);
   });
 
