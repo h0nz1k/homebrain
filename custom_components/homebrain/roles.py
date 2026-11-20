@@ -171,6 +171,7 @@ WASTE_WS_COMMANDS: Final = frozenset({"homebrain/waste/history"})
 FAMILY_WS_COMMANDS: Final = frozenset(
     {
         "homebrain/family/get",
+        "homebrain/family/person/history",
         "homebrain/family/chore/claim",
         "homebrain/family/shopping/add",
         "homebrain/family/shopping/update",

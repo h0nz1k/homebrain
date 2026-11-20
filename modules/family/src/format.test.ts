@@ -16,6 +16,8 @@ import {
   nextDays,
   nextEvent,
   pointsLabel,
+  pointsParts,
+  timeRange,
   relLabel,
   sortChores,
   todayEvents,
@@ -118,6 +120,25 @@ describe('family format', () => {
   ])('pointsAmount(%s) → %s (no „b.“ anywhere)', (n, text) => {
     expect(pointsAmount(n)).toBe(text);
     expect(pointsLabel(n)).toBe(`+${text}`);
+  });
+
+  it.each([
+    [0, '+0', 'bodů'],
+    [1, '+1', 'bod'],
+    [2, '+2', 'body'],
+    [4, '+4', 'body'],
+    [5, '+5', 'bodů'],
+    [3.99999, '+4', 'body'],
+    [null, '—', 'bodů'],
+  ])('pointsParts(%s) → %s %s (points sheet path)', (n, value, word) => {
+    expect(pointsParts(n, { sign: true })).toEqual({ value, word });
+    if (n != null) expect(pointsLabel(n)).toBe(`${value}\u00a0${word}`);
+  });
+
+  it('timeRange uses one en dash format', () => {
+    expect(
+      timeRange({ start: '2026-11-19T07:45:00+01:00', end: '2026-11-19T08:15:00+01:00' }),
+    ).toMatch(/^\d{1,2}:\d{2}–\d{1,2}:\d{2}$/u);
   });
 
   const chore = (

@@ -59,7 +59,7 @@ async function mountSheet(createChore: FamilyApi['createChore'], now = new Date(
     </div>,
   );
   const sheet = screen.getByTestId('family-add-chore-sheet');
-  fireEvent.change(nameInput(sheet), { target: { value: 'Vyndat myčku' } });
+  fireEvent.change(nameInput(sheet), { target: { value: 'Vyskládat myčku' } });
   return { sheet, onCreated };
 }
 
@@ -67,13 +67,13 @@ describe('AddChoreSheet', () => {
   it('duplicate name: specific message pinned in the footer next to Save, rename path', async () => {
     const api = await mountView();
     const sheet = await openSheet();
-    // „Vyndat myčku“ already exists (planned for tomorrow).
-    fireEvent.change(nameInput(sheet), { target: { value: 'Vyndat myčku' } });
+    // „Vyskládat myčku“ already exists (planned for tomorrow).
+    fireEvent.change(nameInput(sheet), { target: { value: 'Vyskládat myčku' } });
     await save(sheet);
     const alert = within(sheet).getByRole('alert');
     // One sentence naming the kid, no generic duplicate sentence on top.
     expect(within(sheet).getByTestId('family-add-chore-error-text').textContent).toBe(
-      'Dcera už má úkol „Vyndat myčku“.',
+      'Ema už má úkol „Vyskládat myčku“.',
     );
     expect(alert.textContent).not.toContain(CREATE_CHORE_ERRORS.duplicate_name);
     // Inside the sticky footer (always on screen), right above the Save button.
@@ -88,9 +88,11 @@ describe('AddChoreSheet', () => {
     expect(btn.textContent).toBe('Uložit úkol');
     // Saving the same name again would fail: the plain Save is disabled until a panel choice.
     expect(btn.getAttribute('aria-disabled')).toBe('true');
-    expect(btn.dataset.variant).toBe('secondary');
+    expect(btn.dataset.variant).toBe('primary');
     const wait = within(sheet).getByTestId('family-add-chore-dup-wait');
-    expect(wait.textContent).toBe('Nejdřív vyber jednu z možností výše');
+    expect(wait.textContent?.replace(/\s+/gu, ' ')).toBe(
+      'Uložit nejde: stejný název už existuje. Přidej další čas, ulož pod jiným názvem, nebo název změň.',
+    );
     expect(btn.getAttribute('aria-describedby')).toBe(wait.id);
     await save(sheet);
     expect(created(api)).toHaveLength(1);
@@ -98,21 +100,22 @@ describe('AddChoreSheet', () => {
     const actions = within(alert).getAllByRole('button');
     expect(actions.map((b) => b.textContent)).toEqual([
       'Přidat další čas (vícekrát denně)',
-      'Uložit jako „Vyndat myčku (2)“',
+      'Uložit jako „Vyskládat myčku (2)“',
     ]);
-    expect(actions[0]!.dataset.variant).toBe('primary');
+    // Both ways forward are secondary (outlined); the one primary stays „Uložit úkol“.
+    expect(actions.map((b) => b.dataset.variant)).toEqual(['secondary', 'secondary']);
     expect(within(sheet).queryByText('Změnit název')).toBeNull();
-    // The name field says it inline (linked for screen readers).
-    const hint = within(sheet).getByTestId('family-name-duplicate');
-    expect(hint.textContent).toBe('Tento název už existuje.');
+    expect(within(sheet).queryByTestId('family-name-duplicate')).toBeNull();
+    const hint = within(sheet).getByTestId('family-dup-hint');
+    expect(hint.textContent).toBe('Tento název už Ema má – viz možnosti dole');
     expect(nameInput(sheet).getAttribute('aria-describedby')).toBe(hint.id);
     expect(nameInput(sheet).getAttribute('aria-invalid')).toBe('true');
     // The form body no longer carries the old generic error at its very bottom.
     expect(sheet.querySelector('.hb-sheet-body [role="alert"]')).toBeNull();
     const rename = within(sheet).getByTestId('family-duplicate-rename');
-    expect(rename.textContent).toBe('Uložit jako „Vyndat myčku (2)“');
+    expect(rename.textContent).toBe('Uložit jako „Vyskládat myčku (2)“');
     await act(async () => fireEvent.click(rename));
-    expect(created(api).map((c) => c.name)).toEqual(['Vyndat myčku', 'Vyndat myčku (2)']);
+    expect(created(api).map((c) => c.name)).toEqual(['Vyskládat myčku', 'Vyskládat myčku (2)']);
     // Each attempt is its own operation (the failed one created nothing).
     const ids = created(api).map((c) => c.client_request_id);
     expect(new Set(ids).size).toBe(2);
@@ -122,12 +125,12 @@ describe('AddChoreSheet', () => {
   it('duplicate → „Nastavit vícekrát denně“: multi with 2 times, name kept, error cleared', async () => {
     const api = await mountView();
     const sheet = await openSheet();
-    fireEvent.change(nameInput(sheet), { target: { value: 'Vyndat myčku' } });
+    fireEvent.change(nameInput(sheet), { target: { value: 'Vyskládat myčku' } });
     await save(sheet);
     await act(async () => fireEvent.click(within(sheet).getByTestId('family-duplicate-multi')));
     expect(within(sheet).queryByRole('alert')).toBeNull();
     expect(within(sheet).queryByTestId('family-name-duplicate')).toBeNull();
-    expect(nameInput(sheet).value).toBe('Vyndat myčku');
+    expect(nameInput(sheet).value).toBe('Vyskládat myčku');
     expect(
       within(sheet).getByRole('radio', { name: 'Vícekrát' }).getAttribute('aria-checked'),
     ).toBe('true');
@@ -138,17 +141,17 @@ describe('AddChoreSheet', () => {
     expect(btn.dataset.variant).toBe('primary');
     await save(sheet);
     const last = created(api).at(-1)!;
-    expect(last).toMatchObject({ name: 'Vyndat myčku', recurrence: 'daily_multi' });
+    expect(last).toMatchObject({ name: 'Vyskládat myčku', recurrence: 'daily_multi' });
     expect(last.times).toHaveLength(2);
   });
 
   it('typing a new name clears the duplicate error', async () => {
     await mountView();
     const sheet = await openSheet();
-    fireEvent.change(nameInput(sheet), { target: { value: 'Vyndat myčku' } });
+    fireEvent.change(nameInput(sheet), { target: { value: 'Vyskládat myčku' } });
     await save(sheet);
     expect(within(sheet).queryByRole('alert')).not.toBeNull();
-    fireEvent.change(nameInput(sheet), { target: { value: 'Vyndat myčku večer' } });
+    fireEvent.change(nameInput(sheet), { target: { value: 'Vyskládat myčku večer' } });
     expect(within(sheet).queryByRole('alert')).toBeNull();
   });
 
@@ -236,7 +239,7 @@ describe('AddChoreSheet', () => {
       '2\u00a0body za každé splnění (6\u00a0bodů denně)',
     );
     expect(within(sheet).getByTestId('family-chore-summary').textContent).toContain(
-      'každý den 3× (7:30, 12:00 a 18:00)',
+      '3× denně (7:30, 12:00 a 18:00)',
     );
     await save(sheet);
     expect(createChore).toHaveBeenCalledTimes(1);
@@ -250,7 +253,7 @@ describe('AddChoreSheet', () => {
       assignees: ['syn'],
     });
     expect(onCreated).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Vyndat myčku', who: 'Syn' }),
+      expect.objectContaining({ name: 'Vyskládat myčku', who: 'Kuba' }),
     );
   });
 
@@ -292,7 +295,7 @@ describe('AddChoreSheet', () => {
   it('title: one kid by name, 2+ kids as a count', async () => {
     const { sheet } = await mountSheet(vi.fn(async () => ({})));
     const who = () => within(sheet).getByTestId('family-add-chore-title-who').textContent;
-    expect(who()).toBe(' · Syn');
+    expect(who()).toBe(' · Kuba');
     const chips = within(sheet).getAllByTestId('family-who-chip');
     fireEvent.click(chips.find((c) => c.getAttribute('aria-pressed') === 'false')!);
     expect(who()).toBe(' · 2 děti');
@@ -305,7 +308,7 @@ describe('AddChoreSheet', () => {
       within(group)
         .getAllByRole('radio')
         .map((r) => r.textContent),
-    ).toEqual(['Jednou', 'Denně', 'Vícekrát', 'Dny v týdnu']);
+    ).toEqual(['Jednou', 'Denně', 'Vícekrát', 'Týdně']);
   });
 
   it('„Vícekrát denně“ needs two different times', async () => {
@@ -326,17 +329,14 @@ describe('AddChoreSheet', () => {
     );
   });
 
-  it('preselected kid is unmistakable: filled chip, title and „Pro:“ above Save', async () => {
+  it('preselected member is indicated by the selected chip and title', async () => {
     const { sheet } = await mountSheet(vi.fn(async () => ({})));
     const pressed = within(sheet)
       .getAllByTestId('family-who-chip')
       .filter((c) => c.getAttribute('aria-pressed') === 'true');
-    expect(pressed.map((c) => c.textContent)).toEqual(['SSyn']);
-    expect(within(sheet).getByTestId('family-add-chore-title-who').textContent).toBe(' · Syn');
-    const foot = sheet.querySelector('.hb-sheet-foot')!;
-    expect(within(foot as HTMLElement).getByTestId('family-add-chore-for').textContent).toMatch(
-      /^Pro:SSyn/,
-    );
+    expect(pressed.map((c) => c.textContent)).toEqual(['KKuba']);
+    expect(within(sheet).getByTestId('family-add-chore-title-who').textContent).toBe(' · Kuba');
+    expect(within(sheet).queryByTestId('family-add-chore-for')).toBeNull();
   });
 });
 
@@ -347,8 +347,11 @@ describe('FamilyView upcoming + confirmation', () => {
     const up = within(dcera).getByTestId('family-upcoming');
     expect(up.textContent).toContain('Naplánované');
     const rows = within(up).getAllByTestId('family-upcoming-chore');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const weekday = ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'][tomorrow.getDay()];
     expect(within(rows[0]!).getByTestId('family-upcoming-day').textContent).toBe(
-      'zítra\u00a0·\u00a0pá\u00a020.\u00a011.',
+      `zítra\u00a0·\u00a0${weekday}\u00a0${tomorrow.getDate()}.\u00a0${tomorrow.getMonth() + 1}.`,
     );
     expect(within(up).getByTestId('family-upcoming-h').textContent).toMatch(
       /Naplánované · \d+ úkol(y|ů)?· další dny/u,
@@ -364,7 +367,7 @@ describe('FamilyView upcoming + confirmation', () => {
     const today = within(dcera).getByTestId('family-today-h');
     expect(today.textContent).toBe('Dnes');
     expect(today.compareDocumentPosition(up) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(rows[0]!.textContent).toContain('Vyndat myčku');
+    expect(rows[0]!.textContent).toContain('Vyskládat myčku');
     expect(within(up).queryByTestId('family-chore-check')).toBeNull();
     expect(within(rows[0]!).getByTestId('family-upcoming-menu')).toBeTruthy();
   });
@@ -375,8 +378,8 @@ describe('FamilyView upcoming + confirmation', () => {
     await screen.findByTestId('family');
     const dcera = document.querySelector<HTMLElement>('[data-kid="dcera"]')!;
     const up = within(dcera).getByTestId('family-upcoming');
-    expect(up.dataset.compact).toBe('line');
-    expect(up.textContent).toContain('Zítra: Vyndat myčku');
+    expect(up.dataset.compact).toBe('kiosk');
+    expect(up.textContent).toContain('Zítra: Vyskládat myčku');
     // Today's list comes first.
     expect(
       dcera.querySelector('.fam-chores')!.compareDocumentPosition(up) &
@@ -397,7 +400,7 @@ describe('FamilyView upcoming + confirmation', () => {
     expect(created(api)).toHaveLength(1);
     const t = toastStore.getSnapshot().toasts.at(-1)!;
     expect(t.kind).toBe('success');
-    expect(t.message).toBe('Úkol přidán: Dcera · zítra do 18:00');
+    expect(t.message).toBe('Úkol přidán: Ema · zítra do 18:00');
     const row = await screen.findByText('Vytřít chodbu');
     expect(
       row.closest('[data-testid="family-upcoming-chore"]')!.hasAttribute('data-highlight'),

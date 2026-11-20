@@ -6,14 +6,19 @@ import type {
   FamilyChore,
   FamilyEvent,
   FamilyKid,
+  FamilyMember,
+  PersonsSettings,
   FamilyRole,
   FamilySnapshot,
   PointsHistory,
   PointsSummary,
   FamilyUpcomingChore,
+  PersonHistoryEntry,
 } from './types.js';
+import { choreTally, localKey } from './format.js';
+import { personActivity } from './personActivity.js';
 
-/** Synthetic household for dev/e2e: generic names only („Dcera“, „Syn“). */
+/** Synthetic household for dev/e2e: generic names only („Ema“, „Kuba“). */
 export interface FamilyMockOptions {
   role?: FamilyRole;
   /** `empty` = nothing configured (no calendars, no ChoreOps, no shopping list). */
@@ -52,8 +57,8 @@ function events(now: Date): FamilyEvent[] {
     isWeekend(now)
       ? e('1', fam, 'Snídaně u babičky', at(now, 0, 8, 30), at(now, 0, 9, 30))
       : e('1', fam, 'Odvoz do školy', at(now, 0, 7, 45), at(now, 0, 8, 15)),
-    e('2', fam, 'Dcera: Kroužek robotiky', at(now, 0, 14), at(now, 0, 15, 30)),
-    e('3', fam, 'Syn: Trénink florbalu', at(now, 0, 16, 30), at(now, 0, 18), {
+    e('2', fam, 'Ema: Kroužek robotiky', at(now, 0, 14), at(now, 0, 16, 10)),
+    e('3', fam, 'Kuba: Trénink florbalu', at(now, 0, 16, 30), at(now, 0, 18), {
       location: 'Sportovní hala',
       description: 'Vzít dres',
     }),
@@ -62,14 +67,14 @@ function events(now: Date): FamilyEvent[] {
     e(
       '6',
       sch,
-      'Dcera: Písemka z matematiky',
+      'Ema: Písemka z matematiky',
       at(now, schoolDay(now, 2), 8),
       at(now, schoolDay(now, 2), 8, 45),
     ),
-    e('7', fam, 'Syn: Zubař', at(now, 2, 17), at(now, 2, 17, 30), {
+    e('7', fam, 'Kuba: Zubař', at(now, 2, 17), at(now, 2, 17, 30), {
       description: 'Kartička pojišťovny',
     }),
-    e('8', fam, 'Syn: Trénink florbalu', at(now, 3, 16, 30), at(now, 3, 18)),
+    e('8', fam, 'Kuba: Trénink florbalu', at(now, 3, 16, 30), at(now, 3, 18)),
     e(
       '9',
       sch,
@@ -92,19 +97,19 @@ function pointsSummary(name: string, balance: number): PointsSummary {
   return {
     kid_name: name,
     balance,
-    earned_today: name === 'Dcera' ? 6 : 4,
-    earned_week: name === 'Dcera' ? 42 : 24,
-    earned_month: name === 'Dcera' ? 156 : 68,
-    spent_month: name === 'Dcera' ? 40 : 20,
-    net_month: name === 'Dcera' ? 116 : 48,
-    earned_all_time: name === 'Dcera' ? 248 : 114,
-    spent_all_time: name === 'Dcera' ? 120 : 40,
-    longest_streak: name === 'Dcera' ? 8 : 5,
-    top_chore_month: name === 'Dcera' ? 'Ustlat postel' : 'Nakrmit kočku',
+    earned_today: name === 'Ema' ? 6 : 4,
+    earned_week: name === 'Ema' ? 42 : 24,
+    earned_month: name === 'Ema' ? 156 : 68,
+    spent_month: name === 'Ema' ? 40 : 20,
+    net_month: name === 'Ema' ? 116 : 48,
+    earned_all_time: name === 'Ema' ? 248 : 114,
+    spent_all_time: name === 'Ema' ? 120 : 40,
+    longest_streak: name === 'Ema' ? 8 : 5,
+    top_chore_month: name === 'Ema' ? 'Ustlat postel' : 'Nakrmit kočku',
     sources_month: {
-      Úkoly: name === 'Dcera' ? 144 : 64,
-      Bonusy: name === 'Dcera' ? 12 : 4,
-      Odměny: name === 'Dcera' ? 40 : 20,
+      Úkoly: name === 'Ema' ? 144 : 64,
+      Bonusy: name === 'Ema' ? 12 : 4,
+      Odměny: name === 'Ema' ? 40 : 20,
       Sankce: 0,
       Ostatní: 0,
     },
@@ -146,18 +151,18 @@ function kids(now: Date): FamilyKid[] {
     {
       id: 'dcera',
       kid_uuid: 'dcera',
-      name: 'Dcera',
+      name: 'Ema',
       points: 128,
       points_today: 6,
-      points_summary: pointsSummary('Dcera', 128),
+      points_summary: pointsSummary('Ema', 128),
       chores: [
         c('postel', 'Ustlat postel', 'done', 2, 9),
         c('kytky', 'Zalít květiny', 'done', 4, 17),
         c('kos', 'Vynést koš', 'todo', 3, 19, {
           swap_today: {
             kind: 'transferred_out',
-            label: 'Předáno Synovi · jen dnes',
-            partner_name: 'Syn',
+            label: 'Předáno Kubovi · jen dnes',
+            partner_name: 'Kuba',
             muted: true,
           },
           counts_today: false,
@@ -167,12 +172,12 @@ function kids(now: Date): FamilyKid[] {
           swap_today: {
             kind: 'pending_give',
             label: 'Předání čeká na schválení',
-            partner_name: 'Syn',
+            partner_name: 'Kuba',
           },
         }),
       ],
       upcoming: [
-        upcoming(now, 'mycka', 'Vyndat myčku', 3, 1, 18),
+        upcoming(now, 'mycka', 'Vyskládat myčku', 3, 1, 18),
         upcoming(now, 'prach', 'Utřít prach', 2, 3, 17),
         upcoming(now, 'okna', 'Umýt okna', 5, 10, 16),
       ],
@@ -180,17 +185,17 @@ function kids(now: Date): FamilyKid[] {
     {
       id: 'syn',
       kid_uuid: 'syn',
-      name: 'Syn',
+      name: 'Kuba',
       points: 74,
       points_today: 4,
-      points_summary: pointsSummary('Syn', 74),
+      points_summary: pointsSummary('Kuba', 74),
       chores: [
         c('kocka', 'Nakrmit kočku', 'done', 4, 12),
         c('kos-in', 'Vynést koš', 'todo', 3, 19, {
           swap_today: {
             kind: 'transferred_in',
-            label: 'Převzato od Dcery · jen dnes',
-            partner_name: 'Dcera',
+            label: 'Převzato od Emy · jen dnes',
+            partner_name: 'Ema',
           },
         }),
         c('boty', 'Uklidit boty', 'claimed', 2, 18),
@@ -223,9 +228,94 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   const role = opts.role ?? 'owner';
   const now = opts.now ?? (() => new Date());
   const empty = opts.scenario === 'empty';
+  const today = now();
+  const adults: FamilyKid[] = empty
+    ? []
+    : [
+        {
+          id: 'tata',
+          name: 'Táta',
+          points: 18,
+          points_today: 5,
+          chores: [
+            {
+              id: 'demo-breakfast',
+              name: 'Připravit snídani',
+              state: 'done',
+              due: at(today, 0, 8),
+              points: 5,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-recycling',
+              name: 'Odvézt papír',
+              state: 'overdue',
+              due: at(today, -1, 16),
+              points: 4,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-shelf',
+              name: 'Uklidit polici',
+              state: 'overdue',
+              due: at(today, -4, 16),
+              points: 3,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-letter',
+              name: 'Vybrat schránku',
+              state: 'todo',
+              due: at(today, 0, 16, 45),
+              points: 2,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-table',
+              name: 'Prostřít stůl',
+              state: 'todo',
+              due: at(today, 0, 19),
+              points: 3,
+              can_claim: false,
+              can_approve: false,
+            },
+          ],
+          upcoming: [upcoming(today, 'kvetiny', 'Přesadit květiny', 4, 2, 10)],
+        },
+        {
+          id: 'mama',
+          name: 'Máma',
+          points: 16,
+          points_today: 4,
+          chores: [
+            {
+              id: 'demo-laundry',
+              name: 'Pověsit prádlo',
+              state: 'done',
+              due: at(today, 0, 10),
+              points: 4,
+              can_claim: false,
+              can_approve: false,
+            },
+            {
+              id: 'demo-plants',
+              name: 'Zalít bylinky',
+              state: 'todo',
+              due: at(today, 0, 16),
+              points: 4,
+              can_claim: false,
+              can_approve: false,
+            },
+          ],
+        },
+      ];
   const state = {
     kids: empty ? [] : kids(now()),
-    swapPending: 'swap-req-1',
+    swapPending: empty ? '' : 'swap-req-1',
     items: empty
       ? []
       : ['Mléko 2×', 'Rohlíky', 'Jablka', 'Prací gel', 'Máslo', 'Vejce'].map((summary, i) => ({
@@ -238,9 +328,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   const log: unknown[] = [];
   const own = 'syn';
   if (opts.reassignDemo && !empty) {
-    const [ema, kuba] = state.kids as [FamilyKid, FamilyKid];
-    ema.name = 'Ema';
-    kuba.name = 'Kuba';
+    const [ema] = state.kids as [FamilyKid];
     ema.chores.push({
       id: 'sensor.demo_overdue',
       name: 'Utřít stůl',
@@ -268,26 +356,100 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     ...row.management,
     can_skip: today && row.due != null && !row.management?.one_off,
   });
+  const all = [...state.kids, ...adults];
+  const freeName = 'Vyskládat myčku';
+  const credits = new Map<string, PersonHistoryEntry[]>(
+    all.map((member) => [
+      member.id,
+      member.chores
+        .filter((chore) => chore.state === 'done')
+        .map((chore) => ({
+          date: chore.due ?? today.toISOString(),
+          name: chore.name,
+          points: chore.points,
+        })),
+    ]),
+  );
+  credits
+    .get('tata')
+    ?.push(
+      { date: at(today, -2, 17), name: 'Vyčistit filtr', points: 8 },
+      { date: at(today, -3, 8), name: 'Připravit snídani', points: 5 },
+    );
+  let free = !empty;
+  let profiles: PersonsSettings['persons'] = all.map((k, i) => ({
+    choreops_user_id: k.id,
+    name: k.name,
+    role: i < 2 ? 'child' : 'adult',
+    color: [3, 4, 1, 2][i]!,
+    person: `person.demo_${k.id}`,
+    tracker: `device_tracker.demo_wifi_${k.id}`,
+    configured: false,
+  }));
+  const settings = (): PersonsSettings => ({
+    persons: profiles,
+    candidates: {
+      people: all.map((k) => ({ id: `person.demo_${k.id}`, name: k.name })),
+      trackers: all.map((k) => ({
+        id: `device_tracker.demo_wifi_${k.id}`,
+        name: `Wi-Fi · ${k.name}`,
+      })),
+    },
+  });
   const snapshot = (): FamilySnapshot => {
     const detail = role === 'owner' || role === 'adult';
-    const visibleKids = state.kids
-      .filter((k) => role !== 'child' || k.id === own)
-      .map((k) => ({
-        ...k,
-        upcoming: k.upcoming?.map((u) => ({
-          ...u,
-          management: detail ? manage(k, u, false) : undefined,
-        })),
-        chores: k.chores.map((c) => ({
+    const members: FamilyMember[] = all.map((k, i) => {
+      const profile = profiles.find((p) => p.choreops_user_id === k.id)!;
+      const chores: FamilyChore[] = [];
+      const missed: FamilyMember['missed'] = [];
+      for (const c of k.chores) {
+        const day = c.due ? new Date(c.due) : null;
+        const age = day
+          ? Math.round(
+              (new Date(dateOnly(now(), 0)).getTime() - new Date(dateOnly(day, 0)).getTime()) /
+                86_400_000,
+            )
+          : 0;
+        if (c.state === 'overdue' && age > 3) {
+          missed.push({ id: c.id, name: c.name, date: c.due });
+          continue;
+        }
+        chores.push({
           ...c,
           management: detail ? manage(k, c, true) : undefined,
+          carried_days: c.state === 'overdue' && age > 0 ? age : undefined,
           can_claim:
             (role !== 'child' || k.id === own) &&
             (c.state === 'todo' || c.state === 'overdue') &&
             !c.swap_today?.muted,
           can_approve: detail && c.state === 'claimed',
+        });
+      }
+      const { total, done, pending, open } = choreTally(
+        chores.filter((c) => c.counts_today !== false),
+      );
+      const entries = credits.get(k.id) ?? [];
+      return {
+        ...k,
+        points_summary: detail ? k.points_summary : undefined,
+        role: profile.role,
+        color: profile.color,
+        own: k.id === own,
+        presence: profile.tracker ? { kind: i % 2 ? 'home' : 'away' } : null,
+        chores,
+        missed,
+        counts: { total, done, pending, open },
+        points_week: personActivity({ missed }, entries, now()).points,
+        points_today: entries
+          .filter((row) => localKey(new Date(row.date)) === localKey(now()))
+          .reduce((points, row) => points + (row.points ?? 0), 0),
+        upcoming: k.upcoming?.map((u) => ({
+          ...u,
+          management: detail ? manage(k, u, false) : undefined,
         })),
-      }));
+      };
+    });
+    const visibleKids = members.filter((k) => k.role === 'child' && (role !== 'child' || k.own));
     return {
       role,
       revision: 3,
@@ -319,6 +481,21 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
               return rest;
             }),
       kids: visibleKids,
+      members,
+      free_chores: free
+        ? [
+            {
+              name: freeName,
+              points: 3,
+              due: at(today, 0, 19),
+              assignees: state.kids.map((k) => ({
+                member: k.id,
+                chore: `free-${k.id}`,
+                can_claim: role !== 'child' || k.id === own,
+              })),
+            },
+          ]
+        : [],
       pending_approvals: detail
         ? [
             ...(state.swapPending
@@ -327,7 +504,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
                     kind: 'swap' as const,
                     type_label: 'Předání na dnes',
                     request_id: state.swapPending,
-                    requester_name: 'Dcera',
+                    requester_name: 'Ema',
                     from_kid_id: 'dcera',
                     to_kid_id: 'syn',
                     chore_id: 'sensor.demo_luxovat',
@@ -337,21 +514,21 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
                   },
                 ]
               : []),
-            ...(state.kids
-              .find((k) => k.id === 'syn')
-              ?.chores.find((c) => c.id === 'sensor.demo_boty')?.state === 'claimed'
-              ? [
-                  {
-                    kind: 'completion' as const,
-                    type_label: 'Splnění ke kontrole',
-                    kid_id: 'syn',
-                    kid_name: 'Syn',
-                    chore_id: 'sensor.demo_boty',
-                    chore_name: 'Uklidit boty',
-                    points: 2,
-                  },
-                ]
-              : []),
+            ...members.flatMap((member) =>
+              member.chores
+                .filter(
+                  (chore) => chore.state === 'claimed' && chore.swap_today?.kind !== 'pending_give',
+                )
+                .map((chore) => ({
+                  kind: 'completion' as const,
+                  type_label: 'Splnění ke kontrole',
+                  kid_id: member.id,
+                  kid_name: member.name,
+                  chore_id: chore.id,
+                  chore_name: chore.name,
+                  points: chore.points,
+                })),
+            ),
           ]
         : [],
       shopping: empty
@@ -366,7 +543,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     };
   };
   const chore = (kid: string, id: string) =>
-    state.kids.find((k) => k.id === kid)?.chores.find((c) => c.id === id);
+    all.find((k) => k.id === kid)?.chores.find((c) => c.id === id);
 
   const chart = (days: number, kid: string): PointsHistory['chart'] => {
     const earned =
@@ -386,15 +563,46 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   return {
     log,
     get: async () => snapshot(),
+    personHistory: async (member) => ({
+      entries: [...(credits.get(member) ?? [])],
+    }),
+    personsSettings: async () => settings(),
+    savePersons: async (input) => {
+      profiles = profiles.map((p) => ({
+        ...p,
+        ...input.find((row) => row.choreops_user_id === p.choreops_user_id),
+        configured: true,
+      }));
+      return settings();
+    },
     claim: async (kid, id) => {
       log.push({ kind: 'claim', kid, id });
+      if (id === `free-${kid}`) {
+        const taker = state.kids.find((k) => k.id === kid);
+        if (!free || !taker || (role === 'child' && kid !== own))
+          throw new Error('Úkol už nelze převzít.');
+        free = false;
+        taker.chores.push({
+          id,
+          name: freeName,
+          points: 3,
+          due: at(today, 0, 19),
+          state: 'claimed',
+          can_claim: false,
+          can_approve: false,
+        });
+        return;
+      }
       const c = chore(kid, id);
       if (c) c.state = 'claimed';
     },
     approve: async (kid, id) => {
       log.push({ kind: 'approve', kid, id });
       const c = chore(kid, id);
-      if (c) c.state = 'done';
+      if (c && c.state !== 'done') {
+        c.state = 'done';
+        credits.get(kid)?.push({ name: c.name, date: now().toISOString(), points: c.points });
+      }
     },
     addItem: async (summary) => {
       log.push({ kind: 'add', summary });
@@ -421,8 +629,8 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         if (decision === 'approve') {
           original.swap_today = {
             kind: 'transferred_out',
-            label: 'Předáno Synovi · jen dnes',
-            partner_name: 'Syn',
+            label: 'Předáno Kubovi · jen dnes',
+            partner_name: 'Kuba',
             muted: true,
           };
           original.counts_today = false;
@@ -432,8 +640,8 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
             counts_today: true,
             swap_today: {
               kind: 'transferred_in',
-              label: 'Převzato od Dcery · jen dnes',
-              partner_name: 'Dcera',
+              label: 'Převzato od Emy · jen dnes',
+              partner_name: 'Ema',
             },
           });
         } else original.swap_today = null;
@@ -490,7 +698,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         skipped.delete(input.undo_request_id);
         return { ok: true };
       }
-      const kid = state.kids.find((k) => k.id === input.kid);
+      const kid = all.find((k) => k.id === input.kid);
       const row = kid?.chores.find((c) => c.id === input.chore);
       if (!kid || !row) throw { code: 'not_found' };
       if (row.due !== input.expected_due) throw { code: 'conflict' };
@@ -506,7 +714,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     deleteChore: async (input) => {
       log.push({ kind: 'deleteChore', input });
       if (role !== 'owner' && role !== 'adult') throw { code: 'unauthorized' };
-      const owner = state.kids.find((kid) => kid.id === input.kid);
+      const owner = all.find((kid) => kid.id === input.kid);
       const original = [...(owner?.chores ?? []), ...(owner?.upcoming ?? [])].find(
         (row) => row.id === input.chore,
       );
@@ -514,7 +722,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       const ids = new Set(input.series_ids ?? [input.slot_id ?? input.chore]);
       if (input.slot_id && !original.management?.slots.some((slot) => slot.id === input.slot_id))
         throw { code: 'conflict' };
-      for (const kid of state.kids) {
+      for (const kid of all) {
         kid.chores = kid.chores.filter((row) => !ids.has(row.id));
         kid.upcoming = kid.upcoming?.filter((row) => !ids.has(row.id));
         for (const row of [...kid.chores, ...(kid.upcoming ?? [])]) {
@@ -533,7 +741,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     createChore: async (input) => {
       log.push({ kind: 'createChore', input });
       const taken = new Set(
-        state.kids.flatMap((k) => [...k.chores, ...(k.upcoming ?? [])].map((c) => c.name)),
+        all.flatMap((k) => [...k.chores, ...(k.upcoming ?? [])].map((c) => c.name)),
       );
       const slots = slotsOf(input, now());
       // ChoreOps: names are unique across the whole install (case-sensitive).
@@ -542,7 +750,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
           code: 'duplicate_name',
         });
       const today = dateOnly(now(), 0);
-      const assigned = state.kids.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id));
+      const assigned = all.filter((k) => input.assignees.includes(k.kid_uuid ?? k.id));
       const assignees = assigned.map((kid) => kid.name);
       const created = slots.map((slot, i) => ({
         ...slot,
@@ -589,7 +797,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     },
     pointsGet: async (kid) => {
       const k = state.kids.find((x) => x.id === kid || x.kid_uuid === kid);
-      return k?.points_summary ?? pointsSummary('Dcera', 0);
+      return k?.points_summary ?? pointsSummary('Ema', 0);
     },
     pointsHistory: async (kid, days = 7) => ({
       entries: [],

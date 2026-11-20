@@ -10,6 +10,7 @@ from homeassistant.helpers import entity_registry as er
 ALLOWED: Final = frozenset(
     {
         ("choreops", "create_chore"),
+        ("choreops", "claim_chore"),
         ("choreops", "skip_chore_due_date"),
         ("choreops", "set_chore_due_date"),
         ("choreops", "delete_chore"),
