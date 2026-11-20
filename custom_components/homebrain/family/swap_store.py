@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import uuid
 from typing import Any, Final
@@ -31,6 +32,7 @@ def _empty() -> dict[str, Any]:
 class FamilySwapStore:
     def __init__(self, hass: HomeAssistant) -> None:
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        self.mutation_lock = asyncio.Lock()
         self._data: dict[str, Any] = _empty()
 
     @property

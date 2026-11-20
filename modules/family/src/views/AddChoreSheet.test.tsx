@@ -365,7 +365,8 @@ describe('FamilyView upcoming + confirmation', () => {
     expect(today.textContent).toBe('Dnes');
     expect(today.compareDocumentPosition(up) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(rows[0]!.textContent).toContain('Vyndat myčku');
-    expect(up.querySelector('button')).toBeNull();
+    expect(within(up).queryByTestId('family-chore-check')).toBeNull();
+    expect(within(rows[0]!).getByTestId('family-upcoming-menu')).toBeTruthy();
   });
 
   it('kiosk and child keep today first, upcoming compact', async () => {

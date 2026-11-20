@@ -20,6 +20,31 @@ export interface FamilyEvent {
   location?: string;
   description?: string;
 }
+export interface ChoreManagement {
+  id: string | null;
+  one_off: boolean;
+  can_skip: boolean;
+  times_per_day: number | null;
+  assignees: string[];
+  series_name: string;
+  time: string | null;
+  slots: { id: string; name: string; time: string | null; assignees: string[] }[];
+}
+
+export interface ChoreMutationInput {
+  client_request_id: string;
+  kid: string;
+  chore: string;
+}
+
+export type SkipChoreInput = ChoreMutationInput &
+  ({ expected_due: string } | { undo_request_id: string });
+
+export type DeleteChoreScope =
+  { slot_id?: string; series_ids?: never } | { slot_id?: never; series_ids: string[] };
+
+export type DeleteChoreInput = ChoreMutationInput & DeleteChoreScope;
+
 export interface FamilyChore {
   id: string;
   name: string;
@@ -32,6 +57,7 @@ export interface FamilyChore {
   swap_unavailable_reason?: string | null;
   swap_today?: FamilySwapToday | null;
   counts_today?: boolean;
+  management?: ChoreManagement;
 }
 /** A chore of a later day (ChoreOps groups `this_week` / `other`): shown, not claimable yet. */
 export interface FamilyUpcomingChore {
@@ -41,6 +67,7 @@ export interface FamilyUpcomingChore {
   due: string | null;
   /** ChoreOps `primary_group`. */
   group: 'this_week' | 'other';
+  management?: ChoreManagement;
 }
 export interface PointsSummary {
   kid_name: string;

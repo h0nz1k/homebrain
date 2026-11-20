@@ -293,7 +293,22 @@ export const familyStyles = `
 .fam-points-stats > div { background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); }
 .fam-add-chore input:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
 .fam-partner-avatar { color: white; }
-.fam-menu-list .hb-btn { width: 100%; justify-content: flex-start; }
+.fam-chore-detail { border: 0; background: transparent; color: inherit; font: inherit; text-align: start; padding: 0; cursor: pointer; }
+.fam-chore-detail:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 3px; }
+.fam-delete-summary { display: grid; gap: 12px; }
+.fam-delete-slots { display: grid; border: 1px solid var(--hb-fill-strong); border-radius: 12px; padding: 4px 12px; margin: 0; min-inline-size: 0; }
+.fam-delete-slots legend { padding-inline: 4px; }
+.fam-delete-slots label { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
+.fam-delete-slots label + label { border-top: 1px solid var(--hb-fill-strong); }
+.fam-delete-slots input { accent-color: var(--hb-ac); }
+.fam-delete-points { margin: 0; }
+.fam-delete-actions { display: flex; gap: 8px; }
+.fam-delete-actions .hb-btn { flex: 1; }
+.fam-delete-actions .hb-btn[data-variant='danger'] { flex: 2; }
+.fam .fam-menu-list { display: grid; gap: 6px; list-style: none; margin-top: 8px; }
+.fam-menu-list[data-mixed] > li:nth-child(2) { border-top: 1px solid color-mix(in srgb, var(--hb-t1) 18%, transparent); padding-top: 8px; }
+.fam-menu-list .hb-btn { width: 100%; min-height: 48px; justify-content: flex-start; }
+.hb-shell:has(.fam .hb-scrim) .hb-toast-stack { visibility: hidden; }
 
 .fam-check { position: relative; border: 0; background: none !important; }
 .fam-check::before { content: ''; position: absolute; width: 28px; height: 28px; border: 1.5px solid var(--hb-t2); border-radius: 50%; }

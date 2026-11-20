@@ -182,3 +182,24 @@ def test_only_active_swap_mutes_source_and_decorates_actual_clone():
         "label": "Převzato od: Dcera · jen dnes",
         "partner_name": "Dcera",
     }
+
+
+@pytest.mark.parametrize(
+    ("now", "due", "expected"),
+    [
+        ("2026-06-02T07:00Z", "2026-06-01T22:43+02:00", "2026-06-02T23:59:00+02:00"),
+        ("2026-06-02T07:00Z", "2026-06-02T09:05+02:00", "2026-06-02T23:59:00+02:00"),
+        ("2026-06-02T07:00Z", "2026-06-02T09:15+02:00", "2026-06-02T23:59:00+02:00"),
+        ("2026-06-02T07:00Z", "2026-06-02T18:00+02:00", "2026-06-02T18:00+02:00"),
+        ("2026-11-19T23:10Z", None, "2026-11-20T23:59:00+01:00"),
+        ("2026-03-29T00:50Z", "2026-03-29T03:05+02:00", "2026-03-29T23:59:00+02:00"),
+        ("2026-10-25T00:55Z", "2026-10-25T02:05+01:00", "2026-10-25T23:59:00+01:00"),
+    ],
+)
+def test_clone_due_uses_local_day_and_elapsed_minutes(now, due, expected):
+    from zoneinfo import ZoneInfo
+
+    assert (
+        swap_model.clone_due(due, datetime.fromisoformat(now), ZoneInfo("Europe/Prague"))
+        == expected
+    )

@@ -233,9 +233,11 @@ const heatingApi = createMockHeatingApi({
 });
 setHeatingApiFactory(() => heatingApi);
 // Rodina: synthetic household („Dcera“, „Syn“). `?role=adult|child|kiosk`, `?rodina=empty`.
+const reassignDemo = recipesQuery.get('reassign');
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
   scenario: recipesQuery.get('rodina') === 'empty' ? 'empty' : 'full',
+  reassignDemo: reassignDemo === 'overdue' || reassignDemo === 'error' ? reassignDemo : undefined,
 });
 (window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;
 setFamilyApiFactory(() => familyApi);
