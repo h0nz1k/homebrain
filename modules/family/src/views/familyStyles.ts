@@ -836,10 +836,10 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-person-task-text strong, .fam[data-kiosk] .fam-person-event { font-size: 21px; }
 .fam[data-kiosk] .fam-person-mark { width: 40px; height: 40px; }
 .fam[data-kiosk] .fam-person-check { min-width: 52px; height: 52px; }
-.fam[data-kiosk] :is(.fam-chore, .fam-upcoming-row) { grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) var(--fam-task-point) 10px; gap: 8px; }
+.fam[data-kiosk] :is(.fam-chore, .fam-upcoming-row) { grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) var(--fam-task-point); gap: 8px; }
 .fam[data-kiosk] .fam-person-task-text small, .fam[data-kiosk] .fam-person-presence,
 .fam[data-kiosk] .fam-person-event small, .fam[data-kiosk] .fam-person-section-head small,
-.fam[data-kiosk] .fam-person-progress, .fam[data-kiosk] .fam-person-name p,
+.fam[data-kiosk] .fam-person-name p,
 .fam[data-kiosk] .fam-person-group .fam-person-group-head, .fam[data-kiosk] .fam-person-group-head small,
 .fam[data-kiosk] .fam-person-tabs button, .fam[data-kiosk] .fam-person-free > .hb-btn,
 .fam[data-kiosk] .fam-person-points, .fam[data-kiosk] .fam-pts, .fam[data-kiosk] .fam-pts[data-out] span,
@@ -853,6 +853,8 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-kid-pending { display: none; }
 .fam[data-kiosk] .fam-kid-h { margin-bottom: 4px; }
 .fam[data-kiosk] .fam-chore { min-height: 48px; padding-block: 2px; }
+.fam[data-kiosk] .fam-done-sum { min-height: 32px; }
+.fam[data-kiosk] .fam-done-sum .fam-done-sum-i { height: 28px; }
 
 .hb-scrim[data-isolation='strong']:has(.fam-add-chore) .hb-sheet-body {
   scroll-padding: 14px 0 20px;
@@ -1053,14 +1055,15 @@ export const familyStyles = `
 /* Kiosk: every secondary text ≥ 16 px and ≥ 4.5:1 (subtitles, pills, dates, legend, counters…). */
 .fam[data-kiosk] { --hb-t2: color-mix(in srgb, var(--hb-t1) 92%, var(--hb-s1)); }
 .fam[data-kiosk] :is(small, .fam-meta, .fam-legend, .fam-event-state, .fam-now-pill, .fam-person-presence,
-  .fam-person-progress, .fam-wk-time, .fam-free, .fam-shop-more, .fam-upcoming-more, .fam-detail, .fam-due,
+  .fam-wk-time, .fam-free, .fam-shop-more, .fam-upcoming-more, .fam-detail,
   .fam-swap-tag, .fam-pending-pill, .fam-handover-pending, .fam-person-points, .fam-pts, .fam-tile-points,
   .fam-day > div:first-child small, .fam-week-bars small, .fam-week-bars b, .fam-week-stats dt,
   .fam-person-group-title, .fam-week-ahead li > span:first-child, .fam-person-section-head p) { font-size: max(16px, 1em); }
 .fam[data-kiosk] .fam-event-state, .fam[data-kiosk] .fam-now-pill { line-height: 24px; padding-inline: 10px; }
-.fam[data-kiosk] :is(.fam-person-progress, .fam-chore-meta .fam-due, .fam-person-task-text small),
+.fam[data-kiosk] .fam-person-progress,
+.fam[data-kiosk] .fam-card .fam-chore-meta .fam-due,
+.fam[data-kiosk] .fam-person-view .fam-person-task .fam-person-task-text small,
 .fam[data-kiosk] .fam-chore-meta .fam-swap-tag[data-kind='transferred_out'] { font-size: 18px; }
-.fam[data-kiosk] .fam-chores { row-gap: 4px; }
 .fam[data-kiosk] .fam-chores-more {
   min-height: 44px; padding-inline: 12px; border: 0; border-radius: 8px;
   background: transparent; color: var(--hb-t1); font-size: 18px; text-decoration: underline; cursor: pointer;

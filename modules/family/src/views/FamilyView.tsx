@@ -578,7 +578,7 @@ function UpcomingList({
                   />
                 </span>
               ) : (
-                <span className="fam-menu-slot" aria-hidden="true" />
+                !kiosk && <span className="fam-menu-slot" aria-hidden="true" />
               )}
             </li>
           );
@@ -894,9 +894,11 @@ function KidCard({
               </span>
               <div className="fam-chore-t">
                 <b>Hotovo: {doneRows.length}</b>
-                <div className="fam-chore-meta">
-                  <small>{doneRows.map((c) => c.name).join(' · ')}</small>
-                </div>
+                {(!compact || !onPerson) && (
+                  <div className="fam-chore-meta">
+                    <small>{doneRows.map((c) => c.name).join(' · ')}</small>
+                  </div>
+                )}
               </div>
               <Pts
                 className="fam-pts"
