@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from . import choreops_adapter, swap_model
+from . import choreops_adapter, model, swap_model
 from .swap_store import FamilySwapStore
 
 
@@ -36,19 +36,21 @@ async def execute_operation_step(
             context=context,
             response=effect.service == "create_chore",
         )
-    except Exception as err:  # noqa: BLE001 — surfaced as service_failed to the client
-        op = dict(op)
-        op["status"] = "failed"
-        op["last_error"] = str(err)
-        store.upsert_operation(operation_id, op)
-        await store.async_save()
-        raise swap_model.DomainError("service_failed", str(err)) from err
-    observed: dict[str, Any] = {}
-    if effect.service == "create_chore":
-        cid = (resp or {}).get("chore_id") if isinstance(resp, dict) else None
-        if cid:
+        observed: dict[str, Any] = {}
+        if effect.service == "create_chore":
+            cid = (resp.get("id") or resp.get("chore_id")) if isinstance(resp, dict) else None
+            if not cid:
+                raise swap_model.DomainError("service_failed", "ChoreOps nevrátil ID úkolu.")
             observed["chore_id"] = cid
-    elif effect.service == "skip_chore_due_date":
+    except Exception as err:  # noqa: BLE001 — surfaced using a stable WS code
+        code = (
+            model.create_error_code(err) if effect.service == "create_chore" else "service_failed"
+        )
+        failed = swap_model.advance_operation(op, {"error": code})
+        store.upsert_operation(operation_id, failed)
+        await store.async_save()
+        raise swap_model.DomainError(code, "Přeřazení se nepovedlo.") from err
+    if effect.service == "skip_chore_due_date":
         observed["skipped"] = True
     elif effect.service == "delete_chore":
         observed["deleted"] = True
@@ -92,6 +94,7 @@ def start_operation_from_request(
         "status": "applying",
         "step": "create_intent",
         "source_snapshot": source_snapshot,
+        "clone_due": swap_model.clone_due(source_snapshot.get("due"), now, tz),
         "clone_id": None,
         "operation_token": token,
         "clone_claimed": False,

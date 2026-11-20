@@ -185,6 +185,8 @@ FAMILY_PARENT_COMMANDS: Final = frozenset(
     {
         "homebrain/family/chore/approve",
         "homebrain/family/chore/create",
+        "homebrain/family/chore/skip_today",
+        "homebrain/family/chore/delete",
         "homebrain/family/swap/decide",
         "homebrain/family/swap/reassign",
     }

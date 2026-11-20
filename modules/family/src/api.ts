@@ -1,6 +1,8 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
 import type {
   CreateChoreInput,
+  DeleteChoreInput,
+  SkipChoreInput,
   FamilySnapshot,
   PointsHistory,
   PointsSummary,
@@ -13,11 +15,16 @@ export interface FamilyApi {
   approve(kid: string, chore: string): Promise<void>;
   addItem(summary: string): Promise<void>;
   setItemDone(uid: string, done: boolean): Promise<void>;
-  swapOptions(direction: 'give' | 'take', chore?: string): Promise<{
+  swapOptions(
+    direction: 'give' | 'take',
+    chore?: string,
+  ): Promise<{
     occurrences: Array<Record<string, unknown>>;
     partners: Array<{ id: string; name: string }>;
   }>;
-  swapRequest(input: SwapRequestInput): Promise<{ request: Record<string, unknown>; revision: number }>;
+  swapRequest(
+    input: SwapRequestInput,
+  ): Promise<{ request: Record<string, unknown>; revision: number }>;
   swapDecide(
     request_id: string,
     decision: 'approve' | 'reject',
@@ -25,6 +32,8 @@ export interface FamilyApi {
   ): Promise<Record<string, unknown>>;
   swapReassign(input: SwapRequestInput): Promise<Record<string, unknown>>;
   swapCancel(request_id: string, expected_revision?: number): Promise<Record<string, unknown>>;
+  skipChoreToday(input: SkipChoreInput): Promise<{ ok: boolean; can_undo?: boolean }>;
+  deleteChore(input: DeleteChoreInput): Promise<{ deleted: number }>;
   createChore(input: CreateChoreInput): Promise<Record<string, unknown>>;
   pointsGet(kid: string): Promise<PointsSummary>;
   pointsHistory(kid: string, days?: 7 | 30, limit?: number): Promise<PointsHistory>;
@@ -51,6 +60,8 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
       call('homebrain/family/swap/reassign', { ...input } as Record<string, unknown>),
     swapCancel: (request_id, expected_revision = 0) =>
       call('homebrain/family/swap/cancel', { request_id, expected_revision }),
+    skipChoreToday: (input) => call('homebrain/family/chore/skip_today', { ...input }),
+    deleteChore: (input) => call('homebrain/family/chore/delete', { ...input }),
     createChore: (input) =>
       call('homebrain/family/chore/create', { ...input } as Record<string, unknown>),
     pointsGet: (kid) => call('homebrain/family/points/get', { kid }),

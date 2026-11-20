@@ -159,6 +159,17 @@ PAYLOADS: dict[str, dict] = {
         "first_date": "2026-11-15",
         "due_time": "18:00",
     },
+    "homebrain/family/chore/skip_today": {
+        "client_request_id": "testskip01",
+        "kid": "nobody",
+        "chore": "sensor.nothing",
+        "expected_due": "2026-11-15T18:00:00+01:00",
+    },
+    "homebrain/family/chore/delete": {
+        "client_request_id": "testdelete01",
+        "kid": "nobody",
+        "chore": "sensor.nothing",
+    },
     "homebrain/family/shopping/add": {"summary": "Mléko"},
     "homebrain/family/shopping/update": {"uid": "u1", "done": True},
     "homebrain/family/settings/get": {},
