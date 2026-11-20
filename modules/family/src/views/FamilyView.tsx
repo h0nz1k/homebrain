@@ -452,7 +452,7 @@ function PendingPill({ kind, recipient }: { kind: 'swap' | 'completion'; recipie
 function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'warn' | 'crit' } }) {
   const swap = c.swap_today;
   const deadline =
-    note.text && c.state !== 'claimed' && c.state !== 'done' ? (
+    note.text && (note.tone === 'crit' || (c.state !== 'claimed' && c.state !== 'done')) ? (
       <small data-tone={note.tone} className="fam-due">
         {note.text.replace(/^Do /, 'do ')}
       </small>
@@ -638,7 +638,10 @@ function KidCard({
   const sorted = sortChores(kid.chores);
   const fold = compact || (collapseDone && !showDone);
   const doneRows = sorted.filter((c) => c.state === 'done');
-  const rows = fold ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const remaining = fold ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const rows = compact && onPerson ? remaining.slice(0, 3) : remaining;
+  const hidden = remaining.length - rows.length;
+  const more = `+${czCount(hidden, 'další', 'další', 'dalších')}`;
   const progress = t.total ? `${formatOutOf(t.done, t.total)} hotovo` : 'Dnes nic';
   // Every row reserves the same trailing slot (menu button, done-expander or an empty
   // spacer) whenever any row can have one, so the points column lines up in each list.
@@ -872,6 +875,18 @@ function KidCard({
               </li>
             );
           })}
+          {hidden > 0 && (
+            <li>
+              <button
+                type="button"
+                className="fam-chores-more"
+                aria-label={`${more} · ${kid.name}`}
+                onClick={onPerson}
+              >
+                {more}
+              </button>
+            </li>
+          )}
           {fold && doneRows.length > 0 && (
             <li className="fam-chore fam-done-sum" data-testid="family-done-summary">
               <span className="fam-done-sum-i" aria-hidden="true">

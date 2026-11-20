@@ -3,6 +3,10 @@ import { useBackClosable } from '@homebrain/ha-client';
 import { Button, Card, Icon, czPlural } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
 import {
+  CARRIED_LABEL,
+  MISSED_LABEL,
+  carriedFrom,
+  carriedLabel,
   choreTally,
   czDate,
   shortDate,
@@ -163,11 +167,13 @@ function TaskMark({ kind }: { kind: MarkKind }) {
 
 function ChoreRows({
   rows,
+  today,
   busy,
   highlight,
   onComplete,
 }: {
   rows: TaskRow[];
+  today: string;
   busy?: string | null;
   highlight?: string | null;
   onComplete?(chore: string): void;
@@ -176,7 +182,7 @@ function ChoreRows({
     <ul>
       {rows.map((chore) => {
         const swap = chore.swap_today;
-        const carried = chore.carried_days && chore.due;
+        const carried = carriedFrom(chore, today);
         const mark = markKind(chore);
         const status =
           swap?.kind === 'pending_give'
@@ -221,12 +227,12 @@ function ChoreRows({
               {chore.occurrence ? (
                 <small>
                   {chore.occurrence === 'carried'
-                    ? `přeneseno${chore.carriedTo ? `\u00a0→ ${chore.carriedTo}` : ''}`
-                    : 'Zmeškáno'}
+                    ? `${CARRIED_LABEL}${chore.carriedTo ? `\u00a0→ ${chore.carriedTo}` : ''}`
+                    : MISSED_LABEL}
                 </small>
               ) : carried ? (
                 <small className="fam-person-overdue" data-testid="family-carried-line">
-                  Nesplněno od {shortDate(new Date(chore.due!))}
+                  {carriedLabel(carried)}
                 </small>
               ) : chore.due && chore.state !== 'done' && chore.state !== 'claimed' ? (
                 <small>do&nbsp;{timeLabel(chore.due)}</small>
@@ -353,6 +359,7 @@ function TodayChores({
                 />
               </summary>
               <ChoreRows
+                today={localKey(now)}
                 rows={group.rows}
                 busy={busy}
                 highlight={highlight}
@@ -473,7 +480,8 @@ type WeekRow = TaskRow & { weekDay: string | null };
 
 /** Rows of the Týden tab: today's open tasks, carried origins, credits, misses, planned days. */
 function weekRows(member: FamilyMember, activity: ReturnType<typeof personActivity>): WeekRow[] {
-  const { today, week } = activity;
+  const { today, week, days } = activity;
+  const weekStart = localKey(days[0]!);
   const counted = member.chores.filter((chore) => chore.counts_today !== false);
   const todayLabel = shortDate(new Date(`${today}T12:00:00`));
   return [
@@ -481,12 +489,8 @@ function weekRows(member: FamilyMember, activity: ReturnType<typeof personActivi
       .filter((chore) => chore.state !== 'done')
       .map((chore) => ({ ...chore, weekDay: today })),
     ...counted.flatMap((chore) => {
-      const day = chore.due ? localKey(new Date(chore.due)) : null;
-      const recorded = week.some(
-        (entry) =>
-          entry.date && entry.name === chore.name && localKey(new Date(entry.date)) === day,
-      );
-      return day && day < today && !recorded
+      const day = carriedFrom(chore, today);
+      return day && day >= weekStart
         ? [
             {
               ...chore,
@@ -587,12 +591,14 @@ function WeekSummary({
             <dt>Hotovo</dt>
             <dd>{done}</dd>
           </div>
-          <div data-tone={missed ? 'crit' : undefined}>
-            <dt>Zmeškáno</dt>
-            <dd>{missed}</dd>
-          </div>
+          {missed > 0 && (
+            <div data-tone="crit">
+              <dt>{MISSED_LABEL}</dt>
+              <dd>{missed}</dd>
+            </div>
+          )}
           <div>
-            <dt>Přeneseno</dt>
+            <dt>{CARRIED_LABEL}</dt>
             <dd>{carried}</dd>
           </div>
           <div>
@@ -646,7 +652,10 @@ function Week({
         {days.map((day) => {
           const key = localKey(day);
           const chores = rows.filter((chore) => chore.weekDay === key);
-          const { done, total } = choreTally(chores);
+          const carried = chores.filter((chore) => chore.occurrence === 'carried').length;
+          const { done, total } = choreTally(
+            chores.filter((chore) => chore.occurrence !== 'carried'),
+          );
           return (
             <section
               className="fam-person-group fam-person-day"
@@ -660,16 +669,16 @@ function Week({
                   {longDate(day)}
                 </span>
                 <small>
-                  {total
-                    ? `${formatOutOf(done, total)} hotovo`
-                    : history.entries
-                      ? key < today
-                        ? 'Bez záznamů'
-                        : 'Bez úkolů'
-                      : ''}
+                  {[
+                    total ? `${formatOutOf(done, total)} hotovo` : '',
+                    carried ? `${CARRIED_LABEL}: ${carried}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') ||
+                    (history.entries ? (key < today ? 'Bez záznamů' : 'Bez úkolů') : '')}
                 </small>
               </h3>
-              {chores.length > 0 && <ChoreRows rows={chores} />}
+              {chores.length > 0 && <ChoreRows rows={chores} today={today} />}
             </section>
           );
         })}
@@ -750,7 +759,7 @@ function History({
                     <strong>{row.name}</strong>
                     <small>
                       {row.missed
-                        ? 'Zmeškáno'
+                        ? MISSED_LABEL
                         : row.date
                           ? `Hotovo v\u00a0${timeLabel(row.date)}`
                           : 'Hotovo'}
@@ -924,7 +933,6 @@ export function PersonView({
         aria-labelledby={`${id}-${tabs.indexOf(tab)}`}
         tabIndex={0}
       >
-        {/* ≥ 768 px: the sections flow through two balanced columns (no half-empty column). */}
         <div className="fam-person-flow" data-tab={tab}>
           {tab === 'Dnes' && (
             <>
