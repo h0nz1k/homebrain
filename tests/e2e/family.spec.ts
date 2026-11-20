@@ -1359,6 +1359,7 @@ test.describe('Rodina – detail osoby P1', () => {
 const polishShots = process.env.HB_FAMILY_POLISH4_SHOTS;
 test('Rodina – snímky doladění', async ({ page }) => {
   test.skip(!polishShots, 'nastav HB_FAMILY_POLISH4_SHOTS');
+  test.setTimeout(90_000);
   await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
   const shot = (name: string) =>
     page.screenshot({ path: join(polishShots!, `${name}.png`), animations: 'disabled' });
