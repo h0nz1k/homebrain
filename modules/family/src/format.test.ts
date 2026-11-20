@@ -77,6 +77,13 @@ describe('family format', () => {
       text: 'Po termínu (8:00)',
       tone: 'crit',
     });
+    for (const state of ['overdue', 'claimed'] as const) {
+      expect(choreNote(c(state, at(1, 8)), now)).toEqual({
+        text: 'Přeneseno · původně po 1. 6.',
+        tone: 'crit',
+      });
+    }
+    expect(choreNote(c('done', at(1, 8)), now).text).toBe('');
     expect(pointsLabel(2)).toBe('+2\u00a0body');
     expect(pointsLabel(1.5)).toBe('+1,5\u00a0bodu');
   });

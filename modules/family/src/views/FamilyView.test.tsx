@@ -120,6 +120,28 @@ describe('FamilyView', () => {
     expect(screen.queryByTestId('family-approvals')).toBeNull();
   });
 
+  it('kiosk: shows three open rows and opens the child detail for the remaining rows', async () => {
+    const mock = createMockFamilyApi({ role: 'kiosk' });
+    const snapshot = await mock.get();
+    const kid = snapshot.kids[0]!;
+    const examples = ['Srovnat knihy', 'Připravit batoh'].map((name, index) => ({
+      ...kid.chores.find((chore) => chore.state === 'todo' && !chore.swap_today?.muted)!,
+      id: `demo-extra-${index}`,
+      name,
+      swap_today: undefined,
+    }));
+    kid.chores.push(...examples);
+    snapshot.members!.find((member) => member.id === kid.id)!.chores = kid.chores;
+    setFamilyApiFactory(() => ({ ...mock, get: async () => snapshot }));
+    render(<FamilyView store={store} bindings={{}} kiosk />);
+    const card = (await screen.findAllByTestId('family-kid'))[0]!;
+    expect(within(card).getAllByTestId('family-chore')).toHaveLength(3);
+    expect(within(card).queryByText('Připravit batoh')).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: /^\+1 další/ }));
+    const person = await screen.findByTestId('family-person');
+    expect(within(person).getByText('Připravit batoh')).toBeTruthy();
+  });
+
   it('handed-out chore: points struck with „→ name“, not counted twice', async () => {
     await mount('owner');
     const out = screen

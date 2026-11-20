@@ -433,7 +433,7 @@ export const familyStyles = `
 .fam-chore[data-state='done'] { min-height: 56px; }
 .fam-chore-meta .hb-pill.fam-pending-pill { white-space: nowrap; max-width: 100%; flex: 0 1 auto; }
 .fam-chore-meta .fam-due { color: var(--hb-t2); white-space: nowrap; }
-.fam-chore-meta .fam-due[data-tone='crit'] { color: var(--hb-crit); }
+.fam-chore-meta .fam-due[data-tone='crit'] { color: var(--hb-crit); white-space: normal; }
 .fam-pts { color: color-mix(in srgb, var(--hb-t1) 82%, transparent); }
 .fam-chore[data-state='done'] .fam-pts, .fam-chore[data-muted] .fam-pts { color: color-mix(in srgb, var(--hb-t1) 70%, transparent); font-weight: 600; }
 .fam-chore[data-muted] .fam-chore-t b { color: color-mix(in srgb, var(--hb-t1) 70%, transparent); }
@@ -864,7 +864,7 @@ export const familyStyles = `
 .fam-tile-points { font-size: 17px; font-weight: 650; }
 .fam[data-kiosk] .fam-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.16fr); }
 .fam[data-kiosk] .fam-card, .fam[data-kiosk] .fam-person-view {
-  --hb-t2: color-mix(in srgb, var(--hb-t1) 80%, var(--hb-s1));
+  --hb-t2: color-mix(in srgb, var(--hb-t1) 92%, var(--hb-s1));
 }
 .fam[data-kiosk] :is(.fam-card, .fam-person-view) :is(small, .fam-meta, .fam-legend, .fam-ev p, .fam-ev time small,
   .fam-avatar.fam-avatar-sm, .fam-person-back, .fam-person-section-head p) { font-size: max(16px, 1em); }
@@ -1011,7 +1011,7 @@ export const familyStyles = `
 .fam-week-bars li[data-today] .fam-week-bar { box-shadow: inset 0 0 0 1.5px var(--person-color); }
 .fam-week-bars li[data-future] .fam-week-bar { background: color-mix(in srgb, var(--hb-t1) 4%, transparent); }
 .fam-week-bars small { color: var(--hb-t2); font-size: 13px; }
-.fam-week-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.fam-week-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin: 0; }
 .fam-week-stats div { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--hb-t1) 5%, transparent); }
 .fam-week-stats dt { color: var(--hb-t2); font-size: 13px; }
 .fam-week-stats dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1027,40 +1027,44 @@ export const familyStyles = `
 .hb-shell:has(.fam-person-view) .hb-toast-stack { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .fam-person-view[data-toast] { padding-bottom: 104px; }
 
-/* ≥ 768 px: sections flow through two balanced columns – no half-empty column. */
+/* Keep the week list full width. Today and History use balanced columns from 768 px. */
 .fam-person-flow { display: grid; gap: 20px; min-width: 0; }
 @media (max-width: 767px) {
   .fam-person-flow[data-tab='Historie'] .fam-person-summary { display: none; }
 }
 @media (min-width: 768px) {
-  .fam .fam-person-flow { display: block; columns: 2; column-gap: 20px; }
-  .fam-person-flow > section, .fam-person-flow .fam-person-day, .fam-person-flow .fam-person-group {
+  .fam .fam-person-flow:not([data-tab='Týden']) { display: block; columns: 2; column-gap: 20px; }
+  .fam-person-flow:not([data-tab='Týden']) > section, .fam-person-flow:not([data-tab='Týden']) .fam-person-group {
     break-inside: avoid; margin-bottom: 16px;
   }
-  .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history),
-  .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history) > .fam-person-surface { display: contents; }
-  .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history) > .fam-person-section-head { break-after: avoid; padding-top: 2px; }
-  .fam .fam-person-flow :is(.fam-person-tasks, .fam-person-week, .fam-person-history) .fam-person-group {
+  .fam-person-flow :is(.fam-person-tasks, .fam-person-history),
+  .fam-person-flow :is(.fam-person-tasks, .fam-person-history) > .fam-person-surface { display: contents; }
+  .fam-person-flow :is(.fam-person-tasks, .fam-person-history) > .fam-person-section-head { break-after: avoid; padding-top: 2px; }
+  .fam .fam-person-flow :is(.fam-person-tasks, .fam-person-history) .fam-person-group {
     display: block; background: var(--fam-person-surface); border-radius: 18px; padding: 4px 12px 6px; box-shadow: var(--hb-elev-1); border-top: 0;
   }
-  .fam .fam-person-flow .fam-person-day[data-today] {
-    margin-inline: 0; padding-inline: 12px; border-radius: 18px;
-    background: color-mix(in srgb, var(--person-color) 12%, var(--fam-person-surface));
-    box-shadow: var(--hb-elev-1), inset 4px 0 var(--person-color);
-  }
-  .fam-person-flow > section:last-child { margin-bottom: 0; }
+  .fam-person-flow:not([data-tab='Týden']) > section:last-child { margin-bottom: 0; }
   .fam-person-flow .fam-person-empty { break-inside: avoid; }
 }
 
+.fam-person-week .fam-person-group-head { flex-wrap: wrap; }
+.fam-person-week .fam-person-group-head small { white-space: normal; }
+
 /* Kiosk: every secondary text ≥ 16 px and ≥ 4.5:1 (subtitles, pills, dates, legend, counters…). */
-.fam[data-kiosk] { --hb-t2: color-mix(in srgb, var(--hb-t1) 80%, var(--hb-s1)); }
+.fam[data-kiosk] { --hb-t2: color-mix(in srgb, var(--hb-t1) 92%, var(--hb-s1)); }
 .fam[data-kiosk] :is(small, .fam-meta, .fam-legend, .fam-event-state, .fam-now-pill, .fam-person-presence,
   .fam-person-progress, .fam-wk-time, .fam-free, .fam-shop-more, .fam-upcoming-more, .fam-detail, .fam-due,
   .fam-swap-tag, .fam-pending-pill, .fam-handover-pending, .fam-person-points, .fam-pts, .fam-tile-points,
   .fam-day > div:first-child small, .fam-week-bars small, .fam-week-bars b, .fam-week-stats dt,
   .fam-person-group-title, .fam-week-ahead li > span:first-child, .fam-person-section-head p) { font-size: max(16px, 1em); }
 .fam[data-kiosk] .fam-event-state, .fam[data-kiosk] .fam-now-pill { line-height: 24px; padding-inline: 10px; }
-.fam[data-kiosk] .fam-chore-meta .fam-swap-tag[data-kind='transferred_out'] { font-size: 16px; color: var(--hb-t2); }
+.fam[data-kiosk] :is(.fam-person-progress, .fam-chore-meta .fam-due, .fam-person-task-text small),
+.fam[data-kiosk] .fam-chore-meta .fam-swap-tag[data-kind='transferred_out'] { font-size: 18px; }
+.fam[data-kiosk] .fam-chores { row-gap: 4px; }
+.fam[data-kiosk] .fam-chores-more {
+  min-height: 44px; padding-inline: 12px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--hb-t1); font-size: 18px; text-decoration: underline; cursor: pointer;
+}
 .fam[data-kiosk] .fam-ev { grid-template-columns: 108px 3px minmax(0, 1fr) auto; }
 .fam[data-kiosk] .fam-day li { grid-template-columns: 84px 8px minmax(0, 1fr); gap: 6px; }
 .fam[data-kiosk] .fam-day { grid-template-columns: 58px minmax(0, 1fr); }
