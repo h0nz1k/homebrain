@@ -1,0 +1,273 @@
+import { expect, test, type Page } from '@playwright/test';
+
+// Lazy chunk + 3235 × 1300 drawing: give slow CI runners room.
+test.describe.configure({ timeout: 120_000 });
+
+// Topení – celé schéma (p3i, r2): fullscreen pan/zoom from the Toky card, dev mock data.
+
+async function open(page: Page, query: string) {
+  await page.goto(`/homebrain-topeni?${query}`);
+  await page.getByTestId('heating-full-open').click({ timeout: 20_000 });
+  const sheet = page.getByTestId('heating-full-schematic');
+  await expect(sheet.getByTestId('heating-full-svg')).toBeVisible({ timeout: 30_000 });
+  return sheet;
+}
+
+/**
+ * Every text of the drawing inside the visible frame (viewport ∩ preset clip): returns the texts
+ * that are cut by the frame edge and the smallest font size (CSS px) of the fully visible ones.
+ */
+async function frameCheck(page: Page) {
+  return page.getByTestId('heating-full-viewport').evaluate((port) => {
+    const pr = port.getBoundingClientRect();
+    const svg = port.querySelector('svg')!;
+    const sr = svg.getBoundingClientRect();
+    const k = sr.width / Number(svg.getAttribute('width'));
+    const box = port.querySelector<HTMLElement>('[data-clip-box]')?.dataset.clipBox;
+    let [l, t, r, b] = [pr.left, pr.top, pr.right, pr.bottom];
+    if (box) {
+      const [x, y, w, h] = box.split(' ').map(Number) as [number, number, number, number];
+      l = Math.max(l, sr.left + x * k);
+      t = Math.max(t, sr.top + y * k);
+      r = Math.min(r, sr.left + (x + w) * k);
+      b = Math.min(b, sr.top + (y + h) * k);
+    }
+    const cut: string[] = [];
+    let min = Infinity;
+    for (const el of Array.from(svg.querySelectorAll<SVGTextElement>('text'))) {
+      const q = el.getBoundingClientRect();
+      if (q.width === 0 || !el.textContent?.trim()) continue;
+      const out = q.right <= l + 1 || q.left >= r - 1 || q.bottom <= t + 1 || q.top >= b - 1;
+      if (out) continue;
+      const inside = q.left >= l - 1 && q.right <= r + 1 && q.top >= t - 1 && q.bottom <= b + 1;
+      if (!inside) cut.push(el.textContent.trim());
+      else min = Math.min(min, Number(el.getAttribute('font-size')) * k);
+    }
+    return { cut, min };
+  });
+}
+
+const infinite = (page: Page) =>
+  page.evaluate(
+    () =>
+      document.getAnimations().filter((a) => {
+        const target = (a.effect as KeyframeEffect | null)?.target;
+        return (
+          a.effect?.getTiming().iterations === Infinity &&
+          target instanceof Element &&
+          target.closest('[data-testid="heating-full-svg"]') !== null
+        );
+      }).length,
+  );
+
+/** WCAG contrast of an element's fill against a colour. */
+const contrastOf = (page: Page, selector: string, against: string) =>
+  page.evaluate(
+    ([sel, bg]) => {
+      const el = document.querySelector(sel!)!;
+      const rgb = (c: string) => (c.match(/[\d.]+/gu) ?? []).slice(0, 3).map(Number);
+      const lum = (c: number[]) =>
+        c
+          .map((v) => v / 255)
+          .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+          .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i]!, 0);
+      const probe = document.createElement('div');
+      probe.style.color = bg!;
+      el.closest('.ht-fs')!.appendChild(probe);
+      const back = rgb(getComputedStyle(probe).color);
+      probe.remove();
+      const fore = rgb(getComputedStyle(el).fill);
+      // no translucent ancestors may thin the text
+      let op = 1;
+      for (let n: Element | null = el; n && n.tagName !== 'svg'; n = n.parentElement)
+        op *= Number(getComputedStyle(n).opacity);
+      const [a, b] = [lum(fore), lum(back)].sort((x, y) => y - x) as [number, number];
+      return { ratio: (a + 0.05) / (b + 0.05), opacity: op };
+    },
+    [selector, against],
+  );
+
+for (const theme of ['dark', 'light'] as const) {
+  test(`celé schéma ${theme}: živá data bez poruchy, otazníky, kontrast, bez kódů PLC`, async ({
+    page,
+  }) => {
+    const sheet = await open(page, `topeni=heating&theme=${theme}`);
+    await expect(sheet).toHaveAttribute('data-fs-theme', theme);
+    // realistic data: no fault anywhere, mixing valve position unknown = neutral, not a fault
+    await expect(sheet.getByTestId('heating-full-alert')).toHaveCount(0);
+    await expect(sheet.locator('[data-fault-glyph]')).toHaveCount(0);
+    await expect(sheet.locator('[data-glyph="valve_mix"]')).toHaveAttribute('data-path', 'unknown');
+    await expect(sheet.getByTestId('heating-full-mix-pct')).toHaveText('poloha –');
+    await expect(sheet.getByTestId('heating-full-cool-state')).toHaveText('bez signálu');
+    // heat pump: compressor running, readouts outside the cabinet
+    await expect(sheet.getByTestId('heating-full-hp')).toHaveAttribute('data-compressor', 'on');
+    await expect(sheet.locator('[data-label="hp_t_out"]')).toContainText('Výstup TČ');
+    await expect(sheet.locator('[data-label="hp_coll_in"] [data-reading="none"]')).toHaveText(/–/u);
+    // rybárna: valve to heating open = tempering active
+    await expect(sheet.getByTestId('heating-full-fish-state')).toHaveText('topí');
+    await expect(sheet.getByTestId('heating-full-pool-card')).toContainText('27,9 °C');
+    // one marker system, questions in the legend
+    for (const q of ['?1', '?2', '?3', '?4']) {
+      await expect(sheet.locator(`[data-badge-for][data-question="${q}"]`).first()).toBeVisible();
+    }
+    // secondary labels ≥ 4.5:1 on the technical room, never thinned by opacity
+    for (const sel of [
+      '[data-testid="heating-full-cool-state"]',
+      '[data-testid="heating-full-mix-pct"]',
+      '[data-label="hp_coll_out"]',
+      '[data-label="hx_cool"]',
+    ]) {
+      const c = await contrastOf(page, sel, 'var(--fs-tech)');
+      expect(c.ratio, sel).toBeGreaterThanOrEqual(4.5);
+      expect(c.opacity, sel).toBe(1);
+    }
+    const text = await sheet.getByTestId('heating-full-svg').textContent();
+    expect(text).not.toMatch(/\b[XYR]\d{2,4}(\.\d)?\b/u);
+    expect(text).not.toMatch(new RegExp(`${'sol'}ank|${'br'}ine`, 'i'));
+    expect(text).not.toMatch(/porucha|nouzov/iu);
+    // service view adds the addresses of the (here synthetic) private map
+    await sheet.getByTestId('heating-full-service').click();
+    await expect(sheet.locator('[data-service-code="hp_t_out"]')).toHaveText('X336');
+    await sheet.getByTestId('heating-full-close').click();
+    await expect(sheet).toHaveCount(0);
+  });
+}
+
+test('celé schéma: porucha směšovače jen z explicitní kontrolky (testovací fixture)', async ({
+  page,
+}) => {
+  const sheet = await open(page, 'topeni=heating&ventil=porucha&theme=light');
+  const alert = sheet.getByTestId('heating-full-alert');
+  await expect(alert).toContainText('Směšovací ventil');
+  await expect(sheet.locator('[data-glyph="valve_mix"] [data-fault-glyph]')).toHaveCount(1);
+  // the banner sits above the drawing, never over it
+  const a = (await alert.boundingBox())!;
+  const v = (await sheet.getByTestId('heating-full-viewport').boundingBox())!;
+  expect(a.y + a.height).toBeLessThanOrEqual(v.y + 0.5);
+});
+
+test('celé schéma: šipky jen u běžícího čerpadla, vždy po směru trubky', async ({ page }) => {
+  // heating scenario: "Čerpadlo topení" stojí → the heating loop (incl. the fish branch) is
+  // filled and still: no chevrons, no motion; house scenario: the pump runs → chevrons appear.
+  for (const [query, pumpRuns] of [
+    ['topeni=heating&theme=dark', false],
+    ['topeni=house&theme=dark', true],
+  ] as const) {
+    const sheet = await open(page, query);
+    const svg = sheet.getByTestId('heating-full-svg');
+    const result = await svg.evaluate((root) => {
+      const loop = /mix|tut|jsup|rad|jret|jmix|vcool|hx_to_jbyp|jbyp|ryb|^js|^jr|lower|upper/u;
+      const wrong: string[] = [];
+      const routes: string[] = [];
+      for (const g of Array.from(root.querySelectorAll<SVGGElement>('[data-flow-route]'))) {
+        const route = g.dataset.flowRoute!;
+        routes.push(route);
+        const pipe = root.querySelector<SVGPathElement>(`path[data-route="${route}"]`)!;
+        if (pipe.dataset.state !== 'flow')
+          wrong.push(`${route}: chevron on a ${pipe.dataset.state} pipe`);
+        const m = /translate\(([-\d.]+) ([-\d.]+)\) rotate\(([-\d.]+)\)/u.exec(
+          g.querySelector('g')!.getAttribute('transform')!,
+        )!;
+        const [x, y, angle] = [Number(m[1]), Number(m[2]), Number(m[3])];
+        // nearest point on the pipe, then the drawing (= flow) direction there
+        const len = pipe.getTotalLength();
+        let best = 0;
+        let bestD = Infinity;
+        for (let s = 0; s <= len; s += 1) {
+          const p = pipe.getPointAtLength(s);
+          const d = Math.hypot(p.x - x, p.y - y);
+          if (d < bestD) [best, bestD] = [s, d];
+        }
+        const a = pipe.getPointAtLength(Math.max(0, best - 2));
+        const b = pipe.getPointAtLength(Math.min(len, best + 2));
+        const dir = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        const delta = Math.abs(((dir - angle + 540) % 360) - 180);
+        if (bestD > 1.5 || delta > 5) wrong.push(`${route}@${x},${y}: ${angle}° vs pipe ${dir}°`);
+      }
+      // a label arrow (if any) must match the chevrons of its pipe: r2 has none
+      const arrows = Array.from(root.querySelectorAll('text'))
+        .map((t) => t.textContent ?? '')
+        .filter((t) => /[←→↑↓]/u.test(t));
+      return {
+        wrong,
+        arrows,
+        loop: routes.filter((r) => loop.test(r)),
+        anim: root.querySelectorAll('.fs-flow-anim').length,
+        flowing: root.querySelectorAll('path[data-route][data-state="flow"]').length,
+      };
+    });
+    expect(result.wrong, query).toEqual([]);
+    expect(result.arrows, query).toEqual([]);
+    expect(result.anim, query).toBe(result.flowing);
+    if (pumpRuns) expect(result.loop.length, query).toBeGreaterThan(0);
+    else expect(result.loop, query).toEqual([]);
+    await expect(sheet.locator('path[data-route="jrybr_to_jret"]')).not.toHaveAttribute(
+      'data-state',
+      'flow',
+    );
+  }
+});
+
+test('celé schéma: rybárna – ventil zavřený, teplo stačí', async ({ page }) => {
+  const sheet = await open(page, 'topeni=idle&theme=dark');
+  await expect(sheet.getByTestId('heating-full-fish-state')).toHaveText('netopí – teplo stačí');
+  await expect(sheet.locator('path[data-route="pryb_to_js"]')).toHaveAttribute(
+    'data-state',
+    'still',
+  );
+  await expect(sheet.locator('[data-glyph="ryb_water"][data-state="off"]')).toHaveCount(1);
+});
+
+test('celé schéma: předvolby sedí na obsah, nic neořezávají, tablet ≥ 12 px', async ({
+  page,
+}, info) => {
+  const sheet = await open(page, 'topeni=heating&theme=dark');
+  const narrow = (page.viewportSize()?.width ?? 0) < 700;
+  await expect(sheet).toHaveAttribute('data-preset', narrow ? 'hp' : 'all');
+  if (narrow) {
+    // gesture hint until the first interaction
+    await expect(sheet.getByTestId('heating-full-hint')).toBeVisible();
+  }
+  const ids = ((await sheet.getAttribute('data-presets')) ?? '').split(' ');
+  expect(ids.length).toBeGreaterThanOrEqual(3);
+  for (const id of ids) {
+    await sheet.getByTestId(`heating-full-preset-${id}`).click();
+    await expect(sheet).toHaveAttribute('data-preset', id);
+    const { cut, min } = await frameCheck(page);
+    expect(cut, `${id}: texts cut by the frame`).toEqual([]);
+    const floor = info.project.name === 'mobile-s21' ? 9.4 : 11.9;
+    expect(min, `${id}: smallest text`).toBeGreaterThanOrEqual(floor);
+  }
+  await expect(sheet.getByTestId('heating-full-hint')).toHaveCount(0);
+  await sheet.getByTestId('heating-full-preset-all').click();
+  const fit = Number(await sheet.getAttribute('data-scale'));
+  await page.getByRole('button', { name: 'Přiblížit' }).click();
+  await expect
+    .poll(async () => Number(await sheet.getAttribute('data-scale')))
+    .toBeGreaterThan(fit);
+  await expect(sheet).toHaveAttribute('data-preset', 'free');
+  const noScroll = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(noScroll).toBeLessThanOrEqual(0);
+});
+
+test('celé schéma: legenda HTML (sbalitelná) se stavem', async ({ page }) => {
+  const sheet = await open(page, 'topeni=heating&theme=dark');
+  const toggle = sheet.getByTestId('heating-full-legend-toggle');
+  if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+  const legend = sheet.getByTestId('heating-full-legend');
+  await expect(legend).toContainText('AKN');
+  await expect(legend).toContainText('Čárkovaně = běžně neaktivní');
+  await expect(legend.locator('[data-question]')).toHaveCount(4);
+  await expect(sheet.getByTestId('heating-full-status')).toContainText('−1,8 °C');
+  await toggle.click();
+  await expect(legend).toHaveCount(0);
+});
+
+test('celé schéma: pohyb jen bez omezení pohybu', async ({ page }) => {
+  await open(page, 'topeni=heating&theme=dark');
+  await expect.poll(() => infinite(page)).toBeGreaterThan(0);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => infinite(page)).toBe(0);
+});

@@ -160,6 +160,53 @@ function mockExtras(
   };
 }
 
+/** Made-up PLC addresses (same style as docs/modules/heating-map.example.yaml). */
+const MOCK_SERVICE_CODES: Record<string, string> = {
+  'heat_pump.compressor_on': 'Y50.7',
+  'heat_pump.condenser_out': 'X336',
+  'heat_pump.return_temp': 'X348',
+  'heat_pump.collector_in': 'X360',
+  'heat_pump.collector_out': 'X372',
+  'house.supply_temp': 'X324',
+  'house.attic_temp': 'X312',
+  'house.ref_temp': 'X300',
+  'house.mixing_valve_pct': 'R7050',
+  'tank.top': 'X384',
+  'tank.bottom': 'X396',
+  'dhw.temp': 'X384',
+  'dhw.valve_to_dhw': 'Y51.0',
+  'pumps.heating': 'Y50.6',
+  'pumps.secondary': 'Y50.5',
+  'extras.solar_temp': 'X420',
+  'extras.solar_pump': 'Y52.0',
+  'extras.pool_temp': 'X432',
+  'extras.pool_heating_pump': 'Y52.1',
+  'extras.pool_filter_pump': 'Y52.2',
+  'extras.fish_temp': 'X444',
+  'extras.fish_valve_open': 'Y52.3',
+};
+
+/**
+ * Dev/e2e fault fixture only (`&ventil=porucha`): a mixing-valve fault lamp mapped under the
+ * explicit key. The real regulation has no such lamp today; the default mock has no faults.
+ */
+export function withMixerFault(snap: HeatingSnapshot, now = Date.now()): HeatingSnapshot {
+  return {
+    ...snap,
+    faults: {
+      ...snap.faults,
+      active: [
+        ...snap.faults.active,
+        {
+          key: 'mixing_valve',
+          label: 'Směšovací ventil ÚT – porucha',
+          since: new Date(now - 2 * HOUR).toISOString(),
+        },
+      ],
+    },
+  };
+}
+
 export function buildMockSnapshot(
   scenario: HeatingScenario,
   rooms: number,
@@ -207,7 +254,8 @@ export function buildMockSnapshot(
       attic_temp: 19.6,
       circuit_on: scenario === 'house',
       supply_temp: 37.8,
-      mixing_valve_pct: scenario === 'house' ? 72 : 100,
+      // live regulation: the valve position is not mapped (null); the house scenario shows a value
+      mixing_valve_pct: scenario === 'house' ? 72 : null,
     },
     heat_pump: {
       compressor_on: running,
@@ -215,8 +263,8 @@ export function buildMockSnapshot(
       power_w: running ? (scenario === 'dhw' ? 4900 : 4200) : 6,
       condenser_out: running ? (scenario === 'dhw' ? 52.5 : 46.0) : 32.4,
       return_temp: running ? (scenario === 'dhw' ? 43.2 : 41.8) : 29.7,
-      brine_in: null,
-      brine_out: null,
+      collector_in: null,
+      collector_out: null,
       primary_prerun: null,
       discharge_temp: null,
       discharge_bar: null,
@@ -314,6 +362,7 @@ export function buildMockSnapshot(
               : null,
     ),
     rooms: DEMO_ROOMS.slice(0, Math.max(0, Math.min(4, rooms))),
+    service_codes: scenario === 'unconfigured' ? {} : MOCK_SERVICE_CODES,
   };
   const tune: Record<
     Exclude<
@@ -482,8 +531,7 @@ export function buildMockSnapshot(
         id: 'solar_off_hot',
         severity: 'critical',
         title: 'Solár je vypnutý a kolektor se přehřívá',
-        body:
-          'Kolektor má 118\u202f°C, ale solární ohřev je v regulaci vypnutý – teplo se neukládá a kapalina se přehřívá. Zapněte solární ohřev v regulaci.',
+        body: 'Kolektor má 118\u202f°C, ale solární ohřev je v regulaci vypnutý – teplo se neukládá a kapalina se přehřívá. Zapněte solární ohřev v regulaci.',
         since: iso(now - 95 * MIN),
         value: '118',
       },
@@ -733,6 +781,7 @@ export function createMockHeatingApi(
     rooms?: number;
     now?: () => number;
     extrasMode?: HeatingExtrasMode;
+    mixerFault?: boolean;
   } = {},
 ): HeatingApi {
   const scenario =
@@ -760,7 +809,10 @@ export function createMockHeatingApi(
     },
   ];
   return {
-    get: () => delay(buildMockSnapshot(scenario, rooms, now(), extrasMode)),
+    get: () => {
+      const snap = buildMockSnapshot(scenario, rooms, now(), extrasMode);
+      return delay(opts.mixerFault ? withMixerFault(snap, now()) : snap);
+    },
     changes: () => delay(scenario === 'unconfigured' ? [] : mockChanges),
     history: (range, keys) => {
       if (scenario === 'unconfigured') return delay(buildMockHistory(range, [], now()));

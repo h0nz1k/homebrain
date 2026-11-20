@@ -58,6 +58,8 @@ class Resolved:
     mapped: set[str] = field(default_factory=set)
     faults: list[tuple[str, str, bool | None]] = field(default_factory=list)
     schedules: list[dict[str, Any]] = field(default_factory=list)
+    # contract key -> PLC address from the private map (service view of the full schematic)
+    codes: dict[str, str] = field(default_factory=dict)
 
     def active_faults(self) -> set[str]:
         return {key for key, _label, active in self.faults if active}
@@ -71,6 +73,7 @@ def resolve(
     res = Resolved(mapped=set(hmap.keys))
     for key, spec in hmap.keys.items():
         res.values[key] = _value(spec, pages, idx)
+        res.codes[key] = spec.var
     for fault in hmap.faults:
         active = _value(fault.var, pages, idx)
         res.faults.append((fault.key, fault.label, active if isinstance(active, bool) else None))
@@ -383,8 +386,8 @@ def build_payload(
             "power_w": None if power_w is None else round(power_w),
             "condenser_out": _r(v("heat_pump.condenser_out")),
             "return_temp": _r(v("heat_pump.return_temp")),
-            "brine_in": _r(v("heat_pump.brine_in")),
-            "brine_out": _r(v("heat_pump.brine_out")),
+            "collector_in": _r(v("heat_pump.collector_in")),
+            "collector_out": _r(v("heat_pump.collector_out")),
             "primary_prerun": v("heat_pump.primary_prerun"),
             "discharge_temp": _r(v("heat_pump.discharge_temp")),
             "discharge_bar": _r(v("heat_pump.discharge_bar")),
@@ -490,6 +493,8 @@ def build_payload(
             ),
         },
         "rooms": rooms or [],
+        # Service view only (never the kiosk): which PLC address feeds which payload field.
+        "service_codes": dict(sorted(res.codes.items())),
     }
 
 

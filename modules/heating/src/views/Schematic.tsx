@@ -91,7 +91,7 @@ const DIRECTIONS: Record<string, [number, number, number][]> = {
   ],
 };
 
-function usePageTheme(): 'light' | 'dark' {
+export function usePageTheme(): 'light' | 'dark' {
   const read = (): 'light' | 'dark' => {
     const theme = document.documentElement.getAttribute('data-theme');
     if (theme === 'light') return 'light';
@@ -119,7 +119,7 @@ function usePageTheme(): 'light' | 'dark' {
   return theme;
 }
 
-function logoFile(manifest: HeatingLogoManifest, theme: 'light' | 'dark'): string {
+export function logoFile(manifest: HeatingLogoManifest, theme: 'light' | 'dark'): string {
   return theme === 'dark' && manifest.logoDark ? manifest.logoDark : manifest.logo;
 }
 
@@ -303,7 +303,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const compHint = compressorLabel(hp);
   const off = scene.schematicOff;
   const solar = snap.extras.solar;
-  const groundTemp = hp.brine_in ?? hp.brine_out;
+  const groundTemp = hp.collector_in ?? hp.collector_out;
   const solarPumpPct =
     solar?.pump_pct !== null && solar?.pump_pct !== undefined
       ? solar.pump_pct

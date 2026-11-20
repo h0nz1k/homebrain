@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { navigateTab, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
@@ -56,6 +56,11 @@ import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js'
 import { SideCircuitsPortrait, SolarPortraitBanner } from './SideCircuits.js';
 import { HeatingSchematic } from './Schematic.js';
 import { heatingStyles } from './styles.js';
+
+/** Full schematic (fullscreen pan/zoom): own chunk, loaded on first open. */
+const FullSchematicSheet = lazy(() =>
+  import('../full/FullSchematicSheet.js').then((m) => ({ default: m.FullSchematicSheet })),
+);
 
 type TabId = 'ted' | 'mistnosti' | 'trendy' | 'sezony' | 'rezimy' | 'poruchy';
 const TABS: ReadonlyArray<readonly [TabId, string]> = [
@@ -268,8 +273,15 @@ function NowTab({
     sceneCopy?.[0] ??
     `${act.headline[0]}${act.headline[1]}${act.headline[2]}`.replace(/\s+/g, ' ').trim();
   const heroCardTone =
-    act.tone === 'crit' ? 'critical' : act.tone === 'warn' ? 'warning' : act.state === 'off' ? 'notice' : 'calm';
+    act.tone === 'crit'
+      ? 'critical'
+      : act.tone === 'warn'
+        ? 'warning'
+        : act.state === 'off'
+          ? 'notice'
+          : 'calm';
   const showCompressorMeta = act.state !== 'off';
+  const [fullOpen, setFullOpen] = useState(false);
   return (
     <div className="ht-now">
       <AlertBanner snap={snap} onDetail={() => go('poruchy')} />
@@ -293,7 +305,9 @@ function NowTab({
                 </span>
                 <b className={hp.power_w === null ? 'ht-muted' : undefined}>
                   Elektřina TČ {powerLine}
-                  {hp.energy_today_kwh !== null ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}
+                  {hp.energy_today_kwh !== null
+                    ? ` · dnes ${fmtNum(hp.energy_today_kwh)}\u00a0kWh`
+                    : ''}
                 </b>
               </p>
             )}
@@ -340,6 +354,15 @@ function NowTab({
           </div>
           <div className="ht-now-schematic">
             <HeatingSchematic snap={snap} />
+            <Button
+              type="button"
+              variant="ghost"
+              className="ht-full-open"
+              data-testid="heating-full-open"
+              onClick={() => setFullOpen(true)}
+            >
+              Celé schéma
+            </Button>
           </div>
           <aside className="ht-land-dash" data-testid="heating-land-dash">
             <LandscapeDashboard
@@ -366,6 +389,11 @@ function NowTab({
           )}
         </div>
       </Card>
+      {fullOpen && (
+        <Suspense fallback={null}>
+          <FullSchematicSheet snap={snap} open onClose={() => setFullOpen(false)} />
+        </Suspense>
+      )}
       <HpElectricityBar snap={snap} className="ht-card ht-portrait-only" />
       <SolarPortraitBanner snap={snap} />
       <div className="ht-stats ht-portrait-only">

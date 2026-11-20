@@ -6,3 +6,4 @@ docs/
 **/README.md
 **/AGENTS.md
 modules/weather/src/views/basemap.data.ts
+modules/heating/src/full/geometry.gen.ts
