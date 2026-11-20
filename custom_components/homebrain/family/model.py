@@ -165,17 +165,23 @@ def discover_kids(states: Iterable[Any], opts: Mapping[str, Any]) -> list[dict[s
     return [m for m in discover_members(states, opts) if m["role"] == "child"]
 
 
+def chore_frequency(attrs: Mapping[str, Any]) -> str:
+    return str(
+        attrs.get("recurring_frequency") or attrs.get("frequency") or attrs.get("recurrence") or ""
+    ).lower()
+
+
 def _swap_block_reason(attrs: Mapping[str, Any]) -> str | None:
     crit = str(attrs.get("completion_criteria") or attrs.get("criteria") or "independent")
     if crit != "independent":
         return "Společný úkol zatím nelze předat."
-    freq = str(attrs.get("frequency") or attrs.get("recurrence") or "")
+    freq = chore_frequency(attrs)
     if freq.startswith("rotation") or freq in {"shared_first", "shared_all"}:
         if freq.startswith("rotation"):
             return "Střídání upravuje rodič v ChoreOps."
         return "Společný úkol zatím nelze předat."
-    if freq in {"none", "daily_multi", ""} and crit != "independent":
-        return "Tento úkol nelze dnes předat."
+    if freq == "none":
+        return "Jednorázový úkol nelze předat."
     return None
 
 
@@ -247,12 +253,15 @@ def apply_swap_overlays(
             snap = op.get("source_snapshot") or {}
             chore_uuid = chore.get("chore_uuid")
             opaque = chore.get("opaque_id")
-            source_matches = snap.get("chore_id") in {chore_uuid, opaque, chore.get("id")}
-            clone_matches = op.get("clone_id") is not None and op.get("clone_id") in {
-                chore_uuid,
-                opaque,
-                chore.get("id"),
-            }
+            source_matches = (
+                snap.get("chore_id") in {chore_uuid, opaque, chore.get("id")}
+                or snap.get("opaque_id") == opaque
+            )
+            token = op.get("operation_token")
+            clone_matches = op.get("clone_id") is not None and (
+                op["clone_id"] in {chore_uuid, opaque, chore.get("id")}
+                or (token and chore["name"].endswith(f" · HB-{token[:8]}"))
+            )
             if op.get("from_kid_id") == kid_uuid and source_matches:
                 to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
                 row["swap_today"] = {

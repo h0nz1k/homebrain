@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
+from functools import wraps
 from typing import Any, Final
 from zoneinfo import ZoneInfo
 
@@ -28,15 +29,42 @@ def _store(hass: HomeAssistant) -> FamilySwapStore:
     return raw
 
 
+def _serialize_mutation(handler):
+    @wraps(handler)
+    async def run(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+        async with _store(hass).mutation_lock:
+            await handler(hass, connection, msg)
+
+    return run
+
+
 def _kids_index(kids: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(k.get("kid_uuid") or k["id"]): k for k in kids}
 
 
 def _occurrence(hass: HomeAssistant, kid: dict[str, Any], opaque: str) -> dict[str, Any] | None:
-    for row in model.kid_chores(hass.states.get, kid):
+    rows = model.apply_swap_overlays(
+        model.kid_chores(hass.states.get, kid),
+        kid=kid,
+        store_data=_store(hass).data,
+        kids_by_uuid={},
+    )
+    for row in rows:
         if row.get("opaque_id") == opaque or row.get("id") == opaque:
+            if (row.get("swap_today") or {}).get("kind") == "transferred_out":
+                row["can_request_swap"] = False
             return row
     return None
+
+
+def _swap_snapshot(hass: HomeAssistant, cfg: str, occ: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "chore_id": choreops_adapter.chore_id(hass, cfg, occ["id"]),
+        "opaque_id": occ["id"],
+        "name": occ["name"],
+        "due": occ["due"],
+        "points": occ["points"],
+    }
 
 
 def _require_adult(role: str) -> None:
@@ -98,6 +126,7 @@ SWAP_REQUEST_SCHEMA: Final = {
     {vol.Required("type"): "homebrain/family/swap/request", **SWAP_REQUEST_SCHEMA}
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_swap_request(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
@@ -106,6 +135,20 @@ async def websocket_family_swap_request(
     tz = ZoneInfo(hass.config.time_zone)
     now = dt_util.now()
     actor = str(getattr(connection.user, "id", "") or "")
+    payload = {key: value for key, value in msg.items() if key != "id"}
+    payload["actor"] = actor
+    dedupe = store.dedupe_lookup(msg["client_request_id"])
+    if dedupe:
+        saved = dedupe["payload"]
+        request = dedupe["result"].get("request") or {}
+        legacy = {key: value for key, value in saved.items() if key != "id"}
+        if saved == payload or (
+            request.get("requester_user_id") == actor and {**legacy, "actor": actor} == payload
+        ):
+            connection.send_result(msg["id"], dedupe["result"])
+        else:
+            connection.send_error(msg["id"], "conflict", "Tento požadavek už byl použit.")
+        return
     kids = _children(hass)
     by_uuid = _kids_index(kids)
     from_k = by_uuid.get(msg["from_kid"])
@@ -130,10 +173,6 @@ async def websocket_family_swap_request(
     except swap_model.DomainError as err:
         connection.send_error(msg["id"], err.code, str(err))
         return
-    dedupe = store.dedupe_lookup(msg["client_request_id"])
-    if dedupe:
-        connection.send_result(msg["id"], dedupe["result"])
-        return
     rid = store.new_request_id()
     req = {
         "id": rid,
@@ -152,7 +191,7 @@ async def websocket_family_swap_request(
     store.upsert_request(rid, req)
     await store.async_save()
     result = {"request": req, "revision": store.revision}
-    store.remember_dedupe(msg["client_request_id"], dict(msg), result)
+    store.remember_dedupe(msg["client_request_id"], payload, result)
     await store.async_save()
     connection.send_result(msg["id"], result)
 
@@ -166,14 +205,12 @@ async def websocket_family_swap_request(
     }
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_swap_decide(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     role = _role(hass, connection)
-    try:
-        _require_adult(role)
-    except Unauthorized:
-        raise
+    _require_adult(role)
     store = _store(hass)
     req = (store.data.get("requests") or {}).get(msg["request_id"])
     if not isinstance(req, dict):
@@ -186,8 +223,11 @@ async def websocket_family_swap_decide(
     except swap_model.DomainError as err:
         connection.send_error(msg["id"], err.code, str(err))
         return
-    store.upsert_request(msg["request_id"], updated)
-    await store.async_save()
+    if msg["decision"] == "approve" and swap_model.request_expired(req, now):
+        store.upsert_request(msg["request_id"], swap_model.reduce_request(req, "expire", now))
+        await store.async_save()
+        connection.send_error(msg["id"], "expired", "Platí jen pro dnešní den.")
+        return
     op_payload = None
     if updated.get("status") == "approved":
         cfg = choreops_adapter.config_entry_id(hass)
@@ -202,12 +242,13 @@ async def websocket_family_swap_decide(
             connection.send_error(msg["id"], "not_found", "Dítě nenalezeno")
             return
         occ = _occurrence(hass, from_k, str(updated.get("source_chore_id")))
-        snap = {
-            "chore_id": (occ or {}).get("chore_uuid") or updated.get("source_chore_id"),
-            "name": (occ or {}).get("name") or "Úkol",
-            "due": (occ or {}).get("due"),
-            "points": (occ or {}).get("points"),
-        }
+        if not occ or not choreops_adapter.matches_entry(hass, cfg, occ["id"]):
+            connection.send_error(msg["id"], "not_found", "Povinnost nenalezena.")
+            return
+        if not occ["can_request_swap"]:
+            connection.send_error(msg["id"], "unsupported_chore", "Tento úkol nelze dnes předat.")
+            return
+        snap = _swap_snapshot(hass, cfg, occ)
         op_id, op = swap_service.start_operation_from_request(
             store,
             {**updated, "id": msg["request_id"]},
@@ -218,6 +259,8 @@ async def websocket_family_swap_decide(
             source_snapshot=snap,
             tz=ZoneInfo(hass.config.time_zone),
         )
+        store.upsert_request(msg["request_id"], updated)
+        await store.async_save()
         try:
             op = await swap_service.execute_operation_step(
                 hass, store, op_id, context=connection.context(msg)
@@ -226,6 +269,9 @@ async def websocket_family_swap_decide(
             connection.send_error(msg["id"], err.code, str(err))
             return
         op_payload = {"id": op_id, **op}
+    else:
+        store.upsert_request(msg["request_id"], updated)
+        await store.async_save()
     connection.send_result(
         msg["id"], {"request": updated, "operation": op_payload, "revision": store.revision}
     )
@@ -235,13 +281,32 @@ async def websocket_family_swap_decide(
     {vol.Required("type"): "homebrain/family/swap/reassign", **SWAP_REQUEST_SCHEMA}
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_swap_reassign(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     role = _role(hass, connection)
     _require_adult(role)
-    # Direct path: create approved operation without pending request.
     store = _store(hass)
+    actor = str(getattr(connection.user, "id", "") or "")
+    payload = {key: msg[key] for key in ("chore", "from_kid", "to_kid", "local_date")}
+    payload.update(action="swap/reassign", actor=actor)
+    previous = store.dedupe_lookup(msg["client_request_id"])
+    if previous:
+        if previous["payload"] != payload:
+            connection.send_error(msg["id"], "conflict", "Tento požadavek už byl použit.")
+            return
+        op_id = previous["result"]["operation_id"]
+        op = store.data["operations"][op_id]
+        if op["status"] in {"active", "completed", "cleaned", "unclaimed_expired"}:
+            connection.send_result(
+                msg["id"], {"operation": {"id": op_id, **op}, "revision": store.revision}
+            )
+        else:
+            connection.send_error(
+                msg["id"], op.get("last_error") or "service_failed", "Přeřazení se nepovedlo."
+            )
+        return
     now = dt_util.now()
     cfg = choreops_adapter.config_entry_id(hass)
     if not cfg:
@@ -255,11 +320,13 @@ async def websocket_family_swap_reassign(
         connection.send_error(msg["id"], "not_found", "Dítě nenalezeno")
         return
     occ = _occurrence(hass, from_k, msg["chore"])
+    if occ and not choreops_adapter.matches_entry(hass, cfg, occ["id"]):
+        occ = None
     tz = ZoneInfo(hass.config.time_zone)
     try:
         swap_model.validate_swap_request(
             direction="give",
-            actor_user_id=str(getattr(connection.user, "id", "") or ""),
+            actor_user_id=actor,
             from_kid=msg["from_kid"],
             to_kid=msg["to_kid"],
             chore_opaque=msg["chore"],
@@ -279,22 +346,20 @@ async def websocket_family_swap_reassign(
         "to_kid_id": msg["to_kid"],
         "local_date": msg["local_date"],
     }
-    snap = {
-        "chore_id": (occ or {}).get("chore_uuid") or msg["chore"],
-        "name": (occ or {}).get("name") or "Úkol",
-        "due": (occ or {}).get("due"),
-        "points": (occ or {}).get("points"),
-    }
-    op_id, op = swap_service.start_operation_from_request(
+    assert occ is not None
+    snap = _swap_snapshot(hass, cfg, occ)
+    op_id, _ = swap_service.start_operation_from_request(
         store,
         req,
-        actor_user_id=str(getattr(connection.user, "id", "") or ""),
+        actor_user_id=actor,
         config_entry_id=cfg,
         from_kid_name=from_k["name"],
         to_kid_name=to_k["name"],
         source_snapshot=snap,
         tz=tz,
     )
+    store.remember_dedupe(msg["client_request_id"], payload, {"operation_id": op_id})
+    await store.async_save()
     try:
         op = await swap_service.execute_operation_step(
             hass, store, op_id, context=connection.context(msg)
@@ -316,6 +381,7 @@ async def websocket_family_swap_reassign(
     }
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_swap_cancel(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
@@ -361,6 +427,7 @@ CREATE_SCHEMA: Final = {
     {vol.Required("type"): "homebrain/family/chore/create", **CREATE_SCHEMA}
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_chore_create(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
@@ -408,6 +475,11 @@ async def websocket_family_chore_create(
         chore_id = (resp.get("id") or resp.get("chore_id")) if isinstance(resp, dict) else None
         if chore_id:
             created.append(str(chore_id))
+    if len(plans) > 1 and len(created) == len(plans):
+        store = _store(hass)
+        groups = store.data.setdefault("chore_groups", {})
+        groups[store.new_operation_id()] = {"config_entry_id": cfg, "chore_ids": created}
+        await store.async_save()
     connection.send_result(
         msg["id"],
         {

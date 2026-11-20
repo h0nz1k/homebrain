@@ -24,9 +24,10 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN as HB_DOMAIN
 from ..roles import FAMILY_APPROVE_ROLES
-from . import choreops_adapter, model, persons
+from . import chore_management, choreops_adapter, model, persons
 from .person_history import PersonHistory
 from .swap_store import FamilySwapStore
+from .ws_chore import CHORE_MANAGEMENT_COMMANDS
 from .ws_common import (
     CONF_FAMILY,
     _bindings,
@@ -142,6 +143,15 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         for m in members
         if m["role"] == "child" and (role != "child" or m["own"])
     ]
+    cfg = choreops_adapter.config_entry_id(hass) if include_detail else None
+    if cfg:
+        rows = chore_management.catalog(hass, cfg, profiles)
+        groups = store_data.get("chore_groups") or {}
+        for kid in members:
+            for chore in (*kid["chores"], *kid["upcoming"]):
+                row = rows.get((kid["id"], chore["id"]))
+                if row is not None:
+                    chore["management"] = chore_management.metadata(row, rows.values(), groups, cfg)
     payload: dict[str, Any] = {
         "role": role,
         "revision": int(store_data.get("revision") or 0),
@@ -503,4 +513,5 @@ COMMANDS: Final = (
     websocket_family_settings_get,
     websocket_family_settings_set,
     *SWAP_COMMANDS,
+    *CHORE_MANAGEMENT_COMMANDS,
 )

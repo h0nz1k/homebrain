@@ -347,8 +347,11 @@ describe('FamilyView upcoming + confirmation', () => {
     const up = within(dcera).getByTestId('family-upcoming');
     expect(up.textContent).toContain('Naplánované');
     const rows = within(up).getAllByTestId('family-upcoming-chore');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const weekday = ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'][tomorrow.getDay()];
     expect(within(rows[0]!).getByTestId('family-upcoming-day').textContent).toBe(
-      'zítra\u00a0·\u00a0pá\u00a020.\u00a011.',
+      `zítra\u00a0·\u00a0${weekday}\u00a0${tomorrow.getDate()}.\u00a0${tomorrow.getMonth() + 1}.`,
     );
     expect(within(up).getByTestId('family-upcoming-h').textContent).toMatch(
       /Naplánované · \d+ úkol(y|ů)?· další dny/u,
@@ -365,7 +368,8 @@ describe('FamilyView upcoming + confirmation', () => {
     expect(today.textContent).toBe('Dnes');
     expect(today.compareDocumentPosition(up) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(rows[0]!.textContent).toContain('Vyskládat myčku');
-    expect(up.querySelector('button')).toBeNull();
+    expect(within(up).queryByTestId('family-chore-check')).toBeNull();
+    expect(within(rows[0]!).getByTestId('family-upcoming-menu')).toBeTruthy();
   });
 
   it('kiosk and child keep today first, upcoming compact', async () => {

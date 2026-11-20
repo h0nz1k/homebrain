@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { hostWindow, usePeople, type ModuleViewProps } from '@homebrain/ha-client';
 import {
   Button,
@@ -15,6 +24,8 @@ import {
   useToast,
 } from '@homebrain/ui';
 import { getFamilyApi } from '../api.js';
+import { choreManagementError } from '../errors.js';
+import { newRequestId } from '../uid.js';
 import {
   choreNote,
   choreTally,
@@ -31,14 +42,26 @@ import {
   todayEvents,
   upcomingParts,
 } from '../format.js';
-import { handedToLabel, pendingHandoverLabel, takenFromLabel } from '../czech.js';
-import type { FamilyEvent, FamilyKid, FamilySnapshot, FreeChore } from '../types.js';
+import {
+  handedToLabel,
+  pendingHandoverLabel,
+  reassignedToLabel,
+  takenFromLabel,
+} from '../czech.js';
+import type {
+  ChoreManagement,
+  FamilyEvent,
+  FamilyKid,
+  FamilySnapshot,
+  FreeChore,
+} from '../types.js';
 import { familyStyles } from './familyStyles.js';
 import { FreeTasks, PersonsRow, PersonView, personColor } from './PersonView.js';
 import { PersonsSettings } from './PersonsSettings.js';
 import {
   AddChoreSheet,
   ChoreMenuSheet,
+  DeleteChoreSheet,
   ApprovalsBlock,
   PointsSheet,
   SwapSheet,
@@ -355,14 +378,14 @@ interface Actions {
   onPoints?: () => void;
   onAdd?: () => void;
   onMenu?: (kid: string, chore: string) => void;
+  onGive?: (kid: string, chore: string) => void;
 }
 
 type ChoreRow = FamilyKid['chores'][number];
 
 /**
  * Today's row the viewer can still act on (tick off / hand over): every such row – and only
- * such rows – gets the „⋯“ menu, so its presence is predictable. Transfer itself may still be
- * unavailable (see `canTransferChore`); the menu then explains it with a disabled action.
+ * such rows – can offer a transfer action. The adult menu also supports chore management.
  */
 export function isActionableChore(c: ChoreRow | null | undefined): boolean {
   return (
@@ -476,11 +499,13 @@ function UpcomingList({
   compact,
   kiosk,
   highlight,
+  onMenu,
 }: {
   kid: FamilyKid;
   now: Date;
   compact?: boolean;
   kiosk?: boolean;
+  onMenu?: Actions['onMenu'];
   highlight?: string | null;
 }) {
   const all = kid.upcoming ?? [];
@@ -518,9 +543,19 @@ function UpcomingList({
                 <Icon name="calendar" size={28} />
               </span>
               <span className="fam-upcoming-t">
-                <span className="fam-upcoming-name">
-                  {kiosk ? `${capFirst(when.day)}: ${c.name}` : c.name}
-                </span>
+                {onMenu && c.management ? (
+                  <button
+                    type="button"
+                    className="fam-chore-detail fam-upcoming-name"
+                    onClick={() => onMenu(kid.id, c.id)}
+                  >
+                    {c.name}
+                  </button>
+                ) : (
+                  <span className="fam-upcoming-name">
+                    {kiosk ? `${capFirst(when.day)}: ${c.name}` : c.name}
+                  </span>
+                )}
                 {!kiosk && (
                   <small className="fam-upcoming-meta">
                     <span className="fam-upcoming-when" data-testid="family-upcoming-day">
@@ -531,7 +566,20 @@ function UpcomingList({
                 )}
               </span>
               <Pts className="fam-upcoming-pts" value={c.points} />
-              <span className="fam-menu-slot" aria-hidden="true" />
+              {onMenu && c.management ? (
+                <span className="fam-menu-slot">
+                  <Button
+                    variant="ghost"
+                    className="fam-overflow"
+                    icon={<Icon name="more" size={22} />}
+                    aria-label={`Další akce: ${c.name}`}
+                    data-testid="family-upcoming-menu"
+                    onClick={() => onMenu(kid.id, c.id)}
+                  />
+                </span>
+              ) : (
+                <span className="fam-menu-slot" aria-hidden="true" />
+              )}
             </li>
           );
         })}
@@ -728,7 +776,8 @@ function KidCard({
             const ui = c.state === 'overdue' ? 'todo' : c.state;
             const key = `${kid.id}/${c.id}`;
             const out = c.swap_today?.kind === 'transferred_out';
-            const showMenu = act.onMenu && isActionableChore(c);
+            const showMenu = act.onMenu && (c.management || isActionableChore(c));
+            const showGive = act.onGive && canTransferChore(c);
             const nameId = `${bodyId}-${c.id}`;
             return (
               <li
@@ -767,7 +816,19 @@ function KidCard({
                   </button>
                 )}
                 <div className="fam-chore-t">
-                  <b id={nameId}>{c.name}</b>
+                  <b id={nameId}>
+                    {act.onMenu && c.management ? (
+                      <button
+                        type="button"
+                        className="fam-chore-detail"
+                        onClick={() => act.onMenu?.(kid.id, c.id)}
+                      >
+                        {c.name}
+                      </button>
+                    ) : (
+                      c.name
+                    )}
+                  </b>
                   <ChoreMeta c={c} note={note} />
                 </div>
                 {out ? (
@@ -784,6 +845,17 @@ function KidCard({
                 )}
                 {!compact && (
                   <span className="fam-menu-slot" data-testid="family-menu-slot">
+                    {showGive && (
+                      <Button
+                        variant="ghost"
+                        className="fam-overflow"
+                        icon={<Icon name="swap" size={22} />}
+                        data-testid="family-chore-give"
+                        aria-label="Předat na dnes"
+                        aria-describedby={nameId}
+                        onClick={() => act.onGive?.(kid.id, c.id)}
+                      />
+                    )}
                     {showMenu && (
                       <Button
                         variant="ghost"
@@ -840,6 +912,7 @@ function KidCard({
           compact={compact || self}
           kiosk={compact}
           highlight={highlight}
+          onMenu={act.onMenu}
         />
       </div>
     </article>
@@ -1052,6 +1125,14 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     mode: 'give' | 'reassign';
   } | null>(null);
   const [menu, setMenu] = useState<{ kid: string; chore: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    kid: string;
+    chore: string;
+    management: ChoreManagement;
+  } | null>(null);
+  const [skipBusy, setSkipBusy] = useState(false);
+  const skipInFlight = useRef(false);
+  const [skipError, setSkipError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const phone = usePhone();
   const notify = useToast();
@@ -1068,6 +1149,10 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       flush();
     };
   }, []);
+  const openSheet = deleteTarget ?? swap ?? menu ?? addChore ?? pointsKid;
+  useLayoutEffect(() => {
+    if (openSheet) notify.dismiss();
+  }, [notify, openSheet]);
 
   // A just-created chore: scroll its row into view once the refreshed snapshot has it (once
   // per creation). Closing the sheet goes `history.back()`, whose popstate restores the scroll
@@ -1178,9 +1263,15 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     busy,
     claim: (kid, chore) => void run(`${kid}/${chore}`, () => api.claim(kid, chore)),
     onPoints: () => undefined,
-    onMenu:
-      !kiosk && (parent || snap.role === 'child')
-        ? (kid, chore) => setMenu({ kid, chore })
+    onMenu: parent
+      ? (kid, chore) => {
+          setSkipError(null);
+          setMenu({ kid, chore });
+        }
+      : undefined,
+    onGive:
+      !kiosk && snap.role === 'child'
+        ? (kid, chore) => setSwap({ kid, chore, mode: 'give' })
         : undefined,
   };
   const makeKidAct = (kid: FamilyKid): Actions => ({
@@ -1301,10 +1392,51 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       onToggle={(uid, done) => void run(uid, () => api.setItemDone(uid, done))}
     />,
   );
-  const menuChore = menu
-    ? snap.kids.find((k) => k.id === menu.kid)?.chores.find((c) => c.id === menu.chore)
-    : null;
-  const canTransfer = canTransferChore(menuChore);
+  const menuKid = menu && snap.kids.find((k) => k.id === menu.kid);
+  const menuToday = menuKid && menuKid.chores.find((c) => c.id === menu.chore);
+  const menuChore = menuToday || (menuKid && menuKid.upcoming?.find((c) => c.id === menu.chore));
+  const canTransfer = canTransferChore(menuToday || null);
+  const management = menuChore?.management;
+  const showReassign = !!menuToday && !management?.one_off;
+  const skipToday = async () => {
+    if (!menu || !menuChore?.due || skipInFlight.current) return;
+    skipInFlight.current = true;
+    setSkipBusy(true);
+    setSkipError(null);
+    const input = { ...menu, client_request_id: newRequestId() };
+    const message = 'Dnešní termín smazán';
+    try {
+      const result = await api.skipChoreToday({ ...input, expected_due: menuChore.due });
+      setMenu(null);
+      if (result.can_undo) {
+        notify.undo(
+          message,
+          () => {
+            void api
+              .skipChoreToday({
+                ...menu,
+                client_request_id: newRequestId(),
+                undo_request_id: input.client_request_id,
+              })
+              .then(() => {
+                notify.success('Dnešní termín obnoven.');
+                void load();
+              })
+              .catch((err: unknown) => {
+                notify.error(choreManagementError(err, 'Původní termín se nepodařilo obnovit.'));
+              });
+          },
+          { actionLabel: 'Zpět' },
+        );
+      } else notify.success(message);
+      void load();
+    } catch (err) {
+      setSkipError(choreManagementError(err, 'Dnešní termín se nepodařilo smazat. Zkus to znovu.'));
+    } finally {
+      skipInFlight.current = false;
+      setSkipBusy(false);
+    }
+  };
   const free = (snap.free_chores ?? []).filter(
     (row) =>
       row !== stagedClaim?.free &&
@@ -1490,31 +1622,27 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           colors={identityColors}
           mode={swap.mode}
           onClose={() => setSwap(null)}
-          onDone={() => void load()}
+          onDone={(name) => {
+            if (swap.mode === 'reassign') notify.success(reassignedToLabel(name));
+            void load();
+          }}
         />
       )}
-      {menu && (
-        <ChoreMenuSheet onClose={() => setMenu(null)}>
-          <ul className="fam-menu-list">
-            {snap.role === 'child' && (
+      {parent && menu && menuChore && (
+        <ChoreMenuSheet
+          title={menuChore.name}
+          onClose={() => {
+            if (!skipInFlight.current) setMenu(null);
+          }}
+        >
+          {management && <p className="fam-hint">{management.assignees.join(', ')}</p>}
+          <ul className="fam-menu-list" data-mixed={(showReassign && !!management) || undefined}>
+            {showReassign && (
               <li>
                 <Button
                   variant="ghost"
-                  disabled={!canTransfer}
-                  onClick={() => {
-                    setSwap({ kid: menu.kid, chore: menu.chore, mode: 'give' });
-                    setMenu(null);
-                  }}
-                >
-                  Předat na dnes…
-                </Button>
-              </li>
-            )}
-            {parent && (
-              <li>
-                <Button
-                  variant="ghost"
-                  disabled={!canTransfer}
+                  icon={<Icon name="swap" size={20} />}
+                  disabled={!canTransfer || skipBusy}
                   onClick={() => {
                     setSwap({ kid: menu.kid, chore: menu.chore, mode: 'reassign' });
                     setMenu(null);
@@ -1524,16 +1652,67 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
                 </Button>
               </li>
             )}
+            {management && (
+              <>
+                {!management.one_off && (
+                  <li>
+                    <Button
+                      variant="danger"
+                      icon={<Icon name="calendar" size={20} />}
+                      disabled={!management.can_skip || skipBusy}
+                      onClick={() => void skipToday()}
+                    >
+                      Smazat jen dnes
+                    </Button>
+                  </li>
+                )}
+                <li>
+                  <Button
+                    variant="danger"
+                    icon={<Icon name="bin" size={20} />}
+                    disabled={skipBusy}
+                    onClick={() => {
+                      setDeleteTarget({ ...menu, management });
+                      setMenu(null);
+                    }}
+                  >
+                    {management.one_off ? 'Smazat úkol' : 'Smazat celou řadu'}
+                  </Button>
+                </li>
+              </>
+            )}
           </ul>
-          {!canTransfer && (
+          {skipError && (
+            <p className="fam-field-err" role="alert">
+              {skipError}
+            </p>
+          )}
+          {!management && !canTransfer && (
             <p className="fam-hint">
-              {menuChore?.swap_unavailable_reason ??
-                (menuChore?.swap_today?.kind === 'pending_give'
-                  ? 'Předání už čeká na schválení.'
-                  : 'Tento úkol teď nelze předat.')}
+              {menuToday?.swap_unavailable_reason ?? 'Tento úkol teď nelze předat.'}
             </p>
           )}
         </ChoreMenuSheet>
+      )}
+      {parent && deleteTarget && (
+        <DeleteChoreSheet
+          chore={deleteTarget.management}
+          onClose={() => setDeleteTarget(null)}
+          onDelete={async (scope) => {
+            await api.deleteChore({
+              client_request_id: newRequestId(),
+              kid: deleteTarget.kid,
+              chore: deleteTarget.chore,
+              ...scope,
+            });
+            const wholeSeries =
+              scope.series_ids ||
+              (!deleteTarget.management.one_off && deleteTarget.management.slots.length < 2);
+            notify.success(wholeSeries ? 'Řada smazána.' : 'Úkol smazán.');
+            setDeleteTarget(null);
+            void load();
+          }}
+        />
       )}
     </div>
   );

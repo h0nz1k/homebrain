@@ -10,40 +10,42 @@ async function open(page: Page, query = '') {
 
 /** The form controls and summary remain clear of the footer at the end of the scrollport. */
 async function expectLastControlClear(page: Page) {
-  const r = await page.getByTestId('family-add-chore-sheet').evaluate(async (sheet) => {
-    const body = sheet.querySelector<HTMLElement>('.hb-sheet-body')!;
-    const foot = sheet.querySelector<HTMLElement>('.hb-sheet-foot')!;
-    body.scrollTop = body.scrollHeight;
-    await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
-    const controls = Array.from(
-      sheet.querySelectorAll<HTMLElement>(
-        '#fam-add-chore input, #fam-add-chore button, #fam-add-chore [role="radio"]',
-      ),
-    ).filter((el) => el.getClientRects().length > 0);
-    const last = controls.at(-1)!;
-    const summary = sheet.querySelector<HTMLElement>('[data-testid="family-chore-summary-box"]')!;
-    const footTop = foot.getBoundingClientRect().top;
-    const bodyTop = body.getBoundingClientRect().top;
-    const covered = (el: HTMLElement) => {
-      const b = el.getBoundingClientRect();
-      return [b.top + 2, b.bottom - 2].some((y) => {
-        const hit = document.elementFromPoint(b.left + b.width / 2, y);
-        return !hit || !(el === hit || el.contains(hit));
-      });
-    };
-    return {
-      lastBottom: last.getBoundingClientRect().bottom,
-      lastTop: last.getBoundingClientRect().top,
-      summaryBottom: summary.getBoundingClientRect().bottom,
-      footTop,
-      bodyTop,
-      lastCovered: covered(last),
-    };
-  });
-  expect(r.lastTop).toBeGreaterThanOrEqual(r.bodyTop);
-  expect(r.lastBottom).toBeLessThanOrEqual(r.footTop - 12);
-  expect(r.summaryBottom).toBeLessThanOrEqual(r.footTop - 12);
-  expect(r.lastCovered).toBe(false);
+  await expect(async () => {
+    const r = await page.getByTestId('family-add-chore-sheet').evaluate(async (sheet) => {
+      const body = sheet.querySelector<HTMLElement>('.hb-sheet-body')!;
+      const foot = sheet.querySelector<HTMLElement>('.hb-sheet-foot')!;
+      body.scrollTo({ top: body.scrollHeight, behavior: 'instant' });
+      await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+      const controls = Array.from(
+        sheet.querySelectorAll<HTMLElement>(
+          '#fam-add-chore input, #fam-add-chore button, #fam-add-chore [role="radio"]',
+        ),
+      ).filter((el) => el.getClientRects().length > 0);
+      const last = controls.at(-1)!;
+      const summary = sheet.querySelector<HTMLElement>('[data-testid="family-chore-summary-box"]')!;
+      const footTop = foot.getBoundingClientRect().top;
+      const bodyTop = body.getBoundingClientRect().top;
+      const covered = (el: HTMLElement) => {
+        const b = el.getBoundingClientRect();
+        return [b.top + 2, b.bottom - 2].some((y) => {
+          const hit = document.elementFromPoint(b.left + b.width / 2, y);
+          return !hit || !(el === hit || el.contains(hit));
+        });
+      };
+      return {
+        lastBottom: last.getBoundingClientRect().bottom,
+        lastTop: last.getBoundingClientRect().top,
+        summaryBottom: summary.getBoundingClientRect().bottom,
+        footTop,
+        bodyTop,
+        lastCovered: covered(last),
+      };
+    });
+    expect(r.lastTop).toBeGreaterThanOrEqual(r.bodyTop);
+    expect(r.lastBottom).toBeLessThanOrEqual(r.footTop - 12);
+    expect(r.summaryBottom).toBeLessThanOrEqual(r.footTop - 12);
+    expect(r.lastCovered).toBe(false);
+  }).toPass({ timeout: 3000 });
 }
 
 /** WCAG contrast of an element's text (or fill) against its composited background. */
@@ -312,7 +314,7 @@ test.describe('Rodina', () => {
     expect(chores).toBe(presence);
   });
 
-  test('dítě: bez ⋯ u hotových a čekajících úkolů, vidí, kdo se dívá', async ({ page }) => {
+  test('dítě: má akci předání, menu správy nevidí', async ({ page }) => {
     await open(page, '?role=child');
     await expect(page.getByTestId('family-viewer')).toHaveText(/Kuba/);
     for (const state of ['done', 'claimed']) {
@@ -325,7 +327,8 @@ test.describe('Rodina', () => {
         ),
       ).toHaveCount(0);
     }
-    const menu = page.getByTestId('family-chore-menu').first();
+    await expect(page.getByTestId('family-chore-menu')).toHaveCount(0);
+    const menu = page.getByTestId('family-chore-give').first();
     const box = await menu.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -854,7 +857,7 @@ test.describe('Rodina – seznam dětí', () => {
     });
   }
 
-  test('předání: body přeškrtnuté s „→ jméno“, různé štítky čekání, ⋯ u každého aktivního', async ({
+  test('předání: body přeškrtnuté s „→ jméno“, různé štítky čekání, rodič má menu správy', async ({
     page,
   }) => {
     await open(page);
@@ -876,15 +879,7 @@ test.describe('Rodina – seznam dětí', () => {
     const rows = page.locator('[data-testid="family-chore"]');
     for (let i = 0; i < (await rows.count()); i += 1) {
       const row = rows.nth(i);
-      const [state, swap] = await row.evaluate((el) => [
-        (el as HTMLElement).dataset.state,
-        (el as HTMLElement).dataset.swap,
-      ]);
-      const actionable =
-        (state === 'todo' || state === 'overdue') &&
-        swap !== 'pending_give' &&
-        swap !== 'transferred_out';
-      await expect(row.getByTestId('family-chore-menu')).toHaveCount(actionable ? 1 : 0);
+      await expect(row.getByTestId('family-chore-menu')).toHaveCount(1);
       // Deadline first in the meta line, the points vertically centred in the row.
       const geo = await row.evaluate((el) => {
         const meta = el.querySelector('.fam-chore-meta');
@@ -1379,5 +1374,147 @@ test.describe('Rodina P1 – snímky (lokálně)', () => {
         }
       }
     });
+  }
+});
+
+test.describe('Rodina – mazání a přeřazování úkolů', () => {
+  const shots = process.env.HB_FAMILY_DELETE_SHOTS;
+
+  async function capture(page: Page, project: string, name: string, theme: string) {
+    if (!shots || project !== 'mobile-s21') return;
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: join(shots, `${name}-${theme}.png`), animations: 'disabled' });
+  }
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`jen dnes přesune termín mezi naplánované a Zpět jej obnoví (${theme})`, async ({
+      page,
+    }, info) => {
+      await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+      await open(page, `?theme=${theme}`);
+      await page.getByTestId('family-add-chore').first().click();
+      const form = page.getByTestId('family-add-chore-sheet');
+      await form.locator('#fam-chore-name').fill('Utřít stůl');
+      await form.getByTestId('family-add-chore-save').click();
+      await expect(form).toHaveCount(0);
+      const creationToast = page.getByTestId('hb-toast').filter({ hasText: 'Úkol přidán:' });
+      await expect(creationToast).toBeVisible();
+      const today = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
+      await today.getByTestId('family-chore-menu').click();
+      const menu = page.getByTestId('family-chore-menu-sheet');
+      await expect(creationToast).toBeHidden();
+      const rows = menu.locator('li > button');
+      await expect(rows).toHaveCount(3);
+      for (const row of await rows.all()) {
+        await expect(row).toBeInViewport({ ratio: 1 });
+        await expect(row.locator('svg')).toBeVisible();
+        expect((await row.boundingBox())?.height).toBeGreaterThanOrEqual(48);
+      }
+      await expect(rows.nth(1)).toHaveAttribute('data-variant', 'danger');
+      await expect(rows.nth(2)).toHaveAttribute('data-variant', 'danger');
+      await expect(menu.locator('li').nth(1)).toHaveCSS('border-top-width', '1px');
+      await expect(creationToast).toHaveCount(0);
+      await capture(page, info.project.name, 'skip-today-menu', theme);
+      await menu.getByRole('button', { name: 'Smazat jen dnes' }).click();
+      const toast = page.getByTestId('hb-toast').filter({ hasText: 'Dnešní termín smazán' });
+      await expect(toast).toBeVisible();
+      await expect(today).toHaveCount(0);
+      const upcoming = page.getByTestId('family-upcoming-chore').filter({ hasText: 'Utřít stůl' });
+      await expect(upcoming).toBeVisible();
+      await upcoming.evaluate((row) => row.scrollIntoView({ block: 'center' }));
+      await capture(page, info.project.name, 'skip-today-undo', theme);
+      await toast.getByRole('button', { name: 'Zpět' }).click();
+      await expect(today).toBeVisible();
+    });
+
+    test(`potvrzení řady umožní smazat libovolný čas i všechny časy (${theme})`, async ({
+      page,
+    }, info) => {
+      test.slow();
+      await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+      await open(page, `?theme=${theme}`);
+      const createSeries = async (name: string) => {
+        await page.getByTestId('family-add-chore').first().click();
+        const form = page.getByTestId('family-add-chore-sheet');
+        await form.locator('#fam-chore-name').fill(name);
+        await form.getByRole('radio', { name: 'Vícekrát' }).click();
+        await form.getByTestId('family-add-chore-save').click();
+        await expect(form).toHaveCount(0);
+        const rows = page.getByTestId('family-chore').filter({ hasText: name });
+        await expect(rows).toHaveCount(2);
+        return rows;
+      };
+      const confirm = page.getByTestId('family-delete-chore-sheet');
+      const openConfirm = async (slot: '12:00' | '18:00') => {
+        await page
+          .getByTestId('family-chore')
+          .filter({ hasText: `Zalít záhon (${slot})` })
+          .getByTestId('family-chore-menu')
+          .click();
+        await page.getByRole('button', { name: 'Smazat celou řadu' }).click();
+        await expect(page.getByTestId('hb-toast')).toHaveCount(0);
+        await expect(confirm.getByRole('heading', { name: 'Smazat úkol' })).toBeVisible();
+        await expect(confirm.getByRole('button', { name: 'Zrušit' })).toBeFocused();
+        await expect(
+          confirm.getByText('Body, které už za něj někdo dostal, zůstanou.'),
+        ).toBeInViewport({ ratio: 1 });
+        await expect(confirm.getByRole('radio', { name: `Jen ${slot}` })).toBeChecked();
+      };
+
+      const rows = await createSeries('Zalít záhon');
+      await openConfirm('18:00');
+      await expect(confirm.getByRole('radio', { name: 'Jen 12:00' })).toBeVisible();
+      await expect(confirm.getByRole('button', { name: 'Smazat 18:00' })).toBeVisible();
+      await capture(page, info.project.name, 'delete-series-confirm-single', theme);
+      await confirm.getByRole('radio', { name: 'Všechny časy (2)' }).check();
+      await expect(confirm.getByRole('button', { name: 'Smazat všechny časy' })).toBeVisible();
+      await capture(page, info.project.name, 'delete-series-confirm-all', theme);
+
+      await confirm.getByRole('radio', { name: 'Jen 12:00' }).check();
+      await confirm.getByRole('button', { name: 'Smazat 12:00' }).click();
+      await expect(rows).toHaveCount(1);
+      await expect(rows).toContainText('18:00');
+
+      await open(page, `?theme=${theme}`);
+      await createSeries('Zalít záhon');
+      await openConfirm('12:00');
+      await confirm.getByRole('radio', { name: 'Všechny časy (2)' }).check();
+      await confirm.getByRole('button', { name: 'Smazat všechny časy' }).click();
+      await expect(rows).toHaveCount(0);
+      await expect(page.getByTestId('hb-toast').filter({ hasText: 'Řada smazána.' })).toBeVisible();
+      await capture(page, info.project.name, 'delete-series-success', theme);
+    });
+
+    for (const outcome of ['overdue', 'error'] as const) {
+      test(`přeřazení úkolu po termínu (${theme}, ${outcome})`, async ({ page }, info) => {
+        await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
+        await open(page, `?theme=${theme}&reassign=${outcome}`);
+        const chore = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
+        await expect(chore).toContainText('Po termínu (18:00)');
+        await chore.getByTestId('family-chore-menu').click();
+        await page.getByRole('button', { name: 'Přeřadit na dnes…' }).click();
+        const swap = page.getByTestId('family-swap-sheet');
+        await expect(swap.getByTestId('family-swap-recipient')).toContainText('Kuba');
+        const submit = swap.getByTestId('family-swap-submit');
+        await submit.click();
+        if (outcome === 'error') {
+          await expect(swap.getByRole('alert')).toHaveText(
+            'Přeřazení se nepovedlo, zkus to znovu.',
+          );
+          await expect(swap.getByRole('alert')).toBeInViewport({ ratio: 1 });
+          await expect(submit).toBeEnabled();
+          await expect(page.getByTestId('hb-toast')).toHaveCount(0);
+          await capture(page, info.project.name, 'reassign-error', theme);
+        } else {
+          await expect(swap).toHaveCount(0);
+          await expect(chore.and(page.locator('[data-swap="transferred_out"]'))).toHaveCount(1);
+          const reassigned = chore.and(page.locator('[data-swap="transferred_in"]'));
+          await expect(reassigned).toContainText('do 23:59');
+          await reassigned.scrollIntoViewIfNeeded();
+          await expect(page.getByTestId('hb-toast')).toContainText('Přeřazeno na Kubu na dnes');
+          await capture(page, info.project.name, 'reassign-success', theme);
+        }
+      });
+    }
   }
 });
