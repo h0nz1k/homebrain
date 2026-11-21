@@ -39,6 +39,7 @@ CONTRACT_TOP = {
     "faults",
     "curve",
     "schedules",
+    "clock",
     "extras",
     "rooms",
     "service_codes",
@@ -118,9 +119,12 @@ def test_resolve_and_payload_shape():
     assert payload["mode"]["season"] == "winter"
     assert payload["faults"]["monitored"] == 2
     assert payload["faults"]["active"] == []
-    assert payload["schedules"] == [
-        {"key": "setback", "label": "Komfort", "slots": [["05:30", "21:00"]]}
+    sched = payload["schedules"]
+    assert [(s["key"], s["label"], s["format"], s["slots"]) for s in sched] == [
+        ("setback", "Komfort", "start_end", [["05:30", "21:00"]])
     ]
+    assert len(sched[0]["week"]) == 7
+    assert payload["clock"]["plc_utc_offset_minutes"] == 60
     assert payload["backup_heater"] == {"on": None, "available": False}
     assert payload["rooms"] == []
     assert payload["activity"] == "house_circuit"
@@ -380,6 +384,11 @@ def test_extras_side_circuits_mapped_and_partial():
         "hysteresis": 0.2,
         "heating_on": True,
         "valve_open": True,
+        "water_temp": None,
+        "water_target": None,
+        "water_hysteresis": None,
+        "water_heating_on": None,
+        "water_heating_running": None,
     }
     assert payload["extras"]["solar"] == {
         "temp": 12.1,
@@ -387,11 +396,19 @@ def test_extras_side_circuits_mapped_and_partial():
         "enabled": None,
         "pump_pct": None,
         "state": "idle",
+        # DayCounters() has no day yet → no daily summary
+        "today": None,
+        "yesterday": None,
     }
     assert payload["extras"]["pool"] == {
         "temp": 27.9,
         "heating_pump": None,
         "filter_pump": None,
+        "filter_enabled": None,
+        "filter_program_active": None,
+        "heating_enabled": None,
+        "auto": None,
+        "target": None,
     }
 
 
@@ -407,6 +424,11 @@ def test_extras_fish_temp_only_backward_compatible():
         "hysteresis": None,
         "heating_on": None,
         "valve_open": None,
+        "water_temp": None,
+        "water_target": None,
+        "water_hysteresis": None,
+        "water_heating_on": None,
+        "water_heating_running": None,
     }
 
 
@@ -464,4 +486,6 @@ def test_extras_solar_extended_fields_and_state():
         "enabled": True,
         "pump_pct": 73,
         "state": "heating",
+        "today": None,
+        "yesterday": None,
     }

@@ -28,6 +28,7 @@ DHW_COLD_DEBOUNCE = timedelta(minutes=30)
 DHW_COLD_ESCALATE = timedelta(hours=3)
 FISH_COLD_DEBOUNCE = timedelta(minutes=60)
 HDO_LONG_DEBOUNCE = timedelta(minutes=180)
+SHORT_CYCLING_DEBOUNCE = timedelta(minutes=15)
 
 
 @dataclass
@@ -106,6 +107,8 @@ class EvalContext:
     faults_active: list[tuple[str, str]]
     project_changed: bool
     winter: bool | None
+    # ``model.cycling_summary`` (starts / average run today and yesterday), None = not mapped
+    cycling: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -444,9 +447,37 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
         elif st.active_since and hdo is True:
             clear_rule("hdo_long")
 
+    # --- short_cycling (info only: never pushed, shown in the alerts tab) ---
+    cyc = ctx.cycling
+    st = state.rule("short_cycling")
+    if _debounced(st, ctx.now, bool(cyc and cyc.get("short_cycling")), SHORT_CYCLING_DEBOUNCE):
+        assert cyc is not None
+        emit("short_cycling", "info", "Kompresor často spíná", _cycling_body(cyc))
+    elif st.active_since and not (cyc and cyc.get("short_cycling")):
+        clear_rule("short_cycling")
+
     order = {"critical": 0, "warning": 1, "info": 2}
     active.sort(key=lambda a: (order[a.severity], a.since))
     return active
+
+
+def _cycling_day(starts: Any, avg: Any) -> str:
+    text = f"{starts} startů" if isinstance(starts, int) else "? startů"
+    if isinstance(avg, int | float):
+        text += f", průměrný běh {float(avg):.0f} min"
+    return text
+
+
+def _cycling_body(cyc: dict[str, Any]) -> str:
+    parts = [f"Dnes {_cycling_day(cyc.get('starts_today'), cyc.get('avg_run_min_today'))}"]
+    if cyc.get("starts_yesterday") is not None:
+        parts.append(
+            f"včera {_cycling_day(cyc.get('starts_yesterday'), cyc.get('avg_run_min_yesterday'))}"
+        )
+    return (
+        "; ".join(parts) + ". Mnoho krátkých běhů zbytečně opotřebovává kompresor – "
+        "při příští servisní prohlídce stojí za to probrat hysterezi nádrže a průtok."
+    )
 
 
 @dataclass
