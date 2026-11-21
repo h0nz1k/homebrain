@@ -10,17 +10,17 @@
   the 60 s evaluation (repeated identical values do not fire ``state_changed``).
 * **Restart safety**: the last evaluation time is stored; on start-up the gap until now is a
   downtime for the engine (clocks pause, 15 min grace).
-* **Owner actions** (Vyřešeno, Skrýt na 7 dní; API also `ok`) only change HomeBrain's own ``Store``.
+* **Owner actions** (including permanent device exclusion) only change HomeBrain's own ``Store``.
   Phase 1 never calls a service, never notifies and never writes to HA.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, tzinfo
-from typing import Any, Final
+from typing import Any, Final, TypedDict
 from zoneinfo import ZoneInfo
 
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
@@ -73,7 +73,14 @@ ACK_RESOLVED: Final = "resolved"
 ACK_OK: Final = "ok"
 
 
-def build_metas(hass: HomeAssistant) -> list[EntityMeta]:
+class ExcludedDevice(TypedDict):
+    id: str
+    name: str
+    area: str | None
+    excluded_at: str
+
+
+def build_metas(hass: HomeAssistant, excluded: Collection[str] = ()) -> list[EntityMeta]:
     """Watched entities from the registries (see module docstring), at most ``MAX_ENTITIES``."""
     ent_reg = er.async_get(hass)
     dev_reg = dr.async_get(hass)
@@ -87,6 +94,7 @@ def build_metas(hass: HomeAssistant) -> list[EntityMeta]:
             or entry.hidden_by is not None
             or entry.entity_category is not None
             or entry.device_id is None
+            or entry.device_id in excluded
         ):
             continue
         device = dev_reg.async_get(entry.device_id)
@@ -232,6 +240,8 @@ class AnomalyWatch:
         self.first_seen: dict[str, datetime] = {}
         self.learned_at: datetime | None = None
         self.learning = False
+        self._excluded_during_learning: set[str] = set()
+        self.exclusions: dict[str, ExcludedDevice] = {}
         self.acks: dict[str, dict[str, Any]] = {}
         self.mutes: dict[str, datetime] = {}
         self.health: dict[str, int] = {}  # local hour start (iso) → highest tier
@@ -245,7 +255,9 @@ class AnomalyWatch:
     async def async_start(self) -> None:
         raw = await self.store.async_load() or {}
         now = dt_util.now()
-        self.engine.set_metas(build_metas(self.hass))
+        # Older v1 stores lack this optional field.
+        self.exclusions = raw.get("excluded_devices") or {}
+        self.engine.set_metas(build_metas(self.hass, self.exclusions))
         self.first_seen = {
             k: d for k, v in (raw.get("first_seen") or {}).items() if (d := _ts(v)) is not None
         }
@@ -326,7 +338,7 @@ class AnomalyWatch:
     def _rebuild(self, _now: datetime | None = None) -> None:
         self._unsub_rebuild = None
         known = set(self.engine.metas)
-        self.engine.set_metas(build_metas(self.hass))
+        self.engine.set_metas(build_metas(self.hass, self.exclusions))
         for eid in set(self.engine.metas) - known:
             if (state := self.hass.states.get(eid)) is not None:
                 self.engine.feed(Sample(eid, state.last_reported, state.state))
@@ -382,13 +394,20 @@ class AnomalyWatch:
         from homeassistant.components.recorder import get_instance  # noqa: PLC0415
 
         self.learning = True
+        self._excluded_during_learning.clear()
         try:
             until = dt_util.utcnow()
             metas = [m for m in self.engine.metas.values() if not m.removed]
             downtimes = list(self.engine.downtimes)
             learnt: dict[str, EntityBaseline] = {}
             for i in range(0, len(metas), LEARN_BATCH):
-                batch = metas[i : i + LEARN_BATCH]
+                batch = [
+                    m
+                    for m in metas[i : i + LEARN_BATCH]
+                    if m.device_id not in self._excluded_during_learning
+                ]
+                if not batch:
+                    continue
                 learnt |= await get_instance(self.hass).async_add_executor_job(
                     _fetch_and_learn,
                     self.hass,
@@ -399,6 +418,14 @@ class AnomalyWatch:
                     self.tz,
                     self.cfg,
                 )
+            # An executor job may finish after an exclude or even an exclude/include pair.
+            learnt = {
+                eid: b
+                for eid, b in learnt.items()
+                if b.device_id not in self._excluded_during_learning
+                and (meta := self.engine.metas.get(eid)) is not None
+                and meta.device_id == b.device_id
+            }
             for eid, b in learnt.items():
                 start = until - timedelta(days=b.days)
                 self.first_seen[eid] = min(self.first_seen.get(eid, start), start)
@@ -411,6 +438,44 @@ class AnomalyWatch:
             self.learning = False
 
     # ------------------------------------------------------------ owner actions
+    def exclude(self, device_id: str) -> bool:
+        if device_id in self.exclusions:
+            return True
+        metas = [m for m in self.engine.metas.values() if m.device_id == device_id]
+        if not metas:
+            return False
+        now = dt_util.now()
+        self.exclusions[device_id] = {
+            "id": device_id,
+            "name": metas[0].device_name,
+            "area": metas[0].area,
+            "excluded_at": now.isoformat(),
+        }
+        if self.learning:
+            self._excluded_during_learning.add(device_id)
+        for meta in metas:
+            self.first_seen.pop(meta.entity_id, None)
+        for report in self.snapshot.reports:
+            if device_id in report.device_ids:
+                self.engine.reset_report_history(report.key)
+                self.acks.pop(report.key, None)
+        self.mutes.pop(f"device:{device_id}", None)
+        self._apply_exclusions(now)
+        return True
+
+    def include(self, device_id: str) -> bool:
+        if self.exclusions.pop(device_id, None) is None:
+            return False
+        self._apply_exclusions(dt_util.now())
+        return True
+
+    def _apply_exclusions(self, now: datetime) -> None:
+        if self._unsub_rebuild:
+            self._unsub_rebuild()
+        self._rebuild()
+        self.evaluate(now)
+        self.store.async_delay_save(self._data, 1)
+
     def find(self, key: str) -> Report | None:
         return next((r for r in self.snapshot.reports if r.key == key), None)
 
@@ -464,9 +529,13 @@ class AnomalyWatch:
             "acks": self.acks,
             "mutes": {k: v.isoformat() for k, v in self.mutes.items()},
             "health": self.health,
+            "excluded_devices": self.exclusions,
         }
 
     # ------------------------------------------------------------ read model
+    def excluded_devices(self) -> list[ExcludedDevice]:
+        return sorted(self.exclusions.values(), key=lambda d: d["name"].casefold())
+
     def health_strip(self, now: datetime) -> list[str]:
         """Highest tier per hour for the last 24 h, oldest first (``ok`` when quiet)."""
         hour = now.astimezone(self.tz).replace(minute=0, second=0, microsecond=0)

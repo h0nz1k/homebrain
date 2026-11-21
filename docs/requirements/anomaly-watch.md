@@ -10,7 +10,7 @@ ne kód (viz `THIRD_PARTY_NOTICES.md`).
 
 - **Žádné zápisy do HA a žádná oznámení.** Nic se neposílá na telefon; karta *Na telefon* to
   říká. Tiché hodiny a cooldown z B.3 jsou až pro fázi 2.
-- **Akce (rozhodnutí vlastníka v #129, revize r2 a r3 #136):** na každé úrovni nejvýš tři –
+- **Akce (rozhodnutí vlastníka v #129, revize r2 a r3 #136):** na každé úrovni jsou dostupné
   *Otevřít ‹zařízení›* (primární, diagnostický krok, jmenuje cíl: „Otevřít Klima obývák“,
   „Otevřít Myčku“, u dlouhého jména „Otevřít zařízení“; jen HA admin – stránka zařízení v HA),
   *Vyřešeno* (sekundární – nezkontrolovaná potíž není „vyřešená“ jako výchozí volba) a
@@ -21,6 +21,10 @@ ne kód (viz `THIRD_PARTY_NOTICES.md`).
     pod tlačítkem („Po Vyřešeno: pokud potíž trvá, za 2 h se upozornění vrátí.“).
   - API dál zná `ack kind=ok` (rozšíří meze dotčených entit ×1,5, max ×4); panel ho nepoužívá.
   - Zvýšení úrovně nad potvrzenou vždy upozornění znovu ukáže.
+  - *Nesledovat* (jen HA admin, v detailu upozornění na jednotlivé zařízení): po potvrzení zavře
+    upozornění a trvale vyřadí celé zařízení z vyhodnocování, oznámení, učení, počtu hlídaných
+    zařízení i heuristiky hromadného výpadku. V sekci *Nesledované (N)* může admin zvolit
+    *Znovu sledovat*. Vyhodnocování může začít až po dalším běhu učení.
 - **Texty (r2):** jeden neosobní hlas („Hlídáno 12 zařízení“, ne „Hlídám“); každý výpadek stejně
   – „2 h 21 min od posledního hlášení (9:29)“ – na kartě, kiosku, v řádcích podezření i v detailu;
   místnost v 6. pádě, pokud ji HA zná („V obýváku je neobvykle teplo“); trvání se počítá
@@ -30,10 +34,11 @@ ne kód (viz `THIRD_PARTY_NOTICES.md`).
   jednou na kartě (řádek pod nadpisem). Každá karta má jeden konkrétní další krok odvozený
   z druhu anomálie („Zkontrolujte baterii nebo dosah čidla.“, „Zkontrolujte topení, okno nebo
   slunce.“). Karty jsou seřazené podle naléhavosti (nejbližší možná Porucha první, pak úroveň).
-- **Mimo fázi 1:** výběr hlídaných zařízení (include/exclude) a citlivost podle přítomnosti –
-  fáze 2.
+- **Mimo fázi 1:** citlivost podle přítomnosti.
 - **Role:** `list`, `ack`, `mute`, `unmute` – vlastník (HA admin) a dospělí; `summary` (karta
-  na Dnes, bez `entity_id` a id zařízení) – i kuchyňský kiosk. Děti nic. Na kiosku karta nemá
+  na Dnes, bez `entity_id` a id zařízení v upozorněních) – i kuchyňský kiosk. `exclude` a
+  `include` smí volat jen HA admin. Seznam nesledovaných je v `list` i v `summary` pro
+  vlastníka a dospělé. Děti nic. Na kiosku karta nemá
   tlačítko *Otevřít hlídání* (kiosk detail otevřít nesmí). Kiosk je záměrně vždy tmavý (Dnes
   `.today-kiosk` má vlastní tmavé plochy bez ohledu na téma HA), světlá varianta kiosku není.
 - **Hlídané entity:** domény z B.1, povolené, viditelné, bez `entity_category`, patřící zařízení
@@ -80,7 +85,7 @@ Každé hlášení má jednu ze tří úrovní.
 **Soukromí.** Výpočet běží doma v Home Assistantu z jeho vlastní historie (recorder). Ven jdou
 jen oznámení na telefon, žádná AI, žádná cloudová služba.
 
-**Ovládání.** (Původní návrh; ve fázi 1 platí tři akce výše.) Podezření: hlavní „To je v pořádku“
+**Ovládání.** (Původní návrh; ve fázi 1 platí akce výše.) Podezření: hlavní „To je v pořádku“
 (zavřít a přizpůsobit prah), vedlejší odkaz „Ztlumit na 7 dní“. Porucha: hlavní „Vyřešeno“, vedle
 „Otevřít zařízení“, pak „Vím o tom“ a odkaz „Ztlumit na 7 dní“. Na *Dnes* má při podezření nebo poruše
 „Otevřít hlídání“ přednost před běžnými úkoly (např. popelnice). Vše je jen lokální stav
@@ -188,11 +193,17 @@ Report (pro UI a oznámení, odvozené)
 
 Mute / Ack (perzistentní, lokální)
   key, until | dwell_factor (prah se zvětší za každé „To je v pořádku“; princip z Vatry)
+
+ExcludedDevice (perzistentní, klíč je ID zařízení)
+  id, name, area, excluded_at
 ```
 
-Úložiště: HA `Store` `homebrain.anomaly_watch` (baseline + otevřená hlášení + ztlumení + 7 dní
-vyřešených). WebSocket: `homebrain/anomaly/list`, `…/summary`, `…/ack`, `…/mute`, `…/unmute`
-(zápis jen do vlastního Store, ne do HA; role viz Fáze 1 nahoře).
+Úložiště: HA `Store` `homebrain.anomaly_watch` (baseline, otevřená upozornění, ztlumení,
+7 dní vyřešených a mapa `excluded_devices`). Starší data bez této mapy se načtou s prázdným
+seznamem nesledovaných. WebSocket: `homebrain/anomaly/list`, `…/summary`, `…/ack`, `…/mute`,
+`…/unmute`, `…/exclude {device_id}`, `…/include {device_id}`. Změny se ukládají jen do
+vlastního Store. Seznam `excluded_devices` v odpovědi obsahuje `id`, `name`, `area` a
+`excluded_at` (ISO 8601). Kiosková odpověď tento seznam vynechává.
 
 ### B.6 Zahřívání a rozpočet na HA boxu
 

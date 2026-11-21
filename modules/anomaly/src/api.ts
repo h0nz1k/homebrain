@@ -10,6 +10,8 @@ export interface AnomalyApi {
   ack(key: string, kind: AckKind): Promise<void>;
   mute(key: string, days?: number): Promise<void>;
   unmute(key: string): Promise<void>;
+  exclude(deviceId: string): Promise<void>;
+  include(deviceId: string): Promise<void>;
 }
 
 export function createWsAnomalyApi(connection: ConnectionLike): AnomalyApi {
@@ -26,6 +28,12 @@ export function createWsAnomalyApi(connection: ConnectionLike): AnomalyApi {
     },
     unmute: async (key) => {
       await call('homebrain/anomaly/unmute', { key });
+    },
+    exclude: async (deviceId) => {
+      await call('homebrain/anomaly/exclude', { device_id: deviceId });
+    },
+    include: async (deviceId) => {
+      await call('homebrain/anomaly/include', { device_id: deviceId });
     },
   };
 }

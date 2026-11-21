@@ -3,6 +3,7 @@ import { getSession, navigatePanel, type ModuleViewProps } from '@homebrain/ha-c
 import {
   Button,
   Card,
+  ConfirmDialog,
   ErrorState,
   Icon,
   SegmentedControl,
@@ -87,6 +88,8 @@ interface Actions {
   unmute: (r: Report) => Promise<void>;
   /** HA device page; only for HA admins (adults cannot open HA settings). */
   openDevice?: (deviceId: string) => void;
+  askExclude?: (device: { id: string; name: string }) => void;
+  include?: (deviceId: string) => Promise<void>;
   busy: string | null;
 }
 
@@ -169,8 +172,6 @@ function IssueCard({
         }))}
       />
       <footer className="aw-issue-foot">
-        {/* Owner: at most three actions. The diagnostic step is primary (an unchecked problem
-            is not „solved“ by default), Vyřešeno secondary with its caption, Skrýt a link. */}
         <div className="aw-actions" data-testid="aw-actions">
           {deviceId && actions.openDevice && (
             <Button
@@ -207,6 +208,16 @@ function IssueCard({
           >
             Skrýt na 7 dní
           </button>
+          {deviceId && actions.askExclude && (
+            <button
+              type="button"
+              className="aw-link"
+              onClick={() => actions.askExclude!({ id: deviceId, name: r.devices[0]!.name })}
+              disabled={busy}
+            >
+              Nesledovat
+            </button>
+          )}
         </div>
       </footer>
     </article>
@@ -254,8 +265,17 @@ function HowCard() {
   );
 }
 
-function DevicesCard({ snap, visible }: { snap: AnomalySnapshot; visible: Report[] }) {
+function DevicesCard({
+  snap,
+  visible,
+  actions,
+}: {
+  snap: AnomalySnapshot;
+  visible: Report[];
+  actions: Actions;
+}) {
   const devices = snap.devices ?? [];
+  const excluded = snap.excluded_devices ?? [];
   const affected = new Map<string, TierKey>();
   for (const r of visible)
     for (const d of r.devices)
@@ -287,6 +307,39 @@ function DevicesCard({ snap, visible }: { snap: AnomalySnapshot; visible: Report
           );
         })}
       </div>
+      {excluded.length > 0 && (
+        <details className="aw-affected aw-excluded">
+          <summary>
+            <Chevron />
+            Nesledované ({excluded.length})
+          </summary>
+          <ul>
+            {excluded.map((d) => (
+              <li key={d.id}>
+                <span>
+                  {d.name}
+                  {d.area && <small>{d.area}</small>}
+                </span>
+                {actions.include && (
+                  <button
+                    type="button"
+                    className="aw-link"
+                    disabled={actions.busy !== null}
+                    onClick={() => void actions.include!(d.id)}
+                  >
+                    Znovu sledovat
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {actions.include && (
+            <p className="aw-muted">
+              Po obnovení sledování se zařízení může začít vyhodnocovat až po dalším běhu učení.
+            </p>
+          )}
+        </details>
+      )}
     </Card>
   );
 }
@@ -337,6 +390,8 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
   const [filter, setFilter] = useState<'all' | TierKey>('all');
   const [busy, setBusy] = useState<string | null>(null);
   const [admin, setAdmin] = useState(false);
+  const [excludeDevice, setExcludeDevice] = useState<{ id: string; name: string } | null>(null);
+  const [includeError, setIncludeError] = useState(false);
   useEffect(() => {
     let alive = true;
     if (context.connection)
@@ -347,8 +402,8 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
   }, [context.connection]);
 
   const run = useCallback(
-    async (r: Report, action: () => Promise<void>) => {
-      setBusy(r.key);
+    async (key: string, action: () => Promise<void>) => {
+      setBusy(key);
       try {
         await action();
       } finally {
@@ -360,9 +415,20 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
   );
   const actions: Actions = {
     busy,
-    ack: (r, kind) => run(r, () => api!.ack(r.key, kind)),
-    mute: (r) => run(r, () => api!.mute(r.key, 7)),
-    unmute: (r) => run(r, () => api!.unmute(r.key)),
+    ack: (r, kind) => run(r.key, () => api!.ack(r.key, kind)),
+    mute: (r) => run(r.key, () => api!.mute(r.key, 7)),
+    unmute: (r) => run(r.key, () => api!.unmute(r.key)),
+    askExclude: admin ? setExcludeDevice : undefined,
+    include: admin
+      ? async (id) => {
+          setIncludeError(false);
+          try {
+            await run(`device:${id}`, () => api!.include(id));
+          } catch {
+            setIncludeError(true);
+          }
+        }
+      : undefined,
     openDevice: admin
       ? (id) => navigatePanel(`/config/devices/device/${encodeURIComponent(id)}`)
       : undefined,
@@ -380,7 +446,8 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
     // most urgent first: soonest escalation to Porucha, then the higher tier
     const open = snap.reports.filter((r) => r.hidden === null).sort(byUrgency);
     const hidden = snap.reports.filter((r) => r.hidden !== null);
-    const visible = filter === 'all' ? open : open.filter((r) => r.tier === filter);
+    const activeFilter = filter !== 'all' && snap.counts[filter] ? filter : 'all';
+    const visible = activeFilter === 'all' ? open : open.filter((r) => r.tier === activeFilter);
     const h = overview(snap.counts);
     const learning = !snap.ready;
     return (
@@ -427,7 +494,7 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
               label="Filtr"
               hideLabel
               size="sm"
-              value={filter}
+              value={activeFilter}
               onChange={(v) => setFilter(v as 'all' | TierKey)}
               options={[
                 ['all', `Vše ${open.length}`],
@@ -443,7 +510,7 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
           )}
 
           {open.length === 0 ? (
-            <DevicesCard snap={snap} visible={open} />
+            <DevicesCard snap={snap} visible={open} actions={actions} />
           ) : (
             <div className="aw-issues">
               {visible.map((r) => (
@@ -459,7 +526,7 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
           )}
         </main>
         <aside className="aw-rail">
-          {open.length > 0 && <DevicesCard snap={snap} visible={open} />}
+          {open.length > 0 && <DevicesCard snap={snap} visible={open} actions={actions} />}
           <HiddenCard hidden={hidden} actions={actions} />
           <PhoneCard />
           <HowCard />
@@ -479,7 +546,22 @@ export default function AnomalyView(context: Partial<ModuleViewProps> = {}) {
           </p>
         </div>
       </header>
+      {includeError && <p role="alert">Sledování se nepodařilo obnovit. Zkuste to znovu.</p>}
       {body()}
+      {admin && excludeDevice && (
+        <ConfirmDialog
+          title={`Přestat sledovat zařízení „${excludeDevice.name}“?`}
+          confirmLabel="Nesledovat"
+          danger
+          onClose={() => setExcludeDevice(null)}
+          onConfirm={() => run(`device:${excludeDevice.id}`, () => api!.exclude(excludeDevice.id))}
+        >
+          <p>
+            Otevřené upozornění se zavře. Zařízení zůstane trvale nesledované, dokud v seznamu
+            zařízení nezvolíte „Znovu sledovat“.
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }
