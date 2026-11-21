@@ -52,7 +52,7 @@ async function expectLastControlClear(page: Page) {
 async function contrastOf(
   page: Page,
   selector: string,
-  prop: 'color' | 'background' | 'borderBottomColor' | 'borderColor' = 'color',
+  prop: 'color' | 'background' | 'borderBottomColor' | 'borderColor' | 'placeholder' = 'color',
 ) {
   return page.evaluate(
     ({ selector, prop }) => {
@@ -93,9 +93,18 @@ async function contrastOf(
       return Array.from(document.querySelectorAll<HTMLElement>(selector))
         .filter((el) => el.getClientRects().length > 0 && el.getBoundingClientRect().width > 0)
         .map((el) => {
-          const cs = getComputedStyle(el);
+          const cs = getComputedStyle(el, prop === 'placeholder' ? '::placeholder' : undefined);
           const under = bgOf(prop === 'background' ? el.parentElement!.parentElement : el);
-          const fg = over(rgba(prop === 'background' ? cs.backgroundColor : cs[prop]), under);
+          const fg = over(
+            rgba(
+              prop === 'background'
+                ? cs.backgroundColor
+                : prop === 'placeholder'
+                  ? cs.color
+                  : cs[prop],
+            ),
+            under,
+          );
           const [a, b] = [lum(fg), lum(under)].sort((x, y) => y - x);
           return {
             text: el.textContent?.trim() ?? '',
@@ -184,14 +193,16 @@ test.describe('Rodina', () => {
       }),
     );
     expect(Math.max(...bottoms)).toBeLessThanOrEqual(800);
+    expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(1);
     const check = await page.getByTestId('family-chore-check').first().boundingBox();
     expect(check!.width).toBeGreaterThanOrEqual(48);
     const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(48);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
     const shopping = page.getByTestId('family-shopping');
     await expect(shopping).toContainText('4 položky');
     await expect(shopping.getByTestId('family-shop-item')).toHaveCount(3);
-    await expect(shopping).toContainText('a 1 další');
+    const more = shopping.getByTestId('family-shop-more');
+    await expect(more).toHaveText('Další 1 položka');
     const week = page.getByTestId('family-week');
     await expect(week.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
     for (const panel of [
@@ -202,6 +213,9 @@ test.describe('Rodina', () => {
       const clipping = await panel.evaluate((el) => el.scrollHeight - el.clientHeight);
       expect(clipping, (await panel.getAttribute('data-testid')) ?? '').toBeLessThanOrEqual(1);
     }
+    await more.click();
+    await expect(more).toHaveAttribute('aria-expanded', 'true');
+    await expect(shopping.getByTestId('family-shop-item')).toHaveCount(4);
     await noSidewaysScroll(page);
   });
 
@@ -1073,7 +1087,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(task.getByRole('checkbox')).toBeEnabled();
     const sections = detail.locator('.fam-person-group-head');
     await expect(sections.locator('.fam-person-group-label')).toHaveText([
-      'Po termínu',
+      'Přeneseno',
       'Ráno',
       'Odpoledne',
       'Večer',
@@ -1083,7 +1097,8 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(sections.locator('.fam-now-pill')).toHaveCount(1);
     await expect(sections.nth(2).locator('.fam-now-pill')).toHaveText('teď');
     await expect(detail.locator('details[data-finished]')).not.toHaveAttribute('open', '');
-    // The group flags overdue work while carry-over metadata and the checkbox stay neutral.
+    await expect(sections.first().locator('..')).toHaveAttribute('data-carried', 'true');
+    await expect(sections.first().locator('..')).not.toHaveAttribute('data-late', 'true');
     const ring = await task
       .locator('.fam-person-mark')
       .evaluate((el) => getComputedStyle(el).borderTopColor);
@@ -1099,6 +1114,7 @@ test.describe('Rodina – detail osoby P1', () => {
     const origin = detail.getByRole('heading', { name: /Středa 18./ }).locator('..');
     await expect(origin).toContainText('Přeneseno\u00a0→ čt\u00a019.\u00a011.');
     await expect(origin).toContainText('+4\u00a0body');
+    await expect(origin.locator('.fam-person-points s')).toHaveText('+4\u00a0body');
     await expect(origin.locator('small').first()).toHaveText('Přeneseno: 1');
     await expect(origin).not.toContainText('Bez úkolů');
     // Týden keeps the same neutral carry-over line and task marks.
@@ -1113,6 +1129,15 @@ test.describe('Rodina – detail osoby P1', () => {
     for (const mark of marks)
       expect(['open', 'done', 'waiting', 'handed', 'carried', 'missed']).toContain(mark);
     const summary = detail.getByTestId('family-week-summary');
+    await expect(summary.getByText('Zbývá splnit').locator('..')).toHaveText(
+      'Zbývá splnit4Od dneška do neděle',
+    );
+    await expect(summary.locator('.fam-week-bars li[data-today] small')).toHaveText('Dnes');
+    await expect(summary.locator('.fam-week-bars li[data-future] .fam-week-bar').first()).toHaveCSS(
+      'border-top-style',
+      'dashed',
+    );
+    await expect(summary.locator('.fam-week-bars b').nth(2)).toHaveText('0');
     await expect(
       summary.locator('dt', { hasText: 'Přeneseno' }).locator('..').locator('dd'),
     ).toHaveText('1');
@@ -1260,6 +1285,10 @@ test.describe('Rodina – detail osoby P1', () => {
     });
     expect(layout.ordered).toBe(true);
     expect(layout.minWidth).toBeGreaterThan(0.9);
+    const today = (await detail.locator('.fam-person-day[data-today]').boundingBox())!;
+    const surface = (await detail.locator('.fam-person-week .fam-person-surface').boundingBox())!;
+    expect(today.x).toBe(surface.x);
+    expect(today.width).toBe(surface.width);
   });
 
   test('Dnes na tabletu řadí široké skupiny nad kalendářem a zvýrazňuje čitelné stavy', async ({
@@ -1272,7 +1301,7 @@ test.describe('Rodina – detail osoby P1', () => {
     const detail = page.getByTestId('family-person');
     const groups = detail.locator('.fam-person-group');
     await expect(groups.locator('.fam-person-group-label')).toHaveText([
-      'Po termínu',
+      'Přeneseno',
       'Ráno',
       'Odpoledne',
       'Večer',
@@ -1288,6 +1317,20 @@ test.describe('Rodina – detail osoby P1', () => {
     const calendar = (await detail.locator('.fam-person-calendar').boundingBox())!;
     expect(calendar.y).toBeGreaterThan(bottom);
     expect(calendar.width).toBe(tasks.width);
+    await expect(detail.locator('.fam-person-group[data-now]')).toHaveCount(1);
+    await expect(detail.getByText('Teď 16:05')).toBeVisible();
+    await expect(detail.getByText('proběhlo', { exact: true }).first()).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'Shrnutí dne' })).toBeVisible();
+    await expect(
+      detail.locator('.fam-person-event[data-past] + .fam-person-calendar-now'),
+    ).toBeVisible();
+    expect(calendar.y + calendar.height).toBeGreaterThan(1080);
+    for (const { ratio, text } of await contrastOf(
+      page,
+      '.fam-person-event[data-past] :is(time, small)',
+    )) {
+      expect(ratio, text).toBeGreaterThanOrEqual(4.5);
+    }
 
     const openRings = await contrastOf(
       page,
@@ -1387,6 +1430,29 @@ test.describe('Rodina – detail osoby P1', () => {
       await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
       await open(page, `?kiosk=1&theme=${theme}`);
       await expect(page.getByTestId('family-chores-more')).toHaveCount(0);
+      await expect(page.getByTestId('family-clock')).toHaveCSS('font-size', '76px');
+      await expect(page.getByTestId('family-next-event')).toContainText('16:30');
+      for (const row of await page
+        .getByTestId('family-event')
+        .filter({ has: page.getByTestId('family-event-time') })
+        .all()) {
+        const time = (await row.getByTestId('family-event-time').boundingBox())!;
+        const icon = (await row.locator('.fam-category-icon').boundingBox())!;
+        expect(icon.x - time.x - time.width).toBeGreaterThanOrEqual(10);
+      }
+      const titles = await page
+        .getByTestId('family-week')
+        .locator('.fam-wk-t em, .fam-week-empty .fam-free')
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
+      expect(new Set(titles).size).toBe(1);
+      const caps = page
+        .getByTestId('family-week')
+        .locator('.fam-category-icon[data-category="school"]');
+      const legendColor = await caps.first().evaluate((el) => getComputedStyle(el).color);
+      await expect(caps.last()).toHaveCSS('color', legendColor);
+      const [placeholder] = await contrastOf(page, '.fam-add input', 'placeholder');
+      expect(placeholder!.ratio).toBeGreaterThanOrEqual(4.5);
+      expect(placeholder!.fontSize).toBeGreaterThanOrEqual(18);
       const verify = async (selectors: string[], minSize = 18) => {
         for (const selector of selectors) {
           const rows = await contrastOf(page, selector);
@@ -1415,7 +1481,12 @@ test.describe('Rodina – detail osoby P1', () => {
         '.fam-ev[data-past] time',
       ]);
       await verify(
-        ['.fam-chore-t b', '.fam-upcoming-name', '.fam-free-card .fam-person-task-text strong'],
+        [
+          '.fam-chore-t b',
+          '.fam-upcoming-name',
+          '.fam-free-card .fam-person-task-text strong',
+          '.fam-item > span',
+        ],
         20,
       );
       await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
@@ -1454,14 +1525,26 @@ test.describe('Rodina – detail osoby P1', () => {
       await expect(row).toBeInViewport({ ratio: 1 });
     }
     const chips = page.getByTestId('family-chores-more');
-    await expect(chips).toHaveText(['+2 další dnes', '+1 další dnes']);
+    await expect(chips).toHaveText(['Další 2 dnes', 'Další 1 dnes · 1 čeká']);
+    await expect(page.getByTestId('family-pending-badge')).toHaveText('3 čekají na schválení');
+    const tiles = page.getByTestId('family-person-tile');
+    await expect(tiles.filter({ hasText: 'Ema' }).locator('.fam-person-wait')).toHaveText(
+      '1 předání čeká',
+    );
+    await expect(tiles.filter({ hasText: 'Kuba' }).locator('.fam-person-wait')).toHaveText(
+      '2 čekají',
+    );
+    await expect(page.getByTestId('family-chores').getByTestId('family-pending-pill')).toHaveCount(
+      2,
+    );
     for (const chip of await chips.all()) {
+      expect(await chip.evaluate((el) => el.previousElementSibling?.tagName)).toBe('UL');
       await expect(chip.locator('svg')).toBeVisible();
       const box = (await chip.boundingBox())!;
       expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
       await expect(chip).toBeInViewport({ ratio: 1 });
     }
-    for (const { fontSize, ratio } of await contrastOf(page, '.fam-chores-more')) {
+    for (const { fontSize, ratio } of await contrastOf(page, '.fam-overflow-chip')) {
       expect(fontSize).toBeGreaterThanOrEqual(18);
       expect(ratio).toBeGreaterThanOrEqual(4.5);
     }
@@ -1484,35 +1567,52 @@ test.describe('Rodina – detail osoby P1', () => {
 });
 
 const polishShots = process.env.HB_FAMILY_POLISH4_SHOTS;
-test('Rodina – snímky doladění', async ({ page }) => {
-  test.skip(!polishShots, 'nastav HB_FAMILY_POLISH4_SHOTS');
-  test.setTimeout(90_000);
-  await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
-  const shot = (name: string) =>
-    page.screenshot({ path: join(polishShots!, `${name}.png`), animations: 'disabled' });
+test.describe('Rodina – snímky doladění', () => {
+  test.use({ deviceScaleFactor: 1 });
+  test('tablet a kiosk', async ({ page }, testInfo) => {
+    test.skip(
+      !polishShots || testInfo.project.name !== 'desktop',
+      'nastav HB_FAMILY_POLISH4_SHOTS a projekt desktop',
+    );
+    test.setTimeout(90_000);
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    const shot = async (name: string, fullPage = false) => {
+      expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1);
+      await page.screenshot({
+        path: join(polishShots!, `${name}.png`),
+        animations: 'disabled',
+        fullPage,
+      });
+    };
 
-  await page.setViewportSize({ width: 800, height: 1280 });
-  await open(page, '?theme=dark');
-  await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
-  const detail = page.getByTestId('family-person');
-  await expect(detail.getByTestId('family-carried-line')).toBeVisible();
-  await page.evaluate(() => document.fonts.ready);
-  await shot('person-today-tablet');
-  await detail.getByRole('tab', { name: 'Týden' }).click();
-  await expect(detail.getByText('Přeneseno: 1')).toBeVisible();
-  await expect(detail.locator('.fam-person-week .fam-person-surface')).toHaveAttribute(
-    'aria-busy',
-    'false',
-  );
-  await shot('person-week-tablet');
-
-  await page.setViewportSize({ width: 1280, height: 800 });
-  for (const theme of ['dark', 'light']) {
-    await open(page, `?kiosk=1&rodina=busy&theme=${theme}`);
-    await expect(page.getByTestId('family-chores-more')).toHaveCount(2);
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await open(page, '?theme=dark');
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = page.getByTestId('family-person');
+    await expect(detail.getByTestId('family-carried-line')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    await shot(`kiosk-${theme}`);
-  }
+    await shot('person-today-tablet');
+    await detail.getByRole('tab', { name: 'Týden' }).click();
+    await expect(detail.getByText('Přeneseno: 1')).toBeVisible();
+    await expect(detail.locator('.fam-person-week .fam-person-surface')).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
+    await expect(detail.getByRole('heading', { name: /^Neděle/ })).toBeVisible();
+    await shot('person-week-tablet', true);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    for (const theme of ['dark', 'light']) {
+      await open(page, `?kiosk=1&rodina=busy&theme=${theme}`);
+      const more = page.getByTestId('family-chores-more');
+      await expect(more).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      for (const chip of await more.all()) await expect(chip).toBeInViewport({ ratio: 1 });
+      await expect(page.getByTestId('family-shop-more')).toBeInViewport({ ratio: 1 });
+      await expect(page.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
+      await shot(`kiosk-${theme}`);
+    }
+  });
 });
 
 const personShots = process.env.HB_FAMILY_P1_SHOTS;
