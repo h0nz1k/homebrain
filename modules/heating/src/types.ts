@@ -56,10 +56,51 @@ export interface HeatingRoom {
 
 export type SolarThermalState = 'heating' | 'no_gain' | 'stagnation' | 'idle';
 
+/** One slot of `HeatingSchedule.week`, in real local time (DST included). */
+export interface HeatingWeekSlot {
+  start: string;
+  /** Local end; may be after midnight (then `minutes` runs into the next day). */
+  end: string;
+  minutes: number;
+  /** What the regulation itself displays (fixed PLC clock). */
+  plc_start: string;
+  plc_end: string;
+}
+
 export interface HeatingSchedule {
   key: string;
   label: string;
+  /** Today's slots in PLC time (legacy field, kept for the change log). */
   slots: Array<[string, string]>;
+  /** `start_end` = on/off windows; `start_duration` = start + run time (pool filtration). */
+  format?: 'start_end' | 'start_duration';
+  /** Monday … Sunday of the current week (day 1 = Monday). Missing on older backends. */
+  week?: Array<{ day: number; slots: HeatingWeekSlot[] }>;
+}
+
+export interface HeatingClock {
+  plc_utc_offset_minutes: number;
+  /** Local UTC offset − PLC offset today (60 in summer time with a UTC+1 PLC). */
+  local_shift_min: number;
+  plc_time: string | null;
+  /** + = the PLC clock is fast; null when the clock is not mapped. */
+  drift_min: number | null;
+}
+
+export interface HeatingCycling {
+  starts_today: number;
+  avg_run_min_today: T;
+  starts_yesterday: T;
+  avg_run_min_yesterday: T;
+  short_cycling: boolean;
+  max_starts: number;
+  min_avg_run_min: number;
+}
+
+export interface HeatingSolarDay {
+  pump_h: T;
+  max_temp: T;
+  stagnation_min: T;
 }
 
 export interface HeatingSnapshot {
@@ -75,6 +116,8 @@ export interface HeatingSnapshot {
     main_switch: B;
     heating_enabled: B;
     winter_limit: T;
+    /** Older backends omit it. */
+    summer_limit?: T;
     cooling_enabled: B;
     cooling: B;
     hdo_low_tariff: B;
@@ -111,6 +154,8 @@ export interface HeatingSnapshot {
     energy_today_kwh: T;
     /** Hours incl. the minutes counter (float). */
     motohours: T;
+    /** null = compressor not mapped; missing on older backends. */
+    cycling?: HeatingCycling | null;
   };
   tank: { top: T; bottom: T; target: T; hysteresis: T; curve_target: T };
   dhw: { temp: T; target: T; reheat_below: T; valve_to_dhw: B };
@@ -133,6 +178,7 @@ export interface HeatingSnapshot {
     min_water: T;
   };
   schedules: HeatingSchedule[];
+  clock?: HeatingClock;
   extras: {
     solar?: {
       temp: T;
@@ -140,14 +186,30 @@ export interface HeatingSnapshot {
       enabled: B;
       pump_pct: T;
       state: SolarThermalState | null;
+      today?: HeatingSolarDay | null;
+      yesterday?: HeatingSolarDay | null;
     } | null;
-    pool?: { temp: T; heating_pump: B; filter_pump: B } | null;
+    pool?: {
+      temp: T;
+      heating_pump: B;
+      filter_pump: B;
+      filter_enabled?: B;
+      filter_program_active?: B;
+      heating_enabled?: B;
+      auto?: B;
+      target?: T;
+    } | null;
     fish?: {
       temp: T;
       target: T;
       hysteresis: T;
       heating_on: B;
       valve_open: B;
+      water_temp?: T;
+      water_target?: T;
+      water_hysteresis?: T;
+      water_heating_on?: B;
+      water_heating_running?: B;
     } | null;
   };
   rooms: HeatingRoom[];

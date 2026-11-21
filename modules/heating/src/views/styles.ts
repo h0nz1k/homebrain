@@ -114,6 +114,7 @@ export const heatingStyles = `
 .ht-v small { font-size: 14px; color: var(--hb-t2); font-weight: 400; letter-spacing: 0; }
 .ht-stat[data-tone='ok'] .ht-v { color: var(--hb-ok); font-weight: 550; font-size: 20px; }
 .ht-stat[data-tone='crit'] .ht-v { color: var(--hb-crit); font-weight: 600; font-size: 20px; }
+.ht-stat[data-tone='warn'] .ht-sub { color: var(--hb-warn); }
 .ht-sub { font-size: 13px; color: var(--hb-t2); }
 .ht-meter { display: block; height: 4px; border-radius: 4px; background: var(--hb-fill, rgba(127,127,127,.18)); overflow: hidden; margin-top: 6px; }
 .ht-meter { position: relative; overflow: visible; }
@@ -282,6 +283,32 @@ export const heatingStyles = `
 .ht-sched-slots { color: var(--hb-t2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .ht-sched-axis .ht-sched-bar { background: none; height: 14px; }
 .ht-sched-axis b { position: absolute; transform: translateX(-50%); font-size: 11px; font-weight: 400; color: var(--hb-t3, var(--hb-t2)); }
+/* Topení 2b: read-only settings, weekly programs, pool/fish, daily cards */
+.ht-info li { align-items: baseline; }
+.ht-info-k { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ht-info-k small { font-size: 12.5px; color: var(--hb-t2); opacity: 0.85; line-height: 1.35; }
+.ht-info b { white-space: nowrap; }
+.ht-info li[data-idle] b { color: var(--hb-t2); font-weight: 450; }
+.ht-week { display: flex; flex-direction: column; gap: 8px; }
+.ht-week + .ht-week { border-top: 1px solid color-mix(in srgb, var(--hb-t1) 7%, transparent); padding-top: 14px; }
+.ht-week h4, .ht-pool-col h4, .ht-solar-days h4 { margin: 0; font-size: 13px; font-weight: 600; color: var(--hb-t2); letter-spacing: 0.01em; }
+.ht-week-rows { display: flex; flex-direction: column; gap: 6px; }
+.ht-week-rows li { display: grid; grid-template-columns: 52px minmax(0, 1fr) minmax(0, 190px); gap: 12px; align-items: center; font-size: 13px; }
+.ht-week-rows li[data-today] .ht-week-day { color: var(--hb-t1); font-weight: 650; }
+.ht-week-day { color: var(--hb-t2); font-variant-numeric: tabular-nums; }
+.ht-week-rows .ht-sched-bar { height: 10px; }
+.ht-week-rows .ht-sched-bar i[data-carried] { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.ht-week-axis .ht-sched-bar { background: none; height: 14px; }
+.ht-week-axis b { position: absolute; transform: translateX(-50%); font-size: 11px; font-weight: 400; color: var(--hb-t3, var(--hb-t2)); }
+[data-theme='light'] .ht .ht-week-axis b { color: var(--hb-t1); }
+.ht-week-hint { margin-top: 4px; }
+.ht-clock-notes { display: flex; flex-direction: column; gap: 6px; }
+.ht-week-drift { font-size: 13px; color: var(--hb-warn); }
+.ht-pool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px 28px; }
+.ht-pool-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ht-daily { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.ht-daily-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.ht-solar-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 4px 24px; }
 .ht-faults { display: flex; flex-direction: column; gap: 12px; }
 .ht-fault { padding: 22px 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .ht-fault h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; }
@@ -307,6 +334,10 @@ export const heatingStyles = `
   .ht-room-valve { grid-column: 2; grid-row: 1; }
   .ht-room-hum { display: none; }
   .ht-sched li { grid-template-columns: 1fr; gap: 6px; }
+  .ht-week-rows li { grid-template-columns: 40px minmax(0, 1fr); gap: 4px 10px; }
+  .ht-week-rows li .ht-sched-slots { grid-column: 2; }
+  .ht-week-axis > span:last-child { display: none; }
+  .ht-info b { white-space: normal; }
   .ht-sched-axis span:empty { display: none; }
   .ht-sbars { gap: 3px; padding-left: 36px; }
   .ht-sbars-grid { left: 36px; }
