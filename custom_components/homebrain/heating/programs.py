@@ -99,7 +99,7 @@ def local_week(
             week[local_day - 1].append(
                 {
                     "start": hhmm(local_start),
-                    "end": "24:00" if local_start + duration == DAY_MIN else hhmm(end_min),
+                    "end": "24:00" if end_min == 0 and duration > 0 else hhmm(end_min),
                     "minutes": duration,
                     "plc_start": hhmm(start),
                     "plc_end": "24:00" if start + duration == DAY_MIN else hhmm(start + duration),

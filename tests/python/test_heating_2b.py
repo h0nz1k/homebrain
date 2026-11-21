@@ -153,6 +153,15 @@ def test_local_week_summer_time_shifts_one_hour_and_crosses_midnight():
     assert week[6]["slots"] == []
 
 
+def test_local_week_slot_ending_at_plc_midnight():
+    # PLC 22:30–24:00: winter = local 22:30–24:00; summer = local 23:30–01:00 (plc_end stays 24:00)
+    winter = local_week({3: [(1350, 90)]}, today=date(2026, 1, 14), tz=PRAGUE, offset_minutes=60)
+    assert (winter[2]["slots"][0]["start"], winter[2]["slots"][0]["end"]) == ("22:30", "24:00")
+    summer = local_week({3: [(1350, 90)]}, today=date(2026, 7, 15), tz=PRAGUE, offset_minutes=60)
+    slot = summer[2]["slots"][0]
+    assert (slot["start"], slot["end"], slot["plc_end"]) == ("23:30", "01:00", "24:00")
+
+
 def test_local_week_dst_switch_day_by_day():
     # 2026-03-29 (Sunday) is the switch to summer time: Mon–Sat +0 h, Sunday +1 h
     week = local_week(

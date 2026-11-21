@@ -451,8 +451,8 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
     cyc = ctx.cycling
     st = state.rule("short_cycling")
     if _debounced(st, ctx.now, bool(cyc and cyc.get("short_cycling")), SHORT_CYCLING_DEBOUNCE):
-        assert cyc is not None
-        emit("short_cycling", "info", "Kompresor často spíná", _cycling_body(cyc))
+        if cyc:
+            emit("short_cycling", "info", "Kompresor často spíná", _cycling_body(cyc))
     elif st.active_since and not (cyc and cyc.get("short_cycling")):
         clear_rule("short_cycling")
 

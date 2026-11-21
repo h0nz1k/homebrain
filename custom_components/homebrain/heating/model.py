@@ -701,7 +701,7 @@ def cycling_summary(res: Resolved, counters: DayCounters) -> dict[str, Any] | No
         "avg_run_min_today": today_avg,
         "starts_yesterday": prev["starts"] if prev else None,
         "avg_run_min_yesterday": prev_avg,
-        "short_cycling": any(verdicts),
+        "short_cycling": any(v is True for v in verdicts),
         "max_starts": CYCLING_MAX_STARTS,
         "min_avg_run_min": CYCLING_MIN_AVG_RUN_MIN,
     }
