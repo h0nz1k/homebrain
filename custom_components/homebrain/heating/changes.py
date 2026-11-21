@@ -33,6 +33,13 @@ CHANGE_LOG_KEYS: frozenset[str] = frozenset(
         "extras.fish_target",
         "extras.fish_hysteresis",
         "extras.fish_heating_on",
+        "extras.pool_filter_enabled",
+        "extras.pool_heating_enabled",
+        "extras.pool_auto",
+        "extras.pool_target",
+        "extras.fish_water_target",
+        "extras.fish_water_hysteresis",
+        "extras.fish_water_heating_on",
     )
     or k.startswith("curve.")
 )

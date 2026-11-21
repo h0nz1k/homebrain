@@ -55,6 +55,9 @@ import {
 import { LandscapeDashboard, LandscapePumpChips } from './LandscapeDashboard.js';
 import { SideCircuitsPortrait, SolarPortraitBanner } from './SideCircuits.js';
 import { HeatingSchematic } from './Schematic.js';
+import { PoolFishCard, SettingsCard, WeekProgramsCard } from './ModesCards.js';
+import { DailyCards } from './DailyCards.js';
+import { showAtticTemp } from '../landscape.js';
 import { heatingStyles } from './styles.js';
 
 /** Full schematic (fullscreen pan/zoom): own chunk, loaded on first open. */
@@ -379,6 +382,9 @@ function NowTab({
           <Chip>
             Topení · {snap.pumps.heating === null ? '—' : snap.pumps.heating ? 'běží' : 'stojí'}
           </Chip>
+          {showAtticTemp(snap.house.attic_temp) && (
+            <Chip data-testid="heating-attic-portrait">Půda · {fmtT(snap.house.attic_temp)}</Chip>
+          )}
           {snap.mode.season && (
             <Pill>{snap.mode.season === 'winter' ? 'Zima · ekviterm' : 'Léto'}</Pill>
           )}
@@ -417,8 +423,9 @@ function NowTab({
         <Stat
           id="today"
           label="Dnes"
+          tone={hp.cycling?.short_cycling ? 'warn' : undefined}
           value={`${fmtNum(hp.runtime_today_h)}\u00a0h běhu`}
-          sub={`${hp.starts_today !== null ? czCount(hp.starts_today, 'start', 'starty', 'startů') : '–'}${hp.energy_today_kwh !== null ? ` · ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}`}
+          sub={`${hp.starts_today !== null ? czCount(hp.starts_today, 'start', 'starty', 'startů') : '–'}${hp.energy_today_kwh !== null ? ` · ${fmtNum(hp.energy_today_kwh)}\u00a0kWh` : ''}${hp.cycling?.short_cycling ? ' · často spíná' : ''}`}
         />
         <Stat
           id="faults"
@@ -680,7 +687,7 @@ function RoomsTab({ snap }: { snap: HeatingSnapshot }) {
 
 /* ---------- Trendy ---------- */
 
-function TrendsTab({ api }: { api: HeatingApi }) {
+function TrendsTab({ api, snap }: { api: HeatingApi; snap: HeatingSnapshot }) {
   const [range, setRange] = useState<HistoryRange>('week');
   const [on, setOn] = useState<HistoryKey[]>(['tank_bottom', 'dhw_temp', 'outdoor_temp']);
   const [zoom, setZoom] = useState<[number, number] | null>(null);
@@ -708,6 +715,7 @@ function TrendsTab({ api }: { api: HeatingApi }) {
   }, [all]);
   return (
     <>
+      <DailyCards snap={snap} />
       <Card className="ht-card" data-testid="heating-trend" data-range={range}>
         <header className="ht-ch ht-ch-wrap">
           <h3>Teploty a běh kompresoru</h3>
@@ -1043,17 +1051,20 @@ function ModesTab({ snap, api }: { snap: HeatingSnapshot; api: HeatingApi }) {
           </ul>
         </Card>
       </div>
-      <Card className="ht-card">
-        <header className="ht-ch">
-          <h3>Programy</h3>
-          <span className="ht-muted">týdenní program, dnes</span>
-        </header>
-        {snap.schedules.length ? (
+      <SettingsCard snap={snap} />
+      {snap.schedules.every((s) => !s.week) && snap.schedules.length ? (
+        // older backend without the weekly program: today's ribbon only
+        <Card className="ht-card">
+          <header className="ht-ch">
+            <h3>Programy</h3>
+            <span className="ht-muted">týdenní program, dnes</span>
+          </header>
           <ScheduleRibbon schedules={snap.schedules} nowMin={d.getHours() * 60 + d.getMinutes()} />
-        ) : (
-          <p className="ht-muted">Regulace nehlásí žádné časové programy.</p>
-        )}
-      </Card>
+        </Card>
+      ) : (
+        <WeekProgramsCard snap={snap} now={d} />
+      )}
+      <PoolFishCard snap={snap} now={d} />
       <ChangesCard api={api} />
     </>
   );
@@ -1215,7 +1226,7 @@ export default function HeatingView({ connection, route, kiosk }: ModuleViewProp
       ) : tab === 'mistnosti' ? (
         <RoomsTab snap={snap} />
       ) : tab === 'trendy' ? (
-        <TrendsTab api={api} />
+        <TrendsTab api={api} snap={snap} />
       ) : tab === 'sezony' ? (
         <SeasonsTab api={api} />
       ) : tab === 'rezimy' ? (

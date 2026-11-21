@@ -189,7 +189,7 @@ test.describe('Topení', () => {
     await expect(page.getByTestId('heating-curve-now')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('heating-readonly')).toContainText('Jen pro čtení');
     await expect(page.getByText('Chlazení', { exact: true })).toHaveCount(0);
-    await expect(page.getByTestId('heating-schedule')).not.toHaveCount(0);
+    await expect(page.getByTestId('heating-week-program')).not.toHaveCount(0);
     await noSidewaysScroll(page);
   });
 

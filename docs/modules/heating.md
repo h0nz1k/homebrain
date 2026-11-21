@@ -65,6 +65,60 @@ entities are moved to the new unique id and – if still the default – the new
 fish_target, fish_hysteresis, fish_heating_on, fish_valve_open}`; plus the lists `faults:` (single fault lamps
 with a label) and `schedules:` (time programs). See the example file for the syntax.
 
+### Phase 2b keys (all optional)
+
+Every key below is optional; when it is not mapped the payload field is `null` and the panel
+hides that row or card (never a `–` / `0` placeholder).
+
+| Key | Meaning |
+|---|---|
+| `curve.weather_comp` | tank target mode: on = heating curve (equitherm), off = constant |
+| `curve.constant_target` | constant tank target (°C), used only in constant mode |
+| `curve.min_water` | minimum heating-water temperature (°C) |
+| `mode.winter_limit` | outdoor temperature below which automatic season switches to winter |
+| `mode.summer_limit` | outdoor temperature above which automatic season switches to summer (only if the regulation has a separate one) |
+| `house.setback_drop`, `house.setback_drop_alt` | setback drop (°C); 0 °C (all mapped drops) → the panel says the setback runs but saves nothing |
+| `plc.clock_hour`, `plc.clock_minute` | PLC clock (hour / minute numbers on a page); payload only, no entity |
+| `extras.pool_filter_enabled` | pool filtration switched on |
+| `extras.pool_filter_program_active` | pool filtration program running right now (lamp) |
+| `extras.pool_heating_enabled` | pool heating switched on |
+| `extras.pool_auto` | pool mode automatic (on) / manual (off) |
+| `extras.pool_target` | pool target temperature |
+| `extras.fish_water_temp`, `extras.fish_water_target`, `extras.fish_water_hysteresis` | fish room water temperature, target, hysteresis |
+| `extras.fish_water_heating_on`, `extras.fish_water_heating_running` | fish room water heating switched on / running now |
+
+Top-level map option `plc_utc_offset_minutes` (default `60`): the fixed UTC offset of the PLC
+clock (Foxtrot clocks usually stay on winter time all year). Program times are PLC wall-clock
+times; the payload converts every day of the week with that day's own local offset (DST).
+
+Schedules may set `format: start_duration` (default `start_end`): each pair is then
+`[start_var, run_time_var]` (run time `hh:mm`, `00:00` = slot off), e.g. pool filtration.
+A schedule whose `key` starts with `pool` is shown in the pool card, the others in the weekly
+programs card; a schedule with key `setback` gets the 0 °C setback hint.
+
+Payload additions (2b):
+
+- `schedules[].format` and `schedules[].week` = 7 days (`day` 1 = Monday) of
+  `{start, end, minutes, plc_start, plc_end}` in **local** time; a slot lands on the local day it
+  starts on (a slot past midnight continues into the next day; Sunday wraps to Monday).
+  `schedules[].slots` stays today's slots in PLC time (change log compatibility).
+- `clock = {plc_utc_offset_minutes, local_shift_min, plc_time, drift_min}`; `drift_min`
+  compares the PLC clock with the time its page was read (minute resolution); the panel
+  explains a drift above 2 min.
+- `heat_pump.cycling = {starts_today, avg_run_min_today, starts_yesterday,
+  avg_run_min_yesterday, short_cycling, max_starts, min_avg_run_min}` (`null` without
+  `heat_pump.compressor_on`). Short cycling = more than 30 starts a day, or an average run under
+  8 min with at least 10 starts (today or yesterday). It raises the `short_cycling` alert with
+  severity `info` (shown in the alerts tab, never pushed).
+- `extras.solar.today` / `.yesterday = {pump_h, max_temp, stagnation_min}`: pump hours
+  (needs `extras.solar_pump`), max collector temperature (needs `extras.solar_temp`),
+  minutes in stagnation (collector ≥ 110 °C with the pump stopped; needs both). Intervals
+  between polls longer than 20 min are not credited. **No kWh or COP**: the solar loop has
+  no flow or heat meter.
+- `extras.pool.{filter_enabled, filter_program_active, heating_enabled, auto, target}`,
+  `extras.fish.{water_temp, water_target, water_hysteresis, water_heating_on,
+  water_heating_running}`, `mode.summer_limit`.
+
 `house.mixing_valve_pct` is numeric percent (no device class), rounded to an integer in the payload; unmapped or unavailable → `null`. The private mapping is configured outside this repository.
 
 The full schematic shows a mixing-valve fault only for a fault lamp mapped under the exact key

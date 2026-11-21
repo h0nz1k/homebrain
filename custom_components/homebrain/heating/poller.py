@@ -21,7 +21,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Final
 
 import aiohttp
@@ -50,11 +50,13 @@ from .model import (
     Resolved,
     SolarSample,
     build_payload,
+    cycling_summary,
     derive_activity,
     empty_payload,
     resolve,
     trim_solar_samples,
 )
+from .programs import plc_tz
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,6 +105,10 @@ class HeatingOptions:
         )
 
 
+def _float(value: Any) -> float | None:
+    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
 def _state_number(
     hass: HomeAssistant, entity_id: str | None, scale: dict[str, float]
 ) -> float | None:
@@ -130,6 +136,7 @@ class HeatingPoller:
         self._bindings = bindings
         self.map: HeatingMap | None = None
         self._pages: dict[int, dict[str, str]] = {}
+        self._page_times: dict[int, datetime] = {}
         self._due: dict[int, float] = {}
         self._res = Resolved()
         self._counters = DayCounters()
@@ -240,6 +247,7 @@ class HeatingPoller:
                 self._pages.pop(page, None)
             else:
                 self._pages[page] = values
+                self._page_times[page] = dt_util.utcnow()
             self._due[page] = now + self.map.pages.get(page, self.opts.interval)
         self._apply(failed, changed_project)
 
@@ -284,7 +292,8 @@ class HeatingPoller:
     def _recompute(self) -> None:
         assert self.map is not None
         now = dt_util.now()
-        self._res = resolve(self.map, self._pages, weekday=now.isoweekday())
+        plc_weekday = now.astimezone(plc_tz(self.map.plc_utc_offset_minutes)).isoweekday()
+        self._res = resolve(self.map, self._pages, weekday=plc_weekday, page_times=self._page_times)
         values = self._res.values
         energy = _state_number(
             self.hass, self._bindings().get(BINDING_ENERGY), {"Wh": 0.001, "MWh": 1000.0}
@@ -296,6 +305,10 @@ class HeatingPoller:
             outdoor=values.get("outdoor.temp"),
             energy_total=energy,
             faults=self._res.active_faults(),
+            solar_temp=_float(values.get("extras.solar_temp")),
+            solar_pump=values.get("extras.solar_pump")
+            if isinstance(values.get("extras.solar_pump"), bool)
+            else None,
         )
         self._recompute_alerts(now)
         self._detect_changes(now)
@@ -335,6 +348,7 @@ class HeatingPoller:
             faults_active=[(k, lbl) for k, lbl, on in self._res.faults if on],
             project_changed=self._project_changed,
             winter=winter if isinstance(winter, bool) else None,
+            cycling=cycling_summary(self._res, self._counters),
         )
         prev = {a.id: a for a in self._active_alerts}
         self._active_alerts = evaluate_alerts(ctx, self._alerts)
@@ -419,7 +433,9 @@ class HeatingPoller:
 
     def entity_keys(self) -> list[str]:
         """Contract keys that get an entity (mapped ones) + derived counters."""
-        mapped = [k for k in KEYS if self.map and k in self.map.keys]
+        mapped = [
+            k for k in KEYS if self.map and k in self.map.keys and KEYS[k].kind in ("num", "bool")
+        ]
         return [*mapped, *DERIVED]
 
     def value(self, key: str) -> Any:
@@ -455,6 +471,7 @@ class HeatingPoller:
             monitored=len(self.map.faults),
             solar_samples=tuple(self._solar_samples),
             alerts=[a.as_dict() for a in self._active_alerts],
+            tz=dt_util.get_default_time_zone(),
         )
 
     def alert_summary(self) -> tuple[int, list[dict[str, str]]]:

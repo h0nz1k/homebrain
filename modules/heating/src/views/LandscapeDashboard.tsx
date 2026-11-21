@@ -249,6 +249,7 @@ export function LandscapeDashboard({
             hide={hp.energy_today_kwh === null}
           />
           <KvRow k="Ø délka běhu" v={avg !== null ? fmtDuration(avg) : '–'} hide={avg === null} />
+          <KvRow k="Spínání" v="často · viz Trendy" hide={!hp.cycling?.short_cycling} />
           <KvRow k="Motohodiny" v={fmtMotohours(hp.motohours)} hide={hp.motohours === null} />
           <KvRow k="ΔT TČ" v={`${fmtNum(delta)}\u202f°C`} hide={delta === null} />
           <KvRow
