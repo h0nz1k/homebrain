@@ -14,7 +14,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.homebrain.anomaly.learn import EntityBaseline
 from custom_components.homebrain.anomaly.manager import AnomalyWatch, build_metas, get_watch
@@ -130,6 +130,51 @@ async def test_registry_selection(hass: HomeAssistant, house):
     assert metas[ids["hum"]].device_name == "Čidlo ve sklepě"
     assert metas[ids["hum"]].integration == DEMO
     assert metas[ids["hum"]].area == "Sklep" and metas[ids["door"]].area is None
+
+
+@pytest.mark.parametrize("with_selector", [False, True])
+async def test_utility_meter_only_expects_reports_during_active_tariff(hass, house, with_selector):
+    watch = house["watch"]
+    registry = er.async_get(hass)
+    entry = MockConfigEntry(domain="utility_meter", data={})
+    entry.add_to_hass(hass)
+    device = _device(hass, entry, "tariff", "Demo měřič")
+    eid = registry.async_get_or_create(
+        "sensor",
+        "utility_meter",
+        f"{entry.entry_id}_offpeak" if with_selector else "demo_meter_nt",
+        config_entry=entry if with_selector else None,
+        device_id=device,
+        suggested_object_id="demo_meter_renamed" if with_selector else "demo_meter_nt",
+    ).entity_id
+    hass.states.async_set(eid, "1", {"tariff": "offpeak"} if with_selector else {})
+    if with_selector:
+        selector = registry.async_get_or_create(
+            "select",
+            "utility_meter",
+            entry.entry_id,
+            config_entry=entry,
+            suggested_object_id="demo_tariff_renamed",
+        ).entity_id
+        hass.states.async_set(selector, "peak")
+    await hass.async_block_till_done()
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+    watch.engine.set_baselines(
+        {eid: EntityBaseline(eid, device, 21, periodic=True, p95_interval=timedelta(minutes=10))}
+    )
+
+    assert not watch.evaluate(dt_util.now() + timedelta(hours=8)).reports
+    assert watch.engine.quiet(eid, dt_util.now() + timedelta(hours=8)) is None
+    if with_selector:
+        hass.states.async_set(selector, "offpeak")
+        start = hass.states.get(selector).last_changed
+        assert not watch.evaluate(start + timedelta(minutes=29)).reports
+        (report,) = watch.evaluate(start + timedelta(minutes=30)).reports
+        assert report.findings[0].detector == "silent"
+        assert report.findings[0].detail["expected_since"] == start.isoformat()
+        hass.states.async_set(selector, "peak")
+        assert not watch.evaluate(start + timedelta(minutes=31)).reports
 
 
 async def test_list_summary_ack_mute_and_no_ha_writes(

@@ -35,6 +35,7 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
+from homeassistant.util import slugify
 
 from ..const import DOMAIN
 from .engine import Engine
@@ -120,6 +121,35 @@ def build_metas(hass: HomeAssistant) -> list[EntityMeta]:
         if len(metas) >= MAX_ENTITIES:
             break
     return metas
+
+
+def _tariff_start(
+    hass: HomeAssistant, registry: er.EntityRegistry, eid: str
+) -> tuple[bool, datetime | None]:
+    """Whether this is a tariff meter and when its current active period started."""
+    entry = registry.async_get(eid)
+    state = hass.states.get(eid)
+    tariff = state.attributes.get("tariff") if state else None
+    meter_id = None
+    if entry and entry.config_entry_id and entry.unique_id.startswith(f"{entry.config_entry_id}_"):
+        meter_id = entry.config_entry_id
+        tariff = tariff or entry.unique_id[len(meter_id) + 1 :]
+    object_id = eid.split(".", 1)[1]
+    if not tariff and object_id.endswith(("_nt", "_vt")):
+        tariff = object_id.rsplit("_", 1)[1]
+    if not isinstance(tariff, str) or not tariff:
+        return False, None
+    suffix = f"_{tariff}"
+    if meter_id is None and entry and entry.unique_id.endswith(suffix):
+        meter_id = entry.unique_id[: -len(suffix)]
+    select_id = (
+        registry.async_get_entity_id("select", "utility_meter", meter_id) if meter_id else None
+    )
+    suffix = f"_{slugify(tariff)}"
+    if select_id is None and object_id.endswith(suffix):
+        select_id = f"select.{object_id[: -len(suffix)]}"
+    select = hass.states.get(select_id) if select_id else None
+    return True, select.last_changed if select and select.state == tariff else None
 
 
 def _fetch_and_learn(
@@ -309,9 +339,16 @@ class AnomalyWatch:
 
     @callback
     def evaluate(self, now: datetime) -> Snapshot:
-        for eid in self.engine.metas:
+        registry = er.async_get(self.hass)
+        tariff_starts = {}
+        for eid, meta in self.engine.metas.items():
             if (state := self.hass.states.get(eid)) is not None:
                 self.engine.touch(eid, state.last_reported)
+            if meta.integration == "utility_meter":
+                is_tariff, active_since = _tariff_start(self.hass, registry, eid)
+                if is_tariff:
+                    tariff_starts[eid] = active_since
+        self.engine.tariff_starts = tariff_starts
         reports = self.engine.evaluate(now)
         open_keys = {r.key for r in reports}
         # An acknowledgement belongs to one occurrence: once the report closes, it is gone.

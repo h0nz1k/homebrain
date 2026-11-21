@@ -113,7 +113,7 @@ describe('copy – headlines never contradict the detail', () => {
       findings: [{ ...top, ...extra, detector }],
     });
     expect(headline(variant('flapping', { detail: { what: 'availability', count: 5 } }))).toBe(
-      'Čidlo ve sklepě opakovaně vypadává',
+      `Hodnota „${top.name}“ opakovaně vypadává`,
     );
     expect(
       headline(
@@ -246,7 +246,7 @@ describe('copy – r3: urgency order and the summary', () => {
 describe('copy – r3: „hlášení“ only for sensor reports, alerts are „upozornění“', () => {
   const SENSOR = [
     /od(\s|\$\{NB\}|&nbsp;)+posledního\s+hlášení/,
-    /Chybí\s+(\{missing\}|\d+)(&nbsp;|\s)hlášení/,
+    /Chybí\s+(\{expected\.length\}|\d+)(&nbsp;|\s)hlášení/,
   ];
   const allowed = (line: string, at: number) =>
     SENSOR.some((re) => {

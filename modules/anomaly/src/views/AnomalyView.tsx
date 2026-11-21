@@ -136,7 +136,12 @@ function IssueCard({
       )}
       {r.band && <BaselineBand band={r.band} now={now} />}
       {last && top && (
-        <SilenceTimeline last={last} intervalS={top.detail.interval_s ?? 600} now={now} />
+        <SilenceTimeline
+          last={last}
+          intervalS={top.detail.interval_s ?? 600}
+          now={now}
+          expectedSince={top.detail.expected_since}
+        />
       )}
       {r.entities.length > 1 && (
         <details className="aw-affected">
