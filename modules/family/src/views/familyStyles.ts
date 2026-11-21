@@ -1021,6 +1021,7 @@ export const familyStyles = `
   .fam-person-flow[data-tab='Dnes'] .fam-person-group > summary.fam-person-group-head { min-height: 54px; }
   .fam-person-flow[data-tab='Dnes'] :is(.fam-person-task, .fam-person-event) { min-height: 60px; }
   .fam .fam-person-flow[data-tab='Historie'] { display: block; columns: 2; column-gap: 20px; }
+  .fam-person-flow[data-tab='Historie'] .fam-week-bars { margin-block: 1em; }
   .fam-person-flow[data-tab='Historie'] > section, .fam-person-history .fam-person-group {
     break-inside: avoid; margin-bottom: 16px;
   }
