@@ -10,10 +10,10 @@ an upper bound (fewer false "silent" findings); live silence uses ``State.last_r
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from statistics import median
 from typing import Any
 
@@ -25,6 +25,7 @@ from .model import (
     Downtime,
     EntityMeta,
     Sample,
+    minimum_spread,
 )
 
 
@@ -64,6 +65,9 @@ class EntityBaseline:
     flap_usual: int = 0  # max real-state transitions in any flap window
     dwell_n: int = 0
     dwell_p95: timedelta | None = None
+    availability_ratio: float | None = None
+    availability_flaps_usual: int = 0  # hourly peak reached on at least three days
+    value_range: tuple[float, float] | None = None
 
     # ------------------------------------------------------------ persistence
     def as_dict(self) -> dict[str, Any]:
@@ -86,6 +90,9 @@ class EntityBaseline:
             "flap": self.flap_usual,
             "dn": self.dwell_n,
             "d95": sec(self.dwell_p95),
+            "avail": self.availability_ratio,
+            "avail_flaps": self.availability_flaps_usual,
+            "range": self.value_range,
         }
 
     @classmethod
@@ -110,6 +117,9 @@ class EntityBaseline:
             flap_usual=int(raw.get("flap", 0)),
             dwell_n=int(raw.get("dn", 0)),
             dwell_p95=td(raw.get("d95")),
+            availability_ratio=raw.get("avail"),
+            availability_flaps_usual=int(raw.get("avail_flaps", 0)),
+            value_range=tuple(bounds) if (bounds := raw.get("range")) is not None else None,
         )
 
 
@@ -170,10 +180,14 @@ def learn_entity(
     b = EntityBaseline(meta.entity_id, meta.device_id, (until - min(starts)) / timedelta(days=1))
     if rows:
         _learn_intervals(b, rows, blind, since, until, cfg)
-        _learn_outages(b, rows, blind)
+        _learn_outages(b, rows, blind, until, tz, cfg)
         _learn_flapping(b, rows, blind, cfg)
     if meta.kind == "numeric":
         _learn_hourly(b, meta, hourly, blind, tz, cfg)
+        values = [v for s in rows if not overlaps(s.ts, s.ts, blind) and (v := s.value) is not None]
+        values.extend(v for t, v in hourly if not overlaps(t, t + timedelta(hours=1), blind))
+        if values:
+            b.value_range = (min(values), max(values))
     elif rows:
         _learn_dwell(b, rows, blind)
     return b
@@ -234,16 +248,50 @@ def _learn_intervals(
         b.periodic = coverage >= cfg.periodic_min_coverage
 
 
-def _learn_outages(b: EntityBaseline, rows: list[Sample], blind: list[Downtime]) -> None:
+def _learn_outages(
+    b: EntityBaseline,
+    rows: list[Sample],
+    blind: list[Downtime],
+    until: datetime,
+    tz: tzinfo,
+    cfg: Config,
+) -> None:
+    def observed(a: datetime, z: datetime) -> timedelta:
+        return (
+            z
+            - a
+            - sum(
+                (min(z, d.end) - max(a, d.start) for d in blind if d.start < z and a < d.end),
+                timedelta(0),
+            )
+        )
+
     durations: list[float] = []
+    unavailable = timedelta(0)
+    recent: deque[datetime] = deque()
+    daily_peaks: dict[date, int] = defaultdict(int)
     start: datetime | None = None
     for s in rows:
         if s.state in UNAVAILABLE:
             start = start or s.ts
         elif start is not None:
+            unavailable += observed(start, s.ts)
             if not overlaps(start, s.ts, blind):
                 durations.append((s.ts - start).total_seconds())
+                while recent and start - recent[0] > cfg.availability_window:
+                    recent.popleft()
+                recent.append(start)
+                day = start.astimezone(tz).date()
+                daily_peaks[day] = max(daily_peaks[day], len(recent))
             start = None
+    if start is not None:
+        unavailable += observed(start, until)
+    total = observed(rows[0].ts, until)
+    if total > timedelta(0):
+        b.availability_ratio = 1 - unavailable / total
+    peaks = sorted(daily_peaks.values(), reverse=True)
+    if len(peaks) >= 3:
+        b.availability_flaps_usual = peaks[2]
     b.outages = len(durations)
     if durations:
         b.outage_p95 = timedelta(seconds=percentile(durations, 0.95))
@@ -286,7 +334,7 @@ def _learn_hourly(
         mad = median(abs(x - med) for x in pool)
         if mad == 0 and floor == 0:
             continue  # enum-like counters/flags: a "usual level" means nothing here
-        spread = max(1.4826 * mad, floor, abs(med) * 0.05)
+        spread = max(1.4826 * mad, minimum_spread(meta, med))
         b.hourly[hour] = HourStat(med, spread, round(min(pool), 3), round(max(pool), 3), len(pool))
 
 

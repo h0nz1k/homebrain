@@ -91,6 +91,27 @@ MIN_SPREAD: dict[str, float] = {
     "current": 1.0,
     "battery": 10.0,
 }
+
+
+SPREAD_UNIT_SCALE = {
+    "kW": 0.001,
+    "MW": 0.000001,
+    "mW": 1000,
+    "mA": 1000,
+    "kV": 0.001,
+    "°F": 1.8,
+}
+
+
+def minimum_spread(meta: EntityMeta, usual: float) -> float:
+    """Noise floor in the sensor's units, including near-constant baselines."""
+    class_floor = MIN_SPREAD.get(meta.device_class or "")
+    absolute = (
+        0.01 if class_floor is None else class_floor * SPREAD_UNIT_SCALE.get(meta.unit or "", 1)
+    )
+    return max(absolute, abs(usual) * 0.05)
+
+
 # Minimum "unusually long" durations per class/domain. Adapted from Vatra (MIT).
 MIN_DWELL: dict[str, timedelta] = {
     "door": timedelta(minutes=15),

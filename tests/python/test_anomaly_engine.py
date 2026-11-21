@@ -12,7 +12,7 @@ import anomaly_synth as synth
 import pytest
 
 from custom_components.homebrain.anomaly.engine import Engine
-from custom_components.homebrain.anomaly.learn import EntityBaseline, learn
+from custom_components.homebrain.anomaly.learn import EntityBaseline, HourStat, learn
 from custom_components.homebrain.anomaly.model import Config, Downtime, EntityMeta, Sample, Tier
 
 TZ = synth.TZ
@@ -168,6 +168,54 @@ def test_mass_outage_is_one_system_note_not_n_alarms(history, baselines):
 
 
 # ------------------------------------------------------------------ baseline
+@pytest.mark.parametrize(("spread", "value"), [(0, "0"), (0, "0.001"), (0.000001, "0.0028")])
+def test_constant_baseline_ignores_zero_and_noise(spread, value):
+    meta = EntityMeta(
+        "sensor.demo_power", "Výkon", "demo", "Zařízení", "numeric", "power", unit="kW"
+    )
+    baseline = EntityBaseline(
+        meta.entity_id, meta.device_id, 21, [HourStat(0, spread, 0, 0, 21)] * 24
+    )
+    baseline = EntityBaseline.from_dict(baseline.as_dict())
+    eng = Engine([meta], {meta.entity_id: baseline}, TZ)
+    eng.feed(Sample(meta.entity_id, T0, value))
+    assert eng.evaluate(T0) == []
+
+
+@pytest.mark.parametrize(("value", "tier"), [("1.4", Tier.OBSERVATION), ("2.0", Tier.CONFIRMED)])
+def test_irregular_load_only_escalates_for_unseen_magnitudes(value, tier):
+    meta = EntityMeta(
+        "sensor.demo_power", "Výkon", "demo", "Zařízení", "numeric", "power", unit="kW"
+    )
+    history = [
+        Sample(
+            meta.entity_id,
+            T0 - timedelta(days=day) + timedelta(hours=hour),
+            "1.4" if hour == 12 else "0",
+        )
+        for day in range(1, 22)
+        for hour in range(24)
+    ]
+    base = learn([meta], history, [], T0, TZ)[meta.entity_id]
+    assert base.hourly[T0.hour].median == 0
+    eng = Engine([meta], {meta.entity_id: EntityBaseline.from_dict(base.as_dict())}, TZ)
+    for mins in (0, 30, 120, 180):
+        now = T0 + timedelta(minutes=mins)
+        eng.feed(Sample(meta.entity_id, now, value))
+        (report,) = eng.evaluate(now)
+        assert report.findings[0].detail["seen_before"] is (tier == Tier.OBSERVATION)
+        if tier == Tier.OBSERVATION:
+            assert report.earliest == {}
+            assert report.tier == tier
+    assert report.tier == tier
+    if tier == Tier.OBSERVATION:
+        now = T0 + timedelta(hours=5)
+        eng.feed(Sample(meta.entity_id, now, "2.0"))
+        (report,) = eng.evaluate(now)
+        assert report.tier == Tier.OBSERVATION
+        assert report.earliest["suspicion"] == now + timedelta(minutes=30)
+
+
 def test_freezer_warming_is_confirmed(history, baselines):
     eng = _engine(history, baselines)
     start = T0 + timedelta(hours=2)
@@ -241,6 +289,71 @@ def test_availability_flapping(history, baselines):
     assert any(
         f.detail.get("what") == "availability" for _, reps in tl for r in reps for f in r.findings
     )
+
+
+def _demo_weather():
+    return [
+        EntityMeta(f"sensor.demo_weather_{i}", "Hodnota", "demo_weather", "Stanice", "numeric")
+        for i in range(35)
+    ]
+
+
+@pytest.mark.parametrize("learned", [False, True])
+def test_conditional_sensor_flapping_on_healthy_device(learned):
+    metas = _demo_weather()
+    eid = metas[0].entity_id
+
+    def flaps(at):
+        return [
+            Sample(eid, at + timedelta(minutes=10 * i + offset), state)
+            for i in range(21)
+            for offset, state in ((0, "unknown" if i % 2 else "unavailable"), (2, "1"))
+        ]
+
+    bases = {m.entity_id: EntityBaseline(m.entity_id, m.device_id, 21) for m in metas}
+    if learned:
+        history = [
+            Sample(eid, T0 - timedelta(days=21), "1"),
+            *(s for day in range(20, 0, -1) for s in flaps(T0 - timedelta(days=day))),
+        ]
+        trained = learn(metas, history, [], T0, TZ)[eid]
+        assert trained.availability_ratio == pytest.approx(1 - 20 * 21 * 2 / (21 * 24 * 60))
+        assert trained.availability_flaps_usual == 7
+        bases[eid] = EntityBaseline.from_dict(trained.as_dict())
+    eng = Engine(metas, bases, TZ)
+    healthy = [Sample(m.entity_id, T0, "1") for m in metas[1:]]
+    timeline = _run(eng, [*healthy, *flaps(T0)], 4, step=timedelta(minutes=1))
+    reports = [r for _, reports in timeline for r in reports]
+    if learned:
+        assert reports == []
+    else:
+        assert reports
+        assert all(
+            r.tier == Tier.OBSERVATION and r.entities == [eid] and not r.earliest for r in reports
+        )
+
+
+def test_whole_device_unavailability_reaches_fault_on_schedule():
+    metas = _demo_weather()
+    bases = {m.entity_id: EntityBaseline(m.entity_id, m.device_id, 21) for m in metas}
+    eng = Engine(metas, bases, TZ)
+    for meta in metas:
+        eng.feed(Sample(meta.entity_id, T0, "unavailable"))
+    for mins, tier in (
+        (29, None),
+        (30, Tier.OBSERVATION),
+        (60, Tier.SUSPICION),
+        (119, Tier.SUSPICION),
+        (120, Tier.CONFIRMED),
+    ):
+        reports = eng.evaluate(T0 + timedelta(minutes=mins))
+        if tier is None:
+            assert reports == []
+        else:
+            (report,) = reports
+            assert report.tier == tier
+            assert len(report.entities) == len(metas)
+            assert {f.detector for f in report.findings} == {"unavailable"}
 
 
 # ------------------------------------------------------------------ dwell

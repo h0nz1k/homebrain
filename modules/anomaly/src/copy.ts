@@ -199,7 +199,7 @@ export function headline(r: Report): string {
   }
   if (top.detector === 'flapping') {
     return top.detail.what === 'availability'
-      ? `${device} opakovaně vypadává`
+      ? `Hodnota „${top.name}“ opakovaně vypadává`
       : `${top.name} se neobvykle často přepíná`;
   }
   // dwell
@@ -309,6 +309,8 @@ export function why(r: Report, now: Date | string): string {
       : 'Ze zařízení nepřichází žádná hodnota.';
   }
   if (top.detector === 'baseline') {
+    if (top.tier === 'observation' && top.detail.seen_before === true)
+      return 'Hodnota je na tuto denní dobu neobvyklá, v minulosti se už objevila.';
     if (top.tier === 'observation')
       return 'Hodnota vybočila z obvyklého rozmezí pro tuto denní dobu.';
     const lasting = `Odchylka trvá ${dur((new Date(now).getTime() - Date.parse(top.since)) / 60_000)}.`;
@@ -319,7 +321,7 @@ export function why(r: Report, now: Date | string): string {
   }
   if (top.detector === 'flapping')
     return top.detail.what === 'availability'
-      ? 'Zařízení se opakovaně odpojuje.'
+      ? 'Home Assistant tuto hodnotu opakovaně hlásí jako nedostupnou.'
       : 'Stav se mění mnohem častěji než obvykle.';
   return 'Stav trvá déle, než bývá zvykem.';
 }
@@ -364,7 +366,7 @@ export function nextStep(r: Report): string {
   }
   if (top.detector === 'flapping')
     return top.detail.what === 'availability'
-      ? 'Zkontrolujte signál nebo napájení zařízení.'
+      ? 'Ověřte, za jakých podmínek je hodnota dostupná.'
       : 'Zkontrolujte kontakt čidla nebo automatizace, které ho přepínají.';
   return dwellVerb(top) === 'otevřeno'
     ? 'Zkontrolujte, jestli se nezapomnělo zavřít.'

@@ -175,10 +175,12 @@ export function SilenceTimeline({
   last,
   intervalS,
   now,
+  expectedSince,
 }: {
   last: string;
   intervalS: number;
   now: string;
+  expectedSince?: string;
 }) {
   const end = Date.parse(now);
   const start = end - GAP_WINDOW;
@@ -191,23 +193,27 @@ export function SilenceTimeline({
   const labelled = hours.filter((t) => end - t >= 0.3 * GAP_WINDOW);
   const received: number[] = [];
   for (let t = lastMs; t >= start; t -= step) received.push(t);
-  let missing = 0;
+  const expectedFrom = expectedSince ? Date.parse(expectedSince) : lastMs;
+  const totalMissing = Math.max(0, Math.floor((end - expectedFrom) / step));
   const expected: number[] = [];
-  for (let t = lastMs + step; t <= end; t += step) {
-    missing += 1;
-    if (t >= start) expected.push(t);
+  const firstVisible = Math.max(1, Math.ceil((start - expectedFrom) / step));
+  for (let i = firstVisible; i <= totalMissing; i += 1) {
+    expected.push(expectedFrom + i * step);
   }
   const lastPos = pos(lastMs);
   return (
     <figure className="aw-gap" data-testid="aw-gap">
       <figcaption>
-        <b data-testid="aw-gap-title">Chybí {missing}&nbsp;hlášení</b>
+        <b data-testid="aw-gap-title">
+          Chybí {expected.length}&nbsp;hlášení
+          {lastMs < start && ` za poslední ${dur(GAP_WINDOW / 60_000)}, celkem ${totalMissing}`}
+        </b>
         <span>· obvykle každých {dur(step / 60_000)}</span>
       </figcaption>
       <div className="aw-gap-scale" aria-hidden="true">
         <div className="aw-gap-track">
           <span className="aw-gap-data" style={{ width: `${lastPos}%` }} />
-          <span className="aw-gap-missing" style={{ left: `${lastPos}%` }} />
+          <span className="aw-gap-missing" style={{ left: `${pos(expectedFrom)}%` }} />
           {hours.map((t) => (
             <i key={t} className="aw-gap-hour" style={{ left: `${pos(t)}%` }} />
           ))}
@@ -217,7 +223,7 @@ export function SilenceTimeline({
           {expected.map((t) => (
             <i key={t} className="aw-gap-miss" style={{ left: `${pos(t)}%` }} />
           ))}
-          <i className="aw-gap-last" style={{ left: `${lastPos}%` }} />
+          {lastMs >= start && <i className="aw-gap-last" style={{ left: `${lastPos}%` }} />}
         </div>
         <div className="aw-gap-hours">
           {labelled.map((t) => (
