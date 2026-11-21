@@ -1083,7 +1083,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(sections.locator('.fam-now-pill')).toHaveCount(1);
     await expect(sections.nth(2).locator('.fam-now-pill')).toHaveText('teď');
     await expect(detail.locator('details[data-finished]')).not.toHaveAttribute('open', '');
-    // Red only on the „Po termínu“ label and the carry-over line, not on the checkbox.
+    // The group flags overdue work while carry-over metadata and the checkbox stay neutral.
     const ring = await task
       .locator('.fam-person-mark')
       .evaluate((el) => getComputedStyle(el).borderTopColor);
@@ -1092,7 +1092,7 @@ test.describe('Rodina – detail osoby P1', () => {
       .locator('.fam-person-group-label')
       .evaluate((el) => getComputedStyle(el).color);
     expect(ring).not.toBe(label);
-    await expect(task.getByTestId('family-carried-line')).toHaveCSS('color', label);
+    await expect(task.getByTestId('family-carried-line')).toHaveCSS('color', ring);
     await expect(task).toContainText('Přeneseno · původně st');
     await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
     await detail.getByRole('tab', { name: 'Týden' }).click();
@@ -1101,11 +1101,11 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(origin).toContainText('+4\u00a0body');
     await expect(origin.locator('small').first()).toHaveText('Přeneseno: 1');
     await expect(origin).not.toContainText('Bez úkolů');
-    // Týden: today's overdue item keeps the red carry-over line; no calendar glyphs for tasks.
+    // Týden keeps the same neutral carry-over line and task marks.
     const todayBlock = detail.locator('.fam-person-day[data-today]');
-    await expect(todayBlock.getByTestId('family-carried-line')).toContainText(
-      'Přeneseno · původně st',
-    );
+    const carryOver = todayBlock.getByTestId('family-carried-line');
+    await expect(carryOver).toContainText('Přeneseno · původně st');
+    await expect(carryOver).toHaveCSS('color', ring);
     const marks = await detail
       .locator('.fam-person-day .fam-person-mark')
       .evaluateAll((els) => els.map((el) => el.getAttribute('data-mark')));
