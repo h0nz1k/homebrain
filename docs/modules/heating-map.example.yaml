@@ -27,6 +27,10 @@ ucid:
 # meter is bound (energy_measured: false). Leave out to show no estimate.
 # kwh_per_run_hour: 4.0
 
+# Optional: fixed UTC offset of the PLC clock in minutes (default 60 = winter time all year).
+# Program times are converted to real local time (incl. summer time) with it.
+plc_utc_offset_minutes: 60
+
 keys:
   # mode
   mode.winter: {page: 17, var: R7030.0}
@@ -99,6 +103,21 @@ keys:
   extras.solar_pump_pct: {page: 28, var: X423}
   # extras.pool_temp: {page: 28, var: X432}
   # extras.fish_temp: {page: 36, var: X444}
+  # pool / fish room settings (optional)
+  # extras.pool_filter_enabled: {page: 35, var: R9010.0}
+  # extras.pool_filter_program_active: {page: 35, var: R9011.0}
+  # extras.pool_heating_enabled: {page: 28, var: R9012.0}
+  # extras.pool_auto: {page: 28, var: R9013.0}
+  # extras.pool_target: {page: 28, var: R9014}
+  # extras.fish_water_temp: {page: 36, var: X9015}
+  # extras.fish_water_target: {page: 36, var: R9016}
+  # extras.fish_water_hysteresis: {page: 36, var: R9017}
+  # extras.fish_water_heating_on: {page: 36, var: R9018.0}
+  # extras.fish_water_heating_running: {page: 36, var: R9018.1}
+  # mode.summer_limit: {page: 17, var: R9019}
+  # PLC clock (hour / minute numbers on a page) – clock drift hint only, no entity
+  # plc.clock_hour: {page: 26, var: S9008}
+  # plc.clock_minute: {page: 26, var: S9007}
 
 # Single fault lamps (each one: key, label shown in the panel, page + var).
 faults:
@@ -116,3 +135,12 @@ schedules:
     days:
       6: [[R7220, R7224]]
       7: [[R7230, R7234]]
+  # Duration format: [start_var, run_time_var] (run time hh:mm, 00:00 = slot off).
+  # Keys starting with "pool" are shown in the pool card.
+  # - key: pool_filter
+  #   label: Filtrace bazénu
+  #   page: 35
+  #   format: start_duration
+  #   slots: [[R9100, R9101], [R9102, R9103]]
+  #   days:
+  #     7: [[R9110, R9111]]
