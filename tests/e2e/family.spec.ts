@@ -52,7 +52,7 @@ async function expectLastControlClear(page: Page) {
 async function contrastOf(
   page: Page,
   selector: string,
-  prop: 'color' | 'background' | 'borderBottomColor' = 'color',
+  prop: 'color' | 'background' | 'borderBottomColor' | 'borderColor' | 'placeholder' = 'color',
 ) {
   return page.evaluate(
     ({ selector, prop }) => {
@@ -93,11 +93,24 @@ async function contrastOf(
       return Array.from(document.querySelectorAll<HTMLElement>(selector))
         .filter((el) => el.getClientRects().length > 0 && el.getBoundingClientRect().width > 0)
         .map((el) => {
-          const cs = getComputedStyle(el);
+          const cs = getComputedStyle(el, prop === 'placeholder' ? '::placeholder' : undefined);
           const under = bgOf(prop === 'background' ? el.parentElement!.parentElement : el);
-          const fg = over(rgba(prop === 'background' ? cs.backgroundColor : cs[prop]), under);
+          const fg = over(
+            rgba(
+              prop === 'background'
+                ? cs.backgroundColor
+                : prop === 'placeholder'
+                  ? cs.color
+                  : cs[prop],
+            ),
+            under,
+          );
           const [a, b] = [lum(fg), lum(under)].sort((x, y) => y - x);
-          return { text: el.textContent?.trim() ?? '', ratio: (a! + 0.05) / (b! + 0.05) };
+          return {
+            text: el.textContent?.trim() ?? '',
+            fontSize: parseFloat(cs.fontSize),
+            ratio: (a! + 0.05) / (b! + 0.05),
+          };
         });
     },
     { selector, prop },
@@ -180,14 +193,16 @@ test.describe('Rodina', () => {
       }),
     );
     expect(Math.max(...bottoms)).toBeLessThanOrEqual(800);
+    expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(1);
     const check = await page.getByTestId('family-chore-check').first().boundingBox();
     expect(check!.width).toBeGreaterThanOrEqual(48);
     const box = await page.getByTestId('family-shop-toggle').first().boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(48);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
     const shopping = page.getByTestId('family-shopping');
     await expect(shopping).toContainText('4 položky');
     await expect(shopping.getByTestId('family-shop-item')).toHaveCount(3);
-    await expect(shopping).toContainText('a 1 další');
+    const more = shopping.getByTestId('family-shop-more');
+    await expect(more).toHaveText('Další 1 položka');
     const week = page.getByTestId('family-week');
     await expect(week.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
     for (const panel of [
@@ -196,8 +211,11 @@ test.describe('Rodina', () => {
       page.getByTestId('family-chores'),
     ]) {
       const clipping = await panel.evaluate((el) => el.scrollHeight - el.clientHeight);
-      expect(clipping).toBeLessThanOrEqual(1);
+      expect(clipping, (await panel.getAttribute('data-testid')) ?? '').toBeLessThanOrEqual(1);
     }
+    await more.click();
+    await expect(more).toHaveAttribute('aria-expanded', 'true');
+    await expect(shopping.getByTestId('family-shop-item')).toHaveCount(4);
     await noSidewaysScroll(page);
   });
 
@@ -408,9 +426,8 @@ test.describe('Rodina', () => {
     ['dítě', '?role=child'],
     ['kiosk', '?kiosk=1'],
   ] as const) {
-    test(`kalendář (${label}): tečka = kategorie, nikdy barva osoby; čepice za názvem`, async ({
-      page,
-    }) => {
+    test(`kalendář (${label}): kategorie má vlastní značku`, async ({ page }) => {
+      await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
       await page.setViewportSize(
         query === '?kiosk=1' ? { width: 1280, height: 800 } : { width: 360, height: 800 },
       );
@@ -435,22 +452,39 @@ test.describe('Rodina', () => {
         const dots = Array.from(
           document.querySelectorAll('[data-testid="family-week-event"] > i'),
         ).map((el) => getComputedStyle(el).backgroundColor);
-        const caps = Array.from(document.querySelectorAll('[data-testid="family-school-cap"]')).map(
-          (el) => el.parentElement?.tagName,
-        );
         probe.remove();
-        return { cats, members: [...new Set(members)], dots, caps };
+        return { cats, members: [...new Set(members)], dots };
       });
       expect(res.cats).toHaveLength(2);
       expect(res.members.length).toBeGreaterThan(1);
-      expect(res.dots.length).toBeGreaterThan(5);
+      if (label === 'kiosk') {
+        const week = page.getByTestId('family-week');
+        for (const category of ['Škola', 'Rodina']) {
+          const icons = week.getByTestId('family-week-event').getByRole('img', { name: category });
+          expect(await icons.count()).toBeGreaterThan(0);
+          for (const icon of await icons.all()) {
+            const box = (await icon.boundingBox())!;
+            expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(20);
+          }
+        }
+        const school = week
+          .getByTestId('family-week-event')
+          .filter({ hasText: 'Ředitelské volno' });
+        const title = (await school.locator('em').boundingBox())!;
+        const cap = (await school.getByRole('img', { name: 'Škola' }).boundingBox())!;
+        expect(cap.x + cap.width).toBeLessThan(title.x);
+        expect(cap.y).toBeLessThan(title.y + title.height);
+        expect(cap.y + cap.height).toBeGreaterThan(title.y);
+      } else {
+        expect(res.dots.length).toBeGreaterThan(5);
+        expect(
+          await page.locator('.fam-wk-t > [data-testid="family-school-cap"] + em').count(),
+        ).toBeGreaterThan(0);
+      }
       for (const dot of res.dots) {
         expect(res.cats).toContain(dot);
         expect(res.members).not.toContain(dot);
       }
-      // The school cap sits inline in the title, never pinned to the right edge.
-      expect(res.caps.length).toBeGreaterThan(0);
-      for (const tag of res.caps) expect(tag).toBe('EM');
     });
   }
 
@@ -798,12 +832,12 @@ test.describe('Rodina – přidání úkolu', () => {
       const upcoming = up.getByTestId('family-upcoming-chore');
       await expect(upcoming).toHaveCount(1);
       await expect(upcoming.locator('.fam-upcoming-name')).toHaveText('Zítra: Vyskládat myčku');
-      await expect(up.getByTestId('family-upcoming-more')).toHaveText('a 2 další');
+      await expect(up.getByTestId('family-upcoming-more')).toHaveCount(0);
       const edges = await page
         .locator('[data-kid] :is(.fam-pts, .fam-upcoming-pts)')
         .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().right));
       expect(Math.max(...edges) - Math.min(...edges)).toBeLessThanOrEqual(1);
-      for (const f of await contrastOf(page, '.fam-upcoming-name, .fam-upcoming-more')) {
+      for (const f of await contrastOf(page, '.fam-upcoming-name')) {
         expect(f.ratio, f.text).toBeGreaterThanOrEqual(4.5);
       }
       await expect(page.getByTestId('family-pending-swaps')).toHaveCount(0);
@@ -1044,7 +1078,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(detail.getByRole('heading', { name: 'Kuba', exact: true })).toBeVisible();
   });
 
-  test('tři další kalendářní dny, čtvrtý den Zmeškáno', async ({ page }) => {
+  test('tři další kalendářní dny, čtvrtý den Nesplněno', async ({ page }) => {
     await page.clock.install({ time: new Date('2026-11-19T16:05:00+01:00') });
     await open(page);
     await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
@@ -1053,7 +1087,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(task.getByRole('checkbox')).toBeEnabled();
     const sections = detail.locator('.fam-person-group-head');
     await expect(sections.locator('.fam-person-group-label')).toHaveText([
-      'Po termínu',
+      'Přeneseno',
       'Ráno',
       'Odpoledne',
       'Večer',
@@ -1063,7 +1097,8 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(sections.locator('.fam-now-pill')).toHaveCount(1);
     await expect(sections.nth(2).locator('.fam-now-pill')).toHaveText('teď');
     await expect(detail.locator('details[data-finished]')).not.toHaveAttribute('open', '');
-    // Red only on the „Po termínu“ label and the carry-over line, not on the checkbox.
+    await expect(sections.first().locator('..')).toHaveAttribute('data-carried', 'true');
+    await expect(sections.first().locator('..')).not.toHaveAttribute('data-late', 'true');
     const ring = await task
       .locator('.fam-person-mark')
       .evaluate((el) => getComputedStyle(el).borderTopColor);
@@ -1072,24 +1107,40 @@ test.describe('Rodina – detail osoby P1', () => {
       .locator('.fam-person-group-label')
       .evaluate((el) => getComputedStyle(el).color);
     expect(ring).not.toBe(label);
-    await expect(task.getByTestId('family-carried-line')).toHaveCSS('color', label);
-    await expect(task).toContainText('Nesplněno od st');
+    await expect(task.getByTestId('family-carried-line')).toHaveCSS('color', ring);
+    await expect(task).toContainText('Přeneseno · původně st');
     await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
     await detail.getByRole('tab', { name: 'Týden' }).click();
     const origin = detail.getByRole('heading', { name: /Středa 18./ }).locator('..');
-    await expect(origin).toContainText('přeneseno\u00a0→ čt\u00a019.\u00a011.');
+    await expect(origin).toContainText('Přeneseno\u00a0→ čt\u00a019.\u00a011.');
     await expect(origin).toContainText('+4\u00a0body');
+    await expect(origin.locator('.fam-person-points s')).toHaveText('+4\u00a0body');
+    await expect(origin.locator('small').first()).toHaveText('Přeneseno: 1');
     await expect(origin).not.toContainText('Bez úkolů');
-    // Týden: today's overdue item keeps the red carry-over line; no calendar glyphs for tasks.
+    // Týden keeps the same neutral carry-over line and task marks.
     const todayBlock = detail.locator('.fam-person-day[data-today]');
-    await expect(todayBlock.getByTestId('family-carried-line')).toContainText('Nesplněno od st');
+    const carryOver = todayBlock.getByTestId('family-carried-line');
+    await expect(carryOver).toContainText('Přeneseno · původně st');
+    await expect(carryOver).toHaveCSS('color', ring);
     const marks = await detail
       .locator('.fam-person-day .fam-person-mark')
       .evaluateAll((els) => els.map((el) => el.getAttribute('data-mark')));
     expect(marks.length).toBeGreaterThan(3);
     for (const mark of marks)
       expect(['open', 'done', 'waiting', 'handed', 'carried', 'missed']).toContain(mark);
-    await expect(detail.getByTestId('family-week-summary')).toContainText('Hotovo');
+    const summary = detail.getByTestId('family-week-summary');
+    await expect(summary.getByText('Zbývá splnit').locator('..')).toHaveText(
+      'Zbývá splnit4Od dneška do neděle',
+    );
+    await expect(summary.locator('.fam-week-bars li[data-today] small')).toHaveText('Dnes');
+    await expect(summary.locator('.fam-week-bars li[data-future] .fam-week-bar').first()).toHaveCSS(
+      'border-top-style',
+      'dashed',
+    );
+    await expect(summary.locator('.fam-week-bars b').nth(2)).toHaveText('0');
+    await expect(
+      summary.locator('dt', { hasText: 'Přeneseno' }).locator('..').locator('dd'),
+    ).toHaveText('1');
     await detail.getByRole('tab', { name: 'Dnes' }).click();
     for (let days = 1; days <= 3; days++) {
       await expect(task).toHaveAttribute('data-carried-days', String(days));
@@ -1099,7 +1150,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await detail.getByRole('tab', { name: 'Historie' }).click();
     await expect(
       detail.getByTestId('family-history-row').filter({ hasText: 'Odvézt papír' }),
-    ).toContainText('Zmeškáno');
+    ).toContainText('Nesplněno');
     await expect(
       detail.getByTestId('family-history-row').filter({ hasText: 'Odvézt papír' }),
     ).toContainText('0 bodů');
@@ -1169,9 +1220,9 @@ test.describe('Rodina – detail osoby P1', () => {
         '19:00–20:30',
       ]);
       await expect(rows.first()).toHaveAttribute('data-past', 'true');
-      expect(
-        Number(await rows.first().evaluate((el) => getComputedStyle(el).opacity)),
-      ).toBeLessThan(1);
+      const opacity = Number(await rows.first().evaluate((el) => getComputedStyle(el).opacity));
+      if (kiosk) expect(opacity).toBe(1);
+      else expect(opacity).toBeLessThan(1);
       await expect(rows.first().getByTestId('family-avatar-family')).toBeVisible();
       const lefts = await rows
         .locator('b')
@@ -1186,19 +1237,20 @@ test.describe('Rodina – detail osoby P1', () => {
       expect(await next.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
         'rgba(0, 0, 0, 0)',
       );
-      const shadows = await rows
+      const highlights = await rows
         .locator('xpath=self::*[@data-running or @data-next]')
-        .evaluateAll((els) => els.map((el) => getComputedStyle(el).boxShadow));
-      expect(shadows).toHaveLength(2);
-      expect(shadows[0]).toBe(shadows[1]);
+        .evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+      expect(highlights).toHaveLength(2);
+      expect(highlights[0]).not.toBe(highlights[1]);
+      expect(highlights[1]).toBe('rgba(0, 0, 0, 0)');
       if (kiosk) {
-        // „celý den“ never touches the dot of the 7-day list.
+        // „celý den“ never touches the category icon of the 7-day list.
         for (const li of await page
           .locator('[data-testid="family-week-event"][data-allday]')
           .all()) {
           const time = (await li.locator('.fam-wk-time').boundingBox())!;
-          const dot = (await li.locator('i').boundingBox())!;
-          expect(dot.x - (time.x + time.width)).toBeGreaterThanOrEqual(4);
+          const icon = (await li.getByRole('img').first().boundingBox())!;
+          expect(icon.x - (time.x + time.width)).toBeGreaterThanOrEqual(4);
         }
         await expect(page.getByTestId('family-free').locator('h2')).toHaveText('Volné úkoly');
         await expect(page.getByTestId('family-free')).toHaveClass(/fam-card/);
@@ -1206,7 +1258,109 @@ test.describe('Rodina – detail osoby P1', () => {
     }
   });
 
-  test('detail na tabletu/desktopu nemá prázdný sloupec > 150 px', async ({ page }) => {
+  test('Týden na tabletu řadí dny od pondělí a využívá celou šířku', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    await open(page);
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = page.getByTestId('family-person');
+    await detail.getByRole('tab', { name: 'Týden' }).click();
+    const days = detail.locator('.fam-person-day');
+    await expect(days.locator('h3 > span')).toHaveText([
+      /^Pondělí/,
+      /^Úterý/,
+      /^Středa/,
+      /^Dnes · Čtvrtek/,
+      /^Pátek/,
+      /^Sobota/,
+      /^Neděle/,
+    ]);
+    const layout = await days.evaluateAll((nodes) => {
+      const flow = nodes[0]!.closest('.fam-person-flow')!.getBoundingClientRect();
+      const days = nodes.map((node) => node.getBoundingClientRect());
+      return {
+        ordered: days.every((day, i) => i === 0 || day.top >= days[i - 1]!.bottom),
+        minWidth: Math.min(...days.map((day) => day.width / flow.width)),
+      };
+    });
+    expect(layout.ordered).toBe(true);
+    expect(layout.minWidth).toBeGreaterThan(0.9);
+    const today = (await detail.locator('.fam-person-day[data-today]').boundingBox())!;
+    const surface = (await detail.locator('.fam-person-week .fam-person-surface').boundingBox())!;
+    expect(today.x).toBe(surface.x);
+    expect(today.width).toBe(surface.width);
+  });
+
+  test('Dnes na tabletu řadí široké skupiny nad kalendářem a zvýrazňuje čitelné stavy', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    await open(page, '?theme=dark');
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = page.getByTestId('family-person');
+    const groups = detail.locator('.fam-person-group');
+    await expect(groups.locator('.fam-person-group-label')).toHaveText([
+      'Přeneseno',
+      'Ráno',
+      'Odpoledne',
+      'Večer',
+    ]);
+    const tasks = (await detail.locator('.fam-person-tasks').boundingBox())!;
+    let bottom = 0;
+    for (const group of await groups.all()) {
+      const box = (await group.boundingBox())!;
+      expect(box.width).toBeGreaterThan(tasks.width * 0.9);
+      expect(box.y).toBeGreaterThanOrEqual(bottom);
+      bottom = box.y + box.height;
+    }
+    const calendar = (await detail.locator('.fam-person-calendar').boundingBox())!;
+    expect(calendar.y).toBeGreaterThan(bottom);
+    expect(calendar.width).toBe(tasks.width);
+    await expect(detail.locator('.fam-person-group[data-now]')).toHaveCount(1);
+    await expect(detail.getByText('Teď 16:05')).toBeVisible();
+    await expect(detail.getByText('proběhlo', { exact: true }).first()).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'Shrnutí dne' })).toBeVisible();
+    await expect(
+      detail.locator('.fam-person-event[data-past] + .fam-person-calendar-now'),
+    ).toBeVisible();
+    expect(calendar.y + calendar.height).toBeGreaterThan(1080);
+    for (const { ratio, text } of await contrastOf(
+      page,
+      '.fam-person-event[data-past] :is(time, small)',
+    )) {
+      expect(ratio, text).toBeGreaterThanOrEqual(4.5);
+    }
+
+    const openRings = await contrastOf(
+      page,
+      '.fam-person-task[data-state="todo"] .fam-person-mark[data-mark="open"]',
+      'borderColor',
+    );
+    expect(openRings.length).toBeGreaterThan(0);
+    for (const { ratio } of openRings) expect(ratio).toBeGreaterThanOrEqual(3);
+    for (const tab of ['Dnes', 'Týden']) {
+      await detail.getByRole('tab', { name: tab }).click();
+      const carried = detail.getByTestId('family-carried-line');
+      await expect(carried).toBeVisible();
+      expect(
+        await carried.evaluate((el) => {
+          const host = el.parentElement!;
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--hb-crit)';
+          host.append(probe);
+          const neutral = getComputedStyle(el).color !== getComputedStyle(probe).color;
+          probe.remove();
+          return neutral;
+        }),
+      ).toBe(true);
+      for (const { ratio, text } of await contrastOf(page, '.fam-person-task-text small')) {
+        expect(ratio, text).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  test('Historie na tabletu/desktopu nemá prázdný sloupec > 150 px', async ({ page }) => {
     test.setTimeout(90_000);
     await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
     for (const [width, height, query] of [
@@ -1218,25 +1372,22 @@ test.describe('Rodina – detail osoby P1', () => {
       await open(page, query);
       await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
       const detail = page.getByTestId('family-person');
-      for (const tab of ['Dnes', 'Týden', 'Historie']) {
-        await detail.getByRole('tab', { name: tab }).click();
-        const flow = detail.locator('.fam-person-flow');
-        const gap = await flow.evaluate((el) => {
-          const box = el.getBoundingClientRect();
-          const mid = box.left + box.width / 2;
-          const bottoms = [0, 0];
-          for (const child of Array.from(
-            el.querySelectorAll(':scope section, :scope details, :scope .fam-person-section-head'),
-          )) {
-            const r = child.getBoundingClientRect();
-            if (!r.height) continue;
-            const col = r.left < mid - 4 ? 0 : 1;
-            bottoms[col] = Math.max(bottoms[col]!, r.bottom);
-          }
-          return Math.abs(bottoms[0]! - bottoms[1]!);
-        });
-        expect(gap, `${width}px ${tab}`).toBeLessThanOrEqual(150);
-      }
+      await detail.getByRole('tab', { name: 'Historie' }).click();
+      const gap = await detail.locator('.fam-person-flow').evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const mid = box.left + box.width / 2;
+        const bottoms = [0, 0];
+        for (const child of Array.from(
+          el.querySelectorAll(':scope section, :scope details, :scope .fam-person-section-head'),
+        )) {
+          const r = child.getBoundingClientRect();
+          if (!r.height) continue;
+          const col = r.left < mid - 4 ? 0 : 1;
+          bottoms[col] = Math.max(bottoms[col]!, r.bottom);
+        }
+        return Math.abs(bottoms[0]! - bottoms[1]!);
+      });
+      expect(gap, `${width}px`).toBeLessThanOrEqual(150);
       await detail.getByRole('button', { name: /Zpět/ }).click();
     }
   });
@@ -1260,7 +1411,7 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(detail.getByText(/bodů? tento týden/)).toBeVisible();
     const task = detail.getByTestId('family-person-chore').filter({ hasText: 'Odvézt papír' });
     await expect(task).toContainText('+4 body');
-    await expect(task.locator('small')).toHaveCSS('font-size', '16px');
+    await expect(task.locator('small')).toHaveCSS('font-size', '18px');
     await expect(detail).not.toContainText(
       /Kč|baterie|v práci|na kroužku|ve škole|Sportovní hala|Vzít dres/i,
     );
@@ -1269,31 +1420,78 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(task).toContainText('Čeká na schválení');
     await detail.getByRole('tab', { name: 'Týden' }).click();
     const origin = detail.getByRole('heading', { name: /Středa 18./ }).locator('..');
-    await expect(origin).toContainText('přeneseno');
+    await expect(origin).toContainText('Přeneseno');
     await expect(detail.getByText('18 bodů tento týden')).toBeVisible();
   });
 
   for (const theme of ['dark', 'light'] as const) {
-    test(`kiosk detail má čitelné stavy, metadata a body (${theme})`, async ({ page }) => {
+    test(`kiosk má čitelné úkoly, metadata a stavy (${theme})`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 800 });
+      await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
       await open(page, `?kiosk=1&theme=${theme}`);
-      const meta = '.fam-wk-time, .fam-chore-meta small, .fam-pts, .fam-person-presence';
-      const verify = async (selector: string) => {
-        const fonts = await page
-          .locator(selector)
-          .evaluateAll((nodes) =>
-            nodes
-              .filter((node) => node.getClientRects().length)
-              .map((node) => parseFloat(getComputedStyle(node).fontSize)),
-          );
-        expect(fonts.length).toBeGreaterThan(1);
-        expect(Math.min(...fonts)).toBeGreaterThanOrEqual(16);
-        for (const row of await contrastOf(page, selector))
-          expect(row.ratio, row.text).toBeGreaterThanOrEqual(4.5);
+      await expect(page.getByTestId('family-chores-more')).toHaveCount(0);
+      await expect(page.getByTestId('family-clock')).toHaveCSS('font-size', '76px');
+      await expect(page.getByTestId('family-next-event')).toContainText('16:30');
+      for (const row of await page
+        .getByTestId('family-event')
+        .filter({ has: page.getByTestId('family-event-time') })
+        .all()) {
+        const time = (await row.getByTestId('family-event-time').boundingBox())!;
+        const icon = (await row.locator('.fam-category-icon').boundingBox())!;
+        expect(icon.x - time.x - time.width).toBeGreaterThanOrEqual(10);
+      }
+      const titles = await page
+        .getByTestId('family-week')
+        .locator('.fam-wk-t em, .fam-week-empty .fam-free')
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
+      expect(new Set(titles).size).toBe(1);
+      const caps = page
+        .getByTestId('family-week')
+        .locator('.fam-category-icon[data-category="school"]');
+      const legendColor = await caps.first().evaluate((el) => getComputedStyle(el).color);
+      await expect(caps.last()).toHaveCSS('color', legendColor);
+      const [placeholder] = await contrastOf(page, '.fam-add input', 'placeholder');
+      expect(placeholder!.ratio).toBeGreaterThanOrEqual(4.5);
+      expect(placeholder!.fontSize).toBeGreaterThanOrEqual(18);
+      const verify = async (selectors: string[], minSize = 18) => {
+        for (const selector of selectors) {
+          const rows = await contrastOf(page, selector);
+          expect(rows.length, selector).toBeGreaterThan(0);
+          for (const row of rows) {
+            expect(row.fontSize, row.text).toBeGreaterThanOrEqual(minSize);
+            expect(row.ratio, row.text).toBeGreaterThanOrEqual(4.5);
+          }
+        }
       };
-      await verify(meta);
+      await verify([
+        '.fam-wk-time',
+        '.fam-day small',
+        '.fam-due',
+        '.fam-pts',
+        '.fam-person-presence',
+        '.fam-person-progress',
+        '.fam-swap-tag[data-kind="transferred_in"]',
+        '.fam-pending-pill',
+        '.fam-handover-pending',
+        '.fam-free',
+        '.fam-legend',
+        '.fam-event-state[data-kind="now"]',
+        '.fam-event-state[data-kind="next"]',
+        '.fam-ev[data-past] b',
+        '.fam-ev[data-past] time',
+      ]);
+      await verify(
+        [
+          '.fam-chore-t b',
+          '.fam-upcoming-name',
+          '.fam-free-card .fam-person-task-text strong',
+          '.fam-item > span',
+        ],
+        20,
+      );
       await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
-      await verify('.fam-person-task-text small, .fam-person-points, .fam-person-presence');
+      await verify(['.fam-person-task-text small', '.fam-person-points', '.fam-person-presence']);
+      await verify(['.fam-person-task-text strong'], 20);
       const selected = await contrastOf(
         page,
         '.fam-person-tabs button[aria-selected="true"]',
@@ -1305,6 +1503,57 @@ test.describe('Rodina – detail osoby P1', () => {
     });
   }
 
+  test('kiosk: předání a zítřek neubírají dnešní místa, přetečení má čip pro každé dítě', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    await open(page, '?kiosk=1&rodina=busy');
+    const [giver, receiver] = await page.getByTestId('family-kid').all();
+    await expect(giver!.getByTestId('family-chore').locator('b')).toHaveText([
+      'Vyluxovat pokoj',
+      'Srovnat knihy',
+      'Připravit batoh',
+    ]);
+    await expect(receiver!.getByTestId('family-chore').locator('b')).toHaveText([
+      'Vynést koš',
+      'Utřít stůl',
+      'Uklidit boty',
+    ]);
+    await expect(page.getByTestId('family-upcoming')).toHaveCount(0);
+    for (const row of await page.getByTestId('family-chore').all()) {
+      await expect(row).toBeInViewport({ ratio: 1 });
+    }
+    const chips = page.getByTestId('family-chores-more');
+    await expect(chips).toHaveText(['Další 2 dnes', 'Další 1 dnes · 1 čeká']);
+    await expect(page.getByTestId('family-pending-badge')).toHaveText('3 čekají na schválení');
+    const tiles = page.getByTestId('family-person-tile');
+    await expect(tiles.filter({ hasText: 'Ema' }).locator('.fam-person-wait')).toHaveText(
+      '1 předání čeká',
+    );
+    await expect(tiles.filter({ hasText: 'Kuba' }).locator('.fam-person-wait')).toHaveText(
+      '2 čekají',
+    );
+    await expect(page.getByTestId('family-chores').getByTestId('family-pending-pill')).toHaveCount(
+      2,
+    );
+    for (const chip of await chips.all()) {
+      expect(await chip.evaluate((el) => el.previousElementSibling?.tagName)).toBe('UL');
+      await expect(chip.locator('svg')).toBeVisible();
+      const box = (await chip.boundingBox())!;
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+      await expect(chip).toBeInViewport({ ratio: 1 });
+    }
+    for (const { fontSize, ratio } of await contrastOf(page, '.fam-overflow-chip')) {
+      expect(fontSize).toBeGreaterThanOrEqual(18);
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    }
+    await chips.first().click();
+    const person = page.getByTestId('family-person');
+    await expect(person.getByRole('tab', { name: 'Dnes', selected: true })).toBeVisible();
+    await expect(person.getByText('Uklidit prádlo')).toBeVisible();
+  });
+
   test('vlastník nastaví barvu osoby', async ({ page }) => {
     await open(page);
     await page.getByRole('button', { name: 'Nastavení osob' }).click();
@@ -1314,6 +1563,55 @@ test.describe('Rodina – detail osoby P1', () => {
     await expect(
       page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }),
     ).toHaveAttribute('style', /--fam-person-4/);
+  });
+});
+
+const polishShots = process.env.HB_FAMILY_POLISH4_SHOTS;
+test.describe('Rodina – snímky doladění', () => {
+  test.use({ deviceScaleFactor: 1 });
+  test('tablet a kiosk', async ({ page }, testInfo) => {
+    test.skip(
+      !polishShots || testInfo.project.name !== 'desktop',
+      'nastav HB_FAMILY_POLISH4_SHOTS a projekt desktop',
+    );
+    test.setTimeout(90_000);
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    const shot = async (name: string, fullPage = false) => {
+      expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1);
+      await page.screenshot({
+        path: join(polishShots!, `${name}.png`),
+        animations: 'disabled',
+        fullPage,
+      });
+    };
+
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await open(page, '?theme=dark');
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = page.getByTestId('family-person');
+    await expect(detail.getByTestId('family-carried-line')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await shot('person-today-tablet');
+    await detail.getByRole('tab', { name: 'Týden' }).click();
+    await expect(detail.getByText('Přeneseno: 1')).toBeVisible();
+    await expect(detail.locator('.fam-person-week .fam-person-surface')).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
+    await expect(detail.getByRole('heading', { name: /^Neděle/ })).toBeVisible();
+    await shot('person-week-tablet', true);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    for (const theme of ['dark', 'light']) {
+      await open(page, `?kiosk=1&rodina=busy&theme=${theme}`);
+      const more = page.getByTestId('family-chores-more');
+      await expect(more).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      for (const chip of await more.all()) await expect(chip).toBeInViewport({ ratio: 1 });
+      await expect(page.getByTestId('family-shop-more')).toBeInViewport({ ratio: 1 });
+      await expect(page.getByTestId('family-day').last()).toBeInViewport({ ratio: 1 });
+      await shot(`kiosk-${theme}`);
+    }
   });
 });
 
@@ -1490,7 +1788,7 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
         await page.clock.setFixedTime(new Date('2026-11-19T09:00:00+01:00'));
         await open(page, `?theme=${theme}&reassign=${outcome}`);
         const chore = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
-        await expect(chore).toContainText('Po termínu (18:00)');
+        await expect(chore).toContainText('Přeneseno · původně');
         await chore.getByTestId('family-chore-menu').click();
         await page.getByRole('button', { name: 'Přeřadit na dnes…' }).click();
         const swap = page.getByTestId('family-swap-sheet');
