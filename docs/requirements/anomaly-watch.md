@@ -40,7 +40,10 @@ ne kód (viz `THIRD_PARTY_NOTICES.md`).
   (seskupení je po zařízení), max. 1 500; ne vlastní entity HomeBrainu. Přítomnost osob zatím
   nevyužívá (otázka 5).
 - **Texty:** nadpis nesmí odporovat obsahu a nesmí jít číst jako „není vlhko“: „Čidlo ve sklepě
-  přestalo posílat vlhkost“, když teplota chodí dál (rod slovesa podle jména zařízení); všechny časy výpadku se počítají od posledního hlášení. Pravidla a testy:
+  přestalo posílat vlhkost“, když teplota chodí dál (rod slovesa podle jména zařízení). Doba od
+  posledního hlášení vychází z jeho skutečného času. Osa ukazuje poslední 4 h. U delších výpadků
+  popisek uvádí počet chybějících hlášení v tomto okně i celkový počet. U aktivního tarifu se
+  očekávaná hlášení počítají nejdříve od jeho zapnutí. Pravidla a testy:
   `modules/anomaly/src/copy.ts`, `copy.test.ts`, `tests/e2e/anomaly.spec.ts`.
 
 ---
@@ -113,12 +116,20 @@ historii entity**, s absolutní spodní hranicí.
 
 | Detektor | Učení (21 dní) | Pozorování | Podezření | Porucha |
 | --- | --- | --- | --- | --- |
-| **Hodinový baseline** (číselné) | na každou místní hodinu medián + MAD hodinových průměrů, sloučeno s hodinou před a po; rozptyl = max(1,4826·MAD, minimum třídy, 5 % mediánu); obálka min/max | klouzavý 1h průměr má \|z\| ≥ 4 **a** leží mimo obálku ± 1 rozptyl (spotřeba/CO₂/světlo: \|z\| ≥ 6) | trvá ≥ 30 min | trvá ≥ 2 h **a** \|z\| ≥ 6 **a** mimo obálku ± 3 rozptyly |
-| **Ztichlý senzor** (periodické) | p50/p95 intervalu mezi hlášeními; periodický = ≥ 48 hlášení a ≥ 85 % hodin pokrytých | mlčí ≥ max(3·p95, 30 min) | ≥ max(6·p95, 2 h) | ≥ max(12·p95, 6 h) |
+| **Hodinový baseline** (číselné) | medián + MAD hodinových průměrů se sousedními hodinami, hodinová obálka min/max a rozsah hodnot napříč celou historií | klouzavý 1h průměr má \|z\| ≥ 4 **a** leží mimo hodinovou obálku ± 1 rozptyl (spotřeba/CO₂/světlo: \|z\| ≥ 6) | hodnota mimo rozsah z učení trvá ≥ 30 min | dosud nevídaná hodnota trvá ≥ 2 h **a** \|z\| ≥ 6 **a** je mimo hodinovou obálku ± 3 rozptyly |
+| **Ztichlý senzor** (periodické) | p50/p95 intervalu mezi hlášeními; periodický = ≥ 48 hlášení a ≥ 85 % hodin pokrytých | mlčí ≥ max(3·p95, 30 min); tarifní měřič pouze v aktivním tarifu | ≥ max(6·p95, 2 h) | ≥ max(12·p95, 6 h) |
 | **Nedostupné** (`unavailable`/`unknown`) | p95 délky vlastních výpadků | ≥ max(2·p95, 30 min) | ≥ max(4·p95, 2 h) | ≥ max(8·p95, 6 h) |
 | **Kmitání stavu** (diskrétní) | max. počet přepnutí v 15min okně | přepnutí za 15 min ≥ max(10, 2× obvyklé) | trvá ≥ 30 min | trvá ≥ 2 h |
-| **Kmitání dostupnosti** | – | ≥ 4 výpadky za hodinu | trvá ≥ 30 min | trvá ≥ 2 h |
+| **Kmitání dostupnosti** | časový podíl dostupnosti mimo mezery recorderu a nejvyšší hodinový počet výpadků dosažený alespoň ve třech dnech | ≥ 4 výpadky za hodinu a více než naučený počet | – | – |
 | **Neobvyklé trvání** (dveře, okna, světla, zásuvky) | p95 délky epizod „on/open“, ≥ 5 epizod | ≥ max(3·p95, minimum třídy) | 2× tolik | 4× tolik |
+
+Rozptyl při učení i vyhodnocení má dolní mez podle jednotky a 5 % absolutní hodnoty mediánu.
+Odchylka pod touto mezí se nehlásí ani při nulovém rozptylu, včetně starších uložených baseline.
+Hodnota v rozsahu z učení kdykoli během dne má nejvýše úroveň Pozorování.
+
+Integrace `utility_meter` určuje tarif z údajů senzoru či registru, případně z přípon `_nt` a `_vt`.
+Při aktivním tarifu běží doba mlčení od pozdějšího z posledního hlášení a zapnutí tarifu podle
+souvisejícího `select`. Při neaktivním tarifu nebo bez dostupného stavu voliče se hlášení neočekávají.
 
 Minima tříd (z Vatry): rozptyl teplota 1,5 °C, vlhkost 6 %, výkon 30 W, CO₂ 150 ppm …; trvání dveře
 15 min, okno 6 h, světlo 5 h, zásuvka 8 h. Enum-like číselné senzory (MAD = 0 a bez minima třídy) se
@@ -126,13 +137,15 @@ baselinem nehlídají.
 
 ### B.3 Úrovně, seskupení, oznámení
 
-1. **Úroveň nikdy neklesá**, dokud hlášení trvá (žádné blikání). Hlášení se uzavře, až je podmínka
-   15 min nepravdivá; přesune se do „Nedávno vyřešené“ (7 dní).
+1. **Dosažená úroveň trvá**, dokud je hlášení otevřené. Kmitání dostupnosti a hodnoty v rozsahu
+   z učení mají strop Pozorování. Hlášení se běžně uzavře, až je podmínka 15 min nepravdivá,
+   a přesune se do „Nedávno vyřešené“ (7 dní). Mlčení při skončení aktivního tarifu se uzavře hned.
 2. **Seskupení po zařízení** (`device_id`). Mlčí-li ≥ 2 entity a ≥ 50 % hlídaných entit zařízení,
    je titulek „{Zařízení} neodpovídá ({N} entit)“ a úroveň se zvedá postupně: pozorování trvající
    30 min → podezření, mlčení na prahu podezření (2 h) → porucha. Mlčící celé zařízení je porucha
    zařízení, ne šum; podezření ale vždy předchází poruše (v ukázce 9:55 → 10:25 → 11:20). Počet entit v titulku zahrnuje i sourozence,
    kteří ještě nepřekročili práh, a nikdy neklesá (žádné 2 → 7 → 17).
+   Souvislá nedostupnost všech entit dál eskaluje podle stejných prahů.
 3. **Seskupení po integraci**: pokud mlčí ≥ 3 zařízení jedné integrace, vznikne jedno společné hlášení.
    Stačí i dvě zařízení, pokud mlčí všechny jejich hlídané hodnoty a poslední aktualizace zařízení
    dělí nejvýše 15 minut. Hlášení směřuje kontrolu na integraci nebo její bránu.
@@ -163,6 +176,7 @@ EntityBaseline (perzistentní, 1 na entitu, ~0,9 kB JSON)
   hourly[24]: {median, spread, lo, hi, n} | null
   periodic, p50_interval, p95_interval
   outages, outage_p95, flap_usual, dwell_n, dwell_p95
+  availability_ratio, availability_flaps_usual, value_range
 
 Finding (živé, perzistentní kvůli restartu)
   detector: baseline | silent | unavailable | flapping | dwell

@@ -8,6 +8,7 @@ export interface FindingDetail {
   /** silent: last report (ISO) and the usual report interval. */
   last?: string;
   interval_s?: number;
+  expected_since?: string;
   /** silent / unavailable / dwell: duration in minutes (HA downtime excluded). */
   minutes?: number;
   /** unavailable / dwell: start of the state (ISO). */

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setAnomalyApiFactory } from '../api.js';
 import { MOCK_NOW, createMockAnomalyApi, type AnomalyScenario } from '../mock.js';
 import AnomalyView from './AnomalyView.js';
-import { BaselineBand, roundTicks } from './charts.js';
+import { BaselineBand, roundTicks, SilenceTimeline } from './charts.js';
 import { mockAnomalySnapshot } from '../mock.js';
 import { hm, sinceLast } from '../copy.js';
 import { AnomalyWatchCard } from './WatchCard.js';
@@ -185,6 +185,17 @@ describe('AnomalyView (detail)', () => {
     expect((await screen.findByTestId('aw-headline')).textContent).toBe(
       'Hlídání se učí, jak dům běží',
     );
+  });
+
+  it('counts the visible four hours separately from a longer outage', () => {
+    const { container } = render(
+      <SilenceTimeline last="2026-11-01T00:03:00Z" now="2026-11-02T08:00:00Z" intervalS={600} />,
+    );
+    expect(plain(screen.getByTestId('aw-gap-title').textContent)).toBe(
+      'Chybí 24 hlášení za poslední 4 h, celkem 191',
+    );
+    expect(container.querySelectorAll('.aw-gap-miss')).toHaveLength(24);
+    expect(container.querySelector('.aw-gap-last')).toBeNull();
   });
 
   it('never claims to send anything to the phone in phase 1', async () => {

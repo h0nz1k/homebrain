@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, tzinfo
+from math import isclose
 from typing import Any
 
 from .learn import EntityBaseline, merge_downtimes
@@ -29,6 +30,7 @@ from .model import (
     Report,
     Sample,
     Tier,
+    minimum_spread,
 )
 
 VALUE_WINDOW = timedelta(hours=1)
@@ -52,6 +54,15 @@ def _iso(ts: datetime | None) -> str | None:
     return ts.isoformat() if ts else None
 
 
+def _observation_only(f: Finding) -> bool:
+    return (
+        f.detector == "flapping"
+        and f.detail.get("what") == "availability"
+        or f.detector == "baseline"
+        and f.detail.get("seen_before") is True
+    )
+
+
 class Engine:
     def __init__(
         self,
@@ -65,6 +76,7 @@ class Engine:
         self.metas = {m.entity_id: m for m in metas}
         self.baselines = dict(baselines)
         self.live: dict[str, Live] = defaultdict(Live)
+        self.tariff_starts: dict[str, datetime | None] = {}  # None: inactive or unknown tariff
         self.downtimes: list[Downtime] = []
         self._blind_windows: list[Downtime] = []
         self.active: dict[str, Finding] = {}
@@ -191,8 +203,7 @@ class Engine:
         return tier
 
     def _persist_tier(self, key: str, now: datetime, hard: bool) -> Tier:
-        prev = self.active.get(key)
-        held = now - prev.since if prev else timedelta(0)
+        held = now - self._persist_since(key, now)
         if hard and held >= self.cfg.persist_confirmed:
             return Tier.CONFIRMED
         if held >= self.cfg.persist_suspicion:
@@ -200,12 +211,15 @@ class Engine:
         return Tier.OBSERVATION
 
     def _persist_earliest(self, key: str, now: datetime, hard: bool) -> dict[Tier, datetime]:
-        prev = self.active.get(key)
-        since = prev.since if prev else now
+        since = self._persist_since(key, now)
         out = {Tier.SUSPICION: since + self.cfg.persist_suspicion}
         if hard:
             out[Tier.CONFIRMED] = since + self.cfg.persist_confirmed
         return out
+
+    def _persist_since(self, key: str, now: datetime) -> datetime:
+        prev = self.active.get(key)
+        return prev.since if prev and not _observation_only(prev) else now
 
     def _monitored(self, meta: EntityMeta) -> bool:
         return not meta.removed and meta.entity_id in self.baselines
@@ -233,6 +247,10 @@ class Engine:
         self, floors: tuple[timedelta, ...], factors: tuple[float, ...], usual: timedelta, k: float
     ) -> list[timedelta]:
         return [max(f, usual * m) * k for f, m in zip(floors, factors, strict=True)]
+
+    def _silence_since(self, eid: str, last: datetime) -> datetime | None:
+        start = self.tariff_starts.get(eid, last)
+        return max(start, last) if start is not None else None
 
     # ------------------------------------------------------------ detectors
     def _detect(self, now: datetime) -> dict[str, Hit]:
@@ -263,8 +281,9 @@ class Engine:
                     hits[f"unavailable:{eid}"] = ("unavailable", meta, tier, detail, earliest)
                 continue
 
-            if b.periodic and b.p95_interval is not None:
-                el = self._elapsed(live.last_update, now)
+            since = self._silence_since(eid, live.last_update)
+            if since is not None and b.periodic and b.p95_interval is not None:
+                el = self._elapsed(since, now)
                 limits = self._limits(cfg.silent_floors, cfg.silent_factors, b.p95_interval, k)
                 tier = self._tier_by(el, limits)
                 if tier:
@@ -273,18 +292,23 @@ class Engine:
                         "last": _iso(live.last_update),
                         "interval_s": round((b.p50_interval or b.p95_interval).total_seconds()),
                     }
-                    earliest = {
-                        t: live.last_update + lim for t, lim in zip(Tier, limits, strict=True)
-                    }
+                    if since > live.last_update:
+                        detail["expected_since"] = _iso(since)
+                    earliest = {t: since + lim for t, lim in zip(Tier, limits, strict=True)}
                     hits[f"silent:{eid}"] = ("silent", meta, tier, detail, earliest)
                     continue
 
             recent = [t for t in live.outage_starts if now - t <= cfg.availability_window]
             if len(recent) >= cfg.availability_flaps:
-                key = f"flapping:{eid}"
-                tier = self._persist_tier(key, now, hard=True)
-                detail = {"count": len(recent), "what": "availability"}
-                hits[key] = ("flapping", meta, tier, detail, self._persist_earliest(key, now, True))
+                ratio = b.availability_ratio
+                usual = (
+                    b.availability_flaps_usual
+                    if warm and ratio is not None and 0 < ratio < 1
+                    else 0
+                )
+                if len(recent) > usual:
+                    detail = {"count": len(recent), "what": "availability"}
+                    hits[f"flapping:{eid}"] = ("flapping", meta, Tier.OBSERVATION, detail, {})
                 continue
 
             if meta.kind == "numeric" and warm:
@@ -308,15 +332,37 @@ class Engine:
         if stat is None or not window or self._in_grace(now):
             return
         x = sum(window) / len(window)  # same shape as the hourly statistics mean
-        z = (x - stat.median) / stat.spread
-        outside = x > stat.hi + stat.spread * k or x < stat.lo - stat.spread * k
+        delta = x - stat.median
+        floor = minimum_spread(meta, stat.median)
+        if abs(delta) < floor:
+            return
+        spread = max(stat.spread, floor)
+        z = delta / spread
+        outside = x > stat.hi + spread * k or x < stat.lo - spread * k
         behaviour = meta.device_class in BEHAVIOUR_CLASSES
         limit = (cfg.z_observe_behaviour if behaviour else cfg.z_observe) * k
         if abs(z) < limit or not outside:
             return
-        margin = cfg.envelope_spreads * stat.spread * k
-        hard = abs(z) >= cfg.z_confirm * k and (x > stat.hi + margin or x < stat.lo - margin)
+        bounds = b.value_range
+        if bounds is None:  # stored profiles from before the all-hours range was learned
+            hours = [hour for hour in b.hourly if hour is not None]
+            bounds = (min(hour.lo for hour in hours), max(hour.hi for hour in hours))
+        lo, hi = bounds
+        seen_before = lo <= x <= hi or isclose(x, lo) or isclose(x, hi)
         key = f"baseline:{meta.entity_id}"
+        detail = {
+            "value": round(x, 2),
+            "usual": round(stat.median, 2),
+            "lo": stat.lo,
+            "hi": stat.hi,
+            "z": round(z, 1),
+            "seen_before": seen_before,
+        }
+        if seen_before:
+            hits[key] = ("baseline", meta, Tier.OBSERVATION, detail, {})
+            return
+        margin = cfg.envelope_spreads * spread * k
+        hard = abs(z) >= cfg.z_confirm * k and (x > stat.hi + margin or x < stat.lo - margin)
         tier = self._persist_tier(key, now, hard)
         if behaviour and z < 0:
             # Low consumption/light/CO2 follows the people, not the device.
@@ -324,14 +370,6 @@ class Engine:
             hard = False
         elif self.away and not hard:
             tier = Tier.OBSERVATION  # holiday set-back of heating etc.: note it, do not worry
-        detail = {
-            "value": round(x, 2),
-            "usual": round(stat.median, 2),
-            "lo": stat.lo,
-            "hi": stat.hi,
-            "z": round(z, 1),
-            "seen_before": not hard,  # within what the last weeks have already shown
-        }
         hits[key] = ("baseline", meta, tier, detail, self._persist_earliest(key, now, hard))
 
     def _detect_discrete(
@@ -395,16 +433,30 @@ class Engine:
                     continue  # nothing new is born in the first minutes after a restart
                 f = Finding(det, meta.entity_id, meta.device_id, tier, now, now, detail)
                 self.active[key] = f
-            f.tier = max(f.tier, tier)  # sticky: a finding never de-escalates while active
-            f.last_true = now
+            was_capped = _observation_only(f)
             f.detail = detail
+            if _observation_only(f):
+                f.tier = tier
+                f.reached = {k: v for k, v in f.reached.items() if k == TIER_KEYS[tier]}
+            elif was_capped:
+                f.since = now
+                f.tier = tier
+                f.reached.clear()
+            else:
+                f.tier = max(f.tier, tier)
+            f.last_true = now
             for t in Tier:
                 if t <= f.tier:
                     f.reached.setdefault(TIER_KEYS[t], now)
             self._earliest[key] = earliest
         for key in [k for k in self.active if k not in hits]:
             f = self.active[key]
-            if now - f.last_true >= cfg.clear_after:
+            tariff_paused = (
+                f.detector == "silent"
+                and f.entity_id in self.tariff_starts
+                and self.tariff_starts[f.entity_id] is None
+            )
+            if tariff_paused or now - f.last_true >= cfg.clear_after:
                 f.resolved_at = now
                 self.resolved.append(self.active.pop(key))
         while self.resolved and now - self.resolved[0].resolved_at > cfg.resolved_keep:  # type: ignore[operator]
@@ -422,6 +474,9 @@ class Engine:
     def _sticky(self, r: Report, now: datetime) -> Report:
         """While a report is open, its tier and entity count never shrink (no 17 → 7 → 1)."""
         peak = self._peak.get(r.key, (r.tier, 0))
+        if r.findings and all(_observation_only(f) for f in r.findings):
+            peak = (r.tier, len(r.entities))
+            self._reached.pop(r.key, None)
         self._peak[r.key] = (max(peak[0], r.tier), max(peak[1], len(r.entities)))
         r.tier = self._peak[r.key][0]
         reached = self._reached.setdefault(r.key, {})
@@ -453,8 +508,8 @@ class Engine:
         if live.last_update is None:
             return None
         limit = max(timedelta(minutes=15), b.p95_interval * 2)
-        since = live.unavailable_since or live.last_update
-        return self._elapsed(since, now) >= limit
+        since = live.unavailable_since or self._silence_since(eid, live.last_update)
+        return self._elapsed(since, now) >= limit if since is not None else None
 
     def _mass_outage(self, now: datetime) -> bool:
         """Most devices quiet across several integrations = HA/network problem, not devices."""
