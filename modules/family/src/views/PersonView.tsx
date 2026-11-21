@@ -231,11 +231,13 @@ function ChoreRows({
                     : MISSED_LABEL}
                 </small>
               ) : carried ? (
-                <small className="fam-person-overdue" data-testid="family-carried-line">
+                <small className="fam-person-carried" data-testid="family-carried-line">
                   {carriedLabel(carried)}
                 </small>
               ) : chore.due && chore.state !== 'done' && chore.state !== 'claimed' ? (
-                <small>do&nbsp;{timeLabel(chore.due)}</small>
+                <small data-overdue={chore.state === 'overdue' || undefined}>
+                  do&nbsp;{timeLabel(chore.due)}
+                </small>
               ) : null}
               {status && (
                 <small
@@ -943,6 +945,7 @@ export function PersonView({
                 highlight={placed}
                 onComplete={onComplete}
               />
+              <PersonCalendar today={today} now={now} />
               <FreeTasks
                 rows={free}
                 members={members}
@@ -951,7 +954,6 @@ export function PersonView({
                 onClaim={onClaim}
                 claimDisabled={claimDisabled}
               />
-              <PersonCalendar today={today} now={now} />
             </>
           )}
           {tab === 'Týden' && (

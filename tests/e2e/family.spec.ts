@@ -52,7 +52,7 @@ async function expectLastControlClear(page: Page) {
 async function contrastOf(
   page: Page,
   selector: string,
-  prop: 'color' | 'background' | 'borderBottomColor' = 'color',
+  prop: 'color' | 'background' | 'borderBottomColor' | 'borderColor' = 'color',
 ) {
   return page.evaluate(
     ({ selector, prop }) => {
@@ -97,7 +97,11 @@ async function contrastOf(
           const under = bgOf(prop === 'background' ? el.parentElement!.parentElement : el);
           const fg = over(rgba(prop === 'background' ? cs.backgroundColor : cs[prop]), under);
           const [a, b] = [lum(fg), lum(under)].sort((x, y) => y - x);
-          return { text: el.textContent?.trim() ?? '', ratio: (a! + 0.05) / (b! + 0.05) };
+          return {
+            text: el.textContent?.trim() ?? '',
+            fontSize: parseFloat(cs.fontSize),
+            ratio: (a! + 0.05) / (b! + 0.05),
+          };
         });
     },
     { selector, prop },
@@ -196,7 +200,7 @@ test.describe('Rodina', () => {
       page.getByTestId('family-chores'),
     ]) {
       const clipping = await panel.evaluate((el) => el.scrollHeight - el.clientHeight);
-      expect(clipping).toBeLessThanOrEqual(1);
+      expect(clipping, (await panel.getAttribute('data-testid')) ?? '').toBeLessThanOrEqual(1);
     }
     await noSidewaysScroll(page);
   });
@@ -408,9 +412,8 @@ test.describe('Rodina', () => {
     ['dítě', '?role=child'],
     ['kiosk', '?kiosk=1'],
   ] as const) {
-    test(`kalendář (${label}): tečka = kategorie, nikdy barva osoby; čepice za názvem`, async ({
-      page,
-    }) => {
+    test(`kalendář (${label}): kategorie má vlastní značku`, async ({ page }) => {
+      await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
       await page.setViewportSize(
         query === '?kiosk=1' ? { width: 1280, height: 800 } : { width: 360, height: 800 },
       );
@@ -435,22 +438,39 @@ test.describe('Rodina', () => {
         const dots = Array.from(
           document.querySelectorAll('[data-testid="family-week-event"] > i'),
         ).map((el) => getComputedStyle(el).backgroundColor);
-        const caps = Array.from(document.querySelectorAll('[data-testid="family-school-cap"]')).map(
-          (el) => el.parentElement?.tagName,
-        );
         probe.remove();
-        return { cats, members: [...new Set(members)], dots, caps };
+        return { cats, members: [...new Set(members)], dots };
       });
       expect(res.cats).toHaveLength(2);
       expect(res.members.length).toBeGreaterThan(1);
-      expect(res.dots.length).toBeGreaterThan(5);
+      if (label === 'kiosk') {
+        const week = page.getByTestId('family-week');
+        for (const category of ['Škola', 'Rodina']) {
+          const icons = week.getByTestId('family-week-event').getByRole('img', { name: category });
+          expect(await icons.count()).toBeGreaterThan(0);
+          for (const icon of await icons.all()) {
+            const box = (await icon.boundingBox())!;
+            expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(20);
+          }
+        }
+        const school = week
+          .getByTestId('family-week-event')
+          .filter({ hasText: 'Ředitelské volno' });
+        const title = (await school.locator('em').boundingBox())!;
+        const cap = (await school.getByRole('img', { name: 'Škola' }).boundingBox())!;
+        expect(cap.x + cap.width).toBeLessThan(title.x);
+        expect(cap.y).toBeLessThan(title.y + title.height);
+        expect(cap.y + cap.height).toBeGreaterThan(title.y);
+      } else {
+        expect(res.dots.length).toBeGreaterThan(5);
+        expect(
+          await page.locator('.fam-wk-t > [data-testid="family-school-cap"] + em').count(),
+        ).toBeGreaterThan(0);
+      }
       for (const dot of res.dots) {
         expect(res.cats).toContain(dot);
         expect(res.members).not.toContain(dot);
       }
-      // The school cap sits inline in the title, never pinned to the right edge.
-      expect(res.caps.length).toBeGreaterThan(0);
-      for (const tag of res.caps) expect(tag).toBe('EM');
     });
   }
 
@@ -798,12 +818,12 @@ test.describe('Rodina – přidání úkolu', () => {
       const upcoming = up.getByTestId('family-upcoming-chore');
       await expect(upcoming).toHaveCount(1);
       await expect(upcoming.locator('.fam-upcoming-name')).toHaveText('Zítra: Vyskládat myčku');
-      await expect(up.getByTestId('family-upcoming-more')).toHaveText('a 2 další');
+      await expect(up.getByTestId('family-upcoming-more')).toHaveCount(0);
       const edges = await page
         .locator('[data-kid] :is(.fam-pts, .fam-upcoming-pts)')
         .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().right));
       expect(Math.max(...edges) - Math.min(...edges)).toBeLessThanOrEqual(1);
-      for (const f of await contrastOf(page, '.fam-upcoming-name, .fam-upcoming-more')) {
+      for (const f of await contrastOf(page, '.fam-upcoming-name')) {
         expect(f.ratio, f.text).toBeGreaterThanOrEqual(4.5);
       }
       await expect(page.getByTestId('family-pending-swaps')).toHaveCount(0);
@@ -1175,9 +1195,9 @@ test.describe('Rodina – detail osoby P1', () => {
         '19:00–20:30',
       ]);
       await expect(rows.first()).toHaveAttribute('data-past', 'true');
-      expect(
-        Number(await rows.first().evaluate((el) => getComputedStyle(el).opacity)),
-      ).toBeLessThan(1);
+      const opacity = Number(await rows.first().evaluate((el) => getComputedStyle(el).opacity));
+      if (kiosk) expect(opacity).toBe(1);
+      else expect(opacity).toBeLessThan(1);
       await expect(rows.first().getByTestId('family-avatar-family')).toBeVisible();
       const lefts = await rows
         .locator('b')
@@ -1192,19 +1212,20 @@ test.describe('Rodina – detail osoby P1', () => {
       expect(await next.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
         'rgba(0, 0, 0, 0)',
       );
-      const shadows = await rows
+      const highlights = await rows
         .locator('xpath=self::*[@data-running or @data-next]')
-        .evaluateAll((els) => els.map((el) => getComputedStyle(el).boxShadow));
-      expect(shadows).toHaveLength(2);
-      expect(shadows[0]).toBe(shadows[1]);
+        .evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+      expect(highlights).toHaveLength(2);
+      expect(highlights[0]).not.toBe(highlights[1]);
+      expect(highlights[1]).toBe('rgba(0, 0, 0, 0)');
       if (kiosk) {
-        // „celý den“ never touches the dot of the 7-day list.
+        // „celý den“ never touches the category icon of the 7-day list.
         for (const li of await page
           .locator('[data-testid="family-week-event"][data-allday]')
           .all()) {
           const time = (await li.locator('.fam-wk-time').boundingBox())!;
-          const dot = (await li.locator('i').boundingBox())!;
-          expect(dot.x - (time.x + time.width)).toBeGreaterThanOrEqual(4);
+          const icon = (await li.getByRole('img').first().boundingBox())!;
+          expect(icon.x - (time.x + time.width)).toBeGreaterThanOrEqual(4);
         }
         await expect(page.getByTestId('family-free').locator('h2')).toHaveText('Volné úkoly');
         await expect(page.getByTestId('family-free')).toHaveClass(/fam-card/);
@@ -1241,7 +1262,62 @@ test.describe('Rodina – detail osoby P1', () => {
     expect(layout.minWidth).toBeGreaterThan(0.9);
   });
 
-  test('detail na tabletu/desktopu nemá prázdný sloupec > 150 px', async ({ page }) => {
+  test('Dnes na tabletu řadí široké skupiny nad kalendářem a zvýrazňuje čitelné stavy', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    await open(page, '?theme=dark');
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
+    const detail = page.getByTestId('family-person');
+    const groups = detail.locator('.fam-person-group');
+    await expect(groups.locator('.fam-person-group-label')).toHaveText([
+      'Po termínu',
+      'Ráno',
+      'Odpoledne',
+      'Večer',
+    ]);
+    const tasks = (await detail.locator('.fam-person-tasks').boundingBox())!;
+    let bottom = 0;
+    for (const group of await groups.all()) {
+      const box = (await group.boundingBox())!;
+      expect(box.width).toBeGreaterThan(tasks.width * 0.9);
+      expect(box.y).toBeGreaterThanOrEqual(bottom);
+      bottom = box.y + box.height;
+    }
+    const calendar = (await detail.locator('.fam-person-calendar').boundingBox())!;
+    expect(calendar.y).toBeGreaterThan(bottom);
+    expect(calendar.width).toBe(tasks.width);
+
+    const openRings = await contrastOf(
+      page,
+      '.fam-person-task[data-state="todo"] .fam-person-mark[data-mark="open"]',
+      'borderColor',
+    );
+    expect(openRings.length).toBeGreaterThan(0);
+    for (const { ratio } of openRings) expect(ratio).toBeGreaterThanOrEqual(3);
+    for (const tab of ['Dnes', 'Týden']) {
+      await detail.getByRole('tab', { name: tab }).click();
+      const carried = detail.getByTestId('family-carried-line');
+      await expect(carried).toBeVisible();
+      expect(
+        await carried.evaluate((el) => {
+          const host = el.parentElement!;
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--hb-crit)';
+          host.append(probe);
+          const neutral = getComputedStyle(el).color !== getComputedStyle(probe).color;
+          probe.remove();
+          return neutral;
+        }),
+      ).toBe(true);
+      for (const { ratio, text } of await contrastOf(page, '.fam-person-task-text small')) {
+        expect(ratio, text).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  test('Historie na tabletu/desktopu nemá prázdný sloupec > 150 px', async ({ page }) => {
     test.setTimeout(90_000);
     await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
     for (const [width, height, query] of [
@@ -1253,25 +1329,22 @@ test.describe('Rodina – detail osoby P1', () => {
       await open(page, query);
       await page.getByTestId('family-person-tile').filter({ hasText: 'Táta' }).click();
       const detail = page.getByTestId('family-person');
-      for (const tab of ['Dnes', 'Historie']) {
-        await detail.getByRole('tab', { name: tab }).click();
-        const flow = detail.locator('.fam-person-flow');
-        const gap = await flow.evaluate((el) => {
-          const box = el.getBoundingClientRect();
-          const mid = box.left + box.width / 2;
-          const bottoms = [0, 0];
-          for (const child of Array.from(
-            el.querySelectorAll(':scope section, :scope details, :scope .fam-person-section-head'),
-          )) {
-            const r = child.getBoundingClientRect();
-            if (!r.height) continue;
-            const col = r.left < mid - 4 ? 0 : 1;
-            bottoms[col] = Math.max(bottoms[col]!, r.bottom);
-          }
-          return Math.abs(bottoms[0]! - bottoms[1]!);
-        });
-        expect(gap, `${width}px ${tab}`).toBeLessThanOrEqual(150);
-      }
+      await detail.getByRole('tab', { name: 'Historie' }).click();
+      const gap = await detail.locator('.fam-person-flow').evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const mid = box.left + box.width / 2;
+        const bottoms = [0, 0];
+        for (const child of Array.from(
+          el.querySelectorAll(':scope section, :scope details, :scope .fam-person-section-head'),
+        )) {
+          const r = child.getBoundingClientRect();
+          if (!r.height) continue;
+          const col = r.left < mid - 4 ? 0 : 1;
+          bottoms[col] = Math.max(bottoms[col]!, r.bottom);
+        }
+        return Math.abs(bottoms[0]! - bottoms[1]!);
+      });
+      expect(gap, `${width}px`).toBeLessThanOrEqual(150);
       await detail.getByRole('button', { name: /Zpět/ }).click();
     }
   });
@@ -1309,30 +1382,45 @@ test.describe('Rodina – detail osoby P1', () => {
   });
 
   for (const theme of ['dark', 'light'] as const) {
-    test(`kiosk detail má čitelné stavy, metadata a body (${theme})`, async ({ page }) => {
+    test(`kiosk má čitelné úkoly, metadata a stavy (${theme})`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 800 });
+      await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
       await open(page, `?kiosk=1&theme=${theme}`);
-      const meta = '.fam-wk-time, .fam-chore-meta small, .fam-pts, .fam-person-presence';
-      const verify = async (selector: string, minSize = 16) => {
-        const fonts = await page
-          .locator(selector)
-          .evaluateAll((nodes) =>
-            nodes
-              .filter((node) => node.getClientRects().length)
-              .map((node) => parseFloat(getComputedStyle(node).fontSize)),
-          );
-        expect(fonts.length).toBeGreaterThan(1);
-        expect(Math.min(...fonts)).toBeGreaterThanOrEqual(minSize);
-        for (const row of await contrastOf(page, selector))
-          expect(row.ratio, row.text).toBeGreaterThanOrEqual(4.5);
+      await expect(page.getByTestId('family-chores-more')).toHaveCount(0);
+      const verify = async (selectors: string[], minSize = 18) => {
+        for (const selector of selectors) {
+          const rows = await contrastOf(page, selector);
+          expect(rows.length, selector).toBeGreaterThan(0);
+          for (const row of rows) {
+            expect(row.fontSize, row.text).toBeGreaterThanOrEqual(minSize);
+            expect(row.ratio, row.text).toBeGreaterThanOrEqual(4.5);
+          }
+        }
       };
-      await verify(meta);
+      await verify([
+        '.fam-wk-time',
+        '.fam-day small',
+        '.fam-due',
+        '.fam-pts',
+        '.fam-person-presence',
+        '.fam-person-progress',
+        '.fam-swap-tag[data-kind="transferred_in"]',
+        '.fam-pending-pill',
+        '.fam-handover-pending',
+        '.fam-free',
+        '.fam-legend',
+        '.fam-event-state[data-kind="now"]',
+        '.fam-event-state[data-kind="next"]',
+        '.fam-ev[data-past] b',
+        '.fam-ev[data-past] time',
+      ]);
       await verify(
-        '.fam-person-progress, .fam-due, .fam-swap-tag[data-kind="transferred_out"]',
-        18,
+        ['.fam-chore-t b', '.fam-upcoming-name', '.fam-free-card .fam-person-task-text strong'],
+        20,
       );
       await page.getByTestId('family-person-tile').filter({ hasText: 'Kuba' }).click();
-      await verify('.fam-person-task-text small, .fam-person-points, .fam-person-presence');
+      await verify(['.fam-person-task-text small', '.fam-person-points', '.fam-person-presence']);
+      await verify(['.fam-person-task-text strong'], 20);
       const selected = await contrastOf(
         page,
         '.fam-person-tabs button[aria-selected="true"]',
@@ -1343,6 +1431,45 @@ test.describe('Rodina – detail osoby P1', () => {
       await noSidewaysScroll(page);
     });
   }
+
+  test('kiosk: předání a zítřek neubírají dnešní místa, přetečení má čip pro každé dítě', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-11-19T16:05:00+01:00'));
+    await open(page, '?kiosk=1&rodina=busy');
+    const [giver, receiver] = await page.getByTestId('family-kid').all();
+    await expect(giver!.getByTestId('family-chore').locator('b')).toHaveText([
+      'Vyluxovat pokoj',
+      'Srovnat knihy',
+      'Připravit batoh',
+    ]);
+    await expect(receiver!.getByTestId('family-chore').locator('b')).toHaveText([
+      'Vynést koš',
+      'Utřít stůl',
+      'Uklidit boty',
+    ]);
+    await expect(page.getByTestId('family-upcoming')).toHaveCount(0);
+    for (const row of await page.getByTestId('family-chore').all()) {
+      await expect(row).toBeInViewport({ ratio: 1 });
+    }
+    const chips = page.getByTestId('family-chores-more');
+    await expect(chips).toHaveText(['+2 další dnes', '+1 další dnes']);
+    for (const chip of await chips.all()) {
+      await expect(chip.locator('svg')).toBeVisible();
+      const box = (await chip.boundingBox())!;
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+      await expect(chip).toBeInViewport({ ratio: 1 });
+    }
+    for (const { fontSize, ratio } of await contrastOf(page, '.fam-chores-more')) {
+      expect(fontSize).toBeGreaterThanOrEqual(18);
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    }
+    await chips.first().click();
+    const person = page.getByTestId('family-person');
+    await expect(person.getByRole('tab', { name: 'Dnes', selected: true })).toBeVisible();
+    await expect(person.getByText('Uklidit prádlo')).toBeVisible();
+  });
 
   test('vlastník nastaví barvu osoby', async ({ page }) => {
     await open(page);
@@ -1381,8 +1508,8 @@ test('Rodina – snímky doladění', async ({ page }) => {
 
   await page.setViewportSize({ width: 1280, height: 800 });
   for (const theme of ['dark', 'light']) {
-    await open(page, `?kiosk=1&theme=${theme}`);
-    await expect(page.locator('.fam-swap-tag[data-kind="transferred_out"]')).toBeVisible();
+    await open(page, `?kiosk=1&rodina=busy&theme=${theme}`);
+    await expect(page.getByTestId('family-chores-more')).toHaveCount(2);
     await page.evaluate(() => document.fonts.ready);
     await shot(`kiosk-${theme}`);
   }

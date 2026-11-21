@@ -129,7 +129,7 @@ export function choreNote(
   // Done rows carry one signal only (green check + muted, struck-through name): no extra text.
   if (chore.state === 'done') return { text: '' };
   const carried = carriedFrom(chore, localKey(now));
-  if (carried) return { text: carriedLabel(carried), tone: 'crit' };
+  if (carried) return { text: carriedLabel(carried) };
   if (chore.state === 'claimed')
     return { text: opts.parentApproves ? 'Schválí rodič' : 'Čeká na schválení', tone: 'warn' };
   const due = chore.due ? new Date(chore.due) : null;
