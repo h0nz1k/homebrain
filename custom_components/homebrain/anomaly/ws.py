@@ -2,9 +2,10 @@
 
 * ``list`` – owner (HA admin) and adults: every open report with entities, timelines and the
   watched devices;
-* ``summary`` – also the kitchen kiosk: what the Dnes card needs (titles, tiers, times) without
-  entity or device ids;
+* ``summary`` – what the Dnes card needs (titles, tiers, times); the kitchen kiosk receives no
+  entity or device ids, while owners and adults also receive excluded device details;
 * ``ack`` / ``mute`` / ``unmute`` – owner and adults; they change only HomeBrain's own Store.
+* ``exclude`` / ``include`` – HA admins only; permanently change which devices HomeBrain watches.
   Nothing here calls a Home Assistant service or sends a notification (phase 1).
 """
 
@@ -134,7 +135,7 @@ def _counts(reports: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
-def payload(watch: AnomalyWatch, private: bool) -> dict[str, Any]:
+def payload(watch: AnomalyWatch, private: bool, *, show_exclusions: bool = False) -> dict[str, Any]:
     now = watch.snapshot.now
     reports = [report_payload(watch, r, now, private) for r in watch.snapshot.reports]
     out: dict[str, Any] = {
@@ -150,6 +151,8 @@ def payload(watch: AnomalyWatch, private: bool) -> dict[str, Any]:
         out["health"] = watch.health_strip(now)
         out["devices"] = watch.devices()
         out["resolved_7d"] = len(watch.engine.resolved)
+    if private or show_exclusions:
+        out["excluded_devices"] = watch.excluded_devices()
     return out
 
 
@@ -212,8 +215,12 @@ def _watch_or_error(hass: HomeAssistant, connection: Any, msg: dict[str, Any]):
 async def websocket_anomaly_list(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     if (watch := _watch_or_error(hass, connection, msg)) is None:
         return
+    snapshot = watch.snapshot
     data = payload(watch, private=True)
     await _bands(hass, watch, data)
+    if watch.snapshot is not snapshot:
+        # An exclusion may have closed reports while the recorder job was running.
+        data = payload(watch, private=True)
     connection.send_result(msg["id"], data)
 
 
@@ -223,7 +230,10 @@ async def websocket_anomaly_list(hass: HomeAssistant, connection: Any, msg: dict
 def websocket_anomaly_summary(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     if (watch := _watch_or_error(hass, connection, msg)) is None:
         return
-    connection.send_result(msg["id"], payload(watch, private=False))
+    role = resolve_role(connection.user, entry_roles(hass))
+    connection.send_result(
+        msg["id"], payload(watch, private=False, show_exclusions=role in {"owner", "adult"})
+    )
 
 
 @websocket_api.websocket_command(
@@ -271,12 +281,39 @@ def websocket_anomaly_unmute(hass: HomeAssistant, connection: Any, msg: dict[str
     connection.send_result(msg["id"], {"ok": watch.unmute(msg["key"])})
 
 
+@websocket_api.websocket_command(
+    {vol.Required("type"): "homebrain/anomaly/exclude", vol.Required("device_id"): KEY_SCHEMA}
+)
+@websocket_api.require_admin
+@callback
+def websocket_anomaly_exclude(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    if (watch := _watch_or_error(hass, connection, msg)) is None:
+        return
+    if not watch.exclude(msg["device_id"]):
+        connection.send_error(msg["id"], "not_found", "Zařízení už se nesleduje")
+        return
+    connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "homebrain/anomaly/include", vol.Required("device_id"): KEY_SCHEMA}
+)
+@websocket_api.require_admin
+@callback
+def websocket_anomaly_include(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    if (watch := _watch_or_error(hass, connection, msg)) is None:
+        return
+    connection.send_result(msg["id"], {"ok": watch.include(msg["device_id"])})
+
+
 COMMANDS: Final = (
     websocket_anomaly_list,
     websocket_anomaly_summary,
     websocket_anomaly_ack,
     websocket_anomaly_mute,
     websocket_anomaly_unmute,
+    websocket_anomaly_exclude,
+    websocket_anomaly_include,
 )
 
 

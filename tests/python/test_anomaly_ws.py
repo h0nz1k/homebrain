@@ -12,12 +12,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.storage import Store
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.homebrain.anomaly.learn import EntityBaseline
-from custom_components.homebrain.anomaly.manager import AnomalyWatch, build_metas, get_watch
+from custom_components.homebrain.anomaly.manager import (
+    STORAGE_KEY,
+    AnomalyWatch,
+    build_metas,
+    get_watch,
+)
 from custom_components.homebrain.const import DOMAIN
 
 DEMO = "demo_watch"
@@ -285,6 +291,128 @@ async def test_state_survives_restart(hass: HomeAssistant, house):
         await again.async_stop()
 
 
+async def test_legacy_store_without_exclusions_keeps_existing_data(hass, house):
+    watch = house["watch"]
+    watch.evaluate(dt_util.now() + timedelta(hours=3))
+    watch.acknowledge(watch.snapshot.reports[0].key, "ok")
+    await watch.async_stop()
+    store = Store(hass, 1, STORAGE_KEY)
+    legacy = await store.async_load()
+    del legacy["excluded_devices"]
+    await store.async_save(legacy)
+
+    restored = AnomalyWatch(hass)
+    await restored.async_start()
+    try:
+        assert restored.excluded_devices() == []
+        assert restored.learned_at == watch.learned_at
+        assert restored.acks == watch.acks
+        assert restored.watched()["devices"] == 1
+    finally:
+        await restored.async_stop()
+
+
+async def test_exclude_and_include_device(hass, house, hass_ws_client):
+    calls = []
+    hass.bus.async_listen(EVENT_CALL_SERVICE, calls.append)
+    watch = house["watch"]
+    device_id = house["cellar"]
+    ids = house["ids"]
+    watch.evaluate(dt_util.now() + timedelta(hours=8))
+    (report,) = watch.snapshot.reports
+    watch.mute(report.key)
+    watch.acknowledge(report.key, "ok")
+    client = await hass_ws_client(hass)
+
+    assert (await _call(client, type="homebrain/anomaly/exclude", device_id=device_id))["success"]
+    assert not watch.engine.active
+    assert not watch.acks and not watch.mutes
+    data = (await _call(client, type="homebrain/anomaly/list"))["result"]
+    assert not data["reports"] and not data["devices"]
+    assert data["watched"] == {"devices": 0, "entities": 0, "known": 1, "learning": 1}
+    (excluded,) = data["excluded_devices"]
+    assert excluded == {
+        "id": device_id,
+        "name": "Čidlo ve sklepě",
+        "area": "Sklep",
+        "excluded_at": excluded["excluded_at"],
+    }
+    assert dt_util.parse_datetime(excluded["excluded_at"]) is not None
+    summary = (await _call(client, type="homebrain/anomaly/summary"))["result"]
+    assert summary["excluded_devices"] == [excluded]
+    assert not summary["reports"] and not any(summary["counts"].values())
+
+    await watch.async_stop()
+    restored = AnomalyWatch(hass)
+    await restored.async_start()
+    try:
+        assert restored.excluded_devices() == [excluded]
+        assert set(restored.engine.metas) == {ids["door"]}
+        assert not restored.evaluate(dt_util.now() + timedelta(days=31)).reports
+    finally:
+        await restored.async_stop()
+
+    # Restart the registered watch before sending the owner action over WS.
+    await watch.async_start()
+    reply = await _call(client, type="homebrain/anomaly/include", device_id=device_id)
+    assert reply["result"] == {"ok": True}
+    assert watch.excluded_devices() == []
+    assert set(watch.engine.warming_up()) == {ids["temp"], ids["hum"], ids["door"]}
+    assert not watch.engine.active and not watch.snapshot.reports
+    await hass.async_block_till_done()
+    assert calls == []
+
+
+async def test_kiosk_summary_omits_excluded_device_details(
+    hass, house, hass_ws_client, hass_admin_user
+):
+    assert house["watch"].exclude(house["cellar"])
+    hass_admin_user.groups = []
+    hass.config_entries.async_update_entry(
+        house["entry"], options={"roles": {hass_admin_user.id: "kiosk"}}
+    )
+    client = await hass_ws_client(hass)
+    summary = (await _call(client, type="homebrain/anomaly/summary"))["result"]
+    assert "excluded_devices" not in summary
+    assert house["cellar"] not in str(summary)
+
+
+async def test_mass_outage_ignores_excluded_device(hass, house):
+    watch = house["watch"]
+    entry = MockConfigEntry(domain="demo_bridge", data={})
+    entry.add_to_hass(hass)
+    bridge = _device(hass, entry, "bridge_device", "Demo čidlo")
+    eid = (
+        er.async_get(hass)
+        .async_get_or_create(
+            "sensor", "demo_bridge", "demo_bridge_sensor", config_entry=entry, device_id=bridge
+        )
+        .entity_id
+    )
+    hass.states.async_set(eid, "1")
+    await hass.async_block_till_done()
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=30))
+    await hass.async_block_till_done()
+    watch.engine.set_baselines(
+        {
+            m.entity_id: EntityBaseline(
+                m.entity_id, m.device_id, 21, periodic=True, p95_interval=timedelta(minutes=10)
+            )
+            for m in watch.engine.metas.values()
+        }
+    )
+    later = dt_util.now() + timedelta(hours=8)
+    assert any(r.scope == "system" for r in watch.evaluate(later).reports)
+    assert watch.exclude(house["cellar"])
+    reports = watch.evaluate(later).reports
+    assert {d for r in reports for d in r.device_ids} == {
+        watch.engine.metas[house["ids"]["door"]].device_id,
+        bridge,
+    }
+    assert all(r.scope == "device" for r in reports)
+    assert all(f.device_id != house["cellar"] for f in watch.engine.active.values())
+
+
 async def test_learning_reads_the_recorder_in_batches(hass: HomeAssistant, house, monkeypatch):
     """Learning runs in the recorder executor and never blocks; without a recorder it is a no-op."""
     watch: AnomalyWatch = house["watch"]
@@ -309,7 +437,39 @@ async def test_learning_reads_the_recorder_in_batches(hass: HomeAssistant, house
     try:
         monkeypatch.setattr("custom_components.homebrain.anomaly.manager.LEARN_BATCH", 2)
         assert await watch.async_learn() == 3
+        assert seen == [2, 1]
+        assert watch.learned_at is not None and len(watch.first_seen) == 3
+
+        assert watch.exclude(house["cellar"])
+        seen.clear()
+        assert await watch.async_learn() == 1
+        assert seen == [1]
+        assert set(watch.engine.baselines) == set(watch.first_seen) == {house["ids"]["door"]}
     finally:
         hass.config.components.remove("recorder")
-    assert seen == [2, 1]
-    assert watch.learned_at is not None and len(watch.first_seen) == 3
+
+
+async def test_exclude_then_include_during_learning_discards_stale_batch(hass, house, monkeypatch):
+    watch = house["watch"]
+    device_id = house["cellar"]
+    seen = []
+
+    class Recorder:
+        async def async_add_executor_job(self, _func, _hass, metas, *_args):
+            seen.extend(m.entity_id for m in metas)
+            if any(m.device_id == device_id for m in metas):
+                assert watch.exclude(device_id)
+                assert watch.include(device_id)
+            return {m.entity_id: EntityBaseline(m.entity_id, m.device_id, 10) for m in metas}
+
+    monkeypatch.setattr("homeassistant.components.recorder.get_instance", lambda _hass: Recorder())
+    monkeypatch.setattr("custom_components.homebrain.anomaly.manager.LEARN_BATCH", 1)
+    hass.config.components.add("recorder")
+    try:
+        assert await watch.async_learn() == 1
+    finally:
+        hass.config.components.remove("recorder")
+    ids = house["ids"]
+    assert seen == [ids["door"], ids["hum"]]
+    assert set(watch.engine.baselines) == {ids["door"]}
+    assert set(watch.engine.warming_up()) == {ids["temp"], ids["hum"]}

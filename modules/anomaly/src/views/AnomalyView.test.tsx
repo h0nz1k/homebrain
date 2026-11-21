@@ -42,7 +42,12 @@ describe('AnomalyView (detail)', () => {
     cards.forEach((card, i) => {
       const actions = within(card).getByTestId('aw-actions');
       const buttons = within(actions).getAllByRole('button');
-      expect(buttons.map((b) => b.textContent)).toEqual([names[i], 'Vyřešeno', 'Skrýt na 7 dní']);
+      expect(buttons.map((b) => b.textContent)).toEqual([
+        names[i],
+        'Vyřešeno',
+        'Skrýt na 7 dní',
+        'Nesledovat',
+      ]);
       // the diagnostic step leads; an unchecked problem is not „Vyřešeno“ by default
       expect(buttons[0]!.dataset.variant).toBe('primary');
       expect(buttons[1]!.dataset.variant).toBe('secondary');
@@ -157,6 +162,40 @@ describe('AnomalyView (detail)', () => {
     });
     expect(api.calls[0]).toMatch(/^mute:7:/);
     expect(api.calls[1]).toMatch(/^unmute:/);
+  });
+
+  it('confirms an exclusion and lets the owner resume monitoring from the collapsed list', async () => {
+    const api = useMock('confirmed');
+    render(<AnomalyView connection={connection(true)} />);
+    const fault = (await screen.findAllByTestId('aw-issue')).find(
+      (card) => card.dataset.key === 'device:demo_dev_dishwasher',
+    )!;
+    const exclude = within(fault).getByRole('button', { name: 'Nesledovat' });
+    fireEvent.click(exclude);
+    const dialog = screen.getByRole('alertdialog', { name: /Přestat sledovat zařízení „Myčka“/ });
+    expect(dialog.textContent).toContain('trvale nesledované');
+    expect(api.calls).toEqual([]);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Zpět' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(api.calls).toEqual([]);
+
+    fireEvent.click(exclude);
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Nesledovat' }),
+    );
+    const summary = await screen.findByText('Nesledované (1)');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    expect(fault.isConnected).toBe(false);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(api.calls).toEqual(['exclude:demo_dev_dishwasher']);
+
+    // jsdom does not toggle native details on click.
+    details.open = true;
+    expect(details.textContent).toContain('až po dalším běhu učení');
+    fireEvent.click(within(details).getByRole('button', { name: 'Znovu sledovat' }));
+    await waitFor(() => expect(screen.queryByText('Nesledované (1)')).toBeNull());
+    expect(api.calls).toEqual(['exclude:demo_dev_dishwasher', 'include:demo_dev_dishwasher']);
   });
 
   it('timeline and headline share the last report', async () => {

@@ -300,11 +300,12 @@ export function mockAnomalySnapshot(
     ready: !learning,
     learning,
     learned_at: learning ? null : rel(now, -minuteOfDay(now) + 210),
-    watched: learning ? { devices: 0, entities: 0, learning: 32, known: 32 } : WATCHED,
+    watched: learning ? { devices: 0, entities: 0, learning: 32, known: 32 } : { ...WATCHED },
     counts,
     reports,
     health: health(scenario),
     devices: learning ? [] : DEMO_DEVICES,
+    excluded_devices: [],
     resolved_7d: scenario === 'ok' ? 2 : 0,
   };
 }
@@ -337,7 +338,7 @@ export function toSummary(full: AnomalySnapshot): AnomalySnapshot {
   };
 }
 
-/** In-memory API: acknowledgements and mutes hide reports like the integration does. */
+/** In-memory API for the synthetic house. */
 export function createMockAnomalyApi(
   opts: { scenario?: AnomalyScenario; now?: string; delayMs?: number; fail?: boolean } = {},
 ): AnomalyApi & { calls: string[] } {
@@ -383,6 +384,32 @@ export function createMockAnomalyApi(
       if (r) Object.assign(r, { hidden: null, muted_until: null });
       recount();
       await wait(undefined);
+    },
+    async exclude(id: string) {
+      calls.push(`exclude:${id}`);
+      await wait(undefined);
+      const device = snap.devices?.find((d) => d.id === id);
+      if (!device) return;
+      const reportDevice = snap.reports.flatMap((r) => r.devices).find((d) => d.id === id);
+      snap.excluded_devices = [
+        ...(snap.excluded_devices ?? []),
+        { id, name: device.name, area: reportDevice?.area ?? null, excluded_at: snap.now },
+      ];
+      snap.devices = snap.devices?.filter((d) => d.id !== id);
+      snap.reports = snap.reports.filter((r) => !r.devices.some((d) => d.id === id));
+      snap.watched.devices -= 1;
+      snap.watched.entities -= device.count;
+      snap.watched.known -= device.count;
+      recount();
+    },
+    async include(id: string) {
+      calls.push(`include:${id}`);
+      await wait(undefined);
+      const device = DEMO_DEVICES.find((d) => d.id === id);
+      if (!device || !snap.excluded_devices?.some((d) => d.id === id)) return;
+      snap.excluded_devices = snap.excluded_devices.filter((d) => d.id !== id);
+      snap.watched.learning += device.count;
+      snap.watched.known += device.count;
     },
   };
 }

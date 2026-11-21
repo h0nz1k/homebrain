@@ -409,6 +409,11 @@ export const anomalyStyles = `
 .aw-privacy svg { flex: none; margin-top: 1px; }
 .aw-hidden-list { display: grid; gap: 4px; }
 .aw-hidden-list .hb-status-row-detail { color: var(--hb-t2); }
+.aw-excluded { margin-top: 8px; }
+.aw-excluded ul { list-style: none; margin: 0 0 8px; padding: 0; }
+.aw-excluded li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px; }
+.aw-excluded li > span { min-width: 0; overflow-wrap: anywhere; }
+.aw-excluded small { display: block; color: var(--hb-t2); }
 
 @media (max-width: 1180px) {
   .aw-layout { grid-template-columns: minmax(0, 1fr); }
