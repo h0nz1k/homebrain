@@ -75,7 +75,15 @@ describe('copy – headlines never contradict the detail', () => {
       /^Odchylka trvá 2 h 20 min\. /,
     );
     const obs = report('observations', 'device:demo_dev_living');
-    expect(why(obs, MOCK_NOW)).toBe('Hodnota vybočila z obvyklého rozmezí pro tuto denní dobu.');
+    expect(why(obs, MOCK_NOW)).toBe(
+      'Hodnota je na tuto denní dobu neobvyklá, v minulosti se už objevila.',
+    );
+    const observed = obs.findings[0]!;
+    const unseen = {
+      ...obs,
+      findings: [{ ...observed, detail: { ...observed.detail, seen_before: false } }],
+    };
+    expect(why(unseen, MOCK_NOW)).toBe('Hodnota vybočila z obvyklého rozmezí pro tuto denní dobu.');
     // unknown room: a sentence with the device name instead of a broken locative
     const noRoom = { ...r, devices: [{ ...r.devices[0]!, area: 'Zimní zahrada' }] };
     expect(headline(noRoom)).toBe('Klima obývák hlásí neobvykle vysokou teplotu');
