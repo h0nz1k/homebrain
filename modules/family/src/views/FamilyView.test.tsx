@@ -120,26 +120,27 @@ describe('FamilyView', () => {
     expect(screen.queryByTestId('family-approvals')).toBeNull();
   });
 
-  it('kiosk: shows three open rows and opens the child detail for the remaining rows', async () => {
-    const mock = createMockFamilyApi({ role: 'kiosk' });
+  it('kiosk: limits each child to three of their own rows and opens today for the rest', async () => {
+    const mock = createMockFamilyApi({ role: 'kiosk', scenario: 'busy' });
     const snapshot = await mock.get();
-    const kid = snapshot.kids[0]!;
-    const examples = ['Srovnat knihy', 'Připravit batoh'].map((name, index) => ({
-      ...kid.chores.find((chore) => chore.state === 'todo' && !chore.swap_today?.muted)!,
-      id: `demo-extra-${index}`,
-      name,
-      swap_today: undefined,
-    }));
-    kid.chores.push(...examples);
-    snapshot.members!.find((member) => member.id === kid.id)!.chores = kid.chores;
+    const handed = snapshot.kids[0]!.chores.find((c) => c.swap_today?.kind === 'transferred_out')!;
+    delete handed.counts_today;
     setFamilyApiFactory(() => ({ ...mock, get: async () => snapshot }));
     render(<FamilyView store={store} bindings={{}} kiosk />);
-    const card = (await screen.findAllByTestId('family-kid'))[0]!;
-    expect(within(card).getAllByTestId('family-chore')).toHaveLength(3);
-    expect(within(card).queryByText('Připravit batoh')).toBeNull();
-    fireEvent.click(within(card).getByRole('button', { name: /^\+1 další/ }));
+    const [giver, receiver] = (await screen.findAllByTestId('family-kid')).map((card) =>
+      within(card),
+    );
+    expect(giver!.getAllByTestId('family-chore')).toHaveLength(3);
+    expect(giver!.getByText('Připravit batoh')).toBeTruthy();
+    expect(giver!.queryByText('Vynést koš')).toBeNull();
+    expect(giver!.queryByText('Uklidit prádlo')).toBeNull();
+    expect(receiver!.getAllByTestId('family-chore')).toHaveLength(3);
+    expect(receiver!.getByText('Vynést koš')).toBeTruthy();
+    expect(receiver!.getByRole('button', { name: /^\+1 další dnes/ })).toBeTruthy();
+    fireEvent.click(giver!.getByRole('button', { name: /^\+2 další dnes/ }));
     const person = await screen.findByTestId('family-person');
-    expect(within(person).getByText('Připravit batoh')).toBeTruthy();
+    expect(within(person).getByRole('tab', { name: 'Dnes', selected: true })).toBeTruthy();
+    expect(within(person).getByText('Uklidit prádlo')).toBeTruthy();
   });
 
   it('handed-out chore: points struck with „→ name“, not counted twice', async () => {
