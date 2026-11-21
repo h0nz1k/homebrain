@@ -85,6 +85,13 @@ export interface WatchedDevice {
   classes: string[];
 }
 
+export interface ExcludedDevice {
+  id: string;
+  name: string;
+  area: string | null;
+  excluded_at: string;
+}
+
 export interface AnomalySnapshot {
   now: string;
   /** Learned at least once (otherwise the page explains that it is learning). */
@@ -98,4 +105,6 @@ export interface AnomalySnapshot {
   health?: Health[];
   devices?: WatchedDevice[];
   resolved_7d?: number;
+  /** Available in the detailed list and in summaries for owners and adults. */
+  excluded_devices?: ExcludedDevice[];
 }

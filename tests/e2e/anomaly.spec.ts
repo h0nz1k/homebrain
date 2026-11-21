@@ -111,6 +111,32 @@ async function secondaryContrast(page: Page, scope: string) {
 }
 
 test.describe('Hlídání domu – detail', () => {
+  test('trvalé vyloučení zařízení na telefonu a tabletu', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/homebrain-hlidani?anomaly=confirmed&session=owner');
+    const report = page.getByTestId('aw-issue').filter({ hasText: 'Myčka neodpovídá' });
+    await report.getByRole('button', { name: 'Nesledovat' }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText('trvale nesledované');
+    await noSidewaysScroll(page);
+    await dialog.getByRole('button', { name: 'Nesledovat' }).click();
+    await expect(report).toHaveCount(0);
+    await expect(page.getByText('Hlídáno 11 zařízení', { exact: false })).toBeVisible();
+
+    const summary = page.getByText('Nesledované (1)');
+    const include = page.getByRole('button', { name: 'Znovu sledovat' });
+    await expect(summary).toBeVisible();
+    await expect(include).toBeHidden();
+    await summary.click();
+    await expect(include).toBeVisible();
+    await noSidewaysScroll(page);
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await noSidewaysScroll(page);
+    await include.click();
+    await expect(summary).toHaveCount(0);
+    await expect(report).toHaveCount(0);
+  });
+
   for (const theme of ['dark', 'light'] as const) {
     test(`porucha + 2 podezření (${theme})`, async ({ page }) => {
       await page.goto(`/homebrain-hlidani?anomaly=confirmed&theme=${theme}&session=owner`);
@@ -135,7 +161,12 @@ test.describe('Hlídání domu – detail', () => {
       ];
       for (const [i, card] of (await issues.all()).entries()) {
         const buttons = card.getByTestId('aw-actions').getByRole('button');
-        expect(await buttons.allTextContents()).toEqual([targets[i], 'Vyřešeno', 'Skrýt na 7 dní']);
+        expect(await buttons.allTextContents()).toEqual([
+          targets[i],
+          'Vyřešeno',
+          'Skrýt na 7 dní',
+          'Nesledovat',
+        ]);
         const look = await buttons.evaluateAll((els) =>
           els.map((el) => {
             const s = getComputedStyle(el);

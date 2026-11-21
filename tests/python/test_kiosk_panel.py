@@ -200,6 +200,8 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/anomaly/ack": {"key": "device:nothing", "kind": "ok"},
     "homebrain/anomaly/mute": {"key": "device:nothing"},
     "homebrain/anomaly/unmute": {"key": "device:nothing"},
+    "homebrain/anomaly/exclude": {"device_id": "demo_missing"},
+    "homebrain/anomaly/include": {"device_id": "demo_missing"},
 }
 
 

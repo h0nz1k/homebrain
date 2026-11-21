@@ -467,9 +467,13 @@ class Engine:
         reports = [self._sticky(r, now) for r in self._group(now)]
         keys = {r.key for r in reports}
         for key in set(self._peak) - keys:
-            del self._peak[key]
-            self._reached.pop(key, None)
+            self.reset_report_history(key)
         return reports
+
+    def reset_report_history(self, key: str) -> None:
+        """Forget sticky tier and counts when a report closes or its scope changes."""
+        self._peak.pop(key, None)
+        self._reached.pop(key, None)
 
     def _sticky(self, r: Report, now: datetime) -> Report:
         """While a report is open, its tier and entity count never shrink (no 17 → 7 → 1)."""
