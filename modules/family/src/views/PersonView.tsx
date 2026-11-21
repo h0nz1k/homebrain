@@ -7,6 +7,7 @@ import {
   MISSED_LABEL,
   carriedFrom,
   carriedLabel,
+  choreApprovalKind,
   choreTally,
   czDate,
   shortDate,
@@ -62,16 +63,40 @@ function Presence({ presence }: { presence: FamilyPresence | null }) {
   );
 }
 
-function Progress({ counts }: Pick<FamilyMember, 'counts'>) {
+function Progress({
+  counts,
+  handovers = 0,
+}: Pick<FamilyMember, 'counts'> & { handovers?: number }) {
   return (
     <span className="fam-person-progress">
       {formatOutOf(counts.done, counts.total)} hotovo
       {counts.pending > 0 && (
         <span className="fam-person-wait">
           <Icon name="clock" size={16} />
-          {counts.pending} {czPlural(counts.pending, 'čeká', 'čekají', 'čeká')}
+          {handovers === counts.pending ? (
+            <span data-testid="family-member-handover">
+              {handovers} {czPlural(handovers, 'předání čeká', 'předání čekají', 'předání čeká')}
+            </span>
+          ) : (
+            <>
+              {counts.pending} {czPlural(counts.pending, 'čeká', 'čekají', 'čeká')}
+              {handovers > 0 && (
+                <span data-testid="family-member-handover"> · {handovers} předání</span>
+              )}
+            </>
+          )}
         </span>
       )}
+    </span>
+  );
+}
+
+function ProgressMeter({ counts }: Pick<FamilyMember, 'counts'>) {
+  const { done, pending, total } = counts;
+  return (
+    <span className="fam-person-meter" aria-hidden="true">
+      <i style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+      <i data-waiting style={{ width: `${total ? (pending / total) * 100 : 0}%` }} />
     </span>
   );
 }
@@ -88,7 +113,12 @@ export function PersonsRow({
   return (
     <div className="fam-persons" data-testid="family-persons" aria-label="Členové rodiny">
       {members.map((member) => {
-        const { done, pending, total } = member.counts;
+        const handovers = member.chores.filter(
+          (chore) => choreApprovalKind(chore) === 'swap',
+        ).length;
+        const counts = kiosk
+          ? { ...member.counts, pending: member.chores.filter(choreApprovalKind).length }
+          : member.counts;
         return (
           <button
             key={member.id}
@@ -105,11 +135,8 @@ export function PersonsRow({
                 <Presence presence={member.presence} />
               </span>
             </span>
-            <span className="fam-person-meter" aria-hidden="true">
-              <i style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
-              <i data-waiting style={{ width: `${total ? (pending / total) * 100 : 0}%` }} />
-            </span>
-            <Progress counts={member.counts} />
+            <ProgressMeter counts={counts} />
+            <Progress counts={counts} handovers={kiosk ? handovers : 0} />
             {kiosk && (
               <span className="fam-tile-points">{pointsAmount(member.points_today ?? 0)} dnes</span>
             )}
@@ -254,7 +281,7 @@ function ChoreRows({
             <span className="fam-person-points" data-waiting={waiting || undefined}>
               {chore.occurrence === 'missed' ? (
                 pointsAmount(0)
-              ) : swap?.muted ? (
+              ) : swap?.muted || chore.occurrence === 'carried' ? (
                 <s>{pointsLabel(chore.points)}</s>
               ) : waiting && chore.points != null ? (
                 <>
@@ -315,15 +342,24 @@ function TodayChores({
   highlight?: string | null;
   onComplete(chore: string): void;
 }) {
+  const today = localKey(now);
+  const carried = member.chores.filter((chore) => carriedFrom(chore, today));
+  const late = member.chores.filter(
+    (chore) => chore.state === 'overdue' && chore.due && localKey(new Date(chore.due)) === today,
+  );
+  const scheduled = member.chores.filter(
+    (chore) => !carried.includes(chore) && !late.includes(chore),
+  );
   const groups = [
     {
       label: 'Po termínu',
-      rows: member.chores.filter((chore) => chore.state === 'overdue'),
+      rows: late,
       late: true,
     },
+    { label: CARRIED_LABEL, rows: carried, late: false },
     ...parts.map((label) => ({
       label,
-      rows: member.chores.filter((chore) => chore.state !== 'overdue' && part(chore.due) === label),
+      rows: scheduled.filter((chore) => part(chore.due) === label),
       late: false,
     })),
   ].filter((group) => group.rows.length);
@@ -336,7 +372,6 @@ function TodayChores({
     <section className="fam-person-tasks">
       <div className="fam-person-section-head">
         <h2>Úkoly</h2>
-        <Progress counts={member.counts} />
       </div>
       <div className="fam-person-surface">
         {!groups.length && <p className="fam-person-empty">Dnes bez úkolů.</p>}
@@ -348,6 +383,7 @@ function TodayChores({
               key={group.label}
               className="fam-person-group"
               data-late={group.late || undefined}
+              data-carried={group.label === CARRIED_LABEL || undefined}
               data-finished={finished || undefined}
               data-now={group.label === current || undefined}
               open={!finished}
@@ -361,7 +397,7 @@ function TodayChores({
                 />
               </summary>
               <ChoreRows
-                today={localKey(now)}
+                today={today}
                 rows={group.rows}
                 busy={busy}
                 highlight={highlight}
@@ -402,9 +438,8 @@ function FreeRow({
       </span>
       <div className="fam-person-task-text">
         <strong>{chore.name}</strong>
-        <small>
+        <small className="fam-free-meta">
           {chore.due && <span className="fam-nowrap">do&nbsp;{timeLabel(chore.due)}</span>}
-          {chore.due && ' · '}
           <span className="fam-nowrap">{names.join(' nebo ')}</span>
         </small>
       </div>
@@ -532,17 +567,17 @@ function weekRows(member: FamilyMember, activity: ReturnType<typeof personActivi
 
 const DAY_SHORT = ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'];
 
-/** Týden / Historie side column: points per day, done / missed counts, what is still ahead. */
+/** Týden / Historie: points and task totals for the listed week. */
 function WeekSummary({
-  member,
   activity,
   rows,
   loaded,
+  showUpcoming,
 }: {
-  member: FamilyMember;
   activity: ReturnType<typeof personActivity>;
   rows: WeekRow[];
   loaded: boolean;
+  showUpcoming?: boolean;
 }) {
   const { days, week, today, points } = activity;
   const perDay = days.map((day) => {
@@ -559,12 +594,22 @@ function WeekSummary({
   const done = week.filter((row) => !row.missed).length;
   const missed = week.filter((row) => row.missed).length;
   const carried = rows.filter((row) => row.occurrence === 'carried').length;
-  const ahead = rows
-    .filter((row) => row.weekDay && row.weekDay > today && !row.occurrence)
-    .sort((a, b) => (a.weekDay ?? '').localeCompare(b.weekDay ?? ''));
-  const open = member.chores.filter(
-    (chore) => chore.state === 'todo' || chore.state === 'overdue',
+  const end = localKey(days[6]!);
+  const open = rows.filter(
+    (row) =>
+      row.weekDay &&
+      row.weekDay >= today &&
+      row.weekDay <= end &&
+      !row.occurrence &&
+      !choreApprovalKind(row) &&
+      (row.state === 'todo' || row.state === 'overdue'),
   ).length;
+  const ahead = showUpcoming
+    ? rows
+        .filter((row) => row.weekDay && row.weekDay > today && !row.occurrence)
+        .sort((a, b) => (a.weekDay ?? '').localeCompare(b.weekDay ?? ''))
+        .slice(0, 3)
+    : [];
   return (
     <section className="fam-person-summary" data-testid="family-week-summary">
       <div className="fam-person-section-head">
@@ -578,13 +623,13 @@ function WeekSummary({
               key={day.key}
               data-today={day.key === today || undefined}
               data-future={day.key > today || undefined}
-              aria-label={`${day.label}: ${pointsAmount(day.points)}`}
+              aria-label={`${day.key === today ? 'Dnes' : day.label}: ${day.key > today ? 'budoucí den' : pointsAmount(day.points)}`}
             >
-              <b aria-hidden="true">{day.points ? fmtPoints(day.points) : ''}</b>
+              <b aria-hidden="true">{day.key <= today && loaded ? fmtPoints(day.points) : ''}</b>
               <span className="fam-week-bar" aria-hidden="true">
                 <i style={{ height: `${(day.points / max) * 100}%` }} />
               </span>
-              <small aria-hidden="true">{day.label}</small>
+              <small aria-hidden="true">{day.key === today ? 'Dnes' : day.label}</small>
             </li>
           ))}
         </ol>
@@ -604,15 +649,18 @@ function WeekSummary({
             <dd>{carried}</dd>
           </div>
           <div>
-            <dt>Zbývá</dt>
-            <dd>{open}</dd>
+            <dt>Zbývá splnit</dt>
+            <dd>
+              {open}
+              <small>Od dneška do neděle</small>
+            </dd>
           </div>
         </dl>
         {ahead.length > 0 && (
           <div className="fam-week-ahead">
             <h3>Dál v týdnu</h3>
             <ul>
-              {ahead.slice(0, 3).map((row) => (
+              {ahead.map((row) => (
                 <li key={`${row.id}/${row.weekDay}`}>
                   <span>{shortDate(new Date(`${row.weekDay}T12:00:00`))}</span>
                   <strong>{row.name}</strong>
@@ -780,6 +828,43 @@ function History({
   );
 }
 
+function TodaySummary({ member, now }: { member: FamilyMember; now: Date }) {
+  const today = localKey(now);
+  const next = member.chores
+    .filter(
+      (chore) =>
+        chore.due &&
+        localKey(new Date(chore.due)) === today &&
+        Date.parse(chore.due) > now.getTime() &&
+        chore.counts_today !== false &&
+        chore.state === 'todo' &&
+        !choreApprovalKind(chore),
+    )
+    .sort((a, b) => Date.parse(a.due!) - Date.parse(b.due!))[0];
+  return (
+    <section className="fam-person-today-summary">
+      <div className="fam-person-section-head">
+        <h2>Shrnutí dne</h2>
+      </div>
+      <div className="fam-person-surface fam-today-stats">
+        <div>
+          <Progress counts={member.counts} />
+          <ProgressMeter counts={member.counts} />
+        </div>
+        <strong>{pointsAmount(member.points_today ?? 0)} dnes</strong>
+        {next?.due && (
+          <div className="fam-today-deadline">
+            <small>Nejbližší termín</small>
+            <strong>
+              <time>{timeLabel(next.due)}</time> {next.name}
+            </strong>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function PersonCalendar({
   today,
   now,
@@ -788,24 +873,39 @@ function PersonCalendar({
   now: Date;
 }) {
   if (!today.length) return null;
+  const rows = today.map(({ event, title }) => {
+    const past = isPast(event, now);
+    const running = !event.all_day && !past && Date.parse(event.start) <= now.getTime();
+    return (
+      <li
+        className="fam-person-event"
+        key={event.id}
+        data-past={past || undefined}
+        data-running={running || undefined}
+        data-testid="family-person-event"
+      >
+        <time>{event.all_day ? 'celý den' : timeRange(event)}</time>
+        <span>
+          {title}
+          {past && <small>proběhlo</small>}
+        </span>
+      </li>
+    );
+  });
+  const next = today.findIndex(({ event }) => !event.all_day && !isPast(event, now));
+  rows.splice(
+    next === -1 ? rows.length : next,
+    0,
+    <li key="now" className="fam-person-calendar-now">
+      <span className="fam-now-pill">Teď {timeLabel(now.toISOString())}</span>
+    </li>,
+  );
   return (
     <section className="fam-person-calendar">
       <div className="fam-person-section-head">
         <h2>Dnes v kalendáři</h2>
       </div>
-      <ul className="fam-person-surface">
-        {today.map(({ event, title }) => (
-          <li
-            className="fam-person-event"
-            key={event.id}
-            data-past={isPast(event, now) || undefined}
-            data-testid="family-person-event"
-          >
-            <time>{event.all_day ? 'celý den' : timeRange(event)}</time>
-            <span>{title}</span>
-          </li>
-        ))}
-      </ul>
+      <ul className="fam-person-surface">{rows}</ul>
     </section>
   );
 }
@@ -938,6 +1038,7 @@ export function PersonView({
         <div className="fam-person-flow" data-tab={tab}>
           {tab === 'Dnes' && (
             <>
+              <TodaySummary member={member} now={now} />
               <TodayChores
                 member={member}
                 now={now}
@@ -958,22 +1059,17 @@ export function PersonView({
           )}
           {tab === 'Týden' && (
             <>
-              <WeekSummary
-                member={member}
-                activity={activity}
-                rows={rows}
-                loaded={!!history.entries}
-              />
+              <WeekSummary activity={activity} rows={rows} loaded={!!history.entries} />
               <Week history={history} activity={activity} rows={rows} />
             </>
           )}
           {tab === 'Historie' && (
             <>
               <WeekSummary
-                member={member}
                 activity={activity}
                 rows={rows}
                 loaded={!!history.entries}
+                showUpcoming
               />
               <History history={history} activity={activity} />
             </>

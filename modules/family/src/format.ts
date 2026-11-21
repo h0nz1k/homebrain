@@ -262,6 +262,12 @@ export function choreTally(chores: FamilyChore[]): ChoreTally {
   return t;
 }
 
+export function choreApprovalKind(chore: FamilyChore): 'swap' | 'completion' | null {
+  if (chore.counts_today === false || chore.swap_today?.kind === 'transferred_out') return null;
+  if (chore.swap_today?.kind === 'pending_give') return 'swap';
+  return chore.state === 'claimed' ? 'completion' : null;
+}
+
 const CHORE_RANK: Record<FamilyChore['state'], number> = {
   overdue: 0,
   todo: 1,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  choreApprovalKind,
   choreNote,
   choreTally,
   czDate,
@@ -169,6 +170,25 @@ describe('family format', () => {
       chore('d', 'done', null),
     ]);
     expect(t).toEqual({ done: 2, pending: 1, open: 1, total: 4, earned: 2, waiting: 4 });
+  });
+
+  it('counts completion or handover once for the active member only', () => {
+    const claimed = chore('wait', 'claimed');
+    expect(choreApprovalKind(claimed)).toBe('completion');
+    expect(choreApprovalKind({ ...claimed, counts_today: false })).toBeNull();
+    expect(
+      choreApprovalKind({
+        ...claimed,
+        swap_today: { kind: 'pending_give', label: '' },
+      }),
+    ).toBe('swap');
+    expect(
+      choreApprovalKind({
+        ...claimed,
+        swap_today: { kind: 'transferred_out', label: '' },
+      }),
+    ).toBeNull();
+    expect(choreApprovalKind(chore('open', 'todo'))).toBeNull();
   });
 
   it('orders overdue/open first, then pending approval, done last', () => {
