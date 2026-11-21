@@ -1,7 +1,10 @@
 import { normalizeHistory, type HeatingApi } from './api.js';
 import { deriveSolarState, type SolarSample } from './solar.js';
 import type {
+  HeatingClock,
+  HeatingCycling,
   HeatingHistory,
+  HeatingSchedule,
   HeatingRoom,
   HeatingSeason,
   HeatingSnapshot,
@@ -103,6 +106,128 @@ const DEMO_ROOMS: HeatingRoom[] = [
 
 export type HeatingExtrasMode = 'default' | 'none';
 
+/* ---------- Weekly programs (synthetic; local time, PLC on fixed UTC+1) ---------- */
+
+const PLC_OFFSET_MIN = 60;
+type MockSlot = readonly [start: string, minutes: number];
+
+const toMin = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+};
+const toHhmm = (min: number) => {
+  const v = ((min % 1440) + 1440) % 1440;
+  return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+};
+
+/** Local shift of program times today (summer time: +60 with a UTC+1 PLC). */
+function localShiftMin(now: number): number {
+  return -new Date(now).getTimezoneOffset() - PLC_OFFSET_MIN;
+}
+
+/** `days[0]` = Monday; local start + run minutes → contract `schedule` incl. `week`. */
+function mockSchedule(
+  key: string,
+  label: string,
+  days: ReadonlyArray<readonly MockSlot[]>,
+  now: number,
+  format: HeatingSchedule['format'] = 'start_end',
+): HeatingSchedule {
+  const shift = localShiftMin(now);
+  const week = days.map((slots, i) => ({
+    day: i + 1,
+    slots: slots.map(([start, minutes]) => {
+      const s = toMin(start);
+      return {
+        start,
+        end: s + minutes === 1440 ? '24:00' : toHhmm(s + minutes),
+        minutes,
+        plc_start: toHhmm(s - shift),
+        plc_end: toHhmm(s - shift + minutes),
+      };
+    }),
+  }));
+  const today = (new Date(now).getDay() + 6) % 7;
+  return {
+    key,
+    label,
+    format,
+    slots: week[today]!.slots.map((x) => [x.plc_start, x.plc_end] as [string, string]),
+    week,
+  };
+}
+
+const weekdays = <T>(work: T, weekend: T): T[] => [work, work, work, work, work, weekend, weekend];
+
+export function mockSchedules(now: number): HeatingSchedule[] {
+  return [
+    mockSchedule(
+      'dhw',
+      'Ohřev teplé vody',
+      weekdays([['05:00', 17 * 60]], [['05:00', 17 * 60]]),
+      now,
+    ),
+    mockSchedule(
+      'setback',
+      'Útlum topení',
+      weekdays([['22:30', 7 * 60]], [['23:30', 8 * 60]]),
+      now,
+    ),
+    mockSchedule(
+      'circulation',
+      'Cirkulace TV',
+      weekdays(
+        [
+          ['06:00', 120],
+          ['18:00', 180],
+        ],
+        [['08:00', 13 * 60]],
+      ),
+      now,
+    ),
+    mockSchedule(
+      'pool_filter',
+      'Filtrace bazénu',
+      [
+        ...Array.from({ length: 6 }, () => [['11:00', 90]] as MockSlot[]),
+        [
+          ['10:00', 120],
+          ['18:00', 45],
+        ],
+      ],
+      now,
+      'start_duration',
+    ),
+  ];
+}
+
+export function mockClock(now: number, driftMin = 3): HeatingClock {
+  const plc = new Date(now + (PLC_OFFSET_MIN + driftMin) * MIN);
+  return {
+    plc_utc_offset_minutes: PLC_OFFSET_MIN,
+    local_shift_min: localShiftMin(now),
+    plc_time: toHhmm(plc.getUTCHours() * 60 + plc.getUTCMinutes()),
+    drift_min: driftMin,
+  };
+}
+
+function mockCycling(starts: number | null, runtimeH: number | null): HeatingCycling | null {
+  if (starts === null || runtimeH === null) return null;
+  const avg = starts ? Math.round(((runtimeH * 60) / starts) * 10) / 10 : null;
+  const yStarts = starts > 30 ? 52 : 6;
+  const yAvg = starts > 30 ? 6.1 : 38.5;
+  const short = (s: number, a: number | null) => s > 30 || (s >= 10 && a !== null && a < 8);
+  return {
+    starts_today: starts,
+    avg_run_min_today: avg,
+    starts_yesterday: yStarts,
+    avg_run_min_yesterday: yAvg,
+    short_cycling: short(starts, avg) || short(yStarts, yAvg),
+    max_starts: 30,
+    min_avg_run_min: 8,
+  };
+}
+
 function mockExtras(
   scenario: HeatingScenario,
   mode: HeatingExtrasMode,
@@ -115,6 +240,18 @@ function mockExtras(
     temp: 27.9,
     heating_pump: false,
     filter_pump: false,
+    filter_enabled: true,
+    filter_program_active: false,
+    heating_enabled: false,
+    auto: true,
+    target: 28,
+  };
+  const fishWater = {
+    water_temp: 17.6,
+    water_target: 18.0,
+    water_hysteresis: 1.0,
+    water_heating_on: true,
+    water_heating_running: false,
   };
   const collectorWinter = 4;
   const solarWinter = {
@@ -135,6 +272,7 @@ function mockExtras(
         hysteresis: 0.2,
         heating_on: true,
         valve_open: true,
+        ...fishWater,
       },
       solar: solarWinter,
       pool: winterPool,
@@ -154,7 +292,14 @@ function mockExtras(
     };
   }
   return {
-    fish: { temp: 9.8, target: 10.0, hysteresis: 0.2, heating_on: true, valve_open: true },
+    fish: {
+      temp: 9.8,
+      target: 10.0,
+      hysteresis: 0.2,
+      heating_on: true,
+      valve_open: true,
+      ...fishWater,
+    },
     solar: solarWinter,
     pool: winterPool,
   };
@@ -240,6 +385,7 @@ export function buildMockSnapshot(
       main_switch: scenario !== 'off',
       heating_enabled: scenario !== 'off',
       winter_limit: 12,
+      summer_limit: null,
       cooling_enabled: false,
       cooling: null,
       hdo_low_tariff: scenario !== 'idle',
@@ -249,7 +395,7 @@ export function buildMockSnapshot(
       ref_target: 22.5,
       ref_target_effective: 22.5,
       hysteresis: 0.1,
-      setback_drop: 2,
+      setback_drop: 0,
       setback_drop_alt: null,
       attic_temp: 19.6,
       circuit_on: scenario === 'house',
@@ -329,25 +475,8 @@ export function buildMockSnapshot(
       constant_target: 50,
       min_water: 25,
     },
-    schedules: [
-      { key: 'dhw', label: 'Ohřev teplé vody', slots: [['05:00', '22:00']] },
-      {
-        key: 'setback',
-        label: 'Útlum topení',
-        slots: [
-          ['00:00', '05:30'],
-          ['22:30', '24:00'],
-        ],
-      },
-      {
-        key: 'circulation',
-        label: 'Cirkulace TV',
-        slots: [
-          ['06:00', '08:00'],
-          ['18:00', '21:00'],
-        ],
-      },
-    ],
+    schedules: mockSchedules(now).filter((x) => extrasMode !== 'none' || !x.key.startsWith('pool')),
+    clock: mockClock(now),
     extras: mockExtras(
       scenario,
       extrasMode,
@@ -418,8 +547,9 @@ export function buildMockSnapshot(
       tankTarget: 41,
       curveTarget: 38,
       dhwTemp: 44.6,
-      runtime: 1.1,
-      starts: 2,
+      // summer-like DHW cycling: many short runs (short-cycling card)
+      runtime: 4.1,
+      starts: 38,
       kwh: 5.4,
       moto: 18_430.4,
       supply: 35.2,
@@ -575,8 +705,27 @@ export function buildMockSnapshot(
       });
     }
   }
+  if (scenario === 'house') snap.mode.auto_season = false; // manual winter explanation
+  if (snap.source !== 'unconfigured') {
+    snap.heat_pump.cycling = mockCycling(
+      snap.heat_pump.starts_today,
+      snap.heat_pump.runtime_today_h,
+    );
+  }
   const solar = snap.extras.solar;
   if (solar) {
+    const sunny =
+      scenario === 'solar' || scenario === 'solar-nogain' || scenario === 'solar-off-hot';
+    solar.today = sunny
+      ? {
+          pump_h: 3.4,
+          max_temp: Math.max(78, solar.temp ?? 0),
+          stagnation_min: scenario === 'solar-off-hot' ? 25 : 0,
+        }
+      : { pump_h: 0, max_temp: Math.max(9.5, solar.temp ?? 0), stagnation_min: 0 };
+    solar.yesterday = sunny
+      ? { pump_h: 5.2, max_temp: 114, stagnation_min: 35 }
+      : { pump_h: 0.6, max_temp: 31, stagnation_min: 0 };
     if (solar.enabled === null) solar.enabled = true;
     if (solar.pump_pct === null && solar.pump === true) solar.pump_pct = 70;
     if (solar.pump_pct === null && solar.pump === false) solar.pump_pct = 0;

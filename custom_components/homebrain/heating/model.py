@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from typing import Any
 
 from .client import parse_name, parse_value
 from .keys import KEYS
-from .mapfile import HeatingMap, VarSpec
+from .mapfile import DEFAULT_PLC_UTC_OFFSET, HeatingMap, VarSpec
+from .programs import clock_info, local_week, parse_slot, today_slots
 
 MAX_GAP = timedelta(minutes=20)  # longer gaps (HA down, PLC offline) are not credited
 DEGREE_DAY_BASE = 20.0
@@ -22,6 +23,11 @@ SOLAR_HEATING_DELTA_C = 5.0
 SOLAR_NO_GAIN_DELTA_C = 20.0
 SOLAR_TANK_RISE_EPS_C = 0.3
 SOLAR_STAGNATION_C = 110.0
+# Compressor short cycling: more starts per day, or shorter average runs (with enough starts
+# for the average to mean something). Archive reality: up to 66 starts/day at ~6 min.
+CYCLING_MAX_STARTS = 30
+CYCLING_MIN_AVG_RUN_MIN = 8.0
+CYCLING_MIN_STARTS_FOR_AVG = 10
 
 
 def _index(page: dict[str, str]) -> dict[str, str]:
@@ -60,33 +66,90 @@ class Resolved:
     schedules: list[dict[str, Any]] = field(default_factory=list)
     # contract key -> PLC address from the private map (service view of the full schematic)
     codes: dict[str, str] = field(default_factory=dict)
+    # schedule key -> weekday (1 = Monday) -> [(start_min, duration_min)] in PLC time
+    schedule_days: dict[str, dict[int, list[tuple[int, int]]]] = field(default_factory=dict)
+    plc_utc_offset_minutes: int = DEFAULT_PLC_UTC_OFFSET
+    # when the page carrying ``plc.clock_minute`` was read (clock drift needs it)
+    clock_read_at: datetime | None = None
 
     def active_faults(self) -> set[str]:
         return {key for key, _label, active in self.faults if active}
 
 
 def resolve(
-    hmap: HeatingMap, pages: dict[int, dict[str, str]], weekday: int | None = None
+    hmap: HeatingMap,
+    pages: dict[int, dict[str, str]],
+    weekday: int | None = None,
+    page_times: dict[int, datetime] | None = None,
 ) -> Resolved:
-    """Map raw page values to contract keys (``weekday`` 1 = Monday picks schedule days)."""
+    """Map raw page values to contract keys.
+
+    ``weekday`` (1 = Monday, in PLC time) picks the legacy ``slots`` of a schedule; the whole
+    week is resolved into ``schedule_days``. ``page_times`` = when each page was read.
+    """
     idx: dict[int, dict[str, str]] = {}
-    res = Resolved(mapped=set(hmap.keys))
+    res = Resolved(mapped=set(hmap.keys), plc_utc_offset_minutes=hmap.plc_utc_offset_minutes)
     for key, spec in hmap.keys.items():
         res.values[key] = _value(spec, pages, idx)
         res.codes[key] = spec.var
+    clock = hmap.keys.get("plc.clock_minute")
+    if clock is not None and page_times:
+        res.clock_read_at = page_times.get(clock.page)
     for fault in hmap.faults:
         active = _value(fault.var, pages, idx)
         res.faults.append((fault.key, fault.label, active if isinstance(active, bool) else None))
     for sched in hmap.schedules:
-        pairs = sched.days.get(weekday or 0) or sched.slots
-        slots = []
-        for on_var, off_var in pairs:
-            on = _value(VarSpec(sched.page, on_var), pages, idx)
-            off = _value(VarSpec(sched.page, off_var), pages, idx)
-            if isinstance(on, str) and isinstance(off, str) and on != off:
-                slots.append([on, off])
-        res.schedules.append({"key": sched.key, "label": sched.label, "slots": slots})
+        week: dict[int, list[tuple[int, int]]] = {}
+        for day in range(1, 8):
+            pairs = sched.days.get(day) or sched.slots
+            parsed = (
+                parse_slot(
+                    _value(VarSpec(sched.page, first), pages, idx),
+                    _value(VarSpec(sched.page, second), pages, idx),
+                    sched.format,
+                )
+                for first, second in pairs
+            )
+            week[day] = [slot for slot in parsed if slot is not None]
+        today = week.get(weekday or 0)
+        if today is None:
+            # no weekday given: the shared slots (or Monday when only days are mapped)
+            fallback = (
+                parse_slot(
+                    _value(VarSpec(sched.page, a), pages, idx),
+                    _value(VarSpec(sched.page, b), pages, idx),
+                    sched.format,
+                )
+                for a, b in sched.slots
+            )
+            today = [s for s in fallback if s is not None] if sched.slots else week[1]
+        res.schedule_days[sched.key] = week
+        res.schedules.append(
+            {
+                "key": sched.key,
+                "label": sched.label,
+                "format": sched.format,
+                "slots": today_slots(today),
+            }
+        )
     return res
+
+
+def cycling_verdict(starts: int | None, avg_run_min: float | None) -> bool | None:
+    """Short cycling? ``None`` when there is nothing to judge yet."""
+    if starts is None:
+        return None
+    if starts > CYCLING_MAX_STARTS:
+        return True
+    if starts >= CYCLING_MIN_STARTS_FOR_AVG and avg_run_min is not None:
+        return avg_run_min < CYCLING_MIN_AVG_RUN_MIN
+    return False
+
+
+def avg_run_min(runtime_s: float | None, starts: int | None) -> float | None:
+    if runtime_s is None or not starts:
+        return None
+    return runtime_s / 60 / starts
 
 
 def derive_activity(values: dict[str, Any], *, any_fault: bool) -> str:
@@ -133,8 +196,11 @@ def _num(value: Any) -> float | None:
 
 @dataclass
 class DayCounters:
-    """Today's compressor runtime/starts (from on/off samples), outdoor min/max, energy.
+    """Today's compressor runtime/starts (from on/off samples), outdoor min/max, energy,
+    solar pump time / max collector temperature / stagnation time.
 
+    Every interval between two samples is credited to the state seen at its start (the
+    same rule for compressor and solar). ``prev`` keeps the totals of the last finished day.
     Persisted (``as_dict``) so an HA restart neither resets the day nor counts a new start.
     """
 
@@ -149,6 +215,12 @@ class DayCounters:
     energy_base: float | None = None
     energy_last: float | None = None
     fault_since: dict[str, str] = field(default_factory=dict)
+    solar_pump_s: float = 0.0
+    solar_max: float | None = None
+    solar_stagnation_s: float = 0.0
+    solar_last_pump: bool | None = None
+    solar_last_temp: float | None = None
+    prev: dict[str, Any] | None = None
 
     @property
     def runtime_h(self) -> float:
@@ -160,10 +232,37 @@ class DayCounters:
             return None
         return max(0.0, self.energy_last - self.energy_base)
 
+    def _credit(self, seconds: float) -> None:
+        """Credit an interval to the state seen at its start."""
+        if seconds <= 0 or self.day is None:
+            return
+        if self.last_on:
+            self.runtime_s += seconds
+        if self.solar_last_pump:
+            self.solar_pump_s += seconds
+        elif (
+            self.solar_last_pump is False
+            and self.solar_last_temp is not None
+            and self.solar_last_temp >= SOLAR_STAGNATION_C
+        ):
+            self.solar_stagnation_s += seconds
+
     def _roll(self, day: str) -> None:
+        if self.day is not None:
+            self.prev = {
+                "day": self.day,
+                "runtime_s": self.runtime_s,
+                "starts": self.starts,
+                "solar_pump_s": self.solar_pump_s,
+                "solar_max": self.solar_max,
+                "solar_stagnation_s": self.solar_stagnation_s,
+            }
         self.day = day
         self.runtime_s = 0.0
         self.starts = 0
+        self.solar_pump_s = 0.0
+        self.solar_max = None
+        self.solar_stagnation_s = 0.0
         self.outdoor_min = self.outdoor_max = None
         self.energy_base = self.energy_last  # yesterday's last reading = today's zero
 
@@ -175,19 +274,27 @@ class DayCounters:
         outdoor: float | None = None,
         energy_total: float | None = None,
         faults: set[str] | None = None,
+        solar_temp: float | None = None,
+        solar_pump: bool | None = None,
     ) -> None:
         day = now.date().isoformat()
         gap = (now - self.last) if self.last is not None else None
-        credit = bool(self.last_on) and gap is not None and timedelta(0) < gap <= MAX_GAP
-        if self.day != day:
-            if credit and self.last is not None:
+        before_s = credit_s = 0.0
+        if gap is not None and self.last is not None and timedelta(0) < gap <= MAX_GAP:
+            start = self.last
+            if self.day != day:
                 midnight = datetime.combine(now.date(), time(0), tzinfo=now.tzinfo)
-                self._roll(day)
-                self.runtime_s += max(0.0, (now - max(midnight, self.last)).total_seconds())
-            else:
-                self._roll(day)
-        elif credit and gap is not None:
-            self.runtime_s += gap.total_seconds()
+                before_s = max(0.0, (midnight - start).total_seconds())
+                start = max(start, midnight)
+            credit_s = max(0.0, (now - start).total_seconds())
+        if self.day != day:
+            self._credit(before_s)  # the part before midnight still belongs to the old day
+            self._roll(day)
+        self._credit(credit_s)
+        if solar_temp is not None:
+            self.solar_max = max(solar_temp, self.solar_max or solar_temp)
+        self.solar_last_pump = solar_pump
+        self.solar_last_temp = solar_temp
         if on is True:
             if self.last_on is False:
                 self.starts += 1
@@ -227,6 +334,12 @@ class DayCounters:
             "energy_base": self.energy_base,
             "energy_last": self.energy_last,
             "fault_since": dict(self.fault_since),
+            "solar_pump_s": self.solar_pump_s,
+            "solar_max": self.solar_max,
+            "solar_stagnation_s": self.solar_stagnation_s,
+            "solar_last_pump": self.solar_last_pump,
+            "solar_last_temp": self.solar_last_temp,
+            "prev": dict(self.prev) if self.prev else None,
         }
 
     @classmethod
@@ -239,6 +352,8 @@ class DayCounters:
             if (day is not None and not isinstance(day, str)) or not isinstance(starts, int):
                 return cls()
             last_on = raw.get("last_on")
+            solar_last_pump = raw.get("solar_last_pump")
+            prev = raw.get("prev")
             return cls(
                 day=day,
                 runtime_s=float(raw.get("runtime_s") or 0.0),
@@ -251,9 +366,29 @@ class DayCounters:
                 energy_base=_num(raw.get("energy_base")),
                 energy_last=_num(raw.get("energy_last")),
                 fault_since={str(k): str(v) for k, v in (raw.get("fault_since") or {}).items()},
+                solar_pump_s=float(raw.get("solar_pump_s") or 0.0),
+                solar_max=_num(raw.get("solar_max")),
+                solar_stagnation_s=float(raw.get("solar_stagnation_s") or 0.0),
+                solar_last_pump=solar_last_pump if isinstance(solar_last_pump, bool) else None,
+                solar_last_temp=_num(raw.get("solar_last_temp")),
+                prev=_prev_day(prev),
             )
         except (TypeError, ValueError, AttributeError):
             return cls()
+
+
+def _prev_day(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict) or not isinstance(raw.get("day"), str):
+        return None
+    starts = raw.get("starts")
+    return {
+        "day": raw["day"],
+        "runtime_s": float(raw.get("runtime_s") or 0.0),
+        "starts": starts if isinstance(starts, int) and not isinstance(starts, bool) else 0,
+        "solar_pump_s": float(raw.get("solar_pump_s") or 0.0),
+        "solar_max": _num(raw.get("solar_max")),
+        "solar_stagnation_s": float(raw.get("solar_stagnation_s") or 0.0),
+    }
 
 
 def _r(value: Any, digits: int = 1) -> Any:
@@ -320,9 +455,15 @@ def build_payload(
     monitored: int | None = None,
     solar_samples: tuple[SolarSample, ...] = (),
     alerts: list[dict[str, Any]] | None = None,
+    tz: tzinfo | None = None,
 ) -> dict[str, Any]:
-    """The full contract payload; every unmapped/unavailable value is ``None``."""
+    """The full contract payload; every unmapped/unavailable value is ``None``.
+
+    ``tz`` = local time zone (HA's); program times in ``schedules[].week`` are local.
+    """
     v = res.values.get
+    zone = tz or UTC
+    local_today = now.astimezone(zone).date()
     hours, minutes = v("heat_pump.motohours"), v("heat_pump.motominutes")
     motohours = hours + (minutes or 0) / 60 if isinstance(hours, int | float) else None
     dhw_target, dhw_hyst = v("dhw.target"), v("dhw.hysteresis")
@@ -362,6 +503,7 @@ def build_payload(
             "main_switch": v("mode.main_switch"),
             "heating_enabled": v("mode.heating_enabled"),
             "winter_limit": _r(v("mode.winter_limit"), 0),
+            "summer_limit": _r(v("mode.summer_limit"), 0),
             "cooling_enabled": v("mode.cooling_enabled"),
             "cooling": v("mode.cooling"),
             "hdo_low_tariff": v("mode.hdo_low_tariff"),
@@ -397,6 +539,7 @@ def build_payload(
             "starts_today": counters.starts,
             "energy_today_kwh": _r(counters.energy_today, 2),
             "motohours": _r(motohours),
+            "cycling": cycling_summary(res, counters),
         },
         "tank": {
             "top": _r(v("tank.top")),
@@ -444,7 +587,26 @@ def build_payload(
             "constant_target": _r(v("curve.constant_target"), 0),
             "min_water": _r(v("curve.min_water"), 0),
         },
-        "schedules": res.schedules,
+        "schedules": [
+            {
+                **sched,
+                "week": local_week(
+                    res.schedule_days.get(sched["key"], {}),
+                    today=local_today,
+                    tz=zone,
+                    offset_minutes=res.plc_utc_offset_minutes,
+                ),
+            }
+            for sched in res.schedules
+        ],
+        "clock": clock_info(
+            offset_minutes=res.plc_utc_offset_minutes,
+            tz=zone,
+            now=now,
+            hour=v("plc.clock_hour"),
+            minute=v("plc.clock_minute"),
+            read_at=res.clock_read_at,
+        ),
         "alerts": alerts or [],
         "extras": {
             "solar": (
@@ -467,6 +629,7 @@ def build_payload(
                             solar_samples,
                             now,
                         ),
+                        **_solar_days(res, counters),
                     }
                     if g is not None
                     else None
@@ -483,6 +646,11 @@ def build_payload(
                 "extras.pool_temp",
                 heating_pump="extras.pool_heating_pump",
                 filter_pump="extras.pool_filter_pump",
+                filter_enabled="extras.pool_filter_enabled",
+                filter_program_active="extras.pool_filter_program_active",
+                heating_enabled="extras.pool_heating_enabled",
+                auto="extras.pool_auto",
+                target="extras.pool_target",
             ),
             "fish": extra_group(
                 "extras.fish_temp",
@@ -490,11 +658,89 @@ def build_payload(
                 hysteresis="extras.fish_hysteresis",
                 heating_on="extras.fish_heating_on",
                 valve_open="extras.fish_valve_open",
+                water_temp="extras.fish_water_temp",
+                water_target="extras.fish_water_target",
+                water_hysteresis="extras.fish_water_hysteresis",
+                water_heating_on="extras.fish_water_heating_on",
+                water_heating_running="extras.fish_water_heating_running",
             ),
         },
         "rooms": rooms or [],
         # Service view only (never the kiosk): which PLC address feeds which payload field.
         "service_codes": dict(sorted(res.codes.items())),
+    }
+
+
+def _is_yesterday(counters: DayCounters) -> bool:
+    prev = counters.prev
+    if not prev or not counters.day:
+        return False
+    try:
+        return date.fromisoformat(prev["day"]) == date.fromisoformat(counters.day) - timedelta(1)
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def _avg(runtime_s: float, starts: int) -> float | None:
+    avg = avg_run_min(runtime_s, starts)
+    return round(avg, 1) if avg is not None else None
+
+
+def cycling_summary(res: Resolved, counters: DayCounters) -> dict[str, Any] | None:
+    """Starts per day and average run length (today + the last full day, if it was yesterday)."""
+    if "heat_pump.compressor_on" not in res.mapped or not counters.day:
+        return None
+    today_avg = _avg(counters.runtime_s, counters.starts)
+    prev = counters.prev if _is_yesterday(counters) else None
+    prev_avg = _avg(prev["runtime_s"], prev["starts"]) if prev else None
+    verdicts = [cycling_verdict(counters.starts, today_avg)]
+    if prev:
+        verdicts.append(cycling_verdict(prev["starts"], prev_avg))
+    return {
+        "starts_today": counters.starts,
+        "avg_run_min_today": today_avg,
+        "starts_yesterday": prev["starts"] if prev else None,
+        "avg_run_min_yesterday": prev_avg,
+        "short_cycling": any(v is True for v in verdicts),
+        "max_starts": CYCLING_MAX_STARTS,
+        "min_avg_run_min": CYCLING_MIN_AVG_RUN_MIN,
+    }
+
+
+def _solar_day(
+    pump_s: float, max_temp: float | None, stagnation_s: float, *, pump: bool, temp: bool
+) -> dict[str, Any]:
+    return {
+        "pump_h": round(pump_s / 3600, 2) if pump else None,
+        "max_temp": _r(max_temp) if temp else None,
+        "stagnation_min": round(stagnation_s / 60) if pump and temp else None,
+    }
+
+
+def _solar_days(res: Resolved, counters: DayCounters) -> dict[str, Any]:
+    """Daily solar summary (no kWh: there is no flow or heat meter on the solar loop)."""
+    pump = "extras.solar_pump" in res.mapped
+    temp = "extras.solar_temp" in res.mapped
+    if not counters.day or not (pump or temp):
+        return {"today": None, "yesterday": None}
+    prev = counters.prev if _is_yesterday(counters) else None
+    return {
+        "today": _solar_day(
+            counters.solar_pump_s,
+            counters.solar_max,
+            counters.solar_stagnation_s,
+            pump=pump,
+            temp=temp,
+        ),
+        "yesterday": _solar_day(
+            prev["solar_pump_s"],
+            prev["solar_max"],
+            prev["solar_stagnation_s"],
+            pump=pump,
+            temp=temp,
+        )
+        if prev
+        else None,
     }
 
 

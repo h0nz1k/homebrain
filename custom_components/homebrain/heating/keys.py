@@ -2,7 +2,7 @@
 
 Every key is ``<payload section>.<field>`` of ``homebrain/heating/get``; the entity /
 statistics id is ``heating_<section>_<field>``. ``kind`` is ``num`` (float), ``bool`` or
-``time`` (``hh:mm``, schedules only).
+``clock`` (PLC clock parts: in the payload, but no entity – they change every minute).
 """
 
 from __future__ import annotations
@@ -42,6 +42,7 @@ KEYS: Final[dict[str, KeySpec]] = {
     "mode.main_switch": _b("power", "Hlavní vypínač"),
     "mode.heating_enabled": _b(None, "Topení domu povoleno"),
     "mode.winter_limit": _n("°C", "temperature", "Mez zimy (venku)"),
+    "mode.summer_limit": _n("°C", "temperature", "Mez léta (venku)"),
     "mode.cooling_enabled": _b(None, "Chlazení povoleno"),
     "mode.cooling": _b(None, "Chlazení"),
     "mode.hdo_low_tariff": _b(None, "HDO nízký tarif"),
@@ -108,11 +109,24 @@ KEYS: Final[dict[str, KeySpec]] = {
     "extras.pool_temp": _t("Bazén – zpátečka"),
     "extras.pool_heating_pump": _b("running", "Bazén – čerpadlo natápění"),
     "extras.pool_filter_pump": _b("running", "Bazén – filtrace"),
+    "extras.pool_filter_enabled": _b("power", "Bazén – filtrace povolena"),
+    "extras.pool_filter_program_active": _b(None, "Bazén – program filtrace právě běží"),
+    "extras.pool_heating_enabled": _b("power", "Bazén – natápění povoleno"),
+    "extras.pool_auto": _b(None, "Bazén – automatický režim"),
+    "extras.pool_target": _t("Bazén – žádaná"),
     "extras.fish_temp": _t("Rybárna – teplota vzduchu"),
     "extras.fish_target": _t("Rybárna – žádaná teplota vzduchu"),
     "extras.fish_hysteresis": _n("°C", None, "Rybárna – hystereze"),
     "extras.fish_heating_on": _b(None, "Rybárna – vytápění zapnuto"),
     "extras.fish_valve_open": _b("opening", "Rybárna – ventil topení otevřen"),
+    "extras.fish_water_temp": _t("Rybárna – teplota vody"),
+    "extras.fish_water_target": _t("Rybárna – žádaná teplota vody"),
+    "extras.fish_water_hysteresis": _n("°C", None, "Rybárna – hystereze vody"),
+    "extras.fish_water_heating_on": _b(None, "Rybárna – ohřev vody zapnut"),
+    "extras.fish_water_heating_running": _b("running", "Rybárna – ohřev vody běží"),
+    # PLC clock (drift hint only; no entity)
+    "plc.clock_hour": KeySpec("clock", None, None, "Hodiny regulace – hodina"),
+    "plc.clock_minute": KeySpec("clock", None, None, "Hodiny regulace – minuta"),
 }
 
 # Derived entities that are not read from the PLC (always present when Topení is set up).

@@ -23,6 +23,10 @@ from .legacy import LEGACY_KEYS
 _LOGGER = logging.getLogger(__name__)
 
 
+DEFAULT_PLC_UTC_OFFSET = 60  # fixed winter time (UTC+1), the usual Foxtrot setting
+SCHEDULE_FORMATS = ("start_end", "start_duration")
+
+
 class MapError(ValueError):
     """The file is not a usable map at all (wrong structure / invalid YAML)."""
 
@@ -49,6 +53,8 @@ class ScheduleSpec:
     page: int
     slots: tuple[tuple[str, str], ...] = ()
     days: dict[int, tuple[tuple[str, str], ...]] = field(default_factory=dict)
+    # ``start_end``: pairs are [on, off] times; ``start_duration``: [start, run time hh:mm]
+    format: str = "start_end"
 
 
 @dataclass
@@ -59,6 +65,8 @@ class HeatingMap:
     pages: dict[int, int] = field(default_factory=dict)  # page -> poll interval (s)
     ucid: dict[int, str] = field(default_factory=dict)
     kwh_per_run_hour: float | None = None
+    # The PLC clock runs on a fixed offset from UTC (no DST); schedules are converted with it.
+    plc_utc_offset_minutes: int = DEFAULT_PLC_UTC_OFFSET
     warnings: list[str] = field(default_factory=list)
 
     def needed_pages(self) -> set[int]:
@@ -156,6 +164,9 @@ def parse_map(text: str) -> HeatingMap:
             page = item.get("page")
             if isinstance(page, bool) or not isinstance(page, int):
                 raise ValueError(f"schedules[{i}]: 'page' must be a page number")
+            fmt = item.get("format", "start_end")
+            if fmt not in SCHEDULE_FORMATS:
+                raise ValueError(f"schedules[{i}]: 'format' must be one of {SCHEDULE_FORMATS}")
             days = {
                 int(day): _slots(slots, f"schedules[{i}].days.{day}")
                 for day, slots in (item.get("days") or {}).items()
@@ -167,6 +178,7 @@ def parse_map(text: str) -> HeatingMap:
                     page,
                     _slots(item.get("slots") or [], f"schedules[{i}].slots"),
                     days,
+                    fmt,
                 )
             )
         except (ValueError, TypeError) as err:
@@ -180,6 +192,12 @@ def parse_map(text: str) -> HeatingMap:
     kwh = raw.get("kwh_per_run_hour")
     if isinstance(kwh, int | float) and not isinstance(kwh, bool) and kwh > 0:
         hmap.kwh_per_run_hour = float(kwh)
+    offset = raw.get("plc_utc_offset_minutes")
+    if offset is not None:
+        if isinstance(offset, int) and not isinstance(offset, bool) and -720 <= offset <= 840:
+            hmap.plc_utc_offset_minutes = offset
+        else:
+            warn.append("'plc_utc_offset_minutes' ignored: expected minutes between -720 and 840")
     return hmap
 
 
