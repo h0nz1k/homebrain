@@ -752,7 +752,6 @@ export const familyStyles = `
   display: grid; place-items: center; border-radius: 8px;
 }
 .fam-person-check:focus-visible { outline: 2px solid var(--hb-ac); }
-.fam-person-task[data-state='overdue'] .fam-person-check .fam-person-mark { border-color: var(--hb-crit); }
 .fam-person-free .fam-person-mark { border: 0; background: var(--hb-s2); border-radius: 8px; }
 .fam-person-free > .hb-btn { justify-self: end; min-height: 44px; padding-inline: 9px; white-space: nowrap; }
 .fam-person-finished summary { min-height: 44px; cursor: pointer; }
@@ -968,7 +967,6 @@ export const familyStyles = `
 .fam-person-task-text small.fam-person-carried { font-weight: 600; }
 .fam-person-task-text small[data-overdue] { color: var(--hb-crit); }
 .fam .fam-person-task .fam-person-mark[data-mark='open'] { border: 2px solid var(--hb-t2); }
-.fam .fam-person-task[data-state='overdue'] .fam-person-check .fam-person-mark { border-color: var(--hb-crit); }
 .fam-person-view { --hb-t2: color-mix(in srgb, var(--hb-t1) 78%, var(--hb-s1)); }
 .fam .fam-person-task:is([data-muted], [data-missed]) strong { color: var(--hb-t2); }
 .fam .fam-person-day .fam-person-task .fam-person-points { color: var(--hb-t1); }
