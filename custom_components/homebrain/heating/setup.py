@@ -44,7 +44,9 @@ async def async_setup_heating(hass: HomeAssistant, entry: ConfigEntry) -> None:
         data[DATA_KEY] = poller
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         data[_PLATFORMS_KEY] = True
-        daily = advisor.HeatingAdvisor(hass, advisor.AdvisorOptions.from_options(snapshot))
+        daily = advisor.HeatingAdvisor(
+            hass, advisor.AdvisorOptions.from_options(snapshot), poller.entity_keys()
+        )
         data[advisor.DATA_KEY] = daily
         daily.start()
     except Exception as err:  # noqa: BLE001 - isolate the module, keep HA running

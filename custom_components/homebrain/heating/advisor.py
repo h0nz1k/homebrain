@@ -442,9 +442,12 @@ def _read_advisor(
 
 
 class HeatingAdvisor:
-    def __init__(self, hass: HomeAssistant, options: AdvisorOptions) -> None:
+    def __init__(
+        self, hass: HomeAssistant, options: AdvisorOptions, entity_keys: list[str]
+    ) -> None:
         self.hass = hass
         self.options = options
+        self._entity_keys = frozenset(entity_keys)
         self.result: Row | None = None
         self._task: asyncio.Task | None = None
         self._cancel_timer: Callable[[], None] | None = None
@@ -472,7 +475,8 @@ class HeatingAdvisor:
             ids = {
                 key: entity_id
                 for key in (OUTDOOR, COMPRESSOR, CIRCUIT, REF, TARGET, ATTIC, *CURVE_KEYS)
-                if (entity_id := registry.async_get_entity_id("sensor", DOMAIN, unique_id(key)))
+                if (key in self._entity_keys or key in (OUTDOOR, COMPRESSOR))
+                and (entity_id := registry.async_get_entity_id("sensor", DOMAIN, unique_id(key)))
                 and (entry := registry.async_get(entity_id))
                 and not entry.disabled
             }

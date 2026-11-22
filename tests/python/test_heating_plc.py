@@ -195,7 +195,19 @@ async def test_unconfigured_payload(hass: HomeAssistant):
     assert hass.states.get("sensor.heating_activity") is None
 
 
-async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
+@pytest.mark.parametrize(
+    "advisor_options",
+    [
+        {},
+        {
+            "advisor_lookback_years": 2,
+            "advisor_thermal_kw": 7.5,
+            "advisor_design_temp": -14,
+            "advisor_attic_comfort": 19.5,
+        },
+    ],
+)
+async def test_options_flow_heating_step(hass: HomeAssistant, advisor_options):
     entry = MockConfigEntry(
         domain=DOMAIN,
         options={"heating": {"url": "http://plc.example", "username": "u", "password": "old"}},
@@ -219,6 +231,7 @@ async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
             "password": "",
             "map_path": "/config/homebrain/heating_map.yaml",
             "poll_interval": 45,
+            **advisor_options,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -229,6 +242,11 @@ async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
         "map_path": "/config/homebrain/heating_map.yaml",
         "poll_interval": 45,
         "alert_recipient": "",
+        "advisor_lookback_years": 3,
+        "advisor_thermal_kw": None,
+        "advisor_design_temp": -12,
+        "advisor_attic_comfort": 20,
+        **advisor_options,
     }
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
