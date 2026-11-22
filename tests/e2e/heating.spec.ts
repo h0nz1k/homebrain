@@ -39,9 +39,16 @@ test.describe('Topení', () => {
       [1440, 900],
     ] as const) {
       await page.setViewportSize({ width, height });
-      await page
-        .locator('.ht-advisor-cards')
-        .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      const cards = page.locator('.ht-advisor-cards');
+      await cards.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect
+        .poll(() =>
+          cards.evaluate((el) => {
+            const topbar = document.querySelector('.hb-topbar');
+            return el.getBoundingClientRect().top - (topbar?.getBoundingClientRect().bottom ?? 0);
+          }),
+        )
+        .toBeGreaterThanOrEqual(0);
       await expect(advisor).toBeInViewport({ ratio: 1 });
       await expect(heatLoss).toBeInViewport({ ratio: 1 });
       await noSidewaysScroll(page);

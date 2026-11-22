@@ -122,13 +122,12 @@ function HeatLossCard({ model }: { model: HeatingAdvisor['model'] }) {
       )}
       <footer className="ht-muted ht-advisor-notes">
         {model.days > 0 && (
-          <p>Odhad je orientační. Doba běhu kompresoru zahrnuje i ohřev teplé vody.</p>
+          <p>Orientační odhad zahrnuje i ohřev teplé vody.</p>
         )}
         <p>
-          Odhad ztráty závisí na předpokládaném tepelném výkonu čerpadla
           {model.thermal_kw === null
-            ? '. Výkon zatím není zadaný. Zadejte ho v nastavení HomeBrain → Topení.'
-            : ` (${fmtNum(model.thermal_kw)}\u00a0kW).`}
+            ? 'Odhad ztráty vyžaduje tepelný výkon čerpadla. Zadejte ho v nastavení HomeBrain → Topení.'
+            : `Odhad počítá s tepelným výkonem čerpadla ${fmtNum(model.thermal_kw)}\u00a0kW.`}
         </p>
       </footer>
     </Card>

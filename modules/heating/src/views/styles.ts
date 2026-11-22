@@ -74,8 +74,11 @@ export const heatingStyles = `
   line-height: 1.45;
 }
 @media (max-width: 400px) {
-  .ht-advisor-cards .ht-card { padding: 14px 16px; gap: 8px; }
-  .ht-advisor-cards .ht-kv li { gap: 12px; padding-block: 6px; }
+  .ht-advisor-cards { gap: 12px; }
+  .ht-advisor-cards .ht-card { padding: 12px 16px; gap: 8px; }
+  .ht-advisor-cards .ht-kv li { gap: 12px; padding-block: 5px; }
+  .ht-advisor-cards .ht-advisor-callout,
+  .ht-advisor-notes { padding-block: 8px; }
 }
 @media (min-width: 1060px) {
   .ht-advisor-cards {
