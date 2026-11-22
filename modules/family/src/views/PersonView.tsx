@@ -6,6 +6,7 @@ import {
   CARRIED_LABEL,
   MISSED_LABEL,
   canTransferChore,
+  isTransferredOut,
   transferLabel,
   carriedFrom,
   carriedLabel,
@@ -168,7 +169,7 @@ type MarkKind = 'open' | 'done' | 'waiting' | 'handed' | 'carried' | 'missed';
 
 /** One glyph system for every task row: ring = open, filled check = done, swap = handed over. */
 function markKind(row: TaskRow): MarkKind {
-  if (row.swap_today?.kind === 'transferred_out') return 'handed';
+  if (isTransferredOut(row)) return 'handed';
   if (row.occurrence === 'missed') return 'missed';
   if (row.occurrence === 'carried') return 'carried';
   if (row.state === 'done') return 'done';
@@ -286,6 +287,7 @@ function ChoreRows({
                   {status.replace(/ · jen dnes$/u, '')}
                 </small>
               )}
+              {onTransfer && !transferMenu && !chore.due && <small>Úkol nemá termín.</small>}
               {chore.rotation_turn && <small>Střídá se · na řadě {chore.rotation_turn}</small>}
             </div>
             <span className="fam-person-points" data-waiting={waiting || undefined}>
@@ -302,16 +304,18 @@ function ChoreRows({
                 pointsLabel(chore.points)
               )}
             </span>
-            {onTransfer && !chore.occurrence && canTransferChore(chore) && (
-              <Button
-                variant="ghost"
-                className="fam-overflow fam-person-transfer"
-                icon={<Icon name={transferMenu ? 'more' : 'swap'} size={20} />}
-                aria-label={`${transferMenu ? 'Další akce' : 'Předat'}: ${chore.name}`}
-                title={transferMenu ? 'Další akce' : 'Předat…'}
-                onClick={() => onTransfer(chore.id)}
-              />
-            )}
+            {onTransfer &&
+              !chore.occurrence &&
+              (canTransferChore(chore) || (transferMenu && !!swap?.operation_id)) && (
+                <Button
+                  variant="ghost"
+                  className="fam-overflow fam-person-transfer"
+                  icon={<Icon name={transferMenu ? 'more' : 'swap'} size={20} />}
+                  aria-label={`${transferMenu ? 'Další akce' : 'Předat'}: ${chore.name}`}
+                  title={transferMenu ? 'Další akce' : 'Předat…'}
+                  onClick={() => onTransfer(chore.id)}
+                />
+              )}
           </li>
         );
       })}

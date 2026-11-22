@@ -242,7 +242,10 @@ const familyApi = createMockFamilyApi({
     familyScenario === 'empty' || familyScenario === 'busy' || familyScenario === 'evening'
       ? familyScenario
       : 'full',
-  reassignDemo: reassignDemo === 'overdue' || reassignDemo === 'error' ? reassignDemo : undefined,
+  reassignDemo:
+    reassignDemo === 'overdue' || reassignDemo === 'error' || reassignDemo === 'needs-repair'
+      ? reassignDemo
+      : undefined,
 });
 (window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;
 setFamilyApiFactory(() => familyApi);

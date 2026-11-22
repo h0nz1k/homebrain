@@ -1068,6 +1068,14 @@ async def test_delete_chore_uses_confirmed_scope_and_cancels_swaps(
             "config_entry_id": "choreops-entry",
         },
     )
+    store.upsert_operation(
+        "scheduled",
+        {
+            "source_snapshot": {"chore_id": deleted_key},
+            "status": "scheduled",
+            "config_entry_id": "choreops-entry",
+        },
+    )
     store.upsert_request(
         "unrelated",
         {
@@ -1121,6 +1129,7 @@ async def test_delete_chore_uses_confirmed_scope_and_cancels_swaps(
         assert "early" in chores
     assert store.data["requests"]["pending"]["status"] == "cancelled"
     assert store.data["operations"]["applying"]["status"] == "cancelled"
+    assert store.data["operations"]["scheduled"]["status"] == "cancelled"
     assert store.data["requests"]["unrelated"]["status"] == "pending"
     assert "extraneous" in chores
     if mode == "series":
@@ -1404,3 +1413,240 @@ async def test_future_swap_request_expires_at_end_of_selected_day(hass, swaps, h
     )
     assert result["error"]["code"] == "expired"
     assert store.data["requests"][rid]["status"] == "expired"
+
+
+@pytest.fixture
+def swap_runtime(hass, swaps):
+    """In-memory ChoreOps 1.6 definitions and history, independent of sensor refresh."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from homeassistant.exceptions import HomeAssistantError
+
+    created, effects, advance = swaps
+    due = hass.states.get(_handover("once")["chore"]).attributes["due_date"]
+    runtime = SimpleNamespace(
+        chores_data={
+            "once": {
+                "assigned_user_ids": ["a", "p"],
+                "per_assignee_due_dates": {"a": due, "p": due},
+            },
+            "repeat": {
+                "assigned_user_ids": ["a"],
+                "per_assignee_due_dates": {"a": due},
+            },
+        },
+        assignees_data={
+            "a": {"name": "Dcera", "chore_data": {}},
+            "b": {"name": "Syn", "chore_data": {}},
+            "p": {"name": "Táta", "chore_data": {}},
+        },
+    )
+    hass.config_entries.async_get_entry("choreops-entry").runtime_data = runtime
+    failures = set()
+
+    async def create(call):
+        data = dict(call.data)
+        created.append(data)
+        clone_id = f"clone-{len(created)}"
+        runtime.chores_data[clone_id] = {"name": data["name"], "assigned_user_ids": ["b"]}
+        if "crash_create" in failures:
+            raise asyncio.CancelledError
+        return {"id": clone_id}
+
+    async def skip(call):
+        effects.append(("skip", dict(call.data)))
+        if "skip" in failures:
+            raise HomeAssistantError("skip failed")
+        cid = call.data["chore_id"]
+        eid = _handover(cid)["chore"]
+        state = hass.states.get(eid)
+        due = (datetime.fromisoformat(state.attributes["due_date"]) + timedelta(days=1)).isoformat()
+        runtime.chores_data[cid]["per_assignee_due_dates"]["a"] = due
+        hass.states.async_set(eid, "pending", {**state.attributes, "due_date": due})
+        if "crash_skip" in failures:
+            raise asyncio.CancelledError
+
+    async def update(call):
+        effects.append(("update", dict(call.data)))
+        runtime.chores_data[call.data["id"]]["assigned_user_ids"].remove("a")
+        return {"id": call.data["id"]}
+
+    async def delete(call):
+        effects.append(("delete", dict(call.data)))
+        if "delete" in failures:
+            raise HomeAssistantError("delete failed")
+        del runtime.chores_data[call.data["id"]]
+
+    hass.services.async_register(
+        "choreops", "create_chore", create, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register("choreops", "skip_chore_due_date", skip)
+    hass.services.async_register(
+        "choreops", "update_chore", update, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register("choreops", "delete_chore", delete)
+    return runtime, failures, created, effects, advance
+
+
+async def test_swap_preflight_rejects_overdue_one_off_with_other_overdue_assignee(
+    hass, swap_runtime, hass_ws_client
+):
+    runtime, _, created, effects, _ = swap_runtime
+    eid = _handover("once")["chore"]
+    state = hass.states.get(eid)
+    due = (NOW - timedelta(hours=1)).isoformat()
+    runtime.chores_data["once"]["per_assignee_due_dates"] = {"a": due, "p": due}
+    hass.states.async_set(eid, "overdue", {**state.attributes, "due_date": due})
+    client = await hass_ws_client(hass)
+    result = await _ws(client, _handover("once", local_date="2026-06-02"))
+    assert result["error"]["code"] == "unsupported_chore"
+    assert not created and not effects
+
+
+async def test_swap_failure_rolls_back_and_blocks_retries_until_delete_succeeds(
+    hass, swap_runtime, hass_ws_client
+):
+    runtime, failures, created, effects, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    assert (await _ws(client, _handover("repeat")))["success"]
+    failures.update({"skip", "delete"})
+    store = await advance(1)
+    (op,) = store.data["operations"].values()
+    assert op["status"] == "rollback_pending"
+    assert op["clone_id"] in runtime.chores_data
+    duplicate = await _ws(client, _handover("repeat", client_request_id="retry-repeat"))
+    assert duplicate["error"]["code"] == "unsupported_chore"
+    assert len(created) == 1
+    failures.remove("delete")
+    await advance(1)
+    assert "clone-1" not in runtime.chores_data
+    assert [name for name, _ in effects] == ["skip", "delete", "delete"]
+    assert next(iter(store.data["operations"].values()))["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    ("crash", "day"), [("crash_create", 1), ("crash_skip", 1), ("crash_create", 2)]
+)
+async def test_swap_restart_recovers_choreops_effects(
+    hass, swap_runtime, hass_ws_client, crash, day
+):
+    import asyncio
+
+    from custom_components.homebrain.family.swap_store import FamilySwapStore
+
+    runtime, failures, created, effects, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    assert (await _ws(client, _handover("repeat")))["success"]
+    failures.add(crash)
+    with pytest.raises(asyncio.CancelledError):
+        await advance(1)
+    restarted = FamilySwapStore(hass)
+    await restarted.async_load()
+    hass.data[DOMAIN]["family_swap"] = restarted
+    failures.clear()
+    store = await advance(day)
+    assert len(created) == 1
+    if day == 1:
+        assert next(iter(store.data["operations"].values()))["status"] == "active"
+        assert [service for service, _ in effects] == ["skip"]
+    else:
+        assert next(iter(store.data["operations"].values()))["status"] == "needs_repair"
+        assert "clone-1" not in runtime.chores_data
+        assert [service for service, _ in effects] == ["delete"]
+
+
+@pytest.mark.parametrize("history", [{}, {"state": "claimed"}, {"last_approved": NOW.isoformat()}])
+async def test_swap_expiry_only_deletes_unclaimed_clones(
+    hass, swap_runtime, hass_ws_client, history
+):
+    runtime, _, _, effects, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    assert (await _ws(client, _handover("repeat")))["success"]
+    store = await advance(1)
+    runtime.assignees_data["b"]["chore_data"]["clone-1"] = history
+    await advance(2)
+    (op,) = store.data["operations"].values()
+    assert ("clone-1" in runtime.chores_data) is bool(history)
+    assert op["status"] == ("completed" if history else "cleaned")
+    assert op["clone_claimed"] is bool(history)
+    assert len(effects) == (1 if history else 2)
+
+
+async def test_swap_sole_assignee_replaces_definition(hass, swap_runtime, hass_ws_client):
+    runtime, _, created, effects, advance = swap_runtime
+    runtime.chores_data["once"]["assigned_user_ids"] = ["a"]
+    client = await hass_ws_client(hass)
+    assert (await _ws(client, _handover("once")))["success"]
+    store = await advance(1)
+    assert len(created) == 1
+    assert [service for service, _ in effects] == ["delete"]
+    assert "once" not in runtime.chores_data
+    assert next(iter(store.data["operations"].values()))["status"] == "active"
+
+
+@pytest.mark.parametrize("change", ["due", "completed", "unavailable", "offline"])
+async def test_scheduled_swap_checks_occurrence_after_startup(
+    hass, swap_runtime, hass_ws_client, change
+):
+    _, _, created, _, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    assert (await _ws(client, _handover("repeat")))["success"]
+    eid = _handover("repeat")["chore"]
+    state = hass.states.get(eid)
+    if change == "due":
+        due = (
+            datetime.fromisoformat(state.attributes["due_date"]) + timedelta(hours=1)
+        ).isoformat()
+        hass.states.async_set(eid, state.state, {**state.attributes, "due_date": due})
+    elif change in {"completed", "unavailable"}:
+        hass.states.async_set(eid, change, state.attributes)
+    store = await advance(2 if change == "offline" else 1)
+    (op,) = store.data["operations"].values()
+    assert not created
+    expected = {"offline": "needs_repair", "unavailable": "scheduled"}.get(change, "failed")
+    assert op["status"] == expected
+    if change == "unavailable":
+        hass.states.async_set(eid, state.state, state.attributes)
+        await advance(1)
+        assert len(created) == 1
+    else:
+        snapshot = (await _ws(client, {"type": "homebrain/family/get"}))["result"]
+        assert len(snapshot["swap_issues"]) == 1
+
+
+async def test_parent_cancels_scheduled_swap(hass, swap_runtime, hass_ws_client):
+    _, _, created, _, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    result = await _ws(client, _handover("repeat"))
+    oid = result["result"]["operation"]["id"]
+    payload = {"type": "homebrain/family/swap/cancel", "operation_id": oid}
+    assert (await _ws(client, payload))["success"]
+    assert (await _ws(client, payload))["success"]
+    store = await advance(1)
+    assert not created and store.data["operations"][oid]["status"] == "cancelled"
+
+
+async def test_swap_timer_isolates_unexpected_operation_error(
+    hass, swap_runtime, hass_ws_client, monkeypatch
+):
+    from custom_components.homebrain.family import swap_service
+
+    _, _, created, _, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    first = await _ws(client, _handover("repeat"))
+    second = await _ws(client, _handover("once"))
+    first_id = first["result"]["operation"]["id"]
+    second_id = second["result"]["operation"]["id"]
+    execute = swap_service.execute_operation_step
+
+    async def with_error(hass, store, oid, *, context):
+        if oid == first_id:
+            raise RuntimeError("interrupted operation")
+        return await execute(hass, store, oid, context=context)
+
+    monkeypatch.setattr(swap_service, "execute_operation_step", with_error)
+    store = await advance(1)
+    assert store.data["operations"][first_id]["status"] == "needs_repair"
+    assert store.data["operations"][second_id]["status"] == "active"
+    assert len(created) == 1

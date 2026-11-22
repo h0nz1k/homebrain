@@ -70,3 +70,10 @@ def chore_id(hass: HomeAssistant, config_id: str, entity_id: str) -> str | None:
         value = state.attributes.get("chore_id") or state.attributes.get("id")
         return str(value) if value else None
     return None
+
+
+def coordinator(hass: HomeAssistant, config_id: str) -> Any:
+    """Read ChoreOps 1.6 runtime collections even before sensors have refreshed."""
+    entry = hass.config_entries.async_get_entry(config_id)
+    runtime = getattr(entry, "runtime_data", None)
+    return runtime if hasattr(runtime, "chores_data") else None

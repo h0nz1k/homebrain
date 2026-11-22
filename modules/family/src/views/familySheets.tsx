@@ -21,6 +21,7 @@ import {
 import type { FamilyApi } from '../api.js';
 import { ChorePicker } from './ChorePicker.js';
 import { newRequestId } from '../uid.js';
+import { nameAccusative } from '../czech.js';
 import {
   CREATE_CHORE_ERRORS,
   choreManagementError,
@@ -41,6 +42,7 @@ import {
   pointsAmount,
   pointsLabel,
   pointsParts,
+  shortDate,
   timeLabel,
 } from '../format.js';
 import type {
@@ -565,7 +567,7 @@ export function AddChoreSheet({
     sync();
     return () => observer.disconnect();
   }, []);
-  const [openedAt] = useState(() => clock().getTime());
+  const [dateReference, setDateReference] = useState(clock);
   const [name, setName] = useState('');
   const [points, setPoints] = useState(2);
   const [assignees, setAssignees] = useState<string[]>(
@@ -573,19 +575,23 @@ export function AddChoreSheet({
   );
   const [recurrence, setRecurrence] = useState<Recurrence>('daily');
   const [weekdays, setWeekdays] = useState<Weekday[]>(['mon', 'thu']);
-  const [dueTime, setDueTime] = useState('18:00');
+  const [enteredTime, setDueTime] = useState('18:00');
+  const [autoTime, setAutoTime] = useState<string | null>(null);
+  const dueTime = autoTime ?? enteredTime;
   const [timeEdited, setTimeEdited] = useState(false);
-  const [multiTimeEdited, setMultiTimeEdited] = useState(false);
   const [dateNote, setDateNote] = useState('');
   const [times, setTimes] = useState<string[]>(DEFAULT_TIMES);
   // „Dnes (19. 11.)“ / „Zítra (20. 11.)“ / „26. 11. 2026“: the field uses the summary's words.
-  const dateText = (d: Date) => dateFieldText(d, new Date(openedAt));
   const [firstDateText, setFirstDateText] = useState(() =>
-    dateText(defaultFirstDate(new Date(openedAt), '18:00')),
+    dateFieldText(defaultFirstDate(dateReference, '18:00'), dateReference),
   );
+  const writeDate = (day: Date, now = clock()) => {
+    setDateReference(now);
+    setFirstDateText(dateFieldText(day, now));
+  };
   // The first day follows the due time until the user edits the date themself.
   const [dateEdited, setDateEdited] = useState(false);
-  const firstDate = parseFieldDate(firstDateText, new Date(openedAt));
+  const firstDate = parseFieldDate(firstDateText, dateReference);
   const [icon, setIcon] = useState('');
   const [iconOpen, setIconOpen] = useState(false);
   const [requestId, setRequestId] = useState(newRequestId);
@@ -597,67 +603,69 @@ export function AddChoreSheet({
   const multi = recurrence === 'daily_multi';
   const slots = useMemo(() => [...new Set(times.map(normTime))].sort(), [times]);
   const defaultDay = (time: string) =>
-    defaultFirstDate(new Date(openedAt), TIME_RE.test(time) ? time : '18:00');
+    defaultFirstDate(clock(), TIME_RE.test(time) ? time : '18:00');
   const followDefault = (time: string) => {
-    if (!dateEdited) setFirstDateText(dateText(defaultDay(time)));
+    if (!dateEdited) writeDate(defaultDay(time));
   };
-  const editDate = (value: string, picked = false) => {
-    setDateEdited(true);
+  const dateTyping = useRef(false);
+  const commitDate = (value: string, schedule = recurrence, days = weekdays) => {
+    dateTyping.current = false;
     setDateNote('');
-    const selected = parseFieldDate(value, new Date(openedAt));
-    const start = clock();
-    const today = localKey(start);
-    const time = multi ? slots.at(-1) : normTime(dueTime);
-    if (
-      selected === today &&
-      time &&
-      TIME_RE.test(time) &&
-      !(multi ? multiTimeEdited : timeEdited) &&
-      new Date(`${today}T${time}`).getTime() - start.getTime() < 15 * 60_000
-    ) {
-      const next = nextTodayTime(start);
-      if (!next) {
-        const tomorrow = new Date(start);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        setFirstDateText(dateText(tomorrow));
-        setDateNote('Na dnešek už nezbývá 30 minut. Termín je zítra.');
-        return;
+    setAutoTime(null);
+    const selected = parseFieldDate(value, dateReference);
+    const day = new Date(`${selected}T12:00:00`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selected) || localKey(day) !== selected) return;
+    const alignWeekday = () => {
+      if (schedule === 'weekly' && days.length) {
+        while (!days.includes(WEEKDAYS[(day.getDay() + 6) % 7]!.id)) {
+          day.setDate(day.getDate() + 1);
+        }
       }
-      if (multi) setTimes((prev) => prev.map((slot) => (normTime(slot) === time ? next : slot)));
-      else setDueTime(next);
-      setDateNote(`Čas pro dnešek byl posunut na ${next}.`);
-    }
-    if (picked && recurrence === 'weekly' && weekdays.length) {
-      const day = new Date(`${selected}T12:00:00`);
-      while (!weekdays.includes(WEEKDAYS[(day.getDay() + 6) % 7]!.id))
+    };
+    alignWeekday();
+    const now = clock();
+    const today = localKey(now);
+    const time = normTime(enteredTime);
+    if (
+      schedule !== 'daily_multi' &&
+      localKey(day) === today &&
+      !timeEdited &&
+      TIME_RE.test(time) &&
+      new Date(`${today}T${time}`).getTime() - now.getTime() < 15 * 60_000
+    ) {
+      const next = nextTodayTime(now);
+      if (next) {
+        setAutoTime(next);
+        setDateNote(
+          new Date(`${today}T${time}`) < now
+            ? `Dnes už je po ${time}, čas jsem posunul na ${next}.`
+            : `Do ${time} zbývá méně než 15 minut, čas jsem posunul na ${next}.`,
+        );
+      } else {
         day.setDate(day.getDate() + 1);
-      setFirstDateText(dateText(day));
-    } else setFirstDateText(picked ? dateText(new Date(`${selected}T12:00:00`)) : value);
+        alignWeekday();
+        setDateNote(`Na dnešek už nezbývá 30 minut. Termín je ${dayWord(day, now)}.`);
+      }
+    }
+    writeDate(day, now);
   };
   const editTime = (value: string) => {
     setTimeEdited(true);
+    setAutoTime(null);
     setDateNote('');
     setDueTime(value);
   };
   const editSlot = (index: number, value: string) => {
-    setMultiTimeEdited(true);
-    setDateNote('');
     setTimes((prev) => prev.map((slot, i) => (i === index ? value : slot)));
   };
   const chooseSchedule = (nextRecurrence: Recurrence, nextDays: Weekday[]) => {
     setRecurrence(nextRecurrence);
     setWeekdays(nextDays);
-    if (nextRecurrence === 'daily_multi' || recurrence === 'daily_multi')
-      followDefault(nextRecurrence === 'daily_multi' ? (slots.at(-1) ?? '18:00') : dueTime);
-    if (nextRecurrence !== 'weekly' || !nextDays.length || !/^\d{4}-\d{2}-\d{2}$/.test(firstDate))
-      return;
-    const day = new Date(`${firstDate}T12:00:00`);
-    if (Number.isNaN(day.getTime())) return;
-    for (let i = 0; i < 7; i++) {
-      if (nextDays.includes(WEEKDAYS[(day.getDay() + 6) % 7]!.id)) break;
-      day.setDate(day.getDate() + 1);
-    }
-    setFirstDateText(dateText(day));
+    const switchingMulti = (nextRecurrence === 'daily_multi') !== (recurrence === 'daily_multi');
+    const time = nextRecurrence === 'daily_multi' ? (slots.at(-1) ?? '18:00') : enteredTime;
+    const value = switchingMulti && !dateEdited ? localKey(defaultDay(time)) : firstDateText;
+    if (nextRecurrence !== 'weekly' && recurrence !== 'weekly' && !switchingMulti) return;
+    commitDate(value, nextRecurrence, nextDays);
   };
   const toggleAssignee = (id: string) =>
     setAssignees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -678,7 +686,18 @@ export function AddChoreSheet({
     dateOk && timesOk
       ? (multi ? slots : [dueTime]).find((t) => new Date(`${firstDate}T${t}`).getTime() > at)
       : undefined;
-  const futureOk = !!firstDue(openedAt);
+  const renderedNow = clock();
+  const today = localKey(renderedNow);
+  const futureOk = !!firstDue(renderedNow.getTime()) || (multi && firstDate === today);
+  const deferredSlots =
+    multi && firstDate === today
+      ? slots.filter((t) => TIME_RE.test(t) && new Date(`${firstDate}T${t}`) <= renderedNow)
+      : [];
+  const notice = multi
+    ? deferredSlots.length
+      ? `Od zítřka začnou časy ${joinCz(deferredSlots)}.`
+      : ''
+    : dateNote;
   const problems = {
     name: !name.trim() ? 'Doplň název úkolu.' : '',
     who: !assignees.length ? 'Vyber, komu úkol patří.' : '',
@@ -692,7 +711,7 @@ export function AddChoreSheet({
             : 'Zadej aspoň dva časy ve tvaru 12:00.'
           : 'Zadej čas ve tvaru 18:00.'
         : !futureOk
-          ? firstDate === localKey(new Date(openedAt))
+          ? firstDate === today
             ? `Dnes už je po ${multi ? slots.at(-1) : dueTime}. Zvol pozdější čas nebo jiný den.`
             : 'Termín musí být v budoucnu.'
           : '',
@@ -700,7 +719,7 @@ export function AddChoreSheet({
   const valid = !Object.values(problems).some(Boolean);
   const showName = (nameTouched || submitted) && problems.name;
   const firstDay = dateOk ? new Date(`${firstDate}T12:00:00`) : null;
-  const startWord = firstDay ? dayWord(firstDay, new Date(openedAt)) : '—';
+  const startWord = firstDay ? dayWord(firstDay, renderedNow) : '—';
   const startLabel = firstDay
     ? startWord === 'dnes'
       ? 'dneška'
@@ -807,7 +826,8 @@ export function AddChoreSheet({
     setSubmitted(true);
     const finalName = (nameOverride ?? name).trim();
     const at = clock().getTime();
-    const dueSlot = firstDue(at);
+    const dueSlot =
+      firstDue(at) ?? (multi && firstDate === localKey(new Date(at)) ? slots[0] : undefined);
     if (!valid || busy || !finalName || !dueSlot) {
       if (problems.name) document.getElementById('fam-chore-name')?.focus();
       return;
@@ -967,6 +987,7 @@ export function AddChoreSheet({
           <label htmlFor="fam-chore-name">Název</label>
           <input
             id="fam-chore-name"
+            data-autofocus=""
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -1157,6 +1178,7 @@ export function AddChoreSheet({
                     />
                     <ChorePicker
                       type="time"
+                      now={renderedNow}
                       value={TIME_RE.test(t) ? t : ''}
                       onPick={(value) => editSlot(i, value)}
                     />
@@ -1212,17 +1234,30 @@ export function AddChoreSheet({
                 value={firstDateText}
                 data-testid="family-first-date"
                 data-date={firstDate}
-                onChange={(e) => editDate(e.target.value)}
+                onChange={(e) => {
+                  if (!dateTyping.current) setDateReference(clock());
+                  dateTyping.current = true;
+                  setDateEdited(true);
+                  setFirstDateText(e.target.value);
+                }}
                 onBlur={() => {
-                  if (dateOk) setFirstDateText(dateText(new Date(`${firstDate}T12:00:00`)));
-                  chooseSchedule(recurrence, weekdays);
+                  if (dateTyping.current) commitDate(firstDateText);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && dateTyping.current) {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  }
                 }}
               />
               <ChorePicker
                 type="date"
-                value={dateOk && firstDate >= localKey(new Date(openedAt)) ? firstDate : ''}
-                min={localKey(new Date(openedAt))}
-                onPick={(value) => editDate(value, true)}
+                value={dateOk && firstDate >= today ? firstDate : ''}
+                min={today}
+                onPick={(value) => {
+                  setDateEdited(true);
+                  commitDate(value);
+                }}
               />
             </span>
           </div>
@@ -1239,13 +1274,14 @@ export function AddChoreSheet({
                   onChange={(e) => editTime(e.target.value)}
                   onBlur={() => {
                     const t = normTime(dueTime);
-                    setDueTime(t);
+                    if (!autoTime) setDueTime(t);
                     followDefault(t);
                   }}
                   data-testid="family-due-time"
                 />
                 <ChorePicker
                   type="time"
+                  now={renderedNow}
                   value={TIME_RE.test(dueTime) ? dueTime : ''}
                   onPick={(value) => {
                     editTime(value);
@@ -1256,9 +1292,10 @@ export function AddChoreSheet({
             </div>
           )}
           {fieldErr(problems.when)}
-          {dateNote && (
-            <small className="fam-hint" role="status">
-              {dateNote}
+          {notice && (
+            <small className="fam-hint fam-date-note" role="status">
+              <Icon name="info" size={20} />
+              {notice}
             </small>
           )}
         </div>
@@ -1372,6 +1409,7 @@ export function SwapSheet({
       active = false;
     };
   }, [api, choreId, expected, fromId, onError]);
+  const recipient = partners.find((p) => p.id === target);
   const disabledReason = loading
     ? 'Načítám dostupné výskyty…'
     : !days.includes(day)
@@ -1384,7 +1422,6 @@ export function SwapSheet({
             ? 'Ukládám…'
             : undefined;
   const submit = async () => {
-    const recipient = partners.find((p) => p.id === target);
     if (!fromKid || !recipient || disabledReason || submitting.current) return;
     submitting.current = true;
     setError(null);
@@ -1440,7 +1477,11 @@ export function SwapSheet({
             data-testid="family-swap-submit"
             className="fam-cta"
           >
-            {mode === 'reassign' ? 'Přeřadit' : 'Poslat rodiči ke schválení'}
+            {mode === 'give'
+              ? 'Poslat rodiči ke schválení'
+              : recipient
+                ? `Přeřadit na ${nameAccusative(recipient.name) ?? recipient.name}`
+                : 'Přeřadit'}
           </Button>
         </>
       }
@@ -1461,7 +1502,9 @@ export function SwapSheet({
             <strong>{chore?.name}</strong>
             <p className="fam-hint" data-testid="family-swap-chore-meta">
               {[
-                mode === 'reassign' ? fromKid?.name : null,
+                mode === 'reassign'
+                  ? [fromKid?.name, recipient?.name].filter(Boolean).join(' → ')
+                  : null,
                 day ? dayWord(new Date(`${day}T12:00:00`), new Date()) : null,
                 chore?.points != null ? pointsAmount(chore.points) : null,
               ]
@@ -1470,22 +1513,22 @@ export function SwapSheet({
             </p>
           </div>
         </div>
-        <label className="fam-swap-day">
-          Den výskytu
-          <select
-            value={day}
-            disabled={!days.length}
-            title={!days.length ? disabledReason : undefined}
-            onChange={(event) => setDay(event.target.value)}
-          >
-            {!days.length && <option value="">—</option>}
-            {days.map((value) => (
-              <option key={value} value={value}>
-                {dateFieldText(new Date(`${value}T12:00:00`), new Date())}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="fam-swap-day">
+          <legend>Který den</legend>
+          {days.map((value) => (
+            <label className="fam-swap-day-option" key={value}>
+              <input
+                type="radio"
+                name="swap-day"
+                value={value}
+                checked={value === day}
+                onChange={() => setDay(value)}
+              />
+              <Icon name="calendar" size={20} />
+              {shortDate(new Date(`${value}T12:00:00`))}
+            </label>
+          ))}
+        </fieldset>
         {disabledReason && !busy && (
           <p className="fam-hint" role="status">
             {disabledReason}

@@ -412,17 +412,23 @@ describe('Výběr data a času', () => {
   it.each([
     [18, 20, '19:00'],
     [18, 40, '20:00'],
-    [23, 10, '18:00'],
+    [22, 30, '23:00'],
+    [23, 0, '23:30'],
+    [23, 1, '18:00'],
   ] as const)('vybere dnes při %i:%i', async (hour, minute, expected) => {
     const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, hour, minute));
-    fireEvent.change(within(sheet).getByTestId('family-first-date'), { target: { value: 'Dnes' } });
+    const date = within(sheet).getByTestId('family-first-date');
+    fireEvent.change(date, { target: { value: 'Dnes' } });
+    fireEvent.blur(date);
     expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', expected);
     expect(within(sheet).getByTestId('family-first-date').dataset.date).toBe(
-      hour === 23 ? '2026-11-23' : '2026-11-22',
+      hour === 23 && minute > 0 ? '2026-11-23' : '2026-11-22',
     );
     expect(
       within(sheet).getByText(
-        hour === 23 ? /Termín je zítra/ : `Čas pro dnešek byl posunut na ${expected}.`,
+        hour === 23 && minute > 0
+          ? /Termín je zítra/
+          : `Dnes už je po 18:00, čas jsem posunul na ${expected}.`,
       ),
     ).toBeTruthy();
   });
@@ -433,7 +439,9 @@ describe('Výběr data a času', () => {
     fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát' }));
     const slots = within(sheet).getAllByTestId('family-multi-time');
     fireEvent.change(slots[1]!, { target: { value: '21:00' } });
-    fireEvent.change(within(sheet).getByTestId('family-first-date'), { target: { value: 'Dnes' } });
+    const date = within(sheet).getByTestId('family-first-date');
+    fireEvent.change(date, { target: { value: 'Dnes' } });
+    fireEvent.blur(date);
     await save(sheet);
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -447,7 +455,9 @@ describe('Výběr data a času', () => {
   it('ručně zadaný minulý čas ponechá a vysvětlí', async () => {
     const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, 18, 40));
     fireEvent.change(within(sheet).getByTestId('family-due-time'), { target: { value: '17:00' } });
-    fireEvent.change(within(sheet).getByTestId('family-first-date'), { target: { value: 'Dnes' } });
+    const date = within(sheet).getByTestId('family-first-date');
+    fireEvent.change(date, { target: { value: 'Dnes' } });
+    fireEvent.blur(date);
     expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '17:00');
     await save(sheet);
     expect(
@@ -455,12 +465,63 @@ describe('Výběr data a času', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('otevře nativní pickery a zapíše zvolený termín', async () => {
+  it('neposouvá čas ani datum během psaní po znacích', async () => {
+    const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, 23, 1));
+    const date = within(sheet).getByTestId('family-first-date');
+    const value = '22. 11. 2027';
+    for (let length = 1; length <= value.length; length++) {
+      const partial = value.slice(0, length);
+      fireEvent.change(date, { target: { value: partial } });
+      expect(date).toHaveProperty('value', partial);
+      expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '18:00');
+    }
+    fireEvent.blur(date);
+    expect(date.dataset.date).toBe('2027-11-22');
+  });
+
+  it('zarovná týdenní úkol na vybraný den před vyhodnocením času', async () => {
+    const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, 23, 1));
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Týdně' }));
+    const date = within(sheet).getByTestId('family-first-date');
+    fireEvent.change(date, { target: { value: 'Dnes' } });
+    fireEvent.blur(date);
+    expect(date.dataset.date).toBe('2026-11-23');
+    expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '18:00');
+    expect(within(sheet).queryByText(/čas jsem posunul/u)).toBeNull();
+  });
+
+  it('po přepnutí dne obnoví původní neupravený čas', async () => {
+    const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, 18, 40));
+    const date = within(sheet).getByTestId('family-first-date');
+    fireEvent.change(date, { target: { value: 'Dnes' } });
+    fireEvent.blur(date);
+    expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '20:00');
+    fireEvent.change(date, { target: { value: 'Zítra' } });
+    fireEvent.blur(date);
+    expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '18:00');
+  });
+
+  it('ponechá všechny denní časy i když první výskyty začnou až zítra', async () => {
+    const create = vi.fn(async () => ({}));
+    const { sheet } = await mountSheet(create, new Date(2026, 10, 22, 18, 40));
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Vícekrát' }));
+    const date = within(sheet).getByTestId('family-first-date');
+    fireEvent.change(date, { target: { value: 'Dnes' } });
+    fireEvent.blur(date);
+    expect(within(sheet).getByText('Od zítřka začnou časy 12:00 a 18:00.')).toBeTruthy();
+    await save(sheet);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        first_date: '2026-11-22',
+        times: ['12:00', '18:00'],
+      }),
+    );
+  });
+
+  it('otevře nativní kalendář a výběr času po čtvrthodinách', async () => {
     const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, 18, 40));
     const date = within(sheet).getByTestId('family-native-date') as HTMLInputElement;
-    const time = within(sheet).getByTestId('family-native-time') as HTMLInputElement;
     date.showPicker = vi.fn();
-    time.showPicker = vi.fn();
     fireEvent.click(within(sheet).getByRole('button', { name: 'Vybrat datum' }));
     expect(date.showPicker).toHaveBeenCalledOnce();
     expect(date.min).toBe('2026-11-22');
@@ -471,15 +532,16 @@ describe('Výběr data a času', () => {
     );
     expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '20:00');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Vybrat čas' }));
-    expect(time.showPicker).toHaveBeenCalledOnce();
-    fireEvent.change(time, { target: { value: '21:15' } });
+    const times = within(sheet).getByRole('group', { name: 'Vybrat čas' });
+    expect(within(times).getByRole('button', { name: '18:45 Nejbližší čas' })).toBeTruthy();
+    fireEvent.click(within(times).getByRole('button', { name: '21:15' }));
     expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '21:15');
   });
 
   it('umožní výběr i bez showPicker nebo když selže', async () => {
     const { sheet } = await mountSheet(async () => ({}), new Date(2026, 10, 22, 18, 40));
-    const time = within(sheet).getByTestId('family-native-time') as HTMLInputElement;
-    time.showPicker = () => {
+    const dateInput = within(sheet).getByTestId('family-native-date') as HTMLInputElement;
+    dateInput.showPicker = () => {
       throw new DOMException();
     };
     fireEvent.click(within(sheet).getByRole('button', { name: 'Vybrat datum' }));
@@ -492,7 +554,7 @@ describe('Výběr data a času', () => {
     fireEvent.click(within(calendar).getByRole('button', { name: day(24) }));
     expect(within(sheet).getByTestId('family-first-date').dataset.date).toBe('2026-11-24');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Vybrat čas' }));
-    fireEvent.change(within(sheet).getByRole('listbox'), { target: { value: '21:45' } });
+    fireEvent.click(within(sheet).getByRole('button', { name: '21:45' }));
     expect(within(sheet).getByTestId('family-due-time')).toHaveProperty('value', '21:45');
   });
 });

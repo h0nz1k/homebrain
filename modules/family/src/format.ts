@@ -268,8 +268,12 @@ export function choreTally(chores: FamilyChore[]): ChoreTally {
   return t;
 }
 
+export function isTransferredOut(chore: Pick<FamilyChore, 'swap_today'>): boolean {
+  return chore.swap_today?.kind === 'transferred_out' && chore.swap_today.muted !== false;
+}
+
 export function choreApprovalKind(chore: FamilyChore): 'swap' | 'completion' | null {
-  if (chore.counts_today === false || chore.swap_today?.kind === 'transferred_out') return null;
+  if (chore.counts_today === false || isTransferredOut(chore)) return null;
   if (chore.swap_today?.kind === 'pending_give') return 'swap';
   return chore.state === 'claimed' ? 'completion' : null;
 }
@@ -401,6 +405,6 @@ export function transferLabel(swap: FamilySwapToday, now: Date): string {
         )
       : handedToLabel(swap.partner_name);
   }
-  if (swap.kind === 'transferred_in') return takenFromLabel(swap.partner_name);
+  if (swap.kind === 'transferred_in' && !swap.muted) return takenFromLabel(swap.partner_name);
   return swap.label;
 }

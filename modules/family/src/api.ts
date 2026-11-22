@@ -43,6 +43,7 @@ export interface FamilyApi {
   ): Promise<Record<string, unknown>>;
   swapReassign(input: SwapRequestInput): Promise<Record<string, unknown>>;
   swapCancel(request_id: string, expected_revision?: number): Promise<Record<string, unknown>>;
+  swapCancelOperation(operation_id: string): Promise<Record<string, unknown>>;
   skipChoreToday(input: SkipChoreInput): Promise<{ ok: boolean; can_undo?: boolean }>;
   deleteChore(input: DeleteChoreInput): Promise<{ deleted: number }>;
   createChore(input: CreateChoreInput): Promise<Record<string, unknown>>;
@@ -74,6 +75,7 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
       call('homebrain/family/swap/reassign', { ...input } as Record<string, unknown>),
     swapCancel: (request_id, expected_revision = 0) =>
       call('homebrain/family/swap/cancel', { request_id, expected_revision }),
+    swapCancelOperation: (operation_id) => call('homebrain/family/swap/cancel', { operation_id }),
     skipChoreToday: (input) => call('homebrain/family/chore/skip_today', { ...input }),
     deleteChore: (input) => call('homebrain/family/chore/delete', { ...input }),
     createChore: (input) =>

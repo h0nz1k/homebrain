@@ -60,8 +60,19 @@ def _occurrences(
                 key: row for key, row in data["requests"].items() if key != ignore_request
             },
         }
+    rows = today + [row for row in upcoming if row["id"] not in seen]
+    if cfg := choreops_adapter.config_entry_id(hass):
+        for row in rows:
+            if row["frequency"] == "none" and row["can_request_swap"]:
+                _, blocked = swap_service.assignment_status(
+                    hass, cfg, row["id"], kid["name"], now, now.tzinfo
+                )
+                if blocked:
+                    row.update(
+                        can_request_swap=False, swap_unavailable_reason=swap_service.OVERDUE_SHARED
+                    )
     return model.apply_swap_overlays(
-        today + [row for row in upcoming if row["id"] not in seen],
+        rows,
         kid=kid,
         store_data=data,
         kids_by_uuid={},
@@ -265,15 +276,18 @@ async def websocket_family_swap_decide(
         return
     now = dt_util.now()
     actor = str(getattr(connection.user, "id", "") or "")
+    if msg["decision"] == "approve" and (
+        req["status"] == "expired" or swap_model.request_expired(req, now)
+    ):
+        if req["status"] != "expired":
+            store.upsert_request(msg["request_id"], swap_model.reduce_request(req, "expire", now))
+            await store.async_save()
+        connection.send_error(msg["id"], "expired", "Žádost vypršela na konci dne výskytu.")
+        return
     try:
         updated = swap_model.reduce_request(dict(req), msg["decision"], now, actor_id=actor)
     except swap_model.DomainError as err:
         connection.send_error(msg["id"], err.code, str(err))
-        return
-    if msg["decision"] == "approve" and swap_model.request_expired(req, now):
-        store.upsert_request(msg["request_id"], swap_model.reduce_request(req, "expire", now))
-        await store.async_save()
-        connection.send_error(msg["id"], "expired", "Žádost vypršela na konci dne výskytu.")
         return
     op_payload = None
     if updated.get("status") == "approved":
@@ -437,7 +451,8 @@ async def websocket_family_swap_reassign(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "homebrain/family/swap/cancel",
-        vol.Required("request_id"): vol.All(str, vol.Length(min=8, max=64)),
+        vol.Exclusive("request_id", "target"): vol.All(str, vol.Length(min=8, max=64)),
+        vol.Exclusive("operation_id", "target"): vol.All(str, vol.Length(min=8, max=64)),
         vol.Optional("expected_revision", default=0): vol.Coerce(int),
     }
 )
@@ -450,6 +465,23 @@ async def websocket_family_swap_cancel(
     if role == "kiosk":
         raise Unauthorized
     store = _store(hass)
+    if operation_id := msg.get("operation_id"):
+        _require_adult(role)
+        op = store.data["operations"].get(operation_id)
+        if not op:
+            connection.send_error(msg["id"], "not_found", "Přeřazení nenalezeno.")
+            return
+        if op["status"] not in {"scheduled", "cancelled"}:
+            connection.send_error(msg["id"], "conflict", "Přeřazení už nelze zrušit.")
+            return
+        if op["status"] == "scheduled":
+            swap_service.cancel_operation(store, operation_id, op)
+            await store.async_save()
+        connection.send_result(msg["id"], {"revision": store.revision})
+        return
+    if "request_id" not in msg:
+        connection.send_error(msg["id"], "invalid_input", "Vyber žádost nebo přeřazení.")
+        return
     req = (store.data.get("requests") or {}).get(msg["request_id"])
     if not isinstance(req, dict):
         connection.send_error(msg["id"], "not_found", "Žádost nenalezena")

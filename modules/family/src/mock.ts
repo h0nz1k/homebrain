@@ -25,7 +25,7 @@ export interface FamilyMockOptions {
   /** `empty` has no integrations; `busy` adds enough chores to overflow each kiosk list. */
   scenario?: 'full' | 'empty' | 'busy' | 'evening';
   /** Synthetic overdue occurrence for the reassign success and failure flows. */
-  reassignDemo?: 'overdue' | 'error';
+  reassignDemo?: 'overdue' | 'error' | 'needs-repair';
   now?: () => Date;
 }
 
@@ -355,7 +355,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   };
   const log: unknown[] = [];
   const own = 'syn';
-  if (opts.reassignDemo && !empty) {
+  if ((opts.reassignDemo === 'overdue' || opts.reassignDemo === 'error') && !empty) {
     const [ema] = state.kids as [FamilyKid];
     ema.chores.push({
       id: 'sensor.demo_overdue',
@@ -515,6 +515,17 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     return {
       role,
       revision: 3,
+      swap_issues:
+        detail && opts.reassignDemo === 'needs-repair'
+          ? [
+              {
+                id: 'swap-repair',
+                chore_name: 'Vyskládat myčku',
+                source_name: 'Ema',
+                pending: false,
+              },
+            ]
+          : [],
       capabilities: {
         can_create_chore: detail,
         can_swap: role !== 'kiosk' && role !== 'guest',
@@ -759,7 +770,8 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
           label: handedToLabel(to.name),
           partner_name: to.name,
           local_date: input.local_date,
-          muted: true,
+          operation_id: input.client_request_id,
+          muted: false,
         };
         return { operation: { status: 'scheduled' } };
       }
@@ -798,6 +810,16 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         if (row) row.swap_today = null;
         requested = null;
         state.swapPending = '';
+      }
+      return { ok: true };
+    },
+    swapCancelOperation: async (operation_id) => {
+      log.push({ kind: 'swapCancelOperation', operation_id });
+      if (role !== 'owner' && role !== 'adult') throw { code: 'unauthorized' };
+      for (const kid of state.kids) {
+        for (const row of kid.upcoming ?? []) {
+          if (row.swap_today?.operation_id === operation_id) row.swap_today = null;
+        }
       }
       return { ok: true };
     },

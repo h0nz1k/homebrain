@@ -23,11 +23,13 @@ import {
   toastStore,
   useToast,
 } from '@homebrain/ui';
+import { nameGenitive } from '../czech.js';
 import { getFamilyApi } from '../api.js';
 import { choreManagementError } from '../errors.js';
 import { newRequestId } from '../uid.js';
 import {
   canTransferChore,
+  isTransferredOut,
   choreNote,
   dayWord,
   transferLabel,
@@ -432,7 +434,7 @@ export function isActionableChore(c: ChoreRow | null | undefined): boolean {
     !!c &&
     (c.state === 'todo' || c.state === 'overdue') &&
     c.swap_today?.kind !== 'pending_give' &&
-    c.swap_today?.kind !== 'transferred_out'
+    !isTransferredOut(c)
   );
 }
 
@@ -489,7 +491,7 @@ function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'war
         {note.text.replace(/^Do /, 'do ')}
       </small>
     ) : null;
-  if (swap?.kind === 'transferred_out')
+  if (swap && isTransferredOut(c))
     return (
       <div className="fam-chore-meta">
         <SwapTag swap={swap} />
@@ -502,9 +504,9 @@ function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'war
     <div className="fam-chore-meta">
       {deadline}
       {pending && <PendingPill kind={pending} recipient={swap?.partner_name} />}
-      {(swap?.kind === 'transferred_in' || swap?.kind === 'transfer_failed') && (
-        <SwapTag swap={swap} />
-      )}
+      {(swap?.kind === 'transferred_in' ||
+        swap?.kind === 'transfer_failed' ||
+        swap?.operation_id) && <SwapTag swap={swap} />}
     </div>
   );
 }
@@ -578,7 +580,7 @@ function UpcomingList({
                 <Icon name="calendar" size={28} />
               </span>
               <span className="fam-upcoming-t">
-                {onMenu && (c.management || canTransferChore(c)) ? (
+                {onMenu && (c.management || c.swap_today?.operation_id || canTransferChore(c)) ? (
                   <button
                     type="button"
                     className="fam-chore-detail fam-upcoming-name"
@@ -592,6 +594,7 @@ function UpcomingList({
                   </span>
                 )}
                 {!kiosk && c.swap_today && <SwapTag swap={c.swap_today} now={now} />}
+                {onGive && !c.due && <small className="fam-hint">Úkol nemá termín.</small>}
                 {!kiosk && (
                   <small className="fam-upcoming-meta">
                     <span className="fam-upcoming-when" data-testid="family-upcoming-day">
@@ -602,7 +605,7 @@ function UpcomingList({
                 )}
               </span>
               <Pts className="fam-upcoming-pts" value={c.points} />
-              {onMenu && (c.management || canTransferChore(c)) ? (
+              {onMenu && (c.management || c.swap_today?.operation_id || canTransferChore(c)) ? (
                 <span className="fam-menu-slot">
                   <Button
                     variant="ghost"
@@ -721,9 +724,7 @@ function KidCard({
   const [open, setOpen] = useState(true);
   const [showDone, setShowDone] = useState(false);
   const bodyId = useId();
-  const active = kid.chores.filter(
-    (c) => c.counts_today !== false && c.swap_today?.kind !== 'transferred_out',
-  );
+  const active = kid.chores.filter((c) => c.counts_today !== false && !isTransferredOut(c));
   const t = choreTally(active);
   const sorted = sortChores(compact ? active : kid.chores);
   const fold = compact || (collapseDone && !showDone);
@@ -875,7 +876,7 @@ function KidCard({
             const note = choreNote(c, now, { parentApproves: !c.can_approve });
             const ui = c.state === 'overdue' ? 'todo' : c.state;
             const key = `${kid.id}/${c.id}`;
-            const out = c.swap_today?.kind === 'transferred_out';
+            const out = isTransferredOut(c);
             const showMenu = act.onMenu && (c.management || isActionableChore(c));
             const showGive = act.onGive && canTransferChore(c);
             const nameId = `${bodyId}-${c.id}`;
@@ -930,6 +931,7 @@ function KidCard({
                     )}
                   </b>
                   <ChoreMeta c={c} note={note} />
+                  {act.onGive && !c.due && <small className="fam-hint">Úkol nemá termín.</small>}
                 </div>
                 {out ? (
                   // Handed to the sibling: the points go with the chore, not counted twice.
@@ -1557,6 +1559,24 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const canTransfer = canTransferChore(menuChore);
   const management = menuChore?.management;
   const showReassign = canTransfer;
+  const scheduledId = menuChore?.swap_today?.operation_id;
+  const cancelScheduled = async () => {
+    if (!scheduledId || skipInFlight.current) return;
+    skipInFlight.current = true;
+    setSkipBusy(true);
+    setSkipError(null);
+    try {
+      await api.swapCancelOperation(scheduledId);
+      setMenu(null);
+      notify.success('Přeřazení zrušeno.');
+      await load();
+    } catch {
+      setSkipError('Přeřazení se nepodařilo zrušit.');
+    } finally {
+      skipInFlight.current = false;
+      setSkipBusy(false);
+    }
+  };
   const skipToday = async () => {
     if (!menu || !menuChore?.due || skipInFlight.current) return;
     skipInFlight.current = true;
@@ -1704,6 +1724,18 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
                 </Button>
               </li>
             )}
+            {scheduledId && (
+              <li>
+                <Button
+                  variant="ghost"
+                  icon={<Icon name="swap" size={20} />}
+                  disabled={skipBusy}
+                  onClick={() => void cancelScheduled()}
+                >
+                  Zrušit přeřazení
+                </Button>
+              </li>
+            )}
             {management && (
               <>
                 {!management.one_off && (
@@ -1739,7 +1771,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
               {skipError}
             </p>
           )}
-          {!canTransfer && (
+          {!canTransfer && !scheduledId && (
             <p className="fam-hint">
               {menuChore.swap_unavailable_reason ??
                 (!menuChore.due ? 'Úkol nemá termín.' : 'Tento výskyt teď nelze předat.')}
@@ -1769,6 +1801,27 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       )}
     </>
   );
+  const swapIssues =
+    parent &&
+    snap.swap_issues?.map((issue) => (
+      <p
+        key={issue.id}
+        className="fam-err fam-date-note"
+        role="alert"
+        data-testid="family-swap-issue"
+      >
+        <Icon name="info" size={20} />
+        <span>
+          <strong>{issue.chore_name}</strong>
+          <br />
+          {issue.pending
+            ? 'Přeřazení se nepodařilo dokončit. Probíhá obnova.'
+            : issue.source_name
+              ? `Přeřazení se nepodařilo dokončit – úkol zůstal u ${nameGenitive(issue.source_name) ?? issue.source_name}.`
+              : 'Přeřazení se nepodařilo dokončit.'}
+        </span>
+      </p>
+    ));
   if (selected || editingPersons) {
     return (
       <div
@@ -1779,6 +1832,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
         data-role={snap.role}
       >
         <style>{familyStyles}</style>
+        {swapIssues}
         {error && (
           <p className="fam-err" role="alert">
             {error}
@@ -1851,6 +1905,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </Button>
         )}
       </header>
+      {swapIssues}
       {familyMembers.length > 0 && (
         <PersonsRow members={familyMembers} onPerson={setPersonId} kiosk={kiosk} />
       )}

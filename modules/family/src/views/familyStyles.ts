@@ -274,7 +274,14 @@ export const familyStyles = `
 .fam-icon-picker { position: relative; }
 .fam-icon-picker summary { height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--hb-edge); border-radius: 12px; font-size: 14px; background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); cursor: pointer; list-style: none; }
 .fam-icon-picker > .fam-chips { position: absolute; z-index: 3; right: 0; top: 54px; width: 220px; padding: 12px; border: 1px solid var(--hb-edge); border-radius: 14px; background: var(--hb-s2); box-shadow: var(--hb-elev-2); }
-.fam-form-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fam-add-chore { container-type: inline-size; }
+.fam-form-dates { display: grid; grid-template-columns: minmax(308px, 1fr) minmax(0, .6fr); gap: 12px; }
+@container (max-width: 475px) {
+  .fam-form-dates { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .hb-scrim[data-isolation='strong']:has(.fam-add-chore) .hb-sheet-body { padding-inline: 8px; }
+}
 .fam-form-date { display: grid; align-content: start; gap: 8px; min-width: 0; }
 .fam-form-dates input { font-size: 14px; }
 
@@ -367,25 +374,36 @@ export const familyStyles = `
 .fam-stepper { padding: 0 6px; gap: 4px; justify-content: space-between; }
 .fam-stepper > .hb-btn { min-width: 36px; width: 36px; height: 36px; min-height: 36px; }
 .fam-stepper input { flex: 1; min-width: 0; font-weight: 650; font-size: 17px; }
-.fam-input-icon { position: relative; display: block; }
-.fam-input-icon input { padding-right: 44px; }
+.fam-input-icon { position: relative; display: block; min-width: 0; }
+.fam-input-icon input { padding-right: 56px; }
 .fam-native-picker { position: absolute; inset: 0 0 auto auto; width: 1px !important; min-width: 0; height: 1px !important; min-height: 0; padding: 0 !important; border: 0 !important; opacity: 0; pointer-events: none; }
-.fam-picker-button { position: absolute; inset: 50% 0 auto auto; translate: 0 -50%;
-  width: 44px; height: 44px; display: grid; place-items: center; color: var(--hb-t2); background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+.fam-picker-button { position: absolute; inset: 2px 2px auto auto;
+  width: 44px; height: 44px; display: grid; place-items: center; color: var(--hb-t1);
+  background: var(--hb-s2); border: 1px solid var(--hb-t2); border-radius: 10px; cursor: pointer; }
 .fam-picker-button:focus-visible, .fam-picker-popover button:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: -2px; }
-.fam-picker-popover { position: relative; z-index: 1; margin-top: 6px; padding: 6px; border: 1px solid var(--hb-s3);
-  border-radius: 12px; color: var(--hb-t1); background: var(--hb-s1); }
-.fam-input-icon:has(.fam-picker-popover) > .fam-picker-button { inset-block-start: 24px; }
-.fam-picker-popover[data-type="date"] { width: min(280px, calc(100vw - 64px)); }
+.fam-picker-popover { position: relative; z-index: 1; width: 100%; margin-top: 6px;
+  border-radius: 12px; color: var(--hb-t1); background: var(--hb-s1);
+  box-shadow: inset 0 0 0 1px var(--hb-edge), 0 8px 24px rgb(0 0 0 / 42%); }
 .fam-picker-month { display: flex; align-items: center; justify-content: space-between; }
 .fam-picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
-.fam-picker-popover button { min-height: 36px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; }
-.fam-picker-month button { min-width: 44px; }
-.fam-picker-popover button[aria-pressed="true"] { color: var(--hb-ac); box-shadow: inset 0 0 0 1px var(--hb-ac); }
+.fam-picker-popover button { min-height: 44px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; }
+.fam-picker-month button { min-width: 44px; font-size: 24px; }
+.fam-picker-days button[aria-current="date"] { outline: 2px solid var(--hb-t2); outline-offset: -4px; border-radius: 50%; }
+.fam-picker-popover button[aria-pressed="true"] { background: #245fc3; color: #fff; }
+.fam-picker-days button[aria-current="date"][aria-pressed="true"] { outline-color: #fff; }
 .fam-picker-popover button:disabled { opacity: .4; cursor: default; }
-.fam-swap-day { display: grid; gap: 6px; }
-.fam-swap-day select { min-height: 44px; padding: 8px; background: var(--hb-s1); color: var(--hb-t1); border: 1px solid var(--hb-s3); border-radius: 10px; }
-.fam-picker-popover select { width: 100%; color: inherit; background: inherit; }
+.fam-picker-times { position: relative; max-height: 220px; overflow-y: auto; padding: 4px; }
+.fam-picker-times button { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding-inline: 10px; font: inherit; text-align: start; }
+.fam-picker-times button[data-next="true"] { box-shadow: inset 0 0 0 2px var(--hb-ac); font-weight: 650; }
+.fam-date-note { display: flex; align-items: center; gap: 8px; }
+.fam-date-note svg { flex: none; color: var(--hb-ac); }
+.fam-swap-day { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.fam-swap-day legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
+.fam-swap-day-option { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;
+  border: 1px solid var(--hb-edge); background: var(--hb-s1); border-radius: 12px; cursor: pointer; }
+.fam-swap-day-option:has(:checked) { border-color: var(--hb-ac); }
+.fam-swap-day-option input { margin: 0 0 0 auto; order: 1; accent-color: var(--hb-ac); }
 
 .fam-summary { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px;
   background: color-mix(in srgb, var(--hb-ac) 9%, var(--hb-s1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 22%, transparent); }

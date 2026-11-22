@@ -258,54 +258,62 @@ def apply_swap_overlays(
                         "label": "Předání čeká na schválení",
                         "partner_name": to.get("name"),
                     }
-        for op in operations.values():
-            if not isinstance(op, Mapping) or op.get("status") not in {
-                "scheduled",
-                "active",
-                "failed",
-            }:
+        for oid, op in operations.items():
+            if not isinstance(op, Mapping):
                 continue
+            status = op.get("status")
             snap = op.get("source_snapshot") or {}
-            chore_uuid = chore.get("chore_uuid")
             opaque = chore.get("opaque_id")
-            source_matches = (
-                snap.get("chore_id") in {chore_uuid, opaque, chore.get("id")}
-                or snap.get("opaque_id") == opaque
-            )
+            identifiers = {chore.get("chore_uuid"), opaque, chore.get("id")} - {None}
+            source_matches = snap.get("chore_id") in identifiers or snap.get("opaque_id") == opaque
             token = op.get("operation_token")
-            clone_matches = op.get("clone_id") is not None and (
-                op["clone_id"] in {chore_uuid, opaque, chore.get("id")}
-                or (token and chore["name"].endswith(f" · HB-{token[:8]}"))
+            clone_matches = op.get("clone_id") in identifiers or (
+                token and chore["name"].endswith(swap_model.clone_suffix(token))
             )
-            if (
-                op.get("from_kid_id") == kid_uuid
-                and source_matches
-                and op.get("local_date", local_date) == local_date
-            ):
-                to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
-                row["swap_today"] = {
-                    "kind": "transferred_out",
-                    "label": f"Předáno: {to.get('name', 'někdo')} · jen dnes",
-                    "partner_name": to.get("name"),
-                    "muted": op["status"] != "failed",
-                }
-                if op["status"] == "failed":
+            if clone_matches and op.get("to_kid_id") == kid_uuid:
+                if status in {"applying", "rollback_pending"}:
                     row["swap_today"] = {
-                        "kind": "transfer_failed",
-                        "label": "Přeřazení se nepovedlo.",
+                        "kind": "transferred_in",
+                        "label": "Přeřazení se dokončuje.",
+                        "muted": True,
                     }
-                elif day and day > today:
-                    row["swap_today"]["local_date"] = local_date
-                else:
                     row["counts_today"] = False
-            elif op["status"] == "active" and op.get("to_kid_id") == kid_uuid and clone_matches:
+                elif status in {"active", "cleanup_pending", "unclaimed_expired", "completed"}:
+                    sender = op.get("from_kid_name") or kids_by_uuid.get(
+                        str(op.get("from_kid_id")), {}
+                    ).get("name")
+                    row["swap_today"] = {
+                        "kind": "transferred_in",
+                        "label": f"Převzato od: {sender or 'někoho'} · jen dnes",
+                        "partner_name": sender,
+                    }
+                else:
+                    continue
                 row["name"] = snap.get("name") or chore["name"]
-                from_k = kids_by_uuid.get(str(op.get("from_kid_id") or ""), {})
-                row["swap_today"] = {
-                    "kind": "transferred_in",
-                    "label": f"Převzato od: {from_k.get('name', 'někdo')} · jen dnes",
-                    "partner_name": from_k.get("name"),
-                }
+            elif op.get("from_kid_id") == kid_uuid and source_matches:
+                if status in {"applying", "rollback_pending"}:
+                    row["can_request_swap"] = False
+                elif op.get("local_date", local_date) == local_date and swap_model.same_due(
+                    snap.get("due"), chore.get("due")
+                ):
+                    if status in {"scheduled", "active"}:
+                        to = op.get("to_kid_name") or kids_by_uuid.get(
+                            str(op.get("to_kid_id")), {}
+                        ).get("name")
+                        row["swap_today"] = {
+                            "kind": "transferred_out",
+                            "label": (
+                                f"Přeřazeno: {to or 'někdo'}"
+                                if status == "scheduled"
+                                else f"Předáno: {to or 'někdo'} · jen dnes"
+                            ),
+                            "partner_name": to,
+                            "muted": status == "active",
+                        }
+                        if status == "scheduled":
+                            row["swap_today"].update(local_date=local_date, operation_id=oid)
+                        else:
+                            row["counts_today"] = False
         if (row["swap_today"] or {}).get("kind") in {
             "transferred_out",
             "transferred_in",

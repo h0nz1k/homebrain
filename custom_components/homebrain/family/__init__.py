@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -40,20 +39,16 @@ async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
         @callback
         def _reconcile(_now) -> None:
             _record_missed()
-            hass.async_create_task(_run_swaps(reconcile=True))
+            hass.async_create_task(_run_swaps())
             _schedule_midnight()
 
         cancel = async_track_point_in_time(hass, _reconcile, local)
         entry.async_on_unload(cancel)
 
-    async def _run_swaps(_now=None, *, reconcile=False) -> None:
-        if reconcile:
-            async with store.mutation_lock:
-                store.reconcile_all(dt_util.now(), ZoneInfo(hass.config.time_zone))
-                await store.async_save()
+    async def _run_swaps(_now=None) -> None:
         await swap_service.apply_scheduled_swaps(hass, store)
 
     _schedule_midnight()
     # Retry while the matching ChoreOps helpers are still loading after startup.
     entry.async_on_unload(async_track_time_interval(hass, _run_swaps, timedelta(minutes=1)))
-    await _run_swaps(reconcile=True)
+    await _run_swaps()
