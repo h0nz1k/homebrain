@@ -22,6 +22,28 @@ async function infiniteAnimations(page: Page) {
 }
 
 test.describe('Topení', () => {
+  test('Doporučení je čitelné ve třech velikostech', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'The desktop project checks all three sizes.');
+    await page.goto('/homebrain-topeni?topeni=heating&doporuceni=suggest_lower');
+    const advisor = page.getByTestId('heating-advisor');
+    await expect(advisor).toHaveAttribute('data-status', 'suggest_lower');
+    await expect(advisor).toContainText('zahrnuje i ohřev teplé vody');
+    for (const [width, height] of [
+      [360, 800],
+      [800, 1280],
+      [1440, 900],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await advisor.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect(advisor).toBeInViewport();
+      await noSidewaysScroll(page);
+      await page.screenshot({
+        path: `test-results/advisor-r2/advisor-${width}x${height}.png`,
+        animations: 'disabled',
+      });
+    }
+  });
+
   test('Teď: logo z manifestu (dev), LED kompresoru a bez manifestu popisek TČ', async ({
     page,
   }) => {

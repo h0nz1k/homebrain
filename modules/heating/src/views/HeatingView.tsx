@@ -262,6 +262,7 @@ function NowTab({
   const dhwMark =
     snap.dhw.target !== null ? Math.max(0, Math.min(1, (snap.dhw.target - 30) / 30)) : null;
   const faults = snap.faults.active.length;
+  const criticalFault = snap.faults.fatal || snap.faults.compressor_block;
   const domain: [number, number] | null = day?.series[0]?.points.length
     ? [day.series[0].points[0]![0], day.series[0].points.at(-1)![0]]
     : null;
@@ -431,8 +432,14 @@ function NowTab({
         <Stat
           id="faults"
           label="Poruchy"
-          tone={faults ? 'crit' : 'ok'}
-          value={faults ? czCount(faults, 'porucha', 'poruchy', 'poruch') : 'Vše v pořádku'}
+          tone={criticalFault ? 'crit' : faults ? 'warn' : 'ok'}
+          value={
+            faults
+              ? czCount(faults, 'porucha', 'poruchy', 'poruch')
+              : criticalFault
+                ? 'Porucha'
+                : 'Vše v pořádku'
+          }
           sub={`hlídá ${czCount(snap.faults.monitored, 'čidlo a ochranu', 'čidla a ochrany', 'čidel a ochran')}`}
         />
       </div>
@@ -1080,6 +1087,7 @@ function alertSince(iso: string): string {
 
 function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
   const f = snap.faults;
+  const critical = f.fatal || f.compressor_block;
   const alerts = snap.alerts ?? [];
   return (
     <>
@@ -1099,7 +1107,7 @@ function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
           </ul>
         </Card>
       )}
-      {f.active.length === 0 ? (
+      {f.active.length === 0 && !critical ? (
         <Card className="ht-hero ht-ok" tone="calm" data-testid="heating-faults-ok">
           <div className="ht-hero-copy">
             <Pill tone="ok" dot>
@@ -1113,11 +1121,16 @@ function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
             </p>
           </div>
         </Card>
-      ) : (
+      ) : f.active.length > 0 ? (
         <div className="ht-faults">
           {f.active.map((x) => (
-            <Card key={x.key} tone="critical" className="ht-fault" data-testid="heating-fault">
-              <Pill tone="crit" dot>
+            <Card
+              key={x.key}
+              tone={critical ? 'critical' : 'warning'}
+              className="ht-fault"
+              data-testid="heating-fault"
+            >
+              <Pill tone={critical ? 'crit' : 'warn'} dot>
                 {f.fatal ? 'Porucha – topení stojí' : 'Porucha'}
               </Pill>
               <h2>{x.label}</h2>
@@ -1132,24 +1145,30 @@ function FaultsTab({ snap }: { snap: HeatingSnapshot }) {
                   })}
                 </p>
               )}
-              <p>
-                {f.compressor_block
-                  ? 'Kompresor je zablokovaný, aby se nepoškodil. '
-                  : 'Regulace kompresor hlídá a podle potřeby ho sama zastaví. '}
-                {!snap.backup_heater.available
-                  ? ''
-                  : snap.backup_heater.on
-                    ? 'Dům teď hřeje záložní elektrické topení – je to dražší, ale doma bude teplo. '
-                    : 'Kdyby kompresor stál dlouho, zapne se záložní elektrické topení. '}
-              </p>
-              <p>
-                <b>Co dělat:</b> nic neresetujte. Pokud porucha nezmizí do hodiny nebo se opakuje,
-                zavolejte servis tepelného čerpadla a řekněte mu text poruchy.
-              </p>
+              {critical ? (
+                <>
+                  <p>
+                    {f.compressor_block
+                      ? 'Kompresor je zablokovaný, aby se nepoškodil. '
+                      : 'Regulace kompresor hlídá a podle potřeby ho sama zastaví. '}
+                    {!snap.backup_heater.available
+                      ? ''
+                      : snap.backup_heater.on
+                        ? 'Dům teď hřeje záložní elektrické topení – je to dražší, ale doma bude teplo. '
+                        : 'Kdyby kompresor stál dlouho, zapne se záložní elektrické topení. '}
+                  </p>
+                  <p>
+                    <b>Co dělat:</b> nic neresetujte. Pokud porucha nezmizí do hodiny nebo se
+                    opakuje, zavolejte servis tepelného čerpadla a řekněte mu text poruchy.
+                  </p>
+                </>
+              ) : (
+                <p>Potvrďte poruchu na panelu čerpadla.</p>
+              )}
             </Card>
           ))}
         </div>
-      )}
+      ) : null}
       <Card className="ht-card">
         <header className="ht-ch">
           <h3>Co hlídáme</h3>

@@ -84,7 +84,7 @@ describe('Doporučení', () => {
     ['suggest_lower', /Zkuste snížit teplotu vody v bodě p3/],
     ['suggest_higher', /Zkuste zvýšit teplotu vody v bodě p2/],
     ['ok', /doporučuji ponechat/],
-    ['insufficient_data', /Málo dat.*3 dny/],
+    ['insufficient_data', /21 dní.*3 dny.*pod 8 °C/],
     ['recent_change', /Čerstvá změna křivky.*4 dny/],
   ])('renders %s with measured values and the read-only note', async (status, text) => {
     const advisor = mockHeatingAdvisor(status, '2025-01-13T00:20:00Z');
@@ -113,7 +113,17 @@ describe('Doporučení', () => {
     render(<HeatingView {...base} />);
     const card = await screen.findByTestId('heating-advisor');
     expect(card.textContent).toContain('Odhad venkovní hranice topení');
-    expect(card.textContent).toContain('Výkon zatím není zadaný.');
+    expect(card.textContent).toContain('Zadejte ho v nastavení HomeBrain → Topení.');
+    expect(card.textContent).toContain('zahrnuje i ohřev teplé vody');
     expect(card.textContent).not.toContain('W/K');
+  });
+
+  it('shows an empty model state when there are zero usable days', async () => {
+    const advisor = mockHeatingAdvisor('insufficient_data', '2025-01-13T00:20:00Z');
+    Object.assign(advisor.model, { days: 0, slope_h_per_k: null });
+    setHeatingApiFactory(() => createMockHeatingApi({ advisor }));
+    render(<HeatingView {...base} />);
+    const card = await screen.findByTestId('heating-advisor');
+    expect(card.textContent).toContain('Pro odhad tepelné ztráty zatím chybí data.');
   });
 });

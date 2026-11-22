@@ -6,7 +6,7 @@ import type {
 const scenarios = {
   suggest_lower: {
     circuit_duty_pct: 18,
-    ref_mean: 21.1,
+    ref_mean: 21.3,
     point: [{ id: 'p3', outdoor_c: 5 }],
     step_c: 1,
     text: 'Zkuste snížit teplotu vody v bodě p3 (+5 °C) o 1 °C. Pár dní sledujte referenční místnost a podkroví.',
@@ -22,11 +22,11 @@ const scenarios = {
   insufficient_data: {
     days_used: 2,
     days_missing: 3,
-    text: 'Málo dat. Chybí ještě 3 dny s úplnými údaji.',
+    text: 'Za posledních 21 dní chybí ještě 3 dny s úplnými údaji a s průměrnou venkovní teplotou pod 8 °C.',
   },
   recent_change: {
     days_missing: 4,
-    text: 'Čerstvá změna křivky. Vyhodnotím ji za 4 dny s úplnými údaji.',
+    text: 'Čerstvá změna křivky. Vyhodnotím ji za 4 dny s úplnými údaji a s průměrnou venkovní teplotou pod 8 °C.',
   },
 } satisfies Record<HeatingCurveStatus, Partial<HeatingAdvisor['curve']>>;
 

@@ -249,7 +249,14 @@ class HeatingPoller:
                 self._pages[page] = values
                 self._page_times[page] = dt_util.utcnow()
             self._due[page] = now + self.map.pages.get(page, self.opts.interval)
+        fault_since = self._counters.fault_since
+        compressor_ran = self._counters.fault_compressor_ran.copy()
         self._apply(failed, changed_project)
+        if (
+            fault_since != self._counters.fault_since
+            or compressor_ran != self._counters.fault_compressor_ran
+        ):
+            await self._persist_store(immediate=True)
 
     def _apply(self, failed: str | None, changed_project: list[int]) -> None:
         issues = ir.async_get(self.hass)
@@ -299,12 +306,20 @@ class HeatingPoller:
             self.hass, self._bindings().get(BINDING_ENERGY), {"Wh": 0.001, "MWh": 1000.0}
         )
         on = values.get("heat_pump.compressor_on")
+        sample = self.runtime_sample("heat_pump.compressor_on")
+        # An unreadable lamp does not establish that the fault was cleared.
+        faults = {
+            key
+            for key, _, active in self._res.faults
+            if active is True or (active is None and key in self._counters.fault_since)
+        }
         self._counters.update(
             now,
             on if isinstance(on, bool) else None,
             outdoor=values.get("outdoor.temp"),
             energy_total=energy,
-            faults=self._res.active_faults(),
+            faults=faults,
+            compressor_on_sample=sample[0] if sample and sample[1] else None,
             solar_temp=_float(values.get("extras.solar_temp")),
             solar_pump=values.get("extras.solar_pump")
             if isinstance(values.get("extras.solar_pump"), bool)
@@ -349,6 +364,8 @@ class HeatingPoller:
             project_changed=self._project_changed,
             winter=winter if isinstance(winter, bool) else None,
             cycling=cycling_summary(self._res, self._counters),
+            fault_since=self._counters.fault_since,
+            fault_compressor_ran=self._counters.fault_compressor_ran,
         )
         prev = {a.id: a for a in self._active_alerts}
         self._active_alerts = evaluate_alerts(ctx, self._alerts)

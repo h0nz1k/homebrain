@@ -96,7 +96,10 @@ export const heatingStyles = `
 .ht-alerts li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ht-alerts li { flex-direction: column; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--hb-t2) 12%, transparent); }
 .ht-alerts li:last-child { border-bottom: 0; }
-.ht-hero[data-state='fault'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--hb-crit) 14%, transparent), transparent 60%), var(--hb-s1); }
+.ht-hero[data-state='fault'][data-severity='critical'] { --ht-fault-color: var(--hb-crit); }
+.ht-hero[data-state='fault'][data-severity='warning'] { --ht-fault-color: var(--hb-warn); }
+.ht-hero[data-state='fault'] { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--ht-fault-color) 14%, transparent), transparent 60%), var(--hb-s1); }
+.ht-stat[data-testid='heating-stat-faults'][data-tone='warn'] .ht-v { color: var(--hb-warn); }
 .ht-hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .ht-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .ht-big { font-size: clamp(40px, 5vw, 56px); font-weight: 300; letter-spacing: -0.035em; line-height: 1.15; font-variant-numeric: tabular-nums; margin-top: 4px; }

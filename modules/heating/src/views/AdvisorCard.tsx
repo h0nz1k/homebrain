@@ -7,6 +7,7 @@ const daysText = (n: number) => czCount(n, 'den', 'dny', 'dní');
 
 export function AdvisorCard({ advisor }: { advisor: HeatingAdvisor | null | undefined }) {
   const model = advisor?.model;
+  const modelDays = model?.days ?? 0;
   const curve = advisor?.curve;
   return (
     <Card className="ht-card ht-advisor" data-testid="heating-advisor" data-status={curve?.status}>
@@ -42,7 +43,9 @@ export function AdvisorCard({ advisor }: { advisor: HeatingAdvisor | null | unde
         <>
           <h4>Odhad tepelné ztráty</h4>
           <p className="ht-muted">
-            Jistota odhadu je {CONFIDENCE[model.confidence]}. Vychází z {model.days} dnů.
+            {modelDays === 0
+              ? 'Pro odhad tepelné ztráty zatím chybí data.'
+              : `Jistota odhadu je ${CONFIDENCE[model.confidence]}. Vychází z ${modelDays === 1 ? '1 dne' : `${modelDays} dnů`}.`}
           </p>
           {model.slope_h_per_k !== null && (
             <ul className="ht-kv">
@@ -88,10 +91,15 @@ export function AdvisorCard({ advisor }: { advisor: HeatingAdvisor | null | unde
               ))}
             </ul>
           )}
+          {modelDays > 0 && (
+            <p className="ht-muted">
+              Odhad je orientační. Doba běhu kompresoru zahrnuje i ohřev teplé vody.
+            </p>
+          )}
           <p className="ht-muted">
             Odhad ztráty závisí na předpokládaném tepelném výkonu čerpadla
             {model.thermal_kw === null
-              ? '. Výkon zatím není zadaný.'
+              ? '. Výkon zatím není zadaný. Zadejte ho v nastavení HomeBrain → Topení.'
               : ` (${fmtNum(model.thermal_kw)} kW).`}
           </p>
         </>

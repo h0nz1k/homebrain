@@ -10,13 +10,14 @@ from zoneinfo import ZoneInfo
 import pytest
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.core import State
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import RestoredExtraData, RestoreEntity, StoredState
 
 from custom_components.homebrain.heating import advisor as a
 from custom_components.homebrain.heating.entities import HeatingRuntimeSensor
 from custom_components.homebrain.heating.keys import RUNTIME_SOURCES, spec_of
 
 DAY = date(2025, 1, 13)
+TODAY = DAY + timedelta(days=7)
 ZONE = ZoneInfo("Europe/Prague")
 
 
@@ -81,16 +82,16 @@ def test_many_days_still_need_a_good_fit_for_high_confidence():
     rows = [(DAY, x / 20, 10 - x / 40 + (-1) ** x * 3) for x in range(70)]
     fit = a.fit_model(rows, a.AdvisorOptions())
     assert fit["days"] == 70
-    assert fit["r2"] < 0.4
-    assert fit["confidence"] == "medium"
+    assert fit["r2"] < 0.2
+    assert fit["confidence"] == "low"
 
 
-def _curve_stats(count=7, circuit=3, cold_days=0, attic=21, outdoor=4.5):
+def _curve_stats(count=7, circuit=3, cold_days=0, attic=21, outdoor=4.5, room=21.3):
     raw = {key: [] for key in (a.OUTDOOR, a.CIRCUIT, a.REF, a.TARGET, a.ATTIC, *a.CURVE_KEYS)}
     for i in range(count):
         day = DAY + timedelta(days=i)
         cold = i < cold_days
-        for key, value in ((a.OUTDOOR, outdoor), (a.REF, 21), (a.TARGET, 21), (a.ATTIC, attic)):
+        for key, value in ((a.OUTDOOR, outdoor), (a.REF, room), (a.TARGET, 21), (a.ATTIC, attic)):
             raw[key].extend(hourly(day, mean=value, min=value, max=value))
         if cold:
             for row in raw[a.REF][-24:-17]:
@@ -108,8 +109,12 @@ def _curve_stats(count=7, circuit=3, cold_days=0, attic=21, outdoor=4.5):
         ({}, True, "suggest_lower", 7, 0),
         ({"attic": 19}, True, "ok", 7, 0),
         ({"attic": 19}, False, "suggest_lower", 7, 0),
-        ({"circuit": 21}, True, "suggest_higher", 7, 0),
-        ({"cold_days": 3}, True, "suggest_higher", 7, 0),
+        ({"circuit": 21, "room": 21}, True, "ok", 7, 0),
+        ({"circuit": 21, "room": 20.75}, True, "suggest_higher", 7, 0),
+        ({"room": 20.94}, True, "ok", 7, 0),
+        ({"room": 20.96}, True, "ok", 7, 0),
+        ({"count": 5}, True, "ok", 5, 0),
+        ({"cold_days": 3, "room": 21}, True, "suggest_higher", 7, 0),
         ({"circuit": 6}, True, "ok", 7, 0),
         ({"count": 6}, True, "suggest_lower", 6, 0),
         ({"count": 4}, True, "insufficient_data", 4, 1),
@@ -119,7 +124,10 @@ def _curve_stats(count=7, circuit=3, cold_days=0, attic=21, outdoor=4.5):
 def test_curve_status(kwargs, has_attic, status, used, missing):
     stats = a.group_hourly(_curve_stats(**kwargs), ZONE)
     result = a.assess_curve(
-        a.curve_days(stats, has_attic=has_attic), a.curve_variation(stats), a.AdvisorOptions()
+        a.curve_days(stats, has_attic=has_attic),
+        a.curve_variation(stats),
+        a.AdvisorOptions(),
+        TODAY,
     )
     assert (result["status"], result["days_used"], result["days_missing"]) == (
         status,
@@ -139,7 +147,7 @@ def test_curve_interpolation_uses_both_points_and_requires_overlapping_hours():
     raw[a.REF] = raw[a.REF][4:]
     raw[a.TARGET] = raw[a.TARGET][:20] + raw[a.TARGET][24:]
     stats = a.group_hourly(raw, ZONE)
-    result = a.assess_curve(a.curve_days(stats, has_attic=True), {}, a.AdvisorOptions())
+    result = a.assess_curve(a.curve_days(stats, has_attic=True), {}, a.AdvisorOptions(), TODAY)
     assert result["days_used"] == 6
     assert result["point"] == [{"id": "p2", "outdoor_c": -5.5}, {"id": "p3", "outdoor_c": 4.5}]
 
@@ -155,11 +163,62 @@ def test_recent_change_overrides_advice(within_hour):
             row.update(mean=47, min=47, max=47)
     stats = a.group_hourly(raw, ZONE)
     result = a.assess_curve(
-        a.curve_days(stats, has_attic=True), a.curve_variation(stats), a.AdvisorOptions()
+        a.curve_days(stats, has_attic=True), a.curve_variation(stats), a.AdvisorOptions(), TODAY
     )
     assert result["status"] == "recent_change"
     assert result["days_missing"] == 4
     assert result["step_c"] is None
+
+
+@pytest.mark.parametrize(("day", "hours"), [(date(2025, 3, 30), 23), (date(2025, 10, 26), 25)])
+def test_statistics_accept_both_dst_day_lengths(day, hours):
+    raw = {
+        a.OUTDOOR: hourly(day, hours, mean=3),
+        a.COMPRESSOR: hourly(day, hours, change=12 / hours),
+    }
+    assert a.model_days(a.group_hourly(raw, ZONE)) == [(day, 3, pytest.approx(12))]
+
+
+def test_effective_target_and_recovery_prevent_false_deficits():
+    raw = _curve_stats(circuit=21)
+    raw[a.EFFECTIVE_TARGET] = [
+        dict(row, mean=20.6 if i % 24 < 8 else 21) for i, row in enumerate(raw[a.TARGET])
+    ]
+    for i, row in enumerate(raw[a.REF]):
+        row["mean"] = 20.6 if i % 24 < 11 else 21
+    # One missing effective reading falls back to the nominal target.
+    del raw[a.EFFECTIVE_TARGET][-1]
+    days = a.curve_days(a.group_hourly(raw, ZONE), has_attic=True)
+    assert all(day.cold_hours == 0 and day.ref == day.target for day in days.values())
+    assert a.assess_curve(days, {}, a.AdvisorOptions(), TODAY)["status"] == "ok"
+
+
+def test_curve_uses_hysteresis_and_reports_incomplete_attic():
+    raw = _curve_stats(room=21.3)
+    raw[a.HYSTERESIS] = [dict(row, mean=0.4) for row in raw[a.TARGET]]
+    options = a.AdvisorOptions()
+    days = a.curve_days(a.group_hourly(raw, ZONE), has_attic=True)
+    assert a.assess_curve(days, {}, options, TODAY)["status"] == "ok"
+
+    raw[a.ATTIC] = []
+    missing = set()
+    days = a.curve_days(a.group_hourly(raw, ZONE), has_attic=True, missing_attic=missing)
+    result = a.assess_curve(days, {}, options, TODAY, missing)
+    assert result["status"] == "insufficient_data"
+    assert "pod 8 °C" in result["text"]
+    assert "chybí údaje z čidla v podkroví" in result["text"]
+
+
+def test_curve_does_not_mix_old_and_recent_days():
+    raw = _curve_stats()
+    for series in raw.values():
+        for row in series[-72:]:
+            row["start"] += timedelta(days=150).total_seconds()
+    days = a.curve_days(a.group_hourly(raw, ZONE), has_attic=True)
+    result = a.assess_curve(days, {}, a.AdvisorOptions(), TODAY + timedelta(days=150))
+    assert result["status"] == "insufficient_data"
+    assert result["days_used"] == 3
+    assert "21 dní" in result["text"]
 
 
 def test_recorder_reads_only_hourly_lts_and_ignores_today(hass):
@@ -205,7 +264,7 @@ async def test_runtime_sensor_accumulates_resets_and_restores(hass, key):
     with (
         patch.object(a.dt_util, "now", side_effect=lambda: now),
         patch.object(a.dt_util, "utcnow", side_effect=lambda: now),
-        patch.object(RestoreEntity, "async_get_last_state", new_callable=AsyncMock) as restored,
+        patch.object(RestoreEntity, "_async_get_restored_data") as restored,
         patch("custom_components.homebrain.heating.entities.async_track_time_change") as timer,
     ):
         restored.return_value = None
@@ -222,9 +281,12 @@ async def test_runtime_sensor_accumulates_resets_and_restores(hass, key):
         assert sensor.native_value == pytest.approx(1 / 60, abs=1e-6)
         poller.runtime_sample.assert_called_with(RUNTIME_SOURCES[key])
 
-        restored.return_value = State(
-            sensor.entity_id, "unavailable", sensor.extra_state_attributes
+        restored.return_value = StoredState(
+            State(sensor.entity_id, "unavailable"),
+            RestoredExtraData(sensor.extra_restore_state_data.as_dict()),
+            now,
         )
+        assert not sensor.extra_state_attributes
         poller.runtime_sample.return_value = None
         restarted = entity()
         await restarted.async_added_to_hass()
@@ -243,3 +305,41 @@ async def test_runtime_sensor_accumulates_resets_and_restores(hass, key):
         poller.runtime_sample.return_value = (now, False)
         old_day._updated()
         assert old_day.native_value == 0
+
+
+async def test_advisor_refresh_without_recorder(hass):
+    advisor = a.HeatingAdvisor(hass, a.AdvisorOptions(), [])
+    await advisor._refresh(datetime.combine(TODAY, datetime.min.time(), ZONE))
+    assert advisor.result["curve"]["status"] == "insufficient_data"
+
+
+async def test_advisor_refresh_retries_once_and_skips_disabled_entities(hass):
+    advisor = a.HeatingAdvisor(hass, a.AdvisorOptions(), [a.EFFECTIVE_TARGET, a.HYSTERESIS])
+    now = datetime.combine(TODAY, datetime.min.time(), ZONE)
+    hass.config.components.add("recorder")
+    registry = Mock()
+    registry.async_get_entity_id.side_effect = lambda _, __, uid: f"sensor.{uid}"
+    registry.async_get.side_effect = lambda entity: Mock(
+        disabled=entity in {"sensor.heating_outdoor_temp", "sensor.heating_house_hysteresis"}
+    )
+    job = AsyncMock(side_effect=[RuntimeError("test read"), RuntimeError("test retry")])
+    with (
+        patch.object(a.er, "async_get", return_value=registry),
+        patch(
+            "homeassistant.components.recorder.get_instance",
+            return_value=Mock(async_add_executor_job=job),
+        ),
+        patch.object(a, "async_call_later") as later,
+    ):
+        await advisor._refresh(now)
+        assert advisor.result is None
+        assert later.call_args.args[1] == a.RETRY_DELAY
+        ids = job.call_args.args[3]
+        assert a.EFFECTIVE_TARGET in ids
+        assert a.HYSTERESIS not in ids
+        assert a.OUTDOOR not in ids
+        later.call_args.args[2](now + a.RETRY_DELAY)
+        await advisor._task
+        assert job.await_count == 2
+        later.assert_called_once()
+        await advisor.stop()

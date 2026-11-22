@@ -6,16 +6,22 @@ statistics, ``history`` and ``import_history`` all use the same statistic ids.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import isfinite
 from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorExtraStoredData,
+    SensorStateClass,
+)
 from homeassistant.core import callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_track_time_change
-from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .keys import ACTIVITIES, COUNTER_KEYS, RUNTIME_SOURCES, KeySpec, object_id, spec_of
@@ -68,7 +74,15 @@ class HeatingSensor(_HeatingEntity, SensorEntity):
         return self._poller.value(self._key)
 
 
-class HeatingRuntimeSensor(HeatingSensor, RestoreEntity):
+@dataclass
+class RuntimeExtraStoredData(SensorExtraStoredData):
+    day: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {**super().as_dict(), "runtime_date": self.day}
+
+
+class HeatingRuntimeSensor(HeatingSensor, RestoreSensor):
     _attr_suggested_display_precision = 2
 
     def __init__(self, poller: HeatingPoller, key: str, spec: KeySpec) -> None:
@@ -80,10 +94,13 @@ class HeatingRuntimeSensor(HeatingSensor, RestoreEntity):
         self._max_gap = min(MAX_GAP, timedelta(seconds=max(120, 3 * poller.opts.interval)))
 
     async def async_added_to_hass(self) -> None:
-        last = await self.async_get_last_state()
-        if last is not None and last.attributes.get("runtime_date") == self._day.isoformat():
+        extra = await self.async_get_last_extra_data()
+        restored = extra.as_dict() if extra is not None else {}
+        if extra is None and (last := await self.async_get_last_state()) is not None:
+            restored = last.attributes  # Legacy sensor state before extra restore data.
+        if restored.get("runtime_date") == self._day.isoformat():
             try:
-                hours = float(last.attributes.get("runtime_hours", last.state))
+                hours = float(restored.get("native_value", restored.get("runtime_hours")))
             except (TypeError, ValueError):
                 pass
             else:
@@ -104,8 +121,10 @@ class HeatingRuntimeSensor(HeatingSensor, RestoreEntity):
         return round(self._hours, 6)
 
     @property
-    def extra_state_attributes(self) -> dict[str, str]:
-        return {"runtime_date": self._day.isoformat(), "runtime_hours": str(self.native_value)}
+    def extra_restore_state_data(self) -> RuntimeExtraStoredData:
+        return RuntimeExtraStoredData(
+            self._hours, self.native_unit_of_measurement, self._day.isoformat()
+        )
 
     @callback
     def _midnight(self, now: datetime) -> None:

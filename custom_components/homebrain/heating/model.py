@@ -215,6 +215,7 @@ class DayCounters:
     energy_base: float | None = None
     energy_last: float | None = None
     fault_since: dict[str, str] = field(default_factory=dict)
+    fault_compressor_ran: set[str] = field(default_factory=set)
     solar_pump_s: float = 0.0
     solar_max: float | None = None
     solar_stagnation_s: float = 0.0
@@ -274,6 +275,7 @@ class DayCounters:
         outdoor: float | None = None,
         energy_total: float | None = None,
         faults: set[str] | None = None,
+        compressor_on_sample: datetime | None = None,
         solar_temp: float | None = None,
         solar_pump: bool | None = None,
     ) -> None:
@@ -318,6 +320,12 @@ class DayCounters:
             self.fault_since = {
                 key: self.fault_since.get(key) or now.isoformat() for key in sorted(faults)
             }
+            self.fault_compressor_ran.intersection_update(faults)
+            if compressor_on_sample is not None:
+                for key in faults - self.fault_compressor_ran:
+                    since = _dt(self.fault_since[key])
+                    if since is not None and compressor_on_sample > since:
+                        self.fault_compressor_ran.add(key)
         self.last = now
         self.last_on = on
 
@@ -334,6 +342,7 @@ class DayCounters:
             "energy_base": self.energy_base,
             "energy_last": self.energy_last,
             "fault_since": dict(self.fault_since),
+            "fault_compressor_ran": sorted(self.fault_compressor_ran),
             "solar_pump_s": self.solar_pump_s,
             "solar_max": self.solar_max,
             "solar_stagnation_s": self.solar_stagnation_s,
@@ -366,6 +375,7 @@ class DayCounters:
                 energy_base=_num(raw.get("energy_base")),
                 energy_last=_num(raw.get("energy_last")),
                 fault_since={str(k): str(v) for k, v in (raw.get("fault_since") or {}).items()},
+                fault_compressor_ran=set(raw.get("fault_compressor_ran") or ()),
                 solar_pump_s=float(raw.get("solar_pump_s") or 0.0),
                 solar_max=_num(raw.get("solar_max")),
                 solar_stagnation_s=float(raw.get("solar_stagnation_s") or 0.0),
