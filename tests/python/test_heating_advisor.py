@@ -138,7 +138,7 @@ def test_curve_status(kwargs, has_attic, status, used, missing):
     if status.startswith("suggest_"):
         assert result["step_c"] == 1
         assert result["point"] == [{"id": "p3", "outdoor_c": 4.5}]
-        assert "p3 (+4,5 °C)" in result["text"]
+        assert "v bodě křivky p3 (venku +4,5\u00a0°C)" in result["text"]
     else:
         assert result["step_c"] is None
 

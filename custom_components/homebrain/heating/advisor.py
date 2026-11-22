@@ -450,18 +450,18 @@ def _assess_curve(
         if higher or lower:
             points = _covering_points(latest)
             names = [
-                f"{p['id']} ({p['outdoor_c']:+g} °C)".replace(".", ",").replace("-", "−")
+                f"{p['id']} (venku {p['outdoor_c']:+g}\u00a0°C)".replace(".", ",").replace("-", "−")
                 for p in points
             ]
-            what = f"v bodě {names[0]}"
+            what = f"v bodě křivky {names[0]}"
             if len(names) > 1:
-                what = f"v bodech {', '.join(names[:-1])} a {names[-1]}"
+                what = f"v bodech křivky {', '.join(names[:-1])} a {names[-1]}"
             verb = "zvýšit" if higher else "snížit"
             result.update(
                 status="suggest_higher" if higher else "suggest_lower",
                 point=points,
                 step_c=1,
-                text=f"Zkuste {verb} teplotu vody {what} o 1 °C. "
+                text=f"Zkuste {verb} teplotu vody {what} o 1\u00a0°C. "
                 "Pár dní sledujte referenční místnost"
                 f"{' a podkroví' if attic is not None else ''}. Změnu můžete kdykoli vrátit.",
             )

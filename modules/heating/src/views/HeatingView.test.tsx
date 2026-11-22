@@ -81,12 +81,12 @@ it('season run median is explicitly approximate hourly data', async () => {
 
 describe('Doporučení', () => {
   it.each([
-    ['suggest_lower', /Zkuste snížit teplotu vody v bodě p3/],
-    ['suggest_higher', /Zkuste zvýšit teplotu vody v bodě p2/],
+    ['suggest_lower', /Zkuste snížit teplotu vody v bodě křivky p3/],
+    ['suggest_higher', /Zkuste zvýšit teplotu vody v bodě křivky p2/],
     ['ok', /doporučuji ponechat/],
     ['insufficient_data', /21 dní.*3 dny.*pod 8 °C/],
     ['recent_change', /Čerstvá změna křivky.*4 dny/],
-  ])('renders %s with measured values and the read-only note', async (status, text) => {
+  ])('renders %s with measured values and a separate heat loss card', async (status, text) => {
     const advisor = mockHeatingAdvisor(status, '2025-01-13T00:20:00Z');
     setHeatingApiFactory(() => createMockHeatingApi({ advisor }));
     render(<HeatingView {...base} />);
@@ -94,10 +94,11 @@ describe('Doporučení', () => {
     expect(card.dataset.status).toBe(status);
     expect(card.textContent).toMatch(text);
     expect(card.textContent).toContain('Referenční místnost');
-    expect(card.textContent).toContain('143 dnů');
-    expect(card.textContent).toContain('114–132 W/K');
-    expect(card.textContent).toContain('Do regulace nic nezapisuji');
+    expect(card.textContent).toContain('Změnu proveďte na displeji regulace.');
     expect(card.querySelector('button')).toBeNull();
+    const heatLoss = screen.getByTestId('heating-heat-loss');
+    expect(heatLoss.textContent).toContain('Celkem za 143\u00a0dní');
+    expect(heatLoss.textContent).toContain('114–132\u00a0W/K');
   });
 
   it('shows the model without loss units when the nominal output is unset', async () => {
@@ -111,7 +112,7 @@ describe('Doporučení', () => {
     });
     setHeatingApiFactory(() => createMockHeatingApi({ advisor }));
     render(<HeatingView {...base} />);
-    const card = await screen.findByTestId('heating-advisor');
+    const card = await screen.findByTestId('heating-heat-loss');
     expect(card.textContent).toContain('Odhad venkovní hranice topení');
     expect(card.textContent).toContain('Zadejte ho v nastavení HomeBrain → Topení.');
     expect(card.textContent).toContain('zahrnuje i ohřev teplé vody');
@@ -123,7 +124,7 @@ describe('Doporučení', () => {
     Object.assign(advisor.model, { days: 0, slope_h_per_k: null });
     setHeatingApiFactory(() => createMockHeatingApi({ advisor }));
     render(<HeatingView {...base} />);
-    const card = await screen.findByTestId('heating-advisor');
+    const card = await screen.findByTestId('heating-heat-loss');
     expect(card.textContent).toContain('Pro odhad tepelné ztráty zatím chybí data.');
   });
 });

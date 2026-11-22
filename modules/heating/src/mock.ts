@@ -22,6 +22,7 @@ export type HeatingScenario =
   | 'house'
   | 'dhw'
   | 'fault'
+  | 'fault-warning'
   | 'unconfigured'
   | 'stale'
   | 'solar'
@@ -34,6 +35,7 @@ export const HEATING_SCENARIOS: readonly HeatingScenario[] = [
   'house',
   'dhw',
   'fault',
+  'fault-warning',
   'unconfigured',
   'stale',
   'solar',
@@ -361,6 +363,7 @@ export function buildMockSnapshot(
 ): HeatingSnapshot {
   const iso = (ms: number) => new Date(ms).toISOString();
   const running = scenario === 'heating' || scenario === 'dhw';
+  const fault = scenario === 'fault' || scenario === 'fault-warning';
   const solarSamples: SolarSample[] = [];
   const snap: HeatingSnapshot = {
     updated_at: iso(now - (scenario === 'stale' ? 47 * MIN : 12_000)),
@@ -373,7 +376,7 @@ export function buildMockSnapshot(
           ? 'heating_tank'
           : scenario === 'dhw'
             ? 'heating_dhw'
-            : scenario === 'fault'
+            : fault
               ? 'fault'
               : scenario === 'house'
                 ? 'house_circuit'
@@ -450,16 +453,15 @@ export function buildMockSnapshot(
     },
     backup_heater: { on: null, available: false },
     faults: {
-      active:
-        scenario === 'fault'
-          ? [
-              {
-                key: 'f_low_pressure',
-                label: 'Nízký tlak sání – z kolektoru přichází málo tepla',
-                since: iso(now - 38 * MIN),
-              },
-            ]
-          : [],
+      active: fault
+        ? [
+            {
+              key: 'f_low_pressure',
+              label: 'Nízký tlak sání – z kolektoru přichází málo tepla',
+              since: iso(now - 38 * MIN),
+            },
+          ]
+        : [],
       fatal: false,
       compressor_block: scenario === 'fault',
       monitored: 19,
@@ -497,7 +499,14 @@ export function buildMockSnapshot(
   const tune: Record<
     Exclude<
       HeatingScenario,
-      'fault' | 'unconfigured' | 'stale' | 'solar' | 'solar-nogain' | 'solar-off-hot' | 'off'
+      | 'fault'
+      | 'fault-warning'
+      | 'unconfigured'
+      | 'stale'
+      | 'solar'
+      | 'solar-nogain'
+      | 'solar-off-hot'
+      | 'off'
     >,
     Partial<{
       ref: number;
@@ -628,6 +637,17 @@ export function buildMockSnapshot(
           : snap.tank.bottom;
   }
   if (scenario === 'heating') snap.rooms = snap.rooms.map((r) => ({ ...r }));
+  if (scenario === 'fault-warning') {
+    snap.alerts = [
+      {
+        id: 'fault',
+        severity: 'warning',
+        title: 'Čerpadlo zaznamenalo poruchu',
+        body: 'Nízký tlak sání v 08:15. Potvrď ji na panelu čerpadla.',
+        since: iso(now - 38 * MIN),
+      },
+    ];
+  }
   if (scenario === 'solar') {
     snap.activity = 'idle';
     snap.heat_pump.compressor_on = false;

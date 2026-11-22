@@ -111,6 +111,7 @@ class EvalContext:
     cycling: dict[str, Any] | None = None
     fault_since: dict[str, str] = field(default_factory=dict)
     fault_compressor_ran: set[str] = field(default_factory=set)
+    fault_onset_observed: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -314,11 +315,12 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
             entries = []
             for key, label in ctx.faults_active:
                 since = _parse_dt(ctx.fault_since.get(key)) or ctx.now
-                ran = "běžel" if key in ctx.fault_compressor_ran else "neběžel"
-                entries.append(
-                    f"{label} v {since.astimezone(ctx.now.tzinfo):%H:%M}. "
-                    f"Kompresor od té doby {ran}."
-                )
+                entry = f"{label} v {since.astimezone(ctx.now.tzinfo):%H:%M}."
+                if key in ctx.fault_compressor_ran:
+                    entry += " Kompresor od té doby běžel."
+                elif key in ctx.fault_onset_observed:
+                    entry += " Kompresor od té doby neběžel."
+                entries.append(entry)
             acknowledge = "Potvrď ji" if len(entries) == 1 else "Potvrď je"
             emit(
                 "fault",

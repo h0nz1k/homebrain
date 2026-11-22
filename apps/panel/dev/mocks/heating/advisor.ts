@@ -9,14 +9,14 @@ const scenarios = {
     ref_mean: 21.3,
     point: [{ id: 'p3', outdoor_c: 5 }],
     step_c: 1,
-    text: 'Zkuste snížit teplotu vody v bodě p3 (+5 °C) o 1 °C. Pár dní sledujte referenční místnost a podkroví.',
+    text: 'Zkuste snížit teplotu vody v bodě křivky p3 (venku +5\u00a0°C) o 1\u00a0°C. Pár dní sledujte referenční místnost a podkroví.',
   },
   suggest_higher: {
     circuit_duty_pct: 83,
     ref_mean: 20.4,
     point: [{ id: 'p2', outdoor_c: -3 }],
     step_c: 1,
-    text: 'Zkuste zvýšit teplotu vody v bodě p2 (−3 °C) o 1 °C. Pár dní sledujte referenční místnost a podkroví.',
+    text: 'Zkuste zvýšit teplotu vody v bodě křivky p2 (venku −3\u00a0°C) o 1\u00a0°C. Pár dní sledujte referenční místnost a podkroví.',
   },
   ok: { text: 'Topnou křivku teď doporučuji ponechat.' },
   insufficient_data: {

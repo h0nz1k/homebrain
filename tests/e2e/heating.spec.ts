@@ -26,22 +26,44 @@ test.describe('Topení', () => {
     test.skip(testInfo.project.name !== 'desktop', 'The desktop project checks all three sizes.');
     await page.goto('/homebrain-topeni?topeni=heating&doporuceni=suggest_lower');
     const advisor = page.getByTestId('heating-advisor');
+    const heatLoss = page.getByTestId('heating-heat-loss');
     await expect(advisor).toHaveAttribute('data-status', 'suggest_lower');
-    await expect(advisor).toContainText('zahrnuje i ohřev teplé vody');
+    await expect(advisor).toContainText('v bodě křivky p3 (venku +5 °C)');
+    await expect(advisor.locator('.ht-kv li')).toHaveCount(3);
+    await expect(heatLoss).toContainText('zahrnuje i ohřev teplé vody');
+    await expect(heatLoss.getByText('Celkem za 143 dní')).toBeVisible();
+    await expect(heatLoss.getByText('Sezóna 2025/26 (87 dní)')).toBeVisible();
     for (const [width, height] of [
       [360, 800],
       [800, 1280],
       [1440, 900],
     ] as const) {
       await page.setViewportSize({ width, height });
-      await advisor.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-      await expect(advisor).toBeInViewport();
+      await page
+        .locator('.ht-advisor-cards')
+        .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect(advisor).toBeInViewport({ ratio: 1 });
+      await expect(heatLoss).toBeInViewport({ ratio: 1 });
       await noSidewaysScroll(page);
       await page.screenshot({
-        path: `test-results/advisor-r2/advisor-${width}x${height}.png`,
+        path: `test-results/advisor-r3/advisor-${width}x${height}.png`,
         animations: 'disabled',
       });
     }
+
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=fault-warning&doporuceni=suggest_lower');
+    const warning = page.getByTestId('heating-alert-banner');
+    await expect(warning).toHaveAttribute('data-severity', 'warning');
+    await expect(warning).toContainText('Čerpadlo zaznamenalo poruchu');
+    await expect(warning).not.toContainText('Kompresor od té doby');
+    await warning.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await expect(warning).toBeInViewport({ ratio: 1 });
+    await noSidewaysScroll(page);
+    await page.screenshot({
+      path: 'test-results/advisor-r3/advisor-fault-warning-360x800.png',
+      animations: 'disabled',
+    });
   });
 
   test('Teď: logo z manifestu (dev), LED kompresoru a bez manifestu popisek TČ', async ({

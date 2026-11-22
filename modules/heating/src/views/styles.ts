@@ -50,7 +50,41 @@ export const heatingStyles = `
 .ht-link { background: none; border: 0; padding: 0; font: inherit; color: var(--hb-t2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--hb-t2) 40%, transparent); cursor: pointer; text-align: left; }
 .ht-link:hover { color: var(--hb-t1); }
 .ht-card { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.ht-advisor { margin-block-start: var(--hb-sp-4, 16px); }
+.ht-advisor-cards {
+  display: grid;
+  gap: var(--hb-sp-4, 16px);
+  margin-block-start: var(--hb-sp-4, 16px);
+  max-inline-size: 44rem;
+}
+.ht-advisor-cards .ht-advisor-callout {
+  border-inline-start: 3px solid var(--hb-ac);
+  line-height: 1.5;
+}
+.ht-advisor-cards .ht-kv b {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ht-advisor-runtime h4 { margin: 0; font-size: 13px; font-weight: 650; }
+.ht-advisor-notes {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--hb-radius-md, 12px);
+  background: color-mix(in srgb, var(--hb-t1) 4%, var(--hb-s1));
+  line-height: 1.45;
+}
+@media (max-width: 400px) {
+  .ht-advisor-cards .ht-card { padding: 14px 16px; gap: 8px; }
+  .ht-advisor-cards .ht-kv li { gap: 12px; padding-block: 6px; }
+}
+@media (min-width: 1060px) {
+  .ht-advisor-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    max-inline-size: 76rem;
+  }
+  .ht-advisor-cards:has(> :only-child) { grid-template-columns: minmax(0, 38rem); }
+}
 .ht-ch { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .ht-ch h3 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 .ht-ch-wrap { align-items: center; }

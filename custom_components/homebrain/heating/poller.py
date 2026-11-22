@@ -140,6 +140,8 @@ class HeatingPoller:
         self._due: dict[int, float] = {}
         self._res = Resolved()
         self._counters = DayCounters()
+        self._clear_fault_lamps: set[str] = set()
+        self._observed_fault_onsets: set[str] = set()
         self._changes = ChangeLog()
         self._alerts = AlertState()
         self._active_alerts: list[ActiveAlert] = []
@@ -261,6 +263,8 @@ class HeatingPoller:
     def _apply(self, failed: str | None, changed_project: list[int]) -> None:
         issues = ir.async_get(self.hass)
         if failed:
+            self._clear_fault_lamps.clear()
+            self._observed_fault_onsets.clear()
             self._failures += 1
             self._source = failed
             if failed == "auth" and issues.async_get_issue(DOMAIN, ISSUE_AUTH) is None:
@@ -307,11 +311,19 @@ class HeatingPoller:
         )
         on = values.get("heat_pump.compressor_on")
         sample = self.runtime_sample("heat_pump.compressor_on")
+        active_lamps = {key for key, _, active in self._res.faults if active is True}
+        # A lamp already lit on the first read has no observed onset.
+        if sample is not None and sample[1] is False:
+            self._observed_fault_onsets.intersection_update(active_lamps)
+            self._observed_fault_onsets.update(active_lamps & self._clear_fault_lamps)
+        else:
+            self._observed_fault_onsets.clear()
+        self._clear_fault_lamps = {key for key, _, active in self._res.faults if active is False}
         # An unreadable lamp does not establish that the fault was cleared.
-        faults = {
+        faults = active_lamps | {
             key
             for key, _, active in self._res.faults
-            if active is True or (active is None and key in self._counters.fault_since)
+            if active is None and key in self._counters.fault_since
         }
         self._counters.update(
             now,
@@ -366,6 +378,7 @@ class HeatingPoller:
             cycling=cycling_summary(self._res, self._counters),
             fault_since=self._counters.fault_since,
             fault_compressor_ran=self._counters.fault_compressor_ran,
+            fault_onset_observed=self._observed_fault_onsets,
         )
         prev = {a.id: a for a in self._active_alerts}
         self._active_alerts = evaluate_alerts(ctx, self._alerts)
