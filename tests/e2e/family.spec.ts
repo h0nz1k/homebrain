@@ -1923,7 +1923,7 @@ test.describe('Rodina – výběr termínu a zítřejší předání', () => {
   async function evidence(page: Page, name: string) {
     const size = page.viewportSize()!;
     await page.screenshot({
-      path: join('test-results', 'chore-dates-r2', `${size.width}x${size.height}-${name}.png`),
+      path: join('test-results', 'chore-dates-r3', `${size.width}x${size.height}-${name}.png`),
       animations: 'disabled',
     });
   }
@@ -1990,7 +1990,7 @@ test.describe('Rodina – výběr termínu a zítřejší předání', () => {
     const sheet = page.getByTestId('family-swap-sheet');
     const day = sheet.getByRole('radio', { name: /čt.*19.*11/u });
     await expect(day).toBeChecked();
-    await expect(sheet.getByTestId('family-swap-chore-meta')).toContainText('Ema → Kuba');
+    await expect(sheet.getByTestId('family-swap-chore-meta')).toHaveText('Ema · 3 body');
     await expect(sheet.getByTestId('family-swap-submit')).toHaveText('Přeřadit na Kubu');
     await expect(sheet.getByTestId('family-swap-recipient')).toContainText('Kuba');
     await evidence(page, 'prirazeni');

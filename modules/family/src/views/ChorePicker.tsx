@@ -25,6 +25,7 @@ export function ChorePicker({
   const input = useRef<HTMLInputElement>(null);
   const timeList = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const popover = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => new Date());
   const first = new Date(month.getFullYear(), month.getMonth(), 1, 12);
@@ -42,6 +43,10 @@ export function ChorePicker({
       });
     }
   }, [open, nextTime]);
+  useEffect(() => {
+    // Keep the whole popover above the sticky sheet footer on small screens.
+    if (open) popover.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [open]);
 
   const close = () => {
     setOpen(false);
@@ -96,6 +101,7 @@ export function ChorePicker({
       </button>
       {open && (
         <div
+          ref={popover}
           className="fam-picker-popover"
           data-type={type}
           role="group"

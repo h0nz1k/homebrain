@@ -381,9 +381,11 @@ export const familyStyles = `
   width: 44px; height: 44px; display: grid; place-items: center; color: var(--hb-t1);
   background: var(--hb-s2); border: 1px solid var(--hb-t2); border-radius: 10px; cursor: pointer; }
 .fam-picker-button:focus-visible, .fam-picker-popover button:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: -2px; }
-.fam-picker-popover { position: relative; z-index: 1; width: 100%; margin-top: 6px;
-  border-radius: 12px; color: var(--hb-t1); background: var(--hb-s1);
-  box-shadow: inset 0 0 0 1px var(--hb-edge), 0 8px 24px rgb(0 0 0 / 42%); }
+.fam-picker-popover { position: relative; z-index: 1; width: 100%; margin: 10px 0 16px; padding-block: 8px; scroll-margin-block: 12px;
+  border-radius: 14px; color: var(--hb-t1); background: var(--hb-s2, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 22%, transparent), 0 10px 28px rgb(0 0 0 / 38%); }
+.fam-picker-month { padding-inline: 4px; }
+.fam-picker-month { padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--hb-edge); }
 .fam-picker-month { display: flex; align-items: center; justify-content: space-between; }
 .fam-picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
 .fam-picker-popover button { min-height: 44px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; }
@@ -400,10 +402,14 @@ export const familyStyles = `
 .fam-date-note svg { flex: none; color: var(--hb-ac); }
 .fam-swap-day { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .fam-swap-day legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
-.fam-swap-day-option { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;
+.fam-swap-day-option { position: relative; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;
   border: 1px solid var(--hb-edge); background: var(--hb-s1); border-radius: 12px; cursor: pointer; }
 .fam-swap-day-option:has(:checked) { border-color: var(--hb-ac); }
-.fam-swap-day-option input { margin: 0 0 0 auto; order: 1; accent-color: var(--hb-ac); }
+.fam-swap-day-option:has(:focus-visible) { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
+.fam-swap-day-option input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.fam-swap-day-check { margin-left: auto; color: var(--hb-ac); }
+.fam-swap-recipients { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.fam-swap-recipients legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
 
 .fam-summary { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px;
   background: color-mix(in srgb, var(--hb-ac) 9%, var(--hb-s1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 22%, transparent); }
@@ -414,10 +420,10 @@ export const familyStyles = `
 .fam .hb-sheet-foot .fam-invalid { color: var(--hb-warn); font-weight: 600; }
 .fam-chore-meta .hb-pill { white-space: normal; max-width: 100%; line-height: 1.3; padding-block: 3px; }
 /* swap sheet */
-.fam-swap-sheet > .fam-person-chips { flex-direction: row; flex-wrap: wrap; gap: 10px; }
-.fam-swap-sheet .fam-person-chips .fam-chip { width: auto; border-radius: 99px; padding: 6px 16px 6px 6px; min-height: 52px; font-weight: 600; }
+.fam-swap-sheet .fam-person-chips { flex-direction: row; flex-wrap: wrap; gap: 10px; }
+.fam-swap-sheet .fam-person-chips .fam-chip { width: auto; border-radius: 99px; padding: 6px 16px 6px 6px; min-height: 52px; font-weight: 600; font-size: 16px; }
 .fam-swap-sheet .fam-person-chips .fam-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--hb-ac) 22%, var(--hb-s1)); border-color: var(--hb-ac); box-shadow: inset 0 0 0 1px var(--hb-ac); }
-.fam-swap-sheet .fam-person-chips .fam-chip > svg.fam-chip-check { margin-left: 2px; color: var(--hb-ac); }
+.fam-swap-sheet .fam-person-chips .fam-chip > svg.fam-chip-check { margin-left: 2px; color: currentColor; }
 .fam-person-chips .fam-partner-avatar { width: 38px; height: 38px; font-weight: 700; }
 .fam-icon-tile { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
   color: color-mix(in srgb, var(--fam-kid, var(--hb-ac)) 70%, white); background: color-mix(in srgb, var(--fam-kid, var(--hb-ac)) 24%, var(--hb-s1)); }
@@ -518,9 +524,6 @@ export const familyStyles = `
 .fam-chip.hb-chip[aria-pressed='true'] .fam-chip-tick { box-shadow: none; background: rgb(255 255 255 / 22%); }
 .fam-who-chip.hb-chip { padding: 0 12px 0 6px; }
 .fam-info p { color: color-mix(in srgb, var(--hb-t1) 86%, transparent); font-size: 14px; line-height: 1.5; text-wrap: pretty; }
-.fam-recipient { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; background: color-mix(in srgb, var(--hb-t1) 5%, transparent); font-size: 16px; }
-.fam-recipient-label { color: var(--hb-t2); font-size: 14px; min-width: 48px; }
-.fam-recipient .fam-partner-avatar { width: 34px; height: 34px; font-weight: 700; }
 .fam-icon-tile { color: color-mix(in srgb, var(--fam-kid, var(--hb-ac)) 55%, white); }
 /* points sheet */
 .fam-points-label { color: var(--hb-t2); font-size: 14px; font-weight: 600; }

@@ -1502,10 +1502,8 @@ export function SwapSheet({
             <strong>{chore?.name}</strong>
             <p className="fam-hint" data-testid="family-swap-chore-meta">
               {[
-                mode === 'reassign'
-                  ? [fromKid?.name, recipient?.name].filter(Boolean).join(' → ')
-                  : null,
-                day ? dayWord(new Date(`${day}T12:00:00`), new Date()) : null,
+                mode === 'reassign' ? fromKid?.name : null,
+                mode === 'give' && day ? dayWord(new Date(`${day}T12:00:00`), new Date()) : null,
                 chore?.points != null ? pointsAmount(chore.points) : null,
               ]
                 .filter(Boolean)
@@ -1526,6 +1524,9 @@ export function SwapSheet({
               />
               <Icon name="calendar" size={20} />
               {shortDate(new Date(`${value}T12:00:00`))}
+              {days.length > 1 && value === day && (
+                <Icon name="check" size={20} className="fam-swap-day-check" />
+              )}
             </label>
           ))}
         </fieldset>
@@ -1534,22 +1535,15 @@ export function SwapSheet({
             {disabledReason}
           </p>
         )}
-        {partners.length === 1 ? (
-          <div className="fam-recipient" data-testid="family-swap-recipient">
-            <span className="fam-recipient-label">Komu</span>
-            <span
-              className="fam-partner-avatar"
-              style={kidAvatarBg(colors[partners[0]!.id] ?? colors[partners[0]!.name])}
-              aria-hidden="true"
+        {partners.length > 0 && (
+          <fieldset className="fam-swap-recipients">
+            <legend>Komu</legend>
+            <div
+              className="fam-chips fam-person-chips"
+              role="group"
+              aria-label="Komu"
+              data-testid="family-swap-recipient"
             >
-              {partners[0]!.name[0]}
-            </span>
-            <strong>{partners[0]!.name}</strong>
-          </div>
-        ) : (
-          <>
-            <h3>Komu?</h3>
-            <div className="fam-chips fam-person-chips" role="group" aria-label="Komu">
               {partners.map((p) => (
                 <Chip
                   key={p.id}
@@ -1560,6 +1554,7 @@ export function SwapSheet({
                   <span
                     className="fam-partner-avatar"
                     style={kidAvatarBg(colors[p.id] ?? colors[p.name])}
+                    aria-hidden="true"
                   >
                     {p.name[0]}
                   </span>
@@ -1568,7 +1563,7 @@ export function SwapSheet({
                 </Chip>
               ))}
             </div>
-          </>
+          </fieldset>
         )}
         <div className="fam-info" data-tone="accent">
           <span className="fam-info-icon">
