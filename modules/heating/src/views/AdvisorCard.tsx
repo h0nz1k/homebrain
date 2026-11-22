@@ -95,7 +95,7 @@ function HeatLossCard({ model }: { model: HeatingAdvisor['model'] }) {
             )}
           </ul>
           <div className="ht-advisor-runtime">
-            <h4>Prodloužení běhu kompresoru při ochlazení venku o 1{'\u00a0°C'}</h4>
+            <h4>Delší běh kompresoru při poklesu teploty venku o 1{'\u00a0°C'}</h4>
             <ul className="ht-kv">
               <li>
                 <span>Celkem za {daysText(model.days)}</span>
