@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  choreApprovalKind,
   choreNote,
   choreTally,
   czDate,
@@ -77,6 +78,12 @@ describe('family format', () => {
       text: 'Po termínu (8:00)',
       tone: 'crit',
     });
+    for (const state of ['overdue', 'claimed'] as const) {
+      expect(choreNote(c(state, at(1, 8)), now)).toEqual({
+        text: 'Přeneseno · původně po 1. 6.',
+      });
+    }
+    expect(choreNote(c('done', at(1, 8)), now).text).toBe('');
     expect(pointsLabel(2)).toBe('+2\u00a0body');
     expect(pointsLabel(1.5)).toBe('+1,5\u00a0bodu');
   });
@@ -163,6 +170,25 @@ describe('family format', () => {
       chore('d', 'done', null),
     ]);
     expect(t).toEqual({ done: 2, pending: 1, open: 1, total: 4, earned: 2, waiting: 4 });
+  });
+
+  it('counts completion or handover once for the active member only', () => {
+    const claimed = chore('wait', 'claimed');
+    expect(choreApprovalKind(claimed)).toBe('completion');
+    expect(choreApprovalKind({ ...claimed, counts_today: false })).toBeNull();
+    expect(
+      choreApprovalKind({
+        ...claimed,
+        swap_today: { kind: 'pending_give', label: '' },
+      }),
+    ).toBe('swap');
+    expect(
+      choreApprovalKind({
+        ...claimed,
+        swap_today: { kind: 'transferred_out', label: '' },
+      }),
+    ).toBeNull();
+    expect(choreApprovalKind(chore('open', 'todo'))).toBeNull();
   });
 
   it('orders overdue/open first, then pending approval, done last', () => {

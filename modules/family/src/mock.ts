@@ -21,8 +21,8 @@ import { personActivity } from './personActivity.js';
 /** Synthetic household for dev/e2e: generic names only („Ema“, „Kuba“). */
 export interface FamilyMockOptions {
   role?: FamilyRole;
-  /** `empty` = nothing configured (no calendars, no ChoreOps, no shopping list). */
-  scenario?: 'full' | 'empty';
+  /** `empty` has no integrations; `busy` adds enough chores to overflow each kiosk list. */
+  scenario?: 'full' | 'empty' | 'busy';
   /** Synthetic overdue occurrence for the reassign success and failure flows. */
   reassignDemo?: 'overdue' | 'error';
   now?: () => Date;
@@ -128,7 +128,7 @@ function upcoming(now: Date, id: string, name: string, points: number, day: numb
   return { id: `sensor.demo_${id}`, name, points, due, group: groupOf(new Date(due), now) };
 }
 
-function kids(now: Date): FamilyKid[] {
+function kids(now: Date, busy: boolean): FamilyKid[] {
   const c = (
     id: string,
     name: string,
@@ -175,6 +175,14 @@ function kids(now: Date): FamilyKid[] {
             partner_name: 'Kuba',
           },
         }),
+        ...(busy
+          ? [
+              c('knihy', 'Srovnat knihy', 'todo', 2, 17),
+              c('batoh', 'Připravit batoh', 'todo', 2, 18),
+              c('pradlo', 'Uklidit prádlo', 'todo', 2, 19),
+              c('stul', 'Uklidit psací stůl', 'todo', 2, 20),
+            ]
+          : []),
       ],
       upcoming: [
         upcoming(now, 'mycka', 'Vyskládat myčku', 3, 1, 18),
@@ -199,6 +207,12 @@ function kids(now: Date): FamilyKid[] {
           },
         }),
         c('boty', 'Uklidit boty', 'claimed', 2, 18),
+        ...(busy
+          ? [
+              c('jidelna', 'Utřít stůl', 'todo', 2, 17),
+              c('hracky', 'Uklidit hračky', 'claimed', 2, 18),
+            ]
+          : []),
       ],
       upcoming: [upcoming(now, 'trideni', 'Vynést tříděný odpad', 2, 1, 19)],
     },
@@ -314,7 +328,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         },
       ];
   const state = {
-    kids: empty ? [] : kids(now()),
+    kids: empty ? [] : kids(now(), opts.scenario === 'busy'),
     swapPending: empty ? '' : 'swap-req-1',
     items: empty
       ? []

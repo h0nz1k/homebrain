@@ -10,7 +10,11 @@ import { PointsFigure } from './familySheets.js';
 
 const store = { subscribe: () => () => {}, getSnapshot: () => undefined } as never;
 
-async function mount(role: FamilyRole, scenario: 'full' | 'empty' = 'full', kiosk = false) {
+async function mount(
+  role: FamilyRole,
+  scenario: 'full' | 'empty' | 'busy' = 'full',
+  kiosk = false,
+) {
   const api = createMockFamilyApi({ role, scenario });
   setFamilyApiFactory(() => api);
   render(<FamilyView store={store} bindings={{}} kiosk={kiosk} />);
@@ -61,6 +65,52 @@ describe('FamilyView', () => {
     expect(api.log.some((e) => (e as { kind: string }).kind === 'claim')).toBe(true);
   });
 
+  it('kiosk uses the same overflow control and accounts for hidden approvals', async () => {
+    await mount('kiosk', 'busy', true);
+    expect(screen.getByTestId('family-pending-badge').textContent).toBe('3 čekají na schválení');
+    const [giver, receiver] = screen.getAllByTestId('family-kid');
+    const more = within(receiver!).getByTestId('family-chores-more');
+    expect(more.textContent).toBe('Další 1 dnes · 1 čeká');
+    expect(more.previousElementSibling?.tagName).toBe('UL');
+    expect(within(giver!).getByTestId('family-pending-pill').dataset.pending).toBe('swap');
+    expect(screen.getByTestId('family-member-handover').textContent).toContain('předání');
+    const shopMore = screen.getByTestId('family-shop-more');
+    expect(shopMore.className).toBe(more.className);
+    expect(screen.getAllByTestId('family-shop-item')).toHaveLength(3);
+    fireEvent.click(shopMore);
+    expect(shopMore.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByTestId('family-shop-item')).toHaveLength(4);
+  });
+
+  it('only uses the overdue group for deadlines missed today', async () => {
+    const now = new Date(2026, 10, 19, 16, 5);
+    vi.setSystemTime(now);
+    const api = createMockFamilyApi({ now: () => now });
+    setFamilyApiFactory(() => ({
+      ...api,
+      async get() {
+        const snap = await api.get();
+        const member = snap.members!.find((person) => person.id === 'tata')!;
+        const chore = member.chores.find((row) => row.state === 'overdue')!;
+        member.chores.push({
+          ...chore,
+          id: 'demo-deadline-today',
+          name: 'Dnešní termín',
+          due: new Date(2026, 10, 19, 15).toISOString(),
+        });
+        return snap;
+      },
+    }));
+    render(<FamilyView store={store} bindings={{}} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Táta/ }));
+    const late = screen.getByText('Po termínu').closest('details')!;
+    const carried = screen.getByText('Přeneseno', { exact: true }).closest('details')!;
+    expect(late.dataset.late).toBe('true');
+    expect(within(late).getByText('Dnešní termín')).toBeTruthy();
+    expect(carried.dataset.late).toBeUndefined();
+    expect(within(carried).getByText('Odvézt papír')).toBeTruthy();
+  });
+
   it('add chore opens on plain-http LAN (no crypto.randomUUID) and saves', async () => {
     const c = globalThis.crypto as Crypto & { randomUUID?: unknown };
     const original = c.randomUUID;
@@ -107,9 +157,20 @@ describe('FamilyView', () => {
   });
 
   it('kiosk: clock, full 7-day list, parent approves instead of a dangling counter', async () => {
+    vi.setSystemTime(new Date(2026, 10, 19, 16, 5));
     await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family-clock')).toBeTruthy();
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
+    const week = screen.getByTestId('family-week');
+    expect(within(week).getAllByTestId('family-week-event')).toHaveLength(7);
+    expect(week.querySelectorAll('.fam-school-bar')).toHaveLength(3);
+    for (const row of within(week).getAllByTestId('family-week-event')) {
+      expect(Array.from(row.children, (node) => node.className)).toEqual([
+        'fam-wk-time',
+        'fam-wk-t',
+        'fam-ev-lead',
+      ]);
+    }
     const pills = screen.getAllByTestId('family-pending-pill');
     expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
     const label = (kind: string) =>
@@ -118,6 +179,29 @@ describe('FamilyView', () => {
     expect(label('completion')).toBe('Čeká na schválení');
     expect(screen.getAllByTestId('family-done-summary')[0]!.textContent).toContain('Hotovo: 2');
     expect(screen.queryByTestId('family-approvals')).toBeNull();
+  });
+
+  it('kiosk: limits each child to three of their own rows and opens today for the rest', async () => {
+    const mock = createMockFamilyApi({ role: 'kiosk', scenario: 'busy' });
+    const snapshot = await mock.get();
+    const handed = snapshot.kids[0]!.chores.find((c) => c.swap_today?.kind === 'transferred_out')!;
+    delete handed.counts_today;
+    setFamilyApiFactory(() => ({ ...mock, get: async () => snapshot }));
+    render(<FamilyView store={store} bindings={{}} kiosk />);
+    const [giver, receiver] = (await screen.findAllByTestId('family-kid')).map((card) =>
+      within(card),
+    );
+    expect(giver!.getAllByTestId('family-chore')).toHaveLength(3);
+    expect(giver!.getByText('Připravit batoh')).toBeTruthy();
+    expect(giver!.queryByText('Vynést koš')).toBeNull();
+    expect(giver!.queryByText('Uklidit prádlo')).toBeNull();
+    expect(receiver!.getAllByTestId('family-chore')).toHaveLength(3);
+    expect(receiver!.getByText('Vynést koš')).toBeTruthy();
+    expect(receiver!.getByRole('button', { name: /^Další 1 dnes/ })).toBeTruthy();
+    fireEvent.click(giver!.getByRole('button', { name: /^Další 2 dnes/ }));
+    const person = await screen.findByTestId('family-person');
+    expect(within(person).getByRole('tab', { name: 'Dnes', selected: true })).toBeTruthy();
+    expect(within(person).getByText('Uklidit prádlo')).toBeTruthy();
   });
 
   it('handed-out chore: points struck with „→ name“, not counted twice', async () => {
