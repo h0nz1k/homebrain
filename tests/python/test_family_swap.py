@@ -72,6 +72,7 @@ def test_role_matrix_includes_swap_and_points():
     assert "homebrain/family/chore/create" in adult
     assert "homebrain/family/points/history" in child
     assert "homebrain/family/swap/decide" not in child
+    assert not any("/swap/" in cmd for cmd in role_ws_commands("kiosk"))
 
 
 @pytest.mark.asyncio

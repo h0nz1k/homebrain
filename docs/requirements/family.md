@@ -175,7 +175,7 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 | D8 | Přidání úkolů | pouze `owner` / `adult`; minimální formulář → ChoreOps `create_chore` |
 | D9 | Předání úkolu | **jeden výskyt v okně od dneška do dalších 7 kalendářních dní**; dítě žádá nebo přebírá u sourozence → schválí rodič; rodič může přeřadit přímo |
 | D10 | Body | přehled z ChoreOps senzorů; historie/graf volitelně z read-only `get_ledger` |
-| D11 | Série ChoreOps | přeřazení je vázané na den výskytu; ChoreOps dostane pokyn k přeskočení až po ověření aktuálního termínu |
+| D11 | Série ChoreOps | přeřazení je vázané na den výskytu. ChoreOps dostane pokyn k přeskočení až po ověření aktuálního termínu |
 
 ### FAM-020 – Přidat úkol (rodič)
 
