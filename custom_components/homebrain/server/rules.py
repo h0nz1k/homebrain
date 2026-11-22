@@ -8,8 +8,22 @@ MEMORY: Final = (85.0, 95.0)
 DISK: Final = (85.0, 95.0)
 # Without Glances sensor thresholds (no REST API): conservative defaults for N100/N200 + NVMe.
 TEMPERATURE: Final = (80.0, 95.0)
+# Entry options of the Server module (options flow step „server“).
+OPTION: Final = "server"
+BACKUP_MAX_AGE: Final = "backup_max_age_days"
+# Last Proxmox backup older than this many days = warning, twice as old = critical.
+BACKUP_MAX_AGE_DAYS: Final = 8
+BACKUP_MAX_AGE_RANGE: Final = (1, 365)
 _ORDER: Final = {"critical": 0, "warning": 1}
-_KIND: Final = {"node": 0, "memory": 1, "disk": 2, "storage": 3, "temperature": 4, "backup": 5}
+_KIND: Final = {
+    "node": 0,
+    "memory": 1,
+    "disk": 2,
+    "storage": 3,
+    "temperature": 4,
+    "backup": 5,
+    "backup_age": 6,
+}
 
 
 def level(value: float | None, warn: float, crit: float) -> str:
@@ -18,6 +32,17 @@ def level(value: float | None, warn: float, crit: float) -> str:
     if value >= crit:
         return "critical"
     if value >= warn:
+        return "warning"
+    return "ok"
+
+
+def backup_age_level(age_days: float | None, max_age_days: float) -> str:
+    """Older than the limit = warning, at least twice the limit = critical."""
+    if age_days is None:
+        return "unknown"
+    if age_days >= 2 * max_age_days:
+        return "critical"
+    if age_days > max_age_days:
         return "warning"
     return "ok"
 
@@ -48,8 +73,11 @@ def verdict(snap: dict[str, Any]) -> dict[str, Any]:
         add("node", node["name"], None, "critical")
     for storage in proxmox.get("storages") or []:
         add("storage", storage["name"], storage["percent"], level(storage["percent"], *DISK))
-    if (proxmox.get("backup") or {}).get("ok") is False:
+    backup = proxmox.get("backup") or {}
+    if backup.get("ok") is False:
         add("backup", node.get("name", ""), None, "warning")
+    if backup.get("age_days") is not None:
+        add("backup_age", node.get("name", ""), backup["age_days"], backup.get("age_level", ""))
     reasons.sort(key=lambda r: (_ORDER[r["level"]], _KIND[r["kind"]], -(r["value"] or 0)))
     # One temperature line is enough (all cores heat up together).
     seen_temp = False

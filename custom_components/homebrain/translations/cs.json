@@ -30,7 +30,8 @@
           "roles": "Uživatelé a role",
           "people": "Kdo je doma",
           "heating": "Topení – PLC Tecomat",
-          "communication": "Komunikační centrum"
+          "communication": "Komunikační centrum",
+          "server": "Server – zálohy"
         }
       },
       "waste": {
@@ -317,6 +318,13 @@
         "description": "Preference osob, skupiny a existující služby HA. Schéma a příklady: docs/communication.md. Žádné tokeny.",
         "data": {
           "communication": "Pravidla doručování"
+        }
+      },
+      "server": {
+        "title": "Server",
+        "description": "Zálohy Proxmox VE: poslední záloha starší než tento limit je upozornění, dvakrát starší je kritická.",
+        "data": {
+          "backup_max_age_days": "Limit stáří zálohy"
         }
       }
     },

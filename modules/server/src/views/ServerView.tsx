@@ -13,7 +13,10 @@ import {
 import { getServerApi, type ServerApi } from '../api.js';
 import {
   barTone,
+  daysAgoLabel,
+  daysLabel,
   diskName,
+  durationLabel,
   fmtBytes,
   fmtNum,
   fmtPct,
@@ -513,6 +516,68 @@ function ProxmoxStorage({ storages }: { storages: ProxmoxSnapshot['storages'] })
   );
 }
 
+function ProxmoxBackupCard({ backup }: { backup: ProxmoxSnapshot['backup'] }) {
+  const level = backup?.age_level;
+  const stale = level === 'warning' || level === 'critical';
+  const ageDays = backup?.age_days;
+  return (
+    <Card
+      className="srv-panel"
+      data-testid="server-proxmox-backup"
+      data-tone={stale ? levelTone(level) : undefined}
+    >
+      <div className="srv-panel-head">
+        <h3>Poslední záloha uzlu</h3>
+        {stale && (
+          <Pill tone={levelTone(level)} size="sm" data-testid="server-backup-stale">
+            Zastaralá
+          </Pill>
+        )}
+      </div>
+      {!backup?.last ? (
+        <p className="srv-note">Údaje o zálohách nejsou k dispozici</p>
+      ) : (
+        <dl className="srv-backup">
+          <div>
+            <dt>Kdy</dt>
+            <dd>
+              {ageDays != null && (
+                <b className="srv-backup-age" data-testid="server-backup-age">
+                  {daysAgoLabel(ageDays)}
+                </b>
+              )}
+              <time dateTime={backup.last}>
+                {new Date(backup.last).toLocaleString('cs-CZ', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </time>
+            </dd>
+          </div>
+          {backup.duration_s != null && (
+            <div>
+              <dt>Trvání</dt>
+              <dd>{durationLabel(backup.duration_s)}</dd>
+            </div>
+          )}
+          {backup.ok != null && (
+            <div>
+              <dt>Stav</dt>
+              <dd data-ok={backup.ok}>{backup.ok ? 'Úspěšná' : 'Selhala'}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {stale && ageDays != null && (
+        <p className="srv-note" data-testid="server-backup-warning">
+          Poslední záloha je stará {daysLabel(ageDays)} (limit{' '}
+          {daysLabel(backup?.max_age_days ?? 8)}).
+        </p>
+      )}
+    </Card>
+  );
+}
+
 function Proxmox({ snapshot }: { snapshot: ProxmoxSnapshot }) {
   if (snapshot.status === 'down') {
     return (
@@ -545,23 +610,7 @@ function Proxmox({ snapshot }: { snapshot: ProxmoxSnapshot }) {
       )}
       <ProxmoxGuests guests={guests} />
       {storages.length > 0 && <ProxmoxStorage storages={storages} />}
-      {backup && (
-        <Card className="srv-panel" data-testid="server-proxmox-backup">
-          <h3>Poslední záloha uzlu</h3>
-          <div className="srv-proxmox-details">
-            {backup.ok != null && <b>{backup.ok ? 'Úspěšná' : 'Selhala'}</b>}
-            {backup.last && (
-              <time dateTime={backup.last}>
-                {new Date(backup.last).toLocaleString('cs-CZ', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })}
-              </time>
-            )}
-            {backup.duration_s != null && <span>{fmtNum(backup.duration_s, 0)}&nbsp;s</span>}
-          </div>
-        </Card>
-      )}
+      <ProxmoxBackupCard backup={backup} />
     </section>
   );
 }

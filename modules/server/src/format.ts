@@ -49,6 +49,25 @@ export function uptimeLabel(since: string | null | undefined, now = Date.now()):
   return `běží ${mins}${NB}min`;
 }
 
+export const daysLabel = (days: number) =>
+  `${num(days, 0)}${NB}${czPlural(days, 'den', 'dny', 'dní')}`;
+
+/** „dnes“, „včera“, „před 395 dny“ from whole days. */
+export function daysAgoLabel(days: number): string {
+  if (days <= 0) return 'dnes';
+  if (days === 1) return 'včera';
+  return `před ${num(days, 0)}${NB}dny`;
+}
+
+/** 17 s, 3 min 5 s, 1 h 4 min. */
+export function durationLabel(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}${NB}s`;
+  const mins = Math.floor(s / 60);
+  if (mins < 60) return s % 60 ? `${mins}${NB}min ${s % 60}${NB}s` : `${mins}${NB}min`;
+  return `${Math.floor(mins / 60)}${NB}h ${mins % 60}${NB}min`;
+}
+
 /** Bucket means: 288 five-minute points → `buckets` calm points (no seismograph look). */
 export function smoothSeries(values: number[], buckets = 72): number[] {
   if (values.length <= buckets) return values;
@@ -76,6 +95,7 @@ function reasonText(r: ServerSnapshot['verdict']['reasons'][number]): string {
   if (r.kind === 'storage') return `úložiště ${r.label} ${fmtPct(r.value)}`;
   if (r.kind === 'node') return `uzel ${r.label} offline`;
   if (r.kind === 'backup') return 'záloha selhala';
+  if (r.kind === 'backup_age') return `poslední záloha je stará ${daysLabel(r.value ?? 0)}`;
   return `teplota ${r.label} ${fmtTemp(r.value)}`;
 }
 

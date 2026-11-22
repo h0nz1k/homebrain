@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homebrain.const import DOMAIN
@@ -16,7 +18,7 @@ from custom_components.homebrain.server import rules
 from custom_components.homebrain.server.discovery import build_snapshot, glances_entry
 from custom_components.homebrain.server.glances_api import GlancesApi, base_url
 from custom_components.homebrain.server.procs import parse_kvm, vms_from_processes
-from custom_components.homebrain.server.ws import async_snapshot
+from custom_components.homebrain.server.ws import async_snapshot, backup_max_age_days
 
 GIB = 1024**3
 MIB = 1024**2
@@ -407,7 +409,8 @@ def proxmox_entity(hass: HomeAssistant):
     return add
 
 
-async def test_proxmox_registry_and_units(hass: HomeAssistant, proxmox_entity) -> None:
+async def test_proxmox_registry_and_units(hass: HomeAssistant, proxmox_entity, freezer) -> None:
+    freezer.move_to("2026-10-31T08:00:00+00:00")
     add = proxmox_entity
     web = ("vm_101", "web-01")
     container = ("container_103", "db-ct")
@@ -440,7 +443,14 @@ async def test_proxmox_registry_and_units(hass: HomeAssistant, proxmox_entity) -
     snap = result["proxmox"]
     assert snap["status"] == "ok"
     assert snap["node"] == {"name": "node_demo", "status": "online", "up_since": PROXMOX_UP}
-    assert snap["backup"] == {"ok": True, "last": PROXMOX_BACKUP, "duration_s": 150}
+    assert snap["backup"] == {
+        "ok": True,
+        "last": PROXMOX_BACKUP,
+        "duration_s": 150,
+        "age_days": 0,
+        "max_age_days": 8,
+        "age_level": "ok",
+    }
     assert [guest["vmid"] for guest in snap["guests"]] == [101, 103, 102, 104, 105]
     vm, ct, stopped, binary_only, suspended = snap["guests"]
     assert vm == {
@@ -516,6 +526,104 @@ async def test_proxmox_verdict(hass, proxmox_entity, node, storage, backup, seve
     result = await async_snapshot(hass, use_api=False)
     assert result["verdict"]["severity"] == severity
     assert [reason["kind"] for reason in result["verdict"]["reasons"]] == reasons
+
+
+@pytest.mark.parametrize(
+    ("age", "limit", "level", "reasons"),
+    [
+        (1, None, "ok", []),
+        (8, None, "ok", []),
+        (10, None, "warning", [("backup_age", "warning", 10)]),
+        (20, None, "critical", [("backup_age", "critical", 20)]),
+        (395, None, "critical", [("backup_age", "critical", 395)]),
+        (10, 30, "ok", []),
+        (4, 3, "warning", [("backup_age", "warning", 4)]),
+        (6, 3, "critical", [("backup_age", "critical", 6)]),
+    ],
+)
+async def test_proxmox_backup_age(
+    hass, setup, proxmox_entity, freezer, age, limit, level, reasons
+) -> None:
+    freezer.move_to("2026-11-22T12:00:00+00:00")
+    if limit is not None:
+        hass.config_entries.async_update_entry(
+            setup, options={rules.OPTION: {rules.BACKUP_MAX_AGE: limit}}
+        )
+    last = dt_util.utcnow() - timedelta(days=age, hours=1)
+    add = proxmox_entity
+    add("node/demo_node_status", "node_status", "online")
+    add("node/demo_node_backup_status", "node_backup_status", "off", binary=True)
+    add("node/demo_node_backup_last_backup", "node_backup_last_backup", last.isoformat())
+    add("node/demo_node_backup_duration", "node_backup_duration", "17", "s")
+    result = await async_snapshot(hass, use_api=False)
+    backup = result["proxmox"]["backup"]
+    assert backup["ok"] is True
+    assert backup["duration_s"] == 17
+    assert (backup["age_days"], backup["max_age_days"], backup["age_level"]) == (
+        age,
+        limit or rules.BACKUP_MAX_AGE_DAYS,
+        level,
+    )
+    got = [(r["kind"], r["level"], r["value"]) for r in result["verdict"]["reasons"]]
+    assert got == reasons
+    assert result["verdict"]["severity"] == (level if reasons else "ok")
+
+
+@pytest.mark.parametrize("value", ["0", "abc", None, "1000"])
+async def test_backup_limit_invalid_falls_back(hass, setup, value) -> None:
+    hass.config_entries.async_update_entry(
+        setup, options={rules.OPTION: {rules.BACKUP_MAX_AGE: value}}
+    )
+    assert backup_max_age_days(hass) == rules.BACKUP_MAX_AGE_DAYS
+
+
+async def test_proxmox_backup_without_last_backup_sensor(hass, proxmox_entity, freezer) -> None:
+    freezer.move_to("2026-11-22T12:00:00+00:00")
+    add = proxmox_entity
+    add("node/demo_node_status", "node_status", "online")
+    add("node/demo_node_backup_status", "node_backup_status", "off", binary=True)
+    result = await async_snapshot(hass, use_api=False)
+    backup = result["proxmox"]["backup"]
+    assert (backup["ok"], backup["last"], backup["age_days"]) == (True, None, None)
+    assert backup["age_level"] == "unknown"
+    assert result["verdict"] == {"severity": "ok", "reasons": []}
+
+
+async def test_proxmox_without_any_backup_sensor(hass, proxmox_entity) -> None:
+    proxmox_entity("node/demo_node_status", "node_status", "online")
+    result = await async_snapshot(hass, use_api=False)
+    assert result["proxmox"]["backup"] is None
+    assert result["verdict"] == {"severity": "ok", "reasons": []}
+
+
+@pytest.mark.parametrize(("state", "ok", "reasons"), [("on", False, ["backup"]), ("off", True, [])])
+async def test_proxmox_backup_status_is_problem_sensor(
+    hass, proxmox_entity, freezer, state, ok, reasons
+) -> None:
+    """device_class problem: on = the backup failed, off = OK."""
+    freezer.move_to("2026-11-22T12:00:00+00:00")
+    add = proxmox_entity
+    add("node/demo_node_status", "node_status", "online")
+    add("node/demo_node_backup_status", "node_backup_status", state, binary=True)
+    add("node/demo_node_backup_last_backup", "node_backup_last_backup", "2026-11-22T02:00:00+00:00")
+    result = await async_snapshot(hass, use_api=False)
+    assert result["proxmox"]["backup"]["ok"] is ok
+    assert [r["kind"] for r in result["verdict"]["reasons"]] == reasons
+
+
+async def test_options_flow_backup_limit(hass, setup) -> None:
+    result = await hass.config_entries.options.async_init(setup.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "server"}
+    )
+    assert result["step_id"] == "server"
+    field = next(key for key in result["data_schema"].schema if str(key) == rules.BACKUP_MAX_AGE)
+    assert field.default() == rules.BACKUP_MAX_AGE_DAYS
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {rules.BACKUP_MAX_AGE: 14}
+    )
+    assert setup.options[rules.OPTION] == {rules.BACKUP_MAX_AGE: 14}
+    assert backup_max_age_days(hass) == 14
 
 
 async def test_glances_api_keeps_host_data_without_processes() -> None:

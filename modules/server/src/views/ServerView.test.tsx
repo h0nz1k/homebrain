@@ -70,6 +70,8 @@ describe('Proxmox VE', () => {
     expect(guests[2]?.textContent).not.toMatch(/RAM|CPU|Příjem|Odesílání/);
     expect(screen.getAllByTestId('server-proxmox-storage')).toHaveLength(2);
     expect(screen.getByTestId('server-proxmox-backup').textContent).toContain('Úspěšná');
+    expect(screen.getByTestId('server-backup-age').textContent).toBe('dnes');
+    expect(screen.queryByTestId('server-backup-stale')).toBeNull();
   });
 
   it('bez integrace ponechá odhad z Glances', async () => {
@@ -91,6 +93,32 @@ describe('Proxmox VE', () => {
       'Pozor: záloha selhala',
     );
     expect(screen.getByTestId('server-proxmox-backup').textContent).toContain('Selhala');
+  });
+
+  it('zastaralou zálohu ukáže relativně i absolutně a propíše do verdiktu', async () => {
+    show('proxmox-backup-stale');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `Kritické: poslední záloha je stará 395${NB}dní`,
+    );
+    const card = screen.getByTestId('server-proxmox-backup');
+    expect(card.getAttribute('data-tone')).toBe('crit');
+    expect(screen.getByTestId('server-backup-age').textContent).toBe(`před 395${NB}dny`);
+    expect(card.querySelector('time')?.getAttribute('dateTime')).toBeTruthy();
+    expect(card.textContent).toContain(`17${NB}s`);
+    expect(card.textContent).toContain('Úspěšná');
+    expect(screen.getByTestId('server-backup-stale').textContent).toBe('Zastaralá');
+    expect(screen.getByTestId('server-backup-warning').textContent).toContain(
+      `Poslední záloha je stará 395${NB}dní`,
+    );
+  });
+
+  it('bez senzoru zálohy nevaruje, jen řekne, že údaje chybí', async () => {
+    show('proxmox-backup-missing');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    const card = screen.getByTestId('server-proxmox-backup');
+    expect(card.textContent).toContain('Údaje o zálohách nejsou k dispozici');
+    expect(card.getAttribute('data-tone')).toBeNull();
+    expect(screen.queryByTestId('server-backup-stale')).toBeNull();
   });
 
   it('propíše kritické úložiště do verdiktu i pruhu', async () => {

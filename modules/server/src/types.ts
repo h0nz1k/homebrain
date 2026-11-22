@@ -1,7 +1,7 @@
 export type Level = 'ok' | 'warning' | 'critical' | 'unknown';
 
 export interface Reason {
-  kind: 'memory' | 'disk' | 'temperature' | 'storage' | 'backup' | 'node';
+  kind: 'memory' | 'disk' | 'temperature' | 'storage' | 'backup' | 'backup_age' | 'node';
   label: string;
   value: number | null;
   level: Level;
@@ -50,6 +50,15 @@ export interface ProxmoxGuest {
   netin_bytes?: number | null;
   netout_bytes?: number | null;
 }
+export interface ProxmoxBackup {
+  ok: boolean | null;
+  last: string | null;
+  duration_s: number | null;
+  /** Whole days since the last backup (server clock). */
+  age_days?: number | null;
+  max_age_days?: number;
+  age_level?: Level;
+}
 export interface ProxmoxSnapshot {
   status: 'ok' | 'down' | 'off';
   node: { name: string; status: string | null; up_since: string | null } | null;
@@ -63,7 +72,7 @@ export interface ProxmoxSnapshot {
     active: boolean | null;
     level: Level;
   }>;
-  backup: { ok: boolean | null; last: string | null; duration_s: number | null } | null;
+  backup: ProxmoxBackup | null;
 }
 export interface ServerSnapshot {
   available: boolean;
@@ -87,7 +96,7 @@ export interface ServerSnapshot {
   verdict: { severity: Level; reasons: Reason[] };
   vms?: { status: 'ok' | 'down' | 'off'; items: Vm[] };
   proxmox?: ProxmoxSnapshot;
-  thresholds?: { memory: [number, number]; disk: [number, number] };
+  thresholds?: { memory: [number, number]; disk: [number, number]; backup_days?: number };
 }
 export type SeriesKey = 'cpu' | 'memory' | 'temperature' | 'rx' | 'tx';
 export interface ServerHistory {

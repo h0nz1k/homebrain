@@ -22,6 +22,8 @@ export type ServerScenario =
   | 'proxmox-off'
   | 'proxmox-down'
   | 'proxmox-backup-failed'
+  | 'proxmox-backup-stale'
+  | 'proxmox-backup-missing'
   | 'proxmox-storage-critical';
 
 const GIB = 1024 ** 3;
@@ -35,6 +37,25 @@ const VMS: Vm[] = [
   { vmid: 103, name: 'media', cpu_percent: 2.1, mem_bytes: 4.1 * GIB, mem_percent: 13.1 },
   { vmid: 104, name: 'lab', cpu_percent: 0.4, mem_bytes: 1.5 * GIB, mem_percent: 4.8 },
 ];
+
+const BACKUP_DAYS = 8;
+
+function mockBackup(scenario: ServerScenario): ProxmoxSnapshot['backup'] {
+  if (scenario === 'proxmox-backup-missing') return null;
+  const stale = scenario === 'proxmox-backup-stale';
+  const days = stale ? 395 : 0;
+  return {
+    ok: scenario !== 'proxmox-backup-failed',
+    last: new Date(Date.now() - (stale ? days * 24 + 3 : 12) * 3600_000).toISOString(),
+    duration_s: stale ? 17 : 185,
+    age_days: days,
+    max_age_days: BACKUP_DAYS,
+    age_level: lvlBackup(days),
+  };
+}
+
+const lvlBackup = (days: number): Level =>
+  days >= 2 * BACKUP_DAYS ? 'critical' : days > BACKUP_DAYS ? 'warning' : 'ok';
 
 function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
   const empty = { node: null, guests: [], storages: [], backup: null };
@@ -97,11 +118,7 @@ function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
         level: lvl(poolPct, 85, 95),
       },
     ],
-    backup: {
-      ok: scenario !== 'proxmox-backup-failed',
-      last: new Date(Date.now() - 12 * 3600_000).toISOString(),
-      duration_s: 185,
-    },
+    backup: mockBackup(scenario),
   };
 }
 
@@ -137,6 +154,14 @@ export function createMockSnapshot(scenario: ServerScenario = 'ok'): ServerSnaps
   }
   if (proxmox.backup?.ok === false)
     reasons.push({ kind: 'backup', label: '', value: null, level: 'warning' });
+  const backupAge = proxmox.backup?.age_level;
+  if (backupAge === 'warning' || backupAge === 'critical')
+    reasons.push({
+      kind: 'backup_age',
+      label: '',
+      value: proxmox.backup?.age_days ?? null,
+      level: backupAge,
+    });
   if (rootPct >= 85)
     reasons.push({ kind: 'disk', label: '/', value: rootPct, level: lvl(rootPct, 85, 95) });
   if (memPct >= 85)

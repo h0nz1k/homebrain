@@ -85,4 +85,48 @@ test.describe('Server', () => {
     await page.setViewportSize({ width: 800, height: 1280 });
     await noSidewaysScroll(page);
   });
+
+  test('zastaralá záloha: verdikt, karta a bez vodorovného posunu (360/800/1280)', async ({
+    page,
+  }) => {
+    await page.goto('/homebrain-server?server=proxmox-backup-stale&theme=light');
+    await expect(page.getByTestId('server-headline')).toHaveText(
+      /^Kritické: poslední záloha je stará 395\sdní$/,
+      { timeout: 20_000 },
+    );
+    const card = page.getByTestId('server-proxmox-backup');
+    await expect(card).toHaveAttribute('data-tone', 'crit');
+    await expect(page.getByTestId('server-backup-age')).toHaveText(/^před 395\sdny$/);
+    await expect(card).toContainText(/17\ss/);
+    await expect(card).toContainText('Úspěšná');
+    for (const [width, height] of [
+      [360, 800],
+      [800, 1280],
+      [1280, 900],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await noSidewaysScroll(page);
+      const spill = await card.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return Array.from(el.querySelectorAll('*'))
+          .map((child) => child.getBoundingClientRect())
+          .filter((r) => r.width > 0 && (r.right > box.right + 1 || r.left < box.left - 1)).length;
+      });
+      expect(spill).toBe(0);
+      if (process.env.SERVER_SCREENSHOTS) {
+        await page.screenshot({
+          path: `test-results/server-r2/server-backup-stale-${width}.png`,
+          fullPage: true,
+        });
+      }
+    }
+  });
+
+  test('bez senzoru zálohy jen poznámka, žádné varování', async ({ page }) => {
+    await page.goto('/homebrain-server?server=proxmox-backup-missing');
+    await expect(page.getByTestId('server-headline')).toHaveText('V pořádku', { timeout: 20_000 });
+    await expect(page.getByTestId('server-proxmox-backup')).toContainText(
+      'Údaje o zálohách nejsou k dispozici',
+    );
+  });
 });

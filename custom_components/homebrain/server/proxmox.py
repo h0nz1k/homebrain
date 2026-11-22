@@ -108,7 +108,30 @@ def _storage(node: str, name: str, states: States) -> dict[str, Any]:
     }
 
 
-def build_proxmox(hass: HomeAssistant) -> dict[str, Any]:
+def _backup(node: States, max_age_days: float) -> dict[str, Any] | None:
+    # The integration's backup status is a `problem` binary sensor: on = failed, off = OK.
+    problem = _binary(node, "node_backup_status")
+    last = _timestamp(node, "node_backup_last_backup")
+    backup = {
+        "ok": None if problem is None else not problem,
+        "last": last,
+        "duration_s": _number(node, "node_backup_duration", _DURATION),
+    }
+    if all(value is None for value in backup.values()):
+        return None
+    parsed = dt_util.parse_datetime(last) if last else None
+    age = max(0, (dt_util.utcnow() - dt_util.as_utc(parsed)).days) if parsed else None
+    return {
+        **backup,
+        "age_days": age,
+        "max_age_days": max_age_days,
+        "age_level": rules.backup_age_level(age, max_age_days),
+    }
+
+
+def build_proxmox(
+    hass: HomeAssistant, backup_max_age_days: float = rules.BACKUP_MAX_AGE_DAYS
+) -> dict[str, Any]:
     entries = hass.config_entries.async_entries(PROXMOX)
     result: dict[str, Any] = {
         "status": "off",
@@ -222,14 +245,7 @@ def build_proxmox(hass: HomeAssistant) -> dict[str, Any]:
             "status": _node_status(node),
             "up_since": _timestamp(node, "node_uptime") or _timestamp(node, "uptime"),
         }
-        problem = _binary(node, "node_backup_status")
-        backup = {
-            "ok": None if problem is None else not problem,
-            "last": _timestamp(node, "node_backup_last_backup"),
-            "duration_s": _number(node, "node_backup_duration", _DURATION),
-        }
-        if any(value is not None for value in backup.values()):
-            result["backup"] = backup
+        result["backup"] = _backup(node, backup_max_age_days)
 
     for (vmid, kind), states in sorted(guests.items()):
         if vmid in running:

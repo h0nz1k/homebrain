@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   barTone,
+  daysAgoLabel,
+  daysLabel,
   diskName,
+  durationLabel,
   fmtBytes,
   fmtPct,
   fmtRate,
@@ -80,5 +83,19 @@ describe('virtuální stroje', () => {
     expect(rows.map((r) => r.vmid)).toEqual([101, 102, 103, 104]);
     expect(rows[0]!.memShare).toBeGreaterThan(rows[1]!.memShare);
     expect(rows[0]!.memLabel).toBe(`8,0${NB}GiB`);
+  });
+});
+
+describe('zálohy', () => {
+  it('relativní stáří, dny a trvání česky', () => {
+    expect(daysAgoLabel(0)).toBe('dnes');
+    expect(daysAgoLabel(1)).toBe('včera');
+    expect(daysAgoLabel(395)).toBe(`před 395${NB}dny`);
+    expect(daysLabel(1)).toBe(`1${NB}den`);
+    expect(daysLabel(3)).toBe(`3${NB}dny`);
+    expect(daysLabel(10)).toBe(`10${NB}dní`);
+    expect(durationLabel(17)).toBe(`17${NB}s`);
+    expect(durationLabel(185)).toBe(`3${NB}min 5${NB}s`);
+    expect(durationLabel(3840)).toBe(`1${NB}h 4${NB}min`);
   });
 });

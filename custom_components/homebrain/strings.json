@@ -30,7 +30,8 @@
           "roles": "Users and roles",
           "people": "Who is home",
           "heating": "Heating – Tecomat PLC",
-          "communication": "Communication hub"
+          "communication": "Communication hub",
+          "server": "Server – backups"
         }
       },
       "waste": {
@@ -317,6 +318,13 @@
         "description": "People, groups and existing HA services. Schema and examples: docs/communication.md. No tokens.",
         "data": {
           "communication": "Routing settings"
+        }
+      },
+      "server": {
+        "title": "Server",
+        "description": "Proxmox VE backups: the last backup older than this limit is a warning, twice as old is critical.",
+        "data": {
+          "backup_max_age_days": "Backup age limit"
         }
       }
     },
