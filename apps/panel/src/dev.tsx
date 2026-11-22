@@ -204,7 +204,7 @@ const networkApi = createMockNetworkApi({
   unifi: recipesQuery.get('unifi') === '1',
 });
 setNetworkApiFactory(() => networkApi);
-// Server scenarios are defined by ServerScenario in the mock module.
+// Server: synthetic Proxmox host with 4 VMs. `?server=ok|warn|crit|down|unconfigured|noapi|apidown`.
 const serverApi = createMockServerApi({
   scenario: (recipesQuery.get('server') as ServerScenario | null) ?? 'ok',
 });

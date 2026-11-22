@@ -487,22 +487,27 @@ function ProxmoxStorage({ storages }: { storages: ProxmoxSnapshot['storages'] })
     <Card className="srv-panel">
       <h3>Úložiště Proxmoxu</h3>
       <ul className="srv-list srv-proxmox-rows">
-        {storages.map((storage) => (
-          <li
-            key={JSON.stringify([storage.node, storage.name])}
-            data-testid="server-proxmox-storage"
-          >
-            <div className="srv-proxmox-row-head">
-              <b>{storage.name}</b>
-              <small>{storage.node}</small>
-              {storage.active != null && <small>{storage.active ? 'Aktivní' : 'Neaktivní'}</small>}
-            </div>
-            {storage.percent != null && (
-              <Bar value={storage.percent} tone={levelTone(storage.level)} label={storage.name} />
-            )}
-            <small>{capacity(storage.used_bytes, storage.total_bytes, storage.percent)}</small>
-          </li>
-        ))}
+        {storages.map((storage) => {
+          const usage = capacity(storage.used_bytes, storage.total_bytes, storage.percent);
+          return (
+            <li
+              key={JSON.stringify([storage.node, storage.name])}
+              data-testid="server-proxmox-storage"
+            >
+              <div className="srv-proxmox-row-head">
+                <b>{storage.name}</b>
+                <small>{storage.node}</small>
+                {storage.active != null && (
+                  <small>{storage.active ? 'Aktivní' : 'Neaktivní'}</small>
+                )}
+              </div>
+              {storage.percent != null && (
+                <Bar value={storage.percent} tone={levelTone(storage.level)} label={storage.name} />
+              )}
+              {usage && <small>{usage}</small>}
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );

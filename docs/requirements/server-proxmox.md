@@ -14,3 +14,5 @@ a jejich historie pocházejí z Glances.
   „Proxmox nedostupný“ a dál ukazuje dostupná data z Glances.
 
 Data z Proxmoxu jsou dostupná administrátorům přes `homebrain/server/get`.
+
+Syntetická data pro vývoj: `/homebrain-server?server=proxmox-ok`.
