@@ -28,6 +28,7 @@ import { choreManagementError } from '../errors.js';
 import { newRequestId } from '../uid.js';
 import {
   choreNote,
+  choreApprovalKind,
   choreTally,
   eventWho,
   formatOutOf,
@@ -71,8 +72,8 @@ import {
 const POLL_MS = 60_000;
 /** „Udělal jsem“ on a free task: the claim is sent to ChoreOps only after this undo window. */
 export const CLAIM_UNDO_MS = 5000;
-/** Calendar categories use non-person hues (blue-grey, amber) so they never read as a kid. */
-export const SRC_COLOR = { family: '#8a9bb8', school: '#e0a23a' } as const;
+/** Calendar categories use blue-grey and green, independently of people and approvals. */
+export const SRC_COLOR = { family: '#8a9bb8', school: '#54b765' } as const;
 const KID_COLORS = ['#e879a8', '#2dd4bf', '#f59e0b', '#a78bfa'];
 
 /** Phone layout (same breakpoint as the stacked grid in familyStyles). */
@@ -182,6 +183,19 @@ function FamilyAvatar() {
   );
 }
 
+function CategoryIcon({ kind }: { kind: FamilyEvent['kind'] }) {
+  return (
+    <span
+      className="fam-category-icon"
+      data-category={kind}
+      role="img"
+      aria-label={kind === 'school' ? 'Škola' : 'Rodina'}
+    >
+      <Icon name={kind === 'school' ? 'school' : 'calendar'} size={20} />
+    </span>
+  );
+}
+
 /** Fixed avatar column of event rows: the person(s) or the family placeholder. */
 function EventLead({
   ids,
@@ -199,7 +213,7 @@ function EventLead({
   );
 }
 
-function Legend({ snap }: { snap: FamilySnapshot }) {
+function Legend({ snap, kiosk }: { snap: FamilySnapshot; kiosk: boolean }) {
   const kinds = (['family', 'school'] as const).filter((k) =>
     snap.calendars.some((c) => c.kind === k),
   );
@@ -208,6 +222,11 @@ function Legend({ snap }: { snap: FamilySnapshot }) {
     <span className="fam-legend" data-testid="family-legend">
       {kinds.map((k) => (
         <span key={k} style={{ '--fam-src': SRC_COLOR[k] } as React.CSSProperties}>
+          {kiosk && (
+            <span aria-hidden="true">
+              <CategoryIcon kind={k} />
+            </span>
+          )}
           {k === 'school' ? 'Škola' : 'Rodina'}
         </span>
       ))}
@@ -220,11 +239,13 @@ function TodayCard({
   now,
   admin,
   members,
+  kiosk,
 }: {
   snap: FamilySnapshot;
   now: Date;
   admin: boolean;
   members: Member[];
+  kiosk: boolean;
 }) {
   const today = todayEvents(snap.events, now);
   const next = today.find((event) => !event.all_day && new Date(event.start) > now);
@@ -274,11 +295,14 @@ function TodayCard({
                         {timeRange(ev)}
                       </time>
                     )}
-                    <i />
+                    {!kiosk && <i />}
                     <div className="fam-ev-t">
-                      <EventLead ids={who} members={members} />
-                      <div>
-                        <b>{title}</b>
+                      {!kiosk && <EventLead ids={who} members={members} />}
+                      <div className="fam-ev-copy">
+                        {kiosk && ev.kind === 'school' && (
+                          <span className="fam-school-bar" role="img" aria-label="Škola" />
+                        )}
+                        <b title={kiosk ? title : undefined}>{title}</b>
                         {(running || ev.id === next?.id) && (
                           <span
                             className="fam-event-state"
@@ -295,7 +319,8 @@ function TodayCard({
                         )}
                       </div>
                     </div>
-                    {ev.kind === 'school' ? <SchoolTag ev={ev} /> : <span />}
+                    {kiosk && <EventLead ids={who} members={members} />}
+                    {!kiosk && ev.kind === 'school' && <SchoolTag ev={ev} />}
                   </li>
                 );
               })}
@@ -310,13 +335,23 @@ function TodayCard({
   );
 }
 
-function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; members: Member[] }) {
+function WeekCard({
+  snap,
+  now,
+  members,
+  kiosk,
+}: {
+  snap: FamilySnapshot;
+  now: Date;
+  members: Member[];
+  kiosk: boolean;
+}) {
   if (snap.calendars.length === 0) return null;
   return (
     <Card className="fam-card" data-testid="family-week">
       <div className="fam-card-h">
         <h2>Příštích 7 dní</h2>
-        <Legend snap={snap} />
+        <Legend snap={snap} kiosk={kiosk} />
       </div>
       <div className="fam-days">
         {nextDays(snap.events, now).map((day) => (
@@ -339,28 +374,33 @@ function WeekCard({ snap, now, members }: { snap: FamilySnapshot; now: Date; mem
                       <span className="fam-wk-time">
                         {ev.all_day ? 'celý den' : timeLabel(ev.start)}
                       </span>
-                      <i aria-hidden="true" />
+                      {!kiosk && <i aria-hidden="true" />}
                       <span className="fam-wk-t">
-                        <EventLead ids={who} members={members} family={false} />
-                        <em>
-                          {title}
-                          {ev.kind === 'school' && (
-                            <>
-                              {'\u00a0'}
-                              <span
-                                className="fam-wk-school"
-                                title="Škola"
-                                data-testid="family-school-cap"
-                              >
-                                <Icon name="school" size={16} label="Škola" />
-                              </span>
-                            </>
-                          )}
-                        </em>
+                        {!kiosk && <EventLead ids={who} members={members} family={false} />}
+                        {kiosk && ev.kind === 'school' && (
+                          <span className="fam-school-bar" role="img" aria-label="Škola" />
+                        )}
+                        {!kiosk && ev.kind === 'school' && (
+                          <span
+                            className="fam-wk-school"
+                            title="Škola"
+                            data-testid="family-school-cap"
+                          >
+                            <Icon name="school" size={16} label="Škola" />
+                          </span>
+                        )}
+                        <em title={kiosk ? title : undefined}>{title}</em>
                       </span>
+                      {kiosk && <EventLead ids={who} members={members} family={false} />}
                     </li>
                   );
                 })}
+              </ul>
+            ) : kiosk ? (
+              <ul>
+                <li className="fam-week-empty">
+                  <span className="fam-free">Nic v plánu</span>
+                </li>
               </ul>
             ) : (
               <p className="fam-free">Nic v plánu</p>
@@ -382,6 +422,7 @@ interface Actions {
 }
 
 type ChoreRow = FamilyKid['chores'][number];
+const KIOSK_CHORE_LIMIT = 3;
 
 /**
  * Today's row the viewer can still act on (tick off / hand over): every such row – and only
@@ -452,7 +493,7 @@ function PendingPill({ kind, recipient }: { kind: 'swap' | 'completion'; recipie
 function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'warn' | 'crit' } }) {
   const swap = c.swap_today;
   const deadline =
-    note.text && c.state !== 'claimed' && c.state !== 'done' ? (
+    note.text && note.tone !== 'warn' ? (
       <small data-tone={note.tone} className="fam-due">
         {note.text.replace(/^Do /, 'do ')}
       </small>
@@ -463,8 +504,7 @@ function ChoreMeta({ c, note }: { c: ChoreRow; note: { text: string; tone?: 'war
         <SwapTag swap={swap} />
       </div>
     );
-  const pending =
-    swap?.kind === 'pending_give' ? 'swap' : c.state === 'claimed' ? 'completion' : null;
+  const pending = choreApprovalKind(c);
   if (!pending && !deadline && !swap) return null;
   // Deadline always first (same place in every row), then the status chips.
   return (
@@ -578,13 +618,13 @@ function UpcomingList({
                   />
                 </span>
               ) : (
-                <span className="fam-menu-slot" aria-hidden="true" />
+                !kiosk && <span className="fam-menu-slot" aria-hidden="true" />
               )}
             </li>
           );
         })}
       </ul>
-      {more > 0 && (
+      {!kiosk && more > 0 && (
         <p className="fam-upcoming-more" data-testid="family-upcoming-more">
           a {more} další
         </p>
@@ -600,6 +640,48 @@ const capFirst = (s: string) => s.charAt(0).toLocaleUpperCase('cs') + s.slice(1)
  */
 function Pts({ value, className }: { value: number | null; className: string }) {
   return <span className={className}>{pointsLabel(value)}</span>;
+}
+
+function OverflowChip({
+  label,
+  testId,
+  onClick,
+  pending,
+  context,
+  expanded,
+  controls,
+}: {
+  label: string;
+  testId: string;
+  onClick(): void;
+  pending?: number;
+  context?: string;
+  expanded?: boolean;
+  controls?: string;
+}) {
+  const pendingLabel = pending ? czCount(pending, 'čeká', 'čekají', 'čeká') : '';
+  return (
+    <button
+      type="button"
+      className="fam-overflow-chip"
+      data-testid={testId}
+      aria-label={context ? [label, pendingLabel, context].filter(Boolean).join(' · ') : undefined}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onClick}
+    >
+      <span>
+        {label}
+        {pendingLabel && (
+          <>
+            {' · '}
+            <span data-status="pending">{pendingLabel}</span>
+          </>
+        )}
+      </span>
+      <Icon name="chevron" size={18} />
+    </button>
+  );
 }
 
 function KidCard({
@@ -633,12 +715,17 @@ function KidCard({
   const [open, setOpen] = useState(true);
   const [showDone, setShowDone] = useState(false);
   const bodyId = useId();
-  const active = kid.chores.filter((c) => c.counts_today !== false);
+  const active = kid.chores.filter(
+    (c) => c.counts_today !== false && c.swap_today?.kind !== 'transferred_out',
+  );
   const t = choreTally(active);
-  const sorted = sortChores(kid.chores);
+  const sorted = sortChores(compact ? active : kid.chores);
   const fold = compact || (collapseDone && !showDone);
   const doneRows = sorted.filter((c) => c.state === 'done');
-  const rows = fold ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const remaining = fold ? sorted.filter((c) => c.state !== 'done') : sorted;
+  const rows = compact && onPerson ? remaining.slice(0, KIOSK_CHORE_LIMIT) : remaining;
+  const hidden = remaining.slice(rows.length);
+  const hiddenPending = hidden.filter(choreApprovalKind).length;
   const progress = t.total ? `${formatOutOf(t.done, t.total)} hotovo` : 'Dnes nic';
   // Every row reserves the same trailing slot (menu button, done-expander or an empty
   // spacer) whenever any row can have one, so the points column lines up in each list.
@@ -686,9 +773,16 @@ function KidCard({
           </span>
         </button>
       ) : onPerson ? (
-        <button type="button" className="fam-kid-h fam-kid-toggle" onClick={onPerson}>
-          {head}
-        </button>
+        <div className="fam-kid-heading">
+          <button type="button" className="fam-kid-h fam-kid-toggle" onClick={onPerson}>
+            {head}
+          </button>
+          {compact && doneRows.length > 0 && (
+            <span className="fam-kid-done" data-testid="family-done-summary">
+              Hotovo: {doneRows.length}
+            </span>
+          )}
+        </div>
       ) : (
         <div className="fam-kid-h">{head}</div>
       )}
@@ -872,7 +966,7 @@ function KidCard({
               </li>
             );
           })}
-          {fold && doneRows.length > 0 && (
+          {fold && doneRows.length > 0 && (!compact || !onPerson) && (
             <li className="fam-chore fam-done-sum" data-testid="family-done-summary">
               <span className="fam-done-sum-i" aria-hidden="true">
                 <Check />
@@ -906,14 +1000,25 @@ function KidCard({
             </li>
           )}
         </ul>
-        <UpcomingList
-          kid={kid}
-          now={now}
-          compact={compact || self}
-          kiosk={compact}
-          highlight={highlight}
-          onMenu={act.onMenu}
-        />
+        {hidden.length > 0 && onPerson && (
+          <OverflowChip
+            label={`Další ${hidden.length} dnes`}
+            pending={hiddenPending}
+            context={kid.name}
+            testId="family-chores-more"
+            onClick={onPerson}
+          />
+        )}
+        {(!compact || rows.length < KIOSK_CHORE_LIMIT) && (
+          <UpcomingList
+            kid={kid}
+            now={now}
+            compact={compact || self}
+            kiosk={compact}
+            highlight={highlight}
+            onMenu={act.onMenu}
+          />
+        )}
       </div>
     </article>
   );
@@ -949,7 +1054,13 @@ function ChoresCard({
 }) {
   const approvals = useApprovals(snap);
   if (snap.kids.length === 0 && !approvals.length) return null;
-  const waiting = approvals.length;
+  const waiting =
+    snap.role === 'kiosk'
+      ? (snap.members ?? snap.kids).reduce(
+          (total, member) => total + member.chores.filter(choreApprovalKind).length,
+          0,
+        )
+      : approvals.length;
   const parent = snap.role === 'owner' || snap.role === 'adult';
   const child = snap.role === 'child';
   const viewer = child && snap.kids.length === 1 ? snap.kids[0]! : null;
@@ -1031,6 +1142,12 @@ function ShoppingCard({
   busy: string | null;
 }) {
   const [text, setText] = useState('');
+  const [expanded, setExpanded] = useState(false);
+  const moreId = useId();
+  const moreItems = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (expanded) moreItems.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [expanded]);
   if (!snap.shopping) return null;
   const open = snap.shopping.items.filter((i) => !i.done);
   const done = snap.shopping.items.filter((i) => i.done);
@@ -1096,7 +1213,24 @@ function ShoppingCard({
           <ul className="fam-items">{done.slice(0, 6).map(row)}</ul>
         </>
       )}
-      {hiddenCount > 0 && <p className="fam-shop-more">a {hiddenCount} další</p>}
+      {hiddenCount > 0 && (
+        <>
+          <OverflowChip
+            label={
+              expanded
+                ? 'Skrýt další položky'
+                : `Další ${czCount(hiddenCount, 'položka', 'položky', 'položek')}`
+            }
+            testId="family-shop-more"
+            expanded={expanded}
+            controls={moreId}
+            onClick={() => setExpanded((value) => !value)}
+          />
+          <div id={moreId} ref={moreItems} hidden={!expanded}>
+            {expanded && <ul className="fam-items">{open.slice(visibleOpen.length).map(row)}</ul>}
+          </div>
+        </>
+      )}
     </Card>
   );
 }
@@ -1363,11 +1497,21 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       {node}
     </div>
   );
+  const overviewTime = kiosk ? clock : now;
   const today = slot(
     'today',
-    <TodayCard snap={activeSnapshot} now={now} admin={admin} members={calendarMembers} />,
+    <TodayCard
+      snap={activeSnapshot}
+      now={overviewTime}
+      admin={admin}
+      members={calendarMembers}
+      kiosk={!!kiosk}
+    />,
   );
-  const week = slot('week', <WeekCard snap={activeSnapshot} now={now} members={calendarMembers} />);
+  const week = slot(
+    'week',
+    <WeekCard snap={activeSnapshot} now={overviewTime} members={calendarMembers} kiosk={!!kiosk} />,
+  );
   const chores = slot(
     'chores',
     <ChoresCard
@@ -1493,6 +1637,11 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   const freeSlot = free.length
     ? slot('free', <FreeTasks rows={free} members={familyMembers} />)
     : null;
+  const next = kiosk
+    ? todayEvents(activeSnapshot.events, clock).find(
+        (event) => !event.all_day && new Date(event.start) > clock,
+      )
+    : undefined;
   if (selected || editingPersons) {
     return (
       <div
@@ -1549,6 +1698,14 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
           </time>
         )}
         <p>{longDate(kiosk ? clock : now)}</p>
+        {next && (
+          <div className="fam-head-next" data-testid="family-next-event">
+            <span>Další událost</span>
+            <strong>
+              <time>{timeLabel(next.start)}</time> {eventWho(next, calendarMembers).title}
+            </strong>
+          </div>
+        )}
         {admin && snap.members && (
           <Button
             variant="ghost"
