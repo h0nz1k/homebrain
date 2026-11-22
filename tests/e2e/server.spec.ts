@@ -73,4 +73,16 @@ test.describe('Server', () => {
     expect(spill).toBe(0);
     await noSidewaysScroll(page);
   });
+
+  test('data Proxmoxu se vejdou na telefon i tablet', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/homebrain-server?server=proxmox-ok');
+    const guests = page.getByTestId('server-proxmox-guest');
+    await expect(guests).toHaveCount(3, { timeout: 20_000 });
+    await expect(guests.last()).toContainText('Vypnuto');
+    await expect(page.getByTestId('server-proxmox-backup')).toBeVisible();
+    await noSidewaysScroll(page);
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await noSidewaysScroll(page);
+  });
 });

@@ -36,8 +36,16 @@ def _first_list(payload: Any) -> list:
 class GlancesApi:
     """Lazy fetch with a 30 s cache (also after a failure: no 5 s timeout on every poll)."""
 
-    def __init__(self, url: str, fetch: Fetch, clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        url: str,
+        fetch: Fetch,
+        clock: Callable[[], float] = time.monotonic,
+        *,
+        collect_vms: bool = True,
+    ):
         self.url = url
+        self.collect_vms = collect_vms
         self._fetch = fetch
         self._clock = clock
         self._at: float | None = None
@@ -47,10 +55,12 @@ class GlancesApi:
     async def _load(self) -> dict[str, Any] | None:
         try:
             async with asyncio.timeout(TIMEOUT_S):
-                try:
-                    procs = _first_list(await self._fetch("/processlist/name/kvm"))
-                except LookupError:
-                    procs = _first_list(await self._fetch("/processlist"))
+                procs = []
+                if self.collect_vms:
+                    try:
+                        procs = _first_list(await self._fetch("/processlist/name/kvm"))
+                    except LookupError:
+                        procs = _first_list(await self._fetch("/processlist"))
                 sensors = await self._fetch("/sensors")
                 core = await self._fetch("/core")
         except Exception:  # noqa: BLE001 - any network/JSON error = calm "down" state

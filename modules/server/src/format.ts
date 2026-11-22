@@ -73,6 +73,9 @@ function reasonText(r: ServerSnapshot['verdict']['reasons'][number]): string {
   if (r.kind === 'memory') return `paměť ${fmtPct(r.value)}`;
   if (r.kind === 'disk')
     return `${r.label === '/' ? 'systémový disk' : `disk ${r.label}`} ${fmtPct(r.value)}`;
+  if (r.kind === 'storage') return `úložiště ${r.label} ${fmtPct(r.value)}`;
+  if (r.kind === 'node') return `uzel ${r.label} offline`;
+  if (r.kind === 'backup') return 'záloha selhala';
   return `teplota ${r.label} ${fmtTemp(r.value)}`;
 }
 
@@ -84,7 +87,7 @@ export interface HeroModel {
 }
 
 export function heroModel(snap: ServerSnapshot): HeroModel {
-  if (snap.state !== 'ok')
+  if (snap.state !== 'ok' && snap.verdict.reasons.length === 0)
     return {
       tone: 'neutral',
       badge: 'Bez dat',

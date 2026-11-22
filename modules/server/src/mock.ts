@@ -1,8 +1,28 @@
 import type { ServerApi } from './api.js';
-import type { Level, Reason, ServerHistory, ServerSnapshot, Vm } from './types.js';
+import type {
+  Level,
+  ProxmoxGuest,
+  ProxmoxSnapshot,
+  Reason,
+  ServerHistory,
+  ServerSnapshot,
+  Vm,
+} from './types.js';
 
 /** Synthetic home server (no real hosts, addresses or VM names). */
-export type ServerScenario = 'ok' | 'warn' | 'crit' | 'down' | 'unconfigured' | 'noapi' | 'apidown';
+export type ServerScenario =
+  | 'ok'
+  | 'warn'
+  | 'crit'
+  | 'down'
+  | 'unconfigured'
+  | 'noapi'
+  | 'apidown'
+  | 'proxmox-ok'
+  | 'proxmox-off'
+  | 'proxmox-down'
+  | 'proxmox-backup-failed'
+  | 'proxmox-storage-critical';
 
 const GIB = 1024 ** 3;
 const TOTAL = 31.2 * GIB;
@@ -15,6 +35,75 @@ const VMS: Vm[] = [
   { vmid: 103, name: 'media', cpu_percent: 2.1, mem_bytes: 4.1 * GIB, mem_percent: 13.1 },
   { vmid: 104, name: 'lab', cpu_percent: 0.4, mem_bytes: 1.5 * GIB, mem_percent: 4.8 },
 ];
+
+function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
+  const empty = { node: null, guests: [], storages: [], backup: null };
+  if (scenario === 'proxmox-down') return { status: 'down', ...empty };
+  if (!scenario.startsWith('proxmox-') || scenario === 'proxmox-off')
+    return { status: 'off', ...empty };
+
+  const guest: ProxmoxGuest = {
+    vmid: 101,
+    name: 'web-01',
+    kind: 'vm',
+    status: 'running',
+    cpu_percent: 6,
+    mem_bytes: 2 * GIB,
+    mem_max_bytes: 8 * GIB,
+    mem_percent: 25,
+    up_since: new Date(Date.now() - 8 * 3600_000).toISOString(),
+    disk_percent: null,
+    netin_bps: null,
+    netout_bps: null,
+    netin_bytes: 12 * GIB,
+  };
+  const poolPct = scenario === 'proxmox-storage-critical' ? 96 : 42;
+  return {
+    status: 'ok',
+    node: { name: 'node-demo', status: 'online', up_since: guest.up_since },
+    guests: [
+      guest,
+      { ...guest, vmid: 103, name: 'db-ct', kind: 'ct', disk_percent: 58, netin_bytes: null },
+      {
+        ...guest,
+        vmid: 102,
+        name: 'batch-01',
+        status: 'stopped',
+        cpu_percent: null,
+        mem_bytes: null,
+        mem_max_bytes: null,
+        mem_percent: null,
+        up_since: null,
+        netin_bytes: null,
+      },
+    ],
+    storages: [
+      {
+        name: 'local',
+        node: 'node-demo',
+        percent: 22,
+        used_bytes: 22 * GIB,
+        total_bytes: 100 * GIB,
+        active: true,
+        level: 'ok',
+      },
+      {
+        name: 'local-lvm',
+        node: 'node-demo',
+        percent: poolPct,
+        used_bytes: poolPct * 5 * GIB,
+        total_bytes: 500 * GIB,
+        active: true,
+        level: lvl(poolPct, 85, 95),
+      },
+    ],
+    backup: {
+      ok: scenario !== 'proxmox-backup-failed',
+      last: new Date(Date.now() - 12 * 3600_000).toISOString(),
+      duration_s: 185,
+    },
+  };
+}
 
 export function createMockSnapshot(scenario: ServerScenario = 'ok'): ServerSnapshot {
   if (scenario === 'unconfigured')
@@ -35,7 +124,19 @@ export function createMockSnapshot(scenario: ServerScenario = 'ok'): ServerSnaps
     };
   const memPct = scenario === 'warn' ? 87.2 : scenario === 'crit' ? 88.4 : 64.8;
   const rootPct = scenario === 'crit' ? 96.1 : 41.0;
+  const proxmox = mockProxmox(scenario);
   const reasons: Reason[] = [];
+  for (const storage of proxmox.storages) {
+    if (storage.level === 'critical')
+      reasons.push({
+        kind: 'storage',
+        label: storage.name,
+        value: storage.percent,
+        level: storage.level,
+      });
+  }
+  if (proxmox.backup?.ok === false)
+    reasons.push({ kind: 'backup', label: '', value: null, level: 'warning' });
   if (rootPct >= 85)
     reasons.push({ kind: 'disk', label: '/', value: rootPct, level: lvl(rootPct, 85, 95) });
   if (memPct >= 85)
@@ -117,8 +218,9 @@ export function createMockSnapshot(scenario: ServerScenario = 'ok'): ServerSnaps
     processes: { running: 2, total: 312 },
     up_since: new Date(Date.now() - (9 * 24 + 6) * 3600_000).toISOString(),
     verdict: { severity, reasons },
+    proxmox,
     vms:
-      scenario === 'noapi'
+      proxmox.status !== 'off' || scenario === 'noapi'
         ? { status: 'off', items: [] }
         : scenario === 'apidown'
           ? { status: 'down', items: [] }

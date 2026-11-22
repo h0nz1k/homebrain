@@ -51,3 +51,53 @@ describe('ServerView', () => {
     expect((await screen.findByText('Glances nenalezeno')).tagName).toBe('H2');
   });
 });
+
+describe('Proxmox VE', () => {
+  it('ukáže data uzlu, běžící hosty nahoře a vypnutou VM bez chybějících metrik', async () => {
+    show('proxmox-ok');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    expect(screen.getByText('Online')).toBeTruthy();
+    expect(screen.queryByTestId('server-vms')).toBeNull();
+    const guests = screen.getAllByTestId('server-proxmox-guest');
+    expect(guests.map((row) => row.querySelector('b')?.textContent)).toEqual([
+      'web-01',
+      'db-ct',
+      'batch-01',
+    ]);
+    expect(guests[0]?.textContent).toContain(`Příjem 12,0${NB}GiB`);
+    expect(guests[1]?.textContent).toContain(`Disk 58${NB}%`);
+    expect(guests[2]?.getAttribute('data-stopped')).toBe('true');
+    expect(guests[2]?.textContent).not.toMatch(/RAM|CPU|Příjem|Odesílání/);
+    expect(screen.getAllByTestId('server-proxmox-storage')).toHaveLength(2);
+    expect(screen.getByTestId('server-proxmox-backup').textContent).toContain('Úspěšná');
+  });
+
+  it('bez integrace ponechá odhad z Glances', async () => {
+    show('proxmox-off');
+    expect(await screen.findByTestId('server-vms')).toBeTruthy();
+    expect(screen.queryByTestId('server-proxmox')).toBeNull();
+  });
+
+  it('při výpadku Proxmoxu zachová metriky Glances', async () => {
+    show('proxmox-down');
+    expect(await screen.findByText('Proxmox nedostupný')).toBeTruthy();
+    expect(screen.getByTestId('server-tile-cpu')).toBeTruthy();
+    expect(screen.queryByTestId('server-vms')).toBeNull();
+  });
+
+  it('propíše neúspěšnou zálohu do verdiktu', async () => {
+    show('proxmox-backup-failed');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      'Pozor: záloha selhala',
+    );
+    expect(screen.getByTestId('server-proxmox-backup').textContent).toContain('Selhala');
+  });
+
+  it('propíše kritické úložiště do verdiktu i pruhu', async () => {
+    show('proxmox-storage-critical');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `Kritické: úložiště local-lvm 96${NB}%`,
+    );
+    expect(screen.getByRole('meter', { name: 'local-lvm' }).getAttribute('data-tone')).toBe('crit');
+  });
+});

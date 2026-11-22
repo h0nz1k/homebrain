@@ -9,7 +9,7 @@ DISK: Final = (85.0, 95.0)
 # Without Glances sensor thresholds (no REST API): conservative defaults for N100/N200 + NVMe.
 TEMPERATURE: Final = (80.0, 95.0)
 _ORDER: Final = {"critical": 0, "warning": 1}
-_KIND: Final = {"memory": 0, "disk": 1, "temperature": 2}
+_KIND: Final = {"node": 0, "memory": 1, "disk": 2, "storage": 3, "temperature": 4, "backup": 5}
 
 
 def level(value: float | None, warn: float, crit: float) -> str:
@@ -42,6 +42,14 @@ def verdict(snap: dict[str, Any]) -> dict[str, Any]:
         add("disk", disk.get("mount", ""), disk.get("percent"), level(disk.get("percent"), *DISK))
     for sensor in (snap.get("temperatures") or {}).get("sensors") or []:
         add("temperature", sensor.get("label", ""), sensor.get("value"), temperature_level(sensor))
+    proxmox = snap.get("proxmox") or {}
+    node = proxmox.get("node") or {}
+    if node.get("status") == "offline":
+        add("node", node["name"], None, "critical")
+    for storage in proxmox.get("storages") or []:
+        add("storage", storage["name"], storage["percent"], level(storage["percent"], *DISK))
+    if (proxmox.get("backup") or {}).get("ok") is False:
+        add("backup", node.get("name", ""), None, "warning")
     reasons.sort(key=lambda r: (_ORDER[r["level"]], _KIND[r["kind"]], -(r["value"] or 0)))
     # One temperature line is enough (all cores heat up together).
     seen_temp = False

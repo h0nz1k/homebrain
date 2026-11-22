@@ -26,7 +26,7 @@ import {
   vmRows,
   type BarTone,
 } from '../format.js';
-import type { Level, SeriesKey, ServerHistory, ServerSnapshot } from '../types.js';
+import type { Level, ProxmoxSnapshot, SeriesKey, ServerHistory, ServerSnapshot } from '../types.js';
 import { serverStyles } from './serverStyles.js';
 
 const POLL_MS = 10_000;
@@ -413,6 +413,154 @@ function Vms({ snap }: { snap: ServerSnapshot }) {
   );
 }
 
+const guestStates: Record<string, string> = {
+  running: 'Běží',
+  stopped: 'Vypnuto',
+  suspended: 'Pozastaveno',
+  paused: 'Pozastaveno',
+};
+
+function capacity(used: number | null, total: number | null, percent: number | null) {
+  const sizes =
+    used != null && total != null
+      ? `${fmtBytes(used)} z ${fmtBytes(total)}`
+      : used != null
+        ? `${fmtBytes(used)} použito`
+        : total != null
+          ? `${fmtBytes(total)} celkem`
+          : null;
+  return [sizes, percent == null ? null : fmtPct(percent)].filter(Boolean).join(' · ');
+}
+
+function ProxmoxGuests({ guests }: { guests: ProxmoxSnapshot['guests'] }) {
+  return (
+    <Card className="srv-panel">
+      <h3>Virtuální stroje a kontejnery</h3>
+      {guests.length === 0 ? (
+        <EmptyState title="Žádné virtuální stroje ani kontejnery" />
+      ) : (
+        <ul className="srv-list srv-proxmox-rows">
+          {guests.map((guest) => {
+            const memory = capacity(guest.mem_bytes, guest.mem_max_bytes, guest.mem_percent);
+            const uptime = uptimeLabel(guest.up_since);
+            const network = [
+              { label: 'Příjem', bytes: guest.netin_bytes, rate: guest.netin_bps },
+              { label: 'Odesílání', bytes: guest.netout_bytes, rate: guest.netout_bps },
+            ];
+            return (
+              <li
+                key={guest.vmid}
+                data-testid="server-proxmox-guest"
+                data-stopped={guest.status === 'stopped' || undefined}
+              >
+                <div className="srv-proxmox-row-head">
+                  <b>{guest.name}</b>
+                  <small>
+                    {guest.kind === 'vm' ? 'VM' : 'Kontejner'} · {guest.vmid}
+                  </small>
+                  {guest.status && <small>{guestStates[guest.status] ?? 'Jiný stav'}</small>}
+                </div>
+                <div className="srv-proxmox-details">
+                  {guest.cpu_percent != null && <small>CPU {fmtPct(guest.cpu_percent)}</small>}
+                  {memory && <small>RAM {memory}</small>}
+                  {uptime && <small>{uptime}</small>}
+                  {guest.disk_percent != null && <small>Disk {fmtPct(guest.disk_percent)}</small>}
+                  {network.map(({ label, bytes, rate }) =>
+                    bytes != null || rate != null ? (
+                      <small key={label}>
+                        {label} {rate != null ? fmtRate(rate) : fmtBytes(bytes)}
+                      </small>
+                    ) : null,
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function ProxmoxStorage({ storages }: { storages: ProxmoxSnapshot['storages'] }) {
+  return (
+    <Card className="srv-panel">
+      <h3>Úložiště Proxmoxu</h3>
+      <ul className="srv-list srv-proxmox-rows">
+        {storages.map((storage) => (
+          <li
+            key={JSON.stringify([storage.node, storage.name])}
+            data-testid="server-proxmox-storage"
+          >
+            <div className="srv-proxmox-row-head">
+              <b>{storage.name}</b>
+              <small>{storage.node}</small>
+              {storage.active != null && <small>{storage.active ? 'Aktivní' : 'Neaktivní'}</small>}
+            </div>
+            {storage.percent != null && (
+              <Bar value={storage.percent} tone={levelTone(storage.level)} label={storage.name} />
+            )}
+            <small>{capacity(storage.used_bytes, storage.total_bytes, storage.percent)}</small>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function Proxmox({ snapshot }: { snapshot: ProxmoxSnapshot }) {
+  if (snapshot.status === 'down') {
+    return (
+      <Card className="srv-panel">
+        <EmptyState title="Proxmox nedostupný" />
+      </Card>
+    );
+  }
+  const { node, backup, storages, guests } = snapshot;
+  const uptime = uptimeLabel(node?.up_since);
+  return (
+    <section className="srv-proxmox" aria-label="Proxmox VE" data-testid="server-proxmox">
+      {node && (
+        <Card className="srv-panel">
+          <h3>Uzel Proxmoxu</h3>
+          <div className="srv-proxmox-row-head">
+            <b>{node.name}</b>
+            {node.status && (
+              <span>
+                {node.status === 'online'
+                  ? 'Online'
+                  : node.status === 'offline'
+                    ? 'Offline'
+                    : 'Jiný stav'}
+              </span>
+            )}
+            {uptime && <span>{uptime}</span>}
+          </div>
+        </Card>
+      )}
+      <ProxmoxGuests guests={guests} />
+      {storages.length > 0 && <ProxmoxStorage storages={storages} />}
+      {backup && (
+        <Card className="srv-panel" data-testid="server-proxmox-backup">
+          <h3>Poslední záloha uzlu</h3>
+          <div className="srv-proxmox-details">
+            {backup.ok != null && <b>{backup.ok ? 'Úspěšná' : 'Selhala'}</b>}
+            {backup.last && (
+              <time dateTime={backup.last}>
+                {new Date(backup.last).toLocaleString('cs-CZ', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
+              </time>
+            )}
+            {backup.duration_s != null && <span>{fmtNum(backup.duration_s, 0)}&nbsp;s</span>}
+          </div>
+        </Card>
+      )}
+    </section>
+  );
+}
+
 export default function ServerView({ connection }: ModuleViewProps) {
   const api = useMemo(() => getServerApi(connection), [connection]);
   const { snap, error, history, reload } = useServer(api);
@@ -440,28 +588,31 @@ export default function ServerView({ connection }: ModuleViewProps) {
         </div>
       </div>
     );
-  else if (snap.state === 'unconfigured')
-    body = (
-      <EmptyState title="Glances nenalezeno">
-        Modul čte integraci Glances v Home Assistantu. Přidejte ji pro svůj server a přehled se
-        objeví sám.
-      </EmptyState>
-    );
-  else
+  else {
+    const proxmox = snap.proxmox?.status !== 'off' ? snap.proxmox : undefined;
+    const glancesMissing = snap.state === 'unconfigured';
     body = (
       <>
-        <Hero snap={snap} />
+        {glancesMissing && (
+          <EmptyState title="Glances nenalezeno">
+            Modul čte integraci Glances v Home Assistantu. Přidejte ji pro svůj server a přehled se
+            objeví sám.
+          </EmptyState>
+        )}
+        {(!glancesMissing || snap.verdict.reasons.length > 0) && <Hero snap={snap} />}
         {snap.state === 'ok' && (
           <>
             <Tiles snap={snap} history={history} />
-            <div className="srv-columns">
-              <Vms snap={snap} />
+            <div className={proxmox ? undefined : 'srv-columns'}>
+              {!proxmox && <Vms snap={snap} />}
               <Disks snap={snap} />
             </div>
           </>
         )}
+        {proxmox && <Proxmox snapshot={proxmox} />}
       </>
     );
+  }
   return (
     <div className="srv" data-testid="server-view">
       <style>{serverStyles}</style>

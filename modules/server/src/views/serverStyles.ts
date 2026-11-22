@@ -73,6 +73,12 @@ export const serverStyles = `
 .srv-vm-metric { display: grid; grid-template-columns: 34px minmax(0, 1fr) 72px; align-items: center; gap: 8px; }
 .srv-vm-metric .srv-row-val { text-align: right; }
 
+.srv-proxmox { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.srv-proxmox-row-head, .srv-proxmox-details { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; overflow-wrap: anywhere; }
+.srv-proxmox-details:empty { display: none; }
+.srv-proxmox-rows > li + li { border-top: 1px solid var(--hb-edge, color-mix(in srgb, var(--hb-t1) 10%, transparent)); padding-top: 12px; }
+.srv-proxmox-rows [data-stopped] { color: var(--hb-t2); }
+
 @media (max-width: 1100px) {
   .srv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .srv-columns { grid-template-columns: minmax(0, 1fr); }

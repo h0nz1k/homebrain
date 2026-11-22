@@ -15,40 +15,45 @@ from ..const import DOMAIN
 from . import rules
 from .discovery import build_snapshot, glances_entry
 from .glances_api import GlancesApi, base_url, session_fetch
+from .proxmox import build_proxmox
 
 API_KEY: Final = "server_glances_api"
 SERIES: Final = ("cpu", "memory", "temperature", "rx", "tx")
 
 
-def _api(hass: HomeAssistant) -> GlancesApi | None:
+def _api(hass: HomeAssistant, collect_vms: bool) -> GlancesApi | None:
     entry = glances_entry(hass)
     url = base_url(entry.data) if entry else None
     if url is None:
         return None
     data = hass.data.setdefault(DOMAIN, {})
     api: GlancesApi | None = data.get(API_KEY)
-    if api is None or api.url != url:
+    if api is None or api.url != url or api.collect_vms != collect_vms:
         verify = bool(entry.data.get("verify_ssl", True))
         session = async_get_clientsession(hass, verify_ssl=verify)
-        api = GlancesApi(url, session_fetch(session, url))
+        api = GlancesApi(url, session_fetch(session, url), collect_vms=collect_vms)
         data[API_KEY] = api
     return api
 
 
 async def async_snapshot(hass: HomeAssistant, use_api: bool = True) -> dict[str, Any]:
     snap = build_snapshot(hass)
-    if not snap.get("host"):
-        snap["vms"] = {"status": "off", "items": []}
-        return snap
-    api = _api(hass) if use_api else None
-    if api is None:
-        snap["vms"] = {"status": "off", "items": []}
-        return snap
-    got = await api.async_get((snap.get("memory") or {}).get("total_bytes"))
-    if got["thresholds"]:
-        snap = build_snapshot(hass, got["thresholds"])
-    snap["cpu"]["cores"] = got["cores"]
-    snap["vms"] = {"status": got["status"], "items": got["vms"]}
+    proxmox = build_proxmox(hass)
+    collect_vms = proxmox["status"] == "off"
+    vms = {"status": "off", "items": []}
+    api = _api(hass, collect_vms) if use_api and snap.get("host") else None
+    if api is not None:
+        got = await api.async_get((snap.get("memory") or {}).get("total_bytes"))
+        if got["thresholds"]:
+            snap = build_snapshot(hass, got["thresholds"])
+        if "cpu" in snap:
+            snap["cpu"]["cores"] = got["cores"]
+        if collect_vms:
+            vms = {"status": got["status"], "items": got["vms"]}
+    snap["vms"] = vms
+    snap["proxmox"] = proxmox
+    if proxmox["status"] == "ok":
+        snap["verdict"] = rules.verdict(snap)
     return snap
 
 

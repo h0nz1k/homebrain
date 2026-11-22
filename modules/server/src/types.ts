@@ -1,7 +1,7 @@
 export type Level = 'ok' | 'warning' | 'critical' | 'unknown';
 
 export interface Reason {
-  kind: 'memory' | 'disk' | 'temperature';
+  kind: 'memory' | 'disk' | 'temperature' | 'storage' | 'backup' | 'node';
   label: string;
   value: number | null;
   level: Level;
@@ -34,6 +34,37 @@ export interface Vm {
   mem_bytes: number;
   mem_percent: number | null;
 }
+export interface ProxmoxGuest {
+  vmid: number;
+  name: string;
+  kind: 'vm' | 'ct';
+  status: string | null;
+  cpu_percent: number | null;
+  mem_bytes: number | null;
+  mem_max_bytes: number | null;
+  mem_percent: number | null;
+  up_since: string | null;
+  disk_percent: number | null;
+  netin_bps: number | null;
+  netout_bps: number | null;
+  netin_bytes?: number | null;
+  netout_bytes?: number | null;
+}
+export interface ProxmoxSnapshot {
+  status: 'ok' | 'down' | 'off';
+  node: { name: string; status: string | null; up_since: string | null } | null;
+  guests: ProxmoxGuest[];
+  storages: Array<{
+    name: string;
+    node: string;
+    used_bytes: number | null;
+    total_bytes: number | null;
+    percent: number | null;
+    active: boolean | null;
+    level: Level;
+  }>;
+  backup: { ok: boolean | null; last: string | null; duration_s: number | null } | null;
+}
 export interface ServerSnapshot {
   available: boolean;
   state: 'ok' | 'down' | 'unconfigured';
@@ -55,6 +86,7 @@ export interface ServerSnapshot {
   up_since?: string | null;
   verdict: { severity: Level; reasons: Reason[] };
   vms?: { status: 'ok' | 'down' | 'off'; items: Vm[] };
+  proxmox?: ProxmoxSnapshot;
   thresholds?: { memory: [number, number]; disk: [number, number] };
 }
 export type SeriesKey = 'cpu' | 'memory' | 'temperature' | 'rx' | 'tx';

@@ -16,6 +16,7 @@ from custom_components.homebrain.server import rules
 from custom_components.homebrain.server.discovery import build_snapshot, glances_entry
 from custom_components.homebrain.server.glances_api import GlancesApi, base_url
 from custom_components.homebrain.server.procs import parse_kvm, vms_from_processes
+from custom_components.homebrain.server.ws import async_snapshot
 
 GIB = 1024**3
 MIB = 1024**2
@@ -348,6 +349,13 @@ async def test_ws_get_returns_snapshot_without_api(hass: HomeAssistant, setup, h
     res = msg["result"]
     assert res["available"] is True
     assert res["vms"]["status"] == "off"
+    assert res["proxmox"] == {
+        "status": "off",
+        "node": None,
+        "guests": [],
+        "storages": [],
+        "backup": None,
+    }
     assert res["verdict"]["severity"] == "ok"
 
 
@@ -358,3 +366,189 @@ async def test_ws_history_without_recorder(hass: HomeAssistant, setup, hass_ws_c
     msg = await client.receive_json()
     assert msg["success"], msg
     assert msg["result"]["series"] == {}
+
+
+# ---------- Proxmox VE ----------
+
+PROXMOX_UP = "2026-10-30T06:12:00+00:00"
+PROXMOX_BACKUP = "2026-10-30T08:20:00+00:00"
+
+
+@pytest.fixture
+def proxmox_entity(hass: HomeAssistant):
+    entry = MockConfigEntry(domain="proxmoxve")
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    devices = dr.async_get(hass)
+
+    def add(unique_id, key, value, unit=None, *, binary=False, device=None, disabled=False):
+        device_id = None
+        if device:
+            identifier, name = device
+            device_id = devices.async_get_or_create(
+                config_entry_id=entry.entry_id,
+                identifiers={("proxmoxve", f"{entry.entry_id}_{identifier}")},
+                name=name,
+            ).id
+        entity = registry.async_get_or_create(
+            "binary_sensor" if binary else "sensor",
+            "proxmoxve",
+            f"{entry.entry_id}_{unique_id}",
+            suggested_object_id="synteticka_hodnota",
+            config_entry=entry,
+            device_id=device_id,
+            translation_key=key,
+            disabled_by=er.RegistryEntryDisabler.INTEGRATION if disabled else None,
+        )
+        attributes = {"unit_of_measurement": unit} if unit else {}
+        hass.states.async_set(entity.entity_id, value, attributes)
+        return entity.entity_id
+
+    return add
+
+
+async def test_proxmox_registry_and_units(hass: HomeAssistant, proxmox_entity) -> None:
+    add = proxmox_entity
+    web = ("vm_101", "web-01")
+    container = ("container_103", "db-ct")
+    add("node/node_demo_node_status", "node_status", "online")
+    add("node/node_demo_node_uptime", None, PROXMOX_UP)
+    add("node/node_demo_node_backup_status", "node_backup_status", "off", binary=True)
+    add("node/node_demo_node_backup_last_backup", "node_backup_last_backup", PROXMOX_BACKUP)
+    add("node/node_demo_node_backup_duration", "node_backup_duration", "2.5", "min")
+    add("101_vm_status", "vm_status", "running", device=web)
+    add("101_vm_cpu", "vm_cpu", "3", "%")
+    add("101_vm_uptime", None, PROXMOX_UP)
+    add("101_vm_memory", "vm_memory", "1", "GiB")
+    add("101_vm_max_memory", "vm_max_memory", "4", "GB")
+    add("101_vm_netin", "vm_netin", "2", "GiB")
+    add("101_vm_netout", "vm_netout", "1", "GiB", disabled=True)
+    add("102_vm_status", "vm_status", "stopped")
+    add("102_vm_memory", "vm_memory", "unavailable")
+    add("103_status", "status", "on", binary=True, device=container)
+    add("103_container_disk", "container_disk", str(4 * GIB), "B")
+    add("103_container_max_disk", "container_max_disk", "10", "GiB")
+    add("104_status", "status", "off", binary=True, device=("vm_104", "sleep-01"))
+    add("105_vm_status", "vm_status", "suspended")
+    add("105_status", "status", "off", binary=True)
+    storage = ("storage_local_pool", "Storage (local_pool)")
+    add("node_demo_local_pool_storage_total", "storage_total", "12", "GB", device=storage)
+    add("node_demo_local_pool_storage_used", "storage_used", str(3 * 10**9), "B")
+    add("node_demo_local_pool_storage_active", "storage_active", "off", binary=True)
+
+    result = await async_snapshot(hass, use_api=False)
+    snap = result["proxmox"]
+    assert snap["status"] == "ok"
+    assert snap["node"] == {"name": "node_demo", "status": "online", "up_since": PROXMOX_UP}
+    assert snap["backup"] == {"ok": True, "last": PROXMOX_BACKUP, "duration_s": 150}
+    assert [guest["vmid"] for guest in snap["guests"]] == [101, 103, 102, 104, 105]
+    vm, ct, stopped, binary_only, suspended = snap["guests"]
+    assert vm == {
+        "vmid": 101,
+        "name": "web-01",
+        "kind": "vm",
+        "status": "running",
+        "cpu_percent": 3,
+        "mem_bytes": GIB,
+        "mem_max_bytes": 4 * 10**9,
+        "mem_percent": pytest.approx(GIB / (4 * 10**9) * 100),
+        "up_since": PROXMOX_UP,
+        "disk_percent": None,
+        "netin_bps": None,
+        "netout_bps": None,
+        "netin_bytes": 2 * GIB,
+        "netout_bytes": None,
+    }
+    assert (ct["name"], ct["kind"], ct["disk_percent"]) == ("db-ct", "ct", 40)
+    assert (stopped["name"], stopped["mem_bytes"]) == ("102", None)
+    assert binary_only["status"] == "stopped"
+    assert suspended["status"] == "suspended"
+    assert snap["storages"] == [
+        {
+            "name": "local_pool",
+            "node": "node_demo",
+            "used_bytes": 3 * 10**9,
+            "total_bytes": 12 * 10**9,
+            "percent": 25,
+            "active": False,
+            "level": "ok",
+        }
+    ]
+    assert result["verdict"] == {"severity": "ok", "reasons": []}
+
+
+async def test_proxmox_unavailable_and_optional_entities(hass, proxmox_entity) -> None:
+    add = proxmox_entity
+    install(hass)
+    node = add("node/demo_node_status", "node_status", "unavailable")
+    add("101_vm_status", "vm_status", "unavailable")
+    add("node/demo_node_backup_status", "node_backup_status", "on", binary=True, disabled=True)
+    add("node/demo_node_backup_last_backup", "node_backup_last_backup", "unknown")
+    result = await async_snapshot(hass, use_api=False)
+    assert result["proxmox"]["status"] == "down"
+    assert result["proxmox"]["backup"] is None
+    assert result["cpu"]["percent"] == 23.5
+    assert result["verdict"] == {"severity": "ok", "reasons": []}
+
+    hass.states.async_set(node, "online")
+    result = await async_snapshot(hass, use_api=False)
+    assert result["proxmox"]["status"] == "ok"
+    assert result["proxmox"]["backup"] is None
+    assert result["proxmox"]["guests"][0]["status"] is None
+
+
+@pytest.mark.parametrize(
+    ("node", "storage", "backup", "severity", "reasons"),
+    [
+        ("online", "84.9", "off", "ok", []),
+        ("online", "85", "off", "warning", ["storage"]),
+        ("online", "95", "off", "critical", ["storage"]),
+        ("online", "30", "on", "warning", ["backup"]),
+        ("offline", "95", "on", "critical", ["node", "storage", "backup"]),
+    ],
+)
+async def test_proxmox_verdict(hass, proxmox_entity, node, storage, backup, severity, reasons):
+    add = proxmox_entity
+    add("node/demo_node_status", "node_status", node)
+    add("demo_local_storage_used_percentage", "storage_used_percentage", storage, "%")
+    add("node/demo_node_backup_status", "node_backup_status", backup, binary=True)
+    add("101_vm_status", "vm_status", "stopped")
+    result = await async_snapshot(hass, use_api=False)
+    assert result["verdict"]["severity"] == severity
+    assert [reason["kind"] for reason in result["verdict"]["reasons"]] == reasons
+
+
+async def test_glances_api_keeps_host_data_without_processes() -> None:
+    calls = []
+
+    async def fetch(path):
+        calls.append(path)
+        return {"/sensors": [{"label": "Core", "warning": 90}], "/core": {"log": 4}}[path]
+
+    got = await GlancesApi("http://glances.example/api/4", fetch, collect_vms=False).async_get()
+    assert calls == ["/sensors", "/core"]
+    assert got["cores"] == 4
+    assert got["thresholds"] == {"Core": {"warning": 90, "critical": None}}
+    assert got["vms"] == []
+
+
+async def test_ws_proxmox_shape(hass, setup, hass_ws_client, proxmox_entity):
+    proxmox_entity("101_vm_status", "vm_status", "stopped")
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "homebrain/server/get", "api": False})
+    msg = await client.receive_json()
+    assert msg["success"]
+    proxmox = msg["result"]["proxmox"]
+    assert set(proxmox) == {"status", "node", "guests", "storages", "backup"}
+    assert proxmox["guests"][0]["vmid"] == 101
+    assert msg["result"]["vms"] == {"status": "off", "items": []}
+
+
+@pytest.mark.parametrize("command", ["get", "history"])
+async def test_ws_server_requires_admin(hass, setup, hass_ws_client, hass_admin_user, command):
+    hass_admin_user.groups = []
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": f"homebrain/server/{command}"})
+    msg = await client.receive_json()
+    assert not msg["success"]
+    assert msg["error"]["code"] == "unauthorized"
