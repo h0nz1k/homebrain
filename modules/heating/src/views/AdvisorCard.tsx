@@ -47,7 +47,7 @@ export function AdvisorCard({ advisor }: { advisor: HeatingAdvisor | null | unde
           {model.slope_h_per_k !== null && (
             <ul className="ht-kv">
               <li>
-                <span>Delší běh kompresoru při ochlazení o 1 °C</span>
+                <span>Delší běh kompresoru při poklesu venkovní teploty o 1 °C</span>
                 <b>{fmtNum(model.slope_h_per_k, 2)} h/den</b>
               </li>
               <li>
