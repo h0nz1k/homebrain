@@ -100,8 +100,11 @@ test.describe('Server', () => {
     await expect(card).toContainText(/17\ss/);
     await expect(page.getByTestId('server-backup-run')).toHaveText('úspěšný');
     await expect(page.getByTestId('server-backup-stale')).toHaveText('Kritické');
-    // Evidence next to the verdict: „Co s tím“ scrolls to the card and focuses it.
-    await page.getByTestId('server-hero-fix').click();
+    // Evidence next to the verdict: „Co s tím“ (primary, severity tone) scrolls to the card.
+    const fix = page.getByTestId('server-hero-fix');
+    await expect(fix).toHaveAttribute('data-tone', 'crit');
+    expect((await fix.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await fix.click();
     await expect(card).toBeFocused();
     await expect(card).toBeInViewport();
     for (const [width, height] of [
@@ -121,7 +124,7 @@ test.describe('Server', () => {
       expect(spill).toBe(0);
       if (process.env.SERVER_SCREENSHOTS) {
         await page.screenshot({
-          path: `test-results/server-r3/server-backup-stale-${width}.png`,
+          path: `test-results/server-r4/server-backup-stale-${width}.png`,
           fullPage: true,
         });
       }
@@ -143,7 +146,7 @@ test.describe('Server', () => {
     await expect(page.getByTestId('server-hero-fix')).toHaveCount(0);
     await noSidewaysScroll(page);
     if (process.env.SERVER_SCREENSHOTS)
-      await page.screenshot({ path: 'test-results/server-r3/server-ok-1280.png', fullPage: true });
+      await page.screenshot({ path: 'test-results/server-r4/server-ok-1280.png', fullPage: true });
   });
 
   test('bez senzoru zálohy jen poznámka, žádné varování', async ({ page }) => {

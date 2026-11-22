@@ -226,8 +226,9 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
         {hero.more.length > 0 && <p className="srv-more">Dále: {hero.more.join(', ')}</p>}
         {hero.target && (
           <Button
-            variant="secondary"
-            size="sm"
+            variant="primary"
+            className="srv-hero-fix"
+            data-tone={hero.tone}
             data-testid="server-hero-fix"
             onClick={() => revealCard(hero.target!)}
           >

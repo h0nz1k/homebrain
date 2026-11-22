@@ -78,6 +78,13 @@ export const serverStyles = `
 .srv-panel[tabindex='-1']:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
 .srv-panel[tabindex='-1']:focus:not(:focus-visible) { outline: none; }
 .srv-hero .hb-btn { margin-top: 4px; }
+/* „Co s tím“: primary action in the verdict's severity colour. */
+.srv-hero-fix[data-tone='crit'] { background: var(--hb-crit); color: var(--hb-on-crit); }
+.srv-hero-fix[data-tone='warn'] { background: var(--hb-warn); color: var(--hb-on-warn); }
+.srv-hero-fix[data-tone]:hover:not(:disabled) { background: color-mix(in srgb, var(--srv-fix-tone) 88%, var(--hb-t1)); }
+.srv-hero-fix[data-tone='crit'] { --srv-fix-tone: var(--hb-crit); }
+.srv-hero-fix[data-tone='warn'] { --srv-fix-tone: var(--hb-warn); }
+.srv-hero-fix[data-tone]:focus-visible { outline: 3px solid var(--srv-fix-tone); outline-offset: 3px; }
 .srv-proxmox-node { gap: 10px; }
 .srv-guest-state { flex: none; }
 .srv-proxmox-row-head, .srv-proxmox-details { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; overflow-wrap: anywhere; }
@@ -91,7 +98,7 @@ export const serverStyles = `
 .srv-backup dd { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .srv-backup-age { font-weight: 600; }
 .srv-backup time { color: var(--hb-t2); font-size: 14px; }
-.srv-backup dd[data-ok='true'] { color: var(--hb-t2); font-size: 14px; }
+.srv-backup dd[data-ok='true'] { font-weight: 500; }
 .srv-backup dd[data-ok='false'] { color: var(--hb-crit); font-weight: 600; }
 .srv-panel[data-tone='warn'] [data-testid='server-backup-title'] { color: var(--hb-warn); }
 .srv-panel[data-tone='crit'] [data-testid='server-backup-title'] { color: var(--hb-crit); }
@@ -101,10 +108,14 @@ export const serverStyles = `
 .srv-panel[data-tone='crit'] .srv-backup-age { color: var(--hb-crit); }
 
 @media (min-width: 1100px) {
-  .srv-proxmox { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'side guests' 'storage guests'; align-items: start; }
+  /* Node + backup beside the guests, storage full width below: no hole under either column. */
+  .srv-proxmox { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'side guests' 'storage storage'; align-items: stretch; }
+  .srv-proxmox-side > [data-testid='server-proxmox-backup'] { flex: 1 1 auto; }
   .srv-proxmox-side { grid-area: side; }
   .srv-proxmox-guests { grid-area: guests; }
   .srv-proxmox > [data-testid='server-proxmox-storages'] { grid-area: storage; }
+  .srv-proxmox > [data-testid='server-proxmox-storages'] .srv-proxmox-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 64px; }
+  .srv-proxmox > [data-testid='server-proxmox-storages'] .srv-proxmox-rows > li + li { border-top: 0; padding-top: 0; }
 }
 @media (max-width: 1100px) {
   .srv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
