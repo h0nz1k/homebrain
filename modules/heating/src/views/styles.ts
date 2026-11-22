@@ -54,12 +54,12 @@ export const heatingStyles = `
   display: grid;
   gap: var(--hb-sp-4, 16px);
   margin-block-start: var(--hb-sp-4, 16px);
-  max-inline-size: 44rem;
 }
 .ht-advisor-cards .ht-advisor-callout {
   border-inline-start: 3px solid var(--hb-ac);
   line-height: 1.5;
 }
+.ht-advisor-hint { margin-block-start: 4px; font-size: 12px; }
 .ht-advisor-cards .ht-kv b {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -83,10 +83,9 @@ export const heatingStyles = `
 @media (min-width: 1060px) {
   .ht-advisor-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    max-inline-size: 76rem;
+    align-items: stretch;
   }
-  .ht-advisor-cards:has(> :only-child) { grid-template-columns: minmax(0, 38rem); }
+  .ht-advisor-cards:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
 }
 .ht-ch { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .ht-ch h3 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }

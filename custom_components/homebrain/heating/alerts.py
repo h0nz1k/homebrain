@@ -321,7 +321,7 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
                 elif key in ctx.fault_onset_observed:
                     entry += " Kompresor od té doby neběžel."
                 entries.append(entry)
-            acknowledge = "Potvrď ji" if len(entries) == 1 else "Potvrď je"
+            acknowledge = "Potvrďte ji" if len(entries) == 1 else "Potvrďte je"
             emit(
                 "fault",
                 "warning",

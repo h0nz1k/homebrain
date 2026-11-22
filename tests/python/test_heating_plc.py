@@ -295,7 +295,7 @@ async def test_fault_warning_escalation_and_restart(hass, plc, tmp_path):
     assert alert["severity"] == "warning"
     assert alert["title"] == "Čerpadlo zaznamenalo poruchu"
     since = poller.payload()["faults"]["active"][0]["since"]
-    assert alert["body"] == (f"Vysoký tlak v {since[11:16]}. Potvrď ji na panelu čerpadla.")
+    assert alert["body"] == (f"Vysoký tlak v {since[11:16]}. Potvrďte ji na panelu čerpadla.")
     await poller.async_poll_once()
     assert "Kompresor od té doby" not in fault(poller)["body"]
 

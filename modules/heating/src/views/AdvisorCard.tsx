@@ -13,9 +13,12 @@ export function AdvisorCards({ advisor }: { advisor: HeatingAdvisor | null | und
         <header className="ht-ch">
           <h3>Doporučení</h3>
         </header>
-        <p className="ht-insight ht-advisor-callout">
-          {curve?.text ?? 'Doporučení zatím není k dispozici.'}
-        </p>
+        <div className="ht-insight ht-advisor-callout">
+          <p>{curve?.text ?? 'Doporučení zatím není k dispozici.'}</p>
+          {curve && (
+            <p className="ht-muted ht-advisor-hint">Změnu proveďte na displeji regulace.</p>
+          )}
+        </div>
         {curve && curve.days_used > 0 && (
           <ul className="ht-kv">
             {curve.circuit_duty_pct !== null && (
@@ -43,7 +46,6 @@ export function AdvisorCards({ advisor }: { advisor: HeatingAdvisor | null | und
             )}
           </ul>
         )}
-        <footer className="ht-muted ht-advisor-notes">Změnu proveďte na displeji regulace.</footer>
       </Card>
       {advisor?.model && <HeatLossCard model={advisor.model} />}
     </div>
@@ -121,9 +123,7 @@ function HeatLossCard({ model }: { model: HeatingAdvisor['model'] }) {
         </>
       )}
       <footer className="ht-muted ht-advisor-notes">
-        {model.days > 0 && (
-          <p>Orientační odhad zahrnuje i ohřev teplé vody.</p>
-        )}
+        {model.days > 0 && <p>Orientační odhad zahrnuje i ohřev teplé vody.</p>}
         <p>
           {model.thermal_kw === null
             ? 'Odhad ztráty vyžaduje tepelný výkon čerpadla. Zadejte ho v nastavení HomeBrain → Topení.'

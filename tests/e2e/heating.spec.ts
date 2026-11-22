@@ -52,9 +52,19 @@ test.describe('Topení', () => {
       await expect(advisor).toBeInViewport({ ratio: 1 });
       await expect(heatLoss).toBeInViewport({ ratio: 1 });
       await noSidewaysScroll(page);
+      if (width >= 1060) {
+        const [a, h] = await Promise.all([advisor.boundingBox(), heatLoss.boundingBox()]);
+        expect(Math.abs(a!.height - h!.height)).toBeLessThanOrEqual(1);
+        const gap = await cards.evaluate((el) => {
+          const row = el.parentElement!.getBoundingClientRect();
+          return row.right - el.getBoundingClientRect().right;
+        });
+        expect(gap).toBeLessThanOrEqual(1);
+      }
       await page.screenshot({
-        path: `test-results/advisor-r3/advisor-${width}x${height}.png`,
+        path: `test-results/advisor-r4/advisor-${width}x${height}.png`,
         animations: 'disabled',
+        fullPage: true,
       });
     }
 
@@ -68,8 +78,9 @@ test.describe('Topení', () => {
     await expect(warning).toBeInViewport({ ratio: 1 });
     await noSidewaysScroll(page);
     await page.screenshot({
-      path: 'test-results/advisor-r3/advisor-fault-warning-360x800.png',
+      path: 'test-results/advisor-r4/advisor-fault-warning-360x800.png',
       animations: 'disabled',
+      fullPage: true,
     });
   });
 
@@ -575,7 +586,9 @@ test.describe('Topení', () => {
       const chevrons = page.locator('.ht-c3-direction');
       await expect(chevrons).toHaveCount(16);
       expect(
-        await page.getByTestId('heating-schematic').evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
+        await page
+          .getByTestId('heating-schematic')
+          .evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
       ).toEqual([]);
       for (const chevron of await chevrons.all()) await expect(chevron).toBeVisible();
     });
@@ -673,7 +686,9 @@ test.describe('Topení', () => {
     await expect(sch.locator('[data-pump="solar"]')).toHaveCount(1);
     await expect(sch.getByTestId('heating-sch-solar-collector')).toBeVisible();
     await expect(sch.getByTestId('heating-sch-solar-pump')).toBeVisible();
-    const bannerTop = await page.getByTestId('heating-solar-compact').evaluate((el) => el.getBoundingClientRect().top);
+    const bannerTop = await page
+      .getByTestId('heating-solar-compact')
+      .evaluate((el) => el.getBoundingClientRect().top);
     const roomsTop = await page
       .getByTestId('heating-rooms-mini')
       .evaluate((el) => el.getBoundingClientRect().top);
@@ -806,9 +821,9 @@ test.describe('Topení', () => {
     await expect(hero).not.toContainText('Zapněte solár');
     await expect(page.getByTestId('heating-solar-warn')).toHaveCount(0);
     await expect(page.getByTestId('heating-headline')).toContainText('přehřívá, čerpadlo stojí');
-    await expect(page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k')).toHaveText(
-      'Stav',
-    );
+    await expect(
+      page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k'),
+    ).toHaveText('Stav');
   });
 
   for (const [width, height] of [
@@ -833,7 +848,9 @@ test.describe('Topení', () => {
     await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
     await expect(sch.locator('[data-active].ht-c3-hot')).toHaveCount(0);
     await expect(page.getByTestId('heating-hero').locator('.ht-run-meta')).toHaveCount(0);
-    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(0);
+    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(
+      0,
+    );
   });
 
   test('Upozornění solar-off-hot: hero jen kolektor v podřádku', async ({ page }) => {

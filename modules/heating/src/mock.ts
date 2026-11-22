@@ -643,7 +643,7 @@ export function buildMockSnapshot(
         id: 'fault',
         severity: 'warning',
         title: 'Čerpadlo zaznamenalo poruchu',
-        body: 'Nízký tlak sání v 08:15. Potvrď ji na panelu čerpadla.',
+        body: 'Nízký tlak sání v 08:15. Potvrďte ji na panelu čerpadla.',
         since: iso(now - 38 * MIN),
       },
     ];
