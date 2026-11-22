@@ -1469,6 +1469,8 @@ def swap_runtime(hass, swaps):
 
     async def update(call):
         effects.append(("update", dict(call.data)))
+        if "update" in failures:
+            raise HomeAssistantError("future_due_date_required")
         runtime.chores_data[call.data["id"]]["assigned_user_ids"].remove("a")
         return {"id": call.data["id"]}
 
@@ -1523,6 +1525,19 @@ async def test_swap_failure_rolls_back_and_blocks_retries_until_delete_succeeds(
     assert "clone-1" not in runtime.chores_data
     assert [name for name, _ in effects] == ["skip", "delete", "delete"]
     assert next(iter(store.data["operations"].values()))["status"] == "failed"
+
+
+async def test_swap_failed_assignment_removal_deletes_clone(hass, swap_runtime, hass_ws_client):
+    runtime, failures, created, effects, advance = swap_runtime
+    client = await hass_ws_client(hass)
+    assert (await _ws(client, _handover("once")))["success"]
+    failures.add("update")
+    store = await advance(1)
+    (op,) = store.data["operations"].values()
+    assert op["status"] == "failed" and op["clone_id"] is None
+    assert len(created) == 1 and "clone-1" not in runtime.chores_data
+    assert runtime.chores_data["once"]["assigned_user_ids"] == ["a", "p"]
+    assert [name for name, _ in effects] == ["update", "delete"]
 
 
 @pytest.mark.parametrize(

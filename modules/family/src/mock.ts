@@ -385,7 +385,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       },
     });
     kuba.upcoming?.push(upcoming(today, 'posta', 'Vyzvednout poštu', 3, 2, 18));
-    ema.chores.push({
+    kuba.chores.push({
       id: 'sensor.demo_bez_terminu',
       name: 'Doplnit mýdlo',
       state: 'todo',
