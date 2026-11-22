@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
+import { getTodayHomeApi, TodaySchool } from '@homebrain/module-today';
 import { Button, SegmentedControl, toast } from '@homebrain/ui';
 import { kitchenApi, openApp } from './api';
 import { Artwork, Picker, Settings } from './Settings';
@@ -67,6 +68,7 @@ export default function KitchenView(props: ModuleViewProps) {
     () => (props.connection ? kitchenApi(props.connection) : null),
     [props.connection],
   );
+  const homeApi = useMemo(() => getTodayHomeApi(props.connection), [props.connection]);
   const [snapshot, setSnapshot] = useState<KitchenSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<'music' | 'cooking'>('music');
@@ -259,6 +261,7 @@ export default function KitchenView(props: ModuleViewProps) {
         ) : null}
         {snapshot ? (
           <div hidden={tab !== 'cooking'}>
+            <TodaySchool api={homeApi} now={clock.toISOString()} kiosk />
             <Cooking {...props} config={snapshot.config} />
           </div>
         ) : null}

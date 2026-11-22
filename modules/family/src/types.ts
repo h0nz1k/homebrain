@@ -218,9 +218,18 @@ export interface PersonSettings {
   color: number;
   person: string | null;
   tracker: string | null;
+  grade?: number | null;
+}
+
+export interface SchoolSettings {
+  menu_url: string;
+  events_url: string;
+  dates_url: string;
+  reminder_days: number;
 }
 
 export interface PersonsSettings {
+  school?: SchoolSettings;
   persons: Array<PersonSettings & { name: string; configured: boolean }>;
   candidates: {
     people: Array<{ id: string; name: string }>;

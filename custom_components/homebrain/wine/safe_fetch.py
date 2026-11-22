@@ -27,10 +27,11 @@ USER_AGENT = "HomeBrain/0.1 (+https://github.com/h0nz1k/homebrain; owner-initiat
 TIMEOUT_S = 15
 MAX_REDIRECTS = 3
 MAX_URL_LEN = 500
-LIMITS = {"page": 1_500_000, "json": 1_000_000, "image": 4_000_000}
+LIMITS = {"page": 1_500_000, "json": 1_000_000, "image": 4_000_000, "pdf": 5_000_000}
 CONTENT_TYPES = {
     "page": ("text/html", "application/xhtml+xml"),
     "json": ("application/json",),
+    "pdf": ("application/pdf", "application/octet-stream"),
     "image": ("image/jpeg", "image/png", "image/webp"),
 }
 _BLOCKED_SUFFIXES = (".local", ".localhost", ".internal", ".lan", ".home.arpa", ".home", ".corp")
@@ -90,20 +91,23 @@ class PublicResolver(AbstractResolver):
         await self._inner.close()
 
 
-def create_session():
+def create_session(*, allow_cookies: bool = True):
     """Dedicated aiohttp session whose connector only ever connects to public IPs."""
     import aiohttp  # noqa: PLC0415
     from homeassistant.util.ssl import client_context  # noqa: PLC0415
 
     connector = aiohttp.TCPConnector(resolver=PublicResolver(), ssl=client_context(), limit=4)
-    return aiohttp.ClientSession(connector=connector)
+    return aiohttp.ClientSession(
+        connector=connector, cookie_jar=None if allow_cookies else aiohttp.DummyCookieJar()
+    )
 
 
 class SafeFetcher:
     """GET with manual, re-validated redirects, streamed size cap and type allow-list."""
 
-    def __init__(self, session: Any) -> None:
+    def __init__(self, session: Any, *, user_agent: str = USER_AGENT) -> None:
         self._session = session
+        self._user_agent = user_agent
 
     async def get(self, url: str, kind: str = "page") -> tuple[bytes, str, str]:
         import aiohttp  # noqa: PLC0415
@@ -115,7 +119,7 @@ class SafeFetcher:
                 async with self._session.get(
                     current,
                     headers={
-                        "User-Agent": USER_AGENT,
+                        "User-Agent": self._user_agent,
                         "Accept-Language": "cs,en;q=0.7",
                         "Accept": ", ".join(CONTENT_TYPES[kind]),
                     },

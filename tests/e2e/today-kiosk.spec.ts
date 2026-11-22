@@ -178,3 +178,52 @@ test.describe('Dnes – nástěnný kiosk', () => {
     });
   });
 });
+
+test.describe('Škola na Dnes a kiosku', () => {
+  // eslint-disable-next-line no-empty-pattern -- Playwright vyžaduje destrukturaci fixtures
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'Vlastní velikosti viewportu');
+  });
+
+  test('kuchyňský kiosk ve Vaření ukazuje zítřejší oběd po 14.00', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await page.clock.setFixedTime(new Date('2026-11-23T14:00:00+01:00'));
+    await page.goto('/homebrain-kuchyn?skola=full&role=kiosk');
+    await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
+    await expect(page.getByTestId('school-lunch')).toContainText('Zítra · Ve škole k obědu:');
+  });
+
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 800, height: 1280 },
+    { width: 1280, height: 800 },
+  ]) {
+    for (const kiosk of [false, true]) {
+      test(`${kiosk ? 'Kiosk' : 'Dnes'} ${viewport.width} px zobrazí školní údaje`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        await page.goto(
+          `/homebrain-dnes?state=b&skola=full&role=${kiosk ? 'kiosk&kiosk=1' : 'adult'}`,
+        );
+        const school = page.getByTestId('today-school');
+        await expect(school).toBeVisible();
+        await expect(school.getByTestId('school-lunch')).toContainText('Ve škole k obědu:');
+        await expect(school.getByText('Dnes: Školní výstava')).toBeVisible();
+        await expect(school.getByText('Zítra: 4. třída – divadlo')).toBeVisible();
+        await expect(school.getByText(/Třídní schůzky/)).toBeVisible();
+        await expect(school.getByText(/9. ročník/)).toHaveCount(0);
+        const box = (await school.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+        if (kiosk) {
+          expect(
+            await school
+              .getByTestId('school-lunch')
+              .evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize)),
+          ).toBeGreaterThanOrEqual(18);
+        }
+      });
+    }
+  }
+});

@@ -24,6 +24,8 @@ import {
 } from '@homebrain/module-heating';
 import {
   createMockFamilyApi,
+  mockSchool,
+  type SchoolScenario,
   setFamilyApiFactory,
   type FamilyRole,
 } from '@homebrain/module-family';
@@ -235,9 +237,18 @@ const heatingApi = createMockHeatingApi({
 setHeatingApiFactory(() => heatingApi);
 // Rodina: synthetic household („Ema“, „Kuba“). `?role=adult|child|kiosk`, `?rodina=empty`.
 const reassignDemo = recipesQuery.get('reassign');
+const schoolQuery = recipesQuery.get('skola');
+const schoolScenario: SchoolScenario =
+  schoolQuery === 'full' ||
+  schoolQuery === 'holiday' ||
+  schoolQuery === 'empty' ||
+  schoolQuery === 'stale'
+    ? schoolQuery
+    : 'off';
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
   scenario: recipesQuery.get('rodina') === 'empty' ? 'empty' : 'full',
+  school: schoolScenario,
   reassignDemo: reassignDemo === 'overdue' || reassignDemo === 'error' ? reassignDemo : undefined,
 });
 (window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;
@@ -256,7 +267,15 @@ const homeApi = createMockHomeApi(
   jidlo === 'empty' || jidlo === 'none' ? jidlo : 'full',
   (recipesQuery.get('role') as HomeRole | null) ?? 'owner',
 );
-setTodayHomeApiFactory(() => homeApi);
+setTodayHomeApiFactory(() => ({
+  ...homeApi,
+  school: async (day) =>
+    mockSchool(
+      schoolScenario,
+      recipesQuery.get('role') ?? (recipesQuery.get('kiosk') === '1' ? 'kiosk' : 'owner'),
+      new Date(`${day}T05:00:00+01:00`),
+    ),
+}));
 // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
 if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
 // `?fryerlive=<scenario>`: live airfryer card in Recepty + Dnes signal (synthetic entities).

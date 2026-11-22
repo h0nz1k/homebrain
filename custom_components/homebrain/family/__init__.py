@@ -11,8 +11,10 @@ from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
+from ..modules import disabled_modules
 from . import model
 from .person_history import PersonHistory
+from .school import SchoolImport
 from .swap_store import FamilySwapStore
 from .ws_common import family_options
 
@@ -26,6 +28,16 @@ async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
     history = PersonHistory(hass)
     await history.async_load()
     hb["family_history"] = history
+    if "family" not in disabled_modules(entry.options):
+        school = SchoolImport(hass, entry)
+        hb["family_school"] = school
+        await school.async_setup()
+
+        @callback
+        def _remove_school() -> None:
+            hb.pop("family_school", None)
+
+        entry.async_on_unload(_remove_school)
 
     def _record_missed() -> None:
         history.reconcile(

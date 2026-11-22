@@ -39,6 +39,7 @@ import { AmbientSky } from './AmbientSky.js';
 import { SunArc } from './SunArc.js';
 import { WeatherIcon } from './WeatherIcon.js';
 import { TodayHome } from './TodayHome.js';
+import { TodaySchool } from './TodaySchool.js';
 import { getTodayHomeApi } from '../data/home.js';
 import { needsRemoval, useCooking } from '../data/cooking.js';
 import { CookingCard } from './CookingCard.js';
@@ -392,6 +393,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           {presenceInHero && presence}
           {summaryInHero && summaryLine}
         </div>
+        <TodaySchool api={homeApi} now={data.now} kiosk={kiosk} />
         {night ? (
           <>
             {cookingCard}

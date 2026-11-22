@@ -1,4 +1,4 @@
-import type { ConnectionLike } from '@homebrain/ha-client';
+import { getSchool, type ConnectionLike, type SchoolSnapshot } from '@homebrain/ha-client';
 import type {
   CreateChoreInput,
   DeleteChoreInput,
@@ -7,6 +7,7 @@ import type {
   PersonHistoryEntry,
   PersonSettings,
   PersonsSettings,
+  SchoolSettings,
   PointsHistory,
   PointsSummary,
   SwapRequestInput,
@@ -16,7 +17,8 @@ export interface FamilyApi {
   get(): Promise<FamilySnapshot>;
   personHistory(member: string): Promise<{ entries: PersonHistoryEntry[] }>;
   personsSettings(): Promise<PersonsSettings>;
-  savePersons(persons: PersonSettings[]): Promise<PersonsSettings>;
+  savePersons(persons: PersonSettings[], school?: SchoolSettings): Promise<PersonsSettings>;
+  school?(): Promise<SchoolSnapshot>;
   claim(kid: string, chore: string): Promise<void>;
   approve(kid: string, chore: string): Promise<void>;
   addItem(summary: string): Promise<void>;
@@ -50,9 +52,10 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
     connection.sendMessagePromise<T>({ type, ...extra } as { type: string });
   return {
     get: () => call<FamilySnapshot>('homebrain/family/get'),
+    school: () => getSchool(connection),
     personHistory: (member) => call('homebrain/family/person/history', { member }),
     personsSettings: () => call('homebrain/family/settings/get'),
-    savePersons: (persons) => call('homebrain/family/settings/set', { persons }),
+    savePersons: (persons, school) => call('homebrain/family/settings/set', { persons, school }),
     claim: async (kid, chore) => void (await call('homebrain/family/chore/claim', { kid, chore })),
     approve: async (kid, chore) =>
       void (await call('homebrain/family/chore/approve', { kid, chore })),
