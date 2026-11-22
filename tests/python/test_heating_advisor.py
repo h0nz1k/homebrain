@@ -123,11 +123,12 @@ def _curve_stats(count=7, circuit=3, cold_days=0, attic=21, outdoor=4.5, room=21
 )
 def test_curve_status(kwargs, has_attic, status, used, missing):
     stats = a.group_hourly(_curve_stats(**kwargs), ZONE)
+    today = DAY + timedelta(days=kwargs.get("count", 7))
     result = a.assess_curve(
         a.curve_days(stats, has_attic=has_attic),
         a.curve_variation(stats),
         a.AdvisorOptions(),
-        TODAY,
+        today,
     )
     assert (result["status"], result["days_used"], result["days_missing"]) == (
         status,
