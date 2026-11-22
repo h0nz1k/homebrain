@@ -19,7 +19,7 @@ import voluptuous as vol
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
-from . import points_model
+from . import points_model, swap_model
 
 PURPOSE_HELPER: Final = "purpose_dashboard_helper"
 PURPOSE_POINTS: Final = "purpose_points"
@@ -180,8 +180,6 @@ def _swap_block_reason(attrs: Mapping[str, Any]) -> str | None:
         if freq.startswith("rotation"):
             return "Střídání upravuje rodič v ChoreOps."
         return "Společný úkol zatím nelze předat."
-    if freq == "none":
-        return "Jednorázový úkol nelze předat."
     return None
 
 
@@ -190,14 +188,15 @@ def _enrich_chore_row(
 ) -> dict[str, Any]:
     attrs = sensor.attributes if sensor else {}
     state = _chore_state(str(row.get("state") or ""))
-    block = _swap_block_reason(attrs)
+    due = attrs.get("due_date") if isinstance(attrs.get("due_date"), str) else None
+    block = _swap_block_reason(attrs) or (None if due else "Úkol nemá termín.")
     raw = str(row.get("state") or "")
     can_swap = (
         block is None
-        and row.get("primary_group") == "today"
         and state in ("todo", "overdue")
-        and raw not in DONE_STATES
-        and raw not in CLAIMED_STATES
+        and raw not in {"missed", "paused", "unknown", "unavailable"}
+        and attrs.get("claim_mode")
+        not in {"blocked_not_my_turn", "blocked_standby", "blocked_paused"}
     )
     return {
         "id": str(row.get("eid") or row["name"]),
@@ -206,13 +205,13 @@ def _enrich_chore_row(
         "name": str(row["name"]),
         "state": state,
         "points": _float(attrs.get("default_points", attrs.get("points"))),
-        "due": attrs.get("due_date") if isinstance(attrs.get("due_date"), str) else None,
+        "due": due,
         "can_request_swap": can_swap and kid.get("role", "child") == "child",
         "claim_allowed": attrs.get("can_claim") is not False,
         "shared_first": attrs.get("completion_criteria") == "shared_first",
         "shared_taken": bool(attrs.get("claimed_by") or attrs.get("completed_by")),
         "raw_state": raw,
-        "frequency": attrs.get("recurring_frequency"),
+        "frequency": chore_frequency(attrs),
         "rotation_turn": attrs.get("turn_user_name"),
         "swap_unavailable_reason": block,
         "kid_uuid": kid.get("kid_uuid") or kid["id"],
@@ -225,8 +224,11 @@ def apply_swap_overlays(
     kid: Mapping[str, Any],
     store_data: Mapping[str, Any],
     kids_by_uuid: Mapping[str, Mapping[str, Any]],
+    now: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Decorate chore rows with today-only swap badges from Store."""
+    """Decorate the selected occurrence, including transfers scheduled for later."""
+    now = now or dt_util.now()
+    today = now.date()
     requests = store_data.get("requests") or {}
     operations = store_data.get("operations") or {}
     kid_uuid = str(kid.get("kid_uuid") or kid["id"])
@@ -234,11 +236,20 @@ def apply_swap_overlays(
     for chore in chores:
         row = dict(chore)
         row["swap_today"] = None
+        day = swap_model.swap_day(row, now)
+        local_date = day.isoformat() if day else None
+        if row.get("can_request_swap"):
+            row["can_request_swap"] = day is not None and (
+                0 <= (day - today).days <= swap_model.SWAP_WINDOW_DAYS
+            )
         for req in requests.values():
             if not isinstance(req, Mapping):
                 continue
-            if req.get("status") == "pending" and req.get("source_chore_id") == chore.get(
-                "opaque_id"
+            if (
+                req.get("status") == "pending"
+                and not swap_model.request_expired(req, now)
+                and req.get("local_date", local_date) == local_date
+                and req.get("source_chore_id") == chore.get("opaque_id")
             ):
                 if req.get("from_kid_id") == kid_uuid:
                     to = kids_by_uuid.get(str(req.get("to_kid_id") or ""), {})
@@ -248,7 +259,11 @@ def apply_swap_overlays(
                         "partner_name": to.get("name"),
                     }
         for op in operations.values():
-            if not isinstance(op, Mapping) or op.get("status") != "active":
+            if not isinstance(op, Mapping) or op.get("status") not in {
+                "scheduled",
+                "active",
+                "failed",
+            }:
                 continue
             snap = op.get("source_snapshot") or {}
             chore_uuid = chore.get("chore_uuid")
@@ -262,22 +277,41 @@ def apply_swap_overlays(
                 op["clone_id"] in {chore_uuid, opaque, chore.get("id")}
                 or (token and chore["name"].endswith(f" · HB-{token[:8]}"))
             )
-            if op.get("from_kid_id") == kid_uuid and source_matches:
+            if (
+                op.get("from_kid_id") == kid_uuid
+                and source_matches
+                and op.get("local_date", local_date) == local_date
+            ):
                 to = kids_by_uuid.get(str(op.get("to_kid_id") or ""), {})
                 row["swap_today"] = {
                     "kind": "transferred_out",
                     "label": f"Předáno: {to.get('name', 'někdo')} · jen dnes",
                     "partner_name": to.get("name"),
-                    "muted": True,
+                    "muted": op["status"] != "failed",
                 }
-                row["counts_today"] = False
-            elif op.get("to_kid_id") == kid_uuid and clone_matches:
+                if op["status"] == "failed":
+                    row["swap_today"] = {
+                        "kind": "transfer_failed",
+                        "label": "Přeřazení se nepovedlo.",
+                    }
+                elif day and day > today:
+                    row["swap_today"]["local_date"] = local_date
+                else:
+                    row["counts_today"] = False
+            elif op["status"] == "active" and op.get("to_kid_id") == kid_uuid and clone_matches:
+                row["name"] = snap.get("name") or chore["name"]
                 from_k = kids_by_uuid.get(str(op.get("from_kid_id") or ""), {})
                 row["swap_today"] = {
                     "kind": "transferred_in",
                     "label": f"Převzato od: {from_k.get('name', 'někdo')} · jen dnes",
                     "partner_name": from_k.get("name"),
                 }
+        if (row["swap_today"] or {}).get("kind") in {
+            "transferred_out",
+            "transferred_in",
+            "pending_give",
+        }:
+            row["can_request_swap"] = False
         out.append(row)
     return out
 
@@ -313,7 +347,7 @@ def pending_approvals(
             source = next(
                 (
                     c
-                    for c in original.get("chores", [])
+                    for c in (*original.get("chores", []), *original.get("upcoming", []))
                     if req.get("source_chore_id")
                     in {c.get("id"), c.get("opaque_id"), c.get("chore_uuid")}
                 ),
@@ -323,14 +357,15 @@ def pending_approvals(
             items.append(
                 {
                     "kind": "swap",
-                    "type_label": "Předání na dnes",
+                    "type_label": "Předání",
+                    "local_date": req.get("local_date"),
                     "request_id": req.get("id"),
                     "requester_name": (
                         req.get("requester_name") or requester.get("name") or original.get("name")
                     ),
-                    "chore_name": source.get("name"),
-                    "points": source.get("points"),
-                    "due": source.get("due"),
+                    "chore_name": source.get("name") or req.get("source_name"),
+                    "points": source.get("points", req.get("source_points")),
+                    "due": source.get("due", req.get("source_due")),
                     "from_kid_id": req.get("from_kid_id"),
                     "to_kid_id": req.get("to_kid_id"),
                     "chore_id": req.get("source_chore_id"),
@@ -539,20 +574,13 @@ def kid_upcoming(
             continue
         sensor = get_state(row["eid"]) if row.get("eid") else None
         attrs = sensor.attributes if sensor else {}
-        due = attrs.get("due_date") if isinstance(attrs.get("due_date"), str) else None
         if attrs.get("completion_criteria") == "shared_first" or attrs.get("claim_mode") in (
             "blocked_not_my_turn",
             "blocked_standby",
             "blocked_paused",
         ):
             continue
-        item: dict[str, Any] = {
-            "id": str(row.get("eid") or row["name"]),
-            "name": str(row["name"]),
-            "points": _float(attrs.get("default_points", attrs.get("points"))),
-            "due": due,
-            "group": group,
-        }
+        item = {**_enrich_chore_row(row, sensor, kid), "group": group}
         out.append(item)
     out.sort(key=lambda r: (r["due"] is None, r["due"] or "", r["name"]))
     return out[:limit]
@@ -634,11 +662,15 @@ def kid_payload(
     points_state = get_state(kid["points_entity"]) if kid.get("points_entity") else None
     claim = role in ("owner", "adult", "kiosk") or (role == "child" and own)
     approve = role in ("owner", "adult")
-    chores, missed, free = partition_chores(kid_chores(get_state, kid), now or dt_util.now())
-    if store_data and kids_by_uuid:
-        chores = apply_swap_overlays(
-            chores, kid=kid, store_data=store_data, kids_by_uuid=kids_by_uuid
-        )
+    now = now or dt_util.now()
+    chores, missed, free = partition_chores(kid_chores(get_state, kid), now)
+    present = {c["id"] for c in chores}
+    upcoming = [c for c in kid_upcoming(get_state, kid, limit=None) if c["id"] not in present]
+    if store_data is not None:
+        overlay = dict(kid=kid, store_data=store_data, kids_by_uuid=kids_by_uuid or {}, now=now)
+        chores = apply_swap_overlays(chores, **overlay)
+        upcoming = apply_swap_overlays(upcoming, **overlay)
+
     chores = [
         {
             **c,
@@ -650,7 +682,6 @@ def kid_payload(
         }
         for c in chores
     ]
-    present = {c["id"] for c in chores}
     balance = _float(points_state.state) if points_state else None
     payload: dict[str, Any] = {
         "id": kid["id"],
@@ -661,7 +692,7 @@ def kid_payload(
         if points_state
         else None,
         "chores": chores,
-        "upcoming": [u for u in kid_upcoming(get_state, kid, limit=None) if u["id"] not in present],
+        "upcoming": upcoming,
         "missed": missed,
         "free": [
             {
@@ -675,8 +706,11 @@ def kid_payload(
         else None,
         "counts": chore_counts(chores),
     }
-    for row in payload["chores"]:
+    for row in (*chores, *upcoming):
         for field in ("claim_allowed", "shared_first", "shared_taken", "raw_state", "frequency"):
+            row.pop(field, None)
+    for row in upcoming:
+        for field in ("kid_uuid", "chore_uuid", "opaque_id"):
             row.pop(field, None)
     if include_points_detail and points_state:
         attrs = dict(points_state.attributes)

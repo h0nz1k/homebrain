@@ -1208,3 +1208,199 @@ async def test_skip_today_dedupes_and_can_restore_future_occurrence(
         "user_name": "Ema",
         "due_date": original_due,
     }
+
+
+@pytest.fixture
+def swaps(hass, entry, monkeypatch):
+    from custom_components.homebrain.family import swap_service
+
+    clock = [NOW]
+    monkeypatch.setattr(dt_util, "now", lambda *_: clock[0])
+    hass.config.time_zone = "Europe/Prague"
+    created: list[dict[str, Any]] = []
+    _strict_create_chore(hass, created)
+    effects: list[tuple[str, dict[str, Any]]] = []
+
+    async def update(call: ServiceCall):
+        effects.append(("update", dict(call.data)))
+        return {"chore_id": call.data["id"]}
+
+    async def skip(call: ServiceCall):
+        effects.append(("skip", dict(call.data)))
+
+    hass.services.async_register(
+        "choreops", "update_chore", update, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register("choreops", "skip_chore_due_date", skip)
+
+    def occurrence(key, due, *, frequency="daily", state="pending", owner="dcera"):
+        row = _chore(hass, owner, key, key, state, group="this_week")
+        hass.states.async_set(
+            row["eid"],
+            state,
+            {
+                "due_date": due,
+                "default_points": 2,
+                "chore_id": key,
+                "recurring_frequency": frequency,
+                "assigned_user_names": ["Syn" if owner == "syn" else "Dcera", "Táta"],
+            },
+        )
+        return row
+
+    def tomorrow(day=1):
+        return (NOW + timedelta(days=day)).replace(hour=19).isoformat()
+
+    _kid(
+        hass,
+        "dcera",
+        "Dcera",
+        [
+            occurrence("once", tomorrow(), frequency="none"),
+            occurrence("repeat", tomorrow()),
+            occurrence("undated", None),
+            occurrence("far", tomorrow(8)),
+            occurrence("done", tomorrow(), state="approved"),
+        ],
+        0,
+    )
+    _kid(hass, "syn", "Syn", [occurrence("own", tomorrow(), owner="syn")], 0)
+
+    async def advance(day):
+        clock[0] = NOW.replace(hour=0) + timedelta(days=day)
+        store = hass.data[DOMAIN]["family_swap"]
+        await swap_service.apply_scheduled_swaps(hass, store)
+        return store
+
+    return created, effects, advance
+
+
+def _handover(key: str, *, kind="reassign", **overrides):
+    return {
+        "type": f"homebrain/family/swap/{kind}",
+        "client_request_id": f"request-{key}",
+        "chore": f"sensor.dcera_choreops_chore_{key}",
+        "from_kid": "dcera",
+        "to_kid": "syn",
+        "local_date": "2026-06-03",
+        **overrides,
+    }
+
+
+async def test_swap_options_and_validation_for_future_occurrences(hass, swaps, hass_ws_client):
+    client = await hass_ws_client(hass)
+    result = await _ws(client, {"type": "homebrain/family/swap/options", "direction": "give"})
+    occurrences = result["result"]["occurrences"]
+    assert {(row["name"], row["local_date"]) for row in occurrences} == {
+        ("once", "2026-06-03"),
+        ("repeat", "2026-06-03"),
+        ("own", "2026-06-03"),
+    }
+    for key, day in [
+        ("undated", "2026-06-03"),
+        ("far", "2026-06-10"),
+        ("done", "2026-06-03"),
+        ("repeat", "2026-06-04"),
+        ("repeat", "2026-06-31"),
+    ]:
+        assert not (await _ws(client, _handover(key, local_date=day)))["success"]
+
+
+async def test_future_reassign_applies_each_selected_occurrence_only(hass, swaps, hass_ws_client):
+    created, effects, advance = swaps
+    client = await hass_ws_client(hass)
+    for key in ("once", "repeat"):
+        msg = await _ws(client, _handover(key))
+        assert msg["result"]["operation"]["status"] == "scheduled"
+        assert (await _ws(client, _handover(key)))["success"]
+    assert not created and not effects
+    result = (await _ws(client, {"type": "homebrain/family/get"}))["result"]
+    upcoming = result["kids"][0]["upcoming"]
+    assert (
+        next(row for row in upcoming if row["name"] == "repeat")["swap_today"]["local_date"]
+        == "2026-06-03"
+    )
+    assert not (await _ws(client, _handover("repeat", client_request_id="another-reassign")))[
+        "success"
+    ]
+    store = await advance(1)
+    assert [service for service, _ in effects] == ["update", "skip"]
+    assert effects[0][1]["assigned_user_names"] == ["Dcera"]
+    assert effects[0][1]["assignment_action"] == "remove"
+    assert effects[1][1]["chore_id"] == "repeat"
+    assert effects[1][1]["user_name"] == "Dcera"
+    assert len(created) == 2
+    assert created[0]["assigned_user_names"] == ["Syn"]
+    assert created[0]["due_date"] == "2026-06-03T19:00:00+02:00"
+    assert {op["status"] for op in store.data["operations"].values()} == {"active"}
+    await advance(1)
+    assert len(created) == 2 and len(effects) == 2
+
+
+async def test_child_requests_future_handover_and_parent_approves(
+    hass,
+    entry,
+    swaps,
+    hass_ws_client,
+    hass_admin_user,
+):
+    child = await hass.auth.async_create_user("Testovací dítě")
+    await _as(hass, entry, child, "child", [{"name": "Syn", "user_id": child.id}])
+    refresh = await hass.auth.async_create_refresh_token(child, client_id="https://example.org")
+    child_client = await hass_ws_client(hass, hass.auth.async_create_access_token(refresh))
+    parent_client = await hass_ws_client(hass)
+    options = await _ws(
+        child_client, {"type": "homebrain/family/swap/options", "direction": "give"}
+    )
+    assert [row["name"] for row in options["result"]["occurrences"]] == ["own"]
+    assert not (await _ws(child_client, _handover("repeat", kind="request", to_kid=child.id)))[
+        "success"
+    ]
+    payload = _handover(
+        "own",
+        kind="request",
+        from_kid=child.id,
+        to_kid="dcera",
+        chore="sensor.syn_choreops_chore_own",
+    )
+    assert not (await _ws(child_client, {**payload, "type": "homebrain/family/swap/reassign"}))[
+        "success"
+    ]
+    requested = await _ws(child_client, payload)
+    request = requested["result"]["request"]
+    assert request["expires_at"] == "2026-06-03T22:00:00+00:00"
+    decide = {
+        "type": "homebrain/family/swap/decide",
+        "request_id": request["id"],
+        "decision": "approve",
+    }
+    assert not (await _ws(child_client, decide))["success"]
+    result = await _ws(parent_client, decide)
+    assert result["result"]["operation"]["status"] == "scheduled"
+    assert result["result"]["request"]["status"] == "approved"
+    created, effects, advance = swaps
+    assert not created and not effects
+    await advance(1)
+    assert created[0]["assigned_user_names"] == ["Dcera"]
+    assert effects[0][1]["user_name"] == "Syn"
+
+
+async def test_future_swap_request_expires_at_end_of_selected_day(hass, swaps, hass_ws_client):
+    _, _, advance = swaps
+    client = await hass_ws_client(hass)
+    requested = await _ws(client, _handover("repeat", kind="request"))
+    assert requested["success"]
+    rid = requested["result"]["request"]["id"]
+    store = await advance(1)
+    assert store.data["requests"][rid]["status"] == "pending"
+    await advance(2)
+    result = await _ws(
+        client,
+        {
+            "type": "homebrain/family/swap/decide",
+            "request_id": rid,
+            "decision": "approve",
+        },
+    )
+    assert result["error"]["code"] == "expired"
+    assert store.data["requests"][rid]["status"] == "expired"

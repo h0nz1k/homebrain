@@ -147,16 +147,17 @@ function decline(name: string, kase: Case): string | null {
   return withCase(raw, `${stem}${SOFT.includes(stem.slice(-1)) ? 'e' : 'a'}`);
 }
 
-export function reassignedToLabel(name: string): string {
+export function reassignedToLabel(name: string, day = 'dnes'): string {
   const first = name.trim();
   const genitive = nameGenitive(first);
+  const when = day === 'dnes' ? ' na dnes' : ` · ${day}`;
   if (/^\p{L}+a$/iu.test(first)) {
-    return `Přeřazeno na ${first.slice(0, -1)}u na dnes`;
+    return `Přeřazeno na ${first.slice(0, -1)}u${when}`;
   }
   if (genitive && !first.toLocaleLowerCase('cs').endsWith('e')) {
-    return `Přeřazeno na ${genitive} na dnes`;
+    return `Přeřazeno na ${genitive}${when}`;
   }
-  return `Přeřazeno na dnes · ${name}`;
+  return `Přeřazeno ${name} · ${day}`;
 }
 
 /** 3. pád (komu): „Synovi“, „Dceři“, „Babi“; `null` when unsure. */

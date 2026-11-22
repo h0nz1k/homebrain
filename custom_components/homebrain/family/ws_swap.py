@@ -42,19 +42,42 @@ def _kids_index(kids: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(k.get("kid_uuid") or k["id"]): k for k in kids}
 
 
-def _occurrence(hass: HomeAssistant, kid: dict[str, Any], opaque: str) -> dict[str, Any] | None:
-    rows = model.apply_swap_overlays(
-        model.kid_chores(hass.states.get, kid),
+def _occurrences(
+    hass: HomeAssistant,
+    kid: dict[str, Any],
+    *,
+    ignore_request: str | None = None,
+) -> list[dict[str, Any]]:
+    now = dt_util.now().astimezone(ZoneInfo(hass.config.time_zone))
+    today = model.kid_chores(hass.states.get, kid)
+    seen = {row["id"] for row in today}
+    upcoming = model.kid_upcoming(hass.states.get, kid, limit=None)
+    data = _store(hass).data
+    if ignore_request:
+        data = {
+            **data,
+            "requests": {
+                key: row for key, row in data["requests"].items() if key != ignore_request
+            },
+        }
+    return model.apply_swap_overlays(
+        today + [row for row in upcoming if row["id"] not in seen],
         kid=kid,
-        store_data=_store(hass).data,
+        store_data=data,
         kids_by_uuid={},
+        now=now,
     )
-    for row in rows:
-        if row.get("opaque_id") == opaque or row.get("id") == opaque:
-            if (row.get("swap_today") or {}).get("kind") == "transferred_out":
-                row["can_request_swap"] = False
-            return row
-    return None
+
+
+def _occurrence(
+    hass: HomeAssistant,
+    kid: dict[str, Any],
+    opaque: str,
+    *,
+    ignore_request: str | None = None,
+) -> dict[str, Any] | None:
+    rows = _occurrences(hass, kid, ignore_request=ignore_request)
+    return next((row for row in rows if row["opaque_id"] == opaque), None)
 
 
 def _swap_snapshot(hass: HomeAssistant, cfg: str, occ: dict[str, Any]) -> dict[str, Any]:
@@ -64,7 +87,15 @@ def _swap_snapshot(hass: HomeAssistant, cfg: str, occ: dict[str, Any]) -> dict[s
         "name": occ["name"],
         "due": occ["due"],
         "points": occ["points"],
+        "frequency": occ["frequency"],
     }
+
+
+def _local_day(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as err:
+        raise swap_model.DomainError("invalid_input", "Vyber platné datum.") from err
 
 
 def _require_adult(role: str) -> None:
@@ -84,12 +115,15 @@ async def websocket_family_swap_options(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     role = _role(hass, connection)
+    if role == "kiosk":
+        raise Unauthorized
     kids = _visible_kids(hass, connection, role)
+    now = dt_util.now().astimezone(ZoneInfo(hass.config.time_zone))
     actor = str(getattr(connection.user, "id", "") or "")
     occs: list[dict[str, Any]] = []
     for kid in kids:
-        for row in model.kid_chores(hass.states.get, kid):
-            if not row.get("can_request_swap"):
+        for row in _occurrences(hass, kid):
+            if not row.get("can_request_swap") or (msg.get("chore") and row["id"] != msg["chore"]):
                 continue
             if role == "child" and msg["direction"] == "give" and kid.get("user_id") != actor:
                 continue
@@ -98,7 +132,8 @@ async def websocket_family_swap_options(
                     "opaque_id": row["opaque_id"],
                     "name": row["name"],
                     "points": row.get("points"),
-                    "due": row.get("due"),
+                    "due": row["due"],
+                    "local_date": swap_model.swap_day(row, now).isoformat(),
                     "owner_name": kid["name"],
                     "owner_kid_uuid": kid.get("kid_uuid"),
                 }
@@ -108,6 +143,7 @@ async def websocket_family_swap_options(
         for k in _children(hass)
         if msg["direction"] != "take" or k.get("user_id") == actor or role in {"owner", "adult"}
     ]
+    occs.sort(key=lambda row: (row["local_date"], row["due"], row["name"]))
     connection.send_result(msg["id"], {"occurrences": occs, "partners": partners})
 
 
@@ -131,6 +167,8 @@ async def websocket_family_swap_request(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     role = _role(hass, connection)
+    if role == "kiosk":
+        raise Unauthorized
     store = _store(hass)
     tz = ZoneInfo(hass.config.time_zone)
     now = dt_util.now()
@@ -157,14 +195,20 @@ async def websocket_family_swap_request(
         connection.send_error(msg["id"], "not_found", "Dítě nenalezeno")
         return
     occ = _occurrence(hass, from_k, msg["chore"])
+    actor_kid = from_k if msg["direction"] == "give" else to_k
+    if role == "child" and actor_kid.get("user_id") != actor:
+        raise Unauthorized
     try:
+        local_day = _local_day(msg["local_date"])
         swap_model.validate_swap_request(
             direction=msg["direction"],
-            actor_user_id=actor,
+            actor_user_id=str(actor_kid.get("kid_uuid") or actor_kid["id"])
+            if role == "child"
+            else actor,
             from_kid=msg["from_kid"],
             to_kid=msg["to_kid"],
             chore_opaque=msg["chore"],
-            local_day=date.fromisoformat(msg["local_date"]),
+            local_day=local_day,
             now=now,
             tz=tz,
             role=role,
@@ -183,8 +227,11 @@ async def websocket_family_swap_request(
         "to_kid_id": msg["to_kid"],
         "local_date": msg["local_date"],
         "timezone": str(hass.config.time_zone),
-        "expires_at": swap_model.expires_at(date.fromisoformat(msg["local_date"]), tz).isoformat(),
+        "expires_at": swap_model.expires_at(local_day, tz).isoformat(),
         "status": "pending",
+        "source_name": occ["name"],
+        "source_points": occ["points"],
+        "source_due": occ["due"],
         "created_at": now.isoformat(),
         "revision": store.revision + 1,
     }
@@ -226,7 +273,7 @@ async def websocket_family_swap_decide(
     if msg["decision"] == "approve" and swap_model.request_expired(req, now):
         store.upsert_request(msg["request_id"], swap_model.reduce_request(req, "expire", now))
         await store.async_save()
-        connection.send_error(msg["id"], "expired", "Platí jen pro dnešní den.")
+        connection.send_error(msg["id"], "expired", "Žádost vypršela na konci dne výskytu.")
         return
     op_payload = None
     if updated.get("status") == "approved":
@@ -241,14 +288,28 @@ async def websocket_family_swap_decide(
         if not from_k or not to_k:
             connection.send_error(msg["id"], "not_found", "Dítě nenalezeno")
             return
-        occ = _occurrence(hass, from_k, str(updated.get("source_chore_id")))
+        occ = _occurrence(hass, from_k, req["source_chore_id"], ignore_request=msg["request_id"])
         if not occ or not choreops_adapter.matches_entry(hass, cfg, occ["id"]):
             connection.send_error(msg["id"], "not_found", "Povinnost nenalezena.")
             return
-        if not occ["can_request_swap"]:
-            connection.send_error(msg["id"], "unsupported_chore", "Tento úkol nelze dnes předat.")
+        tz = ZoneInfo(hass.config.time_zone)
+        try:
+            swap_model.validate_swap_request(
+                direction="give",
+                actor_user_id=actor,
+                from_kid=req["from_kid_id"],
+                to_kid=req["to_kid_id"],
+                chore_opaque=req["source_chore_id"],
+                local_day=_local_day(req["local_date"]),
+                now=now,
+                tz=tz,
+                role=role,
+                occurrence=occ,
+            )
+            snap = _swap_snapshot(hass, cfg, occ)
+        except swap_model.DomainError as err:
+            connection.send_error(msg["id"], err.code, str(err))
             return
-        snap = _swap_snapshot(hass, cfg, occ)
         op_id, op = swap_service.start_operation_from_request(
             store,
             {**updated, "id": msg["request_id"]},
@@ -257,7 +318,7 @@ async def websocket_family_swap_decide(
             from_kid_name=from_k["name"],
             to_kid_name=to_k["name"],
             source_snapshot=snap,
-            tz=ZoneInfo(hass.config.time_zone),
+            tz=tz,
         )
         store.upsert_request(msg["request_id"], updated)
         await store.async_save()
@@ -298,7 +359,7 @@ async def websocket_family_swap_reassign(
             return
         op_id = previous["result"]["operation_id"]
         op = store.data["operations"][op_id]
-        if op["status"] in {"active", "completed", "cleaned", "unclaimed_expired"}:
+        if op["status"] in {"scheduled", "active", "completed", "cleaned", "unclaimed_expired"}:
             connection.send_result(
                 msg["id"], {"operation": {"id": op_id, **op}, "revision": store.revision}
             )
@@ -330,7 +391,7 @@ async def websocket_family_swap_reassign(
             from_kid=msg["from_kid"],
             to_kid=msg["to_kid"],
             chore_opaque=msg["chore"],
-            local_day=date.fromisoformat(msg["local_date"]),
+            local_day=_local_day(msg["local_date"]),
             now=now,
             tz=tz,
             role=role,
@@ -386,6 +447,8 @@ async def websocket_family_swap_cancel(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     role = _role(hass, connection)
+    if role == "kiosk":
+        raise Unauthorized
     store = _store(hass)
     req = (store.data.get("requests") or {}).get(msg["request_id"])
     if not isinstance(req, dict):

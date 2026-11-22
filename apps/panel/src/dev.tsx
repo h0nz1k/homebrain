@@ -238,7 +238,10 @@ const reassignDemo = recipesQuery.get('reassign');
 const familyScenario = recipesQuery.get('rodina');
 const familyApi = createMockFamilyApi({
   role: (recipesQuery.get('role') as FamilyRole | null) ?? 'owner',
-  scenario: familyScenario === 'empty' || familyScenario === 'busy' ? familyScenario : 'full',
+  scenario:
+    familyScenario === 'empty' || familyScenario === 'busy' || familyScenario === 'evening'
+      ? familyScenario
+      : 'full',
   reassignDemo: reassignDemo === 'overdue' || reassignDemo === 'error' ? reassignDemo : undefined,
 });
 (window as unknown as { __hbFamilyLog?: unknown[] }).__hbFamilyLog = familyApi.log;

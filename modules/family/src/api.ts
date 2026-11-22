@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 
 export interface FamilyApi {
+  now?: () => Date;
   get(): Promise<FamilySnapshot>;
   personHistory(member: string): Promise<{ entries: PersonHistoryEntry[] }>;
   personsSettings(): Promise<PersonsSettings>;
@@ -25,7 +26,11 @@ export interface FamilyApi {
     direction: 'give' | 'take',
     chore?: string,
   ): Promise<{
-    occurrences: Array<Record<string, unknown>>;
+    occurrences: Array<{
+      opaque_id: string;
+      owner_kid_uuid: string;
+      local_date: string;
+    }>;
     partners: Array<{ id: string; name: string }>;
   }>;
   swapRequest(
