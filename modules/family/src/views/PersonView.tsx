@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
-import { Button, Card, Icon, czPlural } from '@homebrain/ui';
+import { Button, Card, Icon, czCount, czPlural } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
 import {
   CARRIED_LABEL,
@@ -69,7 +69,7 @@ function Progress({
 }: Pick<FamilyMember, 'counts'> & { handovers?: number }) {
   return (
     <span className="fam-person-progress">
-      {formatOutOf(counts.done, counts.total)} hotovo
+      <span>{formatOutOf(counts.done, counts.total)} hotovo</span>
       {counts.pending > 0 && (
         <span className="fam-person-wait">
           <Icon name="clock" size={16} />
@@ -281,7 +281,7 @@ function ChoreRows({
             <span className="fam-person-points" data-waiting={waiting || undefined}>
               {chore.occurrence === 'missed' ? (
                 pointsAmount(0)
-              ) : swap?.muted || chore.occurrence === 'carried' ? (
+              ) : swap?.muted && chore.occurrence !== 'carried' ? (
                 <s>{pointsLabel(chore.points)}</s>
               ) : waiting && chore.points != null ? (
                 <>
@@ -720,8 +720,8 @@ function Week({
                 </span>
                 <small>
                   {[
-                    total ? `${formatOutOf(done, total)} hotovo` : '',
-                    carried ? `${CARRIED_LABEL}: ${carried}` : '',
+                    total || carried ? `${formatOutOf(done, total + carried)} hotovo` : '',
+                    carried ? `${carried} přeneseno` : '',
                   ]
                     .filter(Boolean)
                     .join(' · ') ||
@@ -848,18 +848,31 @@ function TodaySummary({ member, now }: { member: FamilyMember; now: Date }) {
       </div>
       <div className="fam-person-surface fam-today-stats">
         <div>
-          <Progress counts={member.counts} />
+          <small>Povinnosti</small>
+          <strong>{formatOutOf(member.counts.done, member.counts.total)} hotovo</strong>
           <ProgressMeter counts={member.counts} />
+          {member.counts.pending > 0 && (
+            <small className="fam-person-wait">
+              {czCount(member.counts.pending, 'čeká', 'čekají', 'čeká')}
+            </small>
+          )}
         </div>
-        <strong>{pointsAmount(member.points_today ?? 0)} dnes</strong>
-        {next?.due && (
-          <div className="fam-today-deadline">
-            <small>Nejbližší termín</small>
-            <strong>
-              <time>{timeLabel(next.due)}</time> {next.name}
-            </strong>
-          </div>
-        )}
+        <div>
+          <small>Body dnes</small>
+          <strong>{member.points_today ?? 0}</strong>
+        </div>
+        <div className="fam-today-deadline">
+          <small>Nejbližší termín</small>
+          <strong>
+            {next?.due ? (
+              <>
+                <time>{timeLabel(next.due)}</time> {next.name}
+              </>
+            ) : (
+              'Bez termínu'
+            )}
+          </strong>
+        </div>
       </div>
     </section>
   );

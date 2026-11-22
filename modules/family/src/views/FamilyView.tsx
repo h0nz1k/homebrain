@@ -72,8 +72,8 @@ import {
 const POLL_MS = 60_000;
 /** „Udělal jsem“ on a free task: the claim is sent to ChoreOps only after this undo window. */
 export const CLAIM_UNDO_MS = 5000;
-/** Calendar categories use non-person hues (blue-grey, amber) so they never read as a kid. */
-export const SRC_COLOR = { family: '#8a9bb8', school: '#e0a23a' } as const;
+/** Calendar categories use blue-grey and green, independently of people and approvals. */
+export const SRC_COLOR = { family: '#8a9bb8', school: '#54b765' } as const;
 const KID_COLORS = ['#e879a8', '#2dd4bf', '#f59e0b', '#a78bfa'];
 
 /** Phone layout (same breakpoint as the stacked grid in familyStyles). */
@@ -295,10 +295,13 @@ function TodayCard({
                         {timeRange(ev)}
                       </time>
                     )}
-                    {kiosk ? <CategoryIcon kind={ev.kind} /> : <i />}
+                    {!kiosk && <i />}
                     <div className="fam-ev-t">
-                      <EventLead ids={who} members={members} />
-                      <div>
+                      {!kiosk && <EventLead ids={who} members={members} />}
+                      <div className="fam-ev-copy">
+                        {kiosk && ev.kind === 'school' && (
+                          <span className="fam-school-bar" role="img" aria-label="Škola" />
+                        )}
                         <b title={kiosk ? title : undefined}>{title}</b>
                         {(running || ev.id === next?.id) && (
                           <span
@@ -316,6 +319,7 @@ function TodayCard({
                         )}
                       </div>
                     </div>
+                    {kiosk && <EventLead ids={who} members={members} />}
                     {!kiosk && ev.kind === 'school' && <SchoolTag ev={ev} />}
                   </li>
                 );
@@ -370,9 +374,12 @@ function WeekCard({
                       <span className="fam-wk-time">
                         {ev.all_day ? 'celý den' : timeLabel(ev.start)}
                       </span>
-                      {kiosk ? <CategoryIcon kind={ev.kind} /> : <i aria-hidden="true" />}
+                      {!kiosk && <i aria-hidden="true" />}
                       <span className="fam-wk-t">
-                        <EventLead ids={who} members={members} family={false} />
+                        {!kiosk && <EventLead ids={who} members={members} family={false} />}
+                        {kiosk && ev.kind === 'school' && (
+                          <span className="fam-school-bar" role="img" aria-label="Škola" />
+                        )}
                         {!kiosk && ev.kind === 'school' && (
                           <span
                             className="fam-wk-school"
@@ -384,6 +391,7 @@ function WeekCard({
                         )}
                         <em title={kiosk ? title : undefined}>{title}</em>
                       </span>
+                      {kiosk && <EventLead ids={who} members={members} family={false} />}
                     </li>
                   );
                 })}
@@ -638,6 +646,7 @@ function OverflowChip({
   label,
   testId,
   onClick,
+  pending,
   context,
   expanded,
   controls,
@@ -645,21 +654,31 @@ function OverflowChip({
   label: string;
   testId: string;
   onClick(): void;
+  pending?: number;
   context?: string;
   expanded?: boolean;
   controls?: string;
 }) {
+  const pendingLabel = pending ? czCount(pending, 'čeká', 'čekají', 'čeká') : '';
   return (
     <button
       type="button"
       className="fam-overflow-chip"
       data-testid={testId}
-      aria-label={context ? `${label} · ${context}` : undefined}
+      aria-label={context ? [label, pendingLabel, context].filter(Boolean).join(' · ') : undefined}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={onClick}
     >
-      {label}
+      <span>
+        {label}
+        {pendingLabel && (
+          <>
+            {' · '}
+            <span data-status="pending">{pendingLabel}</span>
+          </>
+        )}
+      </span>
       <Icon name="chevron" size={18} />
     </button>
   );
@@ -983,7 +1002,8 @@ function KidCard({
         </ul>
         {hidden.length > 0 && onPerson && (
           <OverflowChip
-            label={`Další ${hidden.length} dnes${hiddenPending ? ` · ${czCount(hiddenPending, 'čeká', 'čekají', 'čeká')}` : ''}`}
+            label={`Další ${hidden.length} dnes`}
+            pending={hiddenPending}
             context={kid.name}
             testId="family-chores-more"
             onClick={onPerson}

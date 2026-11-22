@@ -157,9 +157,20 @@ describe('FamilyView', () => {
   });
 
   it('kiosk: clock, full 7-day list, parent approves instead of a dangling counter', async () => {
+    vi.setSystemTime(new Date(2026, 10, 19, 16, 5));
     await mount('kiosk', 'full', true);
     expect(screen.getByTestId('family-clock')).toBeTruthy();
     expect(screen.getAllByTestId('family-day')).toHaveLength(7);
+    const week = screen.getByTestId('family-week');
+    expect(within(week).getAllByTestId('family-week-event')).toHaveLength(7);
+    expect(week.querySelectorAll('.fam-school-bar')).toHaveLength(3);
+    for (const row of within(week).getAllByTestId('family-week-event')) {
+      expect(Array.from(row.children, (node) => node.className)).toEqual([
+        'fam-wk-time',
+        'fam-wk-t',
+        'fam-ev-lead',
+      ]);
+    }
     const pills = screen.getAllByTestId('family-pending-pill');
     expect(pills.map((p) => p.dataset.pending).sort()).toEqual(['completion', 'swap']);
     const label = (kind: string) =>
