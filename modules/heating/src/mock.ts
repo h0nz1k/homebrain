@@ -1,6 +1,7 @@
 import { normalizeHistory, type HeatingApi } from './api.js';
 import { deriveSolarState, type SolarSample } from './solar.js';
 import type {
+  HeatingAdvisor,
   HeatingClock,
   HeatingCycling,
   HeatingHistory,
@@ -931,6 +932,7 @@ export function createMockHeatingApi(
     now?: () => number;
     extrasMode?: HeatingExtrasMode;
     mixerFault?: boolean;
+    advisor?: HeatingAdvisor;
   } = {},
 ): HeatingApi {
   const scenario =
@@ -960,6 +962,7 @@ export function createMockHeatingApi(
   return {
     get: () => {
       const snap = buildMockSnapshot(scenario, rooms, now(), extrasMode);
+      snap.advisor = opts.advisor;
       return delay(opts.mixerFault ? withMixerFault(snap, now()) : snap);
     },
     changes: () => delay(scenario === 'unconfigured' ? [] : mockChanges),

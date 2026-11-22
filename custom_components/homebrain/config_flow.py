@@ -15,6 +15,7 @@ from .communication.config import validate as validate_communication
 from .const import BINDING_MODULES, DOMAIN, MEALS_DISPLAY, MEALS_DISPLAY_MODES, PANEL_TITLE
 from .energy.binding_suggestions import suggest_energy_binding
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
+from .heating.advisor import ATTIC_COMFORT, DESIGN_TEMP, LOOKBACK_YEARS
 from .heating.poller import (
     CONF_HEATING,
     DEFAULT_INTERVAL,
@@ -343,6 +344,10 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 "map_path": str(user_input.get("map_path") or default_map).strip(),
                 "poll_interval": int(user_input.get("poll_interval") or DEFAULT_INTERVAL),
                 "alert_recipient": str(user_input.get("alert_recipient") or "").strip(),
+                "advisor_lookback_years": user_input.get("advisor_lookback_years", LOOKBACK_YEARS),
+                "advisor_thermal_kw": user_input.get("advisor_thermal_kw"),
+                "advisor_design_temp": user_input.get("advisor_design_temp", DESIGN_TEMP),
+                "advisor_attic_comfort": user_input.get("advisor_attic_comfort", ATTIC_COMFORT),
             }
             if not url.startswith(("http://", "https://")):
                 errors["url"] = "invalid_url"
@@ -382,6 +387,38 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                     "alert_recipient",
                     description={"suggested_value": current.get("alert_recipient", "")},
                 ): selector.TextSelector(),
+                vol.Optional(
+                    "advisor_lookback_years",
+                    default=current.get("advisor_lookback_years", LOOKBACK_YEARS),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=1, max=LOOKBACK_YEARS, step=1)
+                ),
+                vol.Optional(
+                    "advisor_thermal_kw",
+                    description={"suggested_value": current.get("advisor_thermal_kw")},
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.1,
+                        step=0.1,
+                        unit_of_measurement="kW",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    "advisor_design_temp", default=current.get("advisor_design_temp", DESIGN_TEMP)
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        step=0.1, unit_of_measurement="°C", mode=selector.NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Optional(
+                    "advisor_attic_comfort",
+                    default=current.get("advisor_attic_comfort", ATTIC_COMFORT),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        step=0.1, unit_of_measurement="°C", mode=selector.NumberSelectorMode.BOX
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="heating", data_schema=schema, errors=errors)

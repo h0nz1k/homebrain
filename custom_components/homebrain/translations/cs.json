@@ -309,7 +309,11 @@
           "username": "Uživatel",
           "password": "Heslo",
           "map_path": "Mapa proměnných (cesta k YAML)",
-          "poll_interval": "Interval čtení"
+          "poll_interval": "Interval čtení",
+          "advisor_lookback_years": "Počet sezón pro odhad",
+          "advisor_thermal_kw": "Jmenovitý tepelný výkon čerpadla (volitelné)",
+          "advisor_design_temp": "Venkovní teplota pro výpočet ztráty",
+          "advisor_attic_comfort": "Nejnižší příjemná teplota v podkroví"
         }
       },
       "communication": {

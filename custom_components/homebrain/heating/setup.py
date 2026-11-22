@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from ..bindings import get_bindings
 from ..const import DOMAIN
 from ..modules import CONF_DISABLED_MODULES, record_failure
+from . import advisor
 from .legacy import async_migrate_entities
 from .poller import CONF_HEATING, DATA_KEY, HeatingOptions, HeatingPoller
 
@@ -43,12 +44,17 @@ async def async_setup_heating(hass: HomeAssistant, entry: ConfigEntry) -> None:
         data[DATA_KEY] = poller
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         data[_PLATFORMS_KEY] = True
+        daily = advisor.HeatingAdvisor(hass, advisor.AdvisorOptions.from_options(snapshot))
+        data[advisor.DATA_KEY] = daily
+        daily.start()
     except Exception as err:  # noqa: BLE001 - isolate the module, keep HA running
         record_failure(hass, "heating", err)
 
 
 async def async_unload_heating(hass: HomeAssistant, entry: ConfigEntry) -> None:
     data = hass.data.get(DOMAIN, {})
+    if (daily := data.pop(advisor.DATA_KEY, None)) is not None:
+        await daily.stop()
     if data.pop(_PLATFORMS_KEY, False):
         await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     poller: HeatingPoller | None = data.pop(DATA_KEY, None)

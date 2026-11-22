@@ -57,6 +57,7 @@ import { SideCircuitsPortrait, SolarPortraitBanner } from './SideCircuits.js';
 import { HeatingSchematic } from './Schematic.js';
 import { PoolFishCard, SettingsCard, WeekProgramsCard } from './ModesCards.js';
 import { DailyCards } from './DailyCards.js';
+import { AdvisorCard } from './AdvisorCard.js';
 import { showAtticTemp } from '../landscape.js';
 import { heatingStyles } from './styles.js';
 
@@ -522,6 +523,7 @@ function NowTab({
         </Card>
       </div>
       <SideCircuitsPortrait snap={snap} />
+      <AdvisorCard advisor={snap.advisor} />
     </div>
   );
 }

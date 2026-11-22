@@ -1,4 +1,5 @@
 import { settingsDemo } from '@homebrain/module-energy';
+import { mockHeatingAdvisor } from '../dev/mocks/heating/advisor.js';
 import { createHealthDemo, type HealthScenario } from '@homebrain/module-health';
 import {
   createMockNetworkApi,
@@ -231,6 +232,7 @@ const heatingApi = createMockHeatingApi({
   rooms: recipesQuery.get('rooms') === '4' ? 4 : 0,
   extrasMode: recipesQuery.get('extras') === 'none' ? 'none' : 'default',
   mixerFault: recipesQuery.get('ventil') === 'porucha',
+  advisor: mockHeatingAdvisor(recipesQuery.get('doporuceni'), new Date().toISOString()),
 });
 setHeatingApiFactory(() => heatingApi);
 // Rodina: synthetic household („Ema“, „Kuba“). `?role=adult|child|kiosk`, `?rodina=empty`.

@@ -450,6 +450,15 @@ class HeatingPoller:
             return self.payload()["activity"] if self._updated_at else None
         return self._res.values.get(key)
 
+    def runtime_sample(self, key: str) -> tuple[datetime, bool] | None:
+        """Timestamp and value of the most recent usable sample of a mapped output."""
+        spec = self.map.keys.get(key) if self.map else None
+        value = self.value(key)
+        if self.source == "ok" and spec is not None and isinstance(value, bool):
+            if (sampled_at := self._page_times.get(spec.page)) is not None:
+                return sampled_at, value
+        return None
+
     def payload(self) -> dict[str, Any]:
         now = dt_util.utcnow()
         if self.map is None:

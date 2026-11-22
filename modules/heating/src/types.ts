@@ -103,7 +103,42 @@ export interface HeatingSolarDay {
   stagnation_min: T;
 }
 
+export type HeatingCurveStatus =
+  'suggest_lower' | 'suggest_higher' | 'ok' | 'insufficient_data' | 'recent_change';
+
+export interface HeatingAdvisor {
+  computed_at: string;
+  model: {
+    slope_h_per_k: T;
+    balance_temp: T;
+    r2: T;
+    days: number;
+    days_incomplete: number;
+    heat_loss_wk_low: T;
+    heat_loss_wk_high: T;
+    design_loss_kw_low: T;
+    design_loss_kw_high: T;
+    thermal_kw: T;
+    design_temp: number;
+    confidence: 'low' | 'medium' | 'high';
+    seasons: { season: string; slope_h_per_k: T; days: number }[];
+  };
+  curve: {
+    status: HeatingCurveStatus;
+    days_used: number;
+    days_missing: number;
+    circuit_duty_pct: T;
+    ref_mean: T;
+    ref_target: T;
+    attic_min: T;
+    point: { id: string; outdoor_c: number }[];
+    step_c: 1 | null;
+    text: string;
+  };
+}
+
 export interface HeatingSnapshot {
+  advisor?: HeatingAdvisor | null;
   updated_at: string | null;
   stale: boolean;
   source: HeatingSource;

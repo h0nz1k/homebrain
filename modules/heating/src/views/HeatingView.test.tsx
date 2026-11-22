@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
+import { mockHeatingAdvisor } from '../../../../apps/panel/dev/mocks/heating/advisor.js';
 import HeatingView from './HeatingView.js';
 
 const base = {} as ModuleViewProps;
@@ -76,4 +77,43 @@ it('season run median is explicitly approximate hourly data', async () => {
   mount('heating', 0, '/sezony');
   await waitFor(() => expect(screen.getAllByTestId('heating-season')).toHaveLength(10));
   expect(screen.getAllByText('Medián délky běhu (hodinová data, orientační)')).toHaveLength(10);
+});
+
+describe('Doporučení', () => {
+  it.each([
+    ['suggest_lower', /Zkuste snížit teplotu vody v bodě p3/],
+    ['suggest_higher', /Zkuste zvýšit teplotu vody v bodě p2/],
+    ['ok', /doporučuji ponechat/],
+    ['insufficient_data', /Málo dat.*3 dny/],
+    ['recent_change', /Čerstvá změna křivky.*4 dny/],
+  ])('renders %s with measured values and the read-only note', async (status, text) => {
+    const advisor = mockHeatingAdvisor(status, '2025-01-13T00:20:00Z');
+    setHeatingApiFactory(() => createMockHeatingApi({ advisor }));
+    render(<HeatingView {...base} />);
+    const card = await screen.findByTestId('heating-advisor');
+    expect(card.dataset.status).toBe(status);
+    expect(card.textContent).toMatch(text);
+    expect(card.textContent).toContain('Referenční místnost');
+    expect(card.textContent).toContain('143 dnů');
+    expect(card.textContent).toContain('114–132 W/K');
+    expect(card.textContent).toContain('Do regulace nic nezapisuji');
+    expect(card.querySelector('button')).toBeNull();
+  });
+
+  it('shows the model without loss units when the nominal output is unset', async () => {
+    const advisor = mockHeatingAdvisor('ok', '2025-01-13T00:20:00Z');
+    Object.assign(advisor.model, {
+      thermal_kw: null,
+      heat_loss_wk_low: null,
+      heat_loss_wk_high: null,
+      design_loss_kw_low: null,
+      design_loss_kw_high: null,
+    });
+    setHeatingApiFactory(() => createMockHeatingApi({ advisor }));
+    render(<HeatingView {...base} />);
+    const card = await screen.findByTestId('heating-advisor');
+    expect(card.textContent).toContain('Odhad venkovní hranice topení');
+    expect(card.textContent).toContain('Výkon zatím není zadaný.');
+    expect(card.textContent).not.toContain('W/K');
+  });
 });

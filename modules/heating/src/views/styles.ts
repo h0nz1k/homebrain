@@ -50,6 +50,7 @@ export const heatingStyles = `
 .ht-link { background: none; border: 0; padding: 0; font: inherit; color: var(--hb-t2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--hb-t2) 40%, transparent); cursor: pointer; text-align: left; }
 .ht-link:hover { color: var(--hb-t1); }
 .ht-card { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ht-advisor { margin-block-start: var(--hb-sp-4, 16px); }
 .ht-ch { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .ht-ch h3 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 .ht-ch-wrap { align-items: center; }
