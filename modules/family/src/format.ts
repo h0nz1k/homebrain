@@ -108,6 +108,19 @@ export function relLabel(ev: FamilyEvent, now: Date): string {
   return m ? `Za ${h} h ${m} min` : `Za ${h} h`;
 }
 
+export const CARRIED_LABEL = 'Přeneseno';
+export const MISSED_LABEL = 'Nesplněno';
+
+export function carriedFrom(chore: FamilyChore, today: string): string | null {
+  if (!chore.due || (chore.state !== 'overdue' && chore.state !== 'claimed')) return null;
+  const day = localKey(new Date(chore.due));
+  return day < today ? day : null;
+}
+
+export function carriedLabel(day: string): string {
+  return `${CARRIED_LABEL} · původně ${shortDate(new Date(`${day}T12:00:00`))}`;
+}
+
 export function choreNote(
   chore: FamilyChore,
   now: Date,
@@ -115,6 +128,8 @@ export function choreNote(
 ): { text: string; tone?: 'warn' | 'crit' } {
   // Done rows carry one signal only (green check + muted, struck-through name): no extra text.
   if (chore.state === 'done') return { text: '' };
+  const carried = carriedFrom(chore, localKey(now));
+  if (carried) return { text: carriedLabel(carried) };
   if (chore.state === 'claimed')
     return { text: opts.parentApproves ? 'Schválí rodič' : 'Čeká na schválení', tone: 'warn' };
   const due = chore.due ? new Date(chore.due) : null;
@@ -245,6 +260,12 @@ export function choreTally(chores: FamilyChore[]): ChoreTally {
     } else t.open += 1;
   }
   return t;
+}
+
+export function choreApprovalKind(chore: FamilyChore): 'swap' | 'completion' | null {
+  if (chore.counts_today === false || chore.swap_today?.kind === 'transferred_out') return null;
+  if (chore.swap_today?.kind === 'pending_give') return 'swap';
+  return chore.state === 'claimed' ? 'completion' : null;
 }
 
 const CHORE_RANK: Record<FamilyChore['state'], number> = {
