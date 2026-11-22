@@ -193,6 +193,23 @@ def test_effective_target_and_recovery_prevent_false_deficits():
     assert a.assess_curve(days, {}, a.AdvisorOptions(), TODAY)["status"] == "ok"
 
 
+def test_lowering_compares_room_temperature_to_the_setback_target():
+    raw = _curve_stats()
+    raw[a.EFFECTIVE_TARGET] = [
+        dict(row, mean=20.4 if i % 24 < 8 else 21) for i, row in enumerate(raw[a.TARGET])
+    ]
+    for i, row in enumerate(raw[a.REF]):
+        if i % 24 < 11:
+            row["mean"] = 20.7
+    days = a.curve_days(a.group_hourly(raw, ZONE), has_attic=True)
+    options = a.AdvisorOptions()
+    assert a.assess_curve(days, {}, options, TODAY)["status"] == "suggest_lower"
+
+    del raw[a.EFFECTIVE_TARGET]
+    days = a.curve_days(a.group_hourly(raw, ZONE), has_attic=True)
+    assert a.assess_curve(days, {}, options, TODAY)["status"] == "ok"
+
+
 def test_curve_uses_hysteresis_and_reports_incomplete_attic():
     raw = _curve_stats(room=21.3)
     raw[a.HYSTERESIS] = [dict(row, mean=0.4) for row in raw[a.TARGET]]

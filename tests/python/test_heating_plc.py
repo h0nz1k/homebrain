@@ -319,9 +319,11 @@ async def test_fault_warning_escalation_and_restart(hass, plc, tmp_path):
             await restarted.async_poll_once()
             assert fault(restarted)["severity"] == "warning"
         lamps["__R7100.0_BOOL_i"] = "0"
+        restarted._due.pop(8, None)  # Force an observation of the slower fault page.
         await restarted.async_poll_once()
         assert fault(restarted) is None
         lamps["__R7100.0_BOOL_i"] = "1"
+        restarted._due.pop(8, None)
         await restarted.async_poll_once()
         await restarted.async_poll_once()
         assert "Kompresor od té doby neběžel." in fault(restarted)["body"]
