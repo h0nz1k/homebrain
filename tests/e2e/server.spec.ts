@@ -98,13 +98,19 @@ test.describe('Server', () => {
     await expect(card).toHaveAttribute('data-tone', 'crit');
     await expect(page.getByTestId('server-backup-age')).toHaveText(/^před 395\sdny$/);
     await expect(card).toContainText(/17\ss/);
-    await expect(card).toContainText('Úspěšná');
+    await expect(page.getByTestId('server-backup-run')).toHaveText('úspěšný');
+    await expect(page.getByTestId('server-backup-stale')).toHaveText('Kritické');
+    // Evidence next to the verdict: „Co s tím“ scrolls to the card and focuses it.
+    await page.getByTestId('server-hero-fix').click();
+    await expect(card).toBeFocused();
+    await expect(card).toBeInViewport();
     for (const [width, height] of [
       [360, 800],
       [800, 1280],
       [1280, 900],
     ] as const) {
       await page.setViewportSize({ width, height });
+      await page.evaluate(() => window.scrollTo(0, 0));
       await noSidewaysScroll(page);
       const spill = await card.evaluate((el) => {
         const box = el.getBoundingClientRect();
@@ -115,11 +121,29 @@ test.describe('Server', () => {
       expect(spill).toBe(0);
       if (process.env.SERVER_SCREENSHOTS) {
         await page.screenshot({
-          path: `test-results/server-r2/server-backup-stale-${width}.png`,
+          path: `test-results/server-r3/server-backup-stale-${width}.png`,
           fullPage: true,
         });
       }
     }
+  });
+
+  test('desktop: karty Proxmoxu ve dvou sloupcích, stav hostů jako odznak', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/homebrain-server?server=proxmox-ok&theme=light');
+    const guests = page.getByTestId('server-proxmox-guest');
+    await expect(guests).toHaveCount(3, { timeout: 20_000 });
+    await expect(page.getByTestId('server-guest-state')).toHaveText(['Běží', 'Běží', 'Vypnuto']);
+    const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
+    const node = await box('server-proxmox-node');
+    const list = (await guests.first().boundingBox())!;
+    const section = await box('server-proxmox');
+    expect(node.width).toBeLessThan(section.width * 0.6);
+    expect(list.x).toBeGreaterThan(node.x + node.width - 1);
+    await expect(page.getByTestId('server-hero-fix')).toHaveCount(0);
+    await noSidewaysScroll(page);
+    if (process.env.SERVER_SCREENSHOTS)
+      await page.screenshot({ path: 'test-results/server-r3/server-ok-1280.png', fullPage: true });
   });
 
   test('bez senzoru zálohy jen poznámka, žádné varování', async ({ page }) => {

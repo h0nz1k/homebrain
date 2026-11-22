@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
 import { setServerApiFactory } from '../api.js';
 import { createMockServerApi, type ServerScenario } from '../mock.js';
@@ -68,8 +68,18 @@ describe('Proxmox VE', () => {
     expect(guests[1]?.textContent).toContain(`Disk 58${NB}%`);
     expect(guests[2]?.getAttribute('data-stopped')).toBe('true');
     expect(guests[2]?.textContent).not.toMatch(/RAM|CPU|Příjem|Odesílání/);
-    expect(screen.getAllByTestId('server-proxmox-storage')).toHaveLength(2);
-    expect(screen.getByTestId('server-proxmox-backup').textContent).toContain('Úspěšná');
+    expect(
+      guests.map((row) => row.querySelector('[data-testid="server-guest-state"]')?.textContent),
+    ).toEqual(['Běží', 'Běží', 'Vypnuto']);
+    const details = guests.map((row) => row.querySelector('.srv-proxmox-details')?.textContent);
+    expect(details[0]).not.toBe(details[1]);
+    const storages = screen.getAllByTestId('server-proxmox-storage');
+    expect(storages).toHaveLength(2);
+    // Single node: its name is on the node card only.
+    expect(storages.some((row) => row.textContent?.includes('pve'))).toBe(false);
+    expect(screen.getByTestId('server-proxmox-node').textContent).toContain('pve');
+    expect(screen.queryByTestId('server-hero-fix')).toBeNull();
+    expect(screen.getByTestId('server-backup-run').textContent).toBe('úspěšný');
     expect(screen.getByTestId('server-backup-age').textContent).toBe('dnes');
     expect(screen.queryByTestId('server-backup-stale')).toBeNull();
   });
@@ -92,7 +102,9 @@ describe('Proxmox VE', () => {
     expect((await screen.findByTestId('server-headline')).textContent).toBe(
       'Pozor: záloha selhala',
     );
-    expect(screen.getByTestId('server-proxmox-backup').textContent).toContain('Selhala');
+    expect(screen.getByTestId('server-backup-run').textContent).toBe('selhal');
+    expect(screen.getByTestId('server-backup-title').textContent).toBe('Poslední záloha selhala');
+    expect(screen.getByTestId('server-backup-stale').textContent).toBe('Pozor');
   });
 
   it('zastaralou zálohu ukáže relativně i absolutně a propíše do verdiktu', async () => {
@@ -105,11 +117,25 @@ describe('Proxmox VE', () => {
     expect(screen.getByTestId('server-backup-age').textContent).toBe(`před 395${NB}dny`);
     expect(card.querySelector('time')?.getAttribute('dateTime')).toBeTruthy();
     expect(card.textContent).toContain(`17${NB}s`);
-    expect(card.textContent).toContain('Úspěšná');
-    expect(screen.getByTestId('server-backup-stale').textContent).toBe('Zastaralá');
-    expect(screen.getByTestId('server-backup-warning').textContent).toContain(
-      `Poslední záloha je stará 395${NB}dní`,
+    expect(screen.getByTestId('server-backup-run').textContent).toBe('úspěšný');
+    expect(screen.getByTestId('server-backup-title').textContent).toBe(
+      'Poslední záloha je zastaralá',
     );
+    expect(screen.getByTestId('server-backup-stale').textContent).toBe('Kritické');
+    const warning = screen.getByTestId('server-backup-warning').textContent;
+    expect(warning).toContain(`Poslední záloha je stará 395${NB}dní`);
+    expect(warning).toContain('Zkontroluj plán záloh v Proxmoxu.');
+  });
+
+  it('„Co s tím“ v hero odscrolluje na kartu zálohy a předá jí focus', async () => {
+    show('proxmox-backup-stale');
+    const fix = await screen.findByTestId('server-hero-fix');
+    const card = screen.getByTestId('server-proxmox-backup');
+    const scroll = vi.fn();
+    card.scrollIntoView = scroll;
+    fireEvent.click(fix);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(card);
   });
 
   it('bez senzoru zálohy nevaruje, jen řekne, že údaje chybí', async () => {
@@ -127,5 +153,7 @@ describe('Proxmox VE', () => {
       `Kritické: úložiště local-lvm 96${NB}%`,
     );
     expect(screen.getByRole('meter', { name: 'local-lvm' }).getAttribute('data-tone')).toBe('crit');
+    fireEvent.click(screen.getByTestId('server-hero-fix'));
+    expect(document.activeElement).toBe(screen.getByTestId('server-proxmox-storages'));
   });
 });

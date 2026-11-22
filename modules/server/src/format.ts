@@ -1,5 +1,5 @@
 import { czPlural } from '@homebrain/ui';
-import type { Level, ServerSnapshot } from './types.js';
+import type { Level, ProxmoxGuest, ServerSnapshot } from './types.js';
 
 export const NB = '\u00a0';
 export type BarTone = 'ok' | 'warn' | 'crit' | 'neutral';
@@ -104,7 +104,26 @@ export interface HeroModel {
   badge: string;
   headline: string;
   more: string[];
+  /** Anchor id of the card that shows the evidence for the top reason. */
+  target?: string;
 }
+
+/** Card anchors the hero „Co s tím“ button scrolls to. */
+export const SERVER_ANCHORS = {
+  disk: 'server-disks',
+  node: 'server-proxmox-node',
+  storage: 'server-proxmox-storages',
+  backup: 'server-proxmox-backup',
+} as const;
+
+const reasonTarget: Partial<Record<ServerSnapshot['verdict']['reasons'][number]['kind'], string>> =
+  {
+    disk: SERVER_ANCHORS.disk,
+    node: SERVER_ANCHORS.node,
+    storage: SERVER_ANCHORS.storage,
+    backup: SERVER_ANCHORS.backup,
+    backup_age: SERVER_ANCHORS.backup,
+  };
 
 export function heroModel(snap: ServerSnapshot): HeroModel {
   if (snap.state !== 'ok' && snap.verdict.reasons.length === 0)
@@ -122,6 +141,7 @@ export function heroModel(snap: ServerSnapshot): HeroModel {
     badge: 'Živě',
     headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top)}`,
     more: rest.map(reasonText),
+    target: reasonTarget[top.kind],
   };
 }
 
@@ -151,4 +171,16 @@ export function vmRows(snap: ServerSnapshot): VmRow[] {
       memShare: total ? Math.min(1, vm.mem_bytes / total) : 0,
     };
   });
+}
+
+/** Running guests first, then by ID (stable, predictable list). */
+export function sortGuests<T extends Pick<ProxmoxGuest, 'vmid' | 'status'>>(guests: T[]): T[] {
+  const rank = (g: T) => (g.status === 'running' ? 0 : 1);
+  return [...guests].sort((a, b) => rank(a) - rank(b) || a.vmid - b.vmid);
+}
+
+/** 24 h peak from raw samples (not bucket means), never below the live value. */
+export function seriesMax(values: number[], current?: number | null): number | null {
+  const all = current != null && Number.isFinite(current) ? [...values, current] : values;
+  return all.length ? Math.max(...all) : null;
 }

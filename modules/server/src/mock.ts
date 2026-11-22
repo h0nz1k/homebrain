@@ -39,6 +39,9 @@ const VMS: Vm[] = [
 ];
 
 const BACKUP_DAYS = 8;
+/** Host boot: shared by the Glances hero (uptime) and the Proxmox node card. */
+const HOST_UPTIME_H = 9 * 24 + 6;
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 
 function mockBackup(scenario: ServerScenario): ProxmoxSnapshot['backup'] {
   if (scenario === 'proxmox-backup-missing') return null;
@@ -72,7 +75,7 @@ function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
     mem_bytes: 2 * GIB,
     mem_max_bytes: 8 * GIB,
     mem_percent: 25,
-    up_since: new Date(Date.now() - 8 * 3600_000).toISOString(),
+    up_since: hoursAgo(HOST_UPTIME_H - 0.2),
     disk_percent: null,
     netin_bps: null,
     netout_bps: null,
@@ -81,10 +84,23 @@ function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
   const poolPct = scenario === 'proxmox-storage-critical' ? 96 : 42;
   return {
     status: 'ok',
-    node: { name: 'node-demo', status: 'online', up_since: guest.up_since },
+    // Same synthetic host as the Glances hero „Proxmox (pve)“.
+    node: { name: 'pve', status: 'online', up_since: hoursAgo(HOST_UPTIME_H) },
     guests: [
       guest,
-      { ...guest, vmid: 103, name: 'db-ct', kind: 'ct', disk_percent: 58, netin_bytes: null },
+      {
+        ...guest,
+        vmid: 103,
+        name: 'db-ct',
+        kind: 'ct',
+        cpu_percent: 3,
+        mem_bytes: 1.4 * GIB,
+        mem_max_bytes: 4 * GIB,
+        mem_percent: 35,
+        up_since: hoursAgo(2 * 24 + 5),
+        disk_percent: 58,
+        netin_bytes: null,
+      },
       {
         ...guest,
         vmid: 102,
@@ -101,7 +117,7 @@ function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
     storages: [
       {
         name: 'local',
-        node: 'node-demo',
+        node: 'pve',
         percent: 22,
         used_bytes: 22 * GIB,
         total_bytes: 100 * GIB,
@@ -110,7 +126,7 @@ function mockProxmox(scenario: ServerScenario): ProxmoxSnapshot {
       },
       {
         name: 'local-lvm',
-        node: 'node-demo',
+        node: 'pve',
         percent: poolPct,
         used_bytes: poolPct * 5 * GIB,
         total_bytes: 500 * GIB,
@@ -186,7 +202,8 @@ export function createMockSnapshot(scenario: ServerScenario = 'ok'): ServerSnaps
     state: 'ok',
     host,
     updated_at: new Date().toISOString(),
-    cpu: { percent: scenario === 'ok' ? 18.6 : 41.3, load: 1.42, cores: 4 },
+    // Live CPU stays inside the 24 h mock history band (peak ≈ 31 %).
+    cpu: { percent: scenario === 'ok' ? 18.6 : 24.3, load: 1.42, cores: 4 },
     memory: {
       percent: memPct,
       used_bytes: used,
@@ -241,7 +258,7 @@ export function createMockSnapshot(scenario: ServerScenario = 'ok'): ServerSnaps
       ],
     },
     processes: { running: 2, total: 312 },
-    up_since: new Date(Date.now() - (9 * 24 + 6) * 3600_000).toISOString(),
+    up_since: hoursAgo(HOST_UPTIME_H),
     verdict: { severity, reasons },
     proxmox,
     vms:
@@ -266,7 +283,8 @@ export function createMockHistory(scenario: ServerScenario = 'ok'): ServerHistor
     amp * noise * 0.6 * Math.cos(i * 0.13);
   const series = (fn: (i: number) => number): Array<[number, number]> =>
     Array.from({ length: n }, (_, i) => [end - (n - 1 - i) * 300_000, Math.round(fn(i) * 10) / 10]);
-  const memBase = scenario === 'ok' ? 63 : 84;
+  // Same band as the live value in createMockSnapshot (only warn/crit run hot).
+  const memBase = scenario === 'warn' || scenario === 'crit' ? 84 : 63;
   return {
     hours: 24,
     series: {
