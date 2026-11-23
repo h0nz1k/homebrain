@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from . import rules
 from .discovery import _BYTES, _MISSING, _RATES
+from .rates import CounterRates
 
 PROXMOX: Final = "proxmoxve"
 _GUEST: Final = re.compile(r"(\d+)_(vm|container)_(.+)")
@@ -53,41 +54,67 @@ def _percent(used: float | None, total: float | None) -> float | None:
     return used / total * 100 if used is not None and total else None
 
 
-def _network(states: States, key: str) -> tuple[float | None, float | None]:
+def _network(
+    states: States, key: str, rates: CounterRates | None, rate_key: tuple[int, str, str]
+) -> tuple[float | None, float | None]:
+    """(bytes/s, cumulative bytes): a rate sensor as is, a byte counter via ``rates``."""
     state = states.get(key)
     if state and state.attributes.get("unit_of_measurement") in _RATES:
         return _number(states, key, _RATES), None
-    return None, _number(states, key, _BYTES)
+    total = _number(states, key, _BYTES)
+    if rates is None:
+        return None, total
+    at = state.last_reported.timestamp() if state is not None else None
+    return rates.rate(rate_key, total, at), total
 
 
-def _guest(vmid: int, kind: str, name: str, states: States) -> dict[str, Any]:
+def _round(value: float | None, digits: int = 1) -> float | None:
+    return round(value, digits) if value is not None else None
+
+
+def _guest(
+    vmid: int, kind: str, name: str, states: States, rates: CounterRates | None = None
+) -> dict[str, Any]:
     status = _value(states, "status")
     if status is None:
         status = {True: "running", False: "stopped"}.get(_binary(states, "running"))
     used = _number(states, "memory", _BYTES)
     total = _number(states, "max_memory", _BYTES)
     percent = _number(states, "memory_percentage")
-    netin, netin_bytes = _network(states, "netin")
-    netout, netout_bytes = _network(states, "netout")
+    if percent is None:
+        percent = _percent(used, total)
+    disk = _number(states, "disk", _BYTES)
+    disk_max = _number(states, "max_disk", _BYTES)
+    # PVE reports 0 B used for a VM without the QEMU guest agent: unknown, not empty.
+    if kind == "vm" and not disk:
+        disk = None
+    netin, netin_bytes = _network(states, "netin", rates, (vmid, kind, "in"))
+    netout, netout_bytes = _network(states, "netout", rates, (vmid, kind, "out"))
+    cpu = _number(states, "cpu")
+    cpus = _number(states, "max_cpu")
+    disk_percent = _percent(disk, disk_max)
+    running = status == "running"
     return {
         "vmid": vmid,
         "name": name,
         "kind": kind,
         "status": status,
-        "cpu_percent": _number(states, "cpu"),
+        "cpu_percent": cpu,
+        "cpus": int(cpus) if cpus else None,
         "mem_bytes": used,
         "mem_max_bytes": total,
-        "mem_percent": percent if percent is not None else _percent(used, total),
+        "mem_percent": percent,
         "up_since": _timestamp(states, "uptime"),
-        "disk_percent": (
-            _percent(_number(states, "disk", _BYTES), _number(states, "max_disk", _BYTES))
-            if kind == "ct"
-            else None
-        ),
-        "netin_bps": netin,
-        "netout_bps": netout,
+        "disk_bytes": disk,
+        "disk_max_bytes": disk_max,
+        "disk_percent": disk_percent,
+        "netin_bps": _round(netin) if running or status is None else None,
+        "netout_bps": _round(netout) if running or status is None else None,
         "netin_bytes": netin_bytes,
         "netout_bytes": netout_bytes,
+        "cpu_level": rules.cpu_level(cpu) if running else "unknown",
+        "mem_level": rules.level(percent, *rules.MEMORY) if running else "unknown",
+        "disk_level": rules.level(disk_percent, *rules.DISK),
     }
 
 
@@ -129,8 +156,32 @@ def _backup(node: States, max_age_days: float) -> dict[str, Any] | None:
     }
 
 
+def _node(name: str, states: States) -> dict[str, Any]:
+    used = _number(states, "node_memory", _BYTES)
+    total = _number(states, "node_max_memory", _BYTES)
+    percent = _number(states, "node_memory_percentage")
+    disk = _number(states, "node_disk", _BYTES)
+    disk_max = _number(states, "node_max_disk", _BYTES)
+    cpus = _number(states, "node_max_cpu")
+    return {
+        "name": name,
+        "status": _node_status(states),
+        "up_since": _timestamp(states, "node_uptime") or _timestamp(states, "uptime"),
+        "cpu_percent": _number(states, "node_cpu"),
+        "cpus": int(cpus) if cpus else None,
+        "mem_bytes": used,
+        "mem_max_bytes": total,
+        "mem_percent": percent if percent is not None else _percent(used, total),
+        "disk_bytes": disk,
+        "disk_max_bytes": disk_max,
+        "disk_percent": _percent(disk, disk_max),
+    }
+
+
 def build_proxmox(
-    hass: HomeAssistant, backup_max_age_days: float = rules.BACKUP_MAX_AGE_DAYS
+    hass: HomeAssistant,
+    backup_max_age_days: float = rules.BACKUP_MAX_AGE_DAYS,
+    rates: CounterRates | None = None,
 ) -> dict[str, Any]:
     entries = hass.config_entries.async_entries(PROXMOX)
     result: dict[str, Any] = {
@@ -240,22 +291,42 @@ def build_proxmox(
     )
     if node_name is not None:
         node = nodes[node_name]
-        result["node"] = {
-            "name": node_name,
-            "status": _node_status(node),
-            "up_since": _timestamp(node, "node_uptime") or _timestamp(node, "uptime"),
-        }
+        result["node"] = _node(node_name, node)
         result["backup"] = _backup(node, backup_max_age_days)
 
     for (vmid, kind), states in sorted(guests.items()):
         if vmid in running:
             states["running"] = running[vmid]
-        result["guests"].append(_guest(vmid, kind, names.get((vmid, kind), str(vmid)), states))
-    result["guests"].sort(key=lambda guest: guest["status"] != "running")
+        name = names.get((vmid, kind), str(vmid))
+        result["guests"].append(_guest(vmid, kind, name, states, rates))
+    if rates is not None:
+        rates.prune({(vmid, kind, way) for vmid, kind in guests for way in ("in", "out")})
+    # Running first, busiest CPU on top; stopped guests by ID at the end.
+    result["guests"].sort(
+        key=lambda guest: (guest["status"] != "running", -(guest["cpu_percent"] or 0))
+    )
     result["storages"] = [_storage(*key, states) for key, states in sorted(storages.items())]
     live = any(nodes.values()) or any(guests.values()) or any(storages.values())
     result["status"] = "ok" if live else "down"
     return result
+
+
+def guest_entities(hass: HomeAssistant, vmid: int, kind: str) -> dict[str, str]:
+    """``{"cpu", "memory"}`` → entity_id of one guest's CPU % and RAM % sensors (for history)."""
+    entries = hass.config_entries.async_entries(PROXMOX)
+    if not entries:
+        return {}
+    prefix = f"{entries[0].entry_id}_{vmid}_{'vm' if kind == 'vm' else 'container'}_"
+    wanted = {f"{prefix}cpu": "cpu", f"{prefix}memory_percentage": "memory"}
+    reg = er.async_get(hass)
+    return {
+        wanted[ent.unique_id]: ent.entity_id
+        for ent in er.async_entries_for_config_entry(reg, entries[0].entry_id)
+        if ent.platform == PROXMOX
+        and ent.domain == "sensor"
+        and not ent.disabled
+        and ent.unique_id in wanted
+    }
 
 
 def _node_status(states: States) -> str | None:

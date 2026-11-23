@@ -18,6 +18,8 @@ from custom_components.homebrain.server import rules
 from custom_components.homebrain.server.discovery import build_snapshot, glances_entry
 from custom_components.homebrain.server.glances_api import GlancesApi, base_url
 from custom_components.homebrain.server.procs import parse_kvm, vms_from_processes
+from custom_components.homebrain.server.proxmox import guest_entities
+from custom_components.homebrain.server.rates import STALE_S, CounterRates
 from custom_components.homebrain.server.ws import async_snapshot, backup_max_age_days
 
 GIB = 1024**3
@@ -87,7 +89,7 @@ async def test_discovery_reads_glances_registry(hass: HomeAssistant) -> None:
     snap = build_snapshot(hass)
     assert snap["available"] is True
     assert snap["host"]["title"] == "Proxmox (demo)"
-    assert snap["cpu"] == {"percent": 23.5, "load": 1.42, "cores": None}
+    assert snap["cpu"] == {"percent": 23.5, "load": 1.42, "load_avg": None, "cores": None}
     mem = snap["memory"]
     assert mem["percent"] == 74.2
     assert mem["used_bytes"] == 24310 * MIB
@@ -442,7 +444,19 @@ async def test_proxmox_registry_and_units(hass: HomeAssistant, proxmox_entity, f
     result = await async_snapshot(hass, use_api=False)
     snap = result["proxmox"]
     assert snap["status"] == "ok"
-    assert snap["node"] == {"name": "node_demo", "status": "online", "up_since": PROXMOX_UP}
+    assert snap["node"] == {
+        "name": "node_demo",
+        "status": "online",
+        "up_since": PROXMOX_UP,
+        "cpu_percent": None,
+        "cpus": None,
+        "mem_bytes": None,
+        "mem_max_bytes": None,
+        "mem_percent": None,
+        "disk_bytes": None,
+        "disk_max_bytes": None,
+        "disk_percent": None,
+    }
     assert snap["backup"] == {
         "ok": True,
         "last": PROXMOX_BACKUP,
@@ -459,15 +473,21 @@ async def test_proxmox_registry_and_units(hass: HomeAssistant, proxmox_entity, f
         "kind": "vm",
         "status": "running",
         "cpu_percent": 3,
+        "cpus": None,
         "mem_bytes": GIB,
         "mem_max_bytes": 4 * 10**9,
         "mem_percent": pytest.approx(GIB / (4 * 10**9) * 100),
         "up_since": PROXMOX_UP,
+        "disk_bytes": None,
+        "disk_max_bytes": None,
         "disk_percent": None,
-        "netin_bps": None,
+        "netin_bps": None,  # first counter sample: no rate yet
         "netout_bps": None,
         "netin_bytes": 2 * GIB,
         "netout_bytes": None,
+        "cpu_level": "ok",
+        "mem_level": "ok",
+        "disk_level": "unknown",
     }
     assert (ct["name"], ct["kind"], ct["disk_percent"]) == ("db-ct", "ct", 40)
     assert (stopped["name"], stopped["mem_bytes"]) == ("102", None)
@@ -634,7 +654,8 @@ async def test_glances_api_keeps_host_data_without_processes() -> None:
         return {"/sensors": [{"label": "Core", "warning": 90}], "/core": {"log": 4}}[path]
 
     got = await GlancesApi("http://glances.example/api/4", fetch, collect_vms=False).async_get()
-    assert calls == ["/sensors", "/core"]
+    assert calls == ["/sensors", "/core", "/load"]
+    assert got["load"] is None
     assert got["cores"] == 4
     assert got["thresholds"] == {"Core": {"warning": 90, "critical": None}}
     assert got["vms"] == []
@@ -660,3 +681,144 @@ async def test_ws_server_requires_admin(hass, setup, hass_ws_client, hass_admin_
     msg = await client.receive_json()
     assert not msg["success"]
     assert msg["error"]["code"] == "unauthorized"
+
+
+# ---------- Proxmox detail: guests, node, network rates ----------
+
+
+def test_counter_rates_first_sample_reset_and_stale() -> None:
+    rates = CounterRates()
+    key = (101, "vm", "in")
+    assert rates.rate(key, 1_000, 100.0) is None  # first sample
+    assert rates.rate(key, 11_000, 110.0) == 1_000
+    # Same Proxmox sample read again by another panel: same rate, not 0 B/s.
+    assert rates.rate(key, 11_000, 110.0) == 1_000
+    assert rates.rate(key, 11_000, 170.0) == 0  # idle guest, integration reported again
+    assert rates.rate(key, 500, 230.0) is None  # counter reset (guest restarted)
+    assert rates.rate(key, 6_500, 290.0) == 100
+    assert rates.rate(key, 9_000, 290.0 + STALE_S + 1) is None  # too old to compare
+    assert rates.rate(key, None, 2_000.0) is None
+    assert rates.rate(key, 10_000, 2_010.0) is None  # sample forgotten with the missing value
+    rates.prune(set())
+    assert rates.rate(key, 20_000, 2_020.0) is None
+
+
+async def test_proxmox_guest_detail_and_network_rate(hass, proxmox_entity, freezer) -> None:
+    freezer.move_to("2026-11-23T08:00:00+00:00")
+    add = proxmox_entity
+    add("node/pve_node_status", "node_status", "online")
+    add("node/pve_node_cpu", "node_cpu", "12.5", "%")
+    add("node/pve_node_max_cpu", "node_max_cpu", "4")
+    add("node/pve_node_memory", "node_memory", "16", "GiB")
+    add("node/pve_node_max_memory", "node_max_memory", "32", "GiB")
+    add("node/pve_node_disk", "node_disk", "20", "GiB")
+    add("node/pve_node_max_disk", "node_max_disk", "80", "GiB")
+    add("101_vm_status", "vm_status", "running", device=("vm_101", "web"))
+    add("101_vm_cpu", "vm_cpu", "95", "%")
+    add("101_vm_max_cpu", "vm_max_cpu", "2")
+    add("101_vm_memory_percentage", "vm_memory_percentage", "93", "%")
+    add("101_vm_disk", "vm_disk", "0", "B")
+    add("101_vm_max_disk", "vm_max_disk", "64", "GB")
+    netin = add("101_vm_netin", "vm_netin", "1000000", "B")
+    add("102_container_status", "container_status", "running", device=("container_102", "db"))
+    add("102_container_cpu", "container_cpu", "4", "%")
+    add("102_container_disk", "container_disk", "31", "GB")
+    add("102_container_max_disk", "container_max_disk", "100", "GB")
+    add("103_container_status", "container_status", "stopped")
+    add("103_container_cpu", "container_cpu", "0", "%")
+
+    result = await async_snapshot(hass, use_api=False)
+    proxmox = result["proxmox"]
+    node = proxmox["node"]
+    assert (node["cpu_percent"], node["cpus"], node["mem_percent"]) == (12.5, 4, 50)
+    assert node["disk_percent"] == 25
+    vm, ct, stopped = proxmox["guests"]
+    assert (vm["vmid"], ct["vmid"], stopped["vmid"]) == (101, 102, 103)  # CPU desc, stopped last
+    assert (vm["cpus"], vm["cpu_level"], vm["mem_level"]) == (2, "warning", "warning")
+    # VM without the guest agent: 0 B used is unknown, the allocation stays.
+    assert (vm["disk_bytes"], vm["disk_max_bytes"], vm["disk_percent"]) == (None, 64e9, None)
+    assert (ct["disk_percent"], ct["disk_level"]) == (31, "ok")
+    assert (stopped["cpu_level"], stopped["netin_bps"]) == ("unknown", None)
+    assert vm["netin_bps"] is None  # first sample
+
+    freezer.tick(60)
+    hass.states.async_set(netin, "7000000", {"unit_of_measurement": "B"})
+    result = await async_snapshot(hass, use_api=False)
+    assert result["proxmox"]["guests"][0]["netin_bps"] == 100_000
+    assert result["proxmox"]["guests"][0]["netin_bytes"] == 7_000_000
+
+    freezer.tick(60)
+    hass.states.async_set(netin, "2000", {"unit_of_measurement": "B"})  # guest rebooted
+    result = await async_snapshot(hass, use_api=False)
+    assert result["proxmox"]["guests"][0]["netin_bps"] is None
+    # Host cores from Proxmox when the Glances API is off.
+    assert "cpu" not in result or result["cpu"]["cores"] == 4
+
+
+async def test_load_above_cores_is_a_warning(hass, proxmox_entity) -> None:
+    sensors = [s if s[1] != "processor_load" else (*s[:3], "4.7", None) for s in SENSORS]
+    install(hass, sensors)
+    result = await async_snapshot(hass, use_api=False)
+    assert result["cpu"]["cores"] is None  # no API, no Proxmox: no core count, no verdict
+    assert result["verdict"]["reasons"] == []
+    proxmox_entity("node/pve_node_status", "node_status", "online")
+    proxmox_entity("node/pve_node_max_cpu", "node_max_cpu", "4")
+    result = await async_snapshot(hass, use_api=False)
+    assert result["cpu"]["cores"] == 4
+    assert result["verdict"]["reasons"] == [
+        {"kind": "load", "label": "zátěž", "value": 4.7, "level": "warning"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("load", "cores", "level"),
+    [(4.7, 4, "warning"), (4.0, 4, "ok"), (1.2, 4, "ok"), (2.0, None, "unknown")],
+)
+def test_load_level(load, cores, level) -> None:
+    assert rules.load_level(load, cores) == level
+
+
+async def test_discovery_reads_diskio_of_physical_disks(hass: HomeAssistant) -> None:
+    install(
+        hass,
+        [
+            *SENSORS,
+            ("diskio_read", "read", "nvme0n1", "2.5", "MB/s"),
+            ("diskio_write", "write", "nvme0n1", "800", "kB/s"),
+            ("diskio_read", "read", "nvme0n1p3", "2.5", "MB/s"),
+            ("diskio_write", "write", "dm-1", "9", "MB/s"),
+            ("diskio_read", "read", "sda", "0", "B/s"),
+        ],
+    )
+    diskio = build_snapshot(hass)["diskio"]
+    assert diskio["primary"] == "nvme0n1"
+    assert [d["name"] for d in diskio["disks"]] == ["nvme0n1", "sda"]
+    assert diskio["disks"][0]["read_bps"] == pytest.approx(2.5e6)
+    assert diskio["disks"][0]["write_bps"] == pytest.approx(8e5)
+
+
+async def test_api_reads_load_averages() -> None:
+    async def fetch(path: str):
+        return {
+            "/sensors": [],
+            "/core": {"log": 4},
+            "/load": {"min1": 4.71, "min5": 3.2, "min15": 2.05, "cpucore": 4},
+        }[path]
+
+    got = await GlancesApi("http://x/api/4", fetch, collect_vms=False).async_get()
+    assert got["load"] == [4.71, 3.2, 2.05]
+
+
+async def test_ws_guest_history_uses_its_sensors(hass, setup, hass_ws_client, proxmox_entity):
+    cpu = proxmox_entity("101_vm_cpu", "vm_cpu", "5", "%")
+    mem = proxmox_entity("101_vm_memory_percentage", "vm_memory_percentage", "40", "%")
+    proxmox_entity("102_container_cpu", "container_cpu", "5", "%")
+    assert guest_entities(hass, 101, "vm") == {"cpu": cpu, "memory": mem}
+    assert guest_entities(hass, 101, "ct") == {}
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {"type": "homebrain/server/history", "guest": {"vmid": 101, "kind": "vm"}}
+    )
+    msg = await client.receive_json()
+    assert msg["success"], msg
+    assert msg["result"]["series"] == {}  # no recorder in tests

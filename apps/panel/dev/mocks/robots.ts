@@ -19,18 +19,31 @@ import type { DevHass, WsHandlers } from './shared.js';
  * `?presets=demo`, `?schedules=demo`, `?photos=a,b,c`, `?otoceni=90|180|270`, `?drahaod=<0–1>`,
  * `?scena=kuchyne|chodba|dok`, `?mistnost=uzka`, `?vektor=chyba`, `?mapapoll=<ms>`,
  * `?historie=demo|prazdna` (cleaning history; default = demo), `?stari=1` (robot 1 state and
- * map image older than the data-age thresholds, docked robot 3 map image 30 h old).
+ * map image older than the data-age thresholds, docked robot 3 map image 30 h old),
+ * `?mapa3d=prehled|pohyb|dok|bez-webgl` (3D demo scenarios).
  */
 export function addRobotsDemo({ hass, now, refresh }: DevHass) {
   const pageLoadedAt = Date.now();
-  const routeStartRaw = new URLSearchParams(location.search).get('drahaod');
+  const params = new URLSearchParams(location.search);
+  const map3d = params.get('mapa3d');
+  const routeStartRaw = params.get('drahaod') ?? (map3d === 'pohyb' ? '0.2' : null);
+  const mapScene =
+    params.get('scena') ?? (map3d === 'dok' ? 'dok' : map3d === 'prehled' ? 'kuchyne' : null);
+  if (map3d === 'bez-webgl') {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+      value(this: HTMLCanvasElement, kind: string, options?: unknown) {
+        return kind === 'webgl2' ? null : Reflect.apply(getContext, this, [kind, options]);
+      },
+    });
+  }
   const routeStart =
     routeStartRaw !== null && Number(routeStartRaw) >= 0 && Number(routeStartRaw) < 1
       ? Number(routeStartRaw)
       : null;
   const robotsDemo = createRobotsDemo(
     now.getTime(),
-    (new URLSearchParams(location.search).get('robots') as RobotsScenario | null) ?? 'default',
+    (params.get('robots') as RobotsScenario | null) ?? (map3d === 'dok' ? 'docked' : 'default'),
   );
   Object.assign(hass.states, robotsDemo.states);
   const query = new URLSearchParams(location.search);
@@ -203,7 +216,7 @@ export function addRobotsDemo({ hass, now, refresh }: DevHass) {
               routeStart === null ? Date.now() : Date.now() - pageLoadedAt,
               Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
               // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
-              new URLSearchParams(location.search).get('scena') as DemoScene | null,
+              mapScene as DemoScene | null,
               routeStart,
             );
   /** Like HA: `current_room` follows the room under the robot on the same map refresh. */

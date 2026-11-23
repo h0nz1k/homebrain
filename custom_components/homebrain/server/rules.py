@@ -6,6 +6,8 @@ from typing import Any, Final
 
 MEMORY: Final = (85.0, 95.0)
 DISK: Final = (85.0, 95.0)
+# Guest CPU: a busy guest is only worth a highlight, never a critical verdict on its own.
+GUEST_CPU_WARN: Final = 90.0
 # Without Glances sensor thresholds (no REST API): conservative defaults for N100/N200 + NVMe.
 TEMPERATURE: Final = (80.0, 95.0)
 # Entry options of the Server module (options flow step „server“).
@@ -23,6 +25,7 @@ _KIND: Final = {
     "temperature": 4,
     "backup": 5,
     "backup_age": 6,
+    "load": 7,
 }
 
 
@@ -34,6 +37,19 @@ def level(value: float | None, warn: float, crit: float) -> str:
     if value >= warn:
         return "warning"
     return "ok"
+
+
+def cpu_level(percent: float | None) -> str:
+    if percent is None:
+        return "unknown"
+    return "warning" if percent >= GUEST_CPU_WARN else "ok"
+
+
+def load_level(load15: float | None, cores: float | None) -> str:
+    """15-minute load average above the core count = sustained overload (warning)."""
+    if load15 is None or not cores:
+        return "unknown"
+    return "warning" if load15 > cores else "ok"
 
 
 def backup_age_level(age_days: float | None, max_age_days: float) -> str:
@@ -61,6 +77,8 @@ def verdict(snap: dict[str, Any]) -> dict[str, Any]:
         if lvl in _ORDER:
             reasons.append({"kind": kind, "label": label, "value": value, "level": lvl})
 
+    cpu = snap.get("cpu") or {}
+    add("load", "zátěž", cpu.get("load"), load_level(cpu.get("load"), cpu.get("cores")))
     mem = (snap.get("memory") or {}).get("percent")
     add("memory", "paměť", mem, level(mem, *MEMORY))
     for disk in snap.get("disks") or []:
