@@ -24,6 +24,9 @@ export const todayStyles = `
 .today-kiosk .today-coffee{font-size:inherit}
 /* Kiosk surfaces are always dark: the pill's accents use the dark-theme tones in both themes. */
 .today-kiosk .today-coffee-status{--hb-ok:#34d399;--hb-crit:#f2555a}
+/* kiosk surfaces are dark in both themes: resolve light-dark() to the dark variant */
+.today-kiosk .today-coffee{color-scheme:dark}
+.today-kiosk .today-coffee-status{padding:6px 14px}
 .today-kiosk .today-coffee .hb-btn:disabled{color:color-mix(in srgb,var(--hb-t3) 75%,var(--hb-s3))}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}
