@@ -58,6 +58,9 @@ test('příkaz odeslán → robot zatím nereagoval → zkusit znovu', async ({ 
   const pending = page.getByTestId('robots-pending');
   await expect(pending).toHaveText('Odesláno, čekám na robota…');
   await expect(page.getByTestId('robots-pending-retry')).toHaveCount(0);
+  // The sent command's button stays disabled while waiting; the other actions do not.
+  await expect(page.getByTestId('robots-pause')).toBeDisabled();
+  await expect(page.getByTestId('robots-home')).toBeEnabled();
   const count = () =>
     page.evaluate(() => (window as unknown as { __hbRobotCalls: unknown[] }).__hbRobotCalls.length);
   expect(await count()).toBe(1);
@@ -66,11 +69,21 @@ test('příkaz odeslán → robot zatím nereagoval → zkusit znovu', async ({ 
   await expect(pending).toContainText('Pauza zatím bez odezvy');
   await expect(pending).toContainText('Robot zatím nereagoval');
   await expect(page.getByTestId('robots-pending-retry')).toBeVisible();
-  // Data are stale: the age is spelled out and progress / „Uklízí …“ are dimmed.
+  // Data are stale: the age is spelled out and every live value is dimmed the same way
+  // (secondary text colour, no opacity on text).
   await expect(page.getByTestId('robots-state-age')).toHaveText(/^Stav před \d+ min$/);
-  await expect(page.getByTestId('robots-live-room')).toHaveCSS('opacity', '0.5');
+  await expect(page.getByTestId('robots-state-age')).toHaveCSS('font-size', '14px');
+  const color = (locator: ReturnType<typeof page.locator>) =>
+    locator.evaluate((el) => getComputedStyle(el).color);
+  const dim = await color(page.locator('.rb-room'));
+  expect(await color(page.getByTestId('robots-state'))).toBe(dim);
+  expect(await color(page.locator('.rb-room b'))).toBe(dim);
+  expect(await color(page.getByTestId('robots-battery').locator('b'))).toBe(dim);
+  expect(await color(page.getByTestId('robots-live-room'))).toBe(dim);
+  await expect(page.getByTestId('robots-live-room')).toHaveCSS('opacity', '1');
+  await expect(page.getByTestId('robots-pause')).toBeDisabled();
   const retryBox = await page.getByTestId('robots-pending-retry').boundingBox();
-  expect(retryBox?.height).toBeGreaterThanOrEqual(44);
+  expect(retryBox?.height).toBe(44);
   expect(await count()).toBe(1); // no automatic retry
   await page.getByTestId('robots-pending-retry').click();
   await expect(pending).toContainText('Odesláno, čekám na robota…');

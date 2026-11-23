@@ -1,4 +1,4 @@
-import type { ConnectionLike } from '@homebrain/ha-client';
+import { getSchool, type ConnectionLike, type SchoolSnapshot } from '@homebrain/ha-client';
 
 /** One row of „Co se dnes vaří“ (server `homebrain/today/meals`). */
 export interface Meal {
@@ -73,12 +73,14 @@ export function summarizeChores(family: FamilyLike | null | undefined): KidChore
 
 export interface HomeApi {
   meals(): Promise<MealsSnapshot>;
+  school?(day: string): Promise<SchoolSnapshot>;
   /** `null` when Rodina is unavailable (module off, no access). */
   family(): Promise<FamilyLike | null>;
 }
 
 export function createWsHomeApi(connection: ConnectionLike): HomeApi {
   return {
+    school: () => getSchool(connection, true),
     meals: () => connection.sendMessagePromise<MealsSnapshot>({ type: 'homebrain/today/meals' }),
     family: () =>
       connection.sendMessagePromise<FamilyLike>({ type: 'homebrain/family/get' }).catch(() => null),

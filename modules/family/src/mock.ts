@@ -17,6 +17,7 @@ import type {
   PersonHistoryEntry,
 } from './types.js';
 import { canTransferChore, choreTally, localKey } from './format.js';
+import { mockSchool, type SchoolScenario } from './schoolMock.js';
 import { personActivity } from './personActivity.js';
 
 /** Synthetic household for dev/e2e: generic names only („Ema“, „Kuba“). */
@@ -27,6 +28,7 @@ export interface FamilyMockOptions {
   /** Synthetic overdue occurrence for the reassign success and failure flows. */
   reassignDemo?: 'overdue' | 'error' | 'needs-repair';
   now?: () => Date;
+  school?: SchoolScenario;
 }
 
 const at = (base: Date, dayOffset: number, h: number, m = 0) =>
@@ -442,9 +444,12 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     person: `person.demo_${k.id}`,
     tracker: `device_tracker.demo_wifi_${k.id}`,
     configured: false,
+    grade: k.id === own ? 4 : k.id === 'dcera' ? 5 : null,
   }));
+  let school = { menu_url: '', events_url: '', dates_url: '', reminder_days: 3 };
   const settings = (): PersonsSettings => ({
     persons: profiles,
+    school,
     candidates: {
       people: all.map((k) => ({ id: `person.demo_${k.id}`, name: k.name })),
       trackers: all.map((k) => ({
@@ -641,11 +646,22 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     now: opts.scenario === 'evening' ? now : undefined,
     log,
     get: async () => snapshot(),
+    school: async () =>
+      mockSchool(
+        opts.school ?? 'off',
+        role,
+        now(),
+        profiles
+          .filter((p) => p.role === 'child' && (role !== 'child' || p.choreops_user_id === own))
+          .map((p) => ({ id: p.choreops_user_id, grade: p.grade ?? null })),
+      ),
+
     personHistory: async (member) => ({
       entries: [...(credits.get(member) ?? [])],
     }),
     personsSettings: async () => settings(),
-    savePersons: async (input) => {
+    savePersons: async (input, nextSchool) => {
+      if (nextSchool) school = nextSchool;
       profiles = profiles.map((p) => ({
         ...p,
         ...input.find((row) => row.choreops_user_id === p.choreops_user_id),

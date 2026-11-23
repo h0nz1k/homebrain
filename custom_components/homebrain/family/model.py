@@ -155,6 +155,7 @@ def discover_members(states: Iterable[Any], opts: Mapping[str, Any]) -> list[dic
                 "person": person,
                 "configured": bool(profile),
                 "tracker": profile.get("tracker"),
+                "grade": profile.get("grade"),
             }
         )
     return members
