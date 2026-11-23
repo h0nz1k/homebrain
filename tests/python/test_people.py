@@ -22,9 +22,9 @@ SECRET_ATTRS = {
     "latitude": 50.087,
     "longitude": 14.421,
     "gps_accuracy": 12,
-    "source": "device_tracker.pixel_jan",
+    "source": "device_tracker.pixel_marek",
     "user_id": "abc123",
-    "device_trackers": ["device_tracker.pixel_jan"],
+    "device_trackers": ["device_tracker.pixel_marek"],
     "in_zones": ["zone.prace"],
     "editable": True,
 }
@@ -67,14 +67,14 @@ def test_presence_status(state, status):
 def test_default_shows_all_persons_sorted_by_name_with_auto_colours():
     people = model.build_people(
         [
-            ("person.valinka", "home", "Valinka"),
-            ("person.adamek", "not_home", "Adámek"),
-            ("person.jan", "Práce", "Jan"),
+            ("person.ema", "home", "Ema"),
+            ("person.kuba", "not_home", "Kuba"),
+            ("person.marek", "Práce", "Marek"),
         ],
         None,
     )
-    assert [p["name"] for p in people] == ["Adámek", "Jan", "Valinka"]
-    assert [p["status"] for p in people] == ["away", "away", "home"]
+    assert [p["name"] for p in people] == ["Ema", "Kuba", "Marek"]
+    assert [p["status"] for p in people] == ["home", "away", "away"]
     assert all(p["color"] in model.COLORS for p in people)
     assert len({p["color"] for p in people}) == 3  # distinct auto colours
 
@@ -82,7 +82,7 @@ def test_default_shows_all_persons_sorted_by_name_with_auto_colours():
 def test_configured_persons_order_names_colours_and_missing_entities():
     config = {
         "persons": [
-            {"entity_id": "person.jan", "name": "Táta", "color": "teal"},
+            {"entity_id": "person.marek", "name": "Táta", "color": "teal"},
             {"entity_id": "person.gone", "name": "Nikdo"},  # removed from HA: skipped
             {"entity_id": "person.babi", "color": "nonsense"},
         ]
@@ -90,13 +90,13 @@ def test_configured_persons_order_names_colours_and_missing_entities():
     people = model.build_people(
         [
             ("person.babi", "unknown", "Babi"),
-            ("person.jan", "home", "Jan"),
+            ("person.marek", "home", "Marek"),
             ("person.deda", "home", "Děda"),
         ],
         config,
     )
     assert [(p["id"], p["name"], p["status"]) for p in people] == [
-        ("person.jan", "Táta", "home"),
+        ("person.marek", "Táta", "home"),
         ("person.babi", "Babi", "unknown"),
     ]
     assert people[0]["color"] == "teal"
@@ -104,7 +104,7 @@ def test_configured_persons_order_names_colours_and_missing_entities():
 
 
 def test_display_off_shows_nobody():
-    assert model.build_people([("person.jan", "home", "Jan")], {"display": False}) == []
+    assert model.build_people([("person.marek", "home", "Marek")], {"display": False}) == []
 
 
 # --- WebSocket ---------------------------------------------------------------------------
@@ -116,10 +116,10 @@ async def hb(hass: HomeAssistant):
     entry.add_to_hass(hass)
     assert await async_setup_component(hass, DOMAIN, {})
     await hass.async_block_till_done()
-    hass.states.async_set("person.jan", "Práce", {"friendly_name": "Jan", **SECRET_ATTRS})
-    hass.states.async_set("person.maminka", "home", {"friendly_name": "Mamínka", **SECRET_ATTRS})
+    hass.states.async_set("person.marek", "Práce", {"friendly_name": "Marek", **SECRET_ATTRS})
+    hass.states.async_set("person.lucie", "home", {"friendly_name": "Lucie", **SECRET_ATTRS})
     hass.states.async_set("person.babi", "unavailable", {"friendly_name": "Babi"})
-    hass.states.async_set("device_tracker.pixel_jan", "Škola", SECRET_ATTRS)
+    hass.states.async_set("device_tracker.pixel_marek", "Škola", SECRET_ATTRS)
     return entry
 
 
@@ -135,8 +135,8 @@ async def test_ws_get_maps_states(hass, hb, hass_ws_client):
     people = msg["result"]["people"]
     assert [(p["name"], p["status"]) for p in people] == [
         ("Babi", "unknown"),
-        ("Jan", "away"),
-        ("Mamínka", "home"),
+        ("Lucie", "home"),
+        ("Marek", "away"),
     ]
 
 
@@ -183,15 +183,15 @@ async def test_ws_subscribe_pushes_only_status_changes(hass, hb, hass_ws_client)
     assert msg["success"], msg
     first = await client.receive_json()
     assert first["type"] == "event"
-    assert [p["status"] for p in first["event"]["people"]] == ["unknown", "away", "home"]
+    assert [p["status"] for p in first["event"]["people"]] == ["unknown", "home", "away"]
 
     # Moving between zones / GPS updates while away: no push (no movement timing leaks).
     hass.states.async_set(
-        "person.jan", "Škola", {"friendly_name": "Jan", **SECRET_ATTRS, "latitude": 50.1}
+        "person.marek", "Škola", {"friendly_name": "Marek", **SECRET_ATTRS, "latitude": 50.1}
     )
     await hass.async_block_till_done()
     # Arriving home: one push with the new status.
-    hass.states.async_set("person.jan", "home", {"friendly_name": "Jan", **SECRET_ATTRS})
+    hass.states.async_set("person.marek", "home", {"friendly_name": "Marek", **SECRET_ATTRS})
     await hass.async_block_till_done()
     pushed = await client.receive_json()
     assert pushed["type"] == "event"
@@ -214,26 +214,26 @@ async def test_options_people_choose_order_name_and_colour(hass, hb):
     assert {str(k) for k in result["data_schema"].schema} == {"people_display", "people_persons"}
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"people_display": True, "people_persons": ["person.maminka", "person.jan"]},
+        {"people_display": True, "people_persons": ["person.lucie", "person.marek"]},
     )
     assert result["step_id"] == "people_style"
     keys = {str(k) for k in result["data_schema"].schema}
-    assert keys == {"name_maminka", "color_maminka", "name_jan", "color_jan"}
+    assert keys == {"name_lucie", "color_lucie", "name_marek", "color_marek"}
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"name_maminka": "Máma", "color_maminka": "pink", "color_jan": "auto"},
+        {"name_lucie": "Máma", "color_lucie": "pink", "color_marek": "auto"},
     )
     await hass.async_block_till_done()
     assert hb.options["people"] == {
         "display": True,
         "persons": [
-            {"entity_id": "person.maminka", "name": "Máma", "color": "pink"},
-            {"entity_id": "person.jan"},
+            {"entity_id": "person.lucie", "name": "Máma", "color": "pink"},
+            {"entity_id": "person.marek"},
         ],
     }
     people = model.people_snapshot(hass)
     assert [(p["name"], p["color"]) for p in people][0] == ("Máma", "pink")
-    assert [p["name"] for p in people] == ["Máma", "Jan"]
+    assert [p["name"] for p in people] == ["Máma", "Marek"]
 
 
 async def test_options_people_default_all_and_display_off(hass, hb):

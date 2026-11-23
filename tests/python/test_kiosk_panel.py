@@ -110,7 +110,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/access/subscribe": {},
     "homebrain/access/command": {"action": "list_users"},
     "homebrain/access/label": {"user_id": 1001, "hand": "right"},
-    "homebrain/access/person": {"person": "Jan", "child": False},
+    "homebrain/access/person": {"person": "Marek", "child": False},
     "homebrain/access/settings": {"notify_reenroll": True},
     "homebrain/access/history": {"limit": 5},
     "homebrain/recipes/timers/subscribe": {},

@@ -92,5 +92,5 @@ def test_reasons_retries_and_rate():
 
 
 def test_notification_text_czech():
-    text = notification_text("Tomáš", "palm", "left", ["age", "retries"])
-    assert text.startswith("Doporučuji přezapsat levou dlaň (Tomáš): zápis je starý, často pozná")
+    text = notification_text("Kuba", "palm", "left", ["age", "retries"])
+    assert text.startswith("Doporučuji přezapsat levou dlaň (Kuba): zápis je starý, často pozná")

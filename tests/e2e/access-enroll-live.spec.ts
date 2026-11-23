@@ -12,7 +12,7 @@ const emit = (page: Page, data: Record<string, unknown>) =>
       data: d,
     });
   }, data);
-const base = { request_id: 'c0de-7', modality: 'face', name: 'Petra' };
+const base = { request_id: 'c0de-7', modality: 'face', name: 'Lucie' };
 // many live stages per test; phones under CI load need more than the default 30 s
 test.describe.configure({ timeout: 60_000 });
 
@@ -23,7 +23,7 @@ test('Zápis z HA skriptu: živý průběh, nápověda, odpočet a kroky', async
   const banner = page.getByTestId('access-enrol-status');
   await expect(banner).toHaveAttribute('data-progress', 'armed');
   await expect(banner).toContainText('Připravuji snímač…');
-  await expect(banner).toContainText('Petra · obličej');
+  await expect(banner).toContainText('Lucie · obličej');
   await emit(page, { ...base, state: 'detected', hint: 'too_far', remaining_s: 24 });
   await expect(banner).toContainText('Přibliž se');
   await expect(page.getByTestId('hb-step-enrol-1')).toHaveAttribute('aria-current', 'step');
@@ -80,7 +80,7 @@ test('Zápis selže: důvod, rada a Zkusit znovu spustí nový zápis', async ({
       (window as unknown as { __hbAccessLog: Array<{ action: string; data: unknown }> })
         .__hbAccessLog,
   );
-  expect(log.find((e) => e.action === 'enroll_palm')?.data).toMatchObject({ name: 'Petra' });
+  expect(log.find((e) => e.action === 'enroll_palm')?.data).toMatchObject({ name: 'Lucie' });
 });
 
 test('Servisní režim vypnutý: nabídne zapnutí s potvrzením a zkusí znovu', async ({ page }) => {
@@ -112,7 +112,7 @@ test('Starší firmware bez průběhu: původní banner čekání a výsledku', 
   await page.evaluate(() =>
     (
       window as unknown as { __hbAccess: { externalEnrol: (s: unknown) => void } }
-    ).__hbAccess.externalEnrol({ type: 'face', name: 'Petra', ok: true }),
+    ).__hbAccess.externalEnrol({ type: 'face', name: 'Lucie', ok: true }),
   );
   const banner = page.getByTestId('access-enrol-status');
   await expect(banner).toHaveAttribute('data-phase', 'ok');
@@ -125,7 +125,7 @@ test('Průvodce: krok ukazuje živý průběh vlastního zápisu; Zařízení uk
 }) => {
   await page.goto('/homebrain-pristup?enroll_progress=1&service=1&enroll_ms=6000');
   await page.getByTestId('access-add').click();
-  await page.getByTestId('access-name').fill('Jan');
+  await page.getByTestId('access-name').fill('Marek');
   await page.getByTestId('access-name-next').click();
   await expect(page.getByTestId('access-start')).toBeEnabled();
   await page.getByTestId('access-start').click();
