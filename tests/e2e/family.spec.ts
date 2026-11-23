@@ -349,7 +349,7 @@ test.describe('Rodina', () => {
       ).toHaveCount(0);
     }
     await expect(page.getByTestId('family-chore-menu')).toHaveCount(0);
-    const menu = page.getByTestId('family-chore-give').first();
+    const menu = page.getByTestId('family-upcoming-give').first();
     const box = await menu.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -1887,7 +1887,7 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
         const chore = page.getByTestId('family-chore').filter({ hasText: 'Utřít stůl' });
         await expect(chore).toContainText('Přeneseno · původně');
         await chore.getByTestId('family-chore-menu').click();
-        await page.getByRole('button', { name: 'Přeřadit na dnes…' }).click();
+        await page.getByRole('button', { name: 'Přeřadit…' }).click();
         const swap = page.getByTestId('family-swap-sheet');
         await expect(swap.getByTestId('family-swap-recipient')).toContainText('Kuba');
         const submit = swap.getByTestId('family-swap-submit');
@@ -1898,7 +1898,7 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
           );
           await expect(swap.getByRole('alert')).toBeInViewport({ ratio: 1 });
           await expect(submit).toBeEnabled();
-          await expect(page.getByTestId('hb-toast')).toHaveCount(0);
+          await expect(page.getByTestId('hb-toast')).toContainText('Přeřazení se nepovedlo');
           await capture(page, info.project.name, 'reassign-error', theme);
         } else {
           await expect(swap).toHaveCount(0);
@@ -1912,4 +1912,145 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
       });
     }
   }
+});
+
+test.describe('Rodina – výběr termínu a zítřejší předání', () => {
+  test.beforeEach(async ({ page }, info) => {
+    await page.clock.setFixedTime(new Date('2026-11-18T18:40:00+01:00'));
+    if (info.project.name === 'desktop') await page.setViewportSize({ width: 1280, height: 800 });
+  });
+
+  async function evidence(page: Page, name: string) {
+    const size = page.viewportSize()!;
+    await page.screenshot({
+      path: join('test-results', 'chore-dates-r3', `${size.width}x${size.height}-${name}.png`),
+      animations: 'disabled',
+    });
+  }
+
+  test('kalendář nastaví dnešní termín a večerní formulář úkol uloží', async ({ page }) => {
+    // The rendered fallback can be exercised and captured in headless Chromium.
+    await page.addInitScript(() =>
+      Object.defineProperty(HTMLInputElement.prototype, 'showPicker', { value: undefined }),
+    );
+    await open(page, '?rodina=evening');
+    await page.getByTestId('family-add-chore').first().click();
+    const sheet = page.getByTestId('family-add-chore-sheet');
+    await expect(sheet.getByLabel(/Název/)).toBeInViewport({ ratio: 1 });
+    expect(await sheet.locator('.hb-sheet-body').evaluate((el) => el.scrollTop)).toBe(0);
+    await sheet.getByRole('radio', { name: 'Jednou' }).click();
+    await sheet.getByLabel(/Název/).fill('Připravit kartičky');
+    const icon = sheet.getByRole('button', { name: 'Vybrat datum' });
+    const bounds = await icon.boundingBox();
+    expect(bounds?.width).toBeGreaterThanOrEqual(44);
+    expect(bounds?.height).toBeGreaterThanOrEqual(44);
+    await icon.click();
+    const calendar = sheet.getByRole('group', { name: 'Vybrat datum' });
+    await calendar.scrollIntoViewIfNeeded();
+    await expect(
+      calendar.getByRole('button', { name: '17. 11. 2026', exact: true }),
+    ).toBeDisabled();
+    const today = calendar.getByRole('button', { name: '18. 11. 2026', exact: true });
+    await expect(today).toHaveAttribute('aria-current', 'date');
+    const cell = await today.boundingBox();
+    expect(cell?.width).toBeGreaterThanOrEqual(44);
+    expect(cell?.height).toBeGreaterThanOrEqual(44);
+    const dateWidth = (await sheet.getByTestId('family-first-date').boundingBox())?.width;
+    expect((await calendar.boundingBox())?.width).toBe(dateWidth);
+    await evidence(page, 'kalendar');
+    await today.click();
+    await expect(sheet.getByTestId('family-first-date')).toHaveValue(/^Dnes \(18\.\s+11\.\)$/u);
+    await expect(sheet.getByTestId('family-due-time')).toHaveValue('20:00');
+    await expect(sheet.getByText('Dnes už je po 18:00, čas jsem posunul na 20:00.')).toBeVisible();
+    await sheet
+      .getByText('Dnes už je po 18:00, čas jsem posunul na 20:00.')
+      .scrollIntoViewIfNeeded();
+    await evidence(page, 'automaticky-cas');
+    const timeButton = sheet.getByRole('button', { name: 'Vybrat čas' });
+    const timeBounds = await timeButton.boundingBox();
+    expect(timeBounds?.width).toBeGreaterThanOrEqual(44);
+    expect(timeBounds?.height).toBeGreaterThanOrEqual(44);
+    await timeButton.click();
+    const times = sheet.getByRole('group', { name: 'Vybrat čas' });
+    await times.scrollIntoViewIfNeeded();
+    await expect(times.getByRole('button', { name: /18:45 Nejbližší čas/u })).toBeInViewport();
+    await evidence(page, 'vyber-casu');
+    await timeButton.click();
+    await sheet.getByTestId('family-add-chore-save').click();
+    await expect(sheet).toHaveCount(0);
+    await expect(page.getByTestId('hb-toast')).toContainText('dnes do 20:00');
+  });
+
+  test('rodič přeřadí zítřejší opakovaný úkol z Týdne osoby', async ({ page }) => {
+    await open(page, '?rodina=evening');
+    await page.getByTestId('family-person-tile').filter({ hasText: 'Ema' }).click();
+    await page.getByRole('tab', { name: 'Týden' }).click();
+    await page.getByRole('button', { name: 'Další akce: Vyskládat myčku' }).click();
+    await page.getByRole('button', { name: 'Přeřadit…' }).click();
+    const sheet = page.getByTestId('family-swap-sheet');
+    const day = sheet.getByRole('radio', { name: /čt.*19.*11/u });
+    await expect(day).toBeChecked();
+    await expect(sheet.getByTestId('family-swap-chore-meta')).toHaveText('Ema · 3 body');
+    await expect(sheet.getByTestId('family-swap-submit')).toHaveText('Přeřadit na Kubu');
+    await expect(sheet.getByTestId('family-swap-recipient')).toContainText('Kuba');
+    await evidence(page, 'prirazeni');
+    await sheet.getByTestId('family-swap-submit').click();
+    const row = page.getByTestId('family-person-chore').filter({ hasText: 'Vyskládat myčku' });
+    await expect(row).toContainText('Přeřazeno na Kubu · zítra');
+    await row.scrollIntoViewIfNeeded();
+    await evidence(page, 'naplanovane-prirazeni');
+    await row.getByRole('button', { name: 'Další akce: Vyskládat myčku' }).click();
+    const cancel = page.getByRole('button', { name: 'Zrušit přeřazení' });
+    await expect(cancel).toBeVisible();
+    await evidence(page, 'zruseni-prirazeni');
+    await cancel.click();
+    await expect(row).not.toContainText('Přeřazeno na Kubu');
+  });
+
+  test('rodič vidí přerušené přeřazení po půlnoci', async ({ page }) => {
+    await open(page, '?rodina=evening&reassign=needs-repair');
+    await expect(page.getByTestId('family-swap-issue')).toContainText(
+      'Přeřazení se nepodařilo dokončit – úkol zůstal u Emy.',
+    );
+    await evidence(page, 'nedokoncene-prirazeni');
+  });
+
+  test('po změně času večerní termín přeskočí na další kalendářní den', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-25T23:01:00+01:00'));
+    await open(page);
+    await page.getByTestId('family-add-chore').first().click();
+    const sheet = page.getByTestId('family-add-chore-sheet');
+    const date = sheet.getByTestId('family-first-date');
+    await date.fill('25. 10. 2026');
+    await expect(date).toHaveValue('25. 10. 2026');
+    await date.blur();
+    await expect(date).toHaveAttribute('data-date', '2026-10-26');
+    await expect(sheet.getByText(/Termín je zítra/u)).toBeVisible();
+  });
+
+  test('dítě požádá rodiče o předání svého zítřejšího úkolu', async ({ page }) => {
+    await open(page, '?rodina=evening&role=child');
+    const undated = page.getByTestId('family-chore').filter({ hasText: 'Doplnit mýdlo' });
+    await expect(undated).toContainText('Úkol nemá termín.');
+    await expect(undated.getByRole('button', { name: /Předat/u })).toHaveCount(0);
+    const row = page
+      .getByTestId('family-upcoming-chore')
+      .filter({ hasText: 'Vynést tříděný odpad' });
+    await row.getByRole('button', { name: 'Předat: Vynést tříděný odpad' }).click();
+    const sheet = page.getByTestId('family-swap-sheet');
+    await expect(sheet.getByRole('radio', { name: /čt.*19.*11/u })).toBeChecked();
+    await sheet.getByRole('button', { name: 'Poslat rodiči ke schválení' }).click();
+    await expect(row).toContainText('Předání čeká na schválení');
+    await expect(page.getByTestId('hb-toast')).toContainText('Žádost byla odeslána rodiči.');
+    expect(
+      await page.evaluate(
+        () =>
+          (
+            window as Window & {
+              __hbFamilyLog?: Array<{ kind: string; input?: { local_date: string } }>;
+            }
+          ).__hbFamilyLog?.find((event) => event.kind === 'swapRequest')?.input?.local_date,
+      ),
+    ).toBe('2026-11-19');
+  });
 });

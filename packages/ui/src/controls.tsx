@@ -172,10 +172,10 @@ export function Sheet({
   }, [onClose]);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    const first = ref.current?.querySelector<HTMLElement>(
-      '[data-autofocus], [autofocus], input, button[data-variant="primary"]',
-    );
-    (first ?? ref.current)?.focus();
+    const preferred = ref.current?.querySelector<HTMLElement>('[data-autofocus], [autofocus]');
+    const first = ref.current?.querySelector<HTMLElement>('input, button[data-variant="primary"]');
+    if (preferred) preferred.focus({ preventScroll: true });
+    else (first ?? ref.current)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeRef.current();
       if (e.key !== 'Tab' || !ref.current) return;

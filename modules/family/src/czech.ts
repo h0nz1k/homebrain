@@ -147,16 +147,16 @@ function decline(name: string, kase: Case): string | null {
   return withCase(raw, `${stem}${SOFT.includes(stem.slice(-1)) ? 'e' : 'a'}`);
 }
 
-export function reassignedToLabel(name: string): string {
+export function nameAccusative(name: string): string | null {
   const first = name.trim();
-  const genitive = nameGenitive(first);
-  if (/^\p{L}+a$/iu.test(first)) {
-    return `Přeřazeno na ${first.slice(0, -1)}u na dnes`;
-  }
-  if (genitive && !first.toLocaleLowerCase('cs').endsWith('e')) {
-    return `Přeřazeno na ${genitive} na dnes`;
-  }
-  return `Přeřazeno na dnes · ${name}`;
+  if (/^\p{L}+a$/iu.test(first)) return `${first.slice(0, -1)}u`;
+  return first.toLocaleLowerCase('cs').endsWith('e') ? null : nameGenitive(first);
+}
+
+export function reassignedToLabel(name: string, day = 'dnes'): string {
+  const recipient = nameAccusative(name);
+  const when = day === 'dnes' ? ' na dnes' : ` · ${day}`;
+  return recipient ? `Přeřazeno na ${recipient}${when}` : `Přeřazeno ${name} · ${day}`;
 }
 
 /** 3. pád (komu): „Synovi“, „Dceři“, „Babi“; `null` when unsure. */

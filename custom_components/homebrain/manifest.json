@@ -3,6 +3,7 @@
   "name": "HomeBrain",
   "after_dependencies": [
     "ai_task",
+    "choreops",
     "media_source",
     "recorder"
   ],

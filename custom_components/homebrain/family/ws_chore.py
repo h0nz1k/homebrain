@@ -11,7 +11,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from . import chore_management, choreops_adapter, model
+from . import chore_management, choreops_adapter, model, swap_service
 from .swap_store import FamilySwapStore
 from .ws_common import _role, family_options
 from .ws_swap import _require_adult, _serialize_mutation, _store
@@ -52,6 +52,7 @@ def _cancel_deleted_swaps(
             store.upsert_request(rid, {**request, "status": "cancelled"})
     for oid, operation in (store.data.get("operations") or {}).items():
         if operation.get("config_entry_id") != cfg or operation["status"] not in {
+            "scheduled",
             "applying",
             "cleanup_pending",
             "active",
@@ -61,11 +62,14 @@ def _cancel_deleted_swaps(
         if aliases.intersection(
             {source.get("chore_id"), source.get("opaque_id"), operation.get("clone_id")}
         ):
-            store.upsert_operation(oid, {**operation, "status": "cancelled"})
-            rid = operation.get("request_id")
-            request = (store.data.get("requests") or {}).get(rid)
-            if request and request["status"] == "approved":
-                store.upsert_request(rid, {**request, "status": "cancelled"})
+            if (
+                operation.get("operation_token")
+                and operation["status"] != "scheduled"
+                and operation.get("clone_id") not in aliases
+            ):
+                # Deleting the source does not discard a recipient's submitted work.
+                continue
+            swap_service.cancel_operation(store, oid, operation)
 
 
 async def _delete_chore(

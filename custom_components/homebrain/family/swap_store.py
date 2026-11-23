@@ -81,8 +81,10 @@ class FamilySwapStore:
         ops[operation_id] = copy.deepcopy(record)
         return ops[operation_id]
 
-    def reconcile_all(self, now, tz) -> None:
+    def reconcile_all(self, now, tz) -> bool:
         reqs = swap_model.reconcile_requests(self._data.get("requests") or {}, now)
         ops = swap_model.reconcile_operations(self._data.get("operations") or {}, now, tz)
+        changed = reqs != self._data["requests"] or ops != self._data["operations"]
         self._data["requests"] = reqs
         self._data["operations"] = ops
+        return changed

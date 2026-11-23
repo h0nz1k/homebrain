@@ -2,7 +2,9 @@ export type FamilyRole = 'owner' | 'adult' | 'child' | 'kiosk' | 'guest';
 export type ChoreState = 'todo' | 'claimed' | 'done' | 'overdue';
 
 export interface FamilySwapToday {
-  kind: 'pending_give' | 'transferred_out' | 'transferred_in';
+  kind: 'pending_give' | 'transferred_out' | 'transferred_in' | 'transfer_failed';
+  local_date?: string;
+  operation_id?: string;
   label: string;
   partner_name?: string;
   muted?: boolean;
@@ -69,6 +71,10 @@ export interface FamilyUpcomingChore {
   due: string | null;
   /** ChoreOps `primary_group`. */
   group: 'this_week' | 'other';
+  state?: ChoreState;
+  can_request_swap?: boolean;
+  swap_unavailable_reason?: string | null;
+  swap_today?: FamilySwapToday | null;
   management?: ChoreManagement;
 }
 export interface PointsSummary {
@@ -106,6 +112,7 @@ export interface FamilyApproval {
   points?: number | null;
   due?: string | null;
   request_id?: string;
+  local_date?: string;
   requester_name?: string;
   from_kid_id?: string;
   to_kid_id?: string;
@@ -138,6 +145,7 @@ export interface FamilySnapshot {
   free_chores?: FreeChore[];
   shopping: { entity_id: string; name: string; items: ShoppingItem[] } | null;
   pending_approvals?: FamilyApproval[];
+  swap_issues?: Array<{ id: string; chore_name: string; source_name?: string; pending: boolean }>;
   swap_requests?: Array<Record<string, unknown>>;
   swap_badges?: Array<{ text: string; kid: string }>;
   errors: string[];

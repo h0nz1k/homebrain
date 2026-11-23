@@ -175,11 +175,15 @@ FAMILY_WS_COMMANDS: Final = frozenset(
         "homebrain/family/chore/claim",
         "homebrain/family/shopping/add",
         "homebrain/family/shopping/update",
+        "homebrain/family/points/get",
+        "homebrain/family/points/history",
+    }
+)
+FAMILY_SWAP_COMMANDS: Final = frozenset(
+    {
         "homebrain/family/swap/options",
         "homebrain/family/swap/request",
         "homebrain/family/swap/cancel",
-        "homebrain/family/points/get",
-        "homebrain/family/points/history",
     }
 )
 FAMILY_PARENT_COMMANDS: Final = frozenset(
@@ -227,6 +231,8 @@ def role_ws_commands(role: str) -> frozenset[str]:
         extra |= {"homebrain/network/summary"}
     if role in NETWORK_QR_ROLES:
         extra |= {"homebrain/network/guest_qr"}
+    if role in {"owner", "adult", "child"}:
+        extra |= FAMILY_SWAP_COMMANDS
     if role == "owner":
         extra |= FAMILY_PARENT_COMMANDS
     elif role in FAMILY_APPROVE_ROLES:

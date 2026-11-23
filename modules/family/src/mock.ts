@@ -12,19 +12,20 @@ import type {
   FamilySnapshot,
   PointsHistory,
   PointsSummary,
+  SwapRequestInput,
   FamilyUpcomingChore,
   PersonHistoryEntry,
 } from './types.js';
-import { choreTally, localKey } from './format.js';
+import { canTransferChore, choreTally, localKey } from './format.js';
 import { personActivity } from './personActivity.js';
 
 /** Synthetic household for dev/e2e: generic names only („Ema“, „Kuba“). */
 export interface FamilyMockOptions {
   role?: FamilyRole;
   /** `empty` has no integrations; `busy` adds enough chores to overflow each kiosk list. */
-  scenario?: 'full' | 'empty' | 'busy';
+  scenario?: 'full' | 'empty' | 'busy' | 'evening';
   /** Synthetic overdue occurrence for the reassign success and failure flows. */
-  reassignDemo?: 'overdue' | 'error';
+  reassignDemo?: 'overdue' | 'error' | 'needs-repair';
   now?: () => Date;
 }
 
@@ -125,7 +126,14 @@ function groupOf(due: Date, now: Date): FamilyUpcomingChore['group'] {
 
 function upcoming(now: Date, id: string, name: string, points: number, day: number, h: number) {
   const due = at(now, day, h);
-  return { id: `sensor.demo_${id}`, name, points, due, group: groupOf(new Date(due), now) };
+  return {
+    id: `sensor.demo_${id}`,
+    name,
+    points,
+    due,
+    group: groupOf(new Date(due), now),
+    can_request_swap: day <= 7,
+  };
 }
 
 function kids(now: Date, busy: boolean): FamilyKid[] {
@@ -240,7 +248,13 @@ function slotsOf(
 
 export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & { log: unknown[] } {
   const role = opts.role ?? 'owner';
-  const now = opts.now ?? (() => new Date());
+  const now =
+    opts.now ??
+    (() => {
+      const date = new Date();
+      if (opts.scenario === 'evening') date.setHours(18, 40, 0, 0);
+      return date;
+    });
   const empty = opts.scenario === 'empty';
   const today = now();
   const adults: FamilyKid[] = empty
@@ -341,7 +355,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   };
   const log: unknown[] = [];
   const own = 'syn';
-  if (opts.reassignDemo && !empty) {
+  if ((opts.reassignDemo === 'overdue' || opts.reassignDemo === 'error') && !empty) {
     const [ema] = state.kids as [FamilyKid];
     ema.chores.push({
       id: 'sensor.demo_overdue',
@@ -352,6 +366,35 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       can_claim: true,
       can_approve: false,
       can_request_swap: true,
+    });
+  }
+  if (opts.scenario === 'evening') {
+    const [ema, kuba] = state.kids as [FamilyKid, FamilyKid];
+    const oneOff = upcoming(today, 'nakup', 'Přinést nákup', 4, 2, 17);
+    ema.upcoming?.push({
+      ...oneOff,
+      management: {
+        id: oneOff.id,
+        one_off: true,
+        can_skip: false,
+        series_name: oneOff.name,
+        time: null,
+        times_per_day: null,
+        slots: [],
+        assignees: [ema.name],
+      },
+    });
+    kuba.upcoming?.push(upcoming(today, 'posta', 'Vyzvednout poštu', 3, 2, 18));
+    kuba.chores.push({
+      id: 'sensor.demo_bez_terminu',
+      name: 'Doplnit mýdlo',
+      state: 'todo',
+      points: 2,
+      due: null,
+      can_claim: true,
+      can_approve: false,
+      can_request_swap: false,
+      swap_unavailable_reason: 'Úkol nemá termín.',
     });
   }
   const skipped = new Map<string, { kid: FamilyKid; row: FamilyChore }>();
@@ -410,6 +453,11 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       })),
     },
   });
+  let requested: SwapRequestInput | null = null;
+  const findOccurrence = (from: string, id: string) => {
+    const kid = state.kids.find((member) => (member.kid_uuid ?? member.id) === from);
+    return [...(kid?.chores ?? []), ...(kid?.upcoming ?? [])].find((row) => row.id === id);
+  };
   const snapshot = (): FamilySnapshot => {
     const detail = role === 'owner' || role === 'adult';
     const members: FamilyMember[] = all.map((k, i) => {
@@ -467,6 +515,17 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     return {
       role,
       revision: 3,
+      swap_issues:
+        detail && opts.reassignDemo === 'needs-repair'
+          ? [
+              {
+                id: 'swap-repair',
+                chore_name: 'Vyskládat myčku',
+                source_name: 'Ema',
+                pending: false,
+              },
+            ]
+          : [],
       capabilities: {
         can_create_chore: detail,
         can_swap: role !== 'kiosk' && role !== 'guest',
@@ -516,13 +575,17 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
               ? [
                   {
                     kind: 'swap' as const,
-                    type_label: 'Předání na dnes',
+                    type_label: 'Předání',
+                    local_date: requested?.local_date ?? dateOnly(now(), 0),
                     request_id: state.swapPending,
-                    requester_name: 'Ema',
-                    from_kid_id: 'dcera',
-                    to_kid_id: 'syn',
-                    chore_id: 'sensor.demo_luxovat',
-                    chore_name: 'Vyluxovat pokoj',
+                    requester_name:
+                      state.kids.find((k) => k.kid_uuid === requested?.from_kid)?.name ?? 'Ema',
+                    from_kid_id: requested?.from_kid ?? 'dcera',
+                    to_kid_id: requested?.to_kid ?? 'syn',
+                    chore_id: requested?.chore ?? 'sensor.demo_luxovat',
+                    chore_name: requested
+                      ? findOccurrence(requested.from_kid, requested.chore)?.name
+                      : 'Vyluxovat pokoj',
                     points: 4,
                     revision: 1,
                   },
@@ -574,7 +637,8 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     return { days: keys, earned, max: Math.max(...earned), coverage_complete: days === 7 };
   };
 
-  return {
+  const api: FamilyApi & { log: unknown[] } = {
+    now: opts.scenario === 'evening' ? now : undefined,
     log,
     get: async () => snapshot(),
     personHistory: async (member) => ({
@@ -627,17 +691,47 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       const item = state.items.find((i) => i.uid === uid);
       if (item) item.done = done;
     },
-    swapOptions: async () => ({
-      occurrences: [],
+    swapOptions: async (direction, id) => ({
+      occurrences: state.kids.flatMap((kid) => {
+        if (role === 'child' && direction === 'give' && kid.id !== own) return [];
+        return [...kid.chores, ...(kid.upcoming ?? [])].flatMap((row) =>
+          canTransferChore(row) && row.due && (!id || row.id === id)
+            ? [
+                {
+                  opaque_id: row.id,
+                  owner_kid_uuid: kid.kid_uuid ?? kid.id,
+                  local_date:
+                    row.state === 'overdue' ? dateOnly(now(), 0) : localKey(new Date(row.due)),
+                },
+              ]
+            : [],
+        );
+      }),
       partners: state.kids.map((k) => ({ id: k.kid_uuid ?? k.id, name: k.name })),
     }),
     swapRequest: async (input) => {
       log.push({ kind: 'swapRequest', input });
+      const row = findOccurrence(input.from_kid, input.chore);
+      if (!row || !canTransferChore(row)) throw { code: 'not_found' };
+      row.swap_today = {
+        kind: 'pending_give',
+        label: 'Předání čeká na schválení',
+        partner_name: state.kids.find((kid) => kid.kid_uuid === input.to_kid)?.name,
+      };
+      requested = input;
       state.swapPending = input.client_request_id;
       return { request: { id: input.client_request_id, status: 'pending' }, revision: 4 };
     },
     swapDecide: async (request_id, decision) => {
       log.push({ kind: 'swapDecide', request_id, decision });
+      if (requested) {
+        const row = findOccurrence(requested.from_kid, requested.chore);
+        if (row) row.swap_today = null;
+        if (decision === 'approve') await api.swapReassign(requested);
+        requested = null;
+        state.swapPending = '';
+        return { ok: true };
+      }
       const original = chore('dcera', 'sensor.demo_luxovat');
       if (original) {
         if (decision === 'approve') {
@@ -669,6 +763,18 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       const from = state.kids.find((kid) => (kid.kid_uuid ?? kid.id) === input.from_kid);
       const to = state.kids.find((kid) => (kid.kid_uuid ?? kid.id) === input.to_kid);
       const original = from?.chores.find((row) => row.id === input.chore);
+      const upcoming = from?.upcoming?.find((row) => row.id === input.chore);
+      if (from && to && upcoming) {
+        upcoming.swap_today = {
+          kind: 'transferred_out',
+          label: handedToLabel(to.name),
+          partner_name: to.name,
+          local_date: input.local_date,
+          operation_id: input.client_request_id,
+          muted: false,
+        };
+        return { operation: { status: 'scheduled' } };
+      }
       if (!from || !to || !original) throw { code: 'not_found' };
       original.swap_today = {
         kind: 'transferred_out',
@@ -699,6 +805,22 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     },
     swapCancel: async (request_id) => {
       log.push({ kind: 'swapCancel', request_id });
+      if (requested && request_id === state.swapPending) {
+        const row = findOccurrence(requested.from_kid, requested.chore);
+        if (row) row.swap_today = null;
+        requested = null;
+        state.swapPending = '';
+      }
+      return { ok: true };
+    },
+    swapCancelOperation: async (operation_id) => {
+      log.push({ kind: 'swapCancelOperation', operation_id });
+      if (role !== 'owner' && role !== 'adult') throw { code: 'unauthorized' };
+      for (const kid of state.kids) {
+        for (const row of kid.upcoming ?? []) {
+          if (row.swap_today?.operation_id === operation_id) row.swap_today = null;
+        }
+      }
       return { ok: true };
     },
     skipChoreToday: async (input) => {
@@ -797,7 +919,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
               state: 'todo',
               can_claim: false,
               can_approve: false,
-              can_request_swap: !management.one_off,
+              can_request_swap: slot.date <= dateOnly(now(), 7),
             });
           else
             (kid.upcoming ??= []).push({
@@ -820,4 +942,5 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       generated_at: now().toISOString(),
     }),
   };
+  return api;
 }

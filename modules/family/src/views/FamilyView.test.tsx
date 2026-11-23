@@ -227,7 +227,7 @@ describe('FamilyView', () => {
       } else {
         expect(menus).toHaveLength(0);
         expect(screen.queryByRole('button', { name: /Smazat/ })).toBeNull();
-        if (role === 'child') expect(screen.getByTestId('family-chore-give')).toBeTruthy();
+        if (role === 'child') expect(screen.getByTestId('family-upcoming-give')).toBeTruthy();
       }
     },
   );
@@ -336,22 +336,15 @@ describe('FamilyView', () => {
 
 describe('Reassign chore', () => {
   async function openReassign(swapReassign: FamilyApi['swapReassign']) {
-    const mock = createMockFamilyApi({ role: 'owner' });
-    setFamilyApiFactory(() => ({
-      ...mock,
-      swapReassign,
-      swapOptions: async () => ({
-        occurrences: [],
-        partners: [{ id: 'kuba', name: 'Kuba' }],
-      }),
-    }));
+    const mock = createMockFamilyApi({ role: 'owner', reassignDemo: 'overdue' });
+    setFamilyApiFactory(() => ({ ...mock, swapReassign }));
     render(<FamilyView store={store} bindings={{}} />);
     await screen.findByTestId('family');
     const row = screen
       .getAllByTestId('family-chore')
-      .find((item) => item.dataset.swap === 'transferred_in')!;
+      .find((item) => item.textContent?.includes('Utřít stůl'))!;
     fireEvent.click(within(row).getByTestId('family-chore-menu'));
-    fireEvent.click(screen.getByRole('button', { name: /Přeřadit na dnes/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Přeřadit…' }));
     await screen.findByTestId('family-swap-recipient');
     return screen.getByTestId('family-swap-submit') as HTMLButtonElement;
   }

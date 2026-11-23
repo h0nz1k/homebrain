@@ -72,6 +72,7 @@ def test_role_matrix_includes_swap_and_points():
     assert "homebrain/family/chore/create" in adult
     assert "homebrain/family/points/history" in child
     assert "homebrain/family/swap/decide" not in child
+    assert not any("/swap/" in cmd for cmd in role_ws_commands("kiosk"))
 
 
 @pytest.mark.asyncio
@@ -99,6 +100,7 @@ async def test_integration_store_loaded(hass):
 
     assert await async_setup_component(hass, DOMAIN, {})
     await hass.async_block_till_done()
+    assert not hass.config_entries.async_entries("choreops")
     assert "family_swap" in hass.data[DOMAIN]
 
 
@@ -174,6 +176,18 @@ def test_only_active_swap_mutes_source_and_decorates_actual_clone():
     assert applied["swap_today"]["label"] == "Předáno: Syn · jen dnes"
     assert applied["swap_today"]["partner_name"] == "Syn"
     assert applied["counts_today"] is False
+    original.update(due="2026-06-02T18:00:00+02:00", can_request_swap=True)
+    op["source_snapshot"]["due"] = "2026-06-01T18:00:00+02:00"
+    regular = model.apply_swap_overlays(
+        [original],
+        kid=kids["a"],
+        store_data=store,
+        kids_by_uuid=kids,
+        now=datetime.fromisoformat("2026-06-02T09:00:00+02:00"),
+    )[0]
+    assert regular["swap_today"] is None
+    assert regular["can_request_swap"]
+    assert regular.get("counts_today") is not False
     received = model.apply_swap_overlays(
         [clone], kid=kids["b"], store_data=store, kids_by_uuid=kids
     )[0]
