@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createWsPeopleSource, type PersonPresence } from './people.js';
 
-const jan: PersonPresence = { id: 'person.jan', name: 'Jan', color: 'blue', status: 'home' };
+const marek: PersonPresence = { id: 'person.marek', name: 'Marek', color: 'blue', status: 'home' };
 
 describe('createWsPeopleSource', () => {
   it('subscribes to homebrain/people/subscribe and forwards pushes', async () => {
@@ -21,14 +21,14 @@ describe('createWsPeopleSource', () => {
     expect(connection.subscribeMessage.mock.calls[0]![1]).toEqual({
       type: 'homebrain/people/subscribe',
     });
-    push({ people: [jan] });
-    push({ people: [{ ...jan, status: 'away' }] });
+    push({ people: [marek] });
+    push({ people: [{ ...marek, status: 'away' }] });
     expect(seen.map((p) => p[0]!.status)).toEqual(['home', 'away']);
     stop();
     await Promise.resolve();
     await Promise.resolve();
     expect(unsub).toHaveBeenCalled();
-    push({ people: [jan] });
+    push({ people: [marek] });
     expect(seen).toHaveLength(2);
   });
 

@@ -6,8 +6,8 @@ import { expect, test, type Page } from '@playwright/test';
  * 1 neznámo… see dev.tsx). Only doma / pryč / neznámo, never places or times.
  */
 const EXPECTED = [
-  'Jan: doma',
-  'Mamínka: doma',
+  'Marek: doma',
+  'Lucie: doma',
   'Kuba: pryč',
   'Ema: doma',
   'Babi: pryč',

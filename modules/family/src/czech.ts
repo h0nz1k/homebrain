@@ -72,7 +72,7 @@ function withCase(original: string, declined: string): string {
     : declined;
 }
 
-/** Feminine -a dative: Dcera → Dceři, Anička → Aničce, Jana → Janě, Olga → Olze. */
+/** Feminine -a dative: Dcera → Dceři, Anička → Aničce, Olga → Olze. */
 function femDative(stem: string): string | null {
   const two = stem.slice(-2);
   if (two === 'ch') return `${stem.slice(0, -2)}še`;
@@ -138,7 +138,7 @@ function decline(name: string, kase: Case): string | null {
     return withCase(raw, kase === 'dat' ? `${low.slice(0, -1)}i` : low);
   }
   if ('eéoóuúůíáě'.includes(last)) return null;
-  // Consonant: masculine (Syn, Jan, Tomáš, Marek, Dědeček); a few feminine names excluded.
+  // Consonant: masculine (Syn, Ondřej, Marek, Dědeček); a few feminine names excluded.
   if (FEM_CONSONANT.has(low)) return null;
   let stem = low;
   // Mobile -e-: Marek → Markovi, Dědeček → Dědečka.

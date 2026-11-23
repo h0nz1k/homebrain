@@ -20,19 +20,21 @@ describe('groupPeople', () => {
     const people = groupPeople(
       createSyntheticUsers(),
       { '1001': { hand: 'right' }, '1003': { hand: 'right' } },
-      { tomáš: { child: true } },
+      { kuba: { child: true } },
     );
-    expect(people.map((p) => p.name)).toEqual(['Jan', 'Petra', 'Tomáš']);
-    const jan = people[0]!;
-    expect(jan.face.map((u) => u.id)).toEqual([1]);
-    expect(jan.right.map((u) => u.id)).toEqual([1001]);
-    expect(jan.unknown.map((u) => u.id)).toEqual([1002]);
-    expect(people[2]!.allowed).toBe(false);
-    expect(people[2]!.child).toBe(true);
+    expect(people.map((p) => p.name)).toEqual(['Kuba', 'Lucie', 'Marek']);
+    const marek = people[2]!;
+    expect(marek.face.map((u) => u.id)).toEqual([1]);
+    expect(marek.right.map((u) => u.id)).toEqual([1001]);
+    expect(marek.unknown.map((u) => u.id)).toEqual([1002]);
+    expect(people[0]!.allowed).toBe(false);
+    expect(people[0]!.child).toBe(true);
   });
   it('label person overrides sensor name', () => {
-    const people = groupPeople(createSyntheticUsers(), { '1003': { person: 'Jan', hand: 'left' } });
-    expect(people.find((p) => p.name === 'Jan')!.left.map((u) => u.id)).toEqual([1003]);
+    const people = groupPeople(createSyntheticUsers(), {
+      '1003': { person: 'Marek', hand: 'left' },
+    });
+    expect(people.find((p) => p.name === 'Marek')!.left.map((u) => u.id)).toEqual([1003]);
   });
 });
 
@@ -41,14 +43,14 @@ describe('issues', () => {
     const users = createSyntheticUsers();
     const dup = groupPeople(users, { '1001': { hand: 'right' }, '1002': { hand: 'right' } });
     expect(findDuplicates(dup)).toEqual([
-      { person: 'Jan', hand: 'right', ids: [1001, 1002], extra: 1002 },
+      { person: 'Marek', hand: 'right', ids: [1001, 1002], extra: 1002 },
     ]);
     expect(topIssue(dup).title).toContain('dvakrát');
     expect(topIssue(groupPeople(users, { '1001': { hand: 'right' } })).title).toContain(
       'neurčená dlaň',
     );
     const ok = groupPeople(
-      users.filter((u) => u.name === 'Jan'),
+      users.filter((u) => u.name === 'Marek'),
       { '1001': { hand: 'right' }, '1002': { hand: 'left' } },
     );
     expect(topIssue(ok).tone).toBe('ok');
@@ -105,7 +107,7 @@ describe('freeHands', () => {
   it('offers only the hand that has no palm yet', () => {
     const people = groupPeople(createSyntheticUsers(), { '1001': { hand: 'right' } });
     expect(freeHands(people, 1002)).toEqual(['left']);
-    expect(freeHands(people, 9999, 'jan')).toEqual(['left']);
+    expect(freeHands(people, 9999, 'marek')).toEqual(['left']);
   });
   it('offers both hands when both are taken or the person is unknown', () => {
     const both = groupPeople(createSyntheticUsers(), {

@@ -8,7 +8,7 @@ import type { DemoState, DevHass } from './shared.js';
 const agoIsoDev = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
 /**
- * Přístup (BioLock): synthetic people Jan/Petra/Tomáš, fake device entities; nothing is sent
+ * Přístup (BioLock): synthetic people Marek/Lucie/Kuba, fake device entities; nothing is sent
  * anywhere. `?biolock=off` = device offline, `?service=1` = service mode on. e2e drives events
  * through `window.__hbAccess.emit(...)`.
  */
@@ -82,7 +82,7 @@ export function addAccessDemo({ hass, refresh }: DevHass): void {
       when: sec(52 * 60),
       entity_id: E.lastUser,
       name: 'BioLock',
-      message: 'Odemkl(a) Petra (dlaň)',
+      message: 'Odemkl(a) Lucie (dlaň)',
     },
     { when: sec(52 * 60 - 0.1), entity_id: E.lock, state: 'unlocked' },
   ];
@@ -104,7 +104,7 @@ export function addAccessDemo({ hass, refresh }: DevHass): void {
       {
         kind: 'recognized',
         time: agoIso(14),
-        name: 'Jan',
+        name: 'Marek',
         type: 'face',
         user_id: 1,
         decision: 'granted',
@@ -112,7 +112,7 @@ export function addAccessDemo({ hass, refresh }: DevHass): void {
       {
         kind: 'recognized',
         time: agoIso(95),
-        name: 'Tomáš',
+        name: 'Kuba',
         type: 'face',
         user_id: 3,
         decision: 'denied',
@@ -127,7 +127,7 @@ export function addAccessDemo({ hass, refresh }: DevHass): void {
         user_id: 1003,
         type: 'palm',
         type_requested: 'palm',
-        name: 'Petra',
+        name: 'Lucie',
         attempts: 2,
       },
       {
@@ -135,13 +135,13 @@ export function addAccessDemo({ hass, refresh }: DevHass): void {
         time: agoIso(40 * 60 + 1),
         ok: false,
         type_requested: 'palm',
-        name: 'Petra',
+        name: 'Lucie',
         reason: 'face_instead_of_palm',
       },
       {
         kind: 'recognized',
         time: agoIso(27 * 60),
-        name: 'Petra',
+        name: 'Lucie',
         type: 'palm',
         user_id: 1003,
         decision: 'granted',
