@@ -1135,34 +1135,35 @@ function RobotPanel({
               </div>
             )}
             <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
-              <div className="rb-map-stack">
-                <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
-                  {mapProps && mapView === '3d' ? (
-                    <MapViewSwitch
-                      key={`${mapProps.map.digest}:${robot.rotation}`}
-                      {...mapProps}
-                      fallback={floorPlan}
-                    />
-                  ) : (
-                    floorPlan
+              {mapProps && mapView === '3d' ? (
+                <MapViewSwitch
+                  key={`${robot.slot}:${mapProps.map.digest}:${robot.rotation}`}
+                  {...mapProps}
+                  onMapView={rememberMapView}
+                  fallback={floorPlan}
+                />
+              ) : (
+                <div className="rb-map-stack">
+                  <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
+                    {floorPlan}
+                  </div>
+                  {mapProps && (
+                    <div className="rb-map-view-row">
+                      <IconSegmentedControl
+                        compact
+                        label="Zobrazení mapy"
+                        value={mapView}
+                        options={[
+                          ['2d', '2D'],
+                          ['3d', '3D'],
+                        ]}
+                        onChange={rememberMapView}
+                        className="rb-map-view"
+                      />
+                    </div>
                   )}
                 </div>
-                {mapProps && (
-                  <div className="rb-map-view-row">
-                    <IconSegmentedControl
-                      compact
-                      label="Zobrazení mapy"
-                      value={mapView}
-                      options={[
-                        ['2d', '2D'],
-                        ['3d', '3D'],
-                      ]}
-                      onChange={rememberMapView}
-                      className="rb-map-view"
-                    />
-                  </div>
-                )}
-              </div>
+              )}
               <div className="rb-clean-side">
                 {liveName && (
                   <p className="rb-now" data-testid="robots-live-chip">

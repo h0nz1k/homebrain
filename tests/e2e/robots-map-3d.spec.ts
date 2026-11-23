@@ -24,14 +24,22 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
   await mode3d.click();
   const canvas = map3d.locator('canvas');
   await expect(canvas).toBeVisible();
+  const expectFloorFitted = () =>
+    expect
+      .poll(async () => Number(await canvas.getAttribute('data-floor-coverage')))
+      .toBeGreaterThanOrEqual(0.6);
+  await expectFloorFitted();
+  await expect(map3d.locator('[data-map3d-room="8"]')).toHaveText('Šatna');
+  await expect(map3d.locator('[data-map3d-room][data-live]')).toHaveCount(1);
   await expect(map3d.locator('[data-map3d-room="1"] .rb-map3d-badge')).toHaveText('1');
   const room = map3d.locator('[data-map3d-room="3"]');
   await expect(room).toHaveAttribute('style', /left:/);
   const overviewPosition = (await room.getAttribute('style'))!;
-  const top = map3d.getByRole('button', { name: 'Pohled shora' });
+  const top = map3d.getByRole('button', { name: 'Shora' });
   await top.click();
   await expect(top).toHaveAttribute('aria-pressed', 'true');
   await expect(room).not.toHaveAttribute('style', overviewPosition);
+  await expectFloorFitted();
 
   await canvas.evaluate((element) =>
     element.scrollIntoView({ block: 'center', behavior: 'instant' }),
@@ -43,6 +51,10 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
   await canvas.click({ position });
   await expect(room.locator('.rb-map3d-badge')).toHaveText('2');
   await expect(page.getByTestId('robots-room-3')).toHaveAttribute('aria-pressed', 'true');
+
+  await map3d.getByRole('button', { name: 'Výchozí', exact: true }).click();
+  await expect(room).toHaveAttribute('style', overviewPosition);
+  await expectFloorFitted();
 
   await mode2d.click();
   await expect(map2d.getByTestId('robots-map-room-3')).toHaveAttribute('data-selected', 'true');

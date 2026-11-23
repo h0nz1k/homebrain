@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Button } from '@homebrain/ui';
 import { orderBadge, type Room } from '../../rooms.js';
+import type { MapView } from '../../uiMemory.js';
 import type { MapRotation, VectorMap } from '../../map/geometry.js';
 import { ROOM_HUES, ROOM_STEPS, type MarkerTone, type TrailMode } from '../VectorMap.js';
 import type { CameraView } from './camera.js';
@@ -15,6 +15,8 @@ export interface Map3DProps {
   label: string;
   trail: TrailMode;
   rotation: MapRotation;
+  liveRoom?: number | null;
+  onMapView?: (view: MapView) => void;
   onUnavailable: () => void;
 }
 
@@ -27,6 +29,8 @@ export default function Map3D({
   label,
   trail,
   rotation,
+  liveRoom,
+  onMapView,
   onUnavailable,
 }: Map3DProps) {
   const viewport = useRef<HTMLDivElement>(null);
@@ -35,6 +39,13 @@ export default function Map3D({
   const [layout] = useState(() => ({ map, rotation }));
   const [view, setView] = useState<CameraView>('overview');
   const selectionKey = selected.join(',');
+  const [hint, setHint] = useState(() => {
+    try {
+      return !hintSeen && localStorage.getItem(HINT_KEY) !== '1';
+    } catch {
+      return !hintSeen;
+    }
+  });
   const callbacks = useRef({ onToggle, onUnavailable });
   useEffect(() => {
     callbacks.current = { onToggle, onUnavailable };
@@ -70,63 +81,128 @@ export default function Map3D({
   }, [map, tone, trail]);
   useEffect(() => {
     scene.current?.updateColors();
-  }, [selectionKey]);
+  }, [selectionKey, liveRoom, rooms]);
 
   function chooseView(next: CameraView) {
     setView(next);
-    scene.current?.setView(next, tone === 'cleaning' || tone === 'returning');
+    dismissHint();
+    scene.current?.setView(next);
+  }
+
+  function dismissHint() {
+    if (!hint) return;
+    hintSeen = true;
+    setHint(false);
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      // In restricted browsers the hint is dismissed for the current page.
+    }
   }
 
   return (
-    <div
-      className="rb-map3d rv"
-      data-testid="robots-map-3d"
-      data-has-selection={!!selected.length || undefined}
-    >
-      <div className="rb-map3d-stage" ref={viewport} role="group" aria-label={label}>
-        {layout.map.rooms.map(({ id }) => {
-          const name = rooms.find((room) => room.id === id)?.name ?? 'Místnost';
+    <div className="rb-map rb-map3d" data-map-kind="vector" data-testid="robots-map-3d">
+      <div className="rb-map3d-controls">
+        {onMapView && (
+          <div role="radiogroup" aria-label="Zobrazení mapy">
+            <button type="button" role="radio" aria-checked={false} onClick={() => onMapView('2d')}>
+              2D
+            </button>
+            <button type="button" role="radio" aria-checked={true}>
+              3D
+            </button>
+          </div>
+        )}
+        <div role="group" aria-label="Pohled na mapu">
+          {VIEWS.map(([key, title, icon]) => (
+            <button
+              key={key}
+              type="button"
+              aria-label={title}
+              title={title}
+              aria-pressed={view === key}
+              disabled={key === 'follow' && !map.robot}
+              onClick={() => chooseView(key)}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d={icon} />
+              </svg>
+              <span>{title}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div
+        className="rb-map3d-stage rv"
+        data-walls=""
+        data-has-selection={!!selected.length || undefined}
+        ref={viewport}
+        role="group"
+        aria-label={label}
+        onPointerDown={dismissHint}
+        onWheel={dismissHint}
+      >
+        {layout.map.rooms.map(({ id }, index) => {
+          const name = rooms.find((room) => room.id === id)?.name || 'Místnost';
           const badge = orderBadge(selected, id);
+          const live = liveRoom === id;
           return (
-            <span key={id} className="rb-map3d-label" data-map3d-room={id} aria-hidden="true">
-              {badge !== null && <span className="rb-map3d-badge">{badge}</span>}
-              <span className="rb-map3d-room-name">{name}</span>
-            </span>
-          );
-        })}
-        <div hidden>
-          {layout.map.rooms.map(({ id }, index) => (
             <span
               key={id}
-              className="rv-room-under rb-map3d-room-color"
-              data-map3d-color={id}
-              data-selected={selected.includes(id) || undefined}
+              className="rv-label rb-map3d-label"
+              data-map3d-room={id}
+              data-selected={badge !== null || undefined}
+              data-live={live || undefined}
               style={
                 {
                   '--rv-hue': ROOM_HUES[index % ROOM_HUES.length],
                   '--rv-step': ROOM_STEPS[index % ROOM_STEPS.length],
                 } as CSSProperties
               }
-            />
-          ))}
-          <span className="rb-map3d-wall-color" />
-          <span className="rb-map3d-dock-color" />
-          <span className="rb-map3d-live-color" />
+              aria-hidden="true"
+              hidden
+            >
+              {badge !== null && <b className="rv-badge rb-map3d-badge">{badge}</b>}
+              <span className="rv-label-text">{name}</span>
+              <i className="rb-map3d-room-color" hidden />
+            </span>
+          );
+        })}
+        <div className="rb-map3d-bot" aria-hidden="true" hidden />
+        <div className="rb-map3d-dock" aria-hidden="true" hidden>
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="m9 2-5 7h3l-1 5 6-7H9z" />
+          </svg>
         </div>
-      </div>
-      <div className="rb-map3d-controls" role="group" aria-label="Pohled na mapu">
-        <Button aria-pressed={view === 'top'} onClick={() => chooseView('top')}>
-          Pohled shora
-        </Button>
-        <Button
-          aria-pressed={view === 'follow'}
-          onClick={() => chooseView('follow')}
-          disabled={!map.robot}
-        >
-          Sledovat robota
-        </Button>
-        <Button onClick={() => chooseView('overview')}>Výchozí pohled</Button>
+        <span className="rb-map3d-wall-color" hidden />
+        <span className="rb-map3d-cap-color" hidden />
+        <span className="rb-map3d-live-color" hidden />
+        <span className="rb-map3d-live-edge" hidden />
+        <span className="rb-map3d-hint" data-dismissed={!hint || undefined} aria-hidden={!hint}>
+          Táhni pro otočení · štípni pro zoom
+        </span>
       </div>
     </div>
   );
 }
+
+const HINT_KEY = 'homebrain.robots.ui.map-gesture-seen';
+let hintSeen = false;
+
+const VIEWS = [
+  ['top', 'Shora', 'M4 4h16v16H4z M8 8h8v8H8z'],
+  [
+    'follow',
+    'Sledovat',
+    'M12 3v3m0 12v3M3 12h3m12 0h3 M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM12 11v2',
+  ],
+  ['overview', 'Výchozí', 'm12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm-8 4.5 8 4.5 8-4.5M12 12v9'],
+] as const;

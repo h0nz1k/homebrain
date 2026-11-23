@@ -42,8 +42,26 @@ describe('3D map geometry', () => {
         ],
       ]),
     ).toEqual([
-      { x: 750, z: 0, length: 1500, angle: 0 },
-      { x: 3150, z: 0, length: 1700, angle: 0 },
+      {
+        x: 750,
+        z: 0,
+        length: 1500,
+        angle: 0,
+        ends: [
+          [0, 0],
+          [1500, 0],
+        ],
+      },
+      {
+        x: 3150,
+        z: 0,
+        length: 1700,
+        angle: 0,
+        ends: [
+          [2300, 0],
+          [4000, 0],
+        ],
+      },
     ]);
     expect(WALL_HEIGHT).toBeGreaterThanOrEqual(600);
     expect(WALL_HEIGHT).toBeLessThanOrEqual(1000);

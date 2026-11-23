@@ -464,7 +464,7 @@ export const robotsStyles = `
 /* With real walls each room also strokes itself in its own colour: fills meet under the walls. */
 .rv[data-walls] .rv-room { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; }
 .rv-room-under { fill: var(--rv-tile); stroke: var(--rv-tile); stroke-linejoin: round; pointer-events: none; }
-.rv[data-walls] .rv-room[data-selected], .rv-room-under[data-selected], .rv-label[data-selected] {
+.rv[data-walls] .rv-room[data-selected], .rv-room-under[data-selected], .rv-label[data-selected], .rv .rb-map3d-label[data-selected] {
   /* Selected = the shared selection tint (same alpha as chips/segments) over a neutral tile:
      every selected room looks the same, no per-room hue. */
   --rv-tile: color-mix(in srgb, var(--hb-ac) var(--hb-sel-a, 16%), oklch(var(--rv-room-l) 0.006 250));
@@ -605,20 +605,60 @@ export const robotsStyles = `
 .rb-map-view-row { display: flex; justify-content: flex-end; padding-top: 4px; margin-bottom: 16px; }
 .rb .rb-map-view.hb-seg-wrap { margin: 0; width: auto; }
 .rb .rb-map-view .hb-seg button:has(.rb-seg-stack) { min-width: 29px; min-height: 32px; }
-.rb-map3d-stage { position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-height: 240px; max-height: 530px; }
+.rb-map3d { container-type: inline-size; }
+.rb-map3d-stage { position: relative; overflow: hidden; aspect-ratio: 5 / 3; min-height: 230px; max-height: 500px; isolation: isolate; }
 .rb-map3d-stage canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; cursor: grab; touch-action: none; }
 .rb-map3d-stage canvas:active { cursor: grabbing; }
-.rb-map3d-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px 0; }
-.rb-map3d-controls button { min-height: 36px; padding-inline: 8px; font-size: 12px; }
-.rb-map3d-controls button[aria-pressed="true"] { color: var(--hb-sel-ink); border-color: var(--hb-ac); }
-.rb-map3d-label { position: absolute; pointer-events: none; display: flex; align-items: center; gap: 4px; transform: translate(-50%, -50%); max-width: 29%; padding: 3px 5px; border-radius: 6px; background: var(--rb-fill); color: var(--hb-t1); font-size: clamp(9px, 1.45vw, 12px); line-height: 1.1; }
-.rb-map3d-label[hidden] { display: none; }
-.rb-map3d-room-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.rb-map3d-badge { flex: none; min-width: 1.25em; padding: 2px; border-radius: 50%; text-align: center; color: #fff; background: var(--hb-ac); font-weight: 700; }
+.rb-map3d-controls { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+.rb-map3d-controls > div { display: flex; gap: 2px; }
+.rb-map3d-controls button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  min-width: 44px; min-height: 44px; padding: 0 7px; border-radius: 9px; border: 1px solid transparent;
+  font: inherit; font-size: 12px; font-weight: 650; white-space: nowrap; color: var(--hb-t2);
+  background: transparent; cursor: pointer;
+}
+.rb-map3d-controls button:hover:not(:disabled) { background: var(--hb-s1); color: var(--hb-t1); }
+.rb-map3d-controls button:is([aria-pressed='true'], [aria-checked='true']) {
+  color: var(--hb-sel-ink); border-color: color-mix(in srgb, var(--hb-ac) 55%, transparent);
+  background: color-mix(in srgb, var(--hb-ac) 15%, var(--rb-fill));
+}
+.rb-map3d-controls button:disabled { opacity: .45; cursor: default; }
+.rb-map3d-controls svg { width: 18px; height: 18px; flex: none; }
+@container (max-width: 420px) {
+  .rb-map3d-controls button > span { display: none; }
+}
+.rb-map3d-stage .rb-map3d-label { pointer-events: none; border-radius: 4px; }
+.rb-map3d-stage .rb-map3d-label[hidden] { display: none; }
+.rb-map3d-label .rv-label-text { text-shadow: 0 0 2px var(--rv-tile), 0 0 5px var(--rv-tile); }
 .rb-map3d-room-color { color: var(--rv-tile); }
+.rb-map3d-label[data-live] .rb-map3d-room-color { color: color-mix(in oklch, var(--hb-ac) 16%, var(--rv-tile)); }
 .rb-map3d-wall-color { color: var(--rv-wall-line); }
-.rb-map3d-dock-color { color: var(--rv-dock); }
+.rb-map3d-cap-color { color: color-mix(in srgb, var(--rv-wall-line) 66%, white); }
 .rb-map3d-live-color { color: var(--rv-trail); }
+.rb-map3d-live-edge { color: color-mix(in srgb, var(--hb-ac) 70%, var(--hb-t1)); }
+.rb-map3d-bot, .rb-map3d-dock {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 40%);
+}
+.rb-map3d-bot {
+  z-index: 1; width: 24px; height: 24px; border: 2px solid white; border-radius: 50%;
+  background: var(--hb-ac); transform: translate(-50%, -50%) rotate(var(--rb-heading, 0rad));
+}
+.rb-map3d-bot::after {
+  content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 8px; height: 10px; background: white; clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.rb-map3d-dock {
+  width: 19px; height: 19px; border: 1px solid white; border-radius: 5px; background: color-mix(in srgb, var(--rv-dock) 49%, #263143); color: white;
+}
+.rb-map3d-dock svg { inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); }
+.rb-map3d-hint {
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); color: var(--hb-t2);
+  background: var(--rb-fill); border-radius: 10px; padding: 3px 7px; font-size: 12px; white-space: nowrap;
+  pointer-events: none; transition: opacity 420ms;
+}
+.rb-map3d-hint[data-dismissed] { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .rb-map3d-hint { transition: none; } }
 .rb-map3d-note { color: var(--hb-t2); padding: 8px; font-size: 13px; }
 .rb-hint b { color: var(--hb-t1); font-weight: 600; }
 .rb-live { color: var(--hb-ac); font-weight: 600; }
