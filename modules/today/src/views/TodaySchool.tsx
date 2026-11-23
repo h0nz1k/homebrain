@@ -5,11 +5,38 @@ import {
   schoolLastLoaded,
   schoolSoup,
   schoolToday,
+  timetableRow,
+  timetableSchoolOver,
   type SchoolSnapshot,
+  type TimetableRow,
+  type TimetableSnapshot,
 } from '@homebrain/ha-client';
 import { Icon } from '@homebrain/ui';
 import { schoolStyles } from './schoolStyles.js';
 import type { HomeApi } from '../data/home.js';
+
+type When = 'today' | 'tomorrow' | 'later';
+const WHEN_LABEL: Record<When, string> = { today: 'Dnes', tomorrow: 'Zítra', later: 'Dále' };
+
+function TimetableLine({ row }: { row: TimetableRow }) {
+  return (
+    <li data-testid="school-timetable" className="today-school-child">
+      <span>
+        {row.name && <strong>{row.name}</strong>}
+        {row.name && ' '}
+        {row.text}
+      </span>
+      {row.bring && (
+        <>
+          {' '}
+          <span className="today-school-bring">
+            <span className="today-school-label">s sebou:</span> {row.bring}
+          </span>
+        </>
+      )}
+    </li>
+  );
+}
 
 export function TodaySchool({
   api,
@@ -26,6 +53,28 @@ export function TodaySchool({
   const current = new Date(now);
   const date = schoolDay(current);
   const [school, setSchool] = useState<SchoolSnapshot | null>(null);
+  const [timetable, setTimetable] = useState<TimetableSnapshot | null>(null);
+  useEffect(() => {
+    // The wall/kitchen kiosk never shows the timetable (owner decision, #173).
+    if (kiosk || !api?.timetable) return;
+    let active = true;
+    const load = () => {
+      void api.timetable?.(date).then(
+        (next) => {
+          if (active) setTimetable(next);
+        },
+        () => {
+          /* Keep the last result during reconnect. */
+        },
+      );
+    };
+    load();
+    const timer = setInterval(load, 5 * 60_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [api, date, kiosk]);
   useEffect(() => {
     let active = true;
     const load = () => {
@@ -47,16 +96,46 @@ export function TodaySchool({
     };
   }, [api, date]);
 
+  const children = !kiosk && timetable?.enabled ? timetable.children : [];
+  // Evening: the children are home, today's school events are over.
+  const schoolOver = timetableSchoolOver(children, current);
   const { lunch, afterLunch, events, tomorrow } = school
-    ? schoolToday(school, current)
+    ? schoolToday(school, current, schoolOver)
     : { lunch: undefined, afterLunch: false, events: [], tomorrow: '' };
   // Only the next important date: the block sits under the clock and must stay short.
   const next = school?.dates.find((item) => item.date >= date);
-  const shown = !!api?.school && !!school?.enabled && !!(lunch || events.length || next);
+  const rows = children
+    .flatMap((child) => timetableRow(child, current) ?? [])
+    // Both children free tomorrow share one „volno“ row.
+    .filter(
+      (row, i, all) =>
+        all.findIndex((other) => other.text === row.text && other.name === row.name) === i,
+    );
+  const schoolShown = !!api?.school && !!school?.enabled && !!(lunch || events.length || next);
+  const shown = schoolShown || rows.length > 0;
+  const lunchWhen: When = afterLunch ? 'tomorrow' : 'today';
+  const eventWhen = (day: string): When => (day === tomorrow || schoolOver ? 'tomorrow' : 'today');
+  const nextWhen: When | undefined = !next
+    ? undefined
+    : next.date === date
+      ? 'today'
+      : next.date === tomorrow
+        ? 'tomorrow'
+        : 'later';
+  // One label per day: children, lunch and events of that day sit under it.
+  const groups = (['today', 'tomorrow', 'later'] as const)
+    .map((when) => ({
+      when,
+      rows: rows.filter((row) => row.when === when),
+      lunch: schoolShown && lunch && lunchWhen === when ? lunch : undefined,
+      events: schoolShown ? events.filter((event) => eventWhen(event.date) === when) : [],
+      next: schoolShown && next && nextWhen === when ? next : undefined,
+    }))
+    .filter((group) => group.rows.length || group.lunch || group.events.length || group.next);
   useEffect(() => {
     onShown?.(shown);
   }, [onShown, shown]);
-  if (!shown || !school) return null;
+  if (!shown) return null;
 
   return (
     <section
@@ -71,42 +150,49 @@ export function TodaySchool({
           <Icon name="school" size={kiosk ? 22 : 18} />
           Škola
         </h3>
-        {school.updated_at && (
+        {schoolShown && school?.updated_at && (
           <small className="today-school-loaded">
             {schoolLastLoaded(school.updated_at, current)}
           </small>
         )}
       </header>
       <div className="today-school-body">
-        {lunch && (
-          <p className="today-school-lunch" data-testid="school-lunch">
-            <span className="today-school-label">{afterLunch ? 'Zítra k obědu:' : 'K obědu:'}</span>{' '}
-            <strong>{lunch.main}</strong>
-            {lunch.soup && ` · ${schoolSoup(lunch.soup)}`}
-          </p>
-        )}
-        {(events.length > 0 || next) && (
-          <ul className="today-school-list">
-            {events.map((event) => (
-              <li key={`event-${event.date}-${event.title}`} data-testid="school-event">
-                <span className="today-school-label">
-                  {event.date === tomorrow ? 'Zítra:' : 'Dnes:'}
-                </span>{' '}
-                {event.grades?.length && !/tříd|ročník/i.test(event.title)
-                  ? `${event.grades.map((grade) => `${grade}.`).join(', ')} ročník · `
-                  : ''}
-                {event.title}
-              </li>
-            ))}
-            {next && (
-              <li data-testid="school-date">
-                <span className="today-school-label">{schoolDateLabel(next.date, true)}</span>
-                {' · '}
-                {next.title}
-              </li>
-            )}
-          </ul>
-        )}
+        {groups.map((group) => (
+          <div className="today-school-group" key={group.when} data-testid="school-group">
+            <p className="today-school-label today-school-when" data-testid="school-when">
+              {WHEN_LABEL[group.when]}
+            </p>
+            <ul className="today-school-list">
+              {group.rows.map((row) => (
+                <TimetableLine key={`${row.name}-${row.text}`} row={row} />
+              ))}
+              {group.lunch && (
+                <li className="today-school-lunch" data-testid="school-lunch">
+                  <span className="today-school-label">K obědu:</span>{' '}
+                  <strong>{group.lunch.main}</strong>
+                  {group.lunch.soup && ` · ${schoolSoup(group.lunch.soup)}`}
+                </li>
+              )}
+              {group.events.map((event) => (
+                <li key={`event-${event.date}-${event.title}`} data-testid="school-event">
+                  {event.grades?.length && !/tříd|ročník/i.test(event.title)
+                    ? `${event.grades.map((grade) => `${grade}.`).join(', ')} ročník · `
+                    : ''}
+                  {event.title}
+                </li>
+              ))}
+              {group.next && (
+                <li data-testid="school-date">
+                  <span className="today-school-label">
+                    {schoolDateLabel(group.next.date, true)}
+                  </span>
+                  {' · '}
+                  {group.next.title}
+                </li>
+              )}
+            </ul>
+          </div>
+        ))}
       </div>
     </section>
   );

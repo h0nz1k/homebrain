@@ -219,8 +219,11 @@ test.describe('Škola na Dnes, ne na kiosku', () => {
       await expect(school.getByTestId('school-lunch')).toHaveText(
         /^K obědu: .+ · polévka [a-zěščřžýáíéůú]/,
       );
-      await expect(school.getByText('Dnes: Školní výstava')).toBeVisible();
-      await expect(school.getByText('Zítra: 4. třída – divadlo')).toBeVisible();
+      await expect(school.getByTestId('school-when')).toHaveText(['Dnes', 'Zítra', 'Dále']);
+      await expect(school.getByTestId('school-event')).toHaveText([
+        'Školní výstava',
+        '4. třída – divadlo',
+      ]);
       await expect(school.getByTestId('school-date')).toHaveText(
         /^(po|út|st|čt|pá|so|ne) \d+\. \d+\. · Třídní schůzky$/,
       );

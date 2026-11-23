@@ -1,4 +1,5 @@
 import { PersonSchool } from './PersonSchool.js';
+import { PersonTimetable } from './PersonTimetable.js';
 import { useEffect, useId, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
 import { Button, Card, Icon, czCount, czPlural } from '@homebrain/ui';
@@ -54,6 +55,18 @@ function Avatar({ member }: { member: FamilyMember }) {
 }
 
 function Presence({ presence }: { presence: FamilyPresence | null }) {
+  if (presence?.kind === 'derived' && presence.source === 'school_timetable')
+    return (
+      <span
+        className="fam-person-presence"
+        data-testid="family-wifi-presence"
+        data-school=""
+        title="Odvozeno z rozvrhu hodin, ne z Wi-Fi"
+      >
+        <span aria-hidden="true" />
+        ve škole <small>· podle rozvrhu</small>
+      </span>
+    );
   if (presence?.kind !== 'home' && presence?.kind !== 'away') return null;
   return (
     <span
@@ -1093,6 +1106,9 @@ export function PersonView({
           {tab === 'Dnes' && (
             <>
               <TodaySummary member={member} now={now} />
+              {member.role === 'child' && (
+                <PersonTimetable api={api} member={member.id} now={now} refreshedAt={refreshedAt} />
+              )}
               <TodayChores
                 member={member}
                 now={now}

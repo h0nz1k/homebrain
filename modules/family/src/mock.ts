@@ -16,8 +16,10 @@ import type {
   FamilyUpcomingChore,
   PersonHistoryEntry,
 } from './types.js';
+import { timetableClock } from '@homebrain/ha-client';
 import { canTransferChore, choreTally, localKey } from './format.js';
 import { mockSchool, type SchoolScenario } from './schoolMock.js';
+import { mockTimetable, mockTimetableSettings, type TimetableScenario } from './timetableMock.js';
 import { personActivity } from './personActivity.js';
 
 /** Synthetic household for dev/e2e: generic names only („Ema“, „Kuba“). */
@@ -29,6 +31,7 @@ export interface FamilyMockOptions {
   reassignDemo?: 'overdue' | 'error' | 'needs-repair';
   now?: () => Date;
   school?: SchoolScenario;
+  timetable?: TimetableScenario;
 }
 
 const at = (base: Date, dayOffset: number, h: number, m = 0) =>
@@ -446,11 +449,26 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     configured: false,
     grade: k.id === own ? 4 : k.id === 'dcera' ? 5 : null,
   }));
-  let school = { menu_url: '', events_url: '', dates_url: '', reminder_days: 3 };
+  let school = { menu_url: '', events_url: '', dates_url: '', bells_url: '', reminder_days: 3 };
+  let timetable = mockTimetableSettings(opts.timetable ?? 'off', today);
+  const timetableSnapshot = () =>
+    mockTimetable(
+      timetable,
+      profiles
+        .filter((p) => p.role === 'child' && (role !== 'child' || p.choreops_user_id === own))
+        .map((p) => ({ id: p.choreops_user_id, name: p.name, grade: p.grade })),
+      now(),
+      role,
+    );
   const settings = (): PersonsSettings => ({
     persons: profiles,
     school,
+    timetable,
     candidates: {
+      calendars: [
+        { entity_id: 'calendar.demo_svatky', name: 'Svátky' },
+        { entity_id: 'calendar.demo_rodina', name: 'Rodina' },
+      ],
       people: all.map((k) => ({ id: `person.demo_${k.id}`, name: k.name })),
       trackers: all.map((k) => ({
         id: `device_tracker.demo_wifi_${k.id}`,
@@ -465,6 +483,12 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   };
   const snapshot = (): FamilySnapshot => {
     const detail = role === 'owner' || role === 'adult';
+    const lessons = role === 'kiosk' ? null : timetableSnapshot();
+    const atSchool = (id: string) => {
+      const day = lessons?.children.find((c) => c.id === id)?.days[0];
+      const clock = timetableClock(now());
+      return !!day?.school && day.start! <= clock && clock < day.end!;
+    };
     const members: FamilyMember[] = all.map((k, i) => {
       const profile = profiles.find((p) => p.choreops_user_id === k.id)!;
       const chores: FamilyChore[] = [];
@@ -502,7 +526,14 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         role: profile.role,
         color: profile.color,
         own: k.id === own,
-        presence: profile.tracker ? { kind: i % 2 ? 'home' : 'away' } : null,
+        presence:
+          profile.tracker && i % 2
+            ? { kind: 'home' }
+            : atSchool(k.id)
+              ? { kind: 'derived', source: 'school_timetable' }
+              : profile.tracker
+                ? { kind: 'away' }
+                : null,
         chores,
         missed,
         counts: { total, done, pending, open },
@@ -660,8 +691,10 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       entries: [...(credits.get(member) ?? [])],
     }),
     personsSettings: async () => settings(),
-    savePersons: async (input, nextSchool) => {
-      if (nextSchool) school = nextSchool;
+    timetable: async () => timetableSnapshot(),
+    savePersons: async (input, nextSchool, nextTimetable) => {
+      if (nextSchool) school = { ...school, ...nextSchool };
+      if (nextTimetable) timetable = { ...timetable, ...nextTimetable };
       profiles = profiles.map((p) => ({
         ...p,
         ...input.find((row) => row.choreops_user_id === p.choreops_user_id),
