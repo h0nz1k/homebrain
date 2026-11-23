@@ -15,9 +15,11 @@ from ..const import DOMAIN
 from . import rules
 from .discovery import build_snapshot, glances_entry
 from .glances_api import GlancesApi, base_url, session_fetch
-from .proxmox import build_proxmox
+from .proxmox import build_proxmox, guest_entities
+from .rates import CounterRates
 
 API_KEY: Final = "server_glances_api"
+RATES_KEY: Final = "server_net_rates"
 SERIES: Final = ("cpu", "memory", "temperature", "rx", "tx")
 
 
@@ -50,9 +52,18 @@ def backup_max_age_days(hass: HomeAssistant) -> int:
     return rules.BACKUP_MAX_AGE_DAYS
 
 
+def _rates(hass: HomeAssistant) -> CounterRates:
+    """Previous guest network counters (memory only, shared by all panels)."""
+    data = hass.data.setdefault(DOMAIN, {})
+    rates = data.get(RATES_KEY)
+    if rates is None:
+        rates = data[RATES_KEY] = CounterRates()
+    return rates
+
+
 async def async_snapshot(hass: HomeAssistant, use_api: bool = True) -> dict[str, Any]:
     snap = build_snapshot(hass)
-    proxmox = build_proxmox(hass, backup_max_age_days(hass))
+    proxmox = build_proxmox(hass, backup_max_age_days(hass), _rates(hass))
     collect_vms = proxmox["status"] == "off"
     vms = {"status": "off", "items": []}
     api = _api(hass, collect_vms) if use_api and snap.get("host") else None
@@ -62,11 +73,18 @@ async def async_snapshot(hass: HomeAssistant, use_api: bool = True) -> dict[str,
             snap = build_snapshot(hass, got["thresholds"])
         if "cpu" in snap:
             snap["cpu"]["cores"] = got["cores"]
+            if got["load"]:
+                snap["cpu"]["load_avg"] = got["load"]
+                snap["cpu"]["load"] = got["load"][2]
         if collect_vms:
             vms = {"status": got["status"], "items": got["vms"]}
+    node = proxmox["node"] or {}
+    if "cpu" in snap and not snap["cpu"]["cores"] and node.get("cpus"):
+        # Same machine: the hypervisor's core count when the Glances API is off.
+        snap["cpu"]["cores"] = node["cpus"]
     snap["vms"] = vms
     snap["proxmox"] = proxmox
-    if proxmox["status"] == "ok":
+    if proxmox["status"] == "ok" or snap.get("available"):
         snap["verdict"] = rules.verdict(snap)
     return snap
 
@@ -104,6 +122,11 @@ async def _statistics(hass: HomeAssistant, ids: list[str], hours: int) -> dict[s
     {
         vol.Required("type"): "homebrain/server/history",
         vol.Optional("hours", default=24): vol.All(int, vol.Range(min=1, max=72)),
+        # One Proxmox guest's CPU % and RAM % instead of the host series.
+        vol.Optional("guest"): {
+            vol.Required("vmid"): vol.All(int, vol.Range(min=0)),
+            vol.Required("kind"): vol.In(("vm", "ct")),
+        },
     }
 )
 @websocket_api.require_admin
@@ -111,8 +134,11 @@ async def _statistics(hass: HomeAssistant, ids: list[str], hours: int) -> dict[s
 async def websocket_server_history(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
-    snap = build_snapshot(hass)
-    entities = {k: v for k, v in (snap.get("history_entities") or {}).items() if v}
+    if guest := msg.get("guest"):
+        entities = guest_entities(hass, guest["vmid"], guest["kind"])
+    else:
+        snap = build_snapshot(hass)
+        entities = {k: v for k, v in (snap.get("history_entities") or {}).items() if v}
     series: dict[str, list[list[float]]] = {}
     if entities and "recorder" in hass.config.components:
         stats = await _statistics(hass, sorted(set(entities.values())), msg["hours"])
@@ -140,3 +166,4 @@ COMMANDS: Final = (websocket_server_get, websocket_server_history)
 
 async def async_unload(hass: HomeAssistant) -> None:
     hass.data.get(DOMAIN, {}).pop(API_KEY, None)
+    hass.data.get(DOMAIN, {}).pop(RATES_KEY, None)
