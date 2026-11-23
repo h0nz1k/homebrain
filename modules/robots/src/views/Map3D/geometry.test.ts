@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Mesh, MeshBasicMaterial, Raycaster, Vector3 } from 'three';
-import { toView, type Ring } from '../../map/geometry.js';
+import { pointToPolygonDist, toView, type Ring } from '../../map/geometry.js';
 import { demoVectorMap } from '../../map/demo.js';
-import { planGeometry, roomSlab, wallSegments, WALL_HEIGHT } from './geometry.js';
+import { labelAnchors, planGeometry, roomSlab, wallSegments, WALL_HEIGHT } from './geometry.js';
 
 const rect = (x: number, z: number, side: number): Ring => [
   [x, z],
@@ -76,5 +76,27 @@ describe('3D map geometry', () => {
     const expected = [u - layout.frame.width / 2, v - layout.frame.height / 2];
     expect(layout.project(x!, y!)).toEqual(expected);
     expect(layout.rooms[0]?.rings[0]?.[0]).toEqual(expected);
+  });
+
+  it('offers label anchors inside the room polygon, starting with its visual centre', () => {
+    // L-shaped room: the bounding box centre lies outside the polygon.
+    const room: Ring = [
+      [0, 0],
+      [4000, 0],
+      [4000, 1000],
+      [1000, 1000],
+      [1000, 4000],
+      [0, 4000],
+    ];
+    const anchors = labelAnchors([room], [500, 500]);
+    expect(anchors[0]).toEqual([500, 500]);
+    expect(anchors.length).toBeGreaterThan(2);
+    for (const [x, z] of anchors) expect(pointToPolygonDist(x, z, [room])).toBeGreaterThan(0);
+    const demo = demoVectorMap(1, 0);
+    if (!demo.available) throw new Error('Missing demo map');
+    for (const { rings, label, anchors: list } of planGeometry(demo.map, 0).rooms) {
+      expect(list[0]).toEqual(label);
+      for (const [x, z] of list) expect(pointToPolygonDist(x, z, rings)).toBeGreaterThan(0);
+    }
   });
 });

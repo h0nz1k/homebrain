@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { VectorMapBoundary } from '../VectorMap.js';
 import type { Map3DProps } from './Map3D.js';
+import { MapViewToggle } from './MapViewToggle.js';
 
 const Map3D = lazy(() => import('./Map3D.js'));
 
@@ -12,18 +13,15 @@ export function MapViewSwitch({
   const [unavailable, setUnavailable] = useState(false);
   // Loading and WebGL fallback keep an exit to the 2D mode.
   const wrap = (content: ReactNode) => (
-    <div className="rb-map" data-map-kind="vector">
+    <div className="rb-map-stack">
+      <div className="rb-map" data-map-kind="vector">
+        {content}
+      </div>
       {onMapView && (
-        <div className="rb-map3d-controls" role="radiogroup" aria-label="Zobrazení mapy">
-          <button type="button" role="radio" aria-checked={false} onClick={() => onMapView('2d')}>
-            2D
-          </button>
-          <button type="button" role="radio" aria-checked={true}>
-            3D
-          </button>
+        <div className="rb-map-view-row">
+          <MapViewToggle onMapView={onMapView} />
         </div>
       )}
-      {content}
     </div>
   );
   const backup = wrap(

@@ -2,6 +2,7 @@ import { ExtrudeGeometry, Path, Shape, Vector2 } from 'three';
 import {
   containsPoint,
   frameFor,
+  pointToPolygonDist,
   polylabel,
   roomRings,
   toView,
@@ -87,7 +88,12 @@ export function planGeometry(map: VectorMap, rotation: MapRotation) {
     const rings = roomRings(frame, room).map((ring) => ring.map(center));
     const holes = zones.filter((zone) => zone.every(([x, z]) => containsPoint(rings, x, z)));
     const [x, z] = polylabel([...rings, ...holes], Math.max(frame.width, frame.height) / 400);
-    return { id: room.id, rings, label: [x, z] as const };
+    return {
+      id: room.id,
+      rings,
+      label: [x, z] as const,
+      anchors: labelAnchors([...rings, ...holes], [x, z]),
+    };
   });
   const floor = map.floor.length
     ? map.floor.map((ring) => viewRing(frame, ring).map(center)).flat()
@@ -101,4 +107,37 @@ export function planGeometry(map: VectorMap, rotation: MapRotation) {
     project,
     walls: map.walls.map((wall) => viewRing(frame, wall).map(center)),
   };
+}
+
+/**
+ * Label positions inside the room polygon: the pole of inaccessibility first, then other deep
+ * interior points, so a label can step aside from the robot or route without crossing a wall.
+ */
+export function labelAnchors(rings: Ring[], pole: readonly [number, number], count = 6) {
+  const outer = rings[0] ?? [];
+  if (!outer.length) return [pole];
+  const xs = outer.map(([x]) => x);
+  const zs = outer.map(([, z]) => z);
+  const [minX, maxX, minZ, maxZ] = [
+    Math.min(...xs),
+    Math.max(...xs),
+    Math.min(...zs),
+    Math.max(...zs),
+  ];
+  const step = Math.max(maxX - minX, maxZ - minZ) / 12;
+  const cells: { x: number; z: number; d: number }[] = [];
+  for (let x = minX + step / 2; x < maxX; x += step)
+    for (let z = minZ + step / 2; z < maxZ; z += step) {
+      const d = pointToPolygonDist(x, z, rings);
+      if (d > 0) cells.push({ x, z, d });
+    }
+  cells.sort((a, b) => b.d - a.d);
+  const anchors: (readonly [number, number])[] = [pole];
+  for (const { x, z, d } of cells) {
+    if (anchors.length >= count) break;
+    // Keep the alternatives apart, otherwise they collide with the same obstacle.
+    if (anchors.every(([ax, az]) => Math.hypot(ax - x, az - z) > Math.max(step * 1.5, d)))
+      anchors.push([x, z] as const);
+  }
+  return anchors;
 }

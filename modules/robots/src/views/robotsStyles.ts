@@ -605,30 +605,31 @@ export const robotsStyles = `
 .rb-map-view-row { display: flex; justify-content: flex-end; padding-top: 4px; margin-bottom: 16px; }
 .rb .rb-map-view.hb-seg-wrap { margin: 0; width: auto; }
 .rb .rb-map-view .hb-seg button:has(.rb-seg-stack) { min-width: 29px; min-height: 32px; }
-.rb-map3d { container-type: inline-size; }
-.rb-map3d-stage { position: relative; overflow: hidden; aspect-ratio: 5 / 3; min-height: 230px; max-height: 500px; isolation: isolate; }
+.rb-map.rb-map3d { padding: 0; container-type: inline-size; }
+/* Full panel width; the height follows the default view's shape (set inline by the scene). */
+.rb-map3d-stage { position: relative; overflow: hidden; width: 100%; aspect-ratio: 5 / 3; min-height: 220px; max-height: min(640px, 72vh); isolation: isolate; }
 .rb-map3d-stage canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; cursor: grab; touch-action: none; }
 .rb-map3d-stage canvas:active { cursor: grabbing; }
-.rb-map3d-controls { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
-.rb-map3d-controls > div { display: flex; gap: 2px; }
-.rb-map3d-controls button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  min-width: 44px; min-height: 44px; padding: 0 7px; border-radius: 9px; border: 1px solid transparent;
-  font: inherit; font-size: 12px; font-weight: 650; white-space: nowrap; color: var(--hb-t2);
-  background: transparent; cursor: pointer;
+/* Dark floors one step lighter than in 2D: rooms must separate from the dark panel in 3D. */
+.rb-map3d-stage.rv { --rv-room-l: 41%; --rv-room-dl: 3.2%; --rv-room-c: 0.05; }
+[data-theme='light'] .rb-map3d-stage.rv { --rv-room-l: 94%; --rv-room-dl: -2.4%; --rv-room-c: 0.05; }
+.rb-map3d-toolbar { justify-content: space-between; align-items: center; gap: 12px; }
+/* Camera presets: separate icon buttons, visually distinct from the 2D | 3D segment. */
+.rb-map3d-cams { display: flex; gap: 6px; }
+.rb-map3d-cams button {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--hb-s2, color-mix(in srgb, var(--hb-t1) 14%, transparent)); color: var(--hb-t2);
+  background: transparent; cursor: pointer; position: relative;
 }
-.rb-map3d-controls button:hover:not(:disabled) { background: var(--hb-s1); color: var(--hb-t1); }
-.rb-map3d-controls button:is([aria-pressed='true'], [aria-checked='true']) {
-  color: var(--hb-sel-ink); border-color: color-mix(in srgb, var(--hb-ac) 55%, transparent);
-  background: color-mix(in srgb, var(--hb-ac) 15%, var(--rb-fill));
-}
-.rb-map3d-controls button:disabled { opacity: .45; cursor: default; }
-.rb-map3d-controls svg { width: 18px; height: 18px; flex: none; }
-@container (max-width: 420px) {
-  .rb-map3d-controls button > span { display: none; }
-}
+.rb-map3d-cams button::before { content: ''; position: absolute; inset: -2px; }
+.rb-map3d-cams button:hover:not(:disabled) { background: var(--hb-s1); color: var(--hb-t1); }
+.rb-map3d-cams button[aria-pressed='true'] { color: var(--hb-sel-ink); border-color: var(--hb-ac); background: color-mix(in srgb, var(--hb-ac) 15%, var(--rb-fill)); }
+.rb-map3d-cams button:disabled { opacity: .45; cursor: default; }
+.rb-map3d-cams svg { width: 20px; height: 20px; }
 .rb-map3d-stage .rb-map3d-label { pointer-events: none; border-radius: 4px; }
 .rb-map3d-stage .rb-map3d-label[hidden] { display: none; }
+/* Phones: smaller names so the rooms of a whole floor still fit their labels. */
+@container (max-width: 420px) { .rb-map3d-stage .rb-map3d-label { font-size: 11px; gap: 3px; } }
 .rb-map3d-label .rv-label-text { text-shadow: 0 0 2px var(--rv-tile), 0 0 5px var(--rv-tile); }
 .rb-map3d-room-color { color: var(--rv-tile); }
 .rb-map3d-label[data-live] .rb-map3d-room-color { color: color-mix(in oklch, var(--hb-ac) 16%, var(--rv-tile)); }
@@ -640,16 +641,23 @@ export const robotsStyles = `
   position: absolute; transform: translate(-50%, -50%); pointer-events: none;
   box-shadow: 0 2px 5px rgb(0 0 0 / 40%);
 }
+/* Overlays sit above the WebGL canvas (walls included); the halo reads on any floor colour. */
 .rb-map3d-bot {
-  z-index: 1; width: 24px; height: 24px; border: 2px solid white; border-radius: 50%;
+  z-index: 2; width: 24px; height: 24px; border: 2px solid white; border-radius: 50%;
   background: var(--hb-ac); transform: translate(-50%, -50%) rotate(var(--rb-heading, 0rad));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hb-ac) 45%, transparent), 0 0 0 4px rgb(0 0 0 / 30%), 0 2px 6px rgb(0 0 0 / 45%);
 }
+.rb-map3d-bot::before {
+  content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 2px solid var(--hb-ac);
+  animation: rv-pulse 2.4s var(--hb-ease-out, ease-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) { .rb-map3d-bot::before { animation: none; opacity: .5; transform: scale(.9); } }
 .rb-map3d-bot::after {
   content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   width: 8px; height: 10px; background: white; clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 .rb-map3d-dock {
-  width: 19px; height: 19px; border: 1px solid white; border-radius: 5px; background: color-mix(in srgb, var(--rv-dock) 49%, #263143); color: white;
+  z-index: 1; width: 22px; height: 22px; border: 1.5px solid white; border-radius: 6px; background: color-mix(in srgb, var(--rv-dock) 49%, #263143); color: white;
 }
 .rb-map3d-dock svg { inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); }
 .rb-map3d-hint {

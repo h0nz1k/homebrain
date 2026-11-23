@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 test.use({
   launchOptions: {
@@ -6,6 +6,51 @@ test.use({
     args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   },
   reducedMotion: 'reduce',
+});
+
+/** What the user sees: the projected floor polygons relative to the map panel. */
+function floorFit(map3d: Locator) {
+  return map3d.evaluate((element) => {
+    const panel = element.querySelector('.rb-map3d')!.getBoundingClientRect();
+    const canvas = element.querySelector('canvas')!;
+    const box = canvas.getBoundingClientRect();
+    const [left, top, right, bottom] = (canvas.dataset.floorBox ?? '').split(',').map(Number);
+    if (![left, top, right, bottom].every(Number.isFinite)) return null;
+    const fills =
+      Math.abs(box.left - panel.left) <= 1 &&
+      Math.abs(box.right - panel.right) <= 1 &&
+      Math.abs(box.top - panel.top) <= 1 &&
+      Math.abs(box.bottom - panel.bottom) <= 1;
+    const inside = left! >= 0 && top! >= 0 && right! <= box.width && bottom! <= box.height;
+    const width = (right! - left!) / panel.width;
+    const height = (bottom! - top!) / panel.height;
+    // Tall panels are limited by the height, wide ones by the width.
+    const cover = panel.height > panel.width ? height : width;
+    return fills && inside ? Math.round(cover * 100) : 0;
+  });
+}
+
+test('3D mapa vyplní panel: půdorys ≥ 75 % a celý uvnitř (360/800/1280/1440)', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'tablet', 'Viewports are set by the test.');
+  await page.goto('/homebrain-roboti?mapa3d=prehled');
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  const map3d = page.getByTestId('robots-map-3d');
+  for (const [width, height] of [
+    [360, 800],
+    [800, 1280],
+    [1280, 900],
+    [1440, 900],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect
+      .poll(() => floorFit(map3d), { message: `${width}×${height}` })
+      .toBeGreaterThanOrEqual(75);
+    const live = map3d.locator('[data-map3d-room][data-live]');
+    await expect(live).toBeVisible();
+    if (width >= 800) await expect(map3d.locator('[data-map3d-room]:visible')).toHaveCount(8);
+  }
 });
 
 test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého robota', async ({
@@ -24,10 +69,7 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
   await mode3d.click();
   const canvas = map3d.locator('canvas');
   await expect(canvas).toBeVisible();
-  const expectFloorFitted = () =>
-    expect
-      .poll(async () => Number(await canvas.getAttribute('data-floor-coverage')))
-      .toBeGreaterThanOrEqual(0.6);
+  const expectFloorFitted = () => expect.poll(() => floorFit(map3d)).toBeGreaterThanOrEqual(75);
   await expectFloorFitted();
   await expect(map3d.locator('[data-map3d-room="8"]')).toHaveText('Šatna');
   await expect(map3d.locator('[data-map3d-room][data-live]')).toHaveCount(1);

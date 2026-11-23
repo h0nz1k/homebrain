@@ -4,6 +4,7 @@ import type { MapView } from '../../uiMemory.js';
 import type { MapRotation, VectorMap } from '../../map/geometry.js';
 import { ROOM_HUES, ROOM_STEPS, type MarkerTone, type TrailMode } from '../VectorMap.js';
 import type { CameraView } from './camera.js';
+import { MapViewToggle } from './MapViewToggle.js';
 import { createScene } from './scene.js';
 
 export interface Map3DProps {
@@ -71,6 +72,8 @@ export default function Map3D({
       return;
     }
     scene.current = renderer;
+    // The stage takes the shape of the default view, so the plan fills the panel width.
+    current.style.aspectRatio = String(Math.min(2.4, Math.max(1.05, renderer.shape)));
     return () => {
       renderer.dispose();
       scene.current = null;
@@ -91,29 +94,66 @@ export default function Map3D({
 
   function dismissHint() {
     if (!hint) return;
-    hintSeen = true;
+    rememberHint();
     setHint(false);
-    try {
-      localStorage.setItem(HINT_KEY, '1');
-    } catch {
-      // In restricted browsers the hint is dismissed for the current page.
-    }
   }
 
   return (
-    <div className="rb-map rb-map3d" data-map-kind="vector" data-testid="robots-map-3d">
-      <div className="rb-map3d-controls">
-        {onMapView && (
-          <div role="radiogroup" aria-label="Zobrazení mapy">
-            <button type="button" role="radio" aria-checked={false} onClick={() => onMapView('2d')}>
-              2D
-            </button>
-            <button type="button" role="radio" aria-checked={true}>
-              3D
-            </button>
+    <div className="rb-map-stack" data-testid="robots-map-3d">
+      <div className="rb-map rb-map3d" data-map-kind="vector">
+        <div
+          className="rb-map3d-stage rv"
+          data-walls=""
+          data-has-selection={!!selected.length || undefined}
+          ref={viewport}
+          role="group"
+          aria-label={label}
+          onPointerDown={dismissHint}
+          onWheel={dismissHint}
+        >
+          {layout.map.rooms.map(({ id }, index) => {
+            const name = rooms.find((room) => room.id === id)?.name || 'Místnost';
+            const badge = orderBadge(selected, id);
+            const live = liveRoom === id;
+            return (
+              <span
+                key={id}
+                className="rv-label rb-map3d-label"
+                data-map3d-room={id}
+                data-selected={badge !== null || undefined}
+                data-live={live || undefined}
+                style={
+                  {
+                    '--rv-hue': ROOM_HUES[index % ROOM_HUES.length],
+                    '--rv-step': ROOM_STEPS[index % ROOM_STEPS.length],
+                  } as CSSProperties
+                }
+                aria-hidden="true"
+                hidden
+              >
+                {badge !== null && <b className="rv-badge rb-map3d-badge">{badge}</b>}
+                <span className="rv-label-text">{name}</span>
+                <i className="rb-map3d-room-color" hidden />
+              </span>
+            );
+          })}
+          <div className="rb-map3d-bot" aria-hidden="true" hidden />
+          <div className="rb-map3d-dock" aria-hidden="true" hidden>
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="m9 2-5 7h3l-1 5 6-7H9z" />
+            </svg>
           </div>
-        )}
-        <div role="group" aria-label="Pohled na mapu">
+          <span className="rb-map3d-wall-color" hidden />
+          <span className="rb-map3d-cap-color" hidden />
+          <span className="rb-map3d-live-color" hidden />
+          <span className="rb-map3d-live-edge" hidden />
+          <span className="rb-map3d-hint" data-dismissed={!hint || undefined} aria-hidden={!hint}>
+            Táhni pro otočení · štípni pro zoom
+          </span>
+        </div>
+      </div>
+      <div className="rb-map-view-row rb-map3d-toolbar">
+        <div className="rb-map3d-cams" role="group" aria-label="Pohled kamery">
           {VIEWS.map(([key, title, icon]) => (
             <button
               key={key}
@@ -135,60 +175,10 @@ export default function Map3D({
               >
                 <path d={icon} />
               </svg>
-              <span>{title}</span>
             </button>
           ))}
         </div>
-      </div>
-      <div
-        className="rb-map3d-stage rv"
-        data-walls=""
-        data-has-selection={!!selected.length || undefined}
-        ref={viewport}
-        role="group"
-        aria-label={label}
-        onPointerDown={dismissHint}
-        onWheel={dismissHint}
-      >
-        {layout.map.rooms.map(({ id }, index) => {
-          const name = rooms.find((room) => room.id === id)?.name || 'Místnost';
-          const badge = orderBadge(selected, id);
-          const live = liveRoom === id;
-          return (
-            <span
-              key={id}
-              className="rv-label rb-map3d-label"
-              data-map3d-room={id}
-              data-selected={badge !== null || undefined}
-              data-live={live || undefined}
-              style={
-                {
-                  '--rv-hue': ROOM_HUES[index % ROOM_HUES.length],
-                  '--rv-step': ROOM_STEPS[index % ROOM_STEPS.length],
-                } as CSSProperties
-              }
-              aria-hidden="true"
-              hidden
-            >
-              {badge !== null && <b className="rv-badge rb-map3d-badge">{badge}</b>}
-              <span className="rv-label-text">{name}</span>
-              <i className="rb-map3d-room-color" hidden />
-            </span>
-          );
-        })}
-        <div className="rb-map3d-bot" aria-hidden="true" hidden />
-        <div className="rb-map3d-dock" aria-hidden="true" hidden>
-          <svg viewBox="0 0 16 16" fill="currentColor">
-            <path d="m9 2-5 7h3l-1 5 6-7H9z" />
-          </svg>
-        </div>
-        <span className="rb-map3d-wall-color" hidden />
-        <span className="rb-map3d-cap-color" hidden />
-        <span className="rb-map3d-live-color" hidden />
-        <span className="rb-map3d-live-edge" hidden />
-        <span className="rb-map3d-hint" data-dismissed={!hint || undefined} aria-hidden={!hint}>
-          Táhni pro otočení · štípni pro zoom
-        </span>
+        {onMapView && <MapViewToggle onMapView={onMapView} />}
       </div>
     </div>
   );
@@ -197,12 +187,21 @@ export default function Map3D({
 const HINT_KEY = 'homebrain.robots.ui.map-gesture-seen';
 let hintSeen = false;
 
+function rememberHint() {
+  hintSeen = true;
+  try {
+    localStorage.setItem(HINT_KEY, '1');
+  } catch {
+    // In restricted browsers the hint is dismissed for the current page.
+  }
+}
+
 const VIEWS = [
+  ['overview', 'Výchozí', 'm12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm-8 4.5 8 4.5 8-4.5M12 12v9'],
   ['top', 'Shora', 'M4 4h16v16H4z M8 8h8v8H8z'],
   [
     'follow',
     'Sledovat',
     'M12 3v3m0 12v3M3 12h3m12 0h3 M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM12 11v2',
   ],
-  ['overview', 'Výchozí', 'm12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm-8 4.5 8 4.5 8-4.5M12 12v9'],
 ] as const;

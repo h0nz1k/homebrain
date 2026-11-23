@@ -16,7 +16,14 @@ import {
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
-import { clipTrail, segmentGuard, type MapRotation, type VectorMap } from '../../map/geometry.js';
+import {
+  clipTrail,
+  pointToPolygonDist,
+  segmentGuard,
+  type MapRotation,
+  type Ring,
+  type VectorMap,
+} from '../../map/geometry.js';
 import {
   easeTravel,
   glideDuration,
@@ -35,6 +42,30 @@ function overlaps(a: ScreenBox, b: ScreenBox) {
   return (
     a.left < b.right + 3 && a.right + 3 > b.left && a.top < b.bottom + 3 && a.bottom + 3 > b.top
   );
+}
+
+/** Does the segment a–b pass through the box (Liang–Barsky clip)? */
+function crosses(box: ScreenBox, a: { x: number; y: number }, b: { x: number; y: number }) {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  for (const [p, q] of [
+    [-dx, a.x - box.left],
+    [dx, box.right - a.x],
+    [-dy, a.y - box.top],
+    [dy, box.bottom - a.y],
+  ] as const) {
+    if (p === 0) {
+      if (q < 0) return false;
+    } else {
+      const t = q / p;
+      if (p < 0) t0 = Math.max(t0, t);
+      else t1 = Math.min(t1, t);
+      if (t0 > t1) return false;
+    }
+  }
+  return true;
 }
 
 function lineGeometry(runs: Pt[][], y: number, closed = false) {
@@ -86,7 +117,7 @@ export function createScene(
     live.position.y = 5;
     scene.add(mesh, selected, live);
     const labelElement = viewport.querySelector<HTMLElement>(`[data-map3d-room="${room.id}"]`)!;
-    return { ...room, mesh, skin, selected, live, labelElement, priority: 0 };
+    return { ...room, mesh, skin, selected, live, labelElement, priority: 0, isLive: false };
   });
   const walls = wallSegments(layout.walls, WALL_WIDTH * 1.8);
   const wallSide = new MeshBasicMaterial();
@@ -102,7 +133,11 @@ export function createScene(
   );
   const joints = new Map<string, { x: number; z: number; count: number }>();
   const wall = new Object3D();
-  const floor = layout.floor.map(([x, z]) => new Vector3(x, 0, z));
+  // Frame the drawn plan (room polygons + walls), not the raw map extents.
+  const floor = layout.rooms.flatMap((room) =>
+    room.rings.flat().map(([x, z]) => new Vector3(x, 0, z)),
+  );
+  if (!floor.length) floor.push(...layout.floor.map(([x, z]) => new Vector3(x, 0, z)));
   const structure = [...floor];
   walls.forEach(({ x, z, length, angle, ends }, index) => {
     wall.position.set(x, WALL_HEIGHT / 2, z);
@@ -115,7 +150,7 @@ export function createScene(
       const joint = joints.get(key) ?? { x: ex, z: ez, count: 0 };
       joint.count++;
       joints.set(key, joint);
-      structure.push(new Vector3(ex, WALL_HEIGHT, ez));
+      structure.push(new Vector3(ex, 0, ez), new Vector3(ex, WALL_HEIGHT, ez));
     }
   });
   const junctions = [...joints.values()].filter(({ count }) => count > 1);
@@ -161,7 +196,11 @@ export function createScene(
   function invalidate() {
     if (!pendingFrame && !disposed) pendingFrame = requestAnimationFrame(draw);
   }
-  const camera = createCamera(canvas, floor, structure, invalidate);
+  const camera = createCamera(canvas, floor, structure, focusPoints, invalidate);
+  function focusPoints() {
+    const room = rooms.find(({ isLive }) => isLive);
+    return room ? room.rings.flat().map(([x, z]) => new Vector3(x, 0, z)) : [];
+  }
 
   function placeBot(x: number, z: number, angle: number | null) {
     bot.set(x, 0, z);
@@ -169,8 +208,8 @@ export function createScene(
     hasBot = true;
   }
 
-  function project(x: number, z: number) {
-    screenPoint.set(x, 0, z).project(camera.camera);
+  function project(x: number, z: number, y = 0) {
+    screenPoint.set(x, y, z).project(camera.camera);
     return { x: ((screenPoint.x + 1) * width) / 2, y: ((1 - screenPoint.y) * height) / 2 };
   }
 
@@ -196,20 +235,20 @@ export function createScene(
 
   function drawOverlays() {
     const occupied: ScreenBox[] = [];
-    const robotBox = marker(botElement, bot, hasBot, 14);
-    const dockBox = marker(dockElement, dock, hasDock, 11);
+    const robotBox = marker(botElement, bot, hasBot, 20);
+    const dockBox = marker(dockElement, dock, hasDock, 12);
     if (dockBox && robotBox && overlaps(dockBox, robotBox)) {
       // The station and robot share almost the same projection when parked.
       const x = (robotBox.left + robotBox.right) / 2;
       const y = (robotBox.top + robotBox.bottom) / 2;
       const station = project(dock.x, dock.z);
       const nearby = [
-        [x + 28, y],
-        [x - 28, y],
-        [x, y + 28],
-        [x, y - 28],
+        [x + 34, y],
+        [x - 34, y],
+        [x, y + 34],
+        [x, y - 34],
       ]
-        .filter(([dx, dy]) => dx! >= 11 && dx! <= width - 11 && dy! >= 11 && dy! <= height - 11)
+        .filter(([dx, dy]) => dx! >= 12 && dx! <= width - 12 && dy! >= 12 && dy! <= height - 12)
         .sort(
           ([ax, ay], [bx, by]) =>
             Math.hypot(ax! - station.x, ay! - station.y) -
@@ -218,7 +257,7 @@ export function createScene(
       if (nearby) {
         const [dx, dy] = nearby;
         place(dockElement, dx!, dy!);
-        occupied.push({ left: dx! - 11, right: dx! + 11, top: dy! - 11, bottom: dy! + 11 });
+        occupied.push({ left: dx! - 12, right: dx! + 12, top: dy! - 12, bottom: dy! + 12 });
       }
     } else if (dockBox) occupied.push(dockBox);
     if (robotBox) {
@@ -231,32 +270,112 @@ export function createScene(
       );
     }
 
-    // Measure in one pass, then hide lower-priority labels. Selected labels keep their badge
-    // exactly on the anchor, using the same offset as the 2D room label.
+    // Labels: the active room first (always shown), then selected rooms, then the rest. Each
+    // tries its anchors inside the room until it clears the robot, route and earlier labels;
+    // the whole box must stay inside the room on the floor and at wall-top height. Anchors are
+    // projected at half the wall height: the middle of the floor area the walls leave visible.
+    const pxPerUnit = height / ((camera.camera.top - camera.camera.bottom) / camera.camera.zoom);
+    const inset = (WALL_WIDTH / 2) * pxPerUnit + 1;
+    const anchorAt = ([x, z]: readonly [number, number]) => project(x, z, WALL_HEIGHT / 2);
+    const route = trailScreen();
     const ordered = [...rooms].sort((a, b) => b.priority - a.priority);
-    for (const {
-      labelElement,
-      label: [x, z],
-    } of ordered) {
-      const at = project(x, z);
+    for (const { labelElement, label } of ordered) {
+      const at = anchorAt(label);
       place(labelElement, at.x, at.y);
       labelElement.hidden = false;
     }
     const stage = viewport.getBoundingClientRect();
-    const measured = ordered.map(({ labelElement }) => labelElement.getBoundingClientRect());
-    ordered.forEach(({ labelElement }, i) => {
-      const { left, right, top, bottom } = measured[i]!;
-      const hidden =
-        left < stage.left || right > stage.right || top < stage.top || bottom > stage.bottom;
-      const box = {
-        left: left - stage.left,
-        right: right - stage.left,
-        top: top - stage.top,
-        bottom: bottom - stage.top,
+    const measured = ordered.map(({ labelElement, label }) => {
+      const box = labelElement.getBoundingClientRect();
+      const at = anchorAt(label);
+      return {
+        left: box.left - stage.left - at.x,
+        right: box.right - stage.left - at.x,
+        top: box.top - stage.top - at.y,
+        bottom: box.bottom - stage.top - at.y,
       };
-      labelElement.hidden = hidden || occupied.some((obstacle) => overlaps(box, obstacle));
-      if (!labelElement.hidden) occupied.push(box);
     });
+    ordered.forEach((room, i) => {
+      const size = measured[i]!;
+      const outlines = [0, WALL_HEIGHT].map((y) =>
+        room.rings.map((ring): Ring =>
+          ring.map(([x, z]) => {
+            const p = project(x, z, y);
+            return [p.x, p.y];
+          }),
+        ),
+      );
+      const fits = (box: ScreenBox) =>
+        box.left >= 0 &&
+        box.top >= 0 &&
+        box.right <= width &&
+        box.bottom <= height &&
+        outlines.every((outline) =>
+          [
+            [box.left, box.top],
+            [box.right, box.top],
+            [box.left, box.bottom],
+            [box.right, box.bottom],
+            [(box.left + box.right) / 2, box.top],
+            [(box.left + box.right) / 2, box.bottom],
+          ].every(([x, y]) => pointToPolygonDist(x!, y!, outline) >= inset),
+        );
+      const clear = (box: ScreenBox) =>
+        !occupied.some((obstacle) => overlaps(box, obstacle)) &&
+        !route.some(([a, b]) => crosses(box, a, b));
+      const boxes = room.anchors.map((anchor) => {
+        const at = anchorAt(anchor);
+        return {
+          at,
+          box: {
+            left: at.x + size.left,
+            right: at.x + size.right,
+            top: at.y + size.top,
+            bottom: at.y + size.bottom,
+          },
+        };
+      });
+      const choice =
+        boxes.find(({ box }) => fits(box) && clear(box)) ??
+        // A selected room keeps its order badge even where the route crosses it.
+        (room.priority > 0
+          ? boxes.find(
+              ({ box }) => fits(box) && !occupied.some((obstacle) => overlaps(box, obstacle)),
+            )
+          : undefined) ??
+        (room.isLive ? (boxes.find(({ box }) => fits(box)) ?? keepInside(boxes[0]!)) : undefined);
+      room.labelElement.hidden = !choice;
+      if (!choice) return;
+      place(room.labelElement, choice.at.x, choice.at.y);
+      occupied.push(choice.box);
+    });
+  }
+
+  /** The active room's label is never hidden: at worst it is pushed back inside the stage. */
+  function keepInside({ at, box }: { at: { x: number; y: number }; box: ScreenBox }) {
+    const dx = Math.max(0, -box.left) - Math.max(0, box.right - width);
+    const dy = Math.max(0, -box.top) - Math.max(0, box.bottom - height);
+    return {
+      at: { x: at.x + dx, y: at.y + dy },
+      box: {
+        left: box.left + dx,
+        right: box.right + dx,
+        top: box.top + dy,
+        bottom: box.bottom + dy,
+      },
+    };
+  }
+
+  let trailRuns: Pt[][] = [];
+  function trailScreen() {
+    if (!trail.visible) return [];
+    // Only the recent route: with the full history every label would have to yield.
+    return trailRuns.flatMap((run) =>
+      run.slice(-160).flatMap((point, i, list) => {
+        const next = list[i + 1];
+        return next ? [[project(...point), project(...next)] as const] : [];
+      }),
+    );
   }
 
   function draw(now: number) {
@@ -270,8 +389,18 @@ export function createScene(
     if (width && height) {
       renderer.render(scene, camera.camera);
       drawOverlays();
-      const coverage = camera.coverage();
-      canvas.dataset.floorCoverage = String(Math.max(coverage.x, coverage.y));
+      // What the user sees: the projected floor polygons in canvas pixels (left,top,right,bottom).
+      let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const { x, z } of floor) {
+        const p = project(x, z);
+        [left, top, right, bottom] = [
+          Math.min(left, p.x),
+          Math.min(top, p.y),
+          Math.max(right, p.x),
+          Math.max(bottom, p.y),
+        ];
+      }
+      canvas.dataset.floorBox = [left, top, right, bottom].map(Math.round).join(',');
     }
     pendingFrame = 0;
     if (cameraMoving || motion) invalidate();
@@ -304,7 +433,8 @@ export function createScene(
       const { labelElement } = room;
       const selected = labelElement.hasAttribute('data-selected');
       const live = labelElement.hasAttribute('data-live');
-      room.priority = Number(selected) * 2 + Number(live);
+      room.priority = Number(live) * 2 + Number(selected);
+      room.isLive = live;
       room.skin.color.copy(readColor(labelElement.querySelector('.rb-map3d-room-color')!));
       room.selected.visible = selected;
       room.live.visible = live;
@@ -382,6 +512,7 @@ export function createScene(
 
     const count = trailLayers(trailMode, tone, path.length).line;
     const runs = count ? clipTrail(path.slice(-count), rings, layout.walls, unit * 0.4) : [];
+    trailRuns = runs;
     trail.geometry.dispose();
     trail.geometry = lineGeometry(runs, 16);
     trail.visible = runs.some((run) => run.length > 1);
@@ -432,6 +563,7 @@ export function createScene(
   return {
     updateColors,
     updateMap,
+    shape: camera.shape,
     setView(view: CameraView) {
       camera.setView(view, hasBot ? bot : null, reducedMotion.matches);
     },

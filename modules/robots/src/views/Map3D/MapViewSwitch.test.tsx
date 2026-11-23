@@ -46,7 +46,13 @@ function Harness() {
 it('preserves the same room order when switching between renderers', async () => {
   vi.mocked(createScene).mockImplementation((viewport, _, __, onToggle) => {
     viewport.addEventListener('click', () => onToggle(3));
-    return { updateMap: vi.fn(), updateColors: vi.fn(), setView: vi.fn(), dispose: vi.fn() };
+    return {
+      updateMap: vi.fn(),
+      updateColors: vi.fn(),
+      setView: vi.fn(),
+      dispose: vi.fn(),
+      shape: 1.6,
+    };
   });
   render(<Harness />);
   fireEvent.click(screen.getByTestId('robots-map-room-1'));
