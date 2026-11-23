@@ -39,6 +39,7 @@ import {
 } from '../map/motion.js';
 import { findDoors, planDoorRoute, planRoute, trimLine } from '../map/route.js';
 import { orderBadge, type Room } from '../rooms.js';
+import { LiveRoomLayer } from './LiveRoomLayer.js';
 
 export type MarkerTone = 'cleaning' | 'returning' | 'error' | 'idle' | 'docked';
 
@@ -58,6 +59,8 @@ interface Props {
   trail?: TrailMode;
   /** Clockwise rotation of the whole drawing (per-robot option, vendor app rotation). */
   rotation?: MapRotation;
+  /** Room the robot cleans right now (soft tint + dashed outline, unlike the selection). */
+  liveRoom?: number | null;
 }
 
 export type TrailMode = 'faded' | 'full';
@@ -127,6 +130,7 @@ export function VectorFloorPlan({
   label,
   callout,
   resolveBase,
+  liveRoom = null,
 }: Props) {
   const frame = useMemo(() => frameFor(map, 120, rotation), [map, rotation]);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -546,6 +550,7 @@ export function VectorFloorPlan({
                 <path className="rv-sel-line" d={room.d} strokeWidth={unit * 0.9} />
               </g>
             ))}
+        <LiveRoomLayer room={placed.find((room) => room.id === liveRoom)} unit={unit} />
         {routeD && (
           <g className="rv-route-layer">
             <path className="rv-route-casing" d={routeD} />
@@ -613,6 +618,7 @@ export function VectorFloorPlan({
               data-rv-label={room.id}
               onClick={() => onToggle(room.id)}
               data-selected={badge !== null || undefined}
+              data-live={room.id === liveRoom || undefined}
               style={{
                 ['--rv-hue' as string]: room.hue,
                 ['--rv-step' as string]: room.step,

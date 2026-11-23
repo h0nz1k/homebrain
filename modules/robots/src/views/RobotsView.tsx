@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Chip,
+  Pill,
   ProgressRing,
   Stepper,
   Tile,
@@ -41,6 +42,23 @@ import { RobotArt } from './RobotArt.js';
 import { GuideSheet, useGuides } from './GuideSheet.js';
 import { PresetSheet, type PresetEditorTarget } from './PresetSheet.js';
 import { SchedulesCard } from './SchedulesCard.js';
+import { HistoryCard } from './HistoryCard.js';
+import { useCleanHistory } from './useCleanHistory.js';
+import {
+  cleanedLabel,
+  lastCleanedAt,
+  liveRoomId,
+  markCommand,
+  staleLabels,
+  type RobotHistory,
+} from '../history.js';
+import {
+  PENDING_TEXT,
+  actionOfPlan,
+  pendingPhase,
+  type PendingAction,
+  type PendingCommand,
+} from '../pending.js';
 import {
   DEEP_ROUTES,
   DEEP_ROUTES_HINT,
@@ -77,6 +95,7 @@ import { anyPartLow, photoBase, photoView } from '../photo.js';
 import {
   VectorFloorPlan,
   VectorMapBoundary,
+  useNow,
   vectorMapEnabled,
   type MarkerTone,
 } from './VectorMap.js';
@@ -98,10 +117,7 @@ import {
   PlusIcon,
   RouteIcon,
 } from './robotActionIcons.js';
-import {
-  readDockResolvePending,
-  writeDockResolvePending,
-} from '../dockResolvePending.js';
+import { readDockResolvePending, writeDockResolvePending } from '../dockResolvePending.js';
 import {
   DOCK_REFILL_ACK_NOTE,
   DOCK_REFILL_AFTER_HINT,
@@ -183,6 +199,11 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
     // eslint-disable-next-line react-hooks/exhaustive-deps -- version = store update tick
     [slotKey, bindings, metas, store, version],
   );
+  const history = useCleanHistory(
+    connection,
+    robots.map((robot) => (robot.status.busy ? 1 : 0)).join(''),
+  );
+  const historyNow = useNow(60_000, true);
   const [picked, setPicked] = useState<number | null>(null);
   const active = robots.find((robot) => robot.slot === (picked ?? initialSlot(slots))) ?? robots[0];
   if (!active)
@@ -245,6 +266,7 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
         onReloadRooms={() => load(true)}
         presetData={presets[String(active.slot)] ?? null}
         onPresetsChanged={loadPresets}
+        history={history?.[String(active.slot)] ?? null}
       />
       {connection && (
         <SchedulesCard
@@ -254,6 +276,11 @@ export default function RobotsView({ store, bindings, connection }: ModuleViewPr
           presets={presets}
         />
       )}
+      <HistoryCard
+        history={history}
+        robotName={(slot) => robots.find((robot) => robot.slot === slot)?.name ?? `Robot ${slot}`}
+        now={new Date(historyNow)}
+      />
     </section>
   );
 }
@@ -265,6 +292,7 @@ function RobotPanel({
   onReloadRooms,
   presetData,
   onPresetsChanged,
+  history,
 }: {
   robot: RobotModel;
   connection: ModuleViewProps['connection'];
@@ -272,6 +300,7 @@ function RobotPanel({
   onReloadRooms: () => void;
   presetData: RobotPresetData | null;
   onPresetsChanged: () => void;
+  history: RobotHistory | null;
 }) {
   const [order, setOrder] = useState<number[]>([]);
   // Inline controls start from the robot's remembered default setup (else its current
@@ -366,6 +395,18 @@ function RobotPanel({
     start?: StartRequest;
   } | null>(null);
   const [sending, setSending] = useState(false);
+  // „Odesláno, čekám na robota…“ until the vacuum state confirms (or 60 s → retry by hand).
+  const [pending, setPending] = useState<PendingCommand | null>(null);
+  const retryRef = useRef<(() => Promise<void>) | null>(null);
+  const markSent = (action: PendingAction | null, again: () => Promise<void>) => {
+    if (!action) return;
+    retryRef.current = again;
+    setPending({
+      action,
+      sentAt: Date.now(),
+      from: { tone: robot.status.tone, code: robot.status.code, stamp: robot.updatedAt },
+    });
+  };
   const [editor, setEditor] = useState<PresetEditorTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const notify = useToast();
@@ -432,6 +473,27 @@ function RobotPanel({
   const liveRoom = vmap?.robot
     ? (rooms.find((room) => room.id === poseRoom)?.name ?? null)
     : robot.room;
+  // Highlight: the HA `current_room` sensor first, the drawn robot pose as the fallback.
+  const liveId = tone === 'cleaning' ? liveRoomId(rooms, robot.room, poseRoom) : null;
+  const liveName = rooms.find((room) => room.id === liveId)?.name ?? null;
+  const active = robot.status.busy || tone === 'paused';
+  const now = useNow(pending ? 1000 : 15_000, active || !!pending);
+  const { state: stateAge, map: mapAge } = staleLabels(
+    {
+      active,
+      stateAt: robot.updatedAt,
+      mapAt: robot.mapUpdatedAt,
+      hasMap: !!vmap || !!robot.mapImage,
+    },
+    now,
+  );
+  const phase = pendingPhase(
+    pending,
+    { tone, code: robot.status.code, stamp: robot.updatedAt },
+    now,
+  );
+  // Latch the confirmation: a later state change must not bring the notice back.
+  if (pending && phase === 'done') setPending(null);
   // A quarter-turn rotation swaps the drawn width and height (portrait ↔ landscape).
   const quarter = robot.rotation === 90 || robot.rotation === 270;
   const mapW = vmap ? vmap.bounds[2] - vmap.bounds[0] : 0;
@@ -490,6 +552,9 @@ function RobotPanel({
             return;
           }
           notify.success(`Úklid „${preset.name}“ spuštěn. Čekám na stav robota.`);
+          markSent('start', async () => {
+            await startCleaning(connection, { slot: robot.slot, preset_id: preset.id });
+          });
           for (const text of startCleaningToasts(result)) notify.info(text);
         })
         .catch((error: unknown) =>
@@ -548,18 +613,30 @@ function RobotPanel({
     try {
       // Cleaning starts go through the backend: it applies the settings, waits until HA
       // reports them and only then starts the robot (no race with the old suction/water).
+      const services = confirm.plan.map((step) => step.service);
+      const action = actionOfPlan(services, !!confirm.start);
       if (confirm.start) {
-        const result = await startCleaning(connection, confirm.start);
+        const start = confirm.start;
+        const result = await startCleaning(connection, start);
         if (result.paused || result.started === false || result.mode_flipped) {
           for (const text of startCleaningToasts(result)) notify.error(text);
         } else {
           notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
           for (const text of startCleaningToasts(result)) notify.info(text);
           setOrder([]);
+          markSent(action, async () => {
+            await startCleaning(connection, start);
+          });
         }
       } else {
-        await runPlan(connection, confirm.plan, [robot.vacuum]);
+        const plan = confirm.plan;
+        const sendPlan = async () => {
+          await runPlan(connection, plan, [robot.vacuum]);
+          if (action === 'start' || action === 'resume') void markCommand(connection, robot.slot);
+        };
+        await sendPlan();
         notify.success('Příkaz odeslán. Čekám na skutečný stav z Home Assistantu.');
+        markSent(action, sendPlan);
       }
     } catch (error) {
       notify.error(
@@ -568,6 +645,22 @@ function RobotPanel({
     } finally {
       setSending(false);
       setConfirm(null);
+    }
+  };
+  const retry = async () => {
+    const again = retryRef.current;
+    if (!again || !pending) return;
+    const action = pending.action;
+    setSending(true);
+    try {
+      await again();
+      markSent(action, again);
+    } catch (error) {
+      notify.error(
+        `Příkaz se nepodařilo odeslat${error instanceof Error && error.message ? `: ${error.message}` : '.'}`,
+      );
+    } finally {
+      setSending(false);
     }
   };
   const confirmDockRefillResolved = async () => {
@@ -584,7 +677,9 @@ function RobotPanel({
       notify.success('Chyba doku potvrzena');
     } catch (error) {
       const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
-      notify.error(`Chybu doku se nepodařilo potvrdit${detail}. Potvrďte chybu v aplikaci Roborock.`);
+      notify.error(
+        `Chybu doku se nepodařilo potvrdit${detail}. Potvrďte chybu v aplikaci Roborock.`,
+      );
     } finally {
       setSending(false);
     }
@@ -644,7 +739,9 @@ function RobotPanel({
                       label={item.label}
                       status={item.status}
                       detail={
-                        dockResolvePending && item.id === 'clean_water' ? DOCK_REFILL_ACK_NOTE : undefined
+                        dockResolvePending && item.id === 'clean_water'
+                          ? DOCK_REFILL_ACK_NOTE
+                          : undefined
                       }
                       onPress={() => setGuidePart(item.part)}
                       aria-label={`${item.label}: ${item.status}${
@@ -717,6 +814,31 @@ function RobotPanel({
               <h2 className="rb-state" data-testid="robots-state">
                 {robot.status.label}
               </h2>
+              {pending && phase !== 'done' && (
+                <p
+                  className="rb-pending"
+                  role="status"
+                  data-phase={phase}
+                  data-testid="robots-pending"
+                >
+                  <span>{PENDING_TEXT[phase]}</span>
+                  {phase === 'late' && (
+                    <Button
+                      size="sm"
+                      data-testid="robots-pending-retry"
+                      disabled={!canAct || sending}
+                      onClick={() => void retry()}
+                    >
+                      Zkusit znovu
+                    </Button>
+                  )}
+                </p>
+              )}
+              {stateAge && (
+                <p className="rb-age" data-testid="robots-state-age">
+                  {stateAge}
+                </p>
+              )}
               <p className="rb-room">
                 {liveRoom ? (
                   <>
@@ -846,7 +968,9 @@ function RobotPanel({
                     <Button
                       data-testid="robots-dock-return-home"
                       disabled={!canAct}
-                      onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
+                      onClick={() =>
+                        ask('Poslat robota do doku?', planSimple('home', robot.vacuum))
+                      }
                     >
                       <HomeIcon />
                       Vrátit do doku
@@ -894,6 +1018,11 @@ function RobotPanel({
                     </>
                   )}
                 </p>
+                {mapAge && (
+                  <p className="rb-age" data-testid="robots-map-age">
+                    {mapAge}
+                  </p>
+                )}
               </div>
               {/* At least two path points: a single point has nothing to show or hide. */}
               {vector?.available && vector.map.path.length >= 4 && (
@@ -997,6 +1126,7 @@ function RobotPanel({
                       resolveBase={resolveBase}
                       trail={fullTrail ? 'full' : 'faded'}
                       rotation={robot.rotation}
+                      liveRoom={liveId}
                     />
                   </VectorMapBoundary>
                 ) : vector === null && robot.mapImage ? (
@@ -1006,14 +1136,21 @@ function RobotPanel({
                 )}
               </div>
               <div className="rb-clean-side">
+                {liveName && (
+                  <p className="rb-now" data-testid="robots-live-chip">
+                    <Pill size="sm" tone="accent" dot>
+                      Teď: {liveName}
+                    </Pill>
+                  </p>
+                )}
                 {rooms.length ? (
-                  <div
-                    className="rb-room-grid"
-                    role="group"
-                    aria-label="Místnosti v pořadí úklidu"
-                  >
+                  <div className="rb-room-grid" role="group" aria-label="Místnosti v pořadí úklidu">
                     {rooms.map((room) => {
                       const badge = orderBadge(selected, room.id);
+                      const live = room.id === liveId;
+                      const cleaned = history
+                        ? cleanedLabel(lastCleanedAt(history, room), new Date(now))
+                        : null;
                       return (
                         <Chip
                           key={room.id}
@@ -1023,10 +1160,19 @@ function RobotPanel({
                           badge={badge}
                           badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
                           data-testid={`robots-room-${room.id}`}
+                          data-live={live || undefined}
                           onPress={() => setOrder(toggleRoom(selected, room.id))}
                         >
                           <RoomIcon name={room.name} className="rb-room-tile-ico" />
                           <span className="rb-room-tile-name">{room.name}</span>
+                          {(live || cleaned) && (
+                            <span
+                              className="rb-room-tile-sub"
+                              data-testid={`robots-room-cleaned-${room.id}`}
+                            >
+                              {live ? 'Teď uklízí' : cleaned}
+                            </span>
+                          )}
                         </Chip>
                       );
                     })}

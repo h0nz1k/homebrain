@@ -9,7 +9,7 @@ import voluptuous as vol
 from aiohttp import web
 from homeassistant.components import websocket_api
 from homeassistant.components.http import HomeAssistantView
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from ..bindings import get_bindings
 from ..const import DOMAIN
@@ -27,16 +27,19 @@ from .presets import (
 from .rooms import RoomCache
 
 
-def _cache(hass: HomeAssistant) -> RoomCache:
+def robot_room_cache(hass: HomeAssistant) -> RoomCache:
     data = hass.data.setdefault(DOMAIN, {})
     if (cache := data.get("robot_rooms")) is None:
         cache = data["robot_rooms"] = RoomCache(hass)
     return cache
 
 
+_cache = robot_room_cache  # tests and older imports
+
+
 async def known_room_ids(hass: HomeAssistant, vacuum: str) -> set[int]:
     """Segment ids on the robot's maps (empty = unknown, the start is not blocked)."""
-    maps = (await _cache(hass).async_get(vacuum))["maps"]
+    maps = (await robot_room_cache(hass).async_get(vacuum))["maps"]
     return {room["id"] for item in maps for room in item["rooms"]}
 
 
@@ -54,7 +57,7 @@ async def websocket_robots_get(
         return
     entry = entries[0]
     bindings = get_bindings(entry).get("robots", {})
-    cache = _cache(hass)
+    cache = robot_room_cache(hass)
     robots = []
     for slot in ROBOT_SLOTS:
         vacuum = bindings.get(f"robot{slot}_vacuum")
@@ -115,7 +118,7 @@ async def websocket_robots_map(
     if result.get("available") and (vacuum := bindings.get(f"robot{msg['slot']}_vacuum")):
         selected_entity = bindings.get(f"robot{msg['slot']}_selected_map")
         selected_state = hass.states.get(selected_entity) if selected_entity else None
-        await _cache(hass).async_match_segments(
+        await robot_room_cache(hass).async_match_segments(
             vacuum,
             {room["id"] for room in result["map"]["rooms"]},
             selected_state.state if selected_state else None,
@@ -332,4 +335,67 @@ PRESET_COMMANDS = (
     websocket_defaults_get,
     websocket_defaults_set,
     websocket_robots_start,
+)
+
+
+# --- cleaning history (HA states only, never a Roborock call) ---------------------------
+
+
+def history_manager(hass: HomeAssistant) -> Any:
+    return hass.data.get(DOMAIN, {}).get("robot_history")
+
+
+@websocket_api.websocket_command({vol.Required("type"): "homebrain/robots/history"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_robots_history(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Per robot: ``last_cleaned`` per room, recent runs (newest first), run in progress."""
+    if _robot_bindings(hass, connection, msg) is None:
+        return
+    if (manager := history_manager(hass)) is None:
+        connection.send_result(msg["id"], {"robots": {}})
+        return
+    await manager.async_load()
+    connection.send_result(msg["id"], manager.payload())
+
+
+@websocket_api.websocket_command({vol.Required("type"): "homebrain/robots/history/subscribe"})
+@websocket_api.require_admin
+@callback
+def websocket_robots_history_subscribe(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Event ``{slot}`` whenever a run of that robot finished (the panel reloads history)."""
+    if (manager := history_manager(hass)) is None:
+        connection.send_error(msg["id"], "not_found", "Robot history is not running")
+        return
+
+    @callback
+    def _send(message: dict[str, Any]) -> None:
+        connection.send_message(websocket_api.event_message(msg["id"], message))
+
+    connection.subscriptions[msg["id"]] = manager.subscribe(_send)
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "homebrain/robots/history/mark", vol.Required("slot"): _SLOT}
+)
+@websocket_api.require_admin
+@callback
+def websocket_robots_history_mark(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """The panel just sent a cleaning start itself (direct HA service call)."""
+    if (manager := history_manager(hass)) is not None:
+        manager.mark(msg["slot"])
+    connection.send_result(msg["id"], {"ok": True})
+
+
+HISTORY_COMMANDS = (
+    websocket_robots_history,
+    websocket_robots_history_subscribe,
+    websocket_robots_history_mark,
 )
