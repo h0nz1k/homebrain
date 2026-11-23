@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { join } from 'node:path';
 
 // Školní rozvrh (dev mock `?rozvrh=full|holiday`: Ema until 12:05, Kuba Wednesday until 14:40).
-// Dnes fixtures: `state=c` = Monday 7:25, `state=d` = Thursday 20:45. Refs #175.
+// Dnes fixtures: `state=b` = Monday 7:25, `state=d` = Thursday 20:45. Refs #175.
 
 const shots = process.env.HB_TIMETABLE_SHOTS;
 
@@ -72,7 +72,7 @@ test.describe('Rodina – školní rozvrh', () => {
 
 test.describe('Dnes – školní rozvrh', () => {
   test('ráno řádek na dítě, večer zítřek a co s sebou', async ({ page }) => {
-    await page.goto('/homebrain-dnes?state=c&rozvrh=full&role=adult');
+    await page.goto('/homebrain-dnes?state=b&rozvrh=full&role=adult');
     const lines = page.getByTestId('today-school').getByTestId('school-timetable');
     await expect(lines).toHaveText([
       'Ema · škola 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
@@ -87,7 +87,7 @@ test.describe('Dnes – školní rozvrh', () => {
     await expect(page.getByTestId('school-timetable')).toHaveText([
       'Zítra volno (podzimní prázdniny)',
     ]);
-    await page.goto('/homebrain-dnes?state=c&rozvrh=full&role=kiosk&kiosk=1');
+    await page.goto('/homebrain-dnes?state=b&rozvrh=full&role=kiosk&kiosk=1');
     await expect(page.getByTestId('today-clock')).toBeVisible();
     await expect(page.getByTestId('school-timetable')).toHaveCount(0);
   });
@@ -128,7 +128,7 @@ test.describe('Školní rozvrh – snímky', () => {
         await expect(page.getByTestId('timetable-school-editor')).toBeVisible();
         await shot(page, 'settings-school', theme);
         for (const [name, query] of [
-          ['today-morning', 'state=c&rozvrh=full'],
+          ['today-morning', 'state=b&rozvrh=full'],
           ['today-evening', 'state=d&rozvrh=full'],
           ['today-holiday-eve', 'state=d&rozvrh=holiday'],
         ]) {
