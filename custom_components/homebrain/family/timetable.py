@@ -358,9 +358,7 @@ class TimetableHolidays:
             self.start()
         else:
             self.entry.async_on_unload(
-                self.hass.bus.async_listen_once(
-                    EVENT_HOMEASSISTANT_STARTED, self._started
-                )
+                self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, self._started)
             )
 
     @callback
