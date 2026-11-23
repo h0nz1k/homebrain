@@ -274,8 +274,15 @@ export const familyStyles = `
 .fam-icon-picker { position: relative; }
 .fam-icon-picker summary { height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--hb-edge); border-radius: 12px; font-size: 14px; background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); cursor: pointer; list-style: none; }
 .fam-icon-picker > .fam-chips { position: absolute; z-index: 3; right: 0; top: 54px; width: 220px; padding: 12px; border: 1px solid var(--hb-edge); border-radius: 14px; background: var(--hb-s2); box-shadow: var(--hb-elev-2); }
-.fam-form-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.fam-form-dates label { min-width: 0; }
+.fam-add-chore { container-type: inline-size; }
+.fam-form-dates { display: grid; grid-template-columns: minmax(308px, 1fr) minmax(0, .6fr); gap: 12px; }
+@container (max-width: 475px) {
+  .fam-form-dates { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .hb-scrim[data-isolation='strong']:has(.fam-add-chore) .hb-sheet-body { padding-inline: 8px; }
+}
+.fam-form-date { display: grid; align-content: start; gap: 8px; min-width: 0; }
 .fam-form-dates input { font-size: 14px; }
 
 .fam-chart-head h3 { white-space: nowrap; }
@@ -367,9 +374,43 @@ export const familyStyles = `
 .fam-stepper { padding: 0 6px; gap: 4px; justify-content: space-between; }
 .fam-stepper > .hb-btn { min-width: 36px; width: 36px; height: 36px; min-height: 36px; }
 .fam-stepper input { flex: 1; min-width: 0; font-weight: 650; font-size: 17px; }
-.fam-input-icon { position: relative; display: block; }
-.fam-input-icon input { padding-right: 44px; }
-.fam-input-icon > svg { position: absolute; right: 14px; top: 50%; translate: 0 -50%; color: var(--hb-t2); pointer-events: none; }
+.fam-input-icon { position: relative; display: block; min-width: 0; }
+.fam-input-icon input { padding-right: 56px; }
+.fam-native-picker { position: absolute; inset: 0 0 auto auto; width: 1px !important; min-width: 0; height: 1px !important; min-height: 0; padding: 0 !important; border: 0 !important; opacity: 0; pointer-events: none; }
+.fam-picker-button { position: absolute; inset: 2px 2px auto auto;
+  width: 44px; height: 44px; display: grid; place-items: center; color: var(--hb-t1);
+  background: var(--hb-s2); border: 1px solid var(--hb-t2); border-radius: 10px; cursor: pointer; }
+.fam-picker-button:focus-visible, .fam-picker-popover button:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: -2px; }
+.fam-picker-popover { position: relative; z-index: 1; width: 100%; margin: 10px 0 16px; padding-block: 8px; scroll-margin-block: 12px;
+  border-radius: 14px; color: var(--hb-t1); background: var(--hb-s2, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 22%, transparent), 0 10px 28px rgb(0 0 0 / 38%); }
+.fam-picker-month { padding-inline: 4px; }
+.fam-picker-month { padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--hb-edge); }
+.fam-picker-month { display: flex; align-items: center; justify-content: space-between; }
+.fam-picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
+.fam-picker-popover button { min-height: 44px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; }
+.fam-picker-month button { min-width: 44px; font-size: 24px; }
+.fam-picker-days button[aria-current="date"] { outline: 2px solid var(--hb-t2); outline-offset: -4px; border-radius: 50%; }
+.fam-picker-popover button[aria-pressed="true"] { background: #245fc3; color: #fff; }
+.fam-picker-days button[aria-current="date"][aria-pressed="true"] { outline-color: #fff; }
+.fam-picker-popover button:disabled { opacity: .4; cursor: default; }
+.fam-picker-times { position: relative; max-height: 220px; overflow-y: auto; padding: 4px; }
+.fam-picker-times button { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding-inline: 10px; font: inherit; text-align: start; }
+.fam-picker-times button[data-next="true"] { box-shadow: inset 0 0 0 2px var(--hb-ac); font-weight: 650; }
+.fam-date-note { display: flex; align-items: center; gap: 8px; }
+.fam-date-note svg { flex: none; color: var(--hb-ac); }
+.fam-swap-day { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.fam-swap-day legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
+.fam-swap-day-option { position: relative; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;
+  border: 1px solid var(--hb-edge); background: var(--hb-s1); border-radius: 12px; cursor: pointer; }
+.fam-swap-day-option:has(:checked) { border-color: var(--hb-ac); }
+.fam-swap-day-option:has(:focus-visible) { outline: 2px solid var(--hb-ac); outline-offset: 2px; }
+.fam-swap-day-option input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.fam-swap-day-check { margin-left: auto; color: var(--hb-ac); }
+.fam-swap-recipients { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.fam-swap-recipients legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
+
 .fam-summary { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px;
   background: color-mix(in srgb, var(--hb-ac) 9%, var(--hb-s1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 22%, transparent); }
 .fam-summary > svg { flex: none; color: var(--hb-ac); margin-top: 2px; }
@@ -379,10 +420,10 @@ export const familyStyles = `
 .fam .hb-sheet-foot .fam-invalid { color: var(--hb-warn); font-weight: 600; }
 .fam-chore-meta .hb-pill { white-space: normal; max-width: 100%; line-height: 1.3; padding-block: 3px; }
 /* swap sheet */
-.fam-swap-sheet > .fam-person-chips { flex-direction: row; flex-wrap: wrap; gap: 10px; }
-.fam-swap-sheet .fam-person-chips .fam-chip { width: auto; border-radius: 99px; padding: 6px 16px 6px 6px; min-height: 52px; font-weight: 600; }
+.fam-swap-sheet .fam-person-chips { flex-direction: row; flex-wrap: wrap; gap: 10px; }
+.fam-swap-sheet .fam-person-chips .fam-chip { width: auto; border-radius: 99px; padding: 6px 16px 6px 6px; min-height: 52px; font-weight: 600; font-size: 16px; }
 .fam-swap-sheet .fam-person-chips .fam-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--hb-ac) 22%, var(--hb-s1)); border-color: var(--hb-ac); box-shadow: inset 0 0 0 1px var(--hb-ac); }
-.fam-swap-sheet .fam-person-chips .fam-chip > svg.fam-chip-check { margin-left: 2px; color: var(--hb-ac); }
+.fam-swap-sheet .fam-person-chips .fam-chip > svg.fam-chip-check { margin-left: 2px; color: currentColor; }
 .fam-person-chips .fam-partner-avatar { width: 38px; height: 38px; font-weight: 700; }
 .fam-icon-tile { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
   color: color-mix(in srgb, var(--fam-kid, var(--hb-ac)) 70%, white); background: color-mix(in srgb, var(--fam-kid, var(--hb-ac)) 24%, var(--hb-s1)); }
@@ -483,9 +524,6 @@ export const familyStyles = `
 .fam-chip.hb-chip[aria-pressed='true'] .fam-chip-tick { box-shadow: none; background: rgb(255 255 255 / 22%); }
 .fam-who-chip.hb-chip { padding: 0 12px 0 6px; }
 .fam-info p { color: color-mix(in srgb, var(--hb-t1) 86%, transparent); font-size: 14px; line-height: 1.5; text-wrap: pretty; }
-.fam-recipient { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; background: color-mix(in srgb, var(--hb-t1) 5%, transparent); font-size: 16px; }
-.fam-recipient-label { color: var(--hb-t2); font-size: 14px; min-width: 48px; }
-.fam-recipient .fam-partner-avatar { width: 34px; height: 34px; font-weight: 700; }
 .fam-icon-tile { color: color-mix(in srgb, var(--fam-kid, var(--hb-ac)) 55%, white); }
 /* points sheet */
 .fam-points-label { color: var(--hb-t2); font-size: 14px; font-weight: 600; }
@@ -505,6 +543,7 @@ export const familyStyles = `
 .fam-add-chore input[aria-invalid='true'] { border-color: var(--hb-crit); box-shadow: inset 0 0 0 1px var(--hb-crit); }
 .fam-field-err { color: color-mix(in srgb, var(--hb-crit) 80%, var(--hb-t1)); font-size: 13px; font-weight: 600; margin-top: 6px; }
 .fam-field > .fam-field-err { margin-top: -2px; }
+.fam-form-dates > .fam-hint { grid-column: 1 / -1; }
 .fam-form-dates > .fam-field-err { grid-column: 1 / -1; margin-top: -4px; }
 .fam-icon-pick { height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--hb-edge); border-radius: 12px; font-size: 15px;
   background: color-mix(in srgb, var(--hb-t1) 5%, var(--hb-s1)); cursor: pointer; color: var(--hb-t1); }
@@ -726,6 +765,7 @@ export const familyStyles = `
   display: grid; align-items: center; grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) auto;
   gap: 8px; padding: 8px 0; min-height: 53px;
 }
+.fam-person-task:has(.fam-person-transfer) { grid-template-columns: var(--fam-task-lead) minmax(0, 1fr) auto auto; }
 .fam-person-task + .fam-person-task, .fam-person-event + .fam-person-event { border-top: 1px solid var(--hb-edge); }
 .fam-person-task-text { min-width: 0; overflow-wrap: anywhere; }
 .fam-person-task-text strong { display: block; font-size: 16px; font-weight: 650; }

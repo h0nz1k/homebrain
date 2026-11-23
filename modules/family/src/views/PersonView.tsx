@@ -5,6 +5,9 @@ import type { FamilyApi } from '../api.js';
 import {
   CARRIED_LABEL,
   MISSED_LABEL,
+  canTransferChore,
+  isTransferredOut,
+  transferLabel,
   carriedFrom,
   carriedLabel,
   choreApprovalKind,
@@ -24,7 +27,7 @@ import {
   todayEvents,
 } from '../format.js';
 import { personActivity } from '../personActivity.js';
-import { handedToLabel, pendingHandoverLabel, takenFromLabel } from '../czech.js';
+import { pendingHandoverLabel } from '../czech.js';
 import type {
   FamilyChore,
   FamilyEvent,
@@ -166,7 +169,7 @@ type MarkKind = 'open' | 'done' | 'waiting' | 'handed' | 'carried' | 'missed';
 
 /** One glyph system for every task row: ring = open, filled check = done, swap = handed over. */
 function markKind(row: TaskRow): MarkKind {
-  if (row.swap_today?.kind === 'transferred_out') return 'handed';
+  if (isTransferredOut(row)) return 'handed';
   if (row.occurrence === 'missed') return 'missed';
   if (row.occurrence === 'carried') return 'carried';
   if (row.state === 'done') return 'done';
@@ -192,13 +195,20 @@ function TaskMark({ kind }: { kind: MarkKind }) {
   );
 }
 
+type TransferAction = {
+  onTransfer?: (chore: string) => void;
+  transferMenu?: boolean;
+};
+
 function ChoreRows({
   rows,
   today,
   busy,
   highlight,
   onComplete,
-}: {
+  onTransfer,
+  transferMenu,
+}: TransferAction & {
   rows: TaskRow[];
   today: string;
   busy?: string | null;
@@ -214,13 +224,11 @@ function ChoreRows({
         const status =
           swap?.kind === 'pending_give'
             ? pendingHandoverLabel(swap.partner_name)
-            : swap?.kind === 'transferred_out' && swap.partner_name
-              ? handedToLabel(swap.partner_name)
-              : swap?.kind === 'transferred_in' && swap.partner_name
-                ? takenFromLabel(swap.partner_name)
-                : chore.state === 'claimed'
-                  ? 'Čeká na schválení'
-                  : undefined;
+            : swap
+              ? transferLabel(swap, new Date(`${today}T12:00:00`))
+              : chore.state === 'claimed'
+                ? 'Čeká na schválení'
+                : undefined;
         const waiting = chore.state === 'claimed' && !chore.occurrence;
         return (
           <li
@@ -263,6 +271,9 @@ function ChoreRows({
                 </small>
               ) : chore.due && chore.state !== 'done' && chore.state !== 'claimed' ? (
                 <small data-overdue={chore.state === 'overdue' || undefined}>
+                  {localKey(new Date(chore.due)) > today && (
+                    <>{shortDate(new Date(chore.due))} · </>
+                  )}
                   do&nbsp;{timeLabel(chore.due)}
                 </small>
               ) : null}
@@ -276,6 +287,7 @@ function ChoreRows({
                   {status.replace(/ · jen dnes$/u, '')}
                 </small>
               )}
+              {onTransfer && !transferMenu && !chore.due && <small>Úkol nemá termín.</small>}
               {chore.rotation_turn && <small>Střídá se · na řadě {chore.rotation_turn}</small>}
             </div>
             <span className="fam-person-points" data-waiting={waiting || undefined}>
@@ -292,6 +304,18 @@ function ChoreRows({
                 pointsLabel(chore.points)
               )}
             </span>
+            {onTransfer &&
+              !chore.occurrence &&
+              (canTransferChore(chore) || (transferMenu && !!swap?.operation_id)) && (
+                <Button
+                  variant="ghost"
+                  className="fam-overflow fam-person-transfer"
+                  icon={<Icon name={transferMenu ? 'more' : 'swap'} size={20} />}
+                  aria-label={`${transferMenu ? 'Další akce' : 'Předat'}: ${chore.name}`}
+                  title={transferMenu ? 'Další akce' : 'Předat…'}
+                  onClick={() => onTransfer(chore.id)}
+                />
+              )}
           </li>
         );
       })}
@@ -335,7 +359,9 @@ function TodayChores({
   busy,
   highlight,
   onComplete,
-}: {
+  onTransfer,
+  transferMenu,
+}: TransferAction & {
   member: FamilyMember;
   now: Date;
   busy: string | null;
@@ -402,6 +428,8 @@ function TodayChores({
                 busy={busy}
                 highlight={highlight}
                 onComplete={onComplete}
+                onTransfer={onTransfer}
+                transferMenu={transferMenu}
               />
             </details>
           );
@@ -679,7 +707,9 @@ function Week({
   history,
   activity,
   rows,
-}: {
+  onTransfer,
+  transferMenu,
+}: TransferAction & {
   history: ReturnType<typeof usePersonHistory>;
   activity: ReturnType<typeof personActivity>;
   rows: WeekRow[];
@@ -728,7 +758,14 @@ function Week({
                     (history.entries ? (key < today ? 'Bez záznamů' : 'Bez úkolů') : '')}
                 </small>
               </h3>
-              {chores.length > 0 && <ChoreRows rows={chores} today={today} />}
+              {chores.length > 0 && (
+                <ChoreRows
+                  rows={chores}
+                  today={today}
+                  onTransfer={onTransfer}
+                  transferMenu={transferMenu}
+                />
+              )}
             </section>
           );
         })}
@@ -937,7 +974,9 @@ export function PersonView({
   claimDisabled,
   placed,
   refreshedAt,
-}: {
+  onTransfer,
+  transferMenu,
+}: TransferAction & {
   api: FamilyApi;
   member: FamilyMember;
   members: FamilyMember[];
@@ -991,6 +1030,7 @@ export function PersonView({
       : [];
   });
   const rows = weekRows(member, activity);
+  const upcoming = rows.filter((row) => row.weekDay && row.weekDay > activity.today);
   const waiting = member.chores
     .filter((chore) => chore.state === 'claimed')
     .reduce((sum, chore) => sum + (chore.points ?? 0), 0);
@@ -1058,7 +1098,24 @@ export function PersonView({
                 busy={busy}
                 highlight={placed}
                 onComplete={onComplete}
+                onTransfer={onTransfer}
+                transferMenu={transferMenu}
               />
+              {onTransfer && upcoming.length > 0 && (
+                <section className="fam-person-tasks">
+                  <div className="fam-person-section-head">
+                    <h2>Naplánované úkoly</h2>
+                  </div>
+                  <div className="fam-person-surface">
+                    <ChoreRows
+                      rows={upcoming}
+                      today={activity.today}
+                      onTransfer={onTransfer}
+                      transferMenu={transferMenu}
+                    />
+                  </div>
+                </section>
+              )}
               <PersonCalendar today={today} now={now} />
               <FreeTasks
                 rows={free}
@@ -1073,7 +1130,13 @@ export function PersonView({
           {tab === 'Týden' && (
             <>
               <WeekSummary activity={activity} rows={rows} loaded={!!history.entries} />
-              <Week history={history} activity={activity} rows={rows} />
+              <Week
+                history={history}
+                activity={activity}
+                rows={rows}
+                onTransfer={onTransfer}
+                transferMenu={transferMenu}
+              />
             </>
           )}
           {tab === 'Historie' && (

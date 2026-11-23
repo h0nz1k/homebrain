@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from typing import Any, Final
 from zoneinfo import ZoneInfo
+
+SWAP_WINDOW_DAYS: Final = 7  # today plus seven following civil days
 
 REQUEST_TERMINAL: Final = frozenset({"rejected", "cancelled", "expired"})
 REQUEST_ACTIVE: Final = frozenset({"pending", "approved"})
@@ -115,6 +117,44 @@ def reduce_request(
     raise DomainError("invalid_input", f"Neznámá událost: {event}")
 
 
+def occurrence_day(due: str | None, tz: tzinfo | None) -> date | None:
+    if not isinstance(due, str) or not due:
+        return None
+    try:
+        stamp = datetime.fromisoformat(due)
+    except ValueError:
+        return None
+    return stamp.astimezone(tz).date() if stamp.tzinfo else stamp.date()
+
+
+def same_due(first: str | None, second: str | None) -> bool:
+    if first == second:
+        return True
+    if not first or not second:
+        return False
+    try:
+        return datetime.fromisoformat(first) == datetime.fromisoformat(second)
+    except ValueError:
+        return False
+
+
+def clone_suffix(token: str) -> str:
+    return f" · HB-{token[:8]}"
+
+
+def swap_day(occurrence: Mapping[str, Any], local_now: datetime) -> date | None:
+    """Carried overdue chores are still actionable today with a new deadline."""
+    day = occurrence_day(occurrence.get("due"), local_now.tzinfo)
+    today = local_now.date()
+    if day and occurrence.get("state") == "overdue" and 0 < (today - day).days <= 3:
+        return today
+    return day
+
+
+def in_swap_window(day: date, now: datetime, tz: ZoneInfo) -> bool:
+    return 0 <= (day - local_today(now, tz)).days <= SWAP_WINDOW_DAYS
+
+
 def validate_swap_request(
     *,
     direction: str,
@@ -138,13 +178,15 @@ def validate_swap_request(
     if reason:
         raise DomainError("unsupported_chore", str(reason))
     if not occurrence.get("can_request_swap"):
-        raise DomainError("unsupported_chore", "Tento úkol nelze dnes předat.")
+        raise DomainError("unsupported_chore", "Tento úkol nelze předat.")
     if direction == "give" and role == "child" and actor_user_id != from_kid:
         raise DomainError("unauthorized", "Můžete předat jen vlastní úkol.")
     if direction == "take" and role == "child" and actor_user_id != to_kid:
         raise DomainError("unauthorized", "Můžete převzít jen pro sebe.")
-    if local_day != local_today(now, tz):
-        raise DomainError("expired", "Platí jen pro dnešní den.")
+    if not in_swap_window(local_day, now, tz):
+        raise DomainError("expired", "Vyber den v povoleném období.")
+    if swap_day(occurrence, now.astimezone(tz)) != local_day:
+        raise DomainError("unsupported_chore", "Úkol nemá termín ve vybraný den.")
 
 
 def dedupe_key(client_request_id: str) -> str:
@@ -165,12 +207,24 @@ class Effect:
 def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
     """One ChoreOps side-effect for the current operation step."""
     step = str(op.get("step") or "")
-    status = str(op.get("status") or "")
-    if status not in {"applying", "cleanup_pending"}:
+    if op.get("status") != "applying":
         return None
     snap = op.get("source_snapshot") or {}
     cfg = str(op.get("config_entry_id") or "")
     token = str(op.get("operation_token") or "")
+    if step == "delete_source":
+        return Effect("choreops", "delete_chore", {"config_entry_id": cfg, "id": snap["chore_id"]})
+    if step == "remove_assignment":
+        return Effect(
+            "choreops",
+            "update_chore",
+            {
+                "config_entry_id": cfg,
+                "id": snap["chore_id"],
+                "assigned_user_names": [op["from_kid_name"]],
+                "assignment_action": "remove",
+            },
+        )
     if step == "create_intent":
         assignee = op.get("assignee_name")
         points = snap.get("points")
@@ -181,7 +235,7 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
             "create_chore",
             {
                 "config_entry_id": cfg,
-                "name": f"{base} (za {from_name}) · HB-{token[:8]}",
+                "name": f"{base} (za {from_name}){clone_suffix(token)}",
                 "assigned_user_names": [assignee],
                 **({"points": points} if points is not None else {}),
                 "frequency": "none",
@@ -208,38 +262,16 @@ def plan_next_effect(op: Mapping[str, Any]) -> Effect | None:
                 "mark_as_missed": False,
             },
         )
-    if step == "delete_clone":
-        clone = op.get("clone_id")
-        if clone:
-            return Effect(
-                "choreops",
-                "delete_chore",
-                {"config_entry_id": cfg, "id": clone},
-            )
     return None
 
 
-def advance_operation(op: dict[str, Any], observed: Mapping[str, Any]) -> dict[str, Any]:
-    """Merge observed ChoreOps outcome and move to the next step."""
-    out = dict(op)
-    step = str(out.get("step") or "")
-    if step == "create_intent" and observed.get("chore_id"):
-        out["clone_id"] = observed["chore_id"]
-        out["step"] = "skip_intent"
-        out["status"] = "applying"
-        return out
-    if step == "skip_intent" and observed.get("skipped"):
-        out["step"] = "active"
-        out["status"] = "active"
-        return out
-    if step == "delete_clone" and observed.get("deleted"):
-        out["step"] = "cleaned"
-        out["status"] = "cleaned"
-        return out
-    if observed.get("error"):
-        out["status"] = "failed"
-        out["last_error"] = str(observed["error"])
-    return out
+def clone_created(op: dict[str, Any], clone_id: str) -> dict[str, Any]:
+    """Record the recipient's copy before modifying the source occurrence."""
+    if op["source_snapshot"]["frequency"] == "none":
+        step = "delete_source" if op.get("sole_assignee") else "remove_assignment"
+    else:
+        step = "skip_intent"
+    return {**op, "clone_id": clone_id, "step": step}
 
 
 def reconcile_requests(
@@ -257,22 +289,28 @@ def reconcile_requests(
 def reconcile_operations(
     operations: dict[str, dict[str, Any]], now: datetime, tz: ZoneInfo
 ) -> dict[str, dict[str, Any]]:
-    """Midnight / startup: expire unclaimed clones, mark stale applying ops."""
+    """Queue expired clones for inspection and flag missed scheduled transfers."""
     out: dict[str, dict[str, Any]] = {}
-    today = local_today(now, tz)
     for oid, op in operations.items():
         cur = dict(op)
         status = str(cur.get("status") or "")
-        local = cur.get("local_date")
+        op_tz = ZoneInfo(cur["timezone"]) if cur.get("timezone") else tz
+        today = local_today(now, op_tz)
         try:
-            op_day = date.fromisoformat(str(local))
+            op_day = date.fromisoformat(str(cur.get("local_date")))
         except ValueError:
             op_day = today
-        if status == "active" and op_day < today and not cur.get("clone_claimed"):
-            cur["status"] = "unclaimed_expired"
+        if (
+            status == "active"
+            and op_day < today
+            and cur.get("clone_id")
+            and not cur.get("clone_claimed")
+        ):
+            cur["status"] = "cleanup_pending"
             cur["step"] = "delete_clone"
-        elif status == "applying" and op_day < today:
-            cur["status"] = "needs_repair"
-            cur["last_error"] = "expired_day"
+        elif status == "failed" and cur.get("clone_id"):
+            cur.update(status="rollback_pending", step="delete_clone")
+        elif status == "scheduled" and op_day < today:
+            cur.update(status="needs_repair", last_error="expired_day", recovery_checked=True)
         out[oid] = cur
     return out
