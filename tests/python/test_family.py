@@ -1281,6 +1281,86 @@ async def test_school_websocket_roles(
         assert [d["title"] for d in reminders["dates"]] == ["Schůzky"]
 
 
+LESSONS = [["Čj", "M", "Tv", "Tv"], [], [], [], []]
+
+
+@pytest.mark.parametrize("role", ["owner", "adult", "child", "kiosk"])
+async def test_timetable_settings_snapshot_and_derived_presence(
+    hass, entry, hass_ws_client, hass_admin_user, role, monkeypatch
+):
+    await hass.config.async_set_time_zone("Europe/Prague")
+    monday = datetime.fromisoformat("2026-11-23T09:00:00+01:00")
+    monkeypatch.setattr(dt_util, "now", lambda *_: monday)
+    client = await hass_ws_client(hass)
+    timetable = {
+        "bells": [
+            {"start": "07:30", "end": "08:15"},
+            {"start": "08:25", "end": "09:10"},
+            {"start": "09:30", "end": "10:15"},
+            {"start": "10:25", "end": "11:10"},
+        ],
+        "children": {"syn": {"days": LESSONS}},
+        "free": [{"start": "2026-11-24", "end": "2026-11-24", "label": "Ředitelské volno"}],
+    }
+    saved = await _ws(client, {"type": "homebrain/family/settings/set", "timetable": timetable})
+    assert saved["success"], saved
+    assert saved["result"]["timetable"]["items"]["Tv"] == "cvičky a úbor"
+    assert saved["result"]["timetable"]["holiday_calendar"] == "auto"
+    stored = entry.options["family"]
+    # Only the child account is linked to Syn (a linked adult account would make Syn an adult).
+    linked = hass_admin_user.id if role == "child" else None
+    await _as(hass, entry, hass_admin_user, role, [{"name": "Syn", "user_id": linked}])
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "family": {**entry.options["family"], **stored}}
+    )
+    if role != "owner":
+        assert not (await _ws(client, {"type": "homebrain/family/settings/get"}))["success"]
+    snap = (await _ws(client, {"type": "homebrain/family/timetable"}))["result"]
+    members = (await _ws(client, {"type": "homebrain/family/get"}))["result"]["members"]
+    syn = next(m for m in members if m["name"] == "Syn")
+    if role == "kiosk":
+        assert snap["enabled"] is False and snap["children"] == []
+        assert syn["presence"] is None
+        return
+    assert [c["name"] for c in snap["children"]] == ["Syn"]
+    today, tomorrow = snap["children"][0]["days"][:2]
+    assert (today["start"], today["end"]) == ("07:30", "11:10")
+    assert today["bring"] == [{"subject": "Tv", "item": "cvičky a úbor"}]
+    assert tomorrow["free"] == "Ředitelské volno"
+    assert syn["presence"] == {"kind": "derived", "source": "school_timetable"}
+
+
+async def test_timetable_holidays_from_the_holiday_calendar(hass, entry, monkeypatch):
+    from custom_components.homebrain.family.timetable import TimetableHolidays
+
+    asked: list[Any] = []
+
+    async def get_events(call: ServiceCall):
+        asked.append(call.data["entity_id"])
+        return {
+            "calendar.synthetic_holidays": {
+                "events": [{"start": "2026-12-24", "end": "2026-12-25", "summary": "Štědrý den"}]
+            }
+        }
+
+    hass.services.async_register(
+        "calendar", "get_events", get_events, supports_response=SupportsResponse.ONLY
+    )
+    holidays = TimetableHolidays(hass, entry)
+    await holidays.refresh()
+    assert holidays.days == {} and asked == []
+    er.async_get(hass).async_get_or_create(
+        "calendar", "holiday", "synthetic", suggested_object_id="synthetic_holidays"
+    )
+    await holidays.refresh()
+    assert holidays.days == {"2026-12-24": "Štědrý den"}
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "family": {"timetable": {"holiday_calendar": ""}}}
+    )
+    await holidays.refresh()
+    assert holidays.days == {} and len(asked) == 1
+
+
 @pytest.fixture
 def swaps(hass, entry, monkeypatch):
     from custom_components.homebrain.family import swap_service

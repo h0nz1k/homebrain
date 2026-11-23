@@ -216,3 +216,4 @@ export * from './people.js';
 
 export * from './kitchen.js';
 export * from './school.js';
+export * from './timetable.js';

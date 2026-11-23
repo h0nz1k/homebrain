@@ -2,8 +2,20 @@ import { useEffect, useState } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
 import { Button } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
-import type { PersonSettings, PersonsSettings as Settings, SchoolSettings } from '../types.js';
+import type {
+  PersonSettings,
+  PersonsSettings as Settings,
+  SchoolSettings,
+  TimetableSettings,
+} from '../types.js';
 import { personColor } from './PersonView.js';
+import {
+  TimetableChildEditor,
+  TimetableSchoolEditor,
+  emptyChild,
+  lessonCount,
+  normalizeTimetable,
+} from './TimetableSettings.js';
 
 export function PersonsSettings({
   api,
@@ -17,6 +29,8 @@ export function PersonsSettings({
   const [data, setData] = useState<Settings | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  /** Timetable sub-page: a child's grid or the school-wide bells / free days. */
+  const [editing, setEditing] = useState<string | 'school' | null>(null);
   useBackClosable(onBack);
 
   useEffect(() => {
@@ -50,6 +64,9 @@ export function PersonsSettings({
       current?.school ? { ...current, school: { ...current.school, ...patch } } : current,
     );
 
+  const changeTimetable = (next: TimetableSettings) =>
+    setData((current) => current && { ...current, timetable: next });
+
   const save = async () => {
     if (!data) return;
     setSaving(true);
@@ -65,6 +82,7 @@ export function PersonsSettings({
           grade: role === 'child' ? grade : null,
         })),
         data.school,
+        data.timetable && normalizeTimetable(data.timetable),
       );
       setData(result);
       onSaved();
@@ -74,6 +92,34 @@ export function PersonsSettings({
       setSaving(false);
     }
   };
+
+  const timetable = data?.timetable;
+  if (timetable && editing === 'school')
+    return (
+      <TimetableSchoolEditor
+        settings={timetable}
+        calendars={data.candidates.calendars ?? []}
+        onChange={changeTimetable}
+        onDone={() => setEditing(null)}
+      />
+    );
+  const editedChild = data?.persons.find((p) => p.choreops_user_id === editing);
+  if (timetable && editedChild)
+    return (
+      <TimetableChildEditor
+        name={editedChild.name}
+        grade={editedChild.grade}
+        child={timetable.children[editedChild.choreops_user_id] ?? emptyChild()}
+        settings={timetable}
+        onChange={(child) =>
+          changeTimetable({
+            ...timetable,
+            children: { ...timetable.children, [editedChild.choreops_user_id]: child },
+          })
+        }
+        onDone={() => setEditing(null)}
+      />
+    );
 
   return (
     <section className="fam-person-view fam-person-settings" data-testid="family-person-settings">
@@ -191,6 +237,24 @@ export function PersonsSettings({
                   ))}
                 </select>
               </label>
+              {member.role === 'child' && timetable && (
+                <div className="fam-tt-open">
+                  <span>
+                    Škola
+                    <small>
+                      {lessonCount(timetable.children[member.choreops_user_id])
+                        ? `Rozvrh: ${lessonCount(timetable.children[member.choreops_user_id])} hodin týdně`
+                        : 'Rozvrh není vyplněný'}
+                    </small>
+                  </span>
+                  <Button
+                    data-testid="timetable-open"
+                    onClick={() => setEditing(member.choreops_user_id)}
+                  >
+                    Rozvrh hodin
+                  </Button>
+                </div>
+              )}
               {!member.configured && <small>Čeká na potvrzení.</small>}
             </fieldset>
           ))}
@@ -202,6 +266,7 @@ export function PersonsSettings({
                   ['menu_url', 'Odkaz na jídelníčky (PDF)'],
                   ['events_url', 'Odkaz na plánované akce'],
                   ['dates_url', 'Odkaz na důležité termíny'],
+                  ['bells_url', 'Odkaz na zvonění (časový rozvrh vyučování)'],
                 ] as const
               ).map(([field, label]) => (
                 <label key={field}>
@@ -225,6 +290,19 @@ export function PersonsSettings({
                   onChange={(event) => changeSchool({ reminder_days: Number(event.target.value) })}
                 />
               </label>
+            </fieldset>
+          )}
+          {timetable && (
+            <fieldset className="fam-person-surface" disabled={saving}>
+              <legend>Rozvrh – celá škola</legend>
+              <small>
+                {timetable.free.length
+                  ? `Volno: ${timetable.free.map((row) => row.label).join(', ')}`
+                  : 'Zvonění, odpolední vyučování, prázdniny a co s sebou.'}
+              </small>
+              <Button data-testid="timetable-school-open" onClick={() => setEditing('school')}>
+                Zvonění a volné dny
+              </Button>
             </fieldset>
           )}
           {(data.persons.length > 0 || data.school) && (

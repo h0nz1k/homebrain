@@ -140,6 +140,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/network/settings/set": {},
     "homebrain/family/get": {},
     "homebrain/family/school": {},
+    "homebrain/family/timetable": {},
     "homebrain/family/person/history": {"member": "nobody"},
     "homebrain/server/get": {"api": False},
     "homebrain/server/history": {},

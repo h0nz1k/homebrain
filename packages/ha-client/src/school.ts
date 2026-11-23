@@ -96,13 +96,20 @@ export function schoolSoup(soup: string): string {
   return `polévka ${name.charAt(0).toLocaleLowerCase('cs-CZ')}${name.slice(1)}`;
 }
 
-export function schoolToday(snapshot: SchoolSnapshot, now: Date) {
+/**
+ * `schoolOver`: the children's school day has ended (timetable), so today's events are past;
+ * events that continue tomorrow stay (labelled „Zítra“ by the caller).
+ */
+export function schoolToday(snapshot: SchoolSnapshot, now: Date, schoolOver = false) {
   const today = schoolDay(now);
   const tomorrow = schoolDayOffset(today, 1);
   const afterLunch = Number(clock.format(now)) >= 14;
   const lunch = snapshot.lunch.find((row) => row.date === (afterLunch ? tomorrow : today));
   const events = snapshot.events
-    .filter((row) => row.date <= tomorrow && (row.end_date ?? row.date) >= today)
+    .filter(
+      (row) =>
+        row.date <= tomorrow && (row.end_date ?? row.date) >= (schoolOver ? tomorrow : today),
+    )
     .filter((row) => row.person_ids.length > 0);
   return { lunch, afterLunch, events, tomorrow };
 }

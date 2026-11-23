@@ -20,12 +20,19 @@ from homeassistant.util import dt as dt_util
 from ..const import DOMAIN
 from ..wine.domain import WineError
 from ..wine.safe_fetch import SafeFetcher, check_public_url, create_session
-from .school_parse import menu_links, menu_weeks, parse_events, parse_menu
+from .school_parse import menu_links, menu_weeks, parse_bells, parse_events, parse_menu
 from .ws_common import _role, _visible_kids, family_options
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_REMINDER = 3
-URL_FIELDS = {"lunch": "menu_url", "events": "events_url", "dates": "dates_url"}
+URL_FIELDS = {
+    "lunch": "menu_url",
+    "events": "events_url",
+    "dates": "dates_url",
+    # Bell schedule page („Časový rozvrh vyučování“); feeds the timetable, not this snapshot.
+    "bells": "bells_url",
+}
+SNAPSHOT_KINDS = ("lunch", "events", "dates")
 
 
 def school_url(raw: str) -> str:
@@ -58,7 +65,9 @@ def _decode(body: bytes) -> str:
         return body.decode("cp1250", errors="replace")
 
 
-def _window(kind: str, rows: list[dict], today: date) -> list[dict]:
+def _window(kind: str, rows: Any, today: date) -> Any:
+    if kind == "bells":
+        return rows
     if kind == "lunch":
         start = today - timedelta(days=today.weekday())
         end = start + timedelta(days=11)
@@ -92,8 +101,8 @@ def school_snapshot(
 ) -> dict:
     sources = {
         kind: cached.get(kind, {})
-        for kind, field in URL_FIELDS.items()
-        if options.get(field) and (role != "child" or kind != "dates")
+        for kind in SNAPSHOT_KINDS
+        if options.get(URL_FIELDS[kind]) and (role != "child" or kind != "dates")
     }
     matched = {
         kind: source
@@ -286,6 +295,8 @@ class SchoolImport:
                                         today,
                                         next_data.get(kind, {}).get("rows", []),
                                     )
+                                elif kind == "bells":
+                                    rows = await self.hass.async_add_executor_job(parse_bells, html)
                                 else:
                                     rows = await self.hass.async_add_executor_job(
                                         parse_events, html, today, kind == "dates"

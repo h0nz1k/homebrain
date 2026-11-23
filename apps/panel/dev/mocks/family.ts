@@ -3,6 +3,7 @@ import {
   setFamilyApiFactory,
   type FamilyRole,
   type SchoolScenario,
+  type TimetableScenario,
 } from '@homebrain/module-family';
 import { devQuery } from './shared.js';
 
@@ -15,6 +16,11 @@ export const schoolScenario: SchoolScenario =
     ? schoolQuery
     : 'off';
 
+/** Školní rozvrh (Ema, Kuba): `?rozvrh=full|holiday` (holiday = free days from tomorrow). */
+const timetableQuery = devQuery.get('rozvrh');
+export const timetableScenario: TimetableScenario =
+  timetableQuery === 'full' || timetableQuery === 'holiday' ? timetableQuery : 'off';
+
 /** Rodina: synthetic household („Ema“, „Kuba“). `?role=adult|child|kiosk`, `?rodina=empty|busy`. */
 export function registerFamilyMocks(): void {
   const reassignDemo = devQuery.get('reassign');
@@ -22,6 +28,7 @@ export function registerFamilyMocks(): void {
   const familyApi = createMockFamilyApi({
     role: (devQuery.get('role') as FamilyRole | null) ?? 'owner',
     school: schoolScenario,
+    timetable: timetableScenario,
     scenario:
       familyScenario === 'empty' || familyScenario === 'busy' || familyScenario === 'evening'
         ? familyScenario

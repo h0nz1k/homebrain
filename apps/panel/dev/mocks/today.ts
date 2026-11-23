@@ -1,4 +1,4 @@
-import { mockSchool } from '@homebrain/module-family';
+import { mockSchool, mockTimetable, mockTimetableSettings } from '@homebrain/module-family';
 import {
   clearTodaySignalSources,
   createMockAdapter,
@@ -12,7 +12,7 @@ import {
   type CookingScenario,
   type HomeRole,
 } from '@homebrain/module-today';
-import { schoolScenario } from './family.js';
+import { schoolScenario, timetableScenario } from './family.js';
 import { devQuery, live, type DevHass } from './shared.js';
 
 /**
@@ -50,6 +50,19 @@ export function registerTodayMocks(): void {
         devQuery.get('role') ?? (devQuery.get('kiosk') === '1' ? 'kiosk' : 'owner'),
         new Date(`${day}T05:00:00+01:00`),
       ),
+    // Same synthetic children as Rodina; Dnes picks the lines by its own (fixture) clock.
+    timetable: async (day) => {
+      const at = new Date(`${day}T05:00:00+01:00`);
+      return mockTimetable(
+        mockTimetableSettings(timetableScenario, at),
+        [
+          { id: 'dcera', name: 'Ema', grade: 5 },
+          { id: 'syn', name: 'Kuba', grade: 4 },
+        ],
+        at,
+        devQuery.get('role') ?? (devQuery.get('kiosk') === '1' ? 'kiosk' : 'owner'),
+      );
+    },
   }));
   // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
   if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
