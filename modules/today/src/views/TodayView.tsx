@@ -39,6 +39,7 @@ import { AmbientSky } from './AmbientSky.js';
 import { SunArc } from './SunArc.js';
 import { WeatherIcon } from './WeatherIcon.js';
 import { TodayHome } from './TodayHome.js';
+import { TodaySchool } from './TodaySchool.js';
 import { CoffeeInvite } from './CoffeeInvite.js';
 import { getCoffeeApi } from '../data/coffee.js';
 import { getTodayHomeApi } from '../data/home.js';
@@ -194,6 +195,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
     };
   }, [adapter, layout, visible]);
   const [watchLevel, setWatchLevel] = useState<TodayWatchLevel>(null);
+  const [schoolShown, setSchoolShown] = useState(false);
   const [hidden, setHidden] = useState(() => document.hidden);
   const [shift, setShift] = useState(0);
   useEffect(() => {
@@ -325,6 +327,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
   const watchOn = !!watchCard && !!watchLevel;
   // Wall kiosk has no spare row: with the card the ribbon is slim, the home tiles step aside.
   const kioskWatch = kiosk && watchOn;
+  // Landscape wall kiosk has no spare row for the school block either: same trade-off.
+  const kioskSchool = kiosk && !kioskPortrait && schoolShown;
   // Landscape tablet/desktop with the card: the summary („Přebytek FVE 1,6 kW“) fills the empty
   // right side of the compact clock row instead of taking a row of its own (portrait has no room).
   const summaryInHero = !kiosk && !mobile && !portrait && watchOn;
@@ -395,6 +399,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           {presenceInHero && presence}
           {summaryInHero && summaryLine}
         </div>
+        <TodaySchool api={homeApi} now={data.now} kiosk={kiosk} onShown={setSchoolShown} />
         {!night && kiosk && cookingCard}
         {!night && !kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
         <CoffeeInvite api={coffeeApi} />
@@ -426,7 +431,10 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 )}
               </div>
               <DayRibbon
-                slim={kiosk && (highestSeverity === 'critical' || kioskCooking || kioskWatch)}
+                slim={
+                  kiosk &&
+                  (highestSeverity === 'critical' || kioskCooking || kioskWatch || kioskSchool)
+                }
                 start={model.startHour}
                 end={model.endHour}
                 now={model.nowHour}
@@ -466,9 +474,10 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
                 ))}
               </div>
             )}
-            {!(kiosk && highestSeverity === 'critical') && !kioskCooking && !kioskWatch && (
-              <TodayHome api={homeApi} kiosk={kiosk} />
-            )}
+            {!(kiosk && highestSeverity === 'critical') &&
+              !kioskCooking &&
+              !kioskWatch &&
+              !kioskSchool && <TodayHome api={homeApi} kiosk={kiosk} />}
             {!!chips.length && !kioskCooking && !kioskWatch && (
               <div className="today-chips" data-testid="status-chips">
                 {chips.map((signal) => (

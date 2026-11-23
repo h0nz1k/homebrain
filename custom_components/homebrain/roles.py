@@ -111,6 +111,7 @@ KIOSK_WS_COMMANDS: Final = SIGNED_IN_WS_COMMANDS | frozenset(
         "homebrain/energy/pv_forecast",
         # Dnes „Co se dnes vaří“ (Mealie meal plan; names only).
         "homebrain/today/meals",
+        "homebrain/family/school",
         # Kdo je doma (home/away/unknown + display name only, never zones or GPS).
         "homebrain/people/get",
         "homebrain/people/subscribe",

@@ -26,6 +26,7 @@ export type { TodaySignalFeed, TodaySignalSource } from './data/signalSources.js
 export {
   createMockHomeApi,
   createWsHomeApi,
+  getTodayHomeApi,
   setTodayHomeApiFactory,
   summarizeChores,
 } from './data/home.js';
@@ -43,4 +44,5 @@ export {
 export type { CookingProbe, CookingScenario, CookingSource, CookState } from './data/cooking.js';
 export { setTodayWatchCard, getTodayWatchCard } from './data/watch.js';
 export type { TodayWatchCardProps, TodayWatchLevel } from './data/watch.js';
+export { TodaySchool } from './views/TodaySchool.js';
 export { installCoffeeFixtures } from './data/coffeeFixtures.js';
