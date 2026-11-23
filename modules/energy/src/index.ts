@@ -5,7 +5,7 @@ export const moduleManifest = {
   phase: 2,
 } as const;
 
-export const loadView = () => import('./views/EnergyView.js');
+export const loadView = () => import('./views/EnergyView/index.js');
 
 export * from './contract.js';
 export * from './adapter.js';
