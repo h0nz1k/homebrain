@@ -292,7 +292,9 @@ async def execute_operation_step(
             to_kid_name=recipient["name"],
             assignee_name=recipient["name"],
             source_snapshot=snap,
-            clone_due=swap_model.clone_due(current["due"], now, tz),
+            clone_due=op.get("clone_due")
+            if op.get("clone_due_picked")
+            else swap_model.clone_due(current["due"], now, tz),
             sole_assignee=sole_assignee,
         )
 
@@ -414,6 +416,7 @@ def start_operation_from_request(
     to_kid_name: str,
     source_snapshot: dict[str, Any],
     tz: ZoneInfo,
+    clone_due: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     op_id = store.new_operation_id()
     token = str(uuid.uuid4())
@@ -435,7 +438,8 @@ def start_operation_from_request(
         "status": "scheduled",
         "step": "create_intent",
         "source_snapshot": source_snapshot,
-        "clone_due": swap_model.clone_due(source_snapshot.get("due"), now, tz),
+        "clone_due": clone_due or swap_model.clone_due(source_snapshot.get("due"), now, tz),
+        "clone_due_picked": bool(clone_due),
         "clone_id": None,
         "operation_token": token,
         "clone_claimed": False,
@@ -481,6 +485,10 @@ async def apply_scheduled_swaps(hass: HomeAssistant, store: FamilySwapStore) -> 
                 )
             except swap_model.DomainError as err:
                 _LOGGER.warning("Rodina: naplánované přeřazení selhalo (%s)", err.code)
+                current = store.data["operations"][operation_id]
+                if current["status"] == "failed" and not current.get("background_failure"):
+                    # Nobody saw this one fail (unlike a rejected tap in the sheet): tell parents.
+                    await _save(store, operation_id, current, background_failure=True)
             except Exception:  # noqa: BLE001 — isolate each operation and retain its recovery step
                 current = store.data["operations"][operation_id]
                 status = "needs_repair" if current["status"] == "scheduled" else current["status"]

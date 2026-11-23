@@ -13,8 +13,21 @@ SWAP_WINDOW_DAYS: Final = 7  # today plus seven following civil days
 REQUEST_TERMINAL: Final = frozenset({"rejected", "cancelled", "expired"})
 REQUEST_ACTIVE: Final = frozenset({"pending", "approved"})
 OPERATION_TERMINAL: Final = frozenset(
-    {"completed", "failed", "cleaned", "unclaimed_expired", "needs_repair", "cancelled"}
+    {
+        "completed",
+        "failed",
+        "cleaned",
+        "unclaimed_expired",
+        "needs_repair",
+        "cancelled",
+        "dismissed",
+    }
 )
+# Still being worked on by the scheduler: a parent may hide the banner, the recovery goes on.
+OPERATION_RECOVERING: Final = frozenset({"applying", "rollback_pending", "cleanup_pending"})
+REJECTED_RETENTION_DAYS: Final = 7
+# A reassigned overdue chore needs a deadline at least this far ahead (ChoreOps rejects past).
+MIN_CLONE_LEAD: Final = timedelta(minutes=5)
 
 SWAP_BLOCKED_CRITERIA: Final = frozenset(
     {
@@ -70,6 +83,19 @@ def clone_due(due: str | None, now: datetime, tz: ZoneInfo) -> str:
     if end.timestamp() <= now.timestamp():
         end = end.replace(second=59, microsecond=999999)
     return end.isoformat()
+
+
+def clone_due_at(local_day: date, due_time: str, now: datetime, tz: ZoneInfo) -> str:
+    """Deadline picked in the reassign sheet; it must still lie ahead (not a past due date)."""
+    try:
+        picked = datetime.combine(local_day, time.fromisoformat(due_time), tz)
+    except ValueError as err:
+        raise DomainError("invalid_input", "Vyber platný čas.") from err
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    if picked.astimezone(UTC) <= now.astimezone(UTC) + MIN_CLONE_LEAD:
+        raise DomainError("due_in_past", "Vyber pozdější čas.")
+    return picked.isoformat()
 
 
 def expires_at(local_day: date, tz: ZoneInfo) -> datetime:
@@ -313,4 +339,84 @@ def reconcile_operations(
         elif status == "scheduled" and op_day < today:
             cur.update(status="needs_repair", last_error="expired_day", recovery_checked=True)
         out[oid] = cur
+    return out
+
+
+def wrote_anything(op: Mapping[str, Any]) -> bool:
+    """False for an operation ChoreOps rejected before its first write (nothing changed)."""
+    return bool(
+        op.get("clone_id")
+        or op.get("source_intent")
+        or op.get("rollback_status")
+        or str(op.get("step") or "create_intent") != "create_intent"
+    )
+
+
+def is_swap_issue(op: Mapping[str, Any]) -> bool:
+    """Operations that may have left the household's chores inconsistent."""
+    status = op.get("status")
+    if op.get("dismissed_at") or status == "dismissed":
+        return False
+    if status in {"needs_repair", "rollback_pending"}:
+        return True
+    if status in {"applying", "cleanup_pending"}:
+        return bool(op.get("last_error"))
+    # A rejection answered inline in the sheet changed nothing; a planned transfer that failed
+    # unattended did not happen although the parent expects it.
+    return (
+        status == "failed"
+        and bool(op.get("last_error"))
+        and (wrote_anything(op) or bool(op.get("background_failure")))
+    )
+
+
+def swap_issues(operations: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """One parent banner per chore (and source child), however many attempts failed."""
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for oid, op in operations.items():
+        if not is_swap_issue(op):
+            continue
+        snap = op.get("source_snapshot") or {}
+        source = op.get("from_kid_name") if op.get("last_error") != "missing_clone" else None
+        key = (str(snap.get("opaque_id") or snap.get("name") or oid), str(source or ""))
+        pending = op["status"] in OPERATION_RECOVERING
+        row = groups.get(key)
+        if row is None:
+            groups[key] = {
+                "id": oid,
+                "ids": [oid],
+                "chore_name": snap.get("name") or "Úkol",
+                "source_name": source,
+                "pending": pending,
+                "count": 1,
+            }
+            continue
+        row["ids"].append(oid)
+        row["count"] += 1
+        row["pending"] = row["pending"] or pending
+    return list(groups.values())
+
+
+def prune_operations(
+    operations: dict[str, dict[str, Any]], now: datetime
+) -> dict[str, dict[str, Any]]:
+    """Forget old failed attempts that never wrote to ChoreOps (housekeeping)."""
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    cutoff = now.astimezone(UTC) - timedelta(days=REJECTED_RETENTION_DAYS)
+    out: dict[str, dict[str, Any]] = {}
+    for oid, op in operations.items():
+        status = op.get("status")
+        forgettable = status == "dismissed" or (status == "failed" and not is_swap_issue(op))
+        if forgettable and not wrote_anything(op):
+            try:
+                created = datetime.fromisoformat(str(op.get("created_at")))
+            except ValueError:
+                created = None
+            if created is not None:
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=UTC)
+                if created.astimezone(UTC) < cutoff:
+                    continue
+        out[oid] = op
     return out
