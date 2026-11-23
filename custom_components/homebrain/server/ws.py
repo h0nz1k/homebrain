@@ -15,40 +15,59 @@ from ..const import DOMAIN
 from . import rules
 from .discovery import build_snapshot, glances_entry
 from .glances_api import GlancesApi, base_url, session_fetch
+from .proxmox import build_proxmox
 
 API_KEY: Final = "server_glances_api"
 SERIES: Final = ("cpu", "memory", "temperature", "rx", "tx")
 
 
-def _api(hass: HomeAssistant) -> GlancesApi | None:
+def _api(hass: HomeAssistant, collect_vms: bool) -> GlancesApi | None:
     entry = glances_entry(hass)
     url = base_url(entry.data) if entry else None
     if url is None:
         return None
     data = hass.data.setdefault(DOMAIN, {})
     api: GlancesApi | None = data.get(API_KEY)
-    if api is None or api.url != url:
+    if api is None or api.url != url or api.collect_vms != collect_vms:
         verify = bool(entry.data.get("verify_ssl", True))
         session = async_get_clientsession(hass, verify_ssl=verify)
-        api = GlancesApi(url, session_fetch(session, url))
+        api = GlancesApi(url, session_fetch(session, url), collect_vms=collect_vms)
         data[API_KEY] = api
     return api
 
 
+def backup_max_age_days(hass: HomeAssistant) -> int:
+    """Configured backup age limit; the default for a missing or invalid value."""
+    low, high = rules.BACKUP_MAX_AGE_RANGE
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        value = (entry.options.get(rules.OPTION) or {}).get(rules.BACKUP_MAX_AGE)
+        try:
+            days = int(value)
+        except (TypeError, ValueError):
+            continue
+        if low <= days <= high:
+            return days
+    return rules.BACKUP_MAX_AGE_DAYS
+
+
 async def async_snapshot(hass: HomeAssistant, use_api: bool = True) -> dict[str, Any]:
     snap = build_snapshot(hass)
-    if not snap.get("host"):
-        snap["vms"] = {"status": "off", "items": []}
-        return snap
-    api = _api(hass) if use_api else None
-    if api is None:
-        snap["vms"] = {"status": "off", "items": []}
-        return snap
-    got = await api.async_get((snap.get("memory") or {}).get("total_bytes"))
-    if got["thresholds"]:
-        snap = build_snapshot(hass, got["thresholds"])
-    snap["cpu"]["cores"] = got["cores"]
-    snap["vms"] = {"status": got["status"], "items": got["vms"]}
+    proxmox = build_proxmox(hass, backup_max_age_days(hass))
+    collect_vms = proxmox["status"] == "off"
+    vms = {"status": "off", "items": []}
+    api = _api(hass, collect_vms) if use_api and snap.get("host") else None
+    if api is not None:
+        got = await api.async_get((snap.get("memory") or {}).get("total_bytes"))
+        if got["thresholds"]:
+            snap = build_snapshot(hass, got["thresholds"])
+        if "cpu" in snap:
+            snap["cpu"]["cores"] = got["cores"]
+        if collect_vms:
+            vms = {"status": got["status"], "items": got["vms"]}
+    snap["vms"] = vms
+    snap["proxmox"] = proxmox
+    if proxmox["status"] == "ok":
+        snap["verdict"] = rules.verdict(snap)
     return snap
 
 
@@ -60,7 +79,11 @@ async def async_snapshot(hass: HomeAssistant, use_api: bool = True) -> dict[str,
 async def websocket_server_get(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     snap = await async_snapshot(hass, msg["api"])
     snap["updated_at"] = dt_util.utcnow().isoformat()
-    snap["thresholds"] = {"memory": rules.MEMORY, "disk": rules.DISK}
+    snap["thresholds"] = {
+        "memory": rules.MEMORY,
+        "disk": rules.DISK,
+        "backup_days": backup_max_age_days(hass),
+    }
     connection.send_result(msg["id"], snap)
 
 

@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   barTone,
+  daysAgoLabel,
+  daysLabel,
   diskName,
+  durationLabel,
   fmtBytes,
   fmtPct,
   fmtRate,
   heroModel,
+  seriesMax,
   smoothSeries,
+  sortGuests,
   uptimeLabel,
   vmRows,
 } from './format.js';
@@ -80,5 +85,49 @@ describe('virtuální stroje', () => {
     expect(rows.map((r) => r.vmid)).toEqual([101, 102, 103, 104]);
     expect(rows[0]!.memShare).toBeGreaterThan(rows[1]!.memShare);
     expect(rows[0]!.memLabel).toBe(`8,0${NB}GiB`);
+  });
+});
+
+describe('zálohy', () => {
+  it('relativní stáří, dny a trvání česky', () => {
+    expect(daysAgoLabel(0)).toBe('dnes');
+    expect(daysAgoLabel(1)).toBe('včera');
+    expect(daysAgoLabel(395)).toBe(`před 395${NB}dny`);
+    expect(daysLabel(1)).toBe(`1${NB}den`);
+    expect(daysLabel(3)).toBe(`3${NB}dny`);
+    expect(daysLabel(10)).toBe(`10${NB}dní`);
+    expect(durationLabel(17)).toBe(`17${NB}s`);
+    expect(durationLabel(185)).toBe(`3${NB}min 5${NB}s`);
+    expect(durationLabel(3840)).toBe(`1${NB}h 4${NB}min`);
+  });
+});
+
+describe('Proxmox a trendy', () => {
+  it('řadí běžící hosty nahoru, pak podle ID', () => {
+    const rows = sortGuests([
+      { vmid: 104, status: 'stopped' },
+      { vmid: 103, status: 'running' },
+      { vmid: 100, status: 'stopped' },
+      { vmid: 101, status: 'running' },
+    ]);
+    expect(rows.map((g) => g.vmid)).toEqual([101, 103, 100, 104]);
+  });
+
+  it('max za 24 h počítá ze surových vzorků a nikdy není pod aktuální hodnotou', () => {
+    expect(seriesMax([10, 31, 20], 41)).toBe(41);
+    expect(seriesMax([10, 31, 20], 12)).toBe(31);
+    expect(seriesMax([10, 31, 20])).toBe(31);
+    expect(seriesMax([], null)).toBeNull();
+  });
+
+  it('hero ukazuje na kartu s důkazem', () => {
+    expect(heroModel(createMockSnapshot('proxmox-backup-stale')).target).toBe(
+      'server-proxmox-backup',
+    );
+    expect(heroModel(createMockSnapshot('proxmox-storage-critical')).target).toBe(
+      'server-proxmox-storages',
+    );
+    expect(heroModel(createMockSnapshot('warn')).target).toBeUndefined();
+    expect(heroModel(createMockSnapshot('ok')).target).toBeUndefined();
   });
 });

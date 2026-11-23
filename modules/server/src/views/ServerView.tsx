@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
 import {
+  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -13,7 +14,10 @@ import {
 import { getServerApi, type ServerApi } from '../api.js';
 import {
   barTone,
+  daysAgoLabel,
+  daysLabel,
   diskName,
+  durationLabel,
   fmtBytes,
   fmtNum,
   fmtPct,
@@ -22,11 +26,14 @@ import {
   heroModel,
   smoothSeries,
   levelTone,
+  SERVER_ANCHORS,
+  seriesMax,
+  sortGuests,
   uptimeLabel,
   vmRows,
   type BarTone,
 } from '../format.js';
-import type { Level, SeriesKey, ServerHistory, ServerSnapshot } from '../types.js';
+import type { Level, ProxmoxSnapshot, SeriesKey, ServerHistory, ServerSnapshot } from '../types.js';
 import { serverStyles } from './serverStyles.js';
 
 const POLL_MS = 10_000;
@@ -96,16 +103,29 @@ function Bar({ value, tone, label }: { value: number; tone: BarTone; label?: str
   );
 }
 
+/** Scroll + focus the evidence card for the hero verdict (same pattern as Síť „Co s tím“). */
+function revealCard(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView?.({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  el.focus({ preventScroll: true });
+}
+
 function Trend({
   history,
   series,
   format,
+  current,
 }: {
   history: ServerHistory | null;
   series: SeriesKey;
   format: (v: number) => string;
+  current?: number | null;
 }) {
-  const values = smoothSeries((history?.series[series] ?? []).map(([, v]) => v));
+  const raw = (history?.series[series] ?? []).map(([, v]) => v);
+  const values = smoothSeries(raw);
+  const peak = seriesMax(raw, current);
   if (!history) return <span className="srv-trend" data-empty="" aria-hidden="true" />;
   if (values.length < 2)
     return (
@@ -118,7 +138,7 @@ function Trend({
       <Sparkline values={values} width={240} height={44} area />
       <small>
         <span>24 h</span>
-        <span>max {format(Math.max(...values))}</span>
+        <span>max {peak == null ? '–' : format(peak)}</span>
       </small>
     </span>
   );
@@ -204,6 +224,17 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
           </p>
         )}
         {hero.more.length > 0 && <p className="srv-more">Dále: {hero.more.join(', ')}</p>}
+        {hero.target && (
+          <Button
+            variant="primary"
+            className="srv-hero-fix"
+            data-tone={hero.tone}
+            data-testid="server-hero-fix"
+            onClick={() => revealCard(hero.target!)}
+          >
+            Co s tím
+          </Button>
+        )}
         {snap.state === 'down' && (
           <p>
             Glances teď neposílá data. Panel zkouší znovu každých 10&nbsp;s, nic dalšího není
@@ -268,7 +299,7 @@ function Tiles({ snap, history }: { snap: ServerSnapshot; history: ServerHistory
           </>
         }
       >
-        <Trend history={history} series="cpu" format={fmtPct} />
+        <Trend history={history} series="cpu" format={fmtPct} current={snap.cpu?.percent} />
       </Tile>
       <Tile
         id="ram"
@@ -278,7 +309,7 @@ function Tiles({ snap, history }: { snap: ServerSnapshot; history: ServerHistory
         sub={`${fmtBytes(mem?.used_bytes)} z ${fmtBytes(mem?.total_bytes)}`}
       >
         <Bar value={mem?.percent ?? 0} tone={memTone} label="Využití paměti" />
-        <Trend history={history} series="memory" format={fmtPct} />
+        <Trend history={history} series="memory" format={fmtPct} current={mem?.percent} />
       </Tile>
       <Tile
         id="temp"
@@ -297,7 +328,7 @@ function Tiles({ snap, history }: { snap: ServerSnapshot; history: ServerHistory
           </>
         }
       >
-        <Trend history={history} series="temperature" format={fmtTemp} />
+        <Trend history={history} series="temperature" format={fmtTemp} current={temps?.cpu_max} />
       </Tile>
       <Tile
         id="net"
@@ -316,7 +347,7 @@ function Tiles({ snap, history }: { snap: ServerSnapshot; history: ServerHistory
           </>
         }
       >
-        <Trend history={history} series="rx" format={fmtRate} />
+        <Trend history={history} series="rx" format={fmtRate} current={net?.rx_bps} />
       </Tile>
     </div>
   );
@@ -326,7 +357,7 @@ function Disks({ snap }: { snap: ServerSnapshot }) {
   const limits = snap.thresholds?.disk ?? DEFAULT_LIMITS;
   const swap = snap.swap;
   return (
-    <Card className="srv-panel" data-testid="server-disks">
+    <Card className="srv-panel" data-testid="server-disks" id={SERVER_ANCHORS.disk} tabIndex={-1}>
       <h3>Disky</h3>
       <ul className="srv-list">
         {(snap.disks ?? []).map((d) => {
@@ -413,6 +444,254 @@ function Vms({ snap }: { snap: ServerSnapshot }) {
   );
 }
 
+const guestStates: Record<string, { label: string; tone: 'ok' | 'neutral' | 'warn' }> = {
+  running: { label: 'Běží', tone: 'ok' },
+  stopped: { label: 'Vypnuto', tone: 'neutral' },
+  suspended: { label: 'Pozastaveno', tone: 'warn' },
+  paused: { label: 'Pozastaveno', tone: 'warn' },
+};
+
+function capacity(used: number | null, total: number | null, percent: number | null) {
+  const sizes =
+    used != null && total != null
+      ? `${fmtBytes(used)} z ${fmtBytes(total)}`
+      : used != null
+        ? `${fmtBytes(used)} použito`
+        : total != null
+          ? `${fmtBytes(total)} celkem`
+          : null;
+  return [sizes, percent == null ? null : fmtPct(percent)].filter(Boolean).join(' · ');
+}
+
+function ProxmoxGuests({ guests }: { guests: ProxmoxSnapshot['guests'] }) {
+  return (
+    <Card className="srv-panel srv-proxmox-guests">
+      <h3>Virtuální stroje a kontejnery</h3>
+      {guests.length === 0 ? (
+        <EmptyState title="Žádné virtuální stroje ani kontejnery" />
+      ) : (
+        <ul className="srv-list srv-proxmox-rows">
+          {sortGuests(guests).map((guest) => {
+            const memory = capacity(guest.mem_bytes, guest.mem_max_bytes, guest.mem_percent);
+            const uptime = uptimeLabel(guest.up_since);
+            const state = guest.status
+              ? (guestStates[guest.status] ?? { label: 'Jiný stav', tone: 'neutral' as const })
+              : null;
+            const network = [
+              { label: 'Příjem', bytes: guest.netin_bytes, rate: guest.netin_bps },
+              { label: 'Odesílání', bytes: guest.netout_bytes, rate: guest.netout_bps },
+            ];
+            return (
+              <li
+                key={guest.vmid}
+                data-testid="server-proxmox-guest"
+                data-stopped={guest.status === 'stopped' || undefined}
+              >
+                <div className="srv-proxmox-row-head">
+                  <b>{guest.name}</b>
+                  <small>
+                    {guest.kind === 'vm' ? 'VM' : 'Kontejner'} · {guest.vmid}
+                  </small>
+                  {state && (
+                    <Pill
+                      tone={state.tone}
+                      size="sm"
+                      className="srv-guest-state"
+                      data-testid="server-guest-state"
+                    >
+                      {state.label}
+                    </Pill>
+                  )}
+                </div>
+                <div className="srv-proxmox-details">
+                  {guest.cpu_percent != null && <small>CPU {fmtPct(guest.cpu_percent)}</small>}
+                  {memory && <small>RAM {memory}</small>}
+                  {uptime && <small>{uptime}</small>}
+                  {guest.disk_percent != null && <small>Disk {fmtPct(guest.disk_percent)}</small>}
+                  {network.map(({ label, bytes, rate }) =>
+                    bytes != null || rate != null ? (
+                      <small key={label}>
+                        {label} {rate != null ? fmtRate(rate) : fmtBytes(bytes)}
+                      </small>
+                    ) : null,
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function ProxmoxStorage({ storages }: { storages: ProxmoxSnapshot['storages'] }) {
+  // One node: its name is already on the node card, no need to repeat it per row.
+  const manyNodes = new Set(storages.map((s) => s.node)).size > 1;
+  const worstLevel = worst(storages.map((s) => s.level));
+  const tone =
+    worstLevel === 'critical' || worstLevel === 'warning' ? levelTone(worstLevel) : undefined;
+  return (
+    <Card
+      className="srv-panel"
+      id={SERVER_ANCHORS.storage}
+      tabIndex={-1}
+      data-testid="server-proxmox-storages"
+      data-tone={tone}
+    >
+      <h3>Úložiště Proxmoxu</h3>
+      <ul className="srv-list srv-proxmox-rows">
+        {storages.map((storage) => {
+          const usage = capacity(storage.used_bytes, storage.total_bytes, storage.percent);
+          return (
+            <li
+              key={JSON.stringify([storage.node, storage.name])}
+              data-testid="server-proxmox-storage"
+            >
+              <div className="srv-proxmox-row-head">
+                <b>{storage.name}</b>
+                {manyNodes && <small>{storage.node}</small>}
+                {storage.active === false && <small>Neaktivní</small>}
+              </div>
+              {storage.percent != null && (
+                <Bar value={storage.percent} tone={levelTone(storage.level)} label={storage.name} />
+              )}
+              {usage && <small>{usage}</small>}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+function ProxmoxBackupCard({ backup }: { backup: ProxmoxSnapshot['backup'] }) {
+  const ageLevel = backup?.age_level;
+  const stale = ageLevel === 'warning' || ageLevel === 'critical';
+  const failed = backup?.ok === false;
+  // Same severity as the hero verdict: stale age level, a failed run is at least a warning.
+  const level: Level = stale ? ageLevel : failed ? 'warning' : 'ok';
+  const problem = stale || failed;
+  const tone = problem ? levelTone(level) : undefined;
+  const ageDays = backup?.age_days;
+  const heading = stale
+    ? 'Poslední záloha je zastaralá'
+    : failed
+      ? 'Poslední záloha selhala'
+      : 'Poslední záloha uzlu';
+  return (
+    <Card
+      className="srv-panel"
+      id={SERVER_ANCHORS.backup}
+      tabIndex={-1}
+      data-testid="server-proxmox-backup"
+      data-tone={tone}
+    >
+      <div className="srv-panel-head">
+        <h3 data-testid="server-backup-title">{heading}</h3>
+        {problem && (
+          <Pill tone={tone} size="sm" dot data-testid="server-backup-stale">
+            {level === 'critical' ? 'Kritické' : 'Pozor'}
+          </Pill>
+        )}
+      </div>
+      {!backup?.last ? (
+        <p className="srv-note">Údaje o zálohách nejsou k dispozici</p>
+      ) : (
+        <dl className="srv-backup">
+          <div>
+            <dt>Kdy</dt>
+            <dd>
+              {ageDays != null && (
+                <b className="srv-backup-age" data-testid="server-backup-age">
+                  {daysAgoLabel(ageDays)}
+                </b>
+              )}
+              <time dateTime={backup.last}>
+                {new Date(backup.last).toLocaleString('cs-CZ', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </time>
+            </dd>
+          </div>
+          {backup.duration_s != null && (
+            <div>
+              <dt>Trvání</dt>
+              <dd>{durationLabel(backup.duration_s)}</dd>
+            </div>
+          )}
+          {backup.ok != null && (
+            <div>
+              <dt>Poslední běh</dt>
+              <dd data-ok={backup.ok} data-testid="server-backup-run">
+                {backup.ok ? 'úspěšný' : 'selhal'}
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {stale && ageDays != null && (
+        <p className="srv-note" data-testid="server-backup-warning">
+          Poslední záloha je stará {daysLabel(ageDays)} (limit{' '}
+          {daysLabel(backup?.max_age_days ?? 8)}). Zkontroluj plán záloh v Proxmoxu.
+        </p>
+      )}
+      {!stale && failed && (
+        <p className="srv-note" data-testid="server-backup-warning">
+          Zkontroluj log úlohy zálohy v Proxmoxu.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function ProxmoxNode({ node }: { node: NonNullable<ProxmoxSnapshot['node']> }) {
+  const uptime = uptimeLabel(node.up_since);
+  const offline = node.status === 'offline';
+  return (
+    <Card
+      className="srv-panel srv-proxmox-node"
+      id={SERVER_ANCHORS.node}
+      tabIndex={-1}
+      data-testid="server-proxmox-node"
+      data-tone={offline ? 'crit' : undefined}
+    >
+      <h3>Uzel Proxmoxu</h3>
+      <div className="srv-proxmox-row-head">
+        <b>{node.name}</b>
+        {node.status && (
+          <Pill tone={node.status === 'online' ? 'ok' : offline ? 'crit' : 'neutral'} size="sm">
+            {node.status === 'online' ? 'Online' : offline ? 'Offline' : 'Jiný stav'}
+          </Pill>
+        )}
+        {uptime && <small>{uptime}</small>}
+      </div>
+    </Card>
+  );
+}
+
+function Proxmox({ snapshot }: { snapshot: ProxmoxSnapshot }) {
+  if (snapshot.status === 'down') {
+    return (
+      <Card className="srv-panel">
+        <EmptyState title="Proxmox nedostupný" />
+      </Card>
+    );
+  }
+  const { node, backup, storages, guests } = snapshot;
+  return (
+    <section className="srv-proxmox" aria-label="Proxmox VE" data-testid="server-proxmox">
+      <div className="srv-proxmox-side">
+        {node && <ProxmoxNode node={node} />}
+        <ProxmoxBackupCard backup={backup} />
+      </div>
+      <ProxmoxGuests guests={guests} />
+      {storages.length > 0 && <ProxmoxStorage storages={storages} />}
+    </section>
+  );
+}
+
 export default function ServerView({ connection }: ModuleViewProps) {
   const api = useMemo(() => getServerApi(connection), [connection]);
   const { snap, error, history, reload } = useServer(api);
@@ -440,28 +719,31 @@ export default function ServerView({ connection }: ModuleViewProps) {
         </div>
       </div>
     );
-  else if (snap.state === 'unconfigured')
-    body = (
-      <EmptyState title="Glances nenalezeno">
-        Modul čte integraci Glances v Home Assistantu. Přidejte ji pro svůj server a přehled se
-        objeví sám.
-      </EmptyState>
-    );
-  else
+  else {
+    const proxmox = snap.proxmox?.status !== 'off' ? snap.proxmox : undefined;
+    const glancesMissing = snap.state === 'unconfigured';
     body = (
       <>
-        <Hero snap={snap} />
+        {glancesMissing && (
+          <EmptyState title="Glances nenalezeno">
+            Modul čte integraci Glances v Home Assistantu. Přidejte ji pro svůj server a přehled se
+            objeví sám.
+          </EmptyState>
+        )}
+        {(!glancesMissing || snap.verdict.reasons.length > 0) && <Hero snap={snap} />}
         {snap.state === 'ok' && (
           <>
             <Tiles snap={snap} history={history} />
-            <div className="srv-columns">
-              <Vms snap={snap} />
+            <div className={proxmox ? undefined : 'srv-columns'}>
+              {!proxmox && <Vms snap={snap} />}
               <Disks snap={snap} />
             </div>
           </>
         )}
+        {proxmox && <Proxmox snapshot={proxmox} />}
       </>
     );
+  }
   return (
     <div className="srv" data-testid="server-view">
       <style>{serverStyles}</style>
