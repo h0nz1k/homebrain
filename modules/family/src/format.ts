@@ -423,3 +423,8 @@ export function transferLabel(swap: FamilySwapToday, now: Date): string {
   if (swap.kind === 'transferred_in' && !swap.muted) return takenFromLabel(swap.partner_name);
   return swap.label;
 }
+
+/** Banner stack: at most `max` cards, the rest summarised as „a další N“. */
+export function swapIssueStack<T>(issues: readonly T[], max = 3): { shown: T[]; more: number } {
+  return { shown: issues.slice(0, max), more: Math.max(0, issues.length - max) };
+}

@@ -43,6 +43,7 @@ import {
   nextDays,
   pointsLabel,
   sortChores,
+  swapIssueStack,
   timeLabel,
   timeRange,
   todayEvents,
@@ -1061,28 +1062,36 @@ function SwapIssueBanner({
   };
   const count = issue.count ?? 1;
   return (
-    <div className="fam-err fam-date-note fam-issue" role="alert" data-testid="family-swap-issue">
-      <Icon name="info" size={20} />
-      <span>
-        <strong>{issue.chore_name}</strong>
-        <br />
-        {issue.pending
-          ? 'Přeřazení se nepodařilo dokončit. Probíhá obnova.'
-          : issue.source_name
-            ? `Přeřazení se nepodařilo dokončit – úkol zůstal u ${nameGenitive(issue.source_name) ?? issue.source_name}.`
-            : 'Přeřazení se nepodařilo dokončit.'}
-        {count > 1 && (
-          <span className="fam-issue-count" data-testid="family-swap-issue-count">
-            {' '}
-            ({czCount(count, 'pokus', 'pokusy', 'pokusů')})
-          </span>
-        )}
-        {error && <span className="fam-issue-error"> {error}</span>}
+    <div
+      className="hb-callout fam-issue"
+      data-tone="warn"
+      role="alert"
+      data-testid="family-swap-issue"
+    >
+      <span className="hb-callout-icon">
+        <Icon name="alert" size={20} />
       </span>
+      <div className="fam-issue-body">
+        <div className="fam-issue-title">
+          <strong>{issue.chore_name}</strong>
+          {count > 1 && (
+            <span className="fam-issue-count" data-testid="family-swap-issue-count">
+              {czCount(count, 'pokus', 'pokusy', 'pokusů')}
+            </span>
+          )}
+        </div>
+        <span className="fam-issue-text">
+          {issue.pending
+            ? 'Přeřazení se nepodařilo dokončit. Probíhá obnova.'
+            : issue.source_name
+              ? `Přeřazení se nepodařilo dokončit – úkol zůstal u ${nameGenitive(issue.source_name) ?? issue.source_name}.`
+              : 'Přeřazení se nepodařilo dokončit.'}
+        </span>
+        {error && <span className="fam-issue-error">{error}</span>}
+      </div>
       {onDismiss && (
         <Button
-          variant="ghost"
-          size="sm"
+          variant="secondary"
           className="fam-issue-hide"
           loading={busy}
           onClick={() => void dismiss()}
@@ -1865,11 +1874,12 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
       )}
     </>
   );
-  const swapIssues =
-    parent &&
-    snap.swap_issues
-      ?.filter((issue) => !hiddenIssues.has(issue.id))
-      .map((issue) => (
+  const issueStack = swapIssueStack(
+    parent ? (snap.swap_issues ?? []).filter((issue) => !hiddenIssues.has(issue.id)) : [],
+  );
+  const swapIssues = issueStack.shown.length > 0 && (
+    <div className="fam-issues" data-testid="family-swap-issues">
+      {issueStack.shown.map((issue) => (
         <SwapIssueBanner
           key={issue.id}
           issue={issue}
@@ -1883,7 +1893,14 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
               : undefined
           }
         />
-      ));
+      ))}
+      {issueStack.more > 0 && (
+        <p className="fam-issues-more" data-testid="family-swap-issue-more">
+          a další {issueStack.more}
+        </p>
+      )}
+    </div>
+  );
   if (selected || editingPersons) {
     return (
       <div

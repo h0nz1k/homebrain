@@ -19,6 +19,7 @@ import {
   pointsLabel,
   pointsParts,
   reassignDueTime,
+  swapIssueStack,
   timeRange,
   relLabel,
   sortChores,
@@ -296,5 +297,13 @@ describe('reassignDueTime', () => {
   });
   it('has no time left late at night', () => {
     expect(reassignDueTime(new Date(2026, 5, 1, 18).toISOString(), at(23, 50))).toBeNull();
+  });
+});
+
+describe('swapIssueStack', () => {
+  it('shows up to three banners and counts the rest', () => {
+    expect(swapIssueStack([1, 2])).toEqual({ shown: [1, 2], more: 0 });
+    expect(swapIssueStack([1, 2, 3])).toEqual({ shown: [1, 2, 3], more: 0 });
+    expect(swapIssueStack([1, 2, 3, 4, 5])).toEqual({ shown: [1, 2, 3], more: 2 });
   });
 });

@@ -402,8 +402,22 @@ export const familyStyles = `
 .fam-picker-times button[data-next="true"] { box-shadow: inset 0 0 0 2px var(--hb-ac); font-weight: 650; }
 .fam-date-note { display: flex; align-items: center; gap: 8px; }
 .fam-date-note svg { flex: none; color: var(--hb-ac); }
-.fam-issue > span { flex: 1; min-width: 0; }
-.fam-issue .fam-issue-hide { flex: none; min-width: 44px; min-height: 44px; }
+/* Failed reassign: the app's warning callout (amber surface, amber icon, ink text) + neutral „Skrýt“. */
+.fam-issues { display: flex; flex-direction: column; gap: var(--hb-sp-3); }
+.fam-issue { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+.fam-issue .hb-callout-icon { align-self: start; color: var(--fam-pending); }
+.fam-issue-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fam-issue-title { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.fam-issue-title strong { font-weight: 650; color: var(--hb-t1); overflow-wrap: anywhere; }
+.fam-issue-count { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; line-height: 16px; white-space: nowrap;
+  color: var(--fam-pending); background: color-mix(in srgb, var(--fam-pending) 14%, transparent); }
+.fam-issue-text { color: var(--hb-t2); }
+.fam-issue-error { color: var(--hb-crit); font-weight: 600; }
+.fam .fam-issue .fam-issue-hide { min-width: 44px; min-height: 44px; padding: 0 var(--hb-sp-4); font-weight: 600; color: var(--hb-t1);
+  background: color-mix(in srgb, var(--hb-t1) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 14%, transparent); }
+.fam .fam-issue .fam-issue-hide:hover:not(:disabled) { background: color-mix(in srgb, var(--hb-t1) 18%, transparent); }
+[data-theme='light'] .fam .fam-issue .fam-issue-hide { background: var(--hb-s1); box-shadow: inset 0 0 0 1px #e8c876, 0 1px 2px rgb(16 24 40 / 8%); }
+.fam-issues-more { color: var(--hb-t2); font-size: var(--hb-type-caption); padding-left: var(--hb-sp-4); }
 .fam-swap-day { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .fam-swap-day legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
 .fam-swap-day-option { position: relative; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;

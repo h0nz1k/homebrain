@@ -2028,33 +2028,49 @@ test.describe('Rodina – výběr termínu a zítřejší předání', () => {
   test('opakované neúspěšné přeřazení je jedno upozornění a Skrýt jej schová', async ({
     page,
   }, info) => {
+    test.slow(info.project.name !== 'desktop', 'four themed screenshots');
     await open(page, '?rodina=evening&reassign=needs-repair');
     const issue = page.getByTestId('family-swap-issue');
     await expect(issue).toHaveCount(1);
     await expect(issue).toContainText('Vyskládat myčku');
-    await expect(issue).toContainText('(3 pokusy)');
+    await expect(issue.getByTestId('family-swap-issue-count')).toHaveText('3 pokusy');
     const hide = issue.getByRole('button', { name: 'Skrýt upozornění: Vyskládat myčku' });
     const box = (await hide.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(44);
     if (info.project.name !== 'desktop') {
       const size = page.viewportSize()!;
-      for (const theme of ['light', 'dark'] as const) {
-        await open(page, `?rodina=evening&reassign=needs-repair&theme=${theme}`);
-        await expect(issue).toBeVisible();
-        await page.evaluate(() => document.fonts.ready);
-        await page.screenshot({
-          path: join(
-            'test-results',
-            'family-swap-issues',
-            `${size.width}x${size.height}-${theme}.png`,
-          ),
-          animations: 'disabled',
-        });
+      for (const demo of ['needs-repair', 'needs-repair-multi'] as const) {
+        for (const theme of ['light', 'dark'] as const) {
+          await open(page, `?rodina=evening&reassign=${demo}&theme=${theme}`);
+          await expect(issue.first()).toBeVisible();
+          await page.evaluate(() => document.fonts.ready);
+          const suffix = demo === 'needs-repair-multi' ? '-2-ukoly' : '';
+          await page.screenshot({
+            path: join(
+              'test-results',
+              'family-swap-issues-r1',
+              `${size.width}x${size.height}-${theme}${suffix}.png`,
+            ),
+            animations: 'disabled',
+          });
+        }
       }
+      await open(page, '?rodina=evening&reassign=needs-repair');
     }
     await hide.click();
     await expect(issue).toHaveCount(0);
+  });
+
+  test('dvě různá neúspěšná přeřazení jsou dvě karty pod sebou', async ({ page }) => {
+    await open(page, '?rodina=evening&reassign=needs-repair-multi');
+    const issues = page.getByTestId('family-swap-issue');
+    await expect(issues).toHaveCount(2);
+    await expect(issues.nth(1)).toContainText('Probíhá obnova');
+    const [a, b] = [(await issues.nth(0).boundingBox())!, (await issues.nth(1).boundingBox())!];
+    expect(b.y).toBeGreaterThan(a.y + a.height);
+    await issues.nth(1).getByRole('button', { name: 'Skrýt upozornění: Vynést koš' }).click();
+    await expect(issues).toHaveCount(1);
   });
 
   test('po změně času večerní termín přeskočí na další kalendářní den', async ({ page }) => {

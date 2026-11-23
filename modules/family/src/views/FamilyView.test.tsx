@@ -440,7 +440,7 @@ describe('Failed reassign banner', () => {
     expect(rest).toHaveLength(0);
     expect(banner!.textContent).toContain('Vyskládat myčku');
     expect(banner!.textContent).toContain('úkol zůstal u Emy');
-    expect(within(banner!).getByTestId('family-swap-issue-count').textContent).toBe(' (3 pokusy)');
+    expect(within(banner!).getByTestId('family-swap-issue-count').textContent).toBe('3 pokusy');
     const hide = within(banner!).getByRole('button', { name: 'Skrýt upozornění: Vyskládat myčku' });
     await act(async () => {
       fireEvent.click(hide);
@@ -449,6 +449,30 @@ describe('Failed reassign banner', () => {
     expect(swapDismiss).toHaveBeenCalledTimes(1);
     expect(swapDismiss).toHaveBeenCalledWith(['swap-repair', 'swap-repair-2', 'swap-repair-3']);
     expect(screen.queryByTestId('family-swap-issue')).toBeNull();
+  });
+  it('stacks at most three banners and summarises the rest', async () => {
+    const api = createMockFamilyApi({ role: 'owner' });
+    const issue = (n: number) => ({
+      id: `swap-${n}`,
+      chore_name: `Úkol ${n}`,
+      source_name: null,
+      pending: false,
+    });
+    setFamilyApiFactory(() => ({
+      ...api,
+      get: async () => ({
+        ...(await api.get()),
+        swap_issues: [1, 2, 3, 4, 5].map(issue),
+      }),
+    }));
+    render(<FamilyView store={store} bindings={{}} />);
+    const banners = await screen.findAllByTestId('family-swap-issue');
+    expect(banners.map((b) => b.querySelector('strong')?.textContent)).toEqual([
+      'Úkol 1',
+      'Úkol 2',
+      'Úkol 3',
+    ]);
+    expect(screen.getByTestId('family-swap-issue-more').textContent).toBe('a další 2');
   });
 });
 
