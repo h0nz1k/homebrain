@@ -63,7 +63,7 @@ export function planGeometry(map: VectorMap, rotation: MapRotation) {
     project,
     walls: map.walls.map((wall) => viewRing(frame, wall).map(center)),
     rooms: map.rooms.map((room) => {
-      const rings = roomRings(frame, room).map(center);
+      const rings = roomRings(frame, room).map((ring) => ring.map(center));
       const [x, z] = polylabel(rings, 50);
       return { id: room.id, rings, label: [x, z] as const };
     }),
