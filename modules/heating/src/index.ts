@@ -5,7 +5,7 @@ export const moduleManifest = {
   phase: 1,
 } as const;
 
-export const loadView = () => import('./views/HeatingView.js');
+export const loadView = () => import('./views/HeatingView/index.js');
 
 export * from './types.js';
 export * from './api.js';

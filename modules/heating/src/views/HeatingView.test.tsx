@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
 import { mockHeatingAdvisor } from '../../../../apps/panel/dev/mocks/heating/advisor.js';
-import HeatingView from './HeatingView.js';
+import HeatingView from './HeatingView/index.js';
 
 const base = {} as ModuleViewProps;
 import { setHeatingApiFactory } from '../api.js';
