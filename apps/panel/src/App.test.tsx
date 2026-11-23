@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, onTestFinished, vi } from 'vitest';
 import { createEntityStore } from '@homebrain/ha-client';
@@ -25,6 +27,24 @@ it('loads Inter via resolved font asset URLs in the shell', () => {
   expect(css).toMatch(/url\('[^']+'\)/);
   const style = document.getElementById('homebrain-panel-fonts');
   expect(style?.textContent ?? '').not.toContain("url('./");
+});
+
+it('bundles both Inter subsets with the @fontsource unicode ranges for every weight', () => {
+  const css = panelFontFaceCss();
+  expect(css.match(/@font-face/g)).toHaveLength(10);
+  for (const weight of [200, 400, 500, 600, 700]) {
+    const source = readFileSync(
+      join(import.meta.dirname, `../node_modules/@fontsource/inter/${weight}.css`),
+      'utf8',
+    );
+    for (const subset of ['latin', 'latin-ext']) {
+      expect(css).toContain(`inter-${subset}-${weight}-normal.woff2`);
+      const block = source.split(`/* inter-${subset}-${weight}-normal */`)[1]!.split('}')[0]!;
+      expect(css.replace(/\s/g, '')).toContain(
+        block.match(/unicode-range: [^;]+;/)![0].replace(/\s/g, ''),
+      );
+    }
+  }
 });
 
 it('exposes the top bar portal slot', () => {
