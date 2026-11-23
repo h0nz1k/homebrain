@@ -81,6 +81,10 @@ export interface RobotModel {
   /** Max cleaning passes per room for this model. */
   maxPasses: number;
   model: string | null;
+  /** Newest `last_updated` of the robot's live state entities (data age). */
+  updatedAt: string | null;
+  /** When HA last refreshed the map image (`image.*` state is its timestamp). */
+  mapUpdatedAt: string | null;
 }
 
 type Get = (entityId: string | undefined) => EntityStateLike | undefined;
@@ -180,8 +184,7 @@ export function buildRobot(
   const fan = vacuum?.attributes.fan_speed;
   const errorCode = text(get(b('error')));
   const model =
-    meta?.model ??
-    (typeof vacuum?.attributes.model === 'string' ? vacuum.attributes.model : null);
+    meta?.model ?? (typeof vacuum?.attributes.model === 'string' ? vacuum.attributes.model : null);
   const maxPasses = meta?.max_passes ?? maxPassesForModel(model);
   return {
     slot,
@@ -233,7 +236,32 @@ export function buildRobot(
     mapStamp: text(get(b('map_image'))),
     maxPasses,
     model,
+    updatedAt: newest(
+      [
+        vacuumId,
+        b('status'),
+        b('current_room'),
+        b('cleaning_progress'),
+        b('battery'),
+        b('error'),
+      ].map((id) => get(id)?.last_updated),
+    ),
+    mapUpdatedAt: (() => {
+      const image = get(b('map_image'));
+      const stamp = text(image);
+      return stamp && Number.isFinite(Date.parse(stamp)) ? stamp : (image?.last_updated ?? null);
+    })(),
   };
+}
+
+function newest(stamps: (string | undefined)[]): string | null {
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const stamp of stamps) {
+    const ms = stamp ? Date.parse(stamp) : NaN;
+    if (Number.isFinite(ms) && ms > bestMs) [best, bestMs] = [stamp!, ms];
+  }
+  return best;
 }
 
 export interface SelectModel {
