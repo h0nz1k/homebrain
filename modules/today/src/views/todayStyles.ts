@@ -12,6 +12,8 @@ export const todayStyles = `
 .today-coffee-status{color:var(--hb-t2)}
 .today-coffee-status[data-success]{color:var(--hb-ok)}
 .today-mobile .today-coffee-status{flex-basis:100%}
+.today-kiosk .today-coffee{font-size:inherit}
+.today-kiosk .today-coffee .hb-btn:disabled{color:color-mix(in srgb,var(--hb-t3) 75%,var(--hb-s3))}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}
 .today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:36px}
