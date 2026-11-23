@@ -95,9 +95,10 @@ async def test_role_matrix(
         result = msg["result"]
         assert result["source"] in {"ok", "auth", "unreachable", "unconfigured"}
         if role == "kiosk":
-            assert "schedules" not in result and "curve" not in result
+            assert "schedules" not in result and "curve" not in result and "advisor" not in result
         else:
             assert "schedules" in result and "rooms" in result
+            assert result["advisor"]["curve"]["status"] == "insufficient_data"
         assert PASSWORD not in str(result)
 
 

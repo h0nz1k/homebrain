@@ -241,9 +241,10 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
   switch (snap.activity) {
     case 'fault': {
       const first = snap.faults.active[0];
+      const critical = snap.faults.fatal || snap.faults.compressor_block;
       return {
         state: 'fault',
-        tone: 'crit',
+        tone: critical ? 'crit' : 'warn',
         pill: snap.faults.fatal ? 'Porucha – stojí' : 'Porucha',
         headline: [
           'Tepelné čerpadlo ',
@@ -252,7 +253,9 @@ export function activityModel(snap: HeatingSnapshot, nowMs: number): ActivityMod
         ],
         detail: snap.faults.compressor_block
           ? `Kompresor je zablokovaný.${snap.backup_heater.available && snap.backup_heater.on ? ' Dům teď hřeje záložní elektrické topení.' : ''} Neresetujte – zavolejte servis.`
-          : 'Regulace si s tím zatím poradí sama. Pokud porucha nezmizí do hodiny, zavolejte servis.',
+          : snap.faults.fatal
+            ? 'Regulace hlásí fatální chybu. Zavolejte servis.'
+            : 'Potvrďte poruchu na panelu čerpadla.',
       };
     }
     case 'heating_dhw':
@@ -455,7 +458,7 @@ export function schematicState(snap: HeatingSnapshot): SchematicState {
   const valve: 'tank' | 'dhw' =
     snap.dhw.valve_to_dhw || snap.activity === 'heating_dhw' ? 'dhw' : 'tank';
   const supply = snap.house.supply_temp ?? 35;
-  const fault = snap.activity === 'fault' || snap.faults.fatal || snap.faults.compressor_block;
+  const fault = snap.faults.fatal || snap.faults.compressor_block;
   return {
     compressor: running ? 'on' : prerun ? 'prerun' : 'off',
     collector: running ? load : prerun ? 0.35 : 0,

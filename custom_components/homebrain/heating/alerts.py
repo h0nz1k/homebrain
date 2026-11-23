@@ -109,6 +109,9 @@ class EvalContext:
     winter: bool | None
     # ``model.cycling_summary`` (starts / average run today and yesterday), None = not mapped
     cycling: dict[str, Any] | None = None
+    fault_since: dict[str, str] = field(default_factory=dict)
+    fault_compressor_ran: set[str] = field(default_factory=set)
+    fault_onset_observed: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -306,8 +309,25 @@ def evaluate_alerts(ctx: EvalContext, state: AlertState) -> list[ActiveAlert]:
             labels.append("Blokace kompresoru")
         if v("faults.fatal"):
             labels.append("Fatální chyba")
-        body = ", ".join(labels) if labels else "Regulace hlásí poruchu."
-        emit("fault", "critical", "Porucha tepelného čerpadla", body)
+        if v("faults.compressor_block") or v("faults.fatal"):
+            emit("fault", "critical", "Porucha tepelného čerpadla", ", ".join(labels))
+        else:
+            entries = []
+            for key, label in ctx.faults_active:
+                since = _parse_dt(ctx.fault_since.get(key)) or ctx.now
+                entry = f"{label} v {since.astimezone(ctx.now.tzinfo):%H:%M}."
+                if key in ctx.fault_compressor_ran:
+                    entry += " Kompresor od té doby běžel."
+                elif key in ctx.fault_onset_observed:
+                    entry += " Kompresor od té doby neběžel."
+                entries.append(entry)
+            acknowledge = "Potvrďte ji" if len(entries) == 1 else "Potvrďte je"
+            emit(
+                "fault",
+                "warning",
+                "Čerpadlo zaznamenalo poruchu",
+                " ".join(entries) + f" {acknowledge} na panelu čerpadla.",
+            )
     elif fst.fault_clear_streak >= 2:
         clear_rule("fault")
 

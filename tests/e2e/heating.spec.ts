@@ -22,6 +22,68 @@ async function infiniteAnimations(page: Page) {
 }
 
 test.describe('Topení', () => {
+  test('Doporučení je čitelné ve třech velikostech', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'The desktop project checks all three sizes.');
+    await page.goto('/homebrain-topeni?topeni=heating&doporuceni=suggest_lower');
+    const advisor = page.getByTestId('heating-advisor');
+    const heatLoss = page.getByTestId('heating-heat-loss');
+    await expect(advisor).toHaveAttribute('data-status', 'suggest_lower');
+    await expect(advisor).toContainText('v bodě křivky p3 (venku +5 °C)');
+    await expect(advisor.locator('.ht-kv li')).toHaveCount(3);
+    await expect(heatLoss).toContainText('zahrnuje i ohřev teplé vody');
+    await expect(heatLoss.getByText('Celkem za 143 dní')).toBeVisible();
+    await expect(heatLoss.getByText('Sezóna 2025/26 (87 dní)')).toBeVisible();
+    for (const [width, height] of [
+      [360, 800],
+      [800, 1280],
+      [1440, 900],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      const cards = page.locator('.ht-advisor-cards');
+      await cards.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect
+        .poll(() =>
+          cards.evaluate((el) => {
+            const topbar = document.querySelector('.hb-topbar');
+            return el.getBoundingClientRect().top - (topbar?.getBoundingClientRect().bottom ?? 0);
+          }),
+        )
+        .toBeGreaterThanOrEqual(0);
+      await expect(advisor).toBeInViewport({ ratio: 1 });
+      await expect(heatLoss).toBeInViewport({ ratio: 1 });
+      await noSidewaysScroll(page);
+      if (width >= 1060) {
+        const [a, h] = await Promise.all([advisor.boundingBox(), heatLoss.boundingBox()]);
+        expect(Math.abs(a!.height - h!.height)).toBeLessThanOrEqual(1);
+        const gap = await cards.evaluate((el) => {
+          const row = el.parentElement!.getBoundingClientRect();
+          return row.right - el.getBoundingClientRect().right;
+        });
+        expect(gap).toBeLessThanOrEqual(1);
+      }
+      await page.screenshot({
+        path: `test-results/advisor-r4/advisor-${width}x${height}.png`,
+        animations: 'disabled',
+        fullPage: true,
+      });
+    }
+
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/homebrain-topeni?topeni=fault-warning&doporuceni=suggest_lower');
+    const warning = page.getByTestId('heating-alert-banner');
+    await expect(warning).toHaveAttribute('data-severity', 'warning');
+    await expect(warning).toContainText('Čerpadlo zaznamenalo poruchu');
+    await expect(warning).not.toContainText('Kompresor od té doby');
+    await warning.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await expect(warning).toBeInViewport({ ratio: 1 });
+    await noSidewaysScroll(page);
+    await page.screenshot({
+      path: 'test-results/advisor-r4/advisor-fault-warning-360x800.png',
+      animations: 'disabled',
+      fullPage: true,
+    });
+  });
+
   test('Teď: logo z manifestu (dev), LED kompresoru a bez manifestu popisek TČ', async ({
     page,
   }) => {
@@ -524,7 +586,9 @@ test.describe('Topení', () => {
       const chevrons = page.locator('.ht-c3-direction');
       await expect(chevrons).toHaveCount(16);
       expect(
-        await page.getByTestId('heating-schematic').evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
+        await page
+          .getByTestId('heating-schematic')
+          .evaluate(tokySchematicGeometry, TOKY_SCHEMATIC_MODEL),
       ).toEqual([]);
       for (const chevron of await chevrons.all()) await expect(chevron).toBeVisible();
     });
@@ -622,7 +686,9 @@ test.describe('Topení', () => {
     await expect(sch.locator('[data-pump="solar"]')).toHaveCount(1);
     await expect(sch.getByTestId('heating-sch-solar-collector')).toBeVisible();
     await expect(sch.getByTestId('heating-sch-solar-pump')).toBeVisible();
-    const bannerTop = await page.getByTestId('heating-solar-compact').evaluate((el) => el.getBoundingClientRect().top);
+    const bannerTop = await page
+      .getByTestId('heating-solar-compact')
+      .evaluate((el) => el.getBoundingClientRect().top);
     const roomsTop = await page
       .getByTestId('heating-rooms-mini')
       .evaluate((el) => el.getBoundingClientRect().top);
@@ -755,9 +821,9 @@ test.describe('Topení', () => {
     await expect(hero).not.toContainText('Zapněte solár');
     await expect(page.getByTestId('heating-solar-warn')).toHaveCount(0);
     await expect(page.getByTestId('heating-headline')).toContainText('přehřívá, čerpadlo stojí');
-    await expect(page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k')).toHaveText(
-      'Stav',
-    );
+    await expect(
+      page.getByTestId('heating-hero').locator('.ht-portrait-hero-copy .ht-k'),
+    ).toHaveText('Stav');
   });
 
   for (const [width, height] of [
@@ -782,7 +848,9 @@ test.describe('Topení', () => {
     await expect(sch.locator('[data-pipe-id][data-active]')).toHaveCount(0);
     await expect(sch.locator('[data-active].ht-c3-hot')).toHaveCount(0);
     await expect(page.getByTestId('heating-hero').locator('.ht-run-meta')).toHaveCount(0);
-    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(0);
+    await expect(page.getByTestId('heating-land-strip').locator('.ht-land-strip-meta')).toHaveCount(
+      0,
+    );
   });
 
   test('Upozornění solar-off-hot: hero jen kolektor v podřádku', async ({ page }) => {
