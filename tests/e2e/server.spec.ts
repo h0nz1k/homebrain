@@ -78,11 +78,81 @@ test.describe('Server', () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto('/homebrain-server?server=proxmox-ok');
     const guests = page.getByTestId('server-proxmox-guest');
-    await expect(guests).toHaveCount(3, { timeout: 20_000 });
+    await expect(guests).toHaveCount(5, { timeout: 20_000 });
     await expect(guests.last()).toContainText('Vypnuto');
     await expect(page.getByTestId('server-proxmox-backup')).toBeVisible();
     await noSidewaysScroll(page);
     await page.setViewportSize({ width: 800, height: 1280 });
+    await noSidewaysScroll(page);
+  });
+
+  test('hostitel, hosté a detail hosta (360/800/1280, světlý i tmavý)', async ({
+    page,
+  }, testInfo) => {
+    // Sets its own viewports: one project is enough, six layouts need more than 30 s.
+    test.skip(testInfo.project.name !== 'desktop', 'viewporty si nastavuje sám');
+    test.setTimeout(120_000);
+    for (const theme of ['light', 'dark'] as const) {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(`/homebrain-server?server=proxmox-ok&theme=${theme}`);
+      const hero = page.getByTestId('server-hero');
+      await expect(page.getByTestId('server-host-meta')).toContainText('Proxmox · pve', {
+        timeout: 20_000,
+      });
+      await expect(page.getByTestId('server-node-state')).toHaveText('Online');
+      await expect(hero.getByTestId('server-proxmox-storage')).toHaveCount(2);
+      await expect(page.getByTestId('server-host-consumers')).toContainText('web');
+      await expect(page.getByTestId('server-proxmox-node')).toHaveCount(0);
+      const guests = page.getByTestId('server-proxmox-guest');
+      await expect(guests.first()).toContainText('web');
+      for (const [width, height] of [
+        [360, 800],
+        [800, 1280],
+        [1280, 900],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await noSidewaysScroll(page);
+        const spill = await page.evaluate(() => {
+          const out = [];
+          for (const row of document.querySelectorAll('[data-testid="server-proxmox-guest"]')) {
+            const box = row.getBoundingClientRect();
+            for (const el of row.querySelectorAll('*')) {
+              const r = el.getBoundingClientRect();
+              if (r.width > 0 && (r.right > box.right + 11 || r.left < box.left - 11)) out.push(el);
+            }
+          }
+          return out.length;
+        });
+        expect(spill).toBe(0);
+        if (process.env.SERVER_SCREENSHOTS)
+          await page.screenshot({
+            path: `test-results/server-pve-detail/server-proxmox-${width}-${theme}.png`,
+            fullPage: true,
+          });
+        await page.getByRole('button', { name: /^ha-vm, VM 101/ }).click();
+        const sheet = page.getByTestId('server-guest-sheet');
+        await expect(sheet).toBeVisible();
+        await expect(sheet.getByTestId('server-guest-trend-cpu')).toBeVisible();
+        await expect(sheet.getByTestId('server-guest-trend-memory')).toBeVisible();
+        await noSidewaysScroll(page);
+        if (process.env.SERVER_SCREENSHOTS)
+          await page.screenshot({
+            path: `test-results/server-pve-detail/server-guest-sheet-${width}-${theme}.png`,
+          });
+        await page.getByRole('button', { name: 'Zavřít' }).click();
+        await expect(sheet).toHaveCount(0);
+      }
+    }
+  });
+
+  test('bez Glances drží hostitele data z Proxmoxu', async ({ page }) => {
+    await page.goto('/homebrain-server?server=proxmox-noglances');
+    await expect(page.getByTestId('server-glances-down')).toContainText('z Proxmoxu', {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId('server-ring-cpu')).toContainText('21');
+    await expect(page.getByTestId('server-proxmox-guest')).toHaveCount(5);
     await noSidewaysScroll(page);
   });
 
@@ -131,18 +201,24 @@ test.describe('Server', () => {
     }
   });
 
-  test('desktop: karty Proxmoxu ve dvou sloupcích, stav hostů jako odznak', async ({ page }) => {
+  test('desktop: hosté vedle zálohy, stav hostů jako odznak', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/homebrain-server?server=proxmox-ok&theme=light');
     const guests = page.getByTestId('server-proxmox-guest');
-    await expect(guests).toHaveCount(3, { timeout: 20_000 });
-    await expect(page.getByTestId('server-guest-state')).toHaveText(['Běží', 'Běží', 'Vypnuto']);
+    await expect(guests).toHaveCount(5, { timeout: 20_000 });
+    await expect(page.getByTestId('server-guest-state')).toHaveText([
+      'Běží',
+      'Běží',
+      'Běží',
+      'Běží',
+      'Vypnuto',
+    ]);
     const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
-    const node = await box('server-proxmox-node');
-    const list = (await guests.first().boundingBox())!;
+    const backup = await box('server-proxmox-backup');
+    const list = await box('server-proxmox-guests');
     const section = await box('server-proxmox');
-    expect(node.width).toBeLessThan(section.width * 0.6);
-    expect(list.x).toBeGreaterThan(node.x + node.width - 1);
+    expect(list.width).toBeGreaterThan(section.width * 0.55);
+    expect(backup.x).toBeGreaterThan(list.x + list.width - 1);
     await expect(page.getByTestId('server-hero-fix')).toHaveCount(0);
     await noSidewaysScroll(page);
     if (process.env.SERVER_SCREENSHOTS)

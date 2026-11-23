@@ -8,7 +8,6 @@ import {
   Pill,
   ProgressRing,
   Skeleton,
-  Sparkline,
   czCount,
 } from '@homebrain/ui';
 import { getServerApi, type ServerApi } from '../api.js';
@@ -24,16 +23,18 @@ import {
   fmtRate,
   fmtTemp,
   heroModel,
-  smoothSeries,
+  hostCores,
   levelTone,
+  loadModel,
   SERVER_ANCHORS,
-  seriesMax,
-  sortGuests,
   uptimeLabel,
   vmRows,
   type BarTone,
 } from '../format.js';
-import type { Level, ProxmoxSnapshot, SeriesKey, ServerHistory, ServerSnapshot } from '../types.js';
+import type { Level, ProxmoxSnapshot, ServerHistory, ServerSnapshot } from '../types.js';
+import { Bar, revealCard, Trend, worst } from './parts.js';
+import { ProxmoxGuests } from './ProxmoxGuests.js';
+import { ProxmoxHostFacts } from './ProxmoxHost.js';
 import { serverStyles } from './serverStyles.js';
 
 const POLL_MS = 10_000;
@@ -77,73 +78,6 @@ function useServer(api: ServerApi | null) {
 const ringTone = (t: BarTone) => (t === 'neutral' ? 'muted' : t === 'ok' ? 'accent' : t);
 const cardTone = (t: BarTone) =>
   t === 'crit' ? 'critical' : t === 'warn' ? 'warning' : t === 'ok' ? 'calm' : 'notice';
-const worst = (levels: Level[]): Level =>
-  levels.includes('critical')
-    ? 'critical'
-    : levels.includes('warning')
-      ? 'warning'
-      : levels.length
-        ? 'ok'
-        : 'unknown';
-
-function Bar({ value, tone, label }: { value: number; tone: BarTone; label?: string }) {
-  const pct = Math.max(0, Math.min(100, value));
-  return (
-    <span
-      className="srv-bar"
-      data-tone={tone}
-      role={label ? 'meter' : undefined}
-      aria-label={label}
-      aria-valuenow={label ? Math.round(pct) : undefined}
-      aria-valuemin={label ? 0 : undefined}
-      aria-valuemax={label ? 100 : undefined}
-    >
-      <i style={{ width: `${pct}%` }} />
-    </span>
-  );
-}
-
-/** Scroll + focus the evidence card for the hero verdict (same pattern as Síť „Co s tím“). */
-function revealCard(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  el.scrollIntoView?.({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-  el.focus({ preventScroll: true });
-}
-
-function Trend({
-  history,
-  series,
-  format,
-  current,
-}: {
-  history: ServerHistory | null;
-  series: SeriesKey;
-  format: (v: number) => string;
-  current?: number | null;
-}) {
-  const raw = (history?.series[series] ?? []).map(([, v]) => v);
-  const values = smoothSeries(raw);
-  const peak = seriesMax(raw, current);
-  if (!history) return <span className="srv-trend" data-empty="" aria-hidden="true" />;
-  if (values.length < 2)
-    return (
-      <span className="srv-trend" data-empty="">
-        <small>Historie zatím není</small>
-      </span>
-    );
-  return (
-    <span className="srv-trend" data-testid={`server-trend-${series}`}>
-      <Sparkline values={values} width={240} height={44} area />
-      <small>
-        <span>24 h</span>
-        <span>max {peak == null ? '–' : format(peak)}</span>
-      </small>
-    </span>
-  );
-}
-
 function Tile({
   id,
   label,
@@ -169,33 +103,62 @@ function Tile({
   );
 }
 
+const nodeStates: Record<string, { label: string; tone: 'ok' | 'crit' }> = {
+  online: { label: 'Online', tone: 'ok' },
+  offline: { label: 'Offline', tone: 'crit' },
+};
+
 function Hero({ snap }: { snap: ServerSnapshot }) {
   const hero = heroModel(snap);
-  const uptime = uptimeLabel(snap.up_since);
+  const proxmox = snap.proxmox?.status === 'ok' ? snap.proxmox : undefined;
+  const node = proxmox?.node ?? null;
+  // Glances runs on the hypervisor: one host card, titled as the Proxmox node.
+  const uptime = uptimeLabel(node?.up_since ?? snap.up_since);
   const limits = snap.thresholds ?? { memory: DEFAULT_LIMITS, disk: DEFAULT_LIMITS };
   const root = snap.disks?.[0];
   const temps = snap.temperatures?.sensors ?? [];
   const tempTone = levelTone(worst(temps.map((t) => t.level)));
+  const glances = snap.state === 'ok';
+  // Without Glances the node's own sensors stand in (same machine, coarser data).
   const rings =
-    snap.state === 'ok'
+    !glances && node
       ? [
-          { id: 'cpu', label: 'CPU', v: snap.cpu?.percent ?? null, tone: 'ok' as BarTone },
+          { id: 'cpu', label: 'CPU', v: node.cpu_percent ?? null, tone: 'ok' as BarTone },
           {
             id: 'ram',
             label: 'RAM',
-            v: snap.memory?.percent ?? null,
-            tone: barTone(snap.memory?.percent, limits.memory),
+            v: node.mem_percent ?? null,
+            tone: barTone(node.mem_percent, limits.memory),
           },
           {
             id: 'disk',
             label: 'Systém',
-            v: root?.percent ?? null,
-            tone: barTone(root?.percent, limits.disk),
+            v: node.disk_percent ?? null,
+            tone: barTone(node.disk_percent, limits.disk),
           },
         ]
-      : [];
+      : glances
+        ? [
+            { id: 'cpu', label: 'CPU', v: snap.cpu?.percent ?? null, tone: 'ok' as BarTone },
+            {
+              id: 'ram',
+              label: 'RAM',
+              v: snap.memory?.percent ?? null,
+              tone: barTone(snap.memory?.percent, limits.memory),
+            },
+            {
+              id: 'disk',
+              label: 'Systém',
+              v: root?.percent ?? null,
+              tone: barTone(root?.percent, limits.disk),
+            },
+          ]
+        : [];
+  const nodeState = node?.status
+    ? (nodeStates[node.status] ?? { label: 'Jiný stav', tone: 'neutral' as const })
+    : null;
   const meta = [
-    snap.host?.title,
+    node ? `Proxmox · ${node.name}` : snap.host?.title,
     uptime,
     snap.processes?.total != null
       ? czCount(snap.processes.total, 'proces', 'procesy', 'procesů')
@@ -207,6 +170,8 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
       tone={cardTone(hero.tone)}
       data-testid="server-hero"
       data-server-state={hero.tone}
+      id={node ? SERVER_ANCHORS.node : undefined}
+      tabIndex={node ? -1 : undefined}
     >
       <div className="srv-hero-copy">
         <Pill tone={hero.tone === 'neutral' ? 'neutral' : hero.tone} dot>
@@ -214,13 +179,23 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
         </Pill>
         <h2 data-testid="server-headline">{hero.headline}</h2>
         {meta.length > 0 && (
-          <p className="srv-meta">
+          <p className="srv-meta" data-testid="server-host-meta">
             {meta.map((m, i) => (
               <span key={i}>
                 {i ? '· ' : ''}
                 {m}
               </span>
             ))}
+            {nodeState && (
+              <Pill
+                tone={nodeState.tone}
+                size="sm"
+                className="srv-node-state"
+                data-testid="server-node-state"
+              >
+                {nodeState.label}
+              </Pill>
+            )}
           </p>
         )}
         {hero.more.length > 0 && <p className="srv-more">Dále: {hero.more.join(', ')}</p>}
@@ -236,9 +211,10 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
           </Button>
         )}
         {snap.state === 'down' && (
-          <p>
-            Glances teď neposílá data. Panel zkouší znovu každých 10&nbsp;s, nic dalšího není
-            potřeba.
+          <p data-testid="server-glances-down">
+            {node
+              ? 'Glances teď neposílá data, CPU, RAM a disk ukazuje z Proxmoxu. Teploty a síť hostitele se vrátí samy.'
+              : 'Glances teď neposílá data. Panel zkouší znovu každých 10\u00a0s, nic dalšího není potřeba.'}
           </p>
         )}
       </div>
@@ -258,20 +234,23 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
               <span>{r.label}</span>
             </div>
           ))}
-          <div className="srv-ring" data-testid="server-ring-temp">
-            <ProgressRing
-              value={Math.min(1, (snap.temperatures?.cpu_max ?? 0) / 100)}
-              size={64}
-              thickness={6}
-              tone={ringTone(tempTone)}
-              label={`Teplota ${fmtTemp(snap.temperatures?.cpu_max)}`}
-            >
-              <b>{fmtTemp(snap.temperatures?.cpu_max)}</b>
-            </ProgressRing>
-            <span>Teplota</span>
-          </div>
+          {glances && (
+            <div className="srv-ring" data-testid="server-ring-temp">
+              <ProgressRing
+                value={Math.min(1, (snap.temperatures?.cpu_max ?? 0) / 100)}
+                size={64}
+                thickness={6}
+                tone={ringTone(tempTone)}
+                label={`Teplota ${fmtTemp(snap.temperatures?.cpu_max)}`}
+              >
+                <b>{fmtTemp(snap.temperatures?.cpu_max)}</b>
+              </ProgressRing>
+              <span>Teplota</span>
+            </div>
+          )}
         </div>
       )}
+      {proxmox && <ProxmoxHostFacts snap={snap} proxmox={proxmox} />}
     </Card>
   );
 }
@@ -285,6 +264,7 @@ function Tiles({ snap, history }: { snap: ServerSnapshot; history: ServerHistory
   const net = snap.network?.interfaces.find((i) => i.name === snap.network?.primary);
   const memTone = barTone(mem?.percent, limits.memory);
   const cpuCores = snap.cpu?.cores;
+  const load = loadModel(snap);
   return (
     <div className="srv-tiles">
       <Tile
@@ -293,10 +273,14 @@ function Tiles({ snap, history }: { snap: ServerSnapshot; history: ServerHistory
         tone="neutral"
         value={fmtPct(snap.cpu?.percent)}
         sub={
-          <>
-            zátěž {fmtNum(snap.cpu?.load, 2)}
-            {cpuCores ? ` · ${czCount(cpuCores, 'jádro', 'jádra', 'jader')}` : ''}
-          </>
+          load ? (
+            <span data-tone={load.tone === 'warn' ? 'warn' : undefined}>zátěž {load.value}</span>
+          ) : (
+            <>
+              zátěž {fmtNum(snap.cpu?.load, 2)}
+              {cpuCores ? ` · ${czCount(cpuCores, 'jádro', 'jádra', 'jader')}` : ''}
+            </>
+          )
         }
       >
         <Trend history={history} series="cpu" format={fmtPct} current={snap.cpu?.percent} />
@@ -444,127 +428,6 @@ function Vms({ snap }: { snap: ServerSnapshot }) {
   );
 }
 
-const guestStates: Record<string, { label: string; tone: 'ok' | 'neutral' | 'warn' }> = {
-  running: { label: 'Běží', tone: 'ok' },
-  stopped: { label: 'Vypnuto', tone: 'neutral' },
-  suspended: { label: 'Pozastaveno', tone: 'warn' },
-  paused: { label: 'Pozastaveno', tone: 'warn' },
-};
-
-function capacity(used: number | null, total: number | null, percent: number | null) {
-  const sizes =
-    used != null && total != null
-      ? `${fmtBytes(used)} z ${fmtBytes(total)}`
-      : used != null
-        ? `${fmtBytes(used)} použito`
-        : total != null
-          ? `${fmtBytes(total)} celkem`
-          : null;
-  return [sizes, percent == null ? null : fmtPct(percent)].filter(Boolean).join(' · ');
-}
-
-function ProxmoxGuests({ guests }: { guests: ProxmoxSnapshot['guests'] }) {
-  return (
-    <Card className="srv-panel srv-proxmox-guests">
-      <h3>Virtuální stroje a kontejnery</h3>
-      {guests.length === 0 ? (
-        <EmptyState title="Žádné virtuální stroje ani kontejnery" />
-      ) : (
-        <ul className="srv-list srv-proxmox-rows">
-          {sortGuests(guests).map((guest) => {
-            const memory = capacity(guest.mem_bytes, guest.mem_max_bytes, guest.mem_percent);
-            const uptime = uptimeLabel(guest.up_since);
-            const state = guest.status
-              ? (guestStates[guest.status] ?? { label: 'Jiný stav', tone: 'neutral' as const })
-              : null;
-            const network = [
-              { label: 'Příjem', bytes: guest.netin_bytes, rate: guest.netin_bps },
-              { label: 'Odesílání', bytes: guest.netout_bytes, rate: guest.netout_bps },
-            ];
-            return (
-              <li
-                key={guest.vmid}
-                data-testid="server-proxmox-guest"
-                data-stopped={guest.status === 'stopped' || undefined}
-              >
-                <div className="srv-proxmox-row-head">
-                  <b>{guest.name}</b>
-                  <small>
-                    {guest.kind === 'vm' ? 'VM' : 'Kontejner'} · {guest.vmid}
-                  </small>
-                  {state && (
-                    <Pill
-                      tone={state.tone}
-                      size="sm"
-                      className="srv-guest-state"
-                      data-testid="server-guest-state"
-                    >
-                      {state.label}
-                    </Pill>
-                  )}
-                </div>
-                <div className="srv-proxmox-details">
-                  {guest.cpu_percent != null && <small>CPU {fmtPct(guest.cpu_percent)}</small>}
-                  {memory && <small>RAM {memory}</small>}
-                  {uptime && <small>{uptime}</small>}
-                  {guest.disk_percent != null && <small>Disk {fmtPct(guest.disk_percent)}</small>}
-                  {network.map(({ label, bytes, rate }) =>
-                    bytes != null || rate != null ? (
-                      <small key={label}>
-                        {label} {rate != null ? fmtRate(rate) : fmtBytes(bytes)}
-                      </small>
-                    ) : null,
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-function ProxmoxStorage({ storages }: { storages: ProxmoxSnapshot['storages'] }) {
-  // One node: its name is already on the node card, no need to repeat it per row.
-  const manyNodes = new Set(storages.map((s) => s.node)).size > 1;
-  const worstLevel = worst(storages.map((s) => s.level));
-  const tone =
-    worstLevel === 'critical' || worstLevel === 'warning' ? levelTone(worstLevel) : undefined;
-  return (
-    <Card
-      className="srv-panel"
-      id={SERVER_ANCHORS.storage}
-      tabIndex={-1}
-      data-testid="server-proxmox-storages"
-      data-tone={tone}
-    >
-      <h3>Úložiště Proxmoxu</h3>
-      <ul className="srv-list srv-proxmox-rows">
-        {storages.map((storage) => {
-          const usage = capacity(storage.used_bytes, storage.total_bytes, storage.percent);
-          return (
-            <li
-              key={JSON.stringify([storage.node, storage.name])}
-              data-testid="server-proxmox-storage"
-            >
-              <div className="srv-proxmox-row-head">
-                <b>{storage.name}</b>
-                {manyNodes && <small>{storage.node}</small>}
-                {storage.active === false && <small>Neaktivní</small>}
-              </div>
-              {storage.percent != null && (
-                <Bar value={storage.percent} tone={levelTone(storage.level)} label={storage.name} />
-              )}
-              {usage && <small>{usage}</small>}
-            </li>
-          );
-        })}
-      </ul>
-    </Card>
-  );
-}
-
 function ProxmoxBackupCard({ backup }: { backup: ProxmoxSnapshot['backup'] }) {
   const ageLevel = backup?.age_level;
   const stale = ageLevel === 'warning' || ageLevel === 'critical';
@@ -646,32 +509,15 @@ function ProxmoxBackupCard({ backup }: { backup: ProxmoxSnapshot['backup'] }) {
   );
 }
 
-function ProxmoxNode({ node }: { node: NonNullable<ProxmoxSnapshot['node']> }) {
-  const uptime = uptimeLabel(node.up_since);
-  const offline = node.status === 'offline';
-  return (
-    <Card
-      className="srv-panel srv-proxmox-node"
-      id={SERVER_ANCHORS.node}
-      tabIndex={-1}
-      data-testid="server-proxmox-node"
-      data-tone={offline ? 'crit' : undefined}
-    >
-      <h3>Uzel Proxmoxu</h3>
-      <div className="srv-proxmox-row-head">
-        <b>{node.name}</b>
-        {node.status && (
-          <Pill tone={node.status === 'online' ? 'ok' : offline ? 'crit' : 'neutral'} size="sm">
-            {node.status === 'online' ? 'Online' : offline ? 'Offline' : 'Jiný stav'}
-          </Pill>
-        )}
-        {uptime && <small>{uptime}</small>}
-      </div>
-    </Card>
-  );
-}
-
-function Proxmox({ snapshot }: { snapshot: ProxmoxSnapshot }) {
+function Proxmox({
+  snap,
+  snapshot,
+  api,
+}: {
+  snap: ServerSnapshot;
+  snapshot: ProxmoxSnapshot;
+  api: ServerApi | null;
+}) {
   if (snapshot.status === 'down') {
     return (
       <Card className="srv-panel">
@@ -679,15 +525,10 @@ function Proxmox({ snapshot }: { snapshot: ProxmoxSnapshot }) {
       </Card>
     );
   }
-  const { node, backup, storages, guests } = snapshot;
   return (
     <section className="srv-proxmox" aria-label="Proxmox VE" data-testid="server-proxmox">
-      <div className="srv-proxmox-side">
-        {node && <ProxmoxNode node={node} />}
-        <ProxmoxBackupCard backup={backup} />
-      </div>
-      <ProxmoxGuests guests={guests} />
-      {storages.length > 0 && <ProxmoxStorage storages={storages} />}
+      <ProxmoxGuests guests={snapshot.guests} cores={hostCores(snap)} api={api} />
+      <ProxmoxBackupCard backup={snapshot.backup} />
     </section>
   );
 }
@@ -730,7 +571,9 @@ export default function ServerView({ connection }: ModuleViewProps) {
             objeví sám.
           </EmptyState>
         )}
-        {(!glancesMissing || snap.verdict.reasons.length > 0) && <Hero snap={snap} />}
+        {(!glancesMissing || snap.verdict.reasons.length > 0 || proxmox?.status === 'ok') && (
+          <Hero snap={snap} />
+        )}
         {snap.state === 'ok' && (
           <>
             <Tiles snap={snap} history={history} />
@@ -740,7 +583,7 @@ export default function ServerView({ connection }: ModuleViewProps) {
             </div>
           </>
         )}
-        {proxmox && <Proxmox snapshot={proxmox} />}
+        {proxmox && <Proxmox snap={snap} snapshot={proxmox} api={api} />}
       </>
     );
   }

@@ -1,4 +1,4 @@
-import { czPlural } from '@homebrain/ui';
+import { czCount, czPlural } from '@homebrain/ui';
 import type { Level, ProxmoxGuest, ServerSnapshot } from './types.js';
 
 export const NB = '\u00a0';
@@ -88,7 +88,9 @@ export function barTone(v: number | null | undefined, [warn, crit]: [number, num
 export const levelTone = (l: Level): BarTone =>
   l === 'critical' ? 'crit' : l === 'warning' ? 'warn' : l === 'ok' ? 'ok' : 'neutral';
 
-function reasonText(r: ServerSnapshot['verdict']['reasons'][number]): string {
+function reasonText(r: ServerSnapshot['verdict']['reasons'][number], cores: number | null): string {
+  if (r.kind === 'load')
+    return `zátěž ${fmtNum(r.value, 1)}${cores ? ` na ${coresLabel(cores)}` : ''}`;
   if (r.kind === 'memory') return `paměť ${fmtPct(r.value)}`;
   if (r.kind === 'disk')
     return `${r.label === '/' ? 'systémový disk' : `disk ${r.label}`} ${fmtPct(r.value)}`;
@@ -114,6 +116,7 @@ export const SERVER_ANCHORS = {
   node: 'server-proxmox-node',
   storage: 'server-proxmox-storages',
   backup: 'server-proxmox-backup',
+  consumers: 'server-host-consumers',
 } as const;
 
 const reasonTarget: Partial<Record<ServerSnapshot['verdict']['reasons'][number]['kind'], string>> =
@@ -123,10 +126,13 @@ const reasonTarget: Partial<Record<ServerSnapshot['verdict']['reasons'][number][
     storage: SERVER_ANCHORS.storage,
     backup: SERVER_ANCHORS.backup,
     backup_age: SERVER_ANCHORS.backup,
+    load: SERVER_ANCHORS.consumers,
   };
 
 export function heroModel(snap: ServerSnapshot): HeroModel {
-  if (snap.state !== 'ok' && snap.verdict.reasons.length === 0)
+  // Glances down but the same host reports through Proxmox: still a live verdict.
+  const proxmoxLive = snap.proxmox?.status === 'ok';
+  if (snap.state !== 'ok' && !proxmoxLive && snap.verdict.reasons.length === 0)
     return {
       tone: 'neutral',
       badge: 'Bez dat',
@@ -139,9 +145,10 @@ export function heroModel(snap: ServerSnapshot): HeroModel {
   return {
     tone: crit ? 'crit' : 'warn',
     badge: 'Živě',
-    headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top)}`,
-    more: rest.map(reasonText),
-    target: reasonTarget[top.kind],
+    headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top, hostCores(snap))}`,
+    more: rest.map((r) => reasonText(r, hostCores(snap))),
+    // The load evidence („Kdo vytěžuje hostitele“) exists only with Proxmox guests.
+    target: top.kind === 'load' && !proxmoxLive ? undefined : reasonTarget[top.kind],
   };
 }
 
@@ -173,10 +180,76 @@ export function vmRows(snap: ServerSnapshot): VmRow[] {
   });
 }
 
-/** Running guests first, then by ID (stable, predictable list). */
-export function sortGuests<T extends Pick<ProxmoxGuest, 'vmid' | 'status'>>(guests: T[]): T[] {
+/** Running guests first, busiest CPU on top; stopped (and unknown) ones by ID at the end. */
+export function sortGuests<
+  T extends Pick<ProxmoxGuest, 'vmid' | 'status'> & { cpu_percent?: number | null },
+>(guests: T[]): T[] {
   const rank = (g: T) => (g.status === 'running' ? 0 : 1);
-  return [...guests].sort((a, b) => rank(a) - rank(b) || a.vmid - b.vmid);
+  const cpu = (g: T) => (g.status === 'running' ? (g.cpu_percent ?? 0) : 0);
+  return [...guests].sort((a, b) => rank(a) - rank(b) || cpu(b) - cpu(a) || a.vmid - b.vmid);
+}
+
+/** Host cores: Glances API, else the Proxmox node's CPU count. */
+export const hostCores = (snap: ServerSnapshot): number | null =>
+  snap.cpu?.cores ?? snap.proxmox?.node?.cpus ?? null;
+
+/**
+ * Share of the whole host a guest uses: PVE reports CPU % of the guest's own vCPUs, so
+ * 50 % of 2 vCPU on a 4-core host = 25 % of the host.
+ */
+export function hostShare(
+  guest: Pick<ProxmoxGuest, 'cpu_percent' | 'cpus'>,
+  cores: number | null,
+): number | null {
+  if (guest.cpu_percent == null || !cores) return null;
+  return Math.min(100, (guest.cpu_percent * (guest.cpus ?? 1)) / cores);
+}
+
+export interface HostConsumer {
+  vmid: number;
+  name: string;
+  share: number;
+}
+
+/** Running guests by their share of the host CPU (only those using at least 1 %). */
+export function hostConsumers(snap: ServerSnapshot, limit = 4): HostConsumer[] {
+  const cores = hostCores(snap);
+  return (snap.proxmox?.guests ?? [])
+    .filter((g) => g.status === 'running')
+    .map((g) => ({ vmid: g.vmid, name: g.name, share: hostShare(g, cores) }))
+    .filter((g): g is HostConsumer => g.share != null && g.share >= 1)
+    .sort((a, b) => b.share - a.share || a.vmid - b.vmid)
+    .slice(0, limit);
+}
+
+export const coresLabel = (cores: number) => czCount(cores, 'jádro', 'jádra', 'jader');
+
+/** „4,7 na 4 jádra“ + warning when the 15-minute average exceeds the cores. */
+export function loadModel(snap: ServerSnapshot): {
+  value: string;
+  avg: string | null;
+  tone: BarTone;
+} | null {
+  const load15 = snap.cpu?.load_avg?.[2] ?? snap.cpu?.load;
+  if (load15 == null) return null;
+  const cores = hostCores(snap);
+  const avg = snap.cpu?.load_avg ? snap.cpu.load_avg.map((v) => fmtNum(v, 2)).join(' / ') : null;
+  return {
+    value: `${fmtNum(load15, 1)}${cores ? ` na ${coresLabel(cores)}` : ''}`,
+    avg,
+    tone: cores ? (load15 > cores ? 'warn' : 'ok') : 'neutral',
+  };
+}
+
+/** Short uptime for guest rows: „běží 36 dní“, „běží 5 h“, „běží 12 min“. */
+export function uptimeShort(since: string | null | undefined, now = Date.now()): string | null {
+  if (!since) return null;
+  const mins = Math.max(0, Math.floor((now - Date.parse(since)) / 60_000));
+  if (!Number.isFinite(mins)) return null;
+  const days = Math.floor(mins / 1440);
+  if (days > 0) return `běží ${daysLabel(days)}`;
+  if (mins >= 60) return `běží ${Math.floor(mins / 60)}${NB}h`;
+  return `běží ${mins}${NB}min`;
 }
 
 /** 24 h peak from raw samples (not bucket means), never below the live value. */

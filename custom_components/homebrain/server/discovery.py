@@ -61,12 +61,18 @@ _KEYS: Final = sorted(
         "temperature",
         "rx",
         "tx",
+        "read",
+        "write",
         "uptime",
     ),
     key=len,
     reverse=True,
 )
 _VIRTUAL_IF: Final = re.compile(r"^(lo|tap|fwbr|fwpr|fwln|veth|docker|br-|virbr)")
+# Glances diskio labels that are not a physical disk (partitions, device mapper, zvols, RAM).
+_NOT_DISK: Final = re.compile(
+    r"^(loop|ram|zram|dm-|zd|md|sr)|^(nvme\d+n\d+p|mmcblk\d+p)\d+$|^[shv]d[a-z]+\d+$"
+)
 _CPU_TEMP: Final = re.compile(r"^(core|package|cpu|tctl|tdie)", re.I)
 _MISSING: Final = {"unavailable", "unknown", "", None}
 
@@ -219,12 +225,32 @@ def build_snapshot(
             }
         )
     primary = max(ifaces, key=lambda i: (i["rx_bps"] or 0) + (i["tx_bps"] or 0), default=None)
+    diskio = []
+    for label in sorted({lb for (k, lb) in found if k in ("read", "write")}):
+        if _NOT_DISK.match(label):
+            continue
+        read_eid, write_eid = found.get(("read", label)), found.get(("write", label))
+        diskio.append(
+            {
+                "name": label,
+                "read_bps": _scaled(hass, read_eid, _RATES) if read_eid else None,
+                "write_bps": _scaled(hass, write_eid, _RATES) if write_eid else None,
+            }
+        )
+    # System disk = the busiest physical disk (the hypervisor's NVMe carries root + guests).
+    busiest = max(diskio, key=lambda d: (d["read_bps"] or 0) + (d["write_bps"] or 0), default=None)
     up_eid = first("uptime")
     up_state = hass.states.get(up_eid) if up_eid else None
     running, total = num("process_running"), num("process_total")
     snap: dict[str, Any] = {
         "host": {"title": entry.title, "entry_id": entry.entry_id},
-        "cpu": {"percent": num("cpu_use_percent"), "load": num("processor_load"), "cores": None},
+        # HA's Glances `processor_load` is the 15-minute load average.
+        "cpu": {
+            "percent": num("cpu_use_percent"),
+            "load": num("processor_load"),
+            "load_avg": None,
+            "cores": None,
+        },
         "memory": memory,
         "swap": swap,
         "disks": disks,
@@ -234,6 +260,7 @@ def build_snapshot(
             "sensors": temps,
         },
         "network": {"primary": primary["name"] if primary else None, "interfaces": ifaces},
+        "diskio": {"primary": busiest["name"] if busiest else None, "disks": diskio},
         "processes": {
             "running": int(running) if running is not None else None,
             "total": int(total) if total is not None else None,
