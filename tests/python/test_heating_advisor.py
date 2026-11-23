@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
+from math import cos, pi
 from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
@@ -26,20 +27,130 @@ def hourly(day: date, hours: int = 24, **fields) -> list[dict]:
     return [{"start": start + i * 3600, **fields} for i in range(hours)]
 
 
+def cumulative(rows: list[dict], total: float = 100.0) -> list[dict]:
+    """Add the running sum HA stores with each counter row, as of the hour's end."""
+    for row in rows:
+        total += row.pop("change")
+        row["sum"] = total
+    return rows
+
+
+def prior(day: date, total: float = 100.0) -> list[dict]:
+    """The last counter row of the preceding day: the first day's starting sum."""
+    return hourly(day - timedelta(days=1), 24, sum=total)[-1:]
+
+
 def test_local_days_and_counter_completeness():
     outdoor, compressor, included = [], [], []
     for i, (out_hours, run_hours, change) in enumerate(
-        [(24, 24, 12), (20, 20, 4), (19, 24, 1), (24, 19, 1), (24, 24, -12), (24, 24, 25)]
+        [(24, 24, 12), (20, 20, 4), (19, 24, 1), (24, 9, 1), (24, 24, -12), (24, 24, 25)]
     ):
         day = DAY + timedelta(days=i)
         outdoor.extend(hourly(day, out_hours, mean=3))
         compressor.extend(hourly(day, run_hours, change=change / run_hours))
-        if i < 2:
+        if i in (0, 1, 3):
             included.append((day, 3, change))
+    compressor = prior(DAY) + cumulative(compressor)
     stats = a.group_hourly({a.OUTDOOR: outdoor, a.COMPRESSOR: compressor}, ZONE)
     rows = a.model_days(stats)
     assert [row[:2] for row in rows] == [row[:2] for row in included]
-    assert [row[2] for row in rows] == pytest.approx([12, 4])
+    assert [row[2] for row in rows] == pytest.approx([12, 4, 1])
+
+
+def _sparse_counter(day: date, runs: dict[int, float]) -> list[dict]:
+    rows = hourly(day)
+    return [dict(rows[hour], change=change) for hour, change in runs.items()]
+
+
+def test_sparse_counter_rows_mean_no_change_in_missing_hours():
+    days = [DAY + timedelta(days=i) for i in range(5)]
+    outdoor = [row for day in days for row in hourly(day, mean=2)]
+    compressor = (
+        _sparse_counter(days[0], {1: 0.5, 6: 0.75, 7: 1, 13: 0.25, 22: 0.5})
+        # days[1]: no row at all – the compressor did not run
+        + _sparse_counter(days[2], {0: 0.5, 23: 1.5})
+        + _sparse_counter(days[3], {12: 0.5})
+        # days[4]: no row and nothing later, the counter is unknown after it
+    )
+    compressor = prior(days[0], 8880.2) + cumulative(compressor, 8880.2)
+    compressor[-1]["sum"] = 8000  # counter reset on days[3]
+    rows = a.model_days(a.group_hourly({a.OUTDOOR: outdoor, a.COMPRESSOR: compressor}, ZONE))
+    assert [(day, runtime) for day, _, runtime in rows] == [
+        (days[0], pytest.approx(3)),
+        (days[1], 0),
+        (days[2], pytest.approx(2)),
+    ]
+
+
+def test_counter_needs_a_known_state_before_the_day():
+    raw = {
+        a.OUTDOOR: hourly(DAY, mean=2) + hourly(DAY + timedelta(days=1), mean=2),
+        a.COMPRESSOR: cumulative(
+            _sparse_counter(DAY, {3: 1}) + _sparse_counter(DAY + timedelta(days=1), {3: 2})
+        ),
+    }
+    rows = a.model_days(a.group_hourly(raw, ZONE))
+    assert [(day, runtime) for day, _, runtime in rows] == [(DAY + timedelta(days=1), 2)]
+
+
+def test_sparse_import_followed_by_live_recorder():
+    days = [DAY + timedelta(days=i) for i in range(4)]
+    outdoor = [row for day in days for row in hourly(day, mean=0)]
+    compressor = (
+        _sparse_counter(days[0], {5: 1, 6: 1, 18: 2})
+        + _sparse_counter(days[1], {2: 3})
+        # Live recorder: a row every hour, most with zero change.
+        + [dict(row, change=0.5 if i % 2 else 0) for i, row in enumerate(hourly(days[2]))]
+        + [dict(row, change=0.25) for row in hourly(days[3])]
+    )
+    compressor = prior(days[0]) + cumulative(compressor)
+    rows = a.model_days(a.group_hourly({a.OUTDOOR: outdoor, a.COMPRESSOR: compressor}, ZONE))
+    assert [runtime for _, _, runtime in rows] == pytest.approx([4, 3, 6, 6])
+
+
+def test_two_sparse_seasons_produce_a_model(hass):
+    """End to end: sparse imported rows only for hours with a running compressor.
+
+    No row from mid-May to mid-September; summer days still count as zero.
+    """
+    first, today = date(2024, 7, 1), date(2026, 10, 1)
+    outdoor, compressor = [], []
+    day = first - timedelta(days=a.COUNTER_LEAD_DAYS + 30)
+    total = 5000.0
+    while day < today:
+        # Synthetic climate: about −2 °C in mid-January, about 18 °C in mid-July.
+        temp = 8 - 10 * cos(2 * pi * (day.toordinal() - date(2025, 1, 15).toordinal()) / 365)
+        runtime = max(0.0, (15 - temp) * 0.8) + (0.3 if day.day % 3 == 0 else 0)
+        outdoor.extend(hourly(day, mean=temp))
+        hours = hourly(day)
+        steps = min(24, max(0, round(runtime / 0.75)))
+        for i in range(steps):
+            total += runtime / steps
+            compressor.append(dict(hours[i * 24 // steps], sum=total))
+        day += timedelta(days=1)
+    raw = {a.OUTDOOR: outdoor, a.COMPRESSOR: compressor}
+    ids = {key: f"sensor.test_{key.replace('.', '_')}" for key in raw}
+    now = datetime.combine(today, datetime.min.time(), ZONE) + timedelta(hours=1)
+    with (
+        patch.object(a.dt_util, "get_default_time_zone", return_value=ZONE),
+        patch.object(a.dt_util, "DEFAULT_TIME_ZONE", ZONE),
+        patch(
+            "homeassistant.components.recorder.statistics.statistics_during_period",
+            side_effect=lambda hass, start, end, sids, *_: {
+                sid: [
+                    row for row in raw[key] if start.timestamp() <= row["start"] < end.timestamp()
+                ]
+                for key, sid in ids.items()
+                if sid in sids
+            },
+        ),
+    ):
+        model = a._read_advisor(hass, now, ids, a.AdvisorOptions(lookback_years=3))["model"]
+    assert model["days"] > 300
+    assert model["days_incomplete"] == 0
+    assert model["balance_temp"] == pytest.approx(15, abs=0.5)
+    assert model["slope_h_per_k"] == pytest.approx(0.8, abs=0.05)
+    assert model["confidence"] == "high"
 
 
 def test_regression_uses_heating_days_and_seasons():
@@ -100,6 +211,7 @@ def _curve_stats(count=7, circuit=3, cold_days=0, attic=21, outdoor=4.5, room=21
         for j, (_, x, y) in enumerate(a.POINTS):
             for key, value in ((x, j * 10 - 15.5), (y, 40 - j * 2)):
                 raw[key].extend(hourly(day, mean=value, min=value, max=value))
+    raw[a.CIRCUIT] = prior(DAY) + cumulative(raw[a.CIRCUIT])
     return raw
 
 
@@ -175,7 +287,7 @@ def test_recent_change_overrides_advice(within_hour):
 def test_statistics_accept_both_dst_day_lengths(day, hours):
     raw = {
         a.OUTDOOR: hourly(day, hours, mean=3),
-        a.COMPRESSOR: hourly(day, hours, change=12 / hours),
+        a.COMPRESSOR: prior(day) + cumulative(hourly(day, hours, change=12 / hours)),
     }
     assert a.model_days(a.group_hourly(raw, ZONE)) == [(day, 3, pytest.approx(12))]
 
@@ -241,7 +353,7 @@ def test_curve_does_not_mix_old_and_recent_days():
 
 def test_recorder_reads_only_hourly_lts_and_ignores_today(hass):
     raw = _curve_stats(count=8)
-    raw[a.COMPRESSOR] = [dict(row, change=0.25) for row in raw[a.CIRCUIT]]
+    raw[a.COMPRESSOR] = [dict(row, sum=row["sum"] * 2) for row in raw[a.CIRCUIT]]
     ids = {key: f"sensor.test_{key.replace('.', '_')}" for key in raw}
     now = datetime(2025, 1, 20, 9, tzinfo=ZONE)
     with (
@@ -258,7 +370,7 @@ def test_recorder_reads_only_hourly_lts_and_ignores_today(hass):
         ) as read,
     ):
         result = a._read_advisor(hass, now, ids, a.AdvisorOptions(lookback_years=1))
-    assert read.call_count == 2
+    assert read.call_count == 3
     assert all(call.args[4] == "hour" for call in read.call_args_list)
     assert result["curve"]["days_used"] == 7
     assert result["curve"]["status"] == "suggest_lower"
