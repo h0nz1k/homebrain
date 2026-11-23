@@ -157,13 +157,20 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
   const nodeState = node?.status
     ? (nodeStates[node.status] ?? { label: 'Jiný stav', tone: 'neutral' as const })
     : null;
+  // Online is the normal state: it rides on the „Živě“ badge, only a problem gets its own pill.
+  const online = node?.status === 'online';
   const meta = [
-    node ? `Proxmox · ${node.name}` : snap.host?.title,
-    uptime,
-    snap.processes?.total != null
-      ? czCount(snap.processes.total, 'proces', 'procesy', 'procesů')
-      : null,
-  ].filter(Boolean);
+    { text: node ? `Proxmox · ${node.name}` : snap.host?.title },
+    { text: uptime },
+    {
+      text:
+        snap.processes?.total != null
+          ? czCount(snap.processes.total, 'proces', 'procesy', 'procesů')
+          : null,
+      // Secondary detail: hidden on phones so it never wraps onto its own line.
+      className: 'srv-meta-procs',
+    },
+  ].filter((m) => m.text);
   return (
     <Card
       className="hb-hero srv-hero"
@@ -176,17 +183,23 @@ function Hero({ snap }: { snap: ServerSnapshot }) {
       <div className="srv-hero-copy">
         <Pill tone={hero.tone === 'neutral' ? 'neutral' : hero.tone} dot>
           {hero.badge}
+          {online && nodeState && (
+            <span data-testid="server-node-state" data-merged="">
+              {' · '}
+              {nodeState.label}
+            </span>
+          )}
         </Pill>
         <h2 data-testid="server-headline">{hero.headline}</h2>
         {meta.length > 0 && (
           <p className="srv-meta" data-testid="server-host-meta">
             {meta.map((m, i) => (
-              <span key={i}>
+              <span key={i} className={m.className}>
                 {i ? '· ' : ''}
-                {m}
+                {m.text}
               </span>
             ))}
-            {nodeState && (
+            {nodeState && !online && (
               <Pill
                 tone={nodeState.tone}
                 size="sm"

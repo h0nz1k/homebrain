@@ -4,8 +4,10 @@ import {
   fmtPct,
   fmtRate,
   hostConsumers,
+  hostCores,
   levelTone,
   loadModel,
+  onCoresLabel,
   SERVER_ANCHORS,
 } from '../format.js';
 import type { ProxmoxSnapshot, ServerSnapshot } from '../types.js';
@@ -37,6 +39,7 @@ export function ProxmoxHostFacts({
   const load = loadModel(snap);
   const io = snap.diskio?.disks.find((d) => d.name === snap.diskio?.primary);
   const consumers = hostConsumers(snap);
+  const cores = hostCores(snap);
   const backup = backupLine(proxmox.backup);
   const storages = proxmox.storages;
   const manyNodes = new Set(storages.map((s) => s.node)).size > 1;
@@ -58,8 +61,9 @@ export function ProxmoxHostFacts({
         {io && (
           <div data-testid="server-host-diskio">
             <dt>Disk I/O</dt>
-            <dd>
-              čtení {fmtRate(io.read_bps)} · zápis {fmtRate(io.write_bps)}
+            <dd className="srv-io">
+              <span>čtení {fmtRate(io.read_bps)}</span>
+              <span>zápis {fmtRate(io.write_bps)}</span>
               <small>{io.name}</small>
             </dd>
           </div>
@@ -85,6 +89,9 @@ export function ProxmoxHostFacts({
           data-testid="server-host-consumers"
         >
           <span className="srv-micro">Kdo vytěžuje hostitele</span>
+          <small className="srv-consumers-hint" data-testid="server-host-consumers-hint">
+            {cores ? `podíl ${onCoresLabel(cores)} hostitele` : 'podíl na celém hostiteli'}
+          </small>
           {consumers.map((c) => (
             <span key={c.vmid} className="srv-consumer">
               <b>{c.name}</b> {fmtPct(c.share)}

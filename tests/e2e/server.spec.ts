@@ -86,7 +86,7 @@ test.describe('Server', () => {
     await noSidewaysScroll(page);
   });
 
-  test('hostitel, hosté a detail hosta (360/800/1280, světlý i tmavý)', async ({
+  test('hostitel, hosté a detail hosta (360/800/1440, světlý i tmavý)', async ({
     page,
   }, testInfo) => {
     // Sets its own viewports: one project is enough, six layouts need more than 30 s.
@@ -99,7 +99,10 @@ test.describe('Server', () => {
       await expect(page.getByTestId('server-host-meta')).toContainText('Proxmox · pve', {
         timeout: 20_000,
       });
-      await expect(page.getByTestId('server-node-state')).toHaveText('Online');
+      await expect(page.getByTestId('server-headline')).toHaveText(
+        /^1 upozornění · ha-vm má plnou paměť \(93\s%\)$/,
+      );
+      await expect(page.getByTestId('server-node-state')).toHaveText(' · Online');
       await expect(hero.getByTestId('server-proxmox-storage')).toHaveCount(2);
       await expect(page.getByTestId('server-host-consumers')).toContainText('web');
       await expect(page.getByTestId('server-proxmox-node')).toHaveCount(0);
@@ -108,11 +111,18 @@ test.describe('Server', () => {
       for (const [width, height] of [
         [360, 800],
         [800, 1280],
-        [1280, 900],
+        [1440, 900],
       ] as const) {
         await page.setViewportSize({ width, height });
         await page.evaluate(() => window.scrollTo(0, 0));
         await noSidewaysScroll(page);
+        // Phone: no process count to wrap onto its own line.
+        await expect(page.locator('.srv-meta-procs')).toBeVisible({ visible: width > 480 });
+        // Disk I/O: „čtení …“ and „zápis …“ each on one line.
+        const ioLines = await page
+          .locator('[data-testid="server-host-diskio"] dd > span')
+          .evaluateAll((els) => els.map((el) => el.getClientRects().length));
+        expect(ioLines).toEqual([1, 1]);
         const spill = await page.evaluate(() => {
           const rows = Array.from(
             document.querySelectorAll('[data-testid="server-proxmox-guest"]'),
@@ -127,7 +137,7 @@ test.describe('Server', () => {
         expect(spill).toBe(0);
         if (process.env.SERVER_SCREENSHOTS)
           await page.screenshot({
-            path: `test-results/server-pve-detail/server-proxmox-${width}-${theme}.png`,
+            path: `test-results/server-pve-detail-r1/server-proxmox-${width}-${theme}.png`,
             fullPage: true,
           });
         await page.getByRole('button', { name: /^ha-vm, VM 101/ }).click();
@@ -138,7 +148,7 @@ test.describe('Server', () => {
         await noSidewaysScroll(page);
         if (process.env.SERVER_SCREENSHOTS)
           await page.screenshot({
-            path: `test-results/server-pve-detail/server-guest-sheet-${width}-${theme}.png`,
+            path: `test-results/server-pve-detail-r1/server-guest-sheet-${width}-${theme}.png`,
           });
         await page.getByRole('button', { name: 'Zavřít' }).click();
         await expect(sheet).toHaveCount(0);
@@ -219,7 +229,9 @@ test.describe('Server', () => {
     const section = await box('server-proxmox');
     expect(list.width).toBeGreaterThan(section.width * 0.55);
     expect(backup.x).toBeGreaterThan(list.x + list.width - 1);
-    await expect(page.getByTestId('server-hero-fix')).toHaveCount(0);
+    // Guest warning in the verdict: „Co s tím“ focuses the guest's row.
+    await page.getByTestId('server-hero-fix').click();
+    await expect(page.getByRole('button', { name: /^ha-vm, VM 101/ })).toBeFocused();
     await noSidewaysScroll(page);
     if (process.env.SERVER_SCREENSHOTS)
       await page.screenshot({ path: 'test-results/server-r4/server-ok-1280.png', fullPage: true });
@@ -227,7 +239,9 @@ test.describe('Server', () => {
 
   test('bez senzoru zálohy jen poznámka, žádné varování', async ({ page }) => {
     await page.goto('/homebrain-server?server=proxmox-backup-missing');
-    await expect(page.getByTestId('server-headline')).toHaveText('V pořádku', { timeout: 20_000 });
+    await expect(page.getByTestId('server-headline')).toHaveText(/^1 upozornění · ha-vm/, {
+      timeout: 20_000,
+    });
     await expect(page.getByTestId('server-proxmox-backup')).toContainText(
       'Údaje o zálohách nejsou k dispozici',
     );

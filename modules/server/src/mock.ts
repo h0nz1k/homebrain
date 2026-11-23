@@ -86,7 +86,10 @@ const guestRow = (g: Partial<ProxmoxGuest> & Pick<ProxmoxGuest, 'vmid' | 'name' 
   } satisfies ProxmoxGuest;
 };
 
-/** Synthetic guests: one VM at 93 % RAM, a CT still on its first network sample, one stopped. */
+/**
+ * Synthetic guests: one VM at 93 % RAM, a CT still on its first network sample, one stopped.
+ * Guest rates sum below the host bridge (vmbr0 ↓ 1,3 MB/s, ↑ 212 kB/s) – the bridge carries them all.
+ */
 function mockGuests(busy: boolean): ProxmoxGuest[] {
   const up = hoursAgo(36 * 24 + 4);
   return [
@@ -117,8 +120,8 @@ function mockGuests(busy: boolean): ProxmoxGuest[] {
       mem_percent: 38.8,
       up_since: up,
       disk_max_bytes: 64 * GIB,
-      netin_bps: 1_840_000,
-      netout_bps: 4_260_000,
+      netin_bps: 640_000,
+      netout_bps: 150_000,
       netin_bytes: 2.1 * 1024 * GIB,
       netout_bytes: 5.4 * 1024 * GIB,
     }),
@@ -136,7 +139,7 @@ function mockGuests(busy: boolean): ProxmoxGuest[] {
       disk_max_bytes: 30 * GIB,
       disk_percent: 31,
       netin_bps: 310_000,
-      netout_bps: 120_000,
+      netout_bps: 31_000,
       netin_bytes: 84 * GIB,
       netout_bytes: 22 * GIB,
     }),
@@ -417,19 +420,26 @@ function guestHistory(scenario: ServerScenario, ref: GuestRef): ServerHistory {
   if (!guest || guest.status !== 'running') return { hours: 24, series: {} };
   const end = Math.floor(Date.now() / 300_000) * 300_000;
   const n = 288;
-  const series = (base: number, amp: number, phase: number): Array<[number, number]> =>
+  const series = (fn: (t: number, i: number) => number): Array<[number, number]> =>
     Array.from({ length: n }, (_, i) => {
-      const v =
-        base + amp * Math.sin((i / n) * Math.PI * 2 + phase) + amp * 0.2 * Math.sin(i * 0.41);
+      const v = fn((i / n) * Math.PI * 2, i);
       return [end - (n - 1 - i) * 300_000, Math.round(Math.max(0, Math.min(100, v)) * 10) / 10];
     });
   const cpu = guest.cpu_percent ?? 0;
   const mem = guest.mem_percent ?? 0;
+  const amp = Math.max(1, cpu * 0.35);
   return {
     hours: 24,
     series: {
-      cpu: series(cpu * 0.8, Math.max(1, cpu * 0.35), ref.vmid),
-      memory: series(mem - 1.5, 1.6, ref.vmid / 2),
+      // CPU: daily rhythm with short spikes; RAM: slow creep up to the live value.
+      cpu: series(
+        (t, i) =>
+          cpu * 0.8 +
+          amp * Math.sin(t + ref.vmid) +
+          amp * 0.5 * Math.sin(3 * t) +
+          (i % 37 < 3 ? amp * 1.2 : 0),
+      ),
+      memory: series((t, i) => mem - 6 + (6 * i) / n + 0.8 * Math.sin(t * 2 + ref.vmid)),
     },
   };
 }

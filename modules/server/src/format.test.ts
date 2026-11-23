@@ -19,7 +19,7 @@ import {
   uptimeShort,
   vmRows,
 } from './format.js';
-import { createMockSnapshot } from './mock.js';
+import { createMockHistory, createMockSnapshot } from './mock.js';
 
 const NB = '\u00a0';
 
@@ -80,6 +80,37 @@ describe('hero verdikt', () => {
   });
   it('server nedostupný', () => {
     expect(heroModel(createMockSnapshot('down')).headline).toBe('Server nedostupný');
+  });
+  it('hostitel v pořádku, host s plnou pamětí = upozornění s cílem na jeho řádek', () => {
+    const hero = heroModel(createMockSnapshot('proxmox-ok'));
+    expect(hero.headline).toBe(`1 upozornění · ha-vm má plnou paměť (93${NB}%)`);
+    expect(hero.tone).toBe('warn');
+    expect(hero.target).toBe('server-guest-vm-101');
+  });
+  it('problém hostitele vede, hosté jdou do „Dále“', () => {
+    const hero = heroModel(createMockSnapshot('proxmox-load'));
+    expect(hero.headline).toBe('Pozor: zátěž 4,7 na 4 jádra');
+    expect(hero.more).toContain(`ha-vm má plnou paměť (93${NB}%)`);
+    expect(hero.more).toContain(`web vytěžuje procesor (97${NB}%)`);
+  });
+});
+
+describe('mock', () => {
+  it('most vmbr0 nese aspoň součet provozu hostů', () => {
+    const snap = createMockSnapshot('proxmox-ok');
+    const bridge = snap.network!.interfaces.find((i) => i.name === 'vmbr0')!;
+    const sum = (k: 'netin_bps' | 'netout_bps') =>
+      snap.proxmox!.guests.reduce((s, g) => s + (g[k] ?? 0), 0);
+    expect(bridge.rx_bps!).toBeGreaterThanOrEqual(sum('netin_bps'));
+    expect(bridge.tx_bps!).toBeGreaterThanOrEqual(sum('netout_bps'));
+  });
+  it('historie hosta: CPU a RAM mají odlišný průběh', () => {
+    const { series } = createMockHistory('proxmox-ok', { vmid: 101, kind: 'vm' });
+    const cpu = series.cpu!.map(([, v]) => v);
+    const mem = series.memory!.map(([, v]) => v);
+    expect(Math.max(...mem)).toBeGreaterThan(85);
+    expect(Math.max(...cpu)).toBeLessThan(40);
+    expect(Math.abs(mem.at(-1)! - 93)).toBeLessThan(2);
   });
 });
 

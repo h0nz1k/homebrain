@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Card, EmptyState, Pill, Sheet } from '@homebrain/ui';
+import { Card, EmptyState, Icon, Pill, Sheet } from '@homebrain/ui';
 import type { ServerApi } from '../api.js';
 import {
   fmtBytes,
   fmtPct,
   fmtRate,
+  guestAnchor,
   hostShare,
   levelTone,
   sortGuests,
@@ -13,7 +14,7 @@ import {
   type BarTone,
 } from '../format.js';
 import type { ProxmoxGuest, ServerHistory } from '../types.js';
-import { Bar, Trend } from './parts.js';
+import { Bar, PctTrend } from './parts.js';
 
 const guestStates: Record<string, { label: string; tone: 'ok' | 'neutral' | 'warn' }> = {
   running: { label: 'Běží', tone: 'ok' },
@@ -59,20 +60,34 @@ function netText(guest: ProxmoxGuest) {
   return `↓${' '}${fmtRate(guest.netin_bps)} ↑${' '}${fmtRate(guest.netout_bps)}`;
 }
 
+/** Short word next to a highlighted metric: the warning is readable without colour. */
+const FLAGS = { cpu: 'vytížený', ram: 'plná', disk: 'plný' } as const;
+
 function Metric({
   label,
   tone,
   value,
   bar,
+  flag,
 }: {
   label: string;
   tone?: BarTone;
   value: string;
   bar?: number | null;
+  flag?: string;
 }) {
+  const alarm = tone === 'warn' || tone === 'crit';
   return (
     <span className="srv-gm" data-tone={tone}>
-      <small>{label}</small>
+      <small>
+        {label}
+        {alarm && flag && (
+          <span className="srv-gm-flag" data-testid="server-guest-flag">
+            <Icon name="alert" size={14} />
+            {flag}
+          </span>
+        )}
+      </small>
       {bar != null && <Bar value={bar} tone={tone ?? 'ok'} />}
       <span className="srv-gm-val">{value}</span>
     </span>
@@ -99,6 +114,7 @@ function GuestRow({ guest, onOpen }: { guest: ProxmoxGuest; onOpen: () => void }
       <button
         type="button"
         className="srv-guest"
+        id={guestAnchor(guest)}
         aria-haspopup="dialog"
         aria-label={`${guest.name}, ${kindLabel(guest)} ${guest.vmid}${state ? `, ${state.label}` : ''}`}
         onClick={onOpen}
@@ -122,16 +138,23 @@ function GuestRow({ guest, onOpen }: { guest: ProxmoxGuest; onOpen: () => void }
         </span>
         {running ? (
           <span className="srv-guest-metrics" data-testid="server-guest-metrics">
-            <Metric label="CPU" tone={metricTone(guest.cpu_level)} value={cpuText(guest)} />
+            <Metric
+              label="CPU"
+              tone={metricTone(guest.cpu_level)}
+              value={cpuText(guest)}
+              flag={FLAGS.cpu}
+            />
             <Metric
               label="RAM"
               tone={metricTone(guest.mem_level)}
               value={memText(guest)}
               bar={guest.mem_percent}
+              flag={FLAGS.ram}
             />
             {disk && (
               <Metric
                 label="Disk"
+                flag={FLAGS.disk}
                 tone={metricTone(guest.disk_level)}
                 value={disk}
                 bar={guest.disk_percent}
@@ -221,7 +244,7 @@ function GuestSheet({
           <dt>Procesor</dt>
           <dd data-testid="server-guest-cpu">
             {running ? cpuText(guest) : (vcpu(guest.cpus) ?? '–')}
-            {share != null && <small>{fmtPct(share)} hostitele</small>}
+            {share != null && <small>{fmtPct(share)} celého hostitele</small>}
           </dd>
         </div>
         <div data-tone={memTone}>
@@ -261,21 +284,21 @@ function GuestSheet({
         <div className="srv-guest-charts">
           <section>
             <h3>Procesor za 24 h</h3>
-            <Trend
+            <PctTrend
               history={history}
               series="cpu"
-              format={fmtPct}
               current={guest.cpu_percent}
+              tone={metricTone(guest.cpu_level)}
               testId="server-guest-trend-cpu"
             />
           </section>
           <section>
             <h3>Paměť za 24 h</h3>
-            <Trend
+            <PctTrend
               history={history}
               series="memory"
-              format={fmtPct}
               current={guest.mem_percent}
+              tone={memTone}
               testId="server-guest-trend-memory"
             />
           </section>

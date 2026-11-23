@@ -55,15 +55,25 @@ describe('ServerView', () => {
 describe('Proxmox VE', () => {
   it('jedna karta hostitele: Proxmox · pve, zátěž, disk I/O, úložiště a záloha', async () => {
     show('proxmox-ok');
-    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    // Host is fine, but a guest's full RAM is a warning: never „V pořádku“.
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `1 upozornění · ha-vm má plnou paměť (93${NB}%)`,
+    );
     const hero = screen.getByTestId('server-hero');
+    expect(hero.getAttribute('data-server-state')).toBe('warn');
     expect(screen.getByTestId('server-host-meta').textContent).toContain('Proxmox · pve');
-    expect(screen.getByTestId('server-node-state').textContent).toBe('Online');
+    // Online rides on the „Živě“ badge (no lone pill in the meta line).
+    expect(screen.getByTestId('server-node-state').textContent).toBe(' · Online');
+    expect(screen.getByTestId('server-host-meta').querySelector('.hb-pill')).toBeNull();
     expect(hero.textContent).toContain(`běží 9${NB}dní`);
     expect(screen.queryByTestId('server-proxmox-node')).toBeNull(); // no second host card
     expect(screen.getByTestId('server-host-load').textContent).toContain(`1,2 na 4 jádra`);
     expect(screen.getByTestId('server-host-load').getAttribute('data-tone')).toBeNull();
-    expect(screen.getByTestId('server-host-diskio').textContent).toContain(`čtení 2,4${NB}MB/s`);
+    expect(
+      [...screen.getByTestId('server-host-diskio').querySelectorAll('dd > span')].map(
+        (s) => s.textContent,
+      ),
+    ).toEqual([`čtení 2,4${NB}MB/s`, `zápis 862${NB}kB/s`]);
     expect(screen.getByTestId('server-host-backup').textContent).toBe('dnes · úspěšná');
     const storages = screen.getAllByTestId('server-proxmox-storage');
     expect(storages).toHaveLength(2);
@@ -72,10 +82,12 @@ describe('Proxmox VE', () => {
     expect(storages.some((row) => row.textContent?.includes('pve'))).toBe(false);
     // web 31 % × 4 vCPU / 4 cores = 31 %, ha-vm 14 % × 2 / 4 = 7 %, db 9 % × 2 / 4 ≈ 5 %.
     expect(screen.getByTestId('server-host-consumers').textContent).toBe(
-      `Kdo vytěžuje hostiteleweb 31${NB}%ha-vm 7${NB}%db 5${NB}%`,
+      `Kdo vytěžuje hostitelepodíl na 4${NB}jádrech hostiteleweb 31${NB}%ha-vm 7${NB}%db 5${NB}%`,
     );
     expect(screen.queryByTestId('server-vms')).toBeNull();
-    expect(screen.queryByTestId('server-hero-fix')).toBeNull();
+    // „Co s tím“ focuses the guest row.
+    fireEvent.click(screen.getByTestId('server-hero-fix'));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /^ha-vm, VM 101/ }));
     expect(screen.getByTestId('server-backup-run').textContent).toBe('úspěšný');
     expect(screen.getByTestId('server-backup-age').textContent).toBe('dnes');
     expect(screen.queryByTestId('server-backup-stale')).toBeNull();
@@ -96,11 +108,14 @@ describe('Proxmox VE', () => {
     expect(web!.textContent).toContain(`VM 102`);
     expect(web!.textContent).toContain(`31${NB}% · 4${NB}vCPU`);
     expect(web!.textContent).toContain(`přiděleno 64,0${NB}GiB`);
-    expect(web!.textContent).toContain(`↓${NB}1,8${NB}MB/s ↑${NB}4,3${NB}MB/s`);
+    expect(web!.textContent).toContain(`↓${NB}640${NB}kB/s ↑${NB}150${NB}kB/s`);
     expect(web!.textContent).toContain(`běží 36${NB}dní`);
     // RAM 93 % = warning (rules.MEMORY), shown on the RAM metric only.
     const ram = ha!.querySelector('.srv-gm[data-tone="warn"]');
     expect(ram?.textContent).toContain(`3,7${NB}GiB z 4,0${NB}GiB`);
+    // Not colour only: icon + word on the warned metric.
+    expect(ram?.querySelector('[data-testid="server-guest-flag"]')?.textContent).toBe('plná');
+    expect(ha!.querySelectorAll('[data-testid="server-guest-flag"]')).toHaveLength(1);
     expect(db!.textContent).toContain(`CT 103`);
     expect(db!.textContent).toContain(`9,3${NB}GiB z 30,0${NB}GiB`);
     expect(backup!.textContent).toContain('měří se…');
@@ -119,11 +134,21 @@ describe('Proxmox VE', () => {
     const sheet = screen.getByTestId('server-guest-sheet');
     expect(sheet.textContent).toContain('Virtuální stroj · VM 101');
     expect(screen.getByTestId('server-guest-cpu').textContent).toBe(
-      `14${NB}% · 2${NB}vCPU7${NB}% hostitele`,
+      `14${NB}% · 2${NB}vCPU7${NB}% celého hostitele`,
     );
     expect(screen.getByTestId('server-guest-disk').textContent).toBe(`přiděleno 32,0${NB}GiB`);
-    expect(await screen.findByTestId('server-guest-trend-cpu')).toBeTruthy();
-    expect(screen.getByTestId('server-guest-trend-memory')).toBeTruthy();
+    const cpuTrend = await screen.findByTestId('server-guest-trend-cpu');
+    const memTrend = screen.getByTestId('server-guest-trend-memory');
+    // Fixed 0–100 % scale: gridlines at 100 % (y 0) and 50 % (y 32 of 64).
+    expect([...memTrend.querySelectorAll('line')].map((l) => l.getAttribute('y1'))).toEqual([
+      '0',
+      '32',
+    ]);
+    // RAM 93 % takes the warning colour like the field; CPU 14 % stays calm.
+    expect(memTrend.getAttribute('data-tone')).toBe('warn');
+    expect(cpuTrend.getAttribute('data-tone')).toBeNull();
+    expect(screen.getByTestId('server-guest-trend-memory-now').textContent).toBe(`93${NB}%`);
+    expect(screen.getByTestId('server-guest-trend-cpu-now').textContent).toBe(`14${NB}%`);
     fireEvent.click(screen.getByRole('button', { name: 'Zavřít' }));
     expect(screen.queryByTestId('server-guest-sheet')).toBeNull();
   });
@@ -141,7 +166,9 @@ describe('Proxmox VE', () => {
 
   it('bez Glances ukáže CPU, RAM a disk z uzlu Proxmoxu', async () => {
     show('proxmox-noglances');
-    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `1 upozornění · ha-vm má plnou paměť (93${NB}%)`,
+    );
     expect(screen.getByTestId('server-glances-down').textContent).toContain('z Proxmoxu');
     expect(screen.getByTestId('server-ring-cpu').textContent).toContain(`21${NB}%`);
     expect(screen.getByTestId('server-ring-ram').textContent).toContain(`65${NB}%`);
@@ -206,7 +233,9 @@ describe('Proxmox VE', () => {
 
   it('bez senzoru zálohy nevaruje, jen řekne, že údaje chybí', async () => {
     show('proxmox-backup-missing');
-    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `1 upozornění · ha-vm má plnou paměť (93${NB}%)`,
+    );
     const card = screen.getByTestId('server-proxmox-backup');
     expect(card.textContent).toContain('Údaje o zálohách nejsou k dispozici');
     expect(card.getAttribute('data-tone')).toBeNull();

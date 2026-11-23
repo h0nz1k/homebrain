@@ -129,6 +129,48 @@ const reasonTarget: Partial<Record<ServerSnapshot['verdict']['reasons'][number][
     load: SERVER_ANCHORS.consumers,
   };
 
+/** DOM id of a guest row (the hero „Co s tím“ focuses it). */
+export const guestAnchor = (g: Pick<ProxmoxGuest, 'kind' | 'vmid'>) =>
+  `server-guest-${g.kind}-${g.vmid}`;
+
+export interface GuestIssue {
+  text: string;
+  level: 'warning' | 'critical';
+  target: string;
+}
+
+const isProblem = (l: Level | undefined): l is 'warning' | 'critical' =>
+  l === 'warning' || l === 'critical';
+
+/** Warnings of running guests (full RAM / disk, busy CPU), critical first. */
+export function guestIssues(snap: ServerSnapshot): GuestIssue[] {
+  if (snap.proxmox?.status !== 'ok') return [];
+  const out: GuestIssue[] = [];
+  for (const g of snap.proxmox.guests) {
+    if (g.status !== 'running') continue;
+    const target = guestAnchor(g);
+    if (isProblem(g.mem_level))
+      out.push({
+        text: `${g.name} má plnou paměť (${fmtPct(g.mem_percent)})`,
+        level: g.mem_level,
+        target,
+      });
+    if (isProblem(g.disk_level))
+      out.push({
+        text: `${g.name} má plný disk (${fmtPct(g.disk_percent)})`,
+        level: g.disk_level,
+        target,
+      });
+    if (isProblem(g.cpu_level))
+      out.push({
+        text: `${g.name} vytěžuje procesor (${fmtPct(g.cpu_percent)})`,
+        level: g.cpu_level,
+        target,
+      });
+  }
+  return out.sort((a, b) => (a.level === b.level ? 0 : a.level === 'critical' ? -1 : 1));
+}
+
 export function heroModel(snap: ServerSnapshot): HeroModel {
   // Glances down but the same host reports through Proxmox: still a live verdict.
   const proxmoxLive = snap.proxmox?.status === 'ok';
@@ -140,13 +182,25 @@ export function heroModel(snap: ServerSnapshot): HeroModel {
       more: [],
     };
   const [top, ...rest] = snap.verdict.reasons;
-  if (!top) return { tone: 'ok', badge: 'Živě', headline: 'V pořádku', more: [] };
+  const guests = guestIssues(snap);
+  if (!top) {
+    const [first, ...others] = guests;
+    if (!first) return { tone: 'ok', badge: 'Živě', headline: 'V pořádku', more: [] };
+    // Host is fine, a guest is not: count + the worst guest, never „V pořádku“.
+    return {
+      tone: first.level === 'critical' ? 'crit' : 'warn',
+      badge: 'Živě',
+      headline: `${czCount(guests.length, 'upozornění', 'upozornění', 'upozornění')} · ${first.text}`,
+      more: others.map((g) => g.text),
+      target: first.target,
+    };
+  }
   const crit = top.level === 'critical';
   return {
     tone: crit ? 'crit' : 'warn',
     badge: 'Živě',
     headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top, hostCores(snap))}`,
-    more: rest.map((r) => reasonText(r, hostCores(snap))),
+    more: [...rest.map((r) => reasonText(r, hostCores(snap))), ...guests.map((g) => g.text)],
     // The load evidence („Kdo vytěžuje hostitele“) exists only with Proxmox guests.
     target: top.kind === 'load' && !proxmoxLive ? undefined : reasonTarget[top.kind],
   };
@@ -223,6 +277,9 @@ export function hostConsumers(snap: ServerSnapshot, limit = 4): HostConsumer[] {
 }
 
 export const coresLabel = (cores: number) => czCount(cores, 'jádro', 'jádra', 'jader');
+/** Locative: „na 1 jádru“, „na 4 jádrech“. */
+export const onCoresLabel = (cores: number) =>
+  `na ${num(cores, 0)}${NB}${cores === 1 ? 'jádru' : 'jádrech'}`;
 
 /** „4,7 na 4 jádra“ + warning when the 15-minute average exceeds the cores. */
 export function loadModel(snap: ServerSnapshot): {
