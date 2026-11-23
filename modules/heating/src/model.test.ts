@@ -70,6 +70,17 @@ describe('activityModel – plain Czech sentence', () => {
     expect(text(m)).toContain('nízký tlak sání');
     expect(m.detail).toContain('Neresetujte');
   });
+  it('a recorded fault without a block gives a warning and preserves live flow', () => {
+    const s = snap('fault');
+    s.faults.compressor_block = false;
+    s.heat_pump.compressor_on = true;
+    expect(activityModel(s, NOW)).toMatchObject({ state: 'fault', tone: 'warn' });
+    expect(activityModel(s, NOW).detail).toContain('Potvrďte poruchu');
+    expect(schematicState(s)).toMatchObject({ fault: false, compressor: 'on' });
+
+    s.faults.fatal = true;
+    expect(activityModel(s, NOW).tone).toBe('crit');
+  });
   it('unconfigured and unreachable are calm explanations', () => {
     expect(activityModel(snap('unconfigured'), NOW).state).toBe('unconfigured');
     const s = snap('idle');

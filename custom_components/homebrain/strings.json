@@ -310,7 +310,11 @@
           "username": "Username",
           "password": "Password",
           "map_path": "Variable map (YAML path)",
-          "poll_interval": "Poll interval"
+          "poll_interval": "Poll interval",
+          "advisor_lookback_years": "Seasons used for the estimate",
+          "advisor_thermal_kw": "Nominal heat pump thermal output (optional)",
+          "advisor_design_temp": "Outdoor design temperature",
+          "advisor_attic_comfort": "Minimum comfortable attic temperature"
         }
       },
       "communication": {

@@ -195,7 +195,19 @@ async def test_unconfigured_payload(hass: HomeAssistant):
     assert hass.states.get("sensor.heating_activity") is None
 
 
-async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
+@pytest.mark.parametrize(
+    "advisor_options",
+    [
+        {},
+        {
+            "advisor_lookback_years": 2,
+            "advisor_thermal_kw": 7.5,
+            "advisor_design_temp": -14,
+            "advisor_attic_comfort": 19.5,
+        },
+    ],
+)
+async def test_options_flow_heating_step(hass: HomeAssistant, advisor_options):
     entry = MockConfigEntry(
         domain=DOMAIN,
         options={"heating": {"url": "http://plc.example", "username": "u", "password": "old"}},
@@ -219,6 +231,7 @@ async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
             "password": "",
             "map_path": "/config/homebrain/heating_map.yaml",
             "poll_interval": 45,
+            **advisor_options,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -229,6 +242,11 @@ async def test_options_flow_heating_step(hass: HomeAssistant, tmp_path):
         "map_path": "/config/homebrain/heating_map.yaml",
         "poll_interval": 45,
         "alert_recipient": "",
+        "advisor_lookback_years": 3,
+        "advisor_thermal_kw": None,
+        "advisor_design_temp": -12,
+        "advisor_attic_comfort": 20,
+        **advisor_options,
     }
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
@@ -261,3 +279,53 @@ async def test_entry_unload_keeps_shared_session_open(hass: HomeAssistant, plc, 
     assert not plc.sessions
     assert "closes the Home Assistant aiohttp session" not in caplog.text
     await poller.async_stop()  # repeated cleanup is harmless
+
+
+async def test_fault_warning_escalation_and_restart(hass, plc, tmp_path):
+    poller = await _setup(hass, _entry(plc, write_map(tmp_path / "map.yaml")))
+    page, lamps = plc.pages[17], plc.pages[8]
+    lamps["__R7100.0_BOOL_i"] = "1"
+
+    def fault(poller):
+        return next((a for a in poller.payload()["alerts"] if a["id"] == "fault"), None)
+
+    await poller.async_poll_once()
+    await poller.async_poll_once()
+    alert = fault(poller)
+    assert alert["severity"] == "warning"
+    assert alert["title"] == "Čerpadlo zaznamenalo poruchu"
+    since = poller.payload()["faults"]["active"][0]["since"]
+    assert alert["body"] == (f"Vysoký tlak v {since[11:16]}. Potvrďte ji na panelu čerpadla.")
+    await poller.async_poll_once()
+    assert "Kompresor od té doby" not in fault(poller)["body"]
+
+    page["__Y50.7_BOOL_i"] = "1"
+    await poller.async_poll_once()
+    assert "Kompresor od té doby běžel." in fault(poller)["body"]
+    page["__Y50.7_BOOL_i"] = "0"
+    # A fresh poller loads the Store while the compressor is already off.
+    restarted = HeatingPoller(hass, poller.opts, lambda: {})
+    await restarted.async_start()
+    try:
+        await restarted.async_poll_once()
+        assert restarted.payload()["faults"]["active"][0]["since"] == since
+        assert "Kompresor od té doby běžel." in fault(restarted)["body"]
+        for flag in ("__R7050.3_BOOL_i", "__R7051.0_BOOL_i"):
+            page[flag] = "1"
+            await restarted.async_poll_once()
+            assert fault(restarted)["severity"] == "critical"
+            assert fault(restarted)["title"] == "Porucha tepelného čerpadla"
+            page[flag] = "0"
+            await restarted.async_poll_once()
+            assert fault(restarted)["severity"] == "warning"
+        lamps["__R7100.0_BOOL_i"] = "0"
+        restarted._due.pop(8, None)  # Force an observation of the slower fault page.
+        await restarted.async_poll_once()
+        assert fault(restarted) is None
+        lamps["__R7100.0_BOOL_i"] = "1"
+        restarted._due.pop(8, None)
+        await restarted.async_poll_once()
+        await restarted.async_poll_once()
+        assert "Kompresor od té doby neběžel." in fault(restarted)["body"]
+    finally:
+        await restarted.async_stop()

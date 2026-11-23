@@ -18,6 +18,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
 from ..roles import HEATING_DETAIL_ROLES, HEATING_GET_ROLES, entry_roles, resolve_role
+from .advisor import DATA_KEY as ADVISOR_KEY
 from .entities import TOTAL_KEYS, unique_id
 from .keys import COUNTER_KEYS, key_from_object_id, object_id, spec_of
 from .model import compute_seasons, empty_payload, kiosk_subset
@@ -65,7 +66,10 @@ def _require(hass: HomeAssistant, connection: Any, roles: frozenset[str]) -> str
 
 def _payload(hass: HomeAssistant) -> dict[str, Any]:
     poller = _poller(hass)
-    return poller.payload() if poller else empty_payload("unconfigured", dt_util.utcnow())
+    payload = poller.payload() if poller else empty_payload("unconfigured", dt_util.utcnow())
+    advisor = hass.data.get(DOMAIN, {}).get(ADVISOR_KEY)
+    payload["advisor"] = advisor.result if advisor else None
+    return payload
 
 
 def _statistic_id(hass: HomeAssistant, key: str) -> str | None:

@@ -173,7 +173,11 @@ export function LandscapeDashboard({
   const tankTarget = snap.tank.curve_target ?? snap.tank.target;
   const avg = avgRunLengthMin(hp.runtime_today_h, hp.starts_today);
   const delta = heatPumpDeltaT(snap);
-  const faults = snap.faults.active.length;
+  const lampLabels = snap.faults.active.map((fault) => fault.label);
+  const faultLabels = lampLabels.concat(
+    snap.faults.fatal ? ['Fatální chyba'] : [],
+    snap.faults.compressor_block ? ['Blokace kompresoru'] : [],
+  );
   const rooms = roomsModel(snap);
   const mode = snap.mode;
 
@@ -285,10 +289,7 @@ export function LandscapeDashboard({
 
       <Panel id="status" title="Stav">
         <ul className="ht-kv">
-          <KvRow
-            k="Poruchy"
-            v={faults ? snap.faults.active.map((f) => f.label).join(' · ') : 'V pořádku'}
-          />
+          <KvRow k="Poruchy" v={faultLabels.join(' · ') || 'V pořádku'} />
           <KvRow
             k="Tarif HDO"
             v={mode.hdo_low_tariff ? 'nízký' : 'vysoký'}
