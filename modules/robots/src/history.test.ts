@@ -8,6 +8,7 @@ import {
   parseHistory,
   recentRuns,
   runWhen,
+  stateAgeLabel,
   staleLabels,
 } from './history.js';
 
@@ -75,7 +76,8 @@ describe('formatting', () => {
   it('run time and duration', () => {
     expect(runWhen('2026-11-23T08:40:00Z', NOW)).toBe('Dnes 9:40');
     expect(runWhen('2026-11-22T08:40:00Z', NOW)).toBe('Včera 9:40');
-    expect(runWhen('2026-11-19T08:40:00Z', NOW)).toMatch(/19\. ?11\. 9:40$/);
+    expect(runWhen('2026-11-21T08:40:00Z', NOW)).toBe('So 21. 11. 9:40');
+    expect(runWhen('2026-11-20T08:40:00Z', NOW)).toBe('Pá 20. 11. 9:40');
     expect(durationLabel(2520)).toBe('42 min');
     expect(durationLabel(3900)).toBe('1 h 5 min');
     expect(durationLabel(10)).toBe('1 min');
@@ -106,6 +108,16 @@ describe('data age', () => {
     };
     expect(staleLabels(input, now)).toEqual({ map: 'Mapa před 4 min', state: 'Stav před 2 min' });
     expect(staleLabels({ ...input, active: false }, now)).toEqual({ map: null, state: null });
+    // In the dock only a map older than a day.
+    const docked = { ...input, active: false };
+    expect(staleLabels({ ...docked, mapAt: '2026-11-22T10:00:00Z' }, now).map).toBeNull();
+    expect(staleLabels({ ...docked, mapAt: '2026-11-22T03:00:00Z' }, now)).toEqual({
+      map: 'Mapa před 30 h',
+      state: null,
+    });
+    expect(staleLabels({ ...docked, mapAt: '2026-11-19T09:00:00Z' }, now).map).toBe(
+      'Mapa před 4 dny',
+    );
     expect(
       staleLabels(
         { ...input, stateAt: '2026-11-23T08:59:00Z', mapAt: '2026-11-23T08:59:00Z' },
@@ -116,5 +128,14 @@ describe('data age', () => {
       map: null,
       state: 'Stav před 2 min',
     });
+  });
+});
+
+describe('state age while a command waits', () => {
+  it('ignores the threshold', () => {
+    const now = Date.parse('2026-11-23T09:00:00Z');
+    expect(stateAgeLabel('2026-11-23T08:59:10Z', now)).toBe('Stav před 1 min');
+    expect(stateAgeLabel('2026-11-23T08:56:00Z', now)).toBe('Stav před 4 min');
+    expect(stateAgeLabel(null, now)).toBeNull();
   });
 });

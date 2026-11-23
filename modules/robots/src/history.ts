@@ -162,7 +162,7 @@ export function cleanedLabel(at: string | null, now: Date): string {
   return `Uklizeno před ${days} dny`;
 }
 
-/** Run time for the history list: „Dnes 9:40“, „Včera 18:05“, „po 2. 11. 9:40“. */
+/** Run time for the history list: „Dnes 9:40“, „Včera 18:05“, „Po 2. 11. 9:40“. */
 export function runWhen(at: string, now: Date): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
@@ -175,7 +175,8 @@ export function runWhen(at: string, now: Date): string {
     day: 'numeric',
     month: 'numeric',
   }).format(date);
-  return `${day} ${clock(date)}`;
+  // cs-CZ weekdays come lower-case („so“): capitalise like „Dnes“ / „Včera“.
+  return `${day.charAt(0).toLocaleUpperCase('cs-CZ')}${day.slice(1)} ${clock(date)}`;
 }
 
 /** „42 min“, „1 h 5 min“ (at least 1 min). */
@@ -187,37 +188,47 @@ export function durationLabel(seconds: number): string {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-/** „před 4 min“ / „před 2 h“ – compact age of a data stamp. */
+/** „před 4 min“ / „před 2 h“ / „před 30 h“ / „před 3 dny“ – compact age of a data stamp. */
 export function ageLabel(ms: number): string {
   const minutes = Math.max(1, Math.floor(ms / 60_000));
   if (minutes < 60) return `před ${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `před ${hours} h`;
-  return `před ${Math.floor(hours / 24)} d`;
+  if (hours < 48) return `před ${hours} h`;
+  return `před ${Math.floor(hours / 24)} dny`;
 }
 
 export const MAP_STALE_MS = 2 * 60_000;
 export const STATE_STALE_MS = 90_000;
+/** In the dock the map only changes with the next run: its age matters after a day. */
+export const MAP_DOCK_STALE_MS = 24 * 3_600_000;
 
 /**
  * Muted „Mapa před 4 min“ / „Stav před 2 min“ while the robot is active: the HA Roborock
  * integration refreshes both only every ~30 s (cloud), so a gap means data is lagging.
- * Nothing is fetched for it.
+ * In the dock only a map older than a day („Mapa před 30 h“). Nothing is fetched for it.
  */
 export function staleLabels(
   input: { active: boolean; stateAt: string | null; mapAt: string | null; hasMap: boolean },
   now: number,
 ): { map: string | null; state: string | null } {
-  const age = (at: string | null, limit: number, label: string) => {
+  const age = (at: string | null, limit: number | null, label: string) => {
     const ms = at ? Date.parse(at) : NaN;
-    return input.active && Number.isFinite(ms) && now - ms > limit
+    return limit !== null && Number.isFinite(ms) && now - ms > limit
       ? `${label} ${ageLabel(now - ms)}`
       : null;
   };
   return {
-    map: input.hasMap ? age(input.mapAt, MAP_STALE_MS, 'Mapa') : null,
-    state: age(input.stateAt, STATE_STALE_MS, 'Stav'),
+    map: input.hasMap
+      ? age(input.mapAt, input.active ? MAP_STALE_MS : MAP_DOCK_STALE_MS, 'Mapa')
+      : null,
+    state: age(input.stateAt, input.active ? STATE_STALE_MS : null, 'Stav'),
   };
+}
+
+/** „Stav před 2 min“ regardless of the threshold (a command got no reply: data may be old). */
+export function stateAgeLabel(stateAt: string | null, now: number): string | null {
+  const ms = stateAt ? Date.parse(stateAt) : NaN;
+  return Number.isFinite(ms) ? `Stav ${ageLabel(Math.max(0, now - ms))}` : null;
 }
 
 /**
