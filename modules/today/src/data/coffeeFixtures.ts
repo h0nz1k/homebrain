@@ -1,35 +1,45 @@
-import { setCoffeeApiFactory, type CoffeeApi, type CoffeeBlock } from './coffee.js';
+import { setCoffeeApiFactory, type CoffeeApi, type CoffeeStatus } from './coffee.js';
 
 export function installCoffeeFixtures(search: string): void {
   const scenario = new URLSearchParams(search).get('coffee');
   if (!scenario) return;
 
-  let reason: CoffeeBlock | null =
-    scenario === 'off'
-      ? 'tv_off'
-      : scenario === 'missing'
-        ? 'script_missing'
-        : scenario === 'hidden'
-          ? 'not_configured'
-          : null;
-  const listeners = new Set<(reason: CoffeeBlock | null) => void>();
-  const publish = (next: CoffeeBlock | null) => {
-    reason = next;
-    listeners.forEach((listener) => listener(reason));
+  let status: CoffeeStatus = {
+    reason:
+      scenario === 'off'
+        ? 'tv_off'
+        : scenario === 'missing'
+          ? 'script_missing'
+          : scenario === 'hidden'
+            ? 'not_configured'
+            : null,
   };
+  const listeners = new Set<(status: CoffeeStatus) => void>();
+  const publish = (next: CoffeeStatus) => {
+    status = next;
+    listeners.forEach((listener) => listener(status));
+  };
+  function startCooldown() {
+    publish({ reason: 'cooldown', cooldown_until: new Date(Date.now() + 30_000).toISOString() });
+    return setTimeout(() => publish({ reason: null, cooldown_until: null }), 30_000);
+  }
+  if (scenario === 'cooldown') startCooldown();
+
   const mock: CoffeeApi = {
     subscribe(onStatus) {
       listeners.add(onStatus);
-      onStatus(reason);
+      onStatus(status);
       return () => listeners.delete(onStatus);
     },
     async invite() {
-      if (reason) return { ok: false, reason };
-      publish('cooldown');
-      setTimeout(() => publish(null), 30_000);
-      return scenario === 'error'
-        ? { ok: false, reason: 'send_failed' }
-        : { ok: true, reason: null };
+      if (status.reason) return { ok: false, reason: status.reason };
+      const timer = startCooldown();
+      if (scenario === 'error') {
+        clearTimeout(timer);
+        publish({ reason: null, cooldown_until: null });
+        return { ok: false, reason: 'send_failed' };
+      }
+      return { ok: true, reason: null };
     },
   };
   setCoffeeApiFactory(() => mock);

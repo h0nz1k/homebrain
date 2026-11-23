@@ -5,8 +5,13 @@ export const todayStyles = `
 .hb-today *{box-sizing:border-box}
 .today-content{position:relative;z-index:1;display:flex;flex-direction:column;gap:16px;width:100%;height:100%;min-height:0;padding:28px 48px 22px}
 .today-header{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--hb-t2);text-transform:none;font-size:20px}
-.today-coffee{display:flex;flex:none;flex-wrap:wrap;align-items:center;gap:8px 12px}
-.today-coffee span{font-size:14px;color:var(--hb-t2)}
+.today-coffee{display:flex;flex:none;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px 12px;font-size:var(--hb-type-body)}
+.today-coffee .hb-btn{min-height:48px;border:1px solid var(--hb-ac);background:var(--hb-ac-s);color:var(--hb-sel-ink)}
+.today-coffee .hb-btn:hover:not(:disabled){background:color-mix(in srgb,var(--hb-ac) 22%,transparent)}
+.today-coffee .hb-btn:disabled{opacity:1;border-color:var(--hb-b2);background:var(--hb-s3);color:light-dark(color-mix(in srgb,var(--hb-t3) 91%,var(--hb-s3)),color-mix(in srgb,var(--hb-t3) 80%,var(--hb-s3)))}
+.today-coffee-status{color:var(--hb-t2)}
+.today-coffee-status[data-success]{color:var(--hb-ok)}
+.today-mobile .today-coffee-status{flex-basis:100%}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}
 .today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:36px}

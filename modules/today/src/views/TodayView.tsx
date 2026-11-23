@@ -395,6 +395,8 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           {presenceInHero && presence}
           {summaryInHero && summaryLine}
         </div>
+        {!night && kiosk && cookingCard}
+        {!night && !kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
         <CoffeeInvite api={coffeeApi} />
         {night ? (
           <>
@@ -406,8 +408,6 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           </>
         ) : (
           <>
-            {kiosk && cookingCard}
-            {!kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
             {heroFirst && hero}
             {watchCard}
             <div className="today-ribbon-card" data-testid="ribbon-card">

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from datetime import timedelta
 from typing import Any, Final
 
 import voluptuous as vol
@@ -21,6 +22,7 @@ from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
+from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
 from ..family import persons
@@ -97,7 +99,11 @@ def websocket_coffee_subscribe(hass: HomeAssistant, connection: Any, msg: dict[s
     def publish(_event=None) -> None:
         nonlocal last
         reason = _reason(hass, entry.options if entry else {})
-        snapshot = {"reason": reason}
+        cooldown_until = hass.data.get(_COOLDOWN)
+        snapshot = {
+            "reason": reason,
+            "cooldown_until": cooldown_until.isoformat() if cooldown_until else None,
+        }
         if snapshot != last:
             last = snapshot
             connection.send_message(websocket_api.event_message(msg["id"], snapshot))
@@ -153,13 +159,18 @@ async def websocket_coffee_invite(
     if name := _inviter(hass, user, options):
         variables["od"] = name
 
+    cooldown_until = dt_util.utcnow() + timedelta(seconds=COOLDOWN_SECONDS)
+
     @callback
     def end_cooldown(_now) -> None:
-        hass.data.pop(_COOLDOWN, None)
-        async_dispatcher_send(hass, _CHANGED)
+        if hass.data.get(_COOLDOWN) is cooldown_until:
+            hass.data.pop(_COOLDOWN)
+            async_dispatcher_send(hass, _CHANGED)
 
-    hass.data[_COOLDOWN] = True
-    async_call_later(hass, COOLDOWN_SECONDS, HassJob(end_cooldown, cancel_on_shutdown=True))
+    hass.data[_COOLDOWN] = cooldown_until
+    cancel_cooldown = async_call_later(
+        hass, COOLDOWN_SECONDS, HassJob(end_cooldown, cancel_on_shutdown=True)
+    )
     async_dispatcher_send(hass, _CHANGED)
     try:
         # HA's script.turn_on starts the script with wait=False. Wait for dispatch only.
@@ -171,6 +182,9 @@ async def websocket_coffee_invite(
             context=Context(user_id=user.id),
         )
     except HomeAssistantError:
+        if hass.data.get(_COOLDOWN) is cooldown_until:
+            cancel_cooldown()
+            end_cooldown(None)
         _LOGGER.debug("Coffee invitation script could not be started")
         connection.send_result(msg["id"], {"ok": False, "reason": "send_failed"})
         return

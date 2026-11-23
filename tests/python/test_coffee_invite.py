@@ -1,6 +1,6 @@
 """Dnes coffee invitation, using only synthetic HA accounts and entities."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import Mock
 
 import pytest
@@ -134,12 +134,51 @@ async def test_reject_unauthenticated(hass):
     assert isinstance(connection.async_handle_exception.call_args.args[-1], Unauthorized)
 
 
-async def test_status_updates_and_dispatch_failure(hass, entry, hass_ws_client):
+async def test_status_updates(hass, entry, hass_ws_client):
     hass.config_entries.async_update_entry(
         entry, options={"coffee_script": SCRIPT, "coffee_tv": TV}
     )
     hass.states.async_set(SCRIPT, "off")
     hass.states.async_set(TV, "off")
+
+    hass.services.async_register("script", "turn_on", lambda _: None)
+    listener = await hass_ws_client(hass)
+    assert await _send(listener, STATUS) is None
+
+    async def expect_reason(reason, cooldown_until=None):
+        event = await listener.receive_json()
+        assert event == {
+            "id": 1,
+            "type": "event",
+            "event": {"reason": reason, "cooldown_until": cooldown_until},
+        }
+
+    await expect_reason("tv_off")
+    hass.states.async_set(TV, "on")
+    await expect_reason(None)
+
+    client = await hass_ws_client(hass)
+    before = dt_util.utcnow()
+    assert await _send(client) == {"ok": True, "reason": None}
+    event = await listener.receive_json()
+    assert event["event"]["reason"] == "cooldown"
+    end = datetime.fromisoformat(event["event"]["cooldown_until"])
+    duration = timedelta(seconds=30)
+    assert before + duration <= end <= dt_util.utcnow() + duration
+
+    other_panel = await hass_ws_client(hass)
+    assert await _send(other_panel, STATUS) is None
+    assert await other_panel.receive_json() == event
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    await expect_reason(None)
+
+    hass.config_entries.async_update_entry(entry, options={})
+    await expect_reason("not_configured")
+
+
+async def test_send_failed_clears_cooldown_and_allows_retry(hass, entry, hass_ws_client):
+    hass.states.async_set(SCRIPT, "off")
 
     @callback
     def fail(_call):
@@ -148,23 +187,16 @@ async def test_status_updates_and_dispatch_failure(hass, entry, hass_ws_client):
     hass.services.async_register("script", "turn_on", fail)
     listener = await hass_ws_client(hass)
     assert await _send(listener, STATUS) is None
-
-    async def expect_reason(reason):
-        event = await listener.receive_json()
-        assert event == {"id": 1, "type": "event", "event": {"reason": reason}}
-
-    await expect_reason("tv_off")
-    hass.states.async_set(TV, "on")
-    await expect_reason(None)
+    assert (await listener.receive_json())["event"] == {"reason": None, "cooldown_until": None}
 
     client = await hass_ws_client(hass)
     assert await _send(client) == {"ok": False, "reason": "send_failed"}
-    await expect_reason("cooldown")
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
-    await expect_reason(None)
+    assert (await listener.receive_json())["event"]["reason"] == "cooldown"
+    assert (await listener.receive_json())["event"] == {"reason": None, "cooldown_until": None}
 
-    hass.config_entries.async_update_entry(entry, options={})
-    await expect_reason("not_configured")
+    hass.services.async_register("script", "turn_on", lambda _: None)
+    assert await _send(client) == {"ok": True, "reason": None}
+    assert await _send(client) == {"ok": False, "reason": "cooldown"}
 
 
 async def test_options(hass, entry):

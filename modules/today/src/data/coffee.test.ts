@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ConnectionLike } from '@homebrain/ha-client';
-import { getCoffeeApi, type CoffeeBlock } from './coffee.js';
+import { getCoffeeApi, type CoffeeStatus } from './coffee.js';
 
 describe('Coffee WebSocket client', () => {
   it('subscribes to status and sends the invitation command without arguments', async () => {
     const unsubscribe = vi.fn();
     const onStatus = vi.fn();
-    type Snapshot = { reason: CoffeeBlock | null };
-    let publish: (status: Snapshot) => void = () => {};
-    const subscribeMessage = vi.fn(async (callback: (status: Snapshot) => void) => {
+    let publish: (status: CoffeeStatus) => void = () => {};
+    const subscribeMessage = vi.fn(async (callback: (status: CoffeeStatus) => void) => {
       publish = callback;
       return unsubscribe;
     });
@@ -22,9 +21,10 @@ describe('Coffee WebSocket client', () => {
     expect(subscribeMessage).toHaveBeenCalledWith(expect.any(Function), {
       type: 'homebrain/today/coffee/subscribe',
     });
-    publish({ reason: 'tv_off' });
-    publish({ reason: null });
-    expect(onStatus.mock.calls).toEqual([['tv_off'], [null]]);
+    const snapshot = { reason: 'cooldown', cooldown_until: '2026-11-08T12:00:30Z' } as const;
+    publish(snapshot);
+    publish({ reason: null, cooldown_until: null });
+    expect(onStatus.mock.calls).toEqual([[snapshot], [{ reason: null, cooldown_until: null }]]);
 
     await expect(api.invite()).resolves.toEqual({ ok: true, reason: null });
     expect(sendMessagePromise).toHaveBeenCalledExactlyOnceWith({

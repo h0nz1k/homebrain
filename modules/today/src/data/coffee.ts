@@ -1,11 +1,15 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
 
 export type CoffeeBlock = 'not_configured' | 'script_missing' | 'tv_off' | 'cooldown';
+export interface CoffeeStatus {
+  reason: CoffeeBlock | null;
+  cooldown_until?: string | null;
+}
 export type CoffeeResult =
   { ok: true; reason: null } | { ok: false; reason: CoffeeBlock | 'send_failed' };
 
 export interface CoffeeApi {
-  subscribe(onStatus: (reason: CoffeeBlock | null) => void): () => void;
+  subscribe(onStatus: (status: CoffeeStatus) => void): () => void;
   invite(): Promise<CoffeeResult>;
 }
 
@@ -17,9 +21,9 @@ let factory: CoffeeApiFactory = (connection) => {
   return {
     subscribe(onStatus) {
       let stopped = false;
-      const subscription = subscribeMessage<{ reason: CoffeeBlock | null }>(
-        ({ reason }) => {
-          if (!stopped) onStatus(reason);
+      const subscription = subscribeMessage<CoffeeStatus>(
+        (status) => {
+          if (!stopped) onStatus(status);
         },
         { type: 'homebrain/today/coffee/subscribe' },
       ).catch(() => undefined);

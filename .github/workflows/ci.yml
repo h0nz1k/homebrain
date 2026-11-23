@@ -167,8 +167,8 @@ jobs:
           name: heating-advisor-screenshots
           path: test-results/advisor-r3/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: github.event_name == 'pull_request' && hashFiles('test-results/coffee-invite/*.png') != ''
+        if: github.event_name == 'pull_request' && hashFiles('test-results/coffee-invite-r1/*.png') != ''
         with:
           name: today-coffee-invite-screenshots-${{ matrix.shard }}
-          path: test-results/coffee-invite/
+          path: test-results/coffee-invite-r1/
           retention-days: 14
