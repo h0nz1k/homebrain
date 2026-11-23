@@ -1,3 +1,5 @@
+import { timetableStyles } from './timetableStyles.js';
+
 export const familyStyles = `
 .fam { color: var(--hb-t1); max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--hb-sp-4); }
 .fam * { box-sizing: border-box; }
@@ -1303,4 +1305,5 @@ export const familyStyles = `
 }
 .fam[data-kiosk] .fam-box svg { width: 18px; height: 18px; }
 .fam[data-kiosk] .fam-add input::placeholder { color: var(--hb-t2); opacity: 1; }
+${timetableStyles}
 `;

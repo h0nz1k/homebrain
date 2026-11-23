@@ -25,6 +25,8 @@ export const schoolStyles = `
 .today-school ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .today-school-label { font-weight: 600; color: var(--hb-t2); }
 .today-school-lunch { font-size: 17px; }
+.today-school-timetable { font-size: 16px; }
+.today-school-timetable + * { margin-top: 4px; }
 .today-school-lunch strong { font-weight: 500; color: var(--hb-t1); }
 .today-school[data-school-kiosk] { font-size: 18px; line-height: 1.3; padding: 12px 22px; }
 .today-school[data-school-kiosk] .today-school-title { font-size: 18px; }

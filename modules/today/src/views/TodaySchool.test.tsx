@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import type { SchoolSnapshot } from '@homebrain/ha-client';
+import type { SchoolSnapshot, TimetableSnapshot } from '@homebrain/ha-client';
 import { createMockHomeApi } from '../data/home.js';
 import { TodaySchool } from './TodaySchool.js';
 
@@ -72,7 +72,7 @@ it('ukáže jen nejbližší důležitý termín a „načteno dnes“', async (
   await screen.findByTestId('today-school');
   expect(text('school-date')).toEqual(['st 25. 11. · Schůzky']);
   expect(screen.getByText('načteno dnes 4:00')).toBeTruthy();
-  expect(shown.at(-1)).toBe(true);
+  await waitFor(() => expect(shown.at(-1)).toBe(true));
 });
 
 it.each([
@@ -82,4 +82,62 @@ it.each([
   render(<TodaySchool api={apiWith({ ...snapshot, lunch })} now={morning} kiosk={false} />);
   await screen.findByTestId('today-school');
   expect(screen.queryByTestId('school-lunch')).toBeNull();
+});
+
+const child = (name: string, days: TimetableSnapshot['children'][number]['days']) => ({
+  id: name.toLowerCase(),
+  name,
+  grid: [],
+  afternoon_days: [],
+  next: null,
+  days,
+});
+const timetable: TimetableSnapshot = {
+  enabled: true,
+  today: '2026-11-23',
+  bells: [],
+  afternoon: null,
+  children: [
+    child('Ema', [
+      {
+        date: '2026-11-23',
+        school: true,
+        free: null,
+        lessons: [
+          { period: 1, subject: 'Čj', start: '07:30', end: '08:15' },
+          { period: 2, subject: 'M', start: '08:25', end: '12:05' },
+        ],
+        start: '07:30',
+        end: '12:05',
+        lunch: null,
+        bring: [],
+      },
+      {
+        date: '2026-11-24',
+        school: true,
+        free: null,
+        lessons: [{ period: 1, subject: 'Tv', start: '07:30', end: '12:05' }],
+        start: '07:30',
+        end: '12:05',
+        lunch: null,
+        bring: [{ subject: 'Tv', item: 'cvičky a úbor' }],
+      },
+    ]),
+  ],
+};
+
+it('přidá řádek rozvrhu na telefonu, ne na kiosku', async () => {
+  const api = { ...apiWith({ ...snapshot, enabled: false }), timetable: async () => timetable };
+  const { rerender } = render(<TodaySchool api={api} now={morning} kiosk={false} />);
+  expect((await screen.findByTestId('school-timetable')).textContent).toBe(
+    'Ema · škola do 12:05 · teď M',
+  );
+  rerender(<TodaySchool api={api} now="2026-11-23T19:00:00+01:00" kiosk={false} />);
+  expect(screen.getByTestId('school-timetable').textContent).toBe(
+    'Zítra Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
+  );
+  cleanup();
+  render(<TodaySchool api={api} now={morning} kiosk />);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(screen.queryByTestId('today-school')).toBeNull();
 });

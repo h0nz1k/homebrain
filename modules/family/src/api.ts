@@ -1,4 +1,10 @@
-import { getSchool, type ConnectionLike, type SchoolSnapshot } from '@homebrain/ha-client';
+import {
+  getSchool,
+  getTimetable,
+  type ConnectionLike,
+  type SchoolSnapshot,
+  type TimetableSnapshot,
+} from '@homebrain/ha-client';
 import type {
   CreateChoreInput,
   DeleteChoreInput,
@@ -8,6 +14,7 @@ import type {
   PersonSettings,
   PersonsSettings,
   SchoolSettings,
+  TimetableSettings,
   PointsHistory,
   PointsSummary,
   SwapRequestInput,
@@ -18,8 +25,13 @@ export interface FamilyApi {
   get(): Promise<FamilySnapshot>;
   personHistory(member: string): Promise<{ entries: PersonHistoryEntry[] }>;
   personsSettings(): Promise<PersonsSettings>;
-  savePersons(persons: PersonSettings[], school?: SchoolSettings): Promise<PersonsSettings>;
+  savePersons(
+    persons: PersonSettings[],
+    school?: SchoolSettings,
+    timetable?: TimetableSettings,
+  ): Promise<PersonsSettings>;
   school?(): Promise<SchoolSnapshot>;
+  timetable?(): Promise<TimetableSnapshot>;
   claim(kid: string, chore: string): Promise<void>;
   approve(kid: string, chore: string): Promise<void>;
   addItem(summary: string): Promise<void>;
@@ -59,9 +71,15 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
   return {
     get: () => call<FamilySnapshot>('homebrain/family/get'),
     school: () => getSchool(connection),
+    timetable: () => getTimetable(connection),
     personHistory: (member) => call('homebrain/family/person/history', { member }),
     personsSettings: () => call('homebrain/family/settings/get'),
-    savePersons: (persons, school) => call('homebrain/family/settings/set', { persons, school }),
+    savePersons: (persons, school, timetable) =>
+      call('homebrain/family/settings/set', {
+        persons,
+        school,
+        ...(timetable ? { timetable: timetableInput(timetable) } : {}),
+      }),
     claim: async (kid, chore) => void (await call('homebrain/family/chore/claim', { kid, chore })),
     approve: async (kid, chore) =>
       void (await call('homebrain/family/chore/approve', { kid, chore })),
@@ -87,6 +105,14 @@ export function createWsFamilyApi(connection: ConnectionLike): FamilyApi {
     pointsHistory: (kid, days = 7, limit = 30) =>
       call('homebrain/family/points/history', { kid, days, limit }),
   };
+}
+
+/** Drop the read-only fields of the settings payload before saving. */
+export function timetableInput(settings: TimetableSettings): TimetableSettings {
+  const input = { ...settings };
+  delete input.imported;
+  delete input.auto_holiday_calendar;
+  return input;
 }
 
 export type FamilyApiFactory = (connection: ConnectionLike | undefined) => FamilyApi | null;

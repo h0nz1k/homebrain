@@ -1,3 +1,5 @@
+import type { TimetableAfternoon, TimetableBell } from '@homebrain/ha-client';
+
 export type FamilyRole = 'owner' | 'adult' | 'child' | 'kiosk' | 'guest';
 export type ChoreState = 'todo' | 'claimed' | 'done' | 'overdue';
 
@@ -233,13 +235,45 @@ export interface SchoolSettings {
   menu_url: string;
   events_url: string;
   dates_url: string;
+  /** Bell schedule page („Časový rozvrh vyučování“); manual bells win over it. */
+  bells_url?: string;
   reminder_days: number;
+}
+
+export interface TimetableChildSettings {
+  /** Mon–Fri × periods 1–9 („“ = empty period). */
+  days: string[][];
+  /** Weekdays (0 = Po) with the afternoon bells; null = follow the school web variant. */
+  afternoon_days: number[] | null;
+}
+
+export interface TimetableFreeRange {
+  start: string;
+  end: string;
+  label: string;
+}
+
+export interface TimetableSettings {
+  bells: Array<TimetableBell | null>;
+  afternoon: TimetableAfternoon | null;
+  /** `auto` = the HA `holiday` integration calendar, `""` = none, or a `calendar.*` entity. */
+  holiday_calendar: string;
+  free: TimetableFreeRange[];
+  /** Subject → „co s sebou“ („“ = nothing). */
+  items: Record<string, string>;
+  /** Keyed by `choreops_user_id`. */
+  children: Record<string, TimetableChildSettings>;
+  /** Read-only: bells parsed from `bells_url`. */
+  imported?: { bells: Array<TimetableBell | null>; afternoon: TimetableAfternoon | null } | null;
+  auto_holiday_calendar?: string | null;
 }
 
 export interface PersonsSettings {
   school?: SchoolSettings;
+  timetable?: TimetableSettings;
   persons: Array<PersonSettings & { name: string; configured: boolean }>;
   candidates: {
+    calendars?: Array<{ entity_id: string; name: string }>;
     people: Array<{ id: string; name: string }>;
     trackers: Array<{ id: string; name: string }>;
   };

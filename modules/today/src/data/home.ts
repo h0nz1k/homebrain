@@ -1,4 +1,10 @@
-import { getSchool, type ConnectionLike, type SchoolSnapshot } from '@homebrain/ha-client';
+import {
+  getSchool,
+  getTimetable,
+  type ConnectionLike,
+  type SchoolSnapshot,
+  type TimetableSnapshot,
+} from '@homebrain/ha-client';
 
 /** One row of „Co se dnes vaří“ (server `homebrain/today/meals`). */
 export interface Meal {
@@ -74,6 +80,8 @@ export function summarizeChores(family: FamilyLike | null | undefined): KidChore
 export interface HomeApi {
   meals(): Promise<MealsSnapshot>;
   school?(day: string): Promise<SchoolSnapshot>;
+  /** Children's timetables (phones/tablets only; the kiosk role gets an empty snapshot). */
+  timetable?(day: string): Promise<TimetableSnapshot>;
   /** `null` when Rodina is unavailable (module off, no access). */
   family(): Promise<FamilyLike | null>;
 }
@@ -81,6 +89,7 @@ export interface HomeApi {
 export function createWsHomeApi(connection: ConnectionLike): HomeApi {
   return {
     school: () => getSchool(connection, true),
+    timetable: () => getTimetable(connection),
     meals: () => connection.sendMessagePromise<MealsSnapshot>({ type: 'homebrain/today/meals' }),
     family: () =>
       connection.sendMessagePromise<FamilyLike>({ type: 'homebrain/family/get' }).catch(() => null),
