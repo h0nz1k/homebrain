@@ -5,8 +5,11 @@ import type { RobotModel } from './model.js';
 import {
   loadRobotsUi,
   mergeSlotMemory,
+  readMapView,
   saveRobotsUi,
   slotMemoryForRobot,
+  writeMapView,
+  type MapView,
   type RobotsUiStore,
   type SlotUiMemory,
 } from './uiMemory.js';
@@ -29,7 +32,9 @@ export function useRobotsUiMemory(
   presetIds: readonly string[],
   memory: RobotsUiMemoryState,
   apply: (patch: SlotUiMemory) => void,
-): { rememberPreset: (preset: SlotUiMemory) => void } {
+) {
+  const [mapViews, setMapViews] = useState<Partial<Record<number, MapView>>>({});
+  const mapView = mapViews[robot.slot] ?? readMapView(robot.slot);
   const storeRef = useRef<RobotsUiStore | null>(null);
   const [hydratedSlot, setHydratedSlot] = useState<number | null>(null);
   const skipSave = useRef(true);
@@ -90,6 +95,11 @@ export function useRobotsUiMemory(
   ]);
 
   return {
+    mapView,
+    rememberMapView(view: MapView) {
+      setMapViews((previous) => ({ ...previous, [robot.slot]: view }));
+      writeMapView(robot.slot, view);
+    },
     rememberPreset(patch: SlotUiMemory) {
       if (!ready) return;
       const base = storeRef.current ?? { v: 1 as const, slots: {} };

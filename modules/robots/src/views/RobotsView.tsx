@@ -106,7 +106,9 @@ import { useVectorMap } from './useVectorMap.js';
 import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 import { CleaningOptionRow } from './CleaningOptionRow.js';
+import { IconSegmentedControl } from './IconSegmentedControl.js';
 import { LevelSegmentedControl } from './LevelSegmentedControl.js';
+import { MapViewSwitch } from './Map3D/MapViewSwitch.js';
 import { RoomIcon } from './roomIcons.js';
 import { useRobotsUiMemory } from '../useRobotsUiMemory.js';
 import type { SlotUiMemory } from '../uiMemory.js';
@@ -363,7 +365,7 @@ function RobotPanel({
     if (slot.passes !== undefined) setPasses(slot.passes);
     if (slot.presetId) setPresetIdPick(slot.presetId);
   }, []);
-  const { rememberPreset } = useRobotsUiMemory(
+  const { rememberPreset, mapView, rememberMapView } = useRobotsUiMemory(
     connection,
     robot,
     presetList.map((p) => p.id),
@@ -448,6 +450,7 @@ function RobotPanel({
     return vmap.rooms.map((room) => ({ id: room.id, name: names.get(room.id) || 'Místnost' }));
   }, [vmap, robot.rooms]);
   const selected = pruneOrder(order, rooms);
+  const toggleMapRoom = (id: number) => setOrder(toggleRoom(selected, id));
   const roomRefresh = useRef('');
   useEffect(() => {
     if (!vmap) return;
@@ -533,6 +536,30 @@ function RobotPanel({
     <p className="rb-map-empty">
       Mapa se ukáže po přiřazení obrázku mapy (entita image) v nastavení robota.
     </p>
+  );
+  const mapProps = vmap && {
+    map: vmap,
+    rooms,
+    selected,
+    onToggle: toggleMapRoom,
+    tone: markerTone(robot.status.tone),
+    label: `Mapa – ${robot.floor || robot.name}`,
+    trail: fullTrail ? ('full' as const) : ('faded' as const),
+    rotation: robot.rotation,
+    liveRoom: liveId,
+  };
+  const floorPlan = mapProps ? (
+    <VectorMapBoundary resetKey={mapProps.map.digest} fallback={imageMap}>
+      <VectorFloorPlan
+        {...mapProps}
+        callout={robot.error ? { title: robot.error.title, detail: robot.error.steps[0] } : null}
+        resolveBase={resolveBase}
+      />
+    </VectorMapBoundary>
+  ) : vector === null && robot.mapImage ? (
+    <span className="rb-map-loading" aria-hidden="true" />
+  ) : (
+    imageMap
   );
   const modes = (['vacuum', 'mop', 'both'] as CleanMode[]).filter((m) =>
     modeOptionAvailable(m, robot.modeOptions),
@@ -1166,33 +1193,35 @@ function RobotPanel({
               </div>
             )}
             <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
-              <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
-                {vector?.available ? (
-                  <VectorMapBoundary resetKey={vector.map.digest} fallback={imageMap}>
-                    <VectorFloorPlan
-                      map={vector.map}
-                      rooms={rooms}
-                      selected={selected}
-                      onToggle={(id) => setOrder(toggleRoom(selected, id))}
-                      tone={markerTone(robot.status.tone)}
-                      label={`Mapa – ${robot.floor || robot.name}`}
-                      callout={
-                        robot.error
-                          ? { title: robot.error.title, detail: robot.error.steps[0] }
-                          : null
-                      }
-                      resolveBase={resolveBase}
-                      trail={fullTrail ? 'full' : 'faded'}
-                      rotation={robot.rotation}
-                      liveRoom={liveId}
-                    />
-                  </VectorMapBoundary>
-                ) : vector === null && robot.mapImage ? (
-                  <span className="rb-map-loading" aria-hidden="true" />
-                ) : (
-                  imageMap
-                )}
-              </div>
+              {mapProps && mapView === '3d' ? (
+                <MapViewSwitch
+                  key={`${robot.slot}:${mapProps.map.digest}:${robot.rotation}`}
+                  {...mapProps}
+                  onMapView={rememberMapView}
+                  fallback={floorPlan}
+                />
+              ) : (
+                <div className="rb-map-stack">
+                  <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
+                    {floorPlan}
+                  </div>
+                  {mapProps && (
+                    <div className="rb-map-view-row">
+                      <IconSegmentedControl
+                        compact
+                        label="Zobrazení mapy"
+                        value={mapView}
+                        options={[
+                          ['2d', '2D'],
+                          ['3d', '3D'],
+                        ]}
+                        onChange={rememberMapView}
+                        className="rb-map-view"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="rb-clean-side">
                 {liveName && (
                   <p className="rb-now" data-testid="robots-live-chip">
