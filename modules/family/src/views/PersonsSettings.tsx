@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
 import { Button } from '@homebrain/ui';
 import type { FamilyApi } from '../api.js';
-import type { PersonSettings, PersonsSettings as Settings } from '../types.js';
+import type { PersonSettings, PersonsSettings as Settings, SchoolSettings } from '../types.js';
 import { personColor } from './PersonView.js';
 
 export function PersonsSettings({
@@ -45,19 +45,26 @@ export function PersonsSettings({
         },
     );
 
+  const changeSchool = (patch: Partial<SchoolSettings>) =>
+    setData((current) =>
+      current?.school ? { ...current, school: { ...current.school, ...patch } } : current,
+    );
+
   const save = async () => {
     if (!data) return;
     setSaving(true);
     setError('');
     try {
       const result = await api.savePersons(
-        data.persons.map(({ choreops_user_id, role, color, person, tracker }) => ({
+        data.persons.map(({ choreops_user_id, role, color, person, tracker, grade }) => ({
           choreops_user_id,
           role,
           color,
           person,
           tracker,
+          grade: role === 'child' ? grade : null,
         })),
+        data.school,
       );
       setData(result);
       onSaved();
@@ -118,6 +125,26 @@ export function PersonsSettings({
                   <option value="owner">Vlastník</option>
                 </select>
               </label>
+              {member.role === 'child' && (
+                <label>
+                  Ročník
+                  <select
+                    value={member.grade ?? ''}
+                    onChange={(event) =>
+                      change(member.choreops_user_id, {
+                        grade: Number(event.target.value) || null,
+                      })
+                    }
+                  >
+                    <option value="">Bez ročníku</option>
+                    {Array.from({ length: 9 }, (_, i) => (
+                      <option value={i + 1} key={i + 1}>
+                        {i + 1}.
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label>
                 Barva
                 <select
@@ -167,7 +194,40 @@ export function PersonsSettings({
               {!member.configured && <small>Čeká na potvrzení.</small>}
             </fieldset>
           ))}
-          {data.persons.length > 0 && (
+          {data.school && (
+            <fieldset className="fam-person-surface" disabled={saving}>
+              <legend>Školní web</legend>
+              {(
+                [
+                  ['menu_url', 'Odkaz na jídelníčky (PDF)'],
+                  ['events_url', 'Odkaz na plánované akce'],
+                  ['dates_url', 'Odkaz na důležité termíny'],
+                ] as const
+              ).map(([field, label]) => (
+                <label key={field}>
+                  {label}
+                  <input
+                    type="url"
+                    maxLength={500}
+                    value={data.school?.[field] ?? ''}
+                    onChange={(event) => changeSchool({ [field]: event.target.value })}
+                  />
+                </label>
+              ))}
+              <label>
+                Připomenout (dní předem)
+                <input
+                  type="number"
+                  min={0}
+                  max={365}
+                  required
+                  value={data.school.reminder_days}
+                  onChange={(event) => changeSchool({ reminder_days: Number(event.target.value) })}
+                />
+              </label>
+            </fieldset>
+          )}
+          {(data.persons.length > 0 || data.school) && (
             <Button type="submit" variant="primary" disabled={saving}>
               Uložit
             </Button>

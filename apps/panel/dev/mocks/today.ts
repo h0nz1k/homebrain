@@ -1,3 +1,4 @@
+import { mockSchool } from '@homebrain/module-family';
 import {
   clearTodaySignalSources,
   createMockAdapter,
@@ -11,6 +12,7 @@ import {
   type CookingScenario,
   type HomeRole,
 } from '@homebrain/module-today';
+import { schoolScenario } from './family.js';
 import { devQuery, live, type DevHass } from './shared.js';
 
 /**
@@ -40,7 +42,15 @@ export function registerTodayMocks(): void {
     jidlo === 'empty' || jidlo === 'none' ? jidlo : 'full',
     (devQuery.get('role') as HomeRole | null) ?? 'owner',
   );
-  setTodayHomeApiFactory(() => homeApi);
+  setTodayHomeApiFactory(() => ({
+    ...homeApi,
+    school: async (day) =>
+      mockSchool(
+        schoolScenario,
+        devQuery.get('role') ?? (devQuery.get('kiosk') === '1' ? 'kiosk' : 'owner'),
+        new Date(`${day}T05:00:00+01:00`),
+      ),
+  }));
   // Dnes fixtures stay deterministic; `?weather=<scenario>` overlays the weather feed.
   if (!live && !new URLSearchParams(location.search).has('weather')) clearTodaySignalSources();
 }

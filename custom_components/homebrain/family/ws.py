@@ -26,6 +26,7 @@ from ..const import DOMAIN as HB_DOMAIN
 from ..roles import FAMILY_APPROVE_ROLES
 from . import chore_management, choreops_adapter, model, persons
 from .person_history import PersonHistory
+from .school import SCHOOL_SETTINGS, websocket_school
 from .swap_store import FamilySwapStore
 from .ws_chore import CHORE_MANAGEMENT_COMMANDS
 from .ws_common import (
@@ -419,12 +420,14 @@ def _settings(hass: HomeAssistant) -> dict[str, Any]:
                     "color",
                     "person",
                     "tracker",
+                    "grade",
                     "configured",
                 )
             }
             for m in persons.members(hass, states, opts)
         ],
         "approver_name": opts.get("approver_name"),
+        "school": {**SCHOOL_SETTINGS({}), **(opts.get("school") or {})},
         "effective": {
             "calendars": model.family_calendars(states, _bindings(hass), opts),
             "shopping": model.shopping_entity(states, _bindings(hass), opts),
@@ -497,6 +500,7 @@ def websocket_family_settings_get(
                         vol.Optional("person"): vol.Any(
                             None, vol.All(str, vol.Match(r"^person\.[a-z0-9_]+$"))
                         ),
+                        vol.Optional("grade"): vol.Any(None, vol.All(int, vol.Range(min=1, max=9))),
                         vol.Optional("tracker"): vol.Any(
                             None, vol.All(str, vol.Match(r"^device_tracker\.[a-z0-9_]+$"))
                         ),
@@ -505,6 +509,7 @@ def websocket_family_settings_get(
             ],
             vol.Length(max=32),
         ),
+        vol.Optional("school"): SCHOOL_SETTINGS,
         vol.Optional("approver_name"): vol.Any(None, vol.All(str, vol.Length(max=64))),
     }
 )
@@ -519,7 +524,16 @@ def websocket_family_settings_set(
         return
     opts = family_options(hass)
     if "persons" in msg:
-        profiles = msg["persons"]
+        grades = {p["choreops_user_id"]: p.get("grade") for p in opts.get("persons") or []}
+        profiles = [
+            {
+                **p,
+                "grade": p.get("grade", grades.get(p["choreops_user_id"]))
+                if p["role"] == "child"
+                else None,
+            }
+            for p in msg["persons"]
+        ]
         ids = {p["choreops_user_id"] for p in profiles}
         trackers = persons.unifi_trackers(hass)
         if len(ids) != len(profiles) or any(
@@ -527,15 +541,18 @@ def websocket_family_settings_set(
         ):
             connection.send_error(msg["id"], "invalid_input", "Zkontrolujte nastavení osob.")
             return
-    for key in ("calendars", "shopping", "kids", "approver_name", "persons"):
+    for key in ("calendars", "shopping", "kids", "approver_name", "persons", "school"):
         if key in msg:
             opts[key] = msg[key]
+    if "persons" in msg:
+        opts["persons"] = profiles
     hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_FAMILY: opts})
     connection.send_result(msg["id"], _settings(hass))
 
 
 COMMANDS: Final = (
     websocket_family_get,
+    websocket_school,
     websocket_family_person_history,
     websocket_family_claim,
     websocket_family_approve,

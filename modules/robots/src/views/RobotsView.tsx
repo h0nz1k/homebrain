@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Chip,
+  Icon,
   Pill,
   ProgressRing,
   Stepper,
@@ -49,12 +50,14 @@ import {
   lastCleanedAt,
   liveRoomId,
   markCommand,
+  stateAgeLabel,
   staleLabels,
   type RobotHistory,
 } from '../history.js';
 import {
   PENDING_TEXT,
   actionOfPlan,
+  lateTitle,
   pendingPhase,
   type PendingAction,
   type PendingCommand,
@@ -395,6 +398,8 @@ function RobotPanel({
     start?: StartRequest;
   } | null>(null);
   const [sending, setSending] = useState(false);
+  // The robot command on its way: its button says „Odesílám…“ (other actions stay usable).
+  const [sendingAction, setSendingAction] = useState<PendingAction | null>(null);
   // „Odesláno, čekám na robota…“ until the vacuum state confirms (or 60 s → retry by hand).
   const [pending, setPending] = useState<PendingCommand | null>(null);
   const retryRef = useRef<(() => Promise<void>) | null>(null);
@@ -494,6 +499,14 @@ function RobotPanel({
   );
   // Latch the confirmation: a later state change must not bring the notice back.
   if (pending && phase === 'done') setPending(null);
+  // No reply yet: progress and „Uklízí …“ are what the robot said before – dim them and
+  // always say how old they are.
+  const late = !!pending && phase === 'late';
+  const stateAgeText = late ? stateAgeLabel(robot.updatedAt, now) : stateAge;
+  // No double send: the button of the command in flight spins, then stays disabled while the
+  // robot has not answered – „Zkusit znovu“ is the only way to send it again.
+  const cmdSending = (action: PendingAction) => sendingAction === action;
+  const cmdBlocked = (action: PendingAction) => cmdSending(action) || pending?.action === action;
   // A quarter-turn rotation swaps the drawn width and height (portrait ↔ landscape).
   const quarter = robot.rotation === 90 || robot.rotation === 270;
   const mapW = vmap ? vmap.bounds[2] - vmap.bounds[0] : 0;
@@ -609,12 +622,13 @@ function RobotPanel({
   };
   const send = async () => {
     if (!confirm || !connection) return;
+    const services = confirm.plan.map((step) => step.service);
+    const action = actionOfPlan(services, !!confirm.start);
     setSending(true);
+    setSendingAction(action);
     try {
       // Cleaning starts go through the backend: it applies the settings, waits until HA
       // reports them and only then starts the robot (no race with the old suction/water).
-      const services = confirm.plan.map((step) => step.service);
-      const action = actionOfPlan(services, !!confirm.start);
       if (confirm.start) {
         const start = confirm.start;
         const result = await startCleaning(connection, start);
@@ -644,6 +658,7 @@ function RobotPanel({
       );
     } finally {
       setSending(false);
+      setSendingAction(null);
       setConfirm(null);
     }
   };
@@ -652,6 +667,7 @@ function RobotPanel({
     if (!again || !pending) return;
     const action = pending.action;
     setSending(true);
+    setSendingAction(action);
     try {
       await again();
       markSent(action, again);
@@ -661,6 +677,7 @@ function RobotPanel({
       );
     } finally {
       setSending(false);
+      setSendingAction(null);
     }
   };
   const confirmDockRefillResolved = async () => {
@@ -806,40 +823,53 @@ function RobotPanel({
                 <RobotArt tone={tone} image={photoDir ? '' : robot.image} name={robot.name} />
               )}
             </div>
-            <div className="rb-hero-body">
+            <div className="rb-hero-body" data-stale={late || undefined}>
               <p className="rb-eyebrow">
                 {robot.name}
                 {robot.floor ? ` · ${robot.floor}` : ''}
               </p>
-              <h2 className="rb-state" data-testid="robots-state">
+              <h2 className="rb-state rb-stale-dim" data-testid="robots-state">
                 {robot.status.label}
               </h2>
-              {pending && phase !== 'done' && (
+              {pending && phase === 'waiting' && (
                 <p
                   className="rb-pending"
                   role="status"
                   data-phase={phase}
                   data-testid="robots-pending"
                 >
-                  <span>{PENDING_TEXT[phase]}</span>
-                  {phase === 'late' && (
-                    <Button
-                      size="sm"
-                      data-testid="robots-pending-retry"
-                      disabled={!canAct || sending}
-                      onClick={() => void retry()}
-                    >
-                      Zkusit znovu
-                    </Button>
-                  )}
+                  <span>{PENDING_TEXT.waiting}</span>
                 </p>
               )}
-              {stateAge && (
+              {pending && late && (
+                <div
+                  className="rb-late"
+                  role="status"
+                  data-phase="late"
+                  data-testid="robots-pending"
+                >
+                  <Icon name="alert" size={20} className="rb-late-ico" />
+                  <p className="rb-late-text">
+                    <strong>{lateTitle(pending.action)}</strong>
+                    <span>{PENDING_TEXT.late}. Údaje níže můžou být zastaralé.</span>
+                  </p>
+                  <Button
+                    className="rb-late-retry"
+                    data-testid="robots-pending-retry"
+                    disabled={!canAct || sending}
+                    loading={cmdSending(pending.action)}
+                    onClick={() => void retry()}
+                  >
+                    {cmdSending(pending.action) ? 'Odesílám…' : 'Zkusit znovu'}
+                  </Button>
+                </div>
+              )}
+              {stateAgeText && (
                 <p className="rb-age" data-testid="robots-state-age">
-                  {stateAge}
+                  {stateAgeText}
                 </p>
               )}
-              <p className="rb-room">
+              <p className="rb-room rb-stale-dim">
                 {liveRoom ? (
                   <>
                     {robot.status.busy ? 'V místnosti ' : 'Naposledy v místnosti '}
@@ -851,7 +881,7 @@ function RobotPanel({
               </p>
               {robot.progress !== null && (
                 <div
-                  className="rb-progress"
+                  className="rb-progress rb-stale-dim"
                   role="progressbar"
                   aria-label="Průběh úklidu"
                   aria-valuenow={robot.progress}
@@ -863,37 +893,65 @@ function RobotPanel({
                 </div>
               )}
               <div className="rb-hero-foot">
-                <Battery value={robot.battery} charging={tone === 'charging'} />
+                <Battery
+                  value={robot.battery}
+                  charging={tone === 'charging'}
+                  className="rb-stale-dim"
+                />
                 <div className="rb-hero-actions">
                   {tone === 'paused' ? (
                     <Button
-                      disabled={!canAct}
+                      data-testid="robots-resume"
+                      disabled={!canAct || cmdBlocked('resume')}
+                      loading={cmdSending('resume')}
                       onClick={() =>
                         ask('Pokračovat v úklidu?', planSimple('resume', robot.vacuum))
                       }
                     >
-                      <PlayIcon />
-                      Pokračovat
+                      {cmdSending('resume') ? (
+                        'Odesílám…'
+                      ) : (
+                        <>
+                          <PlayIcon />
+                          Pokračovat
+                        </>
+                      )}
                     </Button>
                   ) : tone === 'cleaning' ? (
                     // Pause only while cleaning – a disabled „Pauza“ in other states read as broken.
                     <Button
                       variant="strong"
                       data-testid="robots-pause"
-                      disabled={!canAct}
+                      disabled={!canAct || cmdBlocked('pause')}
+                      loading={cmdSending('pause')}
                       onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
                     >
-                      <PauseIcon />
-                      Pauza
+                      {cmdSending('pause') ? (
+                        'Odesílám…'
+                      ) : (
+                        <>
+                          <PauseIcon />
+                          Pauza
+                        </>
+                      )}
                     </Button>
                   ) : null}
                   <Button
                     data-testid="robots-home"
-                    disabled={!canAct || tone === 'charging' || tone === 'docked'}
+                    disabled={
+                      !canAct || tone === 'charging' || tone === 'docked' || cmdBlocked('home')
+                    }
+                    loading={cmdSending('home')}
                     onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
                   >
-                    <HomeIcon />
-                    Zpět do doku
+                    {cmdSending('home') ? (
+                      'Odesílám…'
+                    ) : (
+                      <>
+                        <HomeIcon />
+                        Zpět do doku
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -995,14 +1053,14 @@ function RobotPanel({
             {/* Portrait plans on a wide card: the room list sits beside the map (container query),
               so the card has no empty side strips; one list, so test ids stay unique. */}
             <div className="rb-card-head rb-clean-head">
-              <div className="rb-clean-title">
+              <div className="rb-clean-title" data-stale={late || undefined}>
                 <h3>Uklidit místnosti</h3>
                 <p className="rb-micro" data-testid="robots-map-name">
                   {robot.mapName ?? 'Mapa'}
                   {busy && (liveRoom || tone === 'returning') ? (
                     <>
                       {' · '}
-                      <span className="rb-live" data-testid="robots-live-room">
+                      <span className="rb-live rb-stale-dim" data-testid="robots-live-room">
                         {tone === 'returning' ? 'Vrací se do doku' : `Uklízí ${liveRoom}`}
                       </span>
                     </>
@@ -1293,11 +1351,18 @@ function RobotPanel({
                     <Button
                       size="lg"
                       data-testid="robots-clean-pause"
-                      disabled={!canAct}
+                      disabled={!canAct || cmdBlocked('pause')}
+                      loading={cmdSending('pause')}
                       onClick={() => ask('Pozastavit úklid?', planSimple('pause', robot.vacuum))}
                     >
-                      <PauseIcon />
-                      Pozastavit
+                      {cmdSending('pause') ? (
+                        'Odesílám…'
+                      ) : (
+                        <>
+                          <PauseIcon />
+                          Pozastavit
+                        </>
+                      )}
                     </Button>
                   )}
                   <Button
@@ -1306,7 +1371,10 @@ function RobotPanel({
                     block
                     className="rb-start"
                     data-testid="robots-start"
-                    disabled={!canAct || !selected.length || Boolean(robot.error)}
+                    disabled={
+                      !canAct || !selected.length || Boolean(robot.error) || cmdBlocked('start')
+                    }
+                    loading={cmdSending('start')}
                     onClick={() =>
                       setConfirm({
                         title: 'Spustit úklid?',
@@ -1351,21 +1419,27 @@ function RobotPanel({
                       })
                     }
                   >
-                    {!robot.error && selected.length > 0 ? <PlayIcon /> : null}
-                    {robot.error
-                      ? 'Nejdřív odstraňte závadu'
-                      : busy
-                        ? selected.length
-                          ? `Uklidit ${roomsLabel}`
-                          : 'Probíhá úklid'
-                        : selected.length
-                          ? `Uklidit ${roomsLabel}`
-                          : 'Uklidit vybrané'}
-                    {!robot.error && selected.length > 0 && estimate !== null && (
-                      <span className="rb-est" data-testid="robots-start-estimate">
-                        {' '}
-                        · cca&nbsp;{estimate}&nbsp;min
-                      </span>
+                    {cmdSending('start') ? (
+                      'Odesílám…'
+                    ) : (
+                      <>
+                        {!robot.error && selected.length > 0 ? <PlayIcon /> : null}
+                        {robot.error
+                          ? 'Nejdřív odstraňte závadu'
+                          : busy
+                            ? selected.length
+                              ? `Uklidit ${roomsLabel}`
+                              : 'Probíhá úklid'
+                            : selected.length
+                              ? `Uklidit ${roomsLabel}`
+                              : 'Uklidit vybrané'}
+                        {!robot.error && selected.length > 0 && estimate !== null && (
+                          <span className="rb-est" data-testid="robots-start-estimate">
+                            {' '}
+                            · cca&nbsp;{estimate}&nbsp;min
+                          </span>
+                        )}
+                      </>
                     )}
                   </Button>
                 </div>
@@ -1462,11 +1536,19 @@ function markerTone(tone: RobotModel['status']['tone']): MarkerTone {
   return 'idle';
 }
 
-function Battery({ value, charging }: { value: number | null; charging: boolean }) {
+function Battery({
+  value,
+  charging,
+  className = '',
+}: {
+  value: number | null;
+  charging: boolean;
+  className?: string;
+}) {
   const pct = value === null ? 0 : Math.max(0, Math.min(100, Math.round(value)));
   const tone = value === null ? 'off' : pct <= 15 ? 'crit' : pct <= 30 ? 'warn' : 'ok';
   return (
-    <div className="rb-battery" data-rb-batt={tone} data-testid="robots-battery">
+    <div className={`rb-battery ${className}`} data-rb-batt={tone} data-testid="robots-battery">
       <svg viewBox="0 0 44 22" aria-hidden="true">
         <rect x="1" y="1" width="38" height="20" rx="6" className="rb-batt-shell" />
         <rect x="40.5" y="7" width="2.5" height="8" rx="1.2" className="rb-batt-cap" />

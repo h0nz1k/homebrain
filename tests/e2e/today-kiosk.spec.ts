@@ -178,3 +178,58 @@ test.describe('Dnes – nástěnný kiosk', () => {
     });
   });
 });
+
+test.describe('Škola na Dnes, ne na kiosku', () => {
+  // eslint-disable-next-line no-empty-pattern -- Playwright vyžaduje destrukturaci fixtures
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'Vlastní velikosti viewportu');
+  });
+
+  test('kuchyňský kiosk školu neukazuje (rozhodnutí vlastníka)', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await page.clock.setFixedTime(new Date('2026-11-23T14:00:00+01:00'));
+    await page.goto('/homebrain-kuchyn?skola=full&role=kiosk');
+    await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
+    await expect(page.getByTestId('school-lunch')).toHaveCount(0);
+  });
+
+  for (const viewport of [
+    { width: 800, height: 1280 },
+    { width: 1280, height: 800 },
+  ]) {
+    test(`Kiosk ${viewport.width} px školu neukazuje`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto('/homebrain-dnes?state=b&skola=full&role=kiosk&kiosk=1');
+      await expect(page.locator('.hb-today')).toBeVisible();
+      await expect(page.getByTestId('today-school')).toHaveCount(0);
+    });
+  }
+
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 800, height: 1280 },
+    { width: 1280, height: 800 },
+  ]) {
+    test(`Dnes ${viewport.width} px zobrazí školní údaje`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto('/homebrain-dnes?state=b&skola=full&role=adult');
+      const school = page.getByTestId('today-school');
+      await expect(school).toBeVisible();
+      await expect(school.getByRole('heading', { name: 'Škola' })).toBeVisible();
+      await expect(school.getByTestId('school-lunch')).toHaveText(
+        /^K obědu: .+ · polévka [a-zěščřžýáíéůú]/,
+      );
+      await expect(school.getByText('Dnes: Školní výstava')).toBeVisible();
+      await expect(school.getByText('Zítra: 4. třída – divadlo')).toBeVisible();
+      await expect(school.getByTestId('school-date')).toHaveText(
+        /^(po|út|st|čt|pá|so|ne) \d+\. \d+\. · Třídní schůzky$/,
+      );
+      await expect(school.getByText(/^načteno (dnes|\d+\. \d+\.) \d+:\d\d$/)).toBeVisible();
+      await expect(school.getByText(/9. ročník/)).toHaveCount(0);
+      const box = (await school.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      expect(await school.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    });
+  }
+});

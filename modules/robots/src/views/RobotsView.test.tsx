@@ -48,7 +48,7 @@ it('Údržba: díl po termínu má prázdný kroužek (ne plný) a souhrn rozli�
   expect(screen.getByTestId('robots-part-dirty_water').textContent).toContain('Vylít');
 });
 
-function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
+function setup(vector: 'demo' | 'broken' | 'off' = 'off', hold?: Promise<void>) {
   const demo = createRobotsDemo(Date.now());
   const store = createEntityStore();
   store.update(demo.states);
@@ -82,6 +82,7 @@ function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
         return { started: true, applied: ['start'], skipped: [] } as T;
       }
       sent.push(message as Record<string, unknown>);
+      if (hold && message.type === 'call_service') await hold;
       return undefined as T;
     },
   };
@@ -147,6 +148,34 @@ it('resumes after a fixed error only through the confirmation sheet', async () =
       target: { entity_id: 'vacuum.demo_robot_2' },
     },
   ]);
+});
+
+it('čekající příkaz: „Odesílám…“, pak zakázané tlačítko; ostatní akce zůstávají', async () => {
+  let release = () => {};
+  const hold = new Promise<void>((resolve) => (release = resolve));
+  const { sent } = setup('off', hold);
+  await screen.findByTestId('robots-room-2');
+  fireEvent.click(screen.getByTestId('robots-pause'));
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('robots-confirm-send'));
+  });
+  const pause = () => screen.getByTestId('robots-pause') as HTMLButtonElement;
+  const home = () => screen.getByTestId('robots-home') as HTMLButtonElement;
+  expect(pause().textContent).toBe('Odesílám…');
+  expect(pause().getAttribute('aria-busy')).toBe('true');
+  expect(pause().disabled).toBe(true);
+  expect(home().disabled).toBe(false);
+  await act(async () => {
+    release();
+    await hold;
+  });
+  expect(sent).toHaveLength(1);
+  // No reply yet: no second „Pauza“ (only „Zkusit znovu“ resends), „Zpět do doku“ still works.
+  expect(screen.getByTestId('robots-pending').textContent).toContain('Odesláno');
+  expect(pause().textContent).toBe('Pauza');
+  expect(pause().disabled).toBe(true);
+  expect((screen.getByTestId('robots-clean-pause') as HTMLButtonElement).disabled).toBe(true);
+  expect(home().disabled).toBe(false);
 });
 
 it('shows an empty state without bound robots', () => {

@@ -1,3 +1,4 @@
+import { PersonSchool } from './PersonSchool.js';
 import { useEffect, useId, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useBackClosable } from '@homebrain/ha-client';
 import { Button, Card, Icon, czCount, czPlural } from '@homebrain/ui';
@@ -1125,6 +1126,9 @@ export function PersonView({
                 onClaim={onClaim}
                 claimDisabled={claimDisabled}
               />
+              {member.role === 'child' && (
+                <PersonSchool api={api} member={member.id} now={now} refreshedAt={refreshedAt} />
+              )}
             </>
           )}
           {tab === 'Týden' && (
