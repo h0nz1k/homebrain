@@ -649,5 +649,7 @@ async def async_start_cleaning(
         known = await known_rooms(vacuum)
         if known and not set(room_ids) <= known:
             raise PresetError("unknown_room", "Room is not on the robot's map")
+    if (history := hass.data.get(DOMAIN, {}).get("robot_history")) is not None:
+        history.mark(slot)  # a run starting in the next minutes is HomeBrain's (source)
     result = await async_apply_and_start(hass, bindings, slot, effective, room_ids)
     return {**result, "settings": effective, "rooms": room_ids}

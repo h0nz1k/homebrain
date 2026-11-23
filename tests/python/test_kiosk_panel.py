@@ -50,6 +50,9 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/robots/defaults/set": {"slot": 1, "defaults": None},
     # No robot is bound in the matrix entry: an admin gets not_found, nothing ever starts.
     "homebrain/robots/start": {"slot": 1},
+    "homebrain/robots/history": {},
+    "homebrain/robots/history/subscribe": {},
+    "homebrain/robots/history/mark": {"slot": 1},
     "homebrain/robots/schedules/list": {},
     "homebrain/robots/schedules/save": {
         "schedule": {"name": "x", "slot": 1, "days": [0], "time": "10:00"}
