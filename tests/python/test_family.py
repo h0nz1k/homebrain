@@ -1279,6 +1279,8 @@ async def test_school_websocket_roles(
         assert len(result["dates"]) == 2
         reminders = (await _ws(client, {**command, "reminders_only": True}))["result"]
         assert [d["title"] for d in reminders["dates"]] == ["Schůzky"]
+
+
 @pytest.fixture
 def swaps(hass, entry, monkeypatch):
     from custom_components.homebrain.family import swap_service

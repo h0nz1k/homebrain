@@ -7,6 +7,7 @@ import logging
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
@@ -212,7 +213,7 @@ class SchoolImport:
     async def _menu(self, fetcher, html, base, today, old_rows):
         weeks = menu_weeks(today)
         candidates = await self.hass.async_add_executor_job(menu_links, html, base, weeks)
-        downloads: dict[str, bytes | None] = {}
+        downloads: dict[str, tuple[bytes, str] | None] = {}
         rows = old_rows
         parsed = set()
         for week, links in candidates.items():
@@ -220,11 +221,19 @@ class SchoolImport:
                 try:
                     if href not in downloads:
                         downloads[href] = None
-                        downloads[href], _, _ = await fetcher.get(href, "pdf")
-                    if downloads[href] is None:
+                        body, _, content_type = await fetcher.get(href, "pdf")
+                        downloads[href] = body, content_type
+                    if (download := downloads[href]) is None:
+                        continue
+                    body, content_type = download
+                    if (
+                        not dated_link
+                        and content_type != "application/pdf"
+                        and not unquote(urlsplit(href).path).lower().endswith(".pdf")
+                    ):
                         continue
                     covered, menu = await self.hass.async_add_executor_job(
-                        parse_menu, downloads[href], week, dated_link
+                        parse_menu, body, week, dated_link
                     )
                 except (WineError, ValueError, OSError):
                     continue

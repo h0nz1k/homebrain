@@ -7,7 +7,7 @@ import unicodedata
 from datetime import date, timedelta
 from html.parser import HTMLParser
 from io import BytesIO
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urljoin, urlsplit
 
 _CELL = "\x00"
 
@@ -37,11 +37,11 @@ SPAN = re.compile(
     re.I,
 )
 GRADE_LIST = r"[1-9]\s*\.?(?:\s*(?:až|az|[-–—]|,|/|a|i)\s*[1-9]\s*\.?)*"
-GRADES = re.compile(rf"(?<!\w)({GRADE_LIST})\s*(?:trid\w*|rocnik\w*)\b")
-CLASSES = re.compile(r"(?<![\w.])([1-9])\s*\.\s*[abc]\b", re.I)
+GRADES = re.compile(rf"(?<!\w)({GRADE_LIST})\s*(?:trid\w*\b|rocnik\w*\b|tr\.|roc\.)")
+CLASSES = re.compile(r"(?<![\w.])([1-9])\s*\.\s*[abc]\b(?!\s*[1-9])", re.I)
 ALLERGEN_CODES = re.compile(
     r"\(\s*(?:alergeny\s*[: ]\s*)?(\d{1,2}(?:\s*[,;/+ ]\s*\d{1,2})*)\s*\)"
-    r"|\b(?:alergeny|al\.)\s*:?\s*(\d{1,2}(?:\s*[,;/+ ]\s*\d{1,2})*)",
+    r"|\b(?:obsahuje\s+)?(?:alergeny|al\.)\s*:?\s*(\d{1,2}(?:\s*[,;/+ ]\s*\d{1,2})*)",
     re.I,
 )
 
@@ -56,12 +56,14 @@ def compact(value: str) -> str:
     return " ".join(value.split())
 
 
-def _day(raw: str, near: date) -> date:
+def _day(raw: str, near: date, school_year: int | None = None) -> date:
     if "-" in raw:
         return date.fromisoformat(raw)
     day, month, year = (re.sub(r"\s+", "", raw) + ".").split(".")[:3]
     if year:
         return date(int(year), int(month), int(day))
+    if school_year is not None:
+        return date(school_year + (int(month) < 9), int(month), int(day))
     choices = []
     for candidate in (near.year, near.year + 1, near.year - 1):
         try:
@@ -73,8 +75,8 @@ def _day(raw: str, near: date) -> date:
     return min(choices, key=lambda value: abs(value - near))
 
 
-def _span(match: re.Match, near: date) -> tuple[date, date | None]:
-    first = _day(match["start"], near)
+def _span(match: re.Match, near: date, school_year: int | None = None) -> tuple[date, date | None]:
+    first = _day(match["start"], near, school_year)
     if match["short"]:
         start = first.replace(day=int(match["short"].split(".")[0]))
         if start > first:
@@ -91,32 +93,70 @@ def _span(match: re.Match, near: date) -> tuple[date, date | None]:
 class SchoolHTML(HTMLParser):
     """Keep text together within table rows, list items and individual content blocks."""
 
-    _SKIP = {"script", "style", "nav", "footer", "template"}
+    _SKIP = {"script", "style", "nav", "aside", "footer", "template", "header"}
     _GROUP = {"tr", "li", "dt", "dd"}
-    _BREAK = {"article", "p", "div", "section", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6"}
+    _HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+    _BREAK = {"article", "p", "div", "main", "section", "br", "hr"} | _HEADINGS
+    _MAIN = re.compile(r"(?:^|[-_])main$|^main[-_]content$", re.I)
+    _SIDEBAR = re.compile(r"(?:^|[-_])sidebar(?:$|[-_])", re.I)
 
     def __init__(self, html: str) -> None:
         super().__init__()
-        self.rows: list[str] = []
+        self.rows: list[tuple[str, str]] = []
         self.links: list[tuple[str, str]] = []
+        self._main_rows: list[tuple[str, str]] = []
+        self._main_links: list[tuple[str, str]] = []
+        self._has_main = False
+        self._main_depth = 0
+        self._main_tag = ""
         self._pending: list[str] = []
         self._skip: list[str] = []
         self._group: list[str] = []
+        self._heading = ""
         self._anchor: tuple[str, list[str]] | None = None
         self.feed(html)
         self.close()
         self._flush()
+        if self._has_main:
+            self.rows = self._main_rows
+            self.links = self._main_links
 
-    def _flush(self) -> None:
+    def _flush(self, tag: str = "") -> None:
         if row := compact("".join(self._pending)):
-            self.rows.append(row)
+            (self._main_rows if self._main_depth else self.rows).append((tag, row))
         self._pending.clear()
 
     def handle_starttag(self, tag, attrs):
-        if tag in self._SKIP:
-            self._skip.append(tag)
+        attrs = dict(attrs)
+        markers = (attrs.get("id") or "").split() + (attrs.get("class") or "").split()
+        role = attrs.get("role")
         if self._skip:
+            # Count nested elements with the same tag as the skipped container.
+            if tag == self._skip[-1]:
+                self._skip.append(tag)
             return
+        if (
+            tag in self._SKIP
+            or (
+                tag in {"div", "section"}
+                and any(self._SIDEBAR.search(marker) for marker in markers)
+            )
+            or role in {"navigation", "complementary", "contentinfo"}
+        ):
+            self._flush(self._heading)
+            self._skip.append(tag)
+            return
+        if self._main_depth:
+            if tag == self._main_tag:
+                self._main_depth += 1
+        elif (
+            tag == "main"
+            or role == "main"
+            or (tag in {"div", "section"} and any(self._MAIN.search(marker) for marker in markers))
+        ):
+            self._flush()
+            self._has_main = True
+            self._main_depth, self._main_tag = 1, tag
         if tag in self._GROUP:
             if not self._group:
                 self._flush()
@@ -127,7 +167,9 @@ class SchoolHTML(HTMLParser):
             self._pending.append(_CELL)
         elif tag in self._BREAK:
             self._pending.append(" ")
-        if tag == "a" and (href := dict(attrs).get("href")):
+        if tag in self._HEADINGS and not self._group:
+            self._heading = tag
+        if tag == "a" and (href := attrs.get("href")):
             self._anchor = (href, [])
 
     def handle_endtag(self, tag):
@@ -137,17 +179,24 @@ class SchoolHTML(HTMLParser):
             return
         if tag == "a" and self._anchor:
             href, parts = self._anchor
-            self.links.append((href, compact("".join(parts))))
+            links = self._main_links if self._main_depth else self.links
+            links.append((href, compact("".join(parts))))
             self._anchor = None
         if self._group and tag == self._group[-1]:
             self._group.pop()
             if not self._group:
-                self._flush()
+                self._flush(tag)
         elif tag in self._BREAK:
             if self._group:
                 self._pending.append(" ")
             else:
+                self._flush(self._heading)
+        if tag == self._heading:
+            self._heading = ""
+        if tag == self._main_tag and self._main_depth:
+            if self._main_depth == 1:
                 self._flush()
+            self._main_depth -= 1
 
     def handle_data(self, data):
         if not self._skip:
@@ -171,10 +220,17 @@ def grades_from_text(text: str) -> list[int] | None:
 
 def parse_events(html: str, near: date, important: bool = False) -> list[dict]:
     events = []
+    school_year = near.year - (near.month < 9)
+    section = ""
     # A standalone date heading can be followed by a separate paragraph for the title.
     pending = None
-    for raw in SchoolHTML(html).rows:
+    for tag, raw in SchoolHTML(html).rows:
         row = raw.replace(_CELL, " ").strip()
+        if plain(row).startswith("posledni aktualizace"):
+            pending = None
+            continue
+        if tag in SchoolHTML._HEADINGS:
+            section = row if tag == "h2" and not SPAN.search(row) else ""
         match = SPAN.search(row)
         if match:
             prefix = re.sub(
@@ -193,9 +249,13 @@ def parse_events(html: str, near: date, important: bool = False) -> list[dict]:
             ]
             title = compact(parts[0]) if parts else ""
             description = compact(" ".join(parts[1:]))
+            if important and tag == "li" and not title:
+                title = section
+                pending = None
+                if not title:
+                    continue
             try:
-                anchor = near + timedelta(days=175) if important else near
-                first, last = _span(match, anchor)
+                first, last = _span(match, near, school_year)
             except ValueError:
                 pending = None
                 continue
@@ -238,15 +298,22 @@ def menu_links(html: str, base: str, weeks: list[date]) -> dict[date, list[tuple
     undated = []
     for href, label in links:
         try:
-            path = unquote(urlsplit(href).path)
-            if not path.lower().endswith(".pdf"):
+            target = urlsplit(href)
+            path = unquote(target.path)
+            pdf_path = path.lower().endswith(".pdf")
+            download = path.lower().endswith("/download.php") and "file" in parse_qs(target.query)
+            if not pdf_path and not download:
                 continue
             url = urljoin(base, href)
-            hint = SPAN.search(label) or SPAN.search(path)
+            hint = SPAN.search(label)
+            if pdf_path:
+                hint = hint or SPAN.search(path)
+            elif hint and not (hint["short"] or hint["end"]):
+                hint = None
             iso_week = re.search(r"(?<!\d)(\d{4})[-_ ]?W(\d{2})(?!\d)", f"{label} {path}", re.I)
             if hint:
                 first, last = _span(hint, weeks[0])
-            elif iso_week:
+            elif iso_week and pdf_path:
                 first, last = date.fromisocalendar(int(iso_week[1]), int(iso_week[2]), 1), None
             else:
                 undated.append((url, False))
@@ -262,25 +329,81 @@ def menu_links(html: str, base: str, weeks: list[date]) -> dict[date, list[tuple
 _LUNCH = re.compile(r"^(?:obed(?:\s*1)?|hlavni jidlo)(?:\s*[:–-]\s*|\s+|$)")
 _SOUP = re.compile(r"^polevka\s*(?:[:–-]\s*|\s+|$)")
 _SIDE = re.compile(r"^(?:priloha|salat)\s*[:–-]\s*")
-_SKIP_MEAL = re.compile(r"^(?:.*svacina\b|snidane\b|napoj\b|vecere\b|obed\s*[2-9]\b)")
+_SKIP_MEAL = re.compile(
+    r"^(?:(?:odpoledni )?svacina\b|presnidav\.|snidane\b|napoj\b|vecere\b|obed\s*[2-9]\b)"
+)
 _CLOSED = re.compile(r"^(?:statni\s+)?(?:svatek|prazdniny|reditelske volno|nevari se|bez obeda)\b")
 _MENU_FOOTER = re.compile(r"^(?:seznam alergen|zmena jidelnicku|dobrou chut)")
 _MEAL_BREAK = re.compile(
-    r"\s+(?=(?:pol[eé]vka|ob[eě]d(?: \d)?|sva[cč]ina|p[rř][ií]loha|sal[aá]t)\s*:)", re.I
+    r"(?<!odpoledn[ií] )(?=(?:pol[eé]vka|ob[eě]d(?: \d)?|(?:odpoledn[ií] )?sva[cč]ina|"
+    r"p[rř][eé]sn[ií]d[aá]v\.|p[rř][ií]loha|sal[aá]t)\s*:)",
+    re.I,
 )
 _MEAL_LABELS = (("soup", _SOUP), ("main", _LUNCH), ("side", _SIDE))
+_TRAILING_MEAL = re.compile(
+    r"(?P<meal>ob[eě]d|p[rř]esn[ií]d[aá]v\.|sva[cč]ina)(?=\s*(?:obsahuje\s+alergeny|$))",
+    re.I,
+)
+
+
+def _without_allergens(line: str, allergens: set[int]) -> str:
+    for match in ALLERGEN_CODES.finditer(line):
+        allergens.update(int(code) for code in re.findall(r"\d+", match[0]))
+    return compact(ALLERGEN_CODES.sub("", line)).strip(" ,;–—-")
+
+
+def _menu_row(day: date, soup: str, main: str, sides: list[str], allergens: set[int]) -> dict:
+    return {
+        "date": day.isoformat(),
+        "soup": soup,
+        "main": main,
+        "sides": sides,
+        "allergens": [ALLERGENS[num - 1] for num in sorted(allergens) if 1 <= num <= 14],
+    }
+
+
+def _trailing_lunch(lines: list[str], day: date) -> dict | None:
+    # Some PDFs emit each meal's comma-separated items before its label, then its allergens.
+    parts = []
+    for index, line in enumerate(lines):
+        if ALLERGEN_CODES.fullmatch(line):
+            continue
+        label = _TRAILING_MEAL.search(line)
+        if not label:
+            parts.append(line)
+            continue
+        if plain(label["meal"]) == "obed":
+            allergens: set[int] = set()
+            parts.append(line[: label.start()])
+            dishes = _without_allergens(" ".join(parts), allergens)
+            _without_allergens(line[label.end() :], allergens)
+            for following in lines[index + 1 :]:
+                if not ALLERGEN_CODES.match(following):
+                    break
+                _without_allergens(following, allergens)
+            items = [item for raw in dishes.split(",") if (item := raw.strip())]
+            if len(items) >= 2:
+                soup, main, *sides = items
+                return _menu_row(day, soup, main, sides, allergens)
+            if items:
+                return _menu_row(day, "", items[0], [], allergens)
+            return None
+        parts.clear()
+    return None
 
 
 def _lunch(lines: list[str], day: date) -> dict | None:
+    if any(_CLOSED.match(plain(line)) for line in lines):
+        return None
+    if any((label := _TRAILING_MEAL.search(line)) and label.start() for line in lines):
+        return _trailing_lunch(lines, day)
     soup = main = ""
     sides: list[str] = []
     allergens: set[int] = set()
     skip = False
     pending = None
-    for line in (part for raw in lines for part in _MEAL_BREAK.split(raw)):
+    for line in (part.strip() for raw in lines for part in _MEAL_BREAK.split(raw)):
         key = plain(line)
-        if _CLOSED.match(key):
-            return None
         if _MENU_FOOTER.match(key):
             break
         if _SKIP_MEAL.match(key):
@@ -293,13 +416,9 @@ def _lunch(lines: list[str], day: date) -> dict | None:
         if skip or line.strip(" –—-") == "":
             continue
         text = line[label.end() :] if label else line
-        codes = ALLERGEN_CODES.findall(text)
-        text = compact(ALLERGEN_CODES.sub("", text)).strip(" ,;–—-")
-        if not label and (not codes or text) and re.match(r"^(?:\d|tyden|jidelnicek)", key):
+        if not label and re.match(r"^(?:\d|tyden|jidelnicek)", key):
             continue
-        allergens.update(
-            int(code) for groups in codes for code in re.findall(r"\d+", " ".join(groups))
-        )
+        text = _without_allergens(text, allergens)
         if not text:
             continue
         if pending == "soup":
@@ -311,13 +430,7 @@ def _lunch(lines: list[str], day: date) -> dict | None:
         pending = None
     if not main:
         return None
-    return {
-        "date": day.isoformat(),
-        "soup": soup,
-        "main": main,
-        "sides": sides,
-        "allergens": [ALLERGENS[num - 1] for num in sorted(allergens) if 1 <= num <= 14],
-    }
+    return _menu_row(day, soup, main, sides, allergens)
 
 
 def _pdf_text(pdf: bytes) -> str:

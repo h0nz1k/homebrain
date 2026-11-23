@@ -10,6 +10,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from custom_components.homebrain.family.school import SchoolImport, school_snapshot
 from custom_components.homebrain.family.school_parse import (
+    grades_from_text,
     menu_links,
     menu_weeks,
     parse_events,
@@ -108,6 +109,155 @@ def test_menu_weeks_and_generated_text_pdf():
     pdf = generated_pdf(["Pondeli", "Obed: ryze (14)"])
     assert parse_menu(pdf, NEXT)[1] == []
     assert parse_menu(pdf, NEXT, True)[1][0]["allergens"] == ["měkkýši"]
+
+
+def test_menu_download_links_are_selected_by_their_label_range():
+    this_week, next_week = date(2031, 2, 10), date(2031, 2, 17)
+    base = "https://example.org"
+    path = "/modules/file_storage/download.php"
+    html = f"""
+    <a href="{path}?file=901&amp;inline=1">Obědy 3.2.-7.2.2031</a>
+    <a href="{path}?file=902&amp;inline=1">Obědy 10.2.-14.2.2031</a>
+    <a href="{path}?file=903&amp;inline=1">Obědy 17.2.-21.2.2031</a>
+    <a href="{path}?file=904&amp;inline=1">Příloha</a>
+    <a href="/galerie">Výstava 10.2.-14.2.2031</a>
+    """
+    assert menu_links(html, base, [this_week, next_week]) == {
+        this_week: [(f"{base}{path}?file=902&inline=1", True)],
+        next_week: [(f"{base}{path}?file=903&inline=1", True)],
+    }
+
+
+@pytest.mark.parametrize(
+    ("label", "media_type", "accepted"),
+    [
+        ("Rozpis 10.2.-14.2.2031", "application/octet-stream", True),
+        ("Příloha", "application/pdf", True),
+        ("Příloha", "application/octet-stream", False),
+    ],
+)
+async def test_menu_download_fetch_uses_the_range_or_pdf_content_type(
+    hass, label, media_type, accepted
+):
+    week = date(2031, 2, 10)
+    href = "/modules/file_storage/download.php?file=905"
+    pdf = generated_pdf(["Pondeli 10.2.2031", "Obed: jahlove krokety"])
+    fetch = AsyncMock()
+    fetch.get.return_value = (pdf, f"https://example.org{href}", media_type)
+    importer = SchoolImport(hass, None)
+    request = importer._menu(fetch, f'<a href="{href}">{label}</a>', MENU_URL, week, [])
+    if accepted:
+        rows, retained = await request
+        assert not retained
+        assert [(row["date"], row["main"]) for row in rows] == [("2031-02-10", "jahlove krokety")]
+    else:
+        with pytest.raises(ValueError, match="No current school PDF"):
+            await request
+    fetch.get.assert_awaited_once_with(f"https://example.org{href}", "pdf")
+
+
+def test_parse_menu_with_trailing_glued_meal_labels():
+    week = date(2031, 2, 10)
+    pdf = generated_pdf(
+        [
+            "Pondeli 10.2.2031",
+            "mandlovy kolac, bylinkovy cajPresnidav.",
+            "obsahuje alergeny: 08",
+            "kvetakovy krem, jahlove krokety, pastinak,",
+            "mata s ledemObed",
+            "obsahuje alergeny: 01,07",
+            "tvaroh s hruskou, kakaove mlekoSvacina",
+            "obsahuje alergeny: 06",
+            "Utery 11.2.2031",
+            "cizrnovy chleb, jablecny mostPresnidav.",
+            "obsahuje alergeny: 08",
+            "hrachovy vyvar, dyna plnena pohankou, piskot",
+            "Obed",
+            "obsahuje alergeny: 03",
+            "ovesne vlockySvacina",
+        ]
+    )
+    days, rows = parse_menu(pdf, week)
+    assert len(days) == 2
+    assert rows == [
+        {
+            "date": "2031-02-10",
+            "soup": "kvetakovy krem",
+            "main": "jahlove krokety",
+            "sides": ["pastinak", "mata s ledem"],
+            "allergens": ["lepek", "mléko"],
+        },
+        {
+            "date": "2031-02-11",
+            "soup": "hrachovy vyvar",
+            "main": "dyna plnena pohankou",
+            "sides": ["piskot"],
+            "allergens": ["vejce"],
+        },
+    ]
+
+
+def test_parse_menu_drops_allergen_intro_in_prefix_layout():
+    pdf = generated_pdf(["Pondeli 10.2.2031", "Obed: jahlove krokety obsahuje alergeny: 01,07"])
+    _, rows = parse_menu(pdf, date(2031, 2, 10))
+    assert rows[0]["main"] == "jahlove krokety"
+    assert rows[0]["sides"] == []
+    assert rows[0]["allergens"] == ["lepek", "mléko"]
+
+
+def test_dates_use_their_section_heading_and_ignore_surrounding_page():
+    html = """
+    <div class="site-sidebar"><h2>Nástěnka</h2><ul><li>Po 7.10.2030</li></ul></div>
+    <div class="site-main">
+      <nav><h2>Navigace</h2><ul><li>Po 18.11.2030</li></ul></nav>
+      <h2>Zkoušky souboru</h2>
+      <ul><li><strong>Po 4.11.2030</strong></li><li>St 15. 1. 2031</li></ul>
+      <aside><h2>Odkazy</h2><ul><li>Út 12.11.2030</li></ul></aside>
+      <h2>Výměna učebnic</h2>
+      <ul><li>Po 12. 5. 2031</li></ul>
+      <p>Poslední aktualizace: 6.11.2030</p>
+      <footer><p>8.11.2030 Archiv</p></footer>
+    </div>
+    <div><h2>Archiv</h2><ul><li>Čt 7.11.2030</li></ul></div>
+    """
+    dates = parse_events(html, date(2030, 11, 8), important=True)
+    assert [(row["date"], row["title"]) for row in dates] == [
+        ("2030-11-04", "Zkoušky souboru"),
+        ("2031-01-15", "Zkoušky souboru"),
+        ("2031-05-12", "Výměna učebnic"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("text", "grades"),
+    [
+        ("4.tř.", [4]),
+        ("4. tř.", [4]),
+        ("3.roč.", [3]),
+        ("1.-4.ročník", [1, 2, 3, 4]),
+        ("4.a5.tř.", [4, 5]),
+        ("4. a 5.tř.", [4, 5]),
+        ("4.a", [4]),
+    ],
+)
+def test_grades_accept_abbreviations_and_distinguish_class_letters(text, grades):
+    assert grades_from_text(text) == grades
+
+
+def test_events_follow_the_school_year_and_skip_update_text():
+    html = """
+    <main><ul>
+      <li>27.9. - Papírové loutky - 4.tř.</li>
+      <li>3.6.-5.6. Stavba modelů - 4. a 5.ročník</li>
+      <li>7.-8.6. Čtenářská dílna - 6.třída</li>
+    </ul><p>Poslední aktualizace: 6.11.2030</p><p>Archiv pořadů</p></main>
+    """
+    events = parse_events(html, date(2030, 11, 8))
+    assert [(row["date"], row["end_date"], row["grades"]) for row in events] == [
+        ("2030-09-27", None, [4]),
+        ("2031-06-03", "2031-06-05", [4, 5]),
+        ("2031-06-07", "2031-06-08", [6]),
+    ]
 
 
 def test_event_dates_grades_and_parent_reminders():
