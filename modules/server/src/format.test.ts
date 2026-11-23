@@ -11,11 +11,15 @@ import {
   heroModel,
   seriesMax,
   smoothSeries,
+  hostConsumers,
+  hostShare,
+  loadModel,
   sortGuests,
   uptimeLabel,
+  uptimeShort,
   vmRows,
 } from './format.js';
-import { createMockSnapshot } from './mock.js';
+import { createMockHistory, createMockSnapshot } from './mock.js';
 
 const NB = '\u00a0';
 
@@ -77,6 +81,37 @@ describe('hero verdikt', () => {
   it('server nedostupný', () => {
     expect(heroModel(createMockSnapshot('down')).headline).toBe('Server nedostupný');
   });
+  it('hostitel v pořádku, host s plnou pamětí = upozornění s cílem na jeho řádek', () => {
+    const hero = heroModel(createMockSnapshot('proxmox-ok'));
+    expect(hero.headline).toBe(`1 upozornění · ha-vm má plnou paměť (93${NB}%)`);
+    expect(hero.tone).toBe('warn');
+    expect(hero.target).toBe('server-guest-vm-101');
+  });
+  it('problém hostitele vede, hosté jdou do „Dále“', () => {
+    const hero = heroModel(createMockSnapshot('proxmox-load'));
+    expect(hero.headline).toBe('Pozor: zátěž 4,7 na 4 jádra');
+    expect(hero.more).toContain(`ha-vm má plnou paměť (93${NB}%)`);
+    expect(hero.more).toContain(`web vytěžuje procesor (97${NB}%)`);
+  });
+});
+
+describe('mock', () => {
+  it('most vmbr0 nese aspoň součet provozu hostů', () => {
+    const snap = createMockSnapshot('proxmox-ok');
+    const bridge = snap.network!.interfaces.find((i) => i.name === 'vmbr0')!;
+    const sum = (k: 'netin_bps' | 'netout_bps') =>
+      snap.proxmox!.guests.reduce((s, g) => s + (g[k] ?? 0), 0);
+    expect(bridge.rx_bps!).toBeGreaterThanOrEqual(sum('netin_bps'));
+    expect(bridge.tx_bps!).toBeGreaterThanOrEqual(sum('netout_bps'));
+  });
+  it('historie hosta: CPU a RAM mají odlišný průběh', () => {
+    const { series } = createMockHistory('proxmox-ok', { vmid: 101, kind: 'vm' });
+    const cpu = series.cpu!.map(([, v]) => v);
+    const mem = series.memory!.map(([, v]) => v);
+    expect(Math.max(...mem)).toBeGreaterThan(85);
+    expect(Math.max(...cpu)).toBeLessThan(40);
+    expect(Math.abs(mem.at(-1)! - 93)).toBeLessThan(2);
+  });
 });
 
 describe('virtuální stroje', () => {
@@ -103,14 +138,45 @@ describe('zálohy', () => {
 });
 
 describe('Proxmox a trendy', () => {
-  it('řadí běžící hosty nahoru, pak podle ID', () => {
+  it('řadí běžící hosty podle CPU, vypnuté na konec podle ID', () => {
     const rows = sortGuests([
-      { vmid: 104, status: 'stopped' },
-      { vmid: 103, status: 'running' },
+      { vmid: 104, status: 'stopped', cpu_percent: 50 },
+      { vmid: 103, status: 'running', cpu_percent: 40 },
       { vmid: 100, status: 'stopped' },
-      { vmid: 101, status: 'running' },
+      { vmid: 101, status: 'running', cpu_percent: 2 },
+      { vmid: 102, status: 'running', cpu_percent: null },
     ]);
-    expect(rows.map((g) => g.vmid)).toEqual([101, 103, 100, 104]);
+    expect(rows.map((g) => g.vmid)).toEqual([103, 101, 102, 100, 104]);
+  });
+
+  it('podíl hosta na hostiteli = CPU % × vCPU / jádra', () => {
+    expect(hostShare({ cpu_percent: 50, cpus: 2 }, 4)).toBe(25);
+    expect(hostShare({ cpu_percent: 50, cpus: null }, 4)).toBe(12.5);
+    expect(hostShare({ cpu_percent: 100, cpus: 8 }, 4)).toBe(100);
+    expect(hostShare({ cpu_percent: null, cpus: 2 }, 4)).toBeNull();
+    expect(hostShare({ cpu_percent: 10, cpus: 2 }, null)).toBeNull();
+    const names = hostConsumers(createMockSnapshot('proxmox-ok')).map((c) => c.name);
+    expect(names).toEqual(['web', 'ha-vm', 'db']); // backup-ct 0,5 % is below 1 %
+  });
+
+  it('zátěž proti jádrům: pozor až nad jejich počtem', () => {
+    expect(loadModel(createMockSnapshot('proxmox-ok'))).toEqual({
+      value: `1,2 na 4 jádra`,
+      avg: '1,42 / 1,31 / 1,18',
+      tone: 'ok',
+    });
+    expect(loadModel(createMockSnapshot('proxmox-load'))?.tone).toBe('warn');
+    const noCores = createMockSnapshot('ok');
+    noCores.cpu = { percent: 10, load: 2, cores: null };
+    expect(loadModel(noCores)).toEqual({ value: '2,0', avg: null, tone: 'neutral' });
+  });
+
+  it('krátká doba běhu hosta', () => {
+    const now = Date.parse('2026-11-23T12:00:00Z');
+    expect(uptimeShort('2026-10-18T08:00:00Z', now)).toBe(`běží 36${NB}dní`);
+    expect(uptimeShort('2026-11-23T07:00:00Z', now)).toBe(`běží 5${NB}h`);
+    expect(uptimeShort('2026-11-23T11:48:00Z', now)).toBe(`běží 12${NB}min`);
+    expect(uptimeShort(null, now)).toBeNull();
   });
 
   it('max za 24 h počítá ze surových vzorků a nikdy není pod aktuální hodnotou', () => {

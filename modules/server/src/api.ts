@@ -1,9 +1,15 @@
 import type { ConnectionLike } from '@homebrain/ha-client';
 import type { ServerHistory, ServerSnapshot } from './types.js';
 
+/** One Proxmox guest (history of its own CPU % and RAM %). */
+export interface GuestRef {
+  vmid: number;
+  kind: 'vm' | 'ct';
+}
+
 export interface ServerApi {
   get(): Promise<ServerSnapshot>;
-  history(hours?: number): Promise<ServerHistory>;
+  history(hours?: number, guest?: GuestRef): Promise<ServerHistory>;
 }
 
 export function createWsServerApi(connection: ConnectionLike): ServerApi {
@@ -11,7 +17,8 @@ export function createWsServerApi(connection: ConnectionLike): ServerApi {
     connection.sendMessagePromise<T>({ type, ...extra } as { type: string });
   return {
     get: () => call<ServerSnapshot>('homebrain/server/get'),
-    history: (hours = 24) => call<ServerHistory>('homebrain/server/history', { hours }),
+    history: (hours = 24, guest?: GuestRef) =>
+      call<ServerHistory>('homebrain/server/history', guest ? { hours, guest } : { hours }),
   };
 }
 

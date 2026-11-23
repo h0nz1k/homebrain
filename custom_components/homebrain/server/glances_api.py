@@ -1,4 +1,4 @@
-"""Optional read-only Glances REST API v4 (process list → VMs, sensor thresholds, cores)."""
+"""Optional read-only Glances REST API v4 (process list → VMs, sensor thresholds, cores, load)."""
 
 from __future__ import annotations
 
@@ -33,6 +33,16 @@ def _first_list(payload: Any) -> list:
     return []
 
 
+def _load(payload: Any) -> list[float] | None:
+    """``[1, 5, 15]`` minute load averages from ``/load``; ``None`` when incomplete."""
+    if not isinstance(payload, Mapping):
+        return None
+    values = [payload.get(key) for key in ("min1", "min5", "min15")]
+    if not all(isinstance(v, (int, float)) and v >= 0 for v in values):
+        return None
+    return [round(float(v), 2) for v in values]
+
+
 class GlancesApi:
     """Lazy fetch with a 30 s cache (also after a failure: no 5 s timeout on every poll)."""
 
@@ -63,6 +73,10 @@ class GlancesApi:
                         procs = _first_list(await self._fetch("/processlist"))
                 sensors = await self._fetch("/sensors")
                 core = await self._fetch("/core")
+                try:
+                    load = await self._fetch("/load")
+                except LookupError:
+                    load = None
         except Exception:  # noqa: BLE001 - any network/JSON error = calm "down" state
             return None
         thresholds = {
@@ -71,7 +85,7 @@ class GlancesApi:
             if isinstance(s, Mapping) and s.get("label") and (s.get("warning") or s.get("critical"))
         }
         cores = core.get("log") or core.get("phys") if isinstance(core, Mapping) else None
-        return {"procs": procs, "thresholds": thresholds, "cores": cores}
+        return {"procs": procs, "thresholds": thresholds, "cores": cores, "load": _load(load)}
 
     async def async_get(self, total_bytes: float | None = None) -> dict[str, Any]:
         async with self._lock:
@@ -81,12 +95,13 @@ class GlancesApi:
                 self._at = now
         raw = self._raw
         if raw is None:
-            return {"status": "down", "vms": [], "thresholds": {}, "cores": None}
+            return {"status": "down", "vms": [], "thresholds": {}, "cores": None, "load": None}
         return {
             "status": "ok",
             "vms": vms_from_processes(raw["procs"], total_bytes),
             "thresholds": raw["thresholds"],
             "cores": raw["cores"],
+            "load": raw["load"],
         }
 
 
