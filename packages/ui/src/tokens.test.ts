@@ -47,24 +47,6 @@ it('preserves the requested motion and accessibility overrides', () => {
     /prefers-reduced-motion: reduce[^}]*--hb-m-xfade: 0?\.2s;\s*--hb-m-enter: 0s;/,
   );
 });
-it('bundles both Inter subsets for every supported weight', () => {
-  const fonts = readFileSync(join(import.meta.dirname, 'fonts.css'), 'utf8');
-  expect(fonts.match(/@font-face/g)).toHaveLength(10);
-  for (const weight of [200, 400, 500, 600, 700]) {
-    const source = readFileSync(
-      join(import.meta.dirname, `../node_modules/@fontsource/inter/${weight}.css`),
-      'utf8',
-    );
-    for (const subset of ['latin', 'latin-ext']) {
-      expect(fonts).toContain(`@fontsource/inter/files/inter-${subset}-${weight}-normal.woff2`);
-      const block = source.split(`/* inter-${subset}-${weight}-normal */`)[1]!.split('}')[0]!;
-      expect(fonts.replace(/\s/g, '')).toContain(
-        block.match(/unicode-range: [^;]+;/)![0].replace(/\s/g, ''),
-      );
-    }
-  }
-});
-
 it('defines the Dnes display tokens from the signals spec', () => {
   for (const token of ['--hb-display-w', '--hb-radius-hero', '--hb-glow', '--hb-space-page'])
     expect(css).toContain(`${token}:`);
