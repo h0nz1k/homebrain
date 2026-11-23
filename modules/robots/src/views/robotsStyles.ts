@@ -827,9 +827,11 @@ export const robotsStyles = `
 /* „Odesláno, čekám na robota…“ / „Robot zatím nereagoval“ + data age. */
 .rb-pending { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0 0; font-size: 14px; color: var(--hb-t2); }
 .rb-pending[data-phase='waiting']::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--hb-ac); animation: rb-pulse 1.6s ease-in-out infinite; }
-/* „… zatím bez odezvy“: a calm amber notice (not an error), retry at its end. */
+/* „… zatím bez odezvy“: a calm amber notice (not an error); retry full width under the text,
+   beside it once the hero body is wide enough (tablet). */
+.rb-hero-body { container: rb-hero-body / inline-size; }
 .rb-late {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 12px;
   margin: 12px 0 0; padding: 10px 10px 10px 14px; border-radius: var(--hb-radius-md, 14px);
   background: color-mix(in srgb, var(--hb-warn) 11%, var(--hb-s1));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-warn) 26%, transparent);
@@ -839,14 +841,31 @@ export const robotsStyles = `
 .rb-late-text { display: grid; gap: 2px; margin: 0; min-width: 0; font-size: 14px; line-height: 1.3; }
 .rb-late-text strong { color: var(--hb-t1); font-weight: 600; }
 .rb-late-text span { color: var(--hb-t2); font-size: 13px; }
-.rb-late .rb-late-retry.hb-btn { min-height: 44px; background: var(--hb-ac-s); color: var(--hb-ac); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 35%, transparent); }
-.rb-late .rb-late-retry.hb-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--hb-ac) 20%, transparent); }
-@media (max-width: 480px) {
-  .rb-late { grid-template-columns: auto minmax(0, 1fr); }
-  .rb-late .rb-late-retry { grid-column: 1 / -1; width: 100%; }
+.rb-late .rb-late-retry.hb-btn {
+  box-sizing: border-box; height: 44px; min-height: 44px; padding: 0 18px; align-self: center;
+  grid-column: 1 / -1; width: 100%;
+  background: var(--hb-s1); color: var(--hb-ac); font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--hb-ac);
 }
-[data-stale] .rb-stale-dim { opacity: .5; transition: opacity var(--hb-dur-base, 200ms); }
+@container rb-hero-body (min-width: 420px) {
+  .rb-late { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .rb-late .rb-late-retry.hb-btn { grid-column: auto; width: auto; }
+}
+.rb-late .rb-late-retry.hb-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--hb-ac) 12%, var(--hb-s1)); }
+@media (max-width: 480px) {
+  /* Phone: the illustration sits above the status (~96 px), the content gets the full width. */
+  .rb-hero:not([data-rb-photo]) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .rb-hero:not([data-rb-photo]) .rb-hero-art { width: 96px; height: 96px; justify-self: start; }
+}
+/* Stale live values (no reply yet): one look for all of them – secondary text colour (≥ 4.5:1,
+   no opacity on text) and faded graphics (progress bar, battery icon). */
+[data-stale] .rb-stale-dim, [data-stale] .rb-stale-dim :is(b, em) { color: var(--hb-t2); }
+[data-stale] .rb-stale-dim svg { opacity: .4; }
+[data-stale] .rb-progress.rb-stale-dim { background: color-mix(in srgb, var(--hb-t1) 8%, transparent); }
+[data-stale] .rb-progress.rb-stale-dim > span { opacity: .4; }
+[data-stale] .rb-live.rb-stale-dim::before { animation: none; }
 .rb-age { margin: 4px 0 0; color: var(--hb-t3, var(--hb-t2)); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+/* „Stav před X min“ in the hero reads as normal secondary text, not a footnote. */
+.rb-hero-body .rb-age { margin-top: 8px; color: var(--hb-t2); font-size: 14px; }
 .rb-clean-title .rb-age { margin-top: 2px; }
 /* Historie úklidů */
 .rb-history { margin-top: 16px; }
