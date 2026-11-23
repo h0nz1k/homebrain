@@ -11,8 +11,7 @@ async function assertRoomGridLayout(page: Page) {
     ).filter((t) => t.getBoundingClientRect().width > 0);
     for (const t of tiles) {
       const r = t.getBoundingClientRect();
-      if (r.right > box.right + 1 || r.left < box.left - 1)
-        return { ok: false as const, reason: 'overflow' };
+      if (r.right > box.right + 1 || r.left < box.left - 1) return { ok: false as const, reason: 'overflow' };
     }
     return { ok: true as const };
   });
@@ -146,10 +145,7 @@ test('ovládání: stejně široké segmenty, pokročilé (voda, mopování, pr�
   await page.getByRole('radio', { name: 'Obojí' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Voda' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Mopování' })).toBeVisible();
-  await page
-    .getByRole('radiogroup', { name: 'Voda' })
-    .getByRole('radio', { name: 'Vysoká', exact: true })
-    .click();
+  await page.getByRole('radiogroup', { name: 'Voda' }).getByRole('radio', { name: 'Vysoká', exact: true }).click();
   // Při vysávání s vytíráním nabízí UI jen rychlé a standardní trasy (důkladné shazují režim).
   await expect(page.getByRole('radio', { name: 'Důkladně', exact: true })).toHaveCount(0);
   await page.getByRole('radio', { name: 'Rychle', exact: true }).click();

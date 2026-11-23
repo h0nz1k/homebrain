@@ -280,9 +280,7 @@ for (const [width, height] of [
             );
         expect(relevant, `geometry QA ${width}×${height} ${theme}`).toEqual([]);
         if (solar) {
-          const result = await page
-            .getByTestId('heating-schematic')
-            .evaluate(solarRenderedGeometry);
+          const result = await page.getByTestId('heating-schematic').evaluate(solarRenderedGeometry);
           expect(result.configured).toBe(true);
           expect(result.coilInLower).toBe(true);
           expect(result.badgeCoilOverlap).toBe(false);

@@ -95,10 +95,8 @@ for (const width of [390, 800, 1280]) {
           if (a.box.left < bounds.left - 1 || a.box.right > bounds.right + 1)
             errors.push(`mimo řádek: ${a.text}`);
           for (const b of rects.slice(i + 1)) {
-            if (
-              Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left) > 1 &&
-              Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top) > 1
-            )
+            if (Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left) > 1 &&
+                Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top) > 1)
               errors.push(`${a.text} × ${b.text}`);
           }
         }

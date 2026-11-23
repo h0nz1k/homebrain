@@ -269,8 +269,7 @@ test.describe('kiosk 1280×800 polish', () => {
         if (r.left < card.left + pad - 0.5) inset.push(`left ${el.textContent?.slice(0, 12)}`);
         if (r.right > card.right - pad + 0.5) inset.push(`right ${el.textContent?.slice(0, 12)}`);
         if (r.top < card.top + pad - 0.5) inset.push(`top ${el.textContent?.slice(0, 12)}`);
-        if (r.bottom > card.bottom - pad + 0.5)
-          inset.push(`bottom ${el.textContent?.slice(0, 12)}`);
+        if (r.bottom > card.bottom - pad + 0.5) inset.push(`bottom ${el.textContent?.slice(0, 12)}`);
       };
       meater.querySelectorAll('.kn-section-head, .kn-probe, .kn-probe .hb-btn').forEach(inside);
       const meaterApp = meater.querySelector('.kn-meater-app, :scope > .hb-btn');
@@ -290,8 +289,7 @@ test.describe('kiosk 1280×800 polish', () => {
       const fryerShell = !fryerFl || getComputedStyle(fryerFl).boxShadow === 'none';
       const fryer = document.querySelector('.kn-fryer.kn-card')!;
       const timers = document.querySelector('.kn-timers.kn-card')!;
-      const stretch =
-        timers.getBoundingClientRect().height >= fryer.getBoundingClientRect().height - 2;
+      const stretch = timers.getBoundingClientRect().height >= fryer.getBoundingClientRect().height - 2;
       const recipeButtons = Array.from(document.querySelectorAll('.kn-recipe-grid button'));
       const grid = document.querySelector('.kn-recipe-grid')!;
       const last = recipeButtons[recipeButtons.length - 1]!;
@@ -331,137 +329,134 @@ test.describe('kiosk 1280×800 polish', () => {
     for (const w of report.thumbWidths) expect(w).toBeGreaterThanOrEqual(90);
   });
 
-  test('cooking active compact cards and recipes above player', async ({ page }) => {
-    await open(page, '&cooking=active&theme=dark');
-    await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
-    const report = await page.evaluate(() => {
-      const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
-      const barTop = bar.top;
-      const heading = document.querySelector('[data-testid="kitchen-recipes"] h2')!;
-      const firstRecipe = document.querySelector('.kn-recipe-grid button')!;
-      const h = heading.getBoundingClientRect();
-      const r = firstRecipe.getBoundingClientRect();
-      const cards = Array.from(
-        document.querySelectorAll(
-          '.kn-cooking-active .kn-cook-slot:not(.kn-slot-recipes) .kn-card',
-        ),
-      );
-      const tall = cards
-        .map((el) => Math.round(el.getBoundingClientRect().height))
-        .filter((ht) => ht > 360);
-      const badTimerText = Array.from(
-        document.querySelectorAll('.kn-timers .rc-tcard .hb-btn'),
-      ).some((btn) =>
-        Array.from(btn.childNodes).some(
-          (n) => n.nodeType === Node.TEXT_NODE && /[‖◉▢]/.test(n.textContent ?? ''),
-        ),
-      );
-      const badOutput = Array.from(document.querySelector('.kn-output')!.childNodes).some(
+test('cooking active compact cards and recipes above player', async ({ page }) => {
+  await open(page, '&cooking=active&theme=dark');
+  await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
+  const report = await page.evaluate(() => {
+    const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
+    const barTop = bar.top;
+    const heading = document.querySelector('[data-testid="kitchen-recipes"] h2')!;
+    const firstRecipe = document.querySelector('.kn-recipe-grid button')!;
+    const h = heading.getBoundingClientRect();
+    const r = firstRecipe.getBoundingClientRect();
+    const cards = Array.from(
+      document.querySelectorAll('.kn-cooking-active .kn-cook-slot:not(.kn-slot-recipes) .kn-card'),
+    );
+    const tall = cards
+      .map((el) => Math.round(el.getBoundingClientRect().height))
+      .filter((ht) => ht > 360);
+    const badTimerText = Array.from(
+      document.querySelectorAll('.kn-timers .rc-tcard .hb-btn'),
+    ).some((btn) =>
+      Array.from(btn.childNodes).some(
         (n) => n.nodeType === Node.TEXT_NODE && /[‖◉▢]/.test(n.textContent ?? ''),
-      );
-      return {
-        headingBottom: h.bottom,
-        recipeMid: r.top + r.height / 2,
-        barTop,
-        tall,
-        badGlyphs: badTimerText || badOutput,
-      };
-    });
-    expect(report.headingBottom).toBeLessThan(report.barTop - 8);
-    expect(report.recipeMid).toBeLessThan(report.barTop - 8);
-    expect(report.tall).toEqual([]);
-    expect(report.badGlyphs).toBe(false);
+      ),
+    );
+    const badOutput = Array.from(document.querySelector('.kn-output')!.childNodes).some(
+      (n) => n.nodeType === Node.TEXT_NODE && /[‖◉▢]/.test(n.textContent ?? ''),
+    );
+    return {
+      headingBottom: h.bottom,
+      recipeMid: r.top + r.height / 2,
+      barTop,
+      tall,
+      badGlyphs: badTimerText || badOutput,
+    };
   });
+  expect(report.headingBottom).toBeLessThan(report.barTop - 8);
+  expect(report.recipeMid).toBeLessThan(report.barTop - 8);
+  expect(report.tall).toEqual([]);
+  expect(report.badGlyphs).toBe(false);
+});
 
-  test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
-    await open(page, '&theme=dark');
-    const report = await page.evaluate(() => {
-      const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
-      const px = (el: Element | null) =>
-        el ? Number.parseFloat(getComputedStyle(el).fontSize) : 0;
-      const sizes: Record<string, number> = {
-        'nabíjení omezeno': px(document.querySelector('.kn-battery small')),
-        'Hlasitost · 38 %': px(document.querySelector('.kn-volume label')),
-        'Další rádia': px(document.querySelector('.kn-more > span')),
-        'YT Music': px(document.querySelector('.kn-person .kn-section-head small')),
-      };
-      const mamaSection = Array.from(document.querySelectorAll('.kn-person')).find((el) =>
-        el.textContent?.includes('Máma'),
-      );
-      const mamaBottom = mamaSection?.getBoundingClientRect().bottom ?? 0;
-      const dalsi = document.querySelector('.kn-more > span');
-      const dalsiLine = dalsi
-        ? getComputedStyle(dalsi).whiteSpace.includes('nowrap') &&
-          dalsi.getBoundingClientRect().height <= 22
+test('Hudba labels, Máma row, and Vše alignment', async ({ page }) => {
+  await open(page, '&theme=dark');
+  const report = await page.evaluate(() => {
+    const bar = document.querySelector('.kn-player')!.getBoundingClientRect();
+    const px = (el: Element | null) =>
+      el ? Number.parseFloat(getComputedStyle(el).fontSize) : 0;
+    const sizes: Record<string, number> = {
+      'nabíjení omezeno': px(document.querySelector('.kn-battery small')),
+      'Hlasitost · 38 %': px(document.querySelector('.kn-volume label')),
+      'Další rádia': px(document.querySelector('.kn-more > span')),
+      'YT Music': px(document.querySelector('.kn-person .kn-section-head small')),
+    };
+    const mamaSection = Array.from(document.querySelectorAll('.kn-person')).find((el) =>
+      el.textContent?.includes('Máma'),
+    );
+    const mamaBottom = mamaSection?.getBoundingClientRect().bottom ?? 0;
+    const dalsi = document.querySelector('.kn-more > span');
+    const dalsiLine = dalsi
+      ? getComputedStyle(dalsi).whiteSpace.includes('nowrap') &&
+        (dalsi.getBoundingClientRect().height <= 22)
+      : false;
+    const vse = document.querySelector('.kn-person .hb-btn[data-size="sm"]')!;
+    const head = vse.closest('.kn-section-head')!;
+    const aligned =
+      Math.abs(vse.getBoundingClientRect().right - head.getBoundingClientRect().right) < 3;
+    const mamaCovers = mamaSection
+      ? Array.from(mamaSection.querySelectorAll('.kn-art')).some(
+          (node) => (node as Element).getBoundingClientRect().bottom >= bar.top - 1,
+        )
+      : false;
+    const mamaOk = mamaBottom > 0 && mamaBottom < bar.top && !mamaCovers;
+    const yt = mamaSection?.querySelector('.kn-youtube');
+    const lib = mamaSection?.querySelector('.kn-person-library');
+    const personGap = mamaSection
+      ? Number.parseFloat(getComputedStyle(mamaSection).columnGap || getComputedStyle(mamaSection).gap)
+      : 0;
+    const ytAligned =
+      yt && lib
+        ? Math.abs(yt.getBoundingClientRect().top - lib.getBoundingClientRect().top) < 3 &&
+          Math.abs(yt.getBoundingClientRect().bottom - lib.getBoundingClientRect().bottom) < 3
         : false;
-      const vse = document.querySelector('.kn-person .hb-btn[data-size="sm"]')!;
-      const head = vse.closest('.kn-section-head')!;
-      const aligned =
-        Math.abs(vse.getBoundingClientRect().right - head.getBoundingClientRect().right) < 3;
-      const mamaCovers = mamaSection
-        ? Array.from(mamaSection.querySelectorAll('.kn-art')).some(
-            (node) => (node as Element).getBoundingClientRect().bottom >= bar.top - 1,
-          )
+    const ytPlay = mamaSection?.querySelector('.kn-yt-symbol');
+    const ytPlayGlyph = ytPlay ? getComputedStyle(ytPlay).color : '';
+    const ytPlayBg = ytPlay ? getComputedStyle(ytPlay).backgroundColor : '';
+    const battIcon = document.querySelector('.kn-battery .kn-ico');
+    const battBox = battIcon?.getBoundingClientRect();
+    const battFill = document.querySelector('.kn-battery .kn-ico rect[width]');
+    const pill = document.querySelector('.kn-battery > span');
+    const pillLeft =
+      pill && battIcon
+        ? pill.getBoundingClientRect().left >= battIcon.getBoundingClientRect().right - 1
         : false;
-      const mamaOk = mamaBottom > 0 && mamaBottom < bar.top && !mamaCovers;
-      const yt = mamaSection?.querySelector('.kn-youtube');
-      const lib = mamaSection?.querySelector('.kn-person-library');
-      const personGap = mamaSection
-        ? Number.parseFloat(
-            getComputedStyle(mamaSection).columnGap || getComputedStyle(mamaSection).gap,
-          )
-        : 0;
-      const ytAligned =
-        yt && lib
-          ? Math.abs(yt.getBoundingClientRect().top - lib.getBoundingClientRect().top) < 3 &&
-            Math.abs(yt.getBoundingClientRect().bottom - lib.getBoundingClientRect().bottom) < 3
-          : false;
-      const ytPlay = mamaSection?.querySelector('.kn-yt-symbol');
-      const ytPlayGlyph = ytPlay ? getComputedStyle(ytPlay).color : '';
-      const ytPlayBg = ytPlay ? getComputedStyle(ytPlay).backgroundColor : '';
-      const battIcon = document.querySelector('.kn-battery .kn-ico');
-      const battBox = battIcon?.getBoundingClientRect();
-      const battFill = document.querySelector('.kn-battery .kn-ico rect[width]');
-      const pill = document.querySelector('.kn-battery > span');
-      const pillLeft =
-        pill && battIcon
-          ? pill.getBoundingClientRect().left >= battIcon.getBoundingClientRect().right - 1
-          : false;
-      const artH =
-        mamaSection?.querySelector('.kn-playlists .kn-art')?.getBoundingClientRect().height ?? 0;
-      return {
-        sizes,
-        dalsiLine,
-        aligned,
-        mamaOk,
-        mamaBottom,
-        barTop: bar.top,
-        ytAligned,
-        personGap,
-        ytPlayGlyph,
-        ytPlayBg,
-        battMin: Math.min(battBox?.width ?? 0, battBox?.height ?? 0),
-        battVisible: Boolean(battFill),
-        pillLeft,
-        artH,
-      };
-    });
-    for (const bit of ['nabíjení omezeno', 'Hlasitost · 38 %', 'Další rádia', 'YT Music']) {
-      expect(report.sizes[bit] ?? 0).toBeGreaterThanOrEqual(16);
-    }
-    expect(report.dalsiLine).toBe(true);
-    expect(report.aligned).toBe(true);
-    expect(report.mamaOk).toBe(true);
-    expect(report.ytAligned).toBe(true);
-    expect(report.personGap).toBeGreaterThanOrEqual(11.5);
-    expect(report.personGap).toBeLessThanOrEqual(12.5);
-    expect(report.ytPlayGlyph).toMatch(/rgb\(255,\s*255,\s*255\)/);
-    expect(report.ytPlayBg).toMatch(/rgb\(230,\s*33,\s*23\)/);
-    expect(report.battMin).toBeGreaterThanOrEqual(20);
-    expect(report.battVisible).toBe(true);
-    expect(report.pillLeft).toBe(true);
-    expect(report.artH).toBeGreaterThanOrEqual(84);
+    const artH =
+      mamaSection?.querySelector('.kn-playlists .kn-art')?.getBoundingClientRect().height ?? 0;
+    return {
+      sizes,
+      dalsiLine,
+      aligned,
+      mamaOk,
+      mamaBottom,
+      barTop: bar.top,
+      ytAligned,
+      personGap,
+      ytPlayGlyph,
+      ytPlayBg,
+      battMin: Math.min(battBox?.width ?? 0, battBox?.height ?? 0),
+      battVisible: Boolean(battFill),
+      pillLeft,
+      artH,
+    };
   });
+  for (const bit of ['nabíjení omezeno', 'Hlasitost · 38 %', 'Další rádia', 'YT Music']) {
+    expect(report.sizes[bit] ?? 0).toBeGreaterThanOrEqual(16);
+  }
+  expect(report.dalsiLine).toBe(true);
+  expect(report.aligned).toBe(true);
+  expect(report.mamaOk).toBe(true);
+  expect(report.ytAligned).toBe(true);
+  expect(report.personGap).toBeGreaterThanOrEqual(11.5);
+  expect(report.personGap).toBeLessThanOrEqual(12.5);
+  expect(report.ytPlayGlyph).toMatch(/rgb\(255,\s*255,\s*255\)/);
+  expect(report.ytPlayBg).toMatch(/rgb\(230,\s*33,\s*23\)/);
+  expect(report.battMin).toBeGreaterThanOrEqual(20);
+  expect(report.battVisible).toBe(true);
+  expect(report.pillLeft).toBe(true);
+  expect(report.artH).toBeGreaterThanOrEqual(84);
+});
+
 });
 
 // The kiosk's recipe entry must stay in HomeBrain, including the destination panel's role gate.
