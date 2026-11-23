@@ -28,6 +28,12 @@ from . import chore_management, choreops_adapter, model, persons
 from .person_history import PersonHistory
 from .school import SCHOOL_SETTINGS, websocket_school
 from .swap_store import FamilySwapStore
+from .timetable import (
+    TIMETABLE_SETTINGS,
+    derive_presence,
+    timetable_settings,
+    websocket_timetable,
+)
 from .ws_chore import CHORE_MANAGEMENT_COMMANDS
 from .ws_common import (
     CONF_FAMILY,
@@ -102,6 +108,8 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
     store_data = store.data if isinstance(store, FamilySwapStore) else {}
     history: PersonHistory | None = hass.data.get(HB_DOMAIN, {}).get("family_history")
     profiles = persons.members(hass, hass.states.async_all(), opts)
+    if role != "kiosk":
+        derive_presence(hass, profiles, dt_util.now())
     kids_by_uuid = {str(k.get("kid_uuid") or k["id"]): k for k in profiles}
     now = dt_util.now()
     members = []
@@ -428,6 +436,7 @@ def _settings(hass: HomeAssistant) -> dict[str, Any]:
         ],
         "approver_name": opts.get("approver_name"),
         "school": {**SCHOOL_SETTINGS({}), **(opts.get("school") or {})},
+        "timetable": timetable_settings(hass),
         "effective": {
             "calendars": model.family_calendars(states, _bindings(hass), opts),
             "shopping": model.shopping_entity(states, _bindings(hass), opts),
@@ -510,6 +519,7 @@ def websocket_family_settings_get(
             vol.Length(max=32),
         ),
         vol.Optional("school"): SCHOOL_SETTINGS,
+        vol.Optional("timetable"): TIMETABLE_SETTINGS,
         vol.Optional("approver_name"): vol.Any(None, vol.All(str, vol.Length(max=64))),
     }
 )
@@ -541,7 +551,15 @@ def websocket_family_settings_set(
         ):
             connection.send_error(msg["id"], "invalid_input", "Zkontrolujte nastavení osob.")
             return
-    for key in ("calendars", "shopping", "kids", "approver_name", "persons", "school"):
+    for key in (
+        "calendars",
+        "shopping",
+        "kids",
+        "approver_name",
+        "persons",
+        "school",
+        "timetable",
+    ):
         if key in msg:
             opts[key] = msg[key]
     if "persons" in msg:
@@ -553,6 +571,7 @@ def websocket_family_settings_set(
 COMMANDS: Final = (
     websocket_family_get,
     websocket_school,
+    websocket_timetable,
     websocket_family_person_history,
     websocket_family_claim,
     websocket_family_approve,

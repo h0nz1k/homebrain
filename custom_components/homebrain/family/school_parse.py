@@ -492,3 +492,61 @@ def parse_menu(pdf: bytes, week: date, dated_link: bool = False) -> tuple[set[da
             days[current].append(line)
     kept = {day for day in days if week <= day < week + timedelta(days=5)}
     return kept, [row for day in sorted(kept) if (row := _lunch(days[day], day))]
+
+
+_CLOCK = r"(\d{1,2})\s*[.:]\s*(\d{2})"
+_BELL = re.compile(rf"(?<!\d)([0-9])\s*\.\s*hod\w*\.?\s*:?\s*{_CLOCK}\s*(?:[-–—]|az|do)\s*{_CLOCK}")
+_LUNCH = re.compile(rf"poledni\s+prestav\w*\D*?{_CLOCK}\s*(?:[-–—]|az|do)\s*{_CLOCK}")
+_WEEKDAY_NAMES = ("pondeli", "utery", "streda", "ctvrtek", "patek")
+
+
+def _clock(hour: str, minute: str) -> str | None:
+    h, m = int(hour), int(minute)
+    return f"{h:02d}:{m:02d}" if h < 24 and m < 60 else None
+
+
+def _times(match: re.Match, offset: int) -> dict | None:
+    start = _clock(match[offset], match[offset + 1])
+    end = _clock(match[offset + 2], match[offset + 3])
+    return {"start": start, "end": end} if start and end and start < end else None
+
+
+def parse_bells(html: str) -> dict:
+    """Bell schedule page: „1. hodina 7.30 – 8.15“ plus an optional afternoon variant.
+
+    The variant starts with a weekday heading („STŘEDA – 8. – 9. ročník“) and may name the
+    lunch break; its periods replace the shared times on that weekday for those grades.
+    """
+    bells: dict[int, dict] = {}
+    afternoon: dict | None = None
+    for _tag, raw in SchoolHTML(html).rows:
+        text = plain(raw)
+        heading = re.match(rf"\W*({'|'.join(_WEEKDAY_NAMES)})\b", text)
+        if heading and not _BELL.search(text):
+            if afternoon is None:
+                afternoon = {
+                    "weekday": _WEEKDAY_NAMES.index(heading[1]),
+                    "grades": grades_from_text(text),
+                    "lunch": None,
+                    "periods": [],
+                }
+            continue
+        if afternoon is not None and (lunch := _LUNCH.search(text)):
+            afternoon["lunch"] = _times(lunch, 1)
+            continue
+        for match in _BELL.finditer(text):
+            period, times = int(match[1]), _times(match, 2)
+            if not times or not 1 <= period <= 9:
+                continue
+            if afternoon is not None:
+                afternoon["periods"].append({"period": period, **times})
+            else:
+                bells.setdefault(period, times)
+    if not bells:
+        raise ValueError("No bell schedule found")
+    if afternoon is not None and not afternoon["periods"]:
+        afternoon = None
+    return {
+        "bells": [bells.get(period) for period in range(1, max(bells) + 1)],
+        "afternoon": afternoon,
+    }

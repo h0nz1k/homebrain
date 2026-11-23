@@ -15,6 +15,7 @@ from . import model, swap_service
 from .person_history import PersonHistory
 from .school import SchoolImport
 from .swap_store import FamilySwapStore
+from .timetable import TimetableHolidays
 from .ws_common import family_options
 
 
@@ -31,10 +32,14 @@ async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
         school = SchoolImport(hass, entry)
         hb["family_school"] = school
         await school.async_setup()
+        holidays = TimetableHolidays(hass, entry)
+        hb["family_timetable"] = holidays
+        await holidays.async_setup()
 
         @callback
         def _remove_school() -> None:
             hb.pop("family_school", None)
+            hb.pop("family_timetable", None)
 
         entry.async_on_unload(_remove_school)
 

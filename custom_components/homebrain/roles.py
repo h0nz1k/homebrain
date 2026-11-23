@@ -180,6 +180,8 @@ FAMILY_WS_COMMANDS: Final = frozenset(
     {
         "homebrain/family/get",
         "homebrain/family/person/history",
+        # Školní rozvrh: own children only; the kiosk gets an empty snapshot (#173).
+        "homebrain/family/timetable",
         "homebrain/family/chore/claim",
         "homebrain/family/shopping/add",
         "homebrain/family/shopping/update",
