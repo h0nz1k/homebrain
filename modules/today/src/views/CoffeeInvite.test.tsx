@@ -62,7 +62,9 @@ it('shows a failed dispatch inline and leaves the button available for retry', a
   render(<CoffeeInvite api={api} />);
   const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Pozvat na kávu' });
   await act(async () => fireEvent.click(button));
-  expect(screen.getByRole('status').textContent).toBe('Pozvánku se nepodařilo odeslat');
+  expect(screen.getByRole('alert').textContent).toBe(
+    'Pozvánku se nepodařilo odeslat. Zkusit znovu.',
+  );
   expect(button.disabled).toBe(false);
   await act(async () => fireEvent.click(button));
   expect(invite).toHaveBeenCalledTimes(2);

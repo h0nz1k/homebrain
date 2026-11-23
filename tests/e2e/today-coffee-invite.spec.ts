@@ -94,7 +94,9 @@ for (const { layout, width, height } of screens) {
 
       await page.goto(`${url}error`);
       await action(page).click();
-      await expect(action(page)).toHaveAccessibleDescription('Pozvánku se nepodařilo odeslat');
+      await expect(action(page)).toHaveAccessibleDescription(
+        'Pozvánku se nepodařilo odeslat. Zkusit znovu.',
+      );
       await expect(action(page)).toBeEnabled();
       await expect(page.getByTestId('hb-toast')).toHaveCount(0);
       await capture(page, info, theme, 'error');

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Button } from '@homebrain/ui';
+import { Button, Icon } from '@homebrain/ui';
 import type { CoffeeApi, CoffeeBlock, CoffeeResult } from '../data/coffee.js';
 
 const REASONS: Record<CoffeeBlock | 'send_failed', string> = {
@@ -53,10 +53,11 @@ export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
   const seconds = status.reason === 'cooldown' ? status.seconds : 0;
   const reason = status.reason ?? (pending ? 'cooldown' : null);
   const countdown = !result?.ok && seconds > 0;
+  const error = result?.ok === false && !reason;
   let message = reason ? REASONS[reason] : null;
   if (result?.ok) message = '✓ Pozvánka odeslána na TV';
   else if (countdown) message = `Znovu za ${seconds} s`;
-  else if (result && !reason) message = REASONS[result.reason];
+  else if (error) message = `${REASONS[result.reason]}. Zkusit znovu.`;
 
   async function invite(api: CoffeeApi) {
     if (reason || sending.current) return;
@@ -74,9 +75,21 @@ export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
   }
 
   return (
-    <div className="today-coffee">
+    <div className="today-coffee" data-error={error || undefined}>
       <Button
-        icon="☕"
+        icon={
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            data-hb-icon=""
+            focusable="false"
+          >
+            <path d="M3 8h13v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5zM16 9h2.5a2.5 2.5 0 0 1 0 5H16M2 22h17M7 2v3m5-3v3" />
+          </svg>
+        }
         onClick={() => void invite(api)}
         disabled={Boolean(reason)}
         aria-describedby={message ? statusId : undefined}
@@ -86,11 +99,13 @@ export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
       <span
         id={statusId}
         className="today-coffee-status"
-        role="status"
-        aria-live={countdown ? 'off' : 'polite'}
+        role={error ? 'alert' : 'status'}
+        aria-live={countdown ? 'off' : undefined}
         data-success={result?.ok || undefined}
+        data-countdown={countdown || undefined}
         hidden={!message}
       >
+        {error && <Icon name="alert" size={16} />}
         {message}
       </span>
     </div>
