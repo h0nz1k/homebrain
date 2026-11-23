@@ -26,7 +26,7 @@ describe('access log', () => {
       time: T('10:00:00'),
       user_id: 1001,
       type: 'palm',
-      name: 'Jan',
+      name: 'Marek',
       decision: 'granted',
     },
     { kind: 'rejected', time: T('09:00:00'), type: 'face', reason: 'not_recognized' },
@@ -36,7 +36,7 @@ describe('access log', () => {
       ok: true,
       user_id: 1002,
       type: 'palm',
-      name: 'Petra',
+      name: 'Lucie',
       attempts: 2,
     },
     {
@@ -44,7 +44,7 @@ describe('access log', () => {
       time: T('07:59:00'),
       ok: false,
       type_requested: 'palm',
-      name: 'Petra',
+      name: 'Lucie',
       reason: 'face_instead_of_palm',
     },
     { kind: 'deleted', time: T('07:58:00'), ok: true, user_id: 3, rollback: true },
@@ -69,13 +69,13 @@ describe('access log', () => {
     { when: sec(T('06:00:05')), entity_id: ids.lastError, state: 'no_reply' },
     { when: sec(T('05:00:00')), entity_id: ids.connected, state: 'off' },
     { when: sec(T('05:30:00')), entity_id: ids.service, state: 'on' },
-    { when: sec(T('05:31:00')), entity_id: ids.lastUser, state: 'Jan' },
+    { when: sec(T('05:31:00')), entity_id: ids.lastUser, state: 'Marek' },
     // legacy automation logbook.log line from before the structured history
     {
       when: sec(T('20:00:00', '2026-06-01')),
       entity_id: ids.lastUser,
       name: 'BioLock',
-      message: 'Odemkl(a) Jan (obličej)',
+      message: 'Odemkl(a) Marek (obličej)',
     },
     {
       when: sec(T('20:05:00', '2026-06-01')),
@@ -88,7 +88,7 @@ describe('access log', () => {
       when: sec(T('10:00:00')),
       entity_id: ids.lastUser,
       name: 'BioLock',
-      message: 'Odemkl(a) Jan (dlaň)',
+      message: 'Odemkl(a) Marek (dlaň)',
     },
   ];
   const actions = [
@@ -109,15 +109,15 @@ describe('access log', () => {
       expect(items[i - 1]!.time >= items[i]!.time).toBe(true);
     const unlock = items.find((i) => i.time === T('10:00:04'))!;
     expect(unlock.title).toBe('Odemčeno');
-    expect(unlock.detail).toContain('BioLock – Jan, levá dlaň');
+    expect(unlock.detail).toContain('BioLock – Marek, levá dlaň');
     expect(items.find((i) => i.time === T('11:00:01'))!.detail).toContain('Home Assistant');
     expect(items.find((i) => i.time === T('12:00:03'))!.detail).toContain('automatické zamčení');
     expect(items.some((i) => i.title === 'Odemyká se')).toBe(false); // transitional states hidden
   });
 
   it('describes enrolments, deletions, lockouts and problems in Czech', () => {
-    expect(byTitle(/Zapsáno: Petra – dlaň/)).toHaveLength(1);
-    expect(byTitle(/Zápis se nepovedl: Petra/)[0]!.detail).toContain('obličej místo dlaně');
+    expect(byTitle(/Zapsáno: Lucie – dlaň/)).toHaveLength(1);
+    expect(byTitle(/Zápis se nepovedl: Lucie/)[0]!.detail).toContain('obličej místo dlaně');
     expect(byTitle(/Smazáno ID 3/)[0]!.detail).toContain('automaticky vráceno');
     expect(byTitle(/zablokoval/)).toHaveLength(1); // structured + logbook lockout merged
     expect(byTitle(/Zámek se zasekl/)[0]!.problem).toBe(true);
@@ -129,7 +129,7 @@ describe('access log', () => {
   });
 
   it('keeps legacy logbook lines but drops duplicates of structured events', () => {
-    expect(byTitle(/Jan – odemčeno/).map((i) => i.time)).toEqual([
+    expect(byTitle(/Marek – odemčeno/).map((i) => i.time)).toEqual([
       T('10:00:00'),
       T('20:00:00', '2026-06-01'),
     ]);
@@ -163,17 +163,17 @@ describe('access log', () => {
 
 describe('enrolment outside the wizard', () => {
   it('two unlabelled palms fill both hand slots instead of hiding one', () => {
-    const [jan] = groupPeople(
+    const [marek] = groupPeople(
       [
-        { id: 1, type: 'face', name: 'Jan', allowed: true },
-        { id: 1001, type: 'palm', name: 'Jan', allowed: true },
-        { id: 1002, type: 'palm', name: 'Jan', allowed: true },
+        { id: 1, type: 'face', name: 'Marek', allowed: true },
+        { id: 1001, type: 'palm', name: 'Marek', allowed: true },
+        { id: 1002, type: 'palm', name: 'Marek', allowed: true },
       ],
       {},
     );
-    const slots = handSlots(jan!);
-    expect(slots.right).toEqual({ users: [jan!.unknown[0]], unknown: true });
-    expect(slots.left).toEqual({ users: [jan!.unknown[1]], unknown: true });
+    const slots = handSlots(marek!);
+    expect(slots.right).toEqual({ users: [marek!.unknown[0]], unknown: true });
+    expect(slots.left).toEqual({ users: [marek!.unknown[1]], unknown: true });
   });
 
   it('tracks pending → retry → result', () => {
@@ -185,7 +185,7 @@ describe('enrolment outside the wizard', () => {
         time: T('10:00:10'),
         data: {
           type_requested: 'palm',
-          name: 'Jan',
+          name: 'Marek',
           reason: 'face_instead_of_palm',
           attempt: 1,
           remaining_s: 18,
@@ -197,15 +197,15 @@ describe('enrolment outside the wizard', () => {
       event: {
         event: 'enrolled',
         time: T('10:00:20'),
-        data: { ok: false, type_requested: 'palm', name: 'Jan', reason: 'timeout' },
+        data: { ok: false, type_requested: 'palm', name: 'Marek', reason: 'timeout' },
       },
     });
-    expect(s).toMatchObject({ phase: 'failed', reason: 'timeout', name: 'Jan', type: 'palm' });
+    expect(s).toMatchObject({ phase: 'failed', reason: 'timeout', name: 'Marek', type: 'palm' });
     s = enrolReducer(s, {
       event: {
         event: 'enrolled',
         time: T('10:01:00'),
-        data: { ok: true, user_id: 1002, type: 'palm', name: 'Jan' },
+        data: { ok: true, user_id: 1002, type: 'palm', name: 'Marek' },
       },
     });
     expect(s).toMatchObject({ phase: 'ok', id: 1002, type: 'palm' });

@@ -43,7 +43,7 @@ persistent notification is raised per ID when the advice first appears (setting
 `notify_reenroll`, default on).
 
 ## Development
-- Dev panel `/access` uses `createMockAccessApi` (synthetic Jan / Petra / Tomáš).
+- Dev panel `/access` uses `createMockAccessApi` (synthetic Marek / Lucie / Kuba).
   Query: `enroll_ms=<ms>` (scan duration), `access_fail=<code,…>` (fail the next enrolments).
   `window.__hbAccessLog` records every command for e2e.
 - e2e: `tests/e2e/access.spec.ts` (Osoby + re-enrol chip, wizard happy/fail/re-enrol, Zařízení).

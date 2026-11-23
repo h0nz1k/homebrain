@@ -116,11 +116,11 @@ describe('controls', () => {
   it('Sheet is a labelled modal, Esc closes, alert closes on scrim', () => {
     const onClose = vi.fn();
     const { container } = render(
-      <Sheet title="Smazat Jan?" variant="alert" onClose={onClose} footer={<Button>Zpět</Button>}>
+      <Sheet title="Smazat Marek?" variant="alert" onClose={onClose} footer={<Button>Zpět</Button>}>
         Vrátit to nejde.
       </Sheet>,
     );
-    expect(screen.getByRole('alertdialog', { name: 'Smazat Jan?' })).toBeDefined();
+    expect(screen.getByRole('alertdialog', { name: 'Smazat Marek?' })).toBeDefined();
     fireEvent.keyDown(document, { key: 'Escape' });
     fireEvent.click(container.querySelector('.hb-scrim')!);
     expect(onClose).toHaveBeenCalledTimes(2);
@@ -229,7 +229,7 @@ describe('controls', () => {
   it('StatusRow rich variant renders detail and action instead of time', () => {
     render(
       <StatusRow
-        label="Poznal: Jan"
+        label="Poznal: Marek"
         value=""
         detail="Kterou ruku?"
         time="teď"

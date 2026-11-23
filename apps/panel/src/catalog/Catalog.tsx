@@ -456,7 +456,7 @@ const specs: Spec[] = [
         <StatusRow label="Pračka" value="Běží · 38 min" tone="accent" />
         <StatusRow label="Odvlhčovač" value="Plná nádrž" tone="warn" time="před 5 min" />
         <StatusRow
-          label="Poznal: Jan – dlaň ID 1002"
+          label="Poznal: Marek – dlaň ID 1002"
           value=""
           tone="accent"
           icon="✋"
@@ -763,7 +763,7 @@ const specs: Spec[] = [
       <div style={{ display: 'grid', gap: 24 }}>
         <Stepper
           steps={[
-            { key: 'name', title: 'Jméno', detail: 'Petra', state: 'done' },
+            { key: 'name', title: 'Jméno', detail: 'Lucie', state: 'done' },
             { key: 'face', title: 'Obličej', detail: 'uloženo · ID 2', state: 'done' },
             { key: 'right', title: 'Pravá dlaň', detail: 'snímám…', state: 'active' },
             { key: 'left', title: 'Levá dlaň', detail: 'volitelné', state: 'todo' },
@@ -816,15 +816,15 @@ const specs: Spec[] = [
       <div className="cat-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
         <PresenceStrip
           people={[
-            { id: 'a', name: 'Jan', color: 'blue', status: 'home' },
-            { id: 'b', name: 'Adámek', color: 'teal', status: 'away' },
+            { id: 'a', name: 'Marek', color: 'blue', status: 'home' },
+            { id: 'b', name: 'Kuba', color: 'teal', status: 'away' },
             { id: 'c', name: 'Děda', color: 'slate', status: 'unknown' },
           ]}
         />
         <PresenceStrip
           size="lg"
           people={[
-            { id: 'd', name: 'Mamínka', color: 'pink', status: 'home' },
+            { id: 'd', name: 'Lucie', color: 'pink', status: 'home' },
             { id: 'e', name: 'Babi', color: 'amber', status: 'away' },
           ]}
         />
@@ -892,7 +892,7 @@ const specs: Spec[] = [
             { key: 'cat-done', title: 'Hotovo', state: 'todo' },
           ]}
         >
-          Zápis: Jan · obličej – snímač něco vidí, ještě drobná korekce.
+          Zápis: Marek · obličej – snímač něco vidí, ještě drobná korekce.
         </LiveStatus>
         <LiveStatus state="ok" title="Uloženo · ID 1003" />
         <LiveStatus state="error" title="Snímač uviděl něco jiného">
@@ -952,7 +952,7 @@ function SheetDemo() {
       {open && (
         <Sheet
           variant="alert"
-          title="Smazat Tomáš?"
+          title="Smazat Kuba?"
           onClose={() => setOpen(false)}
           footer={
             <>

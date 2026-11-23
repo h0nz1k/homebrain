@@ -137,15 +137,15 @@ export function createWsAccessApi(connection: ConnectionLike): AccessApi {
   };
 }
 
-/** Synthetic people only (never real names): Jan, Petra, Tomáš. */
+/** Synthetic people only (never real names): Marek, Lucie, Kuba. */
 export function createSyntheticUsers(): SensorUser[] {
   return [
-    { id: 1, type: 'face', name: 'Jan', allowed: true },
-    { id: 2, type: 'face', name: 'Petra', allowed: true },
-    { id: 3, type: 'face', name: 'Tomáš', allowed: false },
-    { id: 1001, type: 'palm', name: 'Jan', allowed: true },
-    { id: 1002, type: 'palm', name: 'Jan', allowed: true },
-    { id: 1003, type: 'palm', name: 'Petra', allowed: true },
+    { id: 1, type: 'face', name: 'Marek', allowed: true },
+    { id: 2, type: 'face', name: 'Lucie', allowed: true },
+    { id: 3, type: 'face', name: 'Kuba', allowed: false },
+    { id: 1001, type: 'palm', name: 'Marek', allowed: true },
+    { id: 1002, type: 'palm', name: 'Marek', allowed: true },
+    { id: 1003, type: 'palm', name: 'Lucie', allowed: true },
   ];
 }
 
@@ -200,7 +200,7 @@ export function createMockAccessApi(options: MockAccessOptions = {}): MockAccess
     advice: {},
     ...structuredClone(
       options.meta ??
-        (options.labels ? {} : { people: { tomáš: { child: true } }, advice: { '3': ['age'] } }),
+        (options.labels ? {} : { people: { kuba: { child: true } }, advice: { '3': ['age'] } }),
     ),
   };
   const pushMeta = () =>
