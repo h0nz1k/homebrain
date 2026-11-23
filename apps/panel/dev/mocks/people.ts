@@ -12,8 +12,8 @@ export function registerPeopleMocks(): void {
       ? []
       : (
           [
-            ['jan', 'Jan', 'blue', 'home'],
-            ['maminka', 'Mamínka', 'pink', 'home'],
+            ['marek', 'Marek', 'blue', 'home'],
+            ['lucie', 'Lucie', 'pink', 'home'],
             ['syn', 'Kuba', 'teal', 'away'],
             ['dcera', 'Ema', 'purple', 'home'],
             ['babi', 'Babi', 'amber', 'away'],

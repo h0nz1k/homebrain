@@ -122,7 +122,7 @@ test('Přístup: průvodce, Přeskočit, karta osoby, služba a přepínače neo
   // Wizard: open, name, skip a step, back closes it.
   await page.getByTestId('access-add').click();
   await expect(page.getByTestId('access-wizard')).toBeVisible();
-  await page.getByTestId('access-name').fill('Jan');
+  await page.getByTestId('access-name').fill('Marek');
   await page.getByTestId('access-name-next').click();
   await page.getByTestId('access-skip').click();
   await expectInPanel(page, P, '', 'krok 1');

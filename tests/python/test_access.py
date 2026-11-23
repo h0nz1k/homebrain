@@ -39,20 +39,20 @@ def test_parse_users_page_skips_malformed_items():
             "pages": "2",
             "total": "12",
             "incomplete": "false",
-            "users": "1|face|Jan|allowed;1002|palm|Jan|blocked;bad;99999|palm|X|allowed",
+            "users": "1|face|Marek|allowed;1002|palm|Marek|blocked;bad;99999|palm|X|allowed",
         }
     )
     assert page["pages"] == 2
     assert page["users"] == [
-        {"id": 1, "type": "face", "name": "Jan", "allowed": True},
-        {"id": 1002, "type": "palm", "name": "Jan", "allowed": False},
+        {"id": 1, "type": "face", "name": "Marek", "allowed": True},
+        {"id": 1002, "type": "palm", "name": "Marek", "allowed": False},
     ]
 
 
 def test_assembler_waits_for_all_pages_and_restarts_on_page_one():
     asm = UserListAssembler()
-    first = parse_users_page({"page": "1", "pages": "2", "users": "1001|palm|Petra|allowed"})
-    second = parse_users_page({"page": "2", "pages": "2", "users": "2|face|Petra|allowed"})
+    first = parse_users_page({"page": "1", "pages": "2", "users": "1001|palm|Lucie|allowed"})
+    second = parse_users_page({"page": "2", "pages": "2", "users": "2|face|Lucie|allowed"})
     assert asm.add(first) is None
     assert [u["id"] for u in asm.add(second)] == [2, 1001]
     # A new listing starts from page 1 again.
@@ -61,7 +61,7 @@ def test_assembler_waits_for_all_pages_and_restarts_on_page_one():
 
 
 def test_validate_label():
-    assert validate_label(1001, "left", "  Tomáš  ") == {"hand": "left", "person": "Tomáš"}
+    assert validate_label(1001, "left", "  Kuba  ") == {"hand": "left", "person": "Kuba"}
     assert validate_label(1001, None, "") == {}
     with pytest.raises(AccessError, match="hand_for_face"):
         validate_label(1, "left", None)
@@ -75,8 +75,8 @@ def test_label_store_roundtrip_and_ignores_garbage(tmp_path):
     store = LabelStore(tmp_path / "homebrain" / "access.json")
     assert store.load() == {}
     store.set(1002, "left", None)
-    store.set(1003, "right", "Petra")
-    assert store.load() == {"1002": {"hand": "left"}, "1003": {"hand": "right", "person": "Petra"}}
+    store.set(1003, "right", "Lucie")
+    assert store.load() == {"1002": {"hand": "left"}, "1003": {"hand": "right", "person": "Lucie"}}
     store.set(1002, None, None)  # empty label removes the entry
     assert "1002" not in store.load()
     store.forget(1003)
@@ -84,10 +84,10 @@ def test_label_store_roundtrip_and_ignores_garbage(tmp_path):
     store.stamp_enrolled(1002, "2026-01-15")
     store.set(1002, "left", None)  # set keeps the enrolment date
     assert store.load()["1002"] == {"hand": "left", "enrolled_at": "2026-01-15"}
-    store.set_person(" Tomáš ", True)
+    store.set_person(" Kuba ", True)
     store.mark_notified([1002])
     doc = store.load_all()
-    assert doc["people"] == {"tomáš": {"child": True}} and doc["notified"] == [1002]
+    assert doc["people"] == {"kuba": {"child": True}} and doc["notified"] == [1002]
     store.forget(1002)
     assert store.load_all()["notified"] == []
     with pytest.raises(AccessError, match="invalid_date"):
@@ -138,7 +138,7 @@ async def test_state_users_history_and_live_events(hass: HomeAssistant, setup, h
             "pages": "1",
             "total": "2",
             "incomplete": "false",
-            "users": "1|face|Jan|allowed;1002|palm|Jan|allowed",
+            "users": "1|face|Marek|allowed;1002|palm|Marek|allowed",
         },
     )
     await hass.async_block_till_done()
@@ -150,7 +150,7 @@ async def test_state_users_history_and_live_events(hass: HomeAssistant, setup, h
         {
             "user_id": "1002",
             "type": "palm",
-            "name": "Jan",
+            "name": "Marek",
             "liveness": "ok",
             "decision": "denied",
             "reason": "service_mode",
@@ -181,7 +181,7 @@ async def test_labels_and_forget_on_delete(hass: HomeAssistant, setup, hass_ws_c
 
     hass.bus.async_fire(
         "esphome.biolock_users",
-        {"page": "1", "pages": "1", "users": "1|face|Jan|allowed;1002|palm|Jan|allowed"},
+        {"page": "1", "pages": "1", "users": "1|face|Marek|allowed;1002|palm|Marek|allowed"},
     )
     hass.bus.async_fire(
         "esphome.biolock_enrolled",
@@ -189,7 +189,7 @@ async def test_labels_and_forget_on_delete(hass: HomeAssistant, setup, hass_ws_c
             "ok": "true",
             "user_id": "1",
             "type": "face",
-            "name": "Jan",
+            "name": "Marek",
             "reason": "",
             "admin": "false",
         },
@@ -198,9 +198,9 @@ async def test_labels_and_forget_on_delete(hass: HomeAssistant, setup, hass_ws_c
     state = await _call(client, {"type": "homebrain/access/state"})
     assert state["result"]["labels"]["1"]["enrolled_at"] == dt_util.now().date().isoformat()
     person = await _call(
-        client, {"type": "homebrain/access/person", "person": "Jan", "child": True}
+        client, {"type": "homebrain/access/person", "person": "Marek", "child": True}
     )
-    assert person["result"]["people"] == {"jan": {"child": True}}
+    assert person["result"]["people"] == {"marek": {"child": True}}
 
     hass.bus.async_fire("esphome.biolock_deleted", {"user_id": "1002", "ok": "true", "reason": ""})
     await hass.async_block_till_done()
@@ -220,20 +220,20 @@ async def test_commands_call_only_allowlisted_services(hass: HomeAssistant, setu
 
     msg = await _call(
         client,
-        {"type": "homebrain/access/command", "action": "enroll_palm", "data": {"name": " Jan "}},
+        {"type": "homebrain/access/command", "action": "enroll_palm", "data": {"name": " Marek "}},
     )
     assert msg["success"]
-    assert enroll[0].data == {"name": "Jan"}
+    assert enroll[0].data == {"name": "Marek"}
     # Old firmware: the action has no timeout_s field -> HomeBrain leaves it out.
     msg = await _call(
         client,
         {
             "type": "homebrain/access/command",
             "action": "enroll_palm",
-            "data": {"name": "Jan", "timeout_s": 20},
+            "data": {"name": "Marek", "timeout_s": 20},
         },
     )
-    assert msg["success"] and enroll[1].data == {"name": "Jan"}
+    assert msg["success"] and enroll[1].data == {"name": "Marek"}
     # New firmware (biolock-firmware#8) declares it -> sent through.
     face = async_mock_service(
         hass,
@@ -248,16 +248,16 @@ async def test_commands_call_only_allowlisted_services(hass: HomeAssistant, setu
         {
             "type": "homebrain/access/command",
             "action": "enroll_face",
-            "data": {"name": "Petra", "timeout_s": 25},
+            "data": {"name": "Lucie", "timeout_s": 25},
         },
     )
-    assert msg["success"] and face[0].data == {"name": "Petra", "admin": False, "timeout_s": 25}
+    assert msg["success"] and face[0].data == {"name": "Lucie", "admin": False, "timeout_s": 25}
     bad = await _call(
         client,
         {
             "type": "homebrain/access/command",
             "action": "enroll_face",
-            "data": {"name": "Petra", "timeout_s": 999},
+            "data": {"name": "Lucie", "timeout_s": 999},
         },
     )
     assert bad["error"]["code"] == "invalid_format"
@@ -306,11 +306,11 @@ async def test_reenroll_notification_once(hass: HomeAssistant, setup, hass_ws_cl
     client = await hass_ws_client(hass)
     for _ in range(2):
         hass.bus.async_fire(
-            "esphome.biolock_users", {"page": "1", "pages": "1", "users": "3|face|Tomáš|allowed"}
+            "esphome.biolock_users", {"page": "1", "pages": "1", "users": "3|face|Kuba|allowed"}
         )
         await hass.async_block_till_done()
     assert len(notes) == 1
-    assert "přezapsat obličej (Tomáš)" in notes[0].data["message"]
+    assert "přezapsat obličej (Kuba)" in notes[0].data["message"]
     state = await _call(client, {"type": "homebrain/access/state"})
     assert state["result"]["advice"] == {"3": ["age"]}
     off = await _call(client, {"type": "homebrain/access/settings", "notify_reenroll": False})
@@ -325,7 +325,7 @@ async def test_enrolment_outside_panel_updates_users_and_history(
     await _call(client, {"type": "homebrain/access/subscribe"})
     hass.bus.async_fire(
         "esphome.biolock_users",
-        {"page": "1", "pages": "1", "total": "1", "users": "1|face|Jan|allowed"},
+        {"page": "1", "pages": "1", "total": "1", "users": "1|face|Marek|allowed"},
     )
     await hass.async_block_till_done()
     await _next(client, "users")
@@ -335,7 +335,7 @@ async def test_enrolment_outside_panel_updates_users_and_history(
         {
             "type": "face",
             "type_requested": "palm",
-            "name": "Jan",
+            "name": "Marek",
             "reason": "face_instead_of_palm",
             "reason_text": "zachycen obličej místo dlaně",
             "attempt": "1",
@@ -355,7 +355,7 @@ async def test_enrolment_outside_panel_updates_users_and_history(
             "user_id": "1002",
             "type": "palm",
             "type_requested": "palm",
-            "name": "Jan",
+            "name": "Marek",
             "reason": "success",
             "attempts": "2",
         },
@@ -366,7 +366,7 @@ async def test_enrolment_outside_panel_updates_users_and_history(
     assert pushed["event"]["users"][1] == {
         "id": 1002,
         "type": "palm",
-        "name": "Jan",
+        "name": "Marek",
         "allowed": True,
     }
 
@@ -376,7 +376,7 @@ async def test_enrolment_outside_panel_updates_users_and_history(
             "ok": "false",
             "user_id": "0",
             "type_requested": "palm",
-            "name": "Jan",
+            "name": "Marek",
             "reason": "timeout",
         },
     )
@@ -410,7 +410,7 @@ async def test_enrolment_before_first_listing_keeps_users_unknown(
 ):
     client = await hass_ws_client(hass)
     hass.bus.async_fire(
-        "esphome.biolock_enrolled", {"ok": "true", "user_id": "1001", "name": "Jan"}
+        "esphome.biolock_enrolled", {"ok": "true", "user_id": "1001", "name": "Marek"}
     )
     await hass.async_block_till_done()
     state = await _call(client, {"type": "homebrain/access/state"})
@@ -492,7 +492,7 @@ async def test_enroll_progress_forwarded_live_and_kept_out_of_history(
             "hint": "too_far",
             "remaining_s": "17",
             "text": "Přibliž se",
-            "name": "Jan",
+            "name": "Marek",
             "ts": "2026-11-05T17:10:00+0100",
             "unexpected": "dropped",
         },
@@ -507,7 +507,7 @@ async def test_enroll_progress_forwarded_live_and_kept_out_of_history(
         "hint": "too_far",
         "remaining_s": 17,
         "text": "Přibliž se",
-        "name": "Jan",
+        "name": "Marek",
         "ts": "2026-11-05T17:10:00+0100",
     }
     assert pushed["event"]["time"]
@@ -521,7 +521,7 @@ async def test_enroll_progress_forwarded_live_and_kept_out_of_history(
             "hint": "timeout",
             "remaining_s": "x",
             "text": "Vypršel čas",
-            "name": "Jan",
+            "name": "Marek",
             "reason": "timeout",
         },
     )
