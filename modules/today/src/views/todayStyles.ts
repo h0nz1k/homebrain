@@ -5,6 +5,8 @@ export const todayStyles = `
 .hb-today *{box-sizing:border-box}
 .today-content{position:relative;z-index:1;display:flex;flex-direction:column;gap:16px;width:100%;height:100%;min-height:0;padding:28px 48px 22px}
 .today-header{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--hb-t2);text-transform:none;font-size:20px}
+.today-coffee{display:flex;flex:none;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.today-coffee span{font-size:14px;color:var(--hb-t2)}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}
 .today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:36px}

@@ -70,6 +70,7 @@ from .robots.ws import (
     websocket_robots_map,
 )
 from .server import ws as server_ws
+from .today import coffee
 from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
@@ -123,8 +124,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_get_session)
     websocket_api.async_register_command(hass, websocket_get_roles)
     websocket_api.async_register_command(hass, websocket_set_roles)
-    # Dnes „Co se dnes vaří“ (Mealie is an optional external integration, not a module).
-    for command in (*meals_ws.COMMANDS, *people_ws.COMMANDS, *cooking_ws.COMMANDS):
+    # Dnes uses core commands for its optional dashboard features.
+    for command in (
+        *meals_ws.COMMANDS,
+        *people_ws.COMMANDS,
+        *cooking_ws.COMMANDS,
+        *coffee.COMMANDS,
+    ):
         websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:

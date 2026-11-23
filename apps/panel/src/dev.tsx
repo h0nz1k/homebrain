@@ -30,6 +30,7 @@ import {
 } from '@homebrain/module-family';
 import {
   clearTodaySignalSources,
+  installCoffeeFixtures,
   registerTodaySignalSource,
   createMockAdapter,
   createMockHomeApi,
@@ -99,6 +100,7 @@ import { defineHomebrainPanel, HomebrainPanel } from './host';
 import { installDevKitchenTimers } from './devTimers';
 import { kitchenMock } from './kitchen/mock';
 const agoIsoDev = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+installCoffeeFixtures(location.search);
 const haAge = new URLSearchParams(location.search).get('ha_age');
 // `?live=1`: keep the production live Dnes adapter (modules.ts) on top of the fake HA connection
 // below, instead of the Dnes fixtures.
