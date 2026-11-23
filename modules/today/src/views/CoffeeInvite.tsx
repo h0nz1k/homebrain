@@ -7,7 +7,7 @@ const REASONS: Record<CoffeeBlock | 'send_failed', string> = {
   script_missing: 'Skript pozvánky v HA chybí',
   tv_off: 'TV v obýváku neběží',
   cooldown: 'Pozvánka běží',
-  send_failed: 'Pozvánku se nepodařilo odeslat',
+  send_failed: 'Nepodařilo se odeslat',
 };
 
 export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
@@ -55,9 +55,10 @@ export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
   const countdown = !result?.ok && seconds > 0;
   const error = result?.ok === false && !reason;
   let message = reason ? REASONS[reason] : null;
-  if (result?.ok) message = '✓ Pozvánka odeslána na TV';
+  if (result?.ok) message = 'Pozvánka odeslána na TV';
   else if (countdown) message = `Znovu za ${seconds} s`;
-  else if (error) message = `${REASONS[result.reason]}. Zkusit znovu.`;
+  // Non-breaking spaces keep „· Zkusit znovu“ together on narrow phones.
+  else if (error) message = `${REASONS[result.reason]}\u00a0·\u00a0Zkusit\u00a0znovu`;
 
   async function invite(api: CoffeeApi) {
     if (reason || sending.current) return;
@@ -75,7 +76,7 @@ export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
   }
 
   return (
-    <div className="today-coffee" data-error={error || undefined}>
+    <div className="today-coffee">
       <Button
         icon={
           <svg
@@ -105,6 +106,7 @@ export function CoffeeInvite({ api }: { api: CoffeeApi | null }) {
         data-countdown={countdown || undefined}
         hidden={!message}
       >
+        {result?.ok && <span className="today-coffee-mark">✓ </span>}
         {error && <Icon name="alert" size={16} />}
         {message}
       </span>

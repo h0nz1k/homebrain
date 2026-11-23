@@ -13,14 +13,17 @@ export const todayStyles = `
 .today-coffee .hb-btn .hb-icon{color:inherit}
 .today-coffee .hb-btn:hover:not(:disabled){background:color-mix(in srgb,var(--hb-ac) 22%,transparent)}
 .today-coffee .hb-btn:disabled{opacity:1;border-color:var(--hb-b2);background:var(--hb-s3);color:light-dark(color-mix(in srgb,var(--hb-t3) 91%,var(--hb-s3)),color-mix(in srgb,var(--hb-t3) 80%,var(--hb-s3)))}
-.today-coffee-status{color:var(--hb-t2)}
-.today-coffee-status[data-success]{color:var(--hb-ok)}
+.today-coffee-status{display:inline-block;padding:4px 12px;border-radius:var(--hb-radius-pill);background:var(--hb-s1);box-shadow:inset 0 0 0 1px var(--hb-b2);color:var(--hb-t2);text-wrap:balance}
+.today-coffee-status[hidden]{display:none}
+.today-coffee-status:is([data-success],[data-countdown],[role='alert']){color:var(--hb-t1)}
+.today-coffee-mark{color:var(--hb-ok);font-weight:700;white-space:pre}
 .today-coffee-status[data-countdown]{font-variant-numeric:tabular-nums}
-.today-coffee[data-error] .hb-btn{border-color:color-mix(in srgb,var(--hb-crit) 65%,var(--hb-b2))}
-.today-coffee-status[role='alert']{display:inline-flex;align-items:center;gap:6px;color:var(--hb-crit)}
-.today-coffee-status[role='alert'] svg{flex:none}
-.today-mobile .today-coffee-status{flex-basis:100%}
+.today-coffee-status[role='alert']{display:inline-flex;align-items:center;gap:6px}
+.today-coffee-status[role='alert'] svg{flex:none;color:var(--hb-crit)}
+.today-mobile .today-coffee{flex-direction:column;align-items:flex-start}
 .today-kiosk .today-coffee{font-size:inherit}
+/* Kiosk surfaces are always dark: the pill's accents use the dark-theme tones in both themes. */
+.today-kiosk .today-coffee-status{--hb-ok:#34d399;--hb-crit:#f2555a}
 .today-kiosk .today-coffee .hb-btn:disabled{color:color-mix(in srgb,var(--hb-t3) 75%,var(--hb-s3))}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}

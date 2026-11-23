@@ -63,7 +63,7 @@ it('shows a failed dispatch inline and leaves the button available for retry', a
   const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Pozvat na kávu' });
   await act(async () => fireEvent.click(button));
   expect(screen.getByRole('alert').textContent).toBe(
-    'Pozvánku se nepodařilo odeslat. Zkusit znovu.',
+    'Nepodařilo se odeslat\u00a0·\u00a0Zkusit\u00a0znovu',
   );
   expect(button.disabled).toBe(false);
   await act(async () => fireEvent.click(button));

@@ -9,7 +9,7 @@ async function capture(page: Page, info: TestInfo, theme: string, state: string)
   const name = `${page.viewportSize()!.width}-${theme}-${state}`;
   await page.evaluate(() => document.fonts.ready);
   const screenshot = await page.screenshot({
-    path: `test-results/coffee-invite-r1/${name}.png`,
+    path: `test-results/coffee-invite-r3/${name}.png`,
     animations: 'disabled',
   });
   await info.attach(name, { body: screenshot, contentType: 'image/png' });
@@ -95,7 +95,7 @@ for (const { layout, width, height } of screens) {
       await page.goto(`${url}error`);
       await action(page).click();
       await expect(action(page)).toHaveAccessibleDescription(
-        'Pozvánku se nepodařilo odeslat. Zkusit znovu.',
+        'Nepodařilo se odeslat\u00a0·\u00a0Zkusit\u00a0znovu',
       );
       await expect(action(page)).toBeEnabled();
       await expect(page.getByTestId('hb-toast')).toHaveCount(0);
