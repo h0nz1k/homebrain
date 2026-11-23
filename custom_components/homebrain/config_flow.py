@@ -15,6 +15,7 @@ from .communication.config import validate as validate_communication
 from .const import BINDING_MODULES, DOMAIN, MEALS_DISPLAY, MEALS_DISPLAY_MODES, PANEL_TITLE
 from .energy.binding_suggestions import suggest_energy_binding
 from .energy.pv_forecast import OPTION_KEY as PV_OPTION_KEY
+from .heating.advisor import ATTIC_COMFORT, DESIGN_TEMP, LOOKBACK_YEARS
 from .heating.poller import (
     CONF_HEATING,
     DEFAULT_INTERVAL,
@@ -47,6 +48,9 @@ from .robots.config import (
 )
 from .robots.discovery import discover_bindings, discover_floor, missing_bindings
 from .roles import ASSIGNABLE_ROLES, CONF_ROLES
+from .server.rules import BACKUP_MAX_AGE, BACKUP_MAX_AGE_DAYS, BACKUP_MAX_AGE_RANGE
+from .server.rules import OPTION as SERVER_OPTION
+from .today import coffee
 
 UNIFI_OPTION_KEY = "network_unifi"
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
@@ -56,8 +60,10 @@ OPTIONS_FLOW_EXTRA = (
     *(f"robots_{slot}" for slot in ROBOT_SLOTS),
     "network_unifi",
     "heating",
+    "server",
     "modules",
     "meals",
+    "coffee",
     "people",
     "roles",
     "communication",
@@ -343,6 +349,10 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                 "map_path": str(user_input.get("map_path") or default_map).strip(),
                 "poll_interval": int(user_input.get("poll_interval") or DEFAULT_INTERVAL),
                 "alert_recipient": str(user_input.get("alert_recipient") or "").strip(),
+                "advisor_lookback_years": user_input.get("advisor_lookback_years", LOOKBACK_YEARS),
+                "advisor_thermal_kw": user_input.get("advisor_thermal_kw"),
+                "advisor_design_temp": user_input.get("advisor_design_temp", DESIGN_TEMP),
+                "advisor_attic_comfort": user_input.get("advisor_attic_comfort", ATTIC_COMFORT),
             }
             if not url.startswith(("http://", "https://")):
                 errors["url"] = "invalid_url"
@@ -382,9 +392,69 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
                     "alert_recipient",
                     description={"suggested_value": current.get("alert_recipient", "")},
                 ): selector.TextSelector(),
+                vol.Optional(
+                    "advisor_lookback_years",
+                    default=current.get("advisor_lookback_years", LOOKBACK_YEARS),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=1, max=LOOKBACK_YEARS, step=1)
+                ),
+                vol.Optional(
+                    "advisor_thermal_kw",
+                    description={"suggested_value": current.get("advisor_thermal_kw")},
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.1,
+                        step=0.1,
+                        unit_of_measurement="kW",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    "advisor_design_temp", default=current.get("advisor_design_temp", DESIGN_TEMP)
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        step=0.1, unit_of_measurement="°C", mode=selector.NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Optional(
+                    "advisor_attic_comfort",
+                    default=current.get("advisor_attic_comfort", ATTIC_COMFORT),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        step=0.1, unit_of_measurement="°C", mode=selector.NumberSelectorMode.BOX
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="heating", data_schema=schema, errors=errors)
+
+    async def async_step_server(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Server: age limit of the last Proxmox backup (days)."""
+        if user_input is not None:
+            days = int(user_input.get(BACKUP_MAX_AGE) or BACKUP_MAX_AGE_DAYS)
+            return self.async_create_entry(
+                title="",
+                data={**self.config_entry.options, SERVER_OPTION: {BACKUP_MAX_AGE: days}},
+            )
+        current = (self.config_entry.options.get(SERVER_OPTION) or {}).get(BACKUP_MAX_AGE)
+        low, high = BACKUP_MAX_AGE_RANGE
+        schema = vol.Schema(
+            {
+                vol.Required(BACKUP_MAX_AGE, default=int(current or BACKUP_MAX_AGE_DAYS)): vol.All(
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=low,
+                            max=high,
+                            step=1,
+                            unit_of_measurement="d",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Coerce(int),
+                )
+            }
+        )
+        return self.async_show_form(step_id="server", data_schema=schema)
 
     async def async_step_meals(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """„Zobrazit jídelníček (Mealie)“: auto = only with a loaded Mealie entry, off = never."""
@@ -410,6 +480,52 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="meals", data_schema=schema)
+
+    async def async_step_coffee(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure the Dnes coffee invitation quick action."""
+        options = dict(self.config_entry.options)
+        errors = {}
+        if user_input is not None:
+            for key in coffee.ENTITY_DOMAINS:
+                if value := user_input.get(key):
+                    try:
+                        options[key] = coffee.validate_entity(key, value)
+                    except vol.Invalid:
+                        errors[key] = "invalid_entity_id"
+                else:
+                    options.pop(key, None)
+            if not errors:
+                options[coffee.CONF_MODE] = user_input.get(coffee.CONF_MODE, coffee.DEFAULT_MODE)
+                if label := user_input.get(coffee.CONF_HOUSEHOLD, "").strip():
+                    options[coffee.CONF_HOUSEHOLD] = label
+                else:
+                    options.pop(coffee.CONF_HOUSEHOLD, None)
+                return self.async_create_entry(title="", data=options)
+
+        current = user_input if user_input is not None else self.config_entry.options
+        mode = current.get(coffee.CONF_MODE)
+        schema = vol.Schema(
+            {
+                **{
+                    vol.Optional(
+                        key, description={"suggested_value": current.get(key)}
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain=domain))
+                    for key, domain in coffee.ENTITY_DOMAINS.items()
+                },
+                vol.Optional(
+                    coffee.CONF_MODE, default=mode if mode in coffee.MODES else coffee.DEFAULT_MODE
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=list(coffee.MODES), translation_key=coffee.CONF_MODE
+                    )
+                ),
+                vol.Optional(
+                    coffee.CONF_HOUSEHOLD,
+                    description={"suggested_value": current.get(coffee.CONF_HOUSEHOLD)},
+                ): selector.TextSelector(),
+            }
+        )
+        return self.async_show_form(step_id="coffee", data_schema=schema, errors=errors)
 
     async def async_step_people(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """„Kdo je doma“: show it at all + which persons (in this order; empty = all by name)."""

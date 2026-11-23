@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
 import { setServerApiFactory } from '../api.js';
 import { createMockServerApi, type ServerScenario } from '../mock.js';
@@ -49,5 +49,111 @@ describe('ServerView', () => {
   it('nepřipojené Glances = prázdný stav', async () => {
     show('unconfigured');
     expect((await screen.findByText('Glances nenalezeno')).tagName).toBe('H2');
+  });
+});
+
+describe('Proxmox VE', () => {
+  it('ukáže data uzlu, běžící hosty nahoře a vypnutou VM bez chybějících metrik', async () => {
+    show('proxmox-ok');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    expect(screen.getByText('Online')).toBeTruthy();
+    expect(screen.queryByTestId('server-vms')).toBeNull();
+    const guests = screen.getAllByTestId('server-proxmox-guest');
+    expect(guests.map((row) => row.querySelector('b')?.textContent)).toEqual([
+      'web-01',
+      'db-ct',
+      'batch-01',
+    ]);
+    expect(guests[0]?.textContent).toContain(`Příjem 12,0${NB}GiB`);
+    expect(guests[1]?.textContent).toContain(`Disk 58${NB}%`);
+    expect(guests[2]?.getAttribute('data-stopped')).toBe('true');
+    expect(guests[2]?.textContent).not.toMatch(/RAM|CPU|Příjem|Odesílání/);
+    expect(
+      guests.map((row) => row.querySelector('[data-testid="server-guest-state"]')?.textContent),
+    ).toEqual(['Běží', 'Běží', 'Vypnuto']);
+    const details = guests.map((row) => row.querySelector('.srv-proxmox-details')?.textContent);
+    expect(details[0]).not.toBe(details[1]);
+    const storages = screen.getAllByTestId('server-proxmox-storage');
+    expect(storages).toHaveLength(2);
+    // Single node: its name is on the node card only.
+    expect(storages.some((row) => row.textContent?.includes('pve'))).toBe(false);
+    expect(screen.getByTestId('server-proxmox-node').textContent).toContain('pve');
+    expect(screen.queryByTestId('server-hero-fix')).toBeNull();
+    expect(screen.getByTestId('server-backup-run').textContent).toBe('úspěšný');
+    expect(screen.getByTestId('server-backup-age').textContent).toBe('dnes');
+    expect(screen.queryByTestId('server-backup-stale')).toBeNull();
+  });
+
+  it('bez integrace ponechá odhad z Glances', async () => {
+    show('proxmox-off');
+    expect(await screen.findByTestId('server-vms')).toBeTruthy();
+    expect(screen.queryByTestId('server-proxmox')).toBeNull();
+  });
+
+  it('při výpadku Proxmoxu zachová metriky Glances', async () => {
+    show('proxmox-down');
+    expect(await screen.findByText('Proxmox nedostupný')).toBeTruthy();
+    expect(screen.getByTestId('server-tile-cpu')).toBeTruthy();
+    expect(screen.queryByTestId('server-vms')).toBeNull();
+  });
+
+  it('propíše neúspěšnou zálohu do verdiktu', async () => {
+    show('proxmox-backup-failed');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      'Pozor: záloha selhala',
+    );
+    expect(screen.getByTestId('server-backup-run').textContent).toBe('selhal');
+    expect(screen.getByTestId('server-backup-title').textContent).toBe('Poslední záloha selhala');
+    expect(screen.getByTestId('server-backup-stale').textContent).toBe('Pozor');
+  });
+
+  it('zastaralou zálohu ukáže relativně i absolutně a propíše do verdiktu', async () => {
+    show('proxmox-backup-stale');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `Kritické: poslední záloha je stará 395${NB}dní`,
+    );
+    const card = screen.getByTestId('server-proxmox-backup');
+    expect(card.getAttribute('data-tone')).toBe('crit');
+    expect(screen.getByTestId('server-backup-age').textContent).toBe(`před 395${NB}dny`);
+    expect(card.querySelector('time')?.getAttribute('dateTime')).toBeTruthy();
+    expect(card.textContent).toContain(`17${NB}s`);
+    expect(screen.getByTestId('server-backup-run').textContent).toBe('úspěšný');
+    expect(screen.getByTestId('server-backup-title').textContent).toBe(
+      'Poslední záloha je zastaralá',
+    );
+    expect(screen.getByTestId('server-backup-stale').textContent).toBe('Kritické');
+    const warning = screen.getByTestId('server-backup-warning').textContent;
+    expect(warning).toContain(`Poslední záloha je stará 395${NB}dní`);
+    expect(warning).toContain('Zkontroluj plán záloh v Proxmoxu.');
+  });
+
+  it('„Co s tím“ v hero odscrolluje na kartu zálohy a předá jí focus', async () => {
+    show('proxmox-backup-stale');
+    const fix = await screen.findByTestId('server-hero-fix');
+    const card = screen.getByTestId('server-proxmox-backup');
+    const scroll = vi.fn();
+    card.scrollIntoView = scroll;
+    fireEvent.click(fix);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(card);
+  });
+
+  it('bez senzoru zálohy nevaruje, jen řekne, že údaje chybí', async () => {
+    show('proxmox-backup-missing');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe('V pořádku');
+    const card = screen.getByTestId('server-proxmox-backup');
+    expect(card.textContent).toContain('Údaje o zálohách nejsou k dispozici');
+    expect(card.getAttribute('data-tone')).toBeNull();
+    expect(screen.queryByTestId('server-backup-stale')).toBeNull();
+  });
+
+  it('propíše kritické úložiště do verdiktu i pruhu', async () => {
+    show('proxmox-storage-critical');
+    expect((await screen.findByTestId('server-headline')).textContent).toBe(
+      `Kritické: úložiště local-lvm 96${NB}%`,
+    );
+    expect(screen.getByRole('meter', { name: 'local-lvm' }).getAttribute('data-tone')).toBe('crit');
+    fireEvent.click(screen.getByTestId('server-hero-fix'));
+    expect(document.activeElement).toBe(screen.getByTestId('server-proxmox-storages'));
   });
 });

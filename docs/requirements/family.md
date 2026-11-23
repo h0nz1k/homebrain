@@ -173,19 +173,22 @@ Vyřazeny také logické klíče `family_calendar_shifts`, `family_shift_person_
 | # | oblast | rozhodnutí |
 | --- | --- | --- |
 | D8 | Přidání úkolů | pouze `owner` / `adult`; minimální formulář → ChoreOps `create_chore` |
-| D9 | Předání úkolu | **jen dnešní výskyt**; dítě žádá nebo přebírá u sourozence → schválí rodič; rodič může přeřadit přímo |
+| D9 | Předání úkolu | **jeden výskyt v okně od dneška do dalších 7 kalendářních dní**; dítě žádá nebo přebírá u sourozence → schválí rodič; rodič může přeřadit přímo |
 | D10 | Body | přehled z ChoreOps senzorů; historie/graf volitelně z read-only `get_ledger` |
-| D11 | Série ChoreOps | nativní série po `skip_chore_due_date` není plně chráněna (ChoreOps 1.6.0) — UI to neslibuje |
+| D11 | Série ChoreOps | přeřazení je vázané na den výskytu. ChoreOps dostane pokyn k přeskočení až po ověření aktuálního termínu |
 
 ### FAM-020 – Přidat úkol (rodič)
 
 - **Popis:** Sheet s názvem, body, přiřazenými členy rodiny, opakováním a časem splnění; zápis přes WS `homebrain/family/chore/create`.
 - **Priorita:** MVP+ (#123)
-- **Akceptace:** Dítě/kiosk tlačítko nevidí; po úspěchu se úkol objeví v dnešním seznamu; chyba zachová formulář.
+- Datum i čas lze napsat nebo vybrat tlačítkem. Kalendář umožní dnešek a budoucí dny. Když uživatel zvolí dnešek a neupravený čas je méně než 15 minut daleko, použije se nejbližší celá hodina s rezervou 30 minut, případně 23:30. Když se termín do dneška nevejde, formulář nastaví zítřek a zobrazí nápovědu. U více časů se dnešní uplynulé sloty zakládají od zítřka.
+- **Akceptace:** Dítě a kiosk tlačítko k přidání nevidí. Úkol se objeví u vybraného dne a chyba zachová formulář.
 
-### FAM-021 – Předání na dnes
+### FAM-021 – Předání a přeřazení výskytu
 
-- **Popis:** Skip původního výskytu + jednorázový klon u náhradníka; perzistentní Store + sága; sdílené/rotační úkoly blokované.
+- Rodič přeřadí přímo, dítě může požádat o předání svého úkolu rodiče. Sheet používá dostupné výskyty z `swap/options` po dnech a předvybere den otevřeného výskytu. Čekající žádost vyprší o půlnoci po dni výskytu v časovém pásmu HA.
+- Od dneška do sedmého následujícího dne se nabízí nejbližší termín, který hlásí ChoreOps pro daného člena a úkol. Hotové, převzaté, sdílené, rotační a beztermínové úkoly se k předání nenabízí. Přenesený úkol po termínu lze převést na dnešek, dokud je mezi aktuálními úkoly. Akce jsou v přehledu, detailu osoby a Týdnu. Kiosk zobrazuje stav.
+- HomeBrain uloží schválený nebo přímý převod s klíčem `local_date` do Store a v den výskytu ověří termín a stav zdrojového úkolu. Vytvoří jednorázovou kopii s termínem pro příjemce. U původního jednorázového úkolu odebere jen původního člena přes `update_chore` s `assignment_action: remove`. U opakované řady přeskočí jeho aktuální výskyt přes `skip_chore_due_date`. ChoreOps umožňuje změnu řešitelů celé definice a přeskočení aktuálního termínu konkrétního člena. [Schéma služeb ChoreOps](https://github.com/ccpk1/ChoreOps/blob/1.6.0/custom_components/choreops/services.yaml)
 - **Priorita:** MVP+ (#123)
 - **Akceptace:** Pytest role/expire/reconcile; e2e kid request → parent approve; parent direct reassign.
 

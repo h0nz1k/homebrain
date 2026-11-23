@@ -37,7 +37,7 @@ from .ws_common import (
     _service,
     family_options,
 )
-from .ws_swap import SWAP_COMMANDS
+from .ws_swap import SWAP_COMMANDS, _serialize_mutation
 
 DAYS: Final = 8  # today + the next 7 days
 
@@ -133,6 +133,10 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
                     "can_claim": chore["can_claim"],
                 }
             )
+        if not include_detail:
+            for chore in (*member["chores"], *member["upcoming"]):
+                if swap := chore.get("swap_today"):
+                    swap.pop("operation_id", None)
         member.update({k: profile[k] for k in ("role", "color", "presence")}, own=own)
         if role == "kiosk" or (role == "child" and not own):
             for chore in member["chores"]:
@@ -171,6 +175,19 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         },
     }
     if role in ("owner", "adult"):
+        payload["swap_issues"] = [
+            {
+                "id": oid,
+                "chore_name": op["source_snapshot"]["name"],
+                "source_name": (
+                    op.get("from_kid_name") if op.get("last_error") != "missing_clone" else None
+                ),
+                "pending": op["status"] in {"applying", "rollback_pending", "cleanup_pending"},
+            }
+            for oid, op in (store_data.get("operations") or {}).items()
+            if op["status"] in {"needs_repair", "rollback_pending"}
+            or (op["status"] in {"failed", "applying", "cleanup_pending"} and op.get("last_error"))
+        ]
         payload["pending_approvals"] = model.pending_approvals({"kids": members}, store_data)
         payload["swap_requests"] = [
             r for r in (store_data.get("requests") or {}).values() if r.get("status") == "pending"
@@ -202,6 +219,14 @@ def _find_chore(hass, connection, role, msg) -> tuple[dict[str, Any], dict[str, 
         not kid.get("user_id") or kid["user_id"] != getattr(connection.user, "id", None)
     ):
         raise Unauthorized
+    store = hass.data[HB_DOMAIN]["family_swap"]
+    decorated = model.apply_swap_overlays(
+        [chore],
+        kid=kid,
+        store_data=store.data,
+        kids_by_uuid={},
+    )[0]
+    chore["transfer_locked"] = bool((decorated["swap_today"] or {}).get("muted"))
     return kid, chore
 
 
@@ -215,6 +240,7 @@ CHORE_SCHEMA: Final = {
     {vol.Required("type"): "homebrain/family/chore/claim", **CHORE_SCHEMA}
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_claim(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     role = _role(hass, connection)
     try:
@@ -225,6 +251,7 @@ async def websocket_family_claim(hass: HomeAssistant, connection: Any, msg: dict
     today, _, free = model.partition_chores([chore], dt_util.now())
     if (
         not (today or free)
+        or chore["transfer_locked"]
         or not chore["claim_allowed"]
         or chore["state"] not in ("todo", "overdue")
     ):
@@ -251,6 +278,7 @@ async def websocket_family_claim(hass: HomeAssistant, connection: Any, msg: dict
     {vol.Required("type"): "homebrain/family/chore/approve", **CHORE_SCHEMA}
 )
 @websocket_api.async_response
+@_serialize_mutation
 async def websocket_family_approve(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
@@ -261,6 +289,9 @@ async def websocket_family_approve(
         kid, chore = _find_chore(hass, connection, role, msg)
     except LookupError:
         connection.send_error(msg["id"], "not_found", "Povinnost nenalezena")
+        return
+    if chore["transfer_locked"]:
+        connection.send_error(msg["id"], "service_failed", "Úkol teď nelze schválit.")
         return
     approver = family_options(hass).get("approver_name") or getattr(connection.user, "name", "")
     try:

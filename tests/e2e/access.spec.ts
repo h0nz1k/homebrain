@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// Přístup (BioLock) against the dev mock: synthetic people only (Jan, Petra, Tomáš), no device.
+// Přístup (BioLock) against the dev mock: synthetic people only (Marek, Lucie, Kuba), no device.
 
 type LogEntry = { action: string; data: Record<string, unknown> };
 const actions = (page: Page) =>
@@ -14,14 +14,14 @@ const actions = (page: Page) =>
 test('Osoby: lidé ze snímače a doporučení přezapsat', async ({ page }) => {
   await page.goto('/homebrain-pristup');
   await expect(page.getByTestId('access-person')).toHaveCount(3);
-  for (const name of ['Jan', 'Petra', 'Tomáš'])
+  for (const name of ['Marek', 'Lucie', 'Kuba'])
     await expect(page.getByTestId('access-person').filter({ hasText: name })).toHaveCount(1);
   const chip = page.getByTestId('access-reenroll-chip');
   await expect(chip).toHaveCount(1);
   await expect(chip).toHaveText('Přezapsat');
   await expect(page.getByTestId('access-reenroll')).toHaveAttribute('aria-label', /doporučeno/);
-  const tomas = page.getByTestId('access-person').filter({ hasText: 'Tomáš' });
-  await expect(tomas.getByTestId('access-reenroll-chip')).toBeVisible();
+  const kuba = page.getByTestId('access-person').filter({ hasText: 'Kuba' });
+  await expect(kuba.getByTestId('access-reenroll-chip')).toBeVisible();
   expect(await page.locator('html').evaluate((root) => root.scrollWidth)).toBeLessThanOrEqual(
     page.viewportSize()!.width,
   );
@@ -49,7 +49,7 @@ test('Průvodce: přezapsání smaže staré ID až po úspěšném zápisu', as
 test('Průvodce: nová osoba, celý postup', async ({ page }) => {
   await page.goto('/homebrain-pristup?enroll_ms=150');
   await page.getByTestId('access-add').click();
-  await page.getByTestId('access-name').fill('Jan');
+  await page.getByTestId('access-name').fill('Marek');
   await page.getByTestId('access-name-next').click();
   const status = page.getByTestId('access-step-status');
   await page.getByTestId('access-start').click();
@@ -62,7 +62,7 @@ test('Průvodce: nová osoba, celý postup', async ({ page }) => {
   await expect(page.getByTestId('access-wizard-done')).toBeVisible();
   const log = await actions(page);
   const palm = log.find((e) => e.action === 'enroll_palm');
-  expect(palm?.data).toMatchObject({ name: 'Jan', timeout_s: 30 });
+  expect(palm?.data).toMatchObject({ name: 'Marek', timeout_s: 30 });
   expect(log.some((e) => e.action === 'label')).toBe(true);
   await page.getByTestId('access-wizard-finish').click();
   await expect(page.getByTestId('access-wizard')).toHaveCount(0);
@@ -71,7 +71,7 @@ test('Průvodce: nová osoba, celý postup', async ({ page }) => {
 test('Průvodce: chyba zápisu má český důvod a radu, opakování projde', async ({ page }) => {
   await page.goto('/homebrain-pristup?enroll_ms=150&access_fail=face_instead_of_palm');
   await page.getByTestId('access-add').click();
-  await page.getByTestId('access-name').fill('Petra');
+  await page.getByTestId('access-name').fill('Lucie');
   await page.getByTestId('access-name-next').click();
   await page.getByTestId('access-skip').click();
   await expect(page.getByTestId('hb-step-right')).toHaveAttribute('data-state', 'active');
@@ -117,7 +117,7 @@ test('Osoby: matice obličej · pravá · levá a důvod v posledních průchode
   await page.goto('/homebrain-pristup?enroll_ms=300');
   const cards = page.getByTestId('access-person');
   await expect(cards).toHaveCount(3);
-  for (const name of ['Jan', 'Petra', 'Tomáš']) {
+  for (const name of ['Marek', 'Lucie', 'Kuba']) {
     const labels = await cards
       .filter({ hasText: name })
       .locator('.hb-tile-label')
@@ -138,7 +138,7 @@ test('Osoby: matice obličej · pravá · levá a důvod v posledních průchode
   for (const row of tops) expect(new Set(row).size).toBe(1);
   // Unknown hand: the tile itself leads to the hand test (no separate small button).
   await cards
-    .filter({ hasText: 'Jan' })
+    .filter({ hasText: 'Marek' })
     .getByRole('button', { name: /neznámá ruka/ })
     .click();
   await expect(page.getByRole('radio', { name: 'Test ruky' })).toHaveAttribute(
@@ -146,7 +146,7 @@ test('Osoby: matice obličej · pravá · levá a důvod v posledních průchode
     'true',
   );
   await page.getByRole('radio', { name: 'Osoby' }).click();
-  await expect(page.getByTestId('access-history-item').filter({ hasText: 'Tomáš' })).toContainText(
+  await expect(page.getByTestId('access-history-item').filter({ hasText: 'Kuba' })).toContainText(
     'odemykání vypnuto',
   );
 });
@@ -155,23 +155,23 @@ test('Osoby: zápis spuštěný mimo panel (skript v HA) se ukáže hned a dlaň
   page,
 }) => {
   await page.goto('/homebrain-pristup');
-  const jan = page.getByTestId('access-person').filter({ hasText: 'Jan' });
-  await expect(jan).toHaveCount(1);
+  const marek = page.getByTestId('access-person').filter({ hasText: 'Marek' });
+  await expect(marek).toHaveCount(1);
   await page.evaluate(() =>
     (
       window as unknown as {
         __hbAccess: { externalEnrol(s: { type: string; name: string; ok: boolean }): void };
       }
-    ).__hbAccess.externalEnrol({ type: 'palm', name: 'Jan', ok: true }),
+    ).__hbAccess.externalEnrol({ type: 'palm', name: 'Marek', ok: true }),
   );
   const banner = page.getByTestId('access-enrol-status');
   await expect(banner).toHaveAttribute('data-phase', 'pending');
   await expect(banner).toContainText('obličej místo dlaně');
   await expect(banner).toHaveAttribute('data-phase', 'ok');
-  await expect(banner).toContainText('Zapsáno: Jan – dlaň');
-  // the new palm (ID 1004) is on Jan's card right away – no manual re-list
-  await expect(jan.locator('[title*="1004"]')).toHaveCount(1);
-  // Jan already has a right palm → only the free (left) hand is offered
+  await expect(banner).toContainText('Zapsáno: Marek – dlaň');
+  // the new palm (ID 1004) is on Marek's card right away – no manual re-list
+  await expect(marek.locator('[title*="1004"]')).toHaveCount(1);
+  // Marek already has a right palm → only the free (left) hand is offered
   await expect(page.getByTestId('access-enrol-hand-right')).toHaveCount(0);
   await expect(banner).toContainText('nejspíš levá');
   await expect(page.getByTestId('access-hero')).toHaveCount(0);
@@ -192,11 +192,11 @@ test('Osoby: nepovedený zápis mimo panel ukáže český důvod', async ({ pag
           externalEnrol(s: { type: string; name: string; ok: boolean; reason: string }): void;
         };
       }
-    ).__hbAccess.externalEnrol({ type: 'palm', name: 'Petra', ok: false, reason: 'timeout' }),
+    ).__hbAccess.externalEnrol({ type: 'palm', name: 'Lucie', ok: false, reason: 'timeout' }),
   );
   const banner = page.getByTestId('access-enrol-status');
   await expect(banner).toHaveAttribute('data-phase', 'failed');
-  await expect(banner).toContainText('Zápis se nepovedl: Petra – dlaň');
+  await expect(banner).toContainText('Zápis se nepovedl: Lucie – dlaň');
   await expect(banner).toContainText('nic nezachytil');
 });
 
@@ -208,12 +208,12 @@ test('Historie: BioLock i Nuki v jednom záznamu, filtry a dny', async ({ page }
   await expect(log.getByTestId('access-log-day').first()).toContainText('Dnes');
   await expect(log.getByTestId('access-log-day').nth(1)).toContainText('Včera');
   const items = log.getByTestId('access-log-item');
-  await expect(items.filter({ hasText: 'BioLock – Jan, obličej' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'BioLock – Marek, obličej' })).toHaveCount(1);
   await expect(items.filter({ hasText: 'Home Assistant' })).toHaveCount(1);
   await expect(items.filter({ hasText: 'automatické zamčení' })).toHaveCount(1);
   await expect(items.filter({ hasText: 'klávesnicí' })).toHaveCount(1);
-  await expect(items.filter({ hasText: 'Zapsáno: Petra – pravá dlaň' })).toHaveCount(1);
-  await expect(items.filter({ hasText: 'Zápis se nepovedl: Petra' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Zapsáno: Lucie – pravá dlaň' })).toHaveCount(1);
+  await expect(items.filter({ hasText: 'Zápis se nepovedl: Lucie' })).toHaveCount(1);
   await expect(items.filter({ hasText: 'zablokoval' })).toHaveCount(1);
 
   const filter = page.getByTestId('access-log-filter');

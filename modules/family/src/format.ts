@@ -1,5 +1,11 @@
-import { pointsWord } from './czech.js';
-import type { FamilyChore, FamilyEvent, PointsSummary } from './types.js';
+import { handedToLabel, pointsWord, reassignedToLabel, takenFromLabel } from './czech.js';
+import type {
+  FamilyChore,
+  FamilyEvent,
+  FamilyUpcomingChore,
+  FamilySwapToday,
+  PointsSummary,
+} from './types.js';
 
 const DAY = ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'];
 const DAY_LONG = ['neděle', 'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota'];
@@ -108,6 +114,19 @@ export function relLabel(ev: FamilyEvent, now: Date): string {
   return m ? `Za ${h} h ${m} min` : `Za ${h} h`;
 }
 
+export const CARRIED_LABEL = 'Přeneseno';
+export const MISSED_LABEL = 'Nesplněno';
+
+export function carriedFrom(chore: FamilyChore, today: string): string | null {
+  if (!chore.due || (chore.state !== 'overdue' && chore.state !== 'claimed')) return null;
+  const day = localKey(new Date(chore.due));
+  return day < today ? day : null;
+}
+
+export function carriedLabel(day: string): string {
+  return `${CARRIED_LABEL} · původně ${shortDate(new Date(`${day}T12:00:00`))}`;
+}
+
 export function choreNote(
   chore: FamilyChore,
   now: Date,
@@ -115,6 +134,8 @@ export function choreNote(
 ): { text: string; tone?: 'warn' | 'crit' } {
   // Done rows carry one signal only (green check + muted, struck-through name): no extra text.
   if (chore.state === 'done') return { text: '' };
+  const carried = carriedFrom(chore, localKey(now));
+  if (carried) return { text: carriedLabel(carried) };
   if (chore.state === 'claimed')
     return { text: opts.parentApproves ? 'Schválí rodič' : 'Čeká na schválení', tone: 'warn' };
   const due = chore.due ? new Date(chore.due) : null;
@@ -247,6 +268,16 @@ export function choreTally(chores: FamilyChore[]): ChoreTally {
   return t;
 }
 
+export function isTransferredOut(chore: Pick<FamilyChore, 'swap_today'>): boolean {
+  return chore.swap_today?.kind === 'transferred_out' && chore.swap_today.muted !== false;
+}
+
+export function choreApprovalKind(chore: FamilyChore): 'swap' | 'completion' | null {
+  if (chore.counts_today === false || isTransferredOut(chore)) return null;
+  if (chore.swap_today?.kind === 'pending_give') return 'swap';
+  return chore.state === 'claimed' ? 'completion' : null;
+}
+
 const CHORE_RANK: Record<FamilyChore['state'], number> = {
   overdue: 0,
   todo: 1,
@@ -336,4 +367,44 @@ export function defaultFirstDate(now: Date, dueTime: string): Date {
   const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h ?? 18, m ?? 0);
   const today = due.getTime() - now.getTime() >= 15 * 60_000;
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + (today ? 0 : 1), 12);
+}
+
+/** A whole-hour deadline at least 30 minutes away, or the final 23:30 slot. */
+export function nextTodayTime(now: Date): string | null {
+  const hour = new Date(now);
+  hour.setMinutes(0, 0, 0);
+  const next = new Date(now.getTime() + 30 * 60_000);
+  while (hour < next) hour.setHours(hour.getHours() + 1);
+  if (localKey(hour) === localKey(now) && hour.getHours() <= 23)
+    return `${String(hour.getHours()).padStart(2, '0')}:00`;
+  const last = new Date(now);
+  last.setHours(23, 30, 0, 0);
+  return last >= next ? '23:30' : null;
+}
+
+export function canTransferChore(c: FamilyChore | FamilyUpcomingChore | null | undefined): boolean {
+  return (
+    !!c?.due &&
+    !!c.can_request_swap &&
+    c.state !== 'done' &&
+    c.state !== 'claimed' &&
+    (!c.swap_today || c.swap_today.kind === 'transfer_failed')
+  );
+}
+
+export function datedHandover(label: string, day: string | undefined, now: Date): string {
+  return day ? `${label} · ${dayWord(new Date(`${day}T12:00:00`), now)}` : label;
+}
+
+export function transferLabel(swap: FamilySwapToday, now: Date): string {
+  if (swap.kind === 'transferred_out') {
+    return swap.local_date
+      ? reassignedToLabel(
+          swap.partner_name ?? 'sourozence',
+          dayWord(new Date(`${swap.local_date}T12:00:00`), now),
+        )
+      : handedToLabel(swap.partner_name);
+  }
+  if (swap.kind === 'transferred_in' && !swap.muted) return takenFromLabel(swap.partner_name);
+  return swap.label;
 }

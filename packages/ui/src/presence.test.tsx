@@ -9,8 +9,8 @@ import {
 } from './presence.js';
 
 const people: PresencePerson[] = [
-  { id: 'person.jan', name: 'Jan', color: 'blue', status: 'home' },
-  { id: 'person.adamek', name: 'Adámek', color: 'teal', status: 'away' },
+  { id: 'person.marek', name: 'Marek', color: 'blue', status: 'home' },
+  { id: 'person.kuba', name: 'Kuba', color: 'teal', status: 'away' },
   { id: 'person.babi', name: 'Babi Nová', color: 'nonsense', status: 'unknown' },
 ];
 
@@ -29,8 +29,8 @@ describe('PresenceStrip', () => {
     const strip = screen.getByRole('list', { name: 'Kdo je doma' });
     const items = within(strip).getAllByRole('listitem');
     expect(items.map((li) => li.getAttribute('aria-label'))).toEqual([
-      'Jan: doma',
-      'Adámek: pryč',
+      'Marek: doma',
+      'Kuba: pryč',
       'Babi Nová: neznámo',
     ]);
     expect(items.map((li) => li.dataset.status)).toEqual(['home', 'away', 'unknown']);
@@ -55,7 +55,7 @@ describe('PresenceStrip', () => {
   });
 
   it('builds initials from one or two words', () => {
-    expect(presenceInitials('Jan')).toBe('J');
+    expect(presenceInitials('Marek')).toBe('M');
     expect(presenceInitials('babi nová')).toBe('BN');
     expect(presenceInitials('  ')).toBe('?');
   });

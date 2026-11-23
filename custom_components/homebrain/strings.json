@@ -28,9 +28,11 @@
           "network_unifi": "Network – UniFi (optional)",
           "meals": "Show meal plan (Mealie)",
           "roles": "Users and roles",
+          "coffee": "Today – Coffee invitation",
           "people": "Who is home",
           "heating": "Heating – Tecomat PLC",
-          "communication": "Communication hub"
+          "communication": "Communication hub",
+          "server": "Server – backups"
         }
       },
       "waste": {
@@ -289,6 +291,16 @@
           "role": "Role"
         }
       },
+      "coffee": {
+        "title": "Today – Coffee invitation",
+        "description": "The button is hidden on Today until you select a script.",
+        "data": {
+          "coffee_script": "Invitation script",
+          "coffee_tv": "Living room TV (optional)",
+          "coffee_mode": "Invitation mode",
+          "coffee_household_label": "Inviter name for the kiosk (optional)"
+        }
+      },
       "people": {
         "title": "Who is home",
         "description": "Green/red dot per household member on Dnes, the kiosk and Rodina – only home / away, never zones or location. Select nobody to show every person entity sorted by name. Selection order = order on screen.",
@@ -309,7 +321,11 @@
           "username": "Username",
           "password": "Password",
           "map_path": "Variable map (YAML path)",
-          "poll_interval": "Poll interval"
+          "poll_interval": "Poll interval",
+          "advisor_lookback_years": "Seasons used for the estimate",
+          "advisor_thermal_kw": "Nominal heat pump thermal output (optional)",
+          "advisor_design_temp": "Outdoor design temperature",
+          "advisor_attic_comfort": "Minimum comfortable attic temperature"
         }
       },
       "communication": {
@@ -317,6 +333,13 @@
         "description": "People, groups and existing HA services. Schema and examples: docs/communication.md. No tokens.",
         "data": {
           "communication": "Routing settings"
+        }
+      },
+      "server": {
+        "title": "Server",
+        "description": "Proxmox VE backups: the last backup older than this limit is a warning, twice as old is critical.",
+        "data": {
+          "backup_max_age_days": "Backup age limit"
         }
       }
     },
@@ -354,6 +377,12 @@
         "kitchen": "Kitchen",
         "communication": "Communication hub",
         "anomaly": "House watch"
+      }
+    },
+    "coffee_mode": {
+      "options": {
+        "bublina": "Toast",
+        "plna": "Full screen"
       }
     },
     "meals_display": {

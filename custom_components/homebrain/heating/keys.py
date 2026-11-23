@@ -134,8 +134,14 @@ DERIVED: Final[dict[str, KeySpec]] = {
     "compressor_runtime_h": _n("h", "duration", "Kompresor dnes – hodiny"),
     "compressor_starts": _n(None, None, "Kompresor dnes – starty"),
     "energy_kwh": _n("kWh", "energy", "Spotřeba TČ dnes"),
+    "house_circuit_runtime_h": _n("h", "duration", "Topný okruh dnes – hodiny"),
+    "pumps_heating_runtime_h": _n("h", "duration", "Čerpadlo topení dnes – hodiny"),
 }
 COUNTER_KEYS: Final = frozenset(DERIVED)
+RUNTIME_SOURCES: Final = {
+    "house_circuit_runtime_h": "house.circuit_on",
+    "pumps_heating_runtime_h": "pumps.heating",
+}
 ACTIVITIES: Final = (
     "off",
     "dhw_only",

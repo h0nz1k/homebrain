@@ -28,9 +28,11 @@
           "network_unifi": "Síť – UniFi (volitelné)",
           "meals": "Zobrazit jídelníček (Mealie)",
           "roles": "Uživatelé a role",
+          "coffee": "Dnes – Pozvat na kávu",
           "people": "Kdo je doma",
           "heating": "Topení – PLC Tecomat",
-          "communication": "Komunikační centrum"
+          "communication": "Komunikační centrum",
+          "server": "Server – zálohy"
         }
       },
       "waste": {
@@ -289,6 +291,16 @@
           "role": "Role"
         }
       },
+      "coffee": {
+        "title": "Dnes – Pozvat na kávu",
+        "description": "Bez vybraného skriptu se tlačítko v Dnes nezobrazí.",
+        "data": {
+          "coffee_script": "Skript pozvánky",
+          "coffee_tv": "TV v obýváku (volitelné)",
+          "coffee_mode": "Režim pozvánky",
+          "coffee_household_label": "Jméno odesílatele pro kiosk (volitelné)"
+        }
+      },
       "people": {
         "title": "Kdo je doma",
         "description": "Zelená/červená tečka u každého člena domácnosti na Dnes, kiosku a v Rodině – jen doma / pryč, nikdy zóny ani poloha. Nevyberete-li nikoho, zobrazí se všechny osoby (person) seřazené podle jména. Pořadí výběru = pořadí na obrazovce.",
@@ -309,7 +321,11 @@
           "username": "Uživatel",
           "password": "Heslo",
           "map_path": "Mapa proměnných (cesta k YAML)",
-          "poll_interval": "Interval čtení"
+          "poll_interval": "Interval čtení",
+          "advisor_lookback_years": "Počet sezón pro odhad",
+          "advisor_thermal_kw": "Jmenovitý tepelný výkon čerpadla (volitelné)",
+          "advisor_design_temp": "Venkovní teplota pro výpočet ztráty",
+          "advisor_attic_comfort": "Nejnižší příjemná teplota v podkroví"
         }
       },
       "communication": {
@@ -317,6 +333,13 @@
         "description": "Preference osob, skupiny a existující služby HA. Schéma a příklady: docs/communication.md. Žádné tokeny.",
         "data": {
           "communication": "Pravidla doručování"
+        }
+      },
+      "server": {
+        "title": "Server",
+        "description": "Zálohy Proxmox VE: poslední záloha starší než tento limit je upozornění, dvakrát starší je kritická.",
+        "data": {
+          "backup_max_age_days": "Limit stáří zálohy"
         }
       }
     },
@@ -354,6 +377,12 @@
         "kitchen": "Kuchyň",
         "communication": "Komunikační centrum",
         "anomaly": "Hlídání domu"
+      }
+    },
+    "coffee_mode": {
+      "options": {
+        "bublina": "Bublina",
+        "plna": "Celá obrazovka"
       }
     },
     "meals_display": {

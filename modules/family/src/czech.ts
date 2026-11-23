@@ -72,7 +72,7 @@ function withCase(original: string, declined: string): string {
     : declined;
 }
 
-/** Feminine -a dative: Dcera → Dceři, Anička → Aničce, Jana → Janě, Olga → Olze. */
+/** Feminine -a dative: Dcera → Dceři, Anička → Aničce, Olga → Olze. */
 function femDative(stem: string): string | null {
   const two = stem.slice(-2);
   if (two === 'ch') return `${stem.slice(0, -2)}še`;
@@ -138,7 +138,7 @@ function decline(name: string, kase: Case): string | null {
     return withCase(raw, kase === 'dat' ? `${low.slice(0, -1)}i` : low);
   }
   if ('eéoóuúůíáě'.includes(last)) return null;
-  // Consonant: masculine (Syn, Jan, Tomáš, Marek, Dědeček); a few feminine names excluded.
+  // Consonant: masculine (Syn, Ondřej, Marek, Dědeček); a few feminine names excluded.
   if (FEM_CONSONANT.has(low)) return null;
   let stem = low;
   // Mobile -e-: Marek → Markovi, Dědeček → Dědečka.
@@ -147,16 +147,16 @@ function decline(name: string, kase: Case): string | null {
   return withCase(raw, `${stem}${SOFT.includes(stem.slice(-1)) ? 'e' : 'a'}`);
 }
 
-export function reassignedToLabel(name: string): string {
+export function nameAccusative(name: string): string | null {
   const first = name.trim();
-  const genitive = nameGenitive(first);
-  if (/^\p{L}+a$/iu.test(first)) {
-    return `Přeřazeno na ${first.slice(0, -1)}u na dnes`;
-  }
-  if (genitive && !first.toLocaleLowerCase('cs').endsWith('e')) {
-    return `Přeřazeno na ${genitive} na dnes`;
-  }
-  return `Přeřazeno na dnes · ${name}`;
+  if (/^\p{L}+a$/iu.test(first)) return `${first.slice(0, -1)}u`;
+  return first.toLocaleLowerCase('cs').endsWith('e') ? null : nameGenitive(first);
+}
+
+export function reassignedToLabel(name: string, day = 'dnes'): string {
+  const recipient = nameAccusative(name);
+  const when = day === 'dnes' ? ' na dnes' : ` · ${day}`;
+  return recipient ? `Přeřazeno na ${recipient}${when}` : `Přeřazeno ${name} · ${day}`;
 }
 
 /** 3. pád (komu): „Synovi“, „Dceři“, „Babi“; `null` when unsure. */

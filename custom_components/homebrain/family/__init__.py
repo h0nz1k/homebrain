@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_point_in_time
+from homeassistant.helpers.event import async_track_point_in_time, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN
 from ..modules import disabled_modules
-from . import model
+from . import model, swap_service
 from .person_history import PersonHistory
 from .school import SchoolImport
 from .swap_store import FamilySwapStore
@@ -51,16 +50,17 @@ async def async_setup_family(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
         @callback
         def _reconcile(_now) -> None:
-            tz = ZoneInfo(hass.config.time_zone)
             _record_missed()
-            store.reconcile_all(dt_util.now(), tz)
-            hass.async_create_task(store.async_save())
+            hass.async_create_task(_run_swaps())
             _schedule_midnight()
 
         cancel = async_track_point_in_time(hass, _reconcile, local)
         entry.async_on_unload(cancel)
 
+    async def _run_swaps(_now=None) -> None:
+        await swap_service.apply_scheduled_swaps(hass, store)
+
     _schedule_midnight()
-    tz = ZoneInfo(hass.config.time_zone)
-    store.reconcile_all(dt_util.now(), tz)
-    await store.async_save()
+    # Retry while the matching ChoreOps helpers are still loading after startup.
+    entry.async_on_unload(async_track_time_interval(hass, _run_swaps, timedelta(minutes=1)))
+    await _run_swaps()

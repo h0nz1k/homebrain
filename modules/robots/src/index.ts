@@ -15,6 +15,8 @@ export * from './commands.js';
 export * from './presets.js';
 export * from './schedules.js';
 export * from './model.js';
+export * from './history.js';
+export * from './pending.js';
 export * from './demo.js';
 export * from './map/geometry.js';
 export * from './map/motion.js';

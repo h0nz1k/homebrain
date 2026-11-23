@@ -1,5 +1,5 @@
 import { czPlural } from '@homebrain/ui';
-import type { Level, ServerSnapshot } from './types.js';
+import type { Level, ProxmoxGuest, ServerSnapshot } from './types.js';
 
 export const NB = '\u00a0';
 export type BarTone = 'ok' | 'warn' | 'crit' | 'neutral';
@@ -49,6 +49,25 @@ export function uptimeLabel(since: string | null | undefined, now = Date.now()):
   return `běží ${mins}${NB}min`;
 }
 
+export const daysLabel = (days: number) =>
+  `${num(days, 0)}${NB}${czPlural(days, 'den', 'dny', 'dní')}`;
+
+/** „dnes“, „včera“, „před 395 dny“ from whole days. */
+export function daysAgoLabel(days: number): string {
+  if (days <= 0) return 'dnes';
+  if (days === 1) return 'včera';
+  return `před ${num(days, 0)}${NB}dny`;
+}
+
+/** 17 s, 3 min 5 s, 1 h 4 min. */
+export function durationLabel(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}${NB}s`;
+  const mins = Math.floor(s / 60);
+  if (mins < 60) return s % 60 ? `${mins}${NB}min ${s % 60}${NB}s` : `${mins}${NB}min`;
+  return `${Math.floor(mins / 60)}${NB}h ${mins % 60}${NB}min`;
+}
+
 /** Bucket means: 288 five-minute points → `buckets` calm points (no seismograph look). */
 export function smoothSeries(values: number[], buckets = 72): number[] {
   if (values.length <= buckets) return values;
@@ -73,6 +92,10 @@ function reasonText(r: ServerSnapshot['verdict']['reasons'][number]): string {
   if (r.kind === 'memory') return `paměť ${fmtPct(r.value)}`;
   if (r.kind === 'disk')
     return `${r.label === '/' ? 'systémový disk' : `disk ${r.label}`} ${fmtPct(r.value)}`;
+  if (r.kind === 'storage') return `úložiště ${r.label} ${fmtPct(r.value)}`;
+  if (r.kind === 'node') return `uzel ${r.label} offline`;
+  if (r.kind === 'backup') return 'záloha selhala';
+  if (r.kind === 'backup_age') return `poslední záloha je stará ${daysLabel(r.value ?? 0)}`;
   return `teplota ${r.label} ${fmtTemp(r.value)}`;
 }
 
@@ -81,10 +104,29 @@ export interface HeroModel {
   badge: string;
   headline: string;
   more: string[];
+  /** Anchor id of the card that shows the evidence for the top reason. */
+  target?: string;
 }
 
+/** Card anchors the hero „Co s tím“ button scrolls to. */
+export const SERVER_ANCHORS = {
+  disk: 'server-disks',
+  node: 'server-proxmox-node',
+  storage: 'server-proxmox-storages',
+  backup: 'server-proxmox-backup',
+} as const;
+
+const reasonTarget: Partial<Record<ServerSnapshot['verdict']['reasons'][number]['kind'], string>> =
+  {
+    disk: SERVER_ANCHORS.disk,
+    node: SERVER_ANCHORS.node,
+    storage: SERVER_ANCHORS.storage,
+    backup: SERVER_ANCHORS.backup,
+    backup_age: SERVER_ANCHORS.backup,
+  };
+
 export function heroModel(snap: ServerSnapshot): HeroModel {
-  if (snap.state !== 'ok')
+  if (snap.state !== 'ok' && snap.verdict.reasons.length === 0)
     return {
       tone: 'neutral',
       badge: 'Bez dat',
@@ -99,6 +141,7 @@ export function heroModel(snap: ServerSnapshot): HeroModel {
     badge: 'Živě',
     headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top)}`,
     more: rest.map(reasonText),
+    target: reasonTarget[top.kind],
   };
 }
 
@@ -128,4 +171,16 @@ export function vmRows(snap: ServerSnapshot): VmRow[] {
       memShare: total ? Math.min(1, vm.mem_bytes / total) : 0,
     };
   });
+}
+
+/** Running guests first, then by ID (stable, predictable list). */
+export function sortGuests<T extends Pick<ProxmoxGuest, 'vmid' | 'status'>>(guests: T[]): T[] {
+  const rank = (g: T) => (g.status === 'running' ? 0 : 1);
+  return [...guests].sort((a, b) => rank(a) - rank(b) || a.vmid - b.vmid);
+}
+
+/** 24 h peak from raw samples (not bucket means), never below the live value. */
+export function seriesMax(values: number[], current?: number | null): number | null {
+  const all = current != null && Number.isFinite(current) ? [...values, current] : values;
+  return all.length ? Math.max(...all) : null;
 }

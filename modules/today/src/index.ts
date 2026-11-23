@@ -45,3 +45,4 @@ export type { CookingProbe, CookingScenario, CookingSource, CookState } from './
 export { setTodayWatchCard, getTodayWatchCard } from './data/watch.js';
 export type { TodayWatchCardProps, TodayWatchLevel } from './data/watch.js';
 export { TodaySchool } from './views/TodaySchool.js';
+export { installCoffeeFixtures } from './data/coffeeFixtures.js';

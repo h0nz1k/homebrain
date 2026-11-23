@@ -73,4 +73,87 @@ test.describe('Server', () => {
     expect(spill).toBe(0);
     await noSidewaysScroll(page);
   });
+
+  test('data Proxmoxu se vejdou na telefon i tablet', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/homebrain-server?server=proxmox-ok');
+    const guests = page.getByTestId('server-proxmox-guest');
+    await expect(guests).toHaveCount(3, { timeout: 20_000 });
+    await expect(guests.last()).toContainText('Vypnuto');
+    await expect(page.getByTestId('server-proxmox-backup')).toBeVisible();
+    await noSidewaysScroll(page);
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await noSidewaysScroll(page);
+  });
+
+  test('zastaralá záloha: verdikt, karta a bez vodorovného posunu (360/800/1280)', async ({
+    page,
+  }) => {
+    await page.goto('/homebrain-server?server=proxmox-backup-stale&theme=light');
+    await expect(page.getByTestId('server-headline')).toHaveText(
+      /^Kritické: poslední záloha je stará 395\sdní$/,
+      { timeout: 20_000 },
+    );
+    const card = page.getByTestId('server-proxmox-backup');
+    await expect(card).toHaveAttribute('data-tone', 'crit');
+    await expect(page.getByTestId('server-backup-age')).toHaveText(/^před 395\sdny$/);
+    await expect(card).toContainText(/17\ss/);
+    await expect(page.getByTestId('server-backup-run')).toHaveText('úspěšný');
+    await expect(page.getByTestId('server-backup-stale')).toHaveText('Kritické');
+    // Evidence next to the verdict: „Co s tím“ (primary, severity tone) scrolls to the card.
+    const fix = page.getByTestId('server-hero-fix');
+    await expect(fix).toHaveAttribute('data-tone', 'crit');
+    expect((await fix.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await fix.click();
+    await expect(card).toBeFocused();
+    await expect(card).toBeInViewport();
+    for (const [width, height] of [
+      [360, 800],
+      [800, 1280],
+      [1280, 900],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await noSidewaysScroll(page);
+      const spill = await card.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return Array.from(el.querySelectorAll('*'))
+          .map((child) => child.getBoundingClientRect())
+          .filter((r) => r.width > 0 && (r.right > box.right + 1 || r.left < box.left - 1)).length;
+      });
+      expect(spill).toBe(0);
+      if (process.env.SERVER_SCREENSHOTS) {
+        await page.screenshot({
+          path: `test-results/server-r4/server-backup-stale-${width}.png`,
+          fullPage: true,
+        });
+      }
+    }
+  });
+
+  test('desktop: karty Proxmoxu ve dvou sloupcích, stav hostů jako odznak', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/homebrain-server?server=proxmox-ok&theme=light');
+    const guests = page.getByTestId('server-proxmox-guest');
+    await expect(guests).toHaveCount(3, { timeout: 20_000 });
+    await expect(page.getByTestId('server-guest-state')).toHaveText(['Běží', 'Běží', 'Vypnuto']);
+    const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
+    const node = await box('server-proxmox-node');
+    const list = (await guests.first().boundingBox())!;
+    const section = await box('server-proxmox');
+    expect(node.width).toBeLessThan(section.width * 0.6);
+    expect(list.x).toBeGreaterThan(node.x + node.width - 1);
+    await expect(page.getByTestId('server-hero-fix')).toHaveCount(0);
+    await noSidewaysScroll(page);
+    if (process.env.SERVER_SCREENSHOTS)
+      await page.screenshot({ path: 'test-results/server-r4/server-ok-1280.png', fullPage: true });
+  });
+
+  test('bez senzoru zálohy jen poznámka, žádné varování', async ({ page }) => {
+    await page.goto('/homebrain-server?server=proxmox-backup-missing');
+    await expect(page.getByTestId('server-headline')).toHaveText('V pořádku', { timeout: 20_000 });
+    await expect(page.getByTestId('server-proxmox-backup')).toContainText(
+      'Údaje o zálohách nejsou k dispozici',
+    );
+  });
 });

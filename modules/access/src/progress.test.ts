@@ -15,7 +15,7 @@ import {
 const T0 = Date.parse('2026-11-05T16:10:00Z');
 const at = (s: number) => new Date(T0 + s * 1000).toISOString();
 const ev = (s: number, data: EnrollProgressData) => ({ time: at(s), data });
-const base = { request_id: '3fa1-2', modality: 'face', name: 'Jan' } as const;
+const base = { request_id: '3fa1-2', modality: 'face', name: 'Marek' } as const;
 
 function run(events: Array<ReturnType<typeof ev>>, expect?: Parameters<typeof progressReducer>[2]) {
   return events.reduce<ProgressTrack | null>((t, e) => progressReducer(t, e, expect), null);
@@ -48,11 +48,11 @@ describe('progressReducer', () => {
   });
 
   it('a new request replaces the old track; panel enrolment is correlated by name + modality', () => {
-    const expectOwn = { name: 'jan', modality: 'palm' as const, at: T0 + 9000 };
+    const expectOwn = { name: 'marek', modality: 'palm' as const, at: T0 + 9000 };
     let t = run([ev(0, { ...base, state: 'failed', reason: 'timeout' })]);
     t = progressReducer(
       t,
-      ev(10, { request_id: '3fa1-3', modality: 'palm', name: 'Jan', state: 'armed' }),
+      ev(10, { request_id: '3fa1-3', modality: 'palm', name: 'Marek', state: 'armed' }),
       expectOwn,
     );
     expect(t).toMatchObject({ requestId: '3fa1-3', state: 'armed', own: T0 + 9000 });
@@ -63,13 +63,13 @@ describe('progressReducer', () => {
 
   it('an enrolment from an HA script (other name or modality) is not claimed by the panel', () => {
     const t = run([ev(0, { ...base, state: 'armed' })], {
-      name: 'Petra',
+      name: 'Lucie',
       modality: 'face',
       at: T0 - 1000,
     });
     expect(t!.own).toBeUndefined();
     const stale = run([ev(0, { ...base, state: 'armed' })], {
-      name: 'Jan',
+      name: 'Marek',
       modality: 'face',
       at: T0 - 120_000,
     });
@@ -129,7 +129,7 @@ describe('progressCopy', () => {
     const fault = run([ev(0, { ...base, state: 'failed', reason: 'camera' })])!;
     expect(progressCopy(fault).tone).toBe('error');
     const done = run([ev(0, { ...base, state: 'done' })])!;
-    expect(progressCopy(done).detail).toBe('Jan teď může odemykat obličejem.');
+    expect(progressCopy(done).detail).toBe('Marek teď může odemykat obličejem.');
     const r = run([ev(0, { ...base, modality: 'palm', state: 'retrying' })])!;
     expect(progressCopy(r)).toMatchObject({
       tone: 'busy',
