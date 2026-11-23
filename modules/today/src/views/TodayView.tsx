@@ -39,6 +39,8 @@ import { AmbientSky } from './AmbientSky.js';
 import { SunArc } from './SunArc.js';
 import { WeatherIcon } from './WeatherIcon.js';
 import { TodayHome } from './TodayHome.js';
+import { CoffeeInvite } from './CoffeeInvite.js';
+import { getCoffeeApi } from '../data/coffee.js';
 import { getTodayHomeApi } from '../data/home.js';
 import { needsRemoval, useCooking } from '../data/cooking.js';
 import { CookingCard } from './CookingCard.js';
@@ -136,6 +138,7 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
     );
   }, [factory, context.store, context.bindings, context.connection]);
   const homeApi = useMemo(() => getTodayHomeApi(context.connection), [context.connection]);
+  const coffeeApi = useMemo(() => getCoffeeApi(context.connection), [context.connection]);
   // „Kdo je doma“: live doma/pryč per person (renders nothing without configured persons).
   const people = usePeople(context.connection);
   // „Maso v troubě“: active MEATER probes (empty = no card at all).
@@ -392,6 +395,9 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           {presenceInHero && presence}
           {summaryInHero && summaryLine}
         </div>
+        {!night && kiosk && cookingCard}
+        {!night && !kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
+        <CoffeeInvite api={coffeeApi} />
         {night ? (
           <>
             {cookingCard}
@@ -402,8 +408,6 @@ export default function TodayView(context: Partial<ModuleViewProps> = {}) {
           </>
         ) : (
           <>
-            {kiosk && cookingCard}
-            {!kioskCooking && !kioskWatch && !summaryInHero && summaryLine}
             {heroFirst && hero}
             {watchCard}
             <div className="today-ribbon-card" data-testid="ribbon-card">

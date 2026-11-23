@@ -824,4 +824,43 @@ export const robotsStyles = `
   .rb-sched-side > .hb-switch { margin-left: auto; }
 }
 .rb-hint { margin: -6px 0 0; color: var(--hb-warn-ink, var(--hb-t2)); }
+
+/* Právě uklízená místnost (#165): soft tint + dashed accent outline, distinct from selection. */
+.rv-live { pointer-events: none; }
+.rv-live-fill { fill: color-mix(in oklch, var(--hb-ac) 16%, transparent); animation: rv-live-pulse 2.8s ease-in-out infinite; }
+.rv-live-line { fill: none; stroke: var(--hb-ac); stroke-opacity: .75; stroke-linejoin: round; stroke-linecap: round; }
+@keyframes rv-live-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.rv-label[data-live]:not([data-selected]) { box-shadow: 0 0 0 1.5px color-mix(in oklch, var(--hb-ac) 70%, transparent); }
+.rb-room-tile-sub {
+  font-size: 11.5px; font-weight: 500; line-height: 1.2; color: var(--hb-t2); text-align: center;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rb-now { margin: 0 0 10px; }
+.rb-room-tile[data-live] { box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--hb-ac) 65%, transparent); }
+.rb-room-tile[data-live] .rb-room-tile-sub { color: var(--hb-ac); font-weight: 600; }
+/* „Odesláno, čekám na robota…“ / „Robot zatím nereagoval“ + data age. */
+.rb-pending { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0 0; font-size: 14px; color: var(--hb-t2); }
+.rb-pending[data-phase='waiting']::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--hb-ac); animation: rb-pulse 1.6s ease-in-out infinite; }
+.rb-pending[data-phase='late'] { color: var(--hb-warn-ink, var(--hb-t1)); }
+.rb-age { margin: 4px 0 0; color: var(--hb-t3, var(--hb-t2)); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.rb-clean-title .rb-age { margin-top: 2px; }
+/* Historie úklidů */
+.rb-history { margin-top: 16px; }
+.rb-history-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.rb-history-item {
+  display: grid; grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto; gap: 4px 14px; align-items: baseline;
+  padding: 10px 0; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 9%, transparent);
+}
+.rb-history-item:first-child { border-top: 0; }
+.rb-history-when { color: var(--hb-t1); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rb-history-text { display: grid; gap: 2px; min-width: 0; }
+.rb-history-rooms { color: var(--hb-t1); font-size: 14px; overflow-wrap: anywhere; }
+.rb-history-meta { color: var(--hb-t2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.rb-history-source { align-self: center; }
+@media (max-width: 480px) {
+  .rb-history-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .rb-history-when { grid-column: 1; }
+  .rb-history-source { grid-row: 1; grid-column: 2; }
+  .rb-history-text { grid-column: 1 / -1; }
+}
 `;

@@ -59,17 +59,21 @@ from .modules import (
 from .network import ws as network_ws
 from .people import ws as people_ws
 from .recipes import websocket as recipes_ws
+from .robots.history import RobotHistory
 from .robots.schedules import RobotScheduler
 from .robots.schedules_ws import SCHEDULE_COMMANDS
 from .robots.ws import (
+    HISTORY_COMMANDS,
     PRESET_COMMANDS,
     RobotMapImageView,
     known_room_ids,
     preset_store,
+    robot_room_cache,
     websocket_robots_get,
     websocket_robots_map,
 )
 from .server import ws as server_ws
+from .today import coffee
 from .waste.history import WasteHistoryManager
 from .waste.ws import websocket_waste_history
 from .weather.coordinator import WeatherManager
@@ -123,8 +127,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, websocket_get_session)
     websocket_api.async_register_command(hass, websocket_get_roles)
     websocket_api.async_register_command(hass, websocket_set_roles)
-    # Dnes „Co se dnes vaří“ (Mealie is an optional external integration, not a module).
-    for command in (*meals_ws.COMMANDS, *people_ws.COMMANDS, *cooking_ws.COMMANDS):
+    # Dnes uses core commands for its optional dashboard features.
+    for command in (
+        *meals_ws.COMMANDS,
+        *people_ws.COMMANDS,
+        *cooking_ws.COMMANDS,
+        *coffee.COMMANDS,
+    ):
         websocket_api.async_register_command(hass, command)
 
     def weather_reg(reg: Registrar) -> None:
@@ -134,9 +143,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _http_view(hass, RadarImageView())
 
     def robots_reg(reg: Registrar) -> None:
-        _commands(websocket_robots_get, websocket_robots_map, *PRESET_COMMANDS, *SCHEDULE_COMMANDS)(
-            hass
-        )(reg)
+        _commands(
+            websocket_robots_get,
+            websocket_robots_map,
+            *PRESET_COMMANDS,
+            *SCHEDULE_COMMANDS,
+            *HISTORY_COMMANDS,
+        )(hass)(reg)
         _http_view(hass, RobotMapImageView())
 
     def energy_reg(reg: Registrar) -> None:
@@ -304,6 +317,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await manager.async_start()
 
         entry.async_on_unload(async_at_started(hass, _start))
+        # Cleaning history from HA states (no Roborock calls); room names → ids via cache.
+        history = RobotHistory(
+            hass,
+            lambda: get_bindings(entry).get("robots", {}),
+            lambda vacuum: robot_room_cache(hass).peek(vacuum),
+        )
+        hass.data[DOMAIN]["robot_history"] = history
+
+        async def _start_history(_hass: HomeAssistant) -> None:
+            await history.async_start()
+
+        async def _history_options(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
+            await history.async_refresh()
+
+        entry.async_on_unload(async_at_started(hass, _start_history))
+        entry.async_on_unload(entry.add_update_listener(_history_options))
 
     async def _setup_access(hass: HomeAssistant, entry: ConfigEntry) -> None:
         # Přístup: listen to esphome.biolock_* events from the start (history, live wizard).
@@ -370,6 +399,8 @@ async def _unload_energy(hass: HomeAssistant) -> None:
 
 async def _unload_robots(hass: HomeAssistant) -> None:
     hass.data.get(DOMAIN, {}).pop("robot_rooms", None)
+    if (history := hass.data.get(DOMAIN, {}).pop("robot_history", None)) is not None:
+        await history.async_stop()
     if (manager := hass.data.get(DOMAIN, {}).pop("robot_scheduler", None)) is not None:
         await manager.async_stop()
 

@@ -59,6 +59,8 @@ function setup(vector: 'demo' | 'broken' | 'off' = 'off') {
       if (message.type === 'frontend/set_user_data') return { success: true } as T;
       if (message.type === 'homebrain/robots/get') return demo.ws as T;
       if (message.type === 'homebrain/robots/presets/list') return { robots: {} } as T;
+      // Cleaning history (read-only) and the „HomeBrain started it“ mark are not robot calls.
+      if (message.type.startsWith('homebrain/robots/history')) return { robots: {} } as T;
       if (message.type === 'homebrain/robots/schedules/list')
         return createSchedulesDemo().handlers['homebrain/robots/schedules/list']() as T;
       if (message.type === 'homebrain/robots/map') {

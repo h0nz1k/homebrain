@@ -28,6 +28,7 @@
           "network_unifi": "Network – UniFi (optional)",
           "meals": "Show meal plan (Mealie)",
           "roles": "Users and roles",
+          "coffee": "Today – Coffee invitation",
           "people": "Who is home",
           "heating": "Heating – Tecomat PLC",
           "communication": "Communication hub",
@@ -290,6 +291,16 @@
           "role": "Role"
         }
       },
+      "coffee": {
+        "title": "Today – Coffee invitation",
+        "description": "The button is hidden on Today until you select a script.",
+        "data": {
+          "coffee_script": "Invitation script",
+          "coffee_tv": "Living room TV (optional)",
+          "coffee_mode": "Invitation mode",
+          "coffee_household_label": "Inviter name for the kiosk (optional)"
+        }
+      },
       "people": {
         "title": "Who is home",
         "description": "Green/red dot per household member on Dnes, the kiosk and Rodina – only home / away, never zones or location. Select nobody to show every person entity sorted by name. Selection order = order on screen.",
@@ -366,6 +377,12 @@
         "kitchen": "Kitchen",
         "communication": "Communication hub",
         "anomaly": "House watch"
+      }
+    },
+    "coffee_mode": {
+      "options": {
+        "bublina": "Toast",
+        "plna": "Full screen"
       }
     },
     "meals_display": {

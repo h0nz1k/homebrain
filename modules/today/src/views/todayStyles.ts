@@ -3,8 +3,31 @@ export const todayStyles = `
 .hb-shell main:has(.hb-today){padding:0}
 .hb-today{position:relative;isolation:isolate;overflow:hidden;min-width:0;min-height:100%;font-family:Inter,system-ui,sans-serif;color:var(--hb-t1);font-variant-numeric:tabular-nums;--hb-m-xfade:3s;--hb-m-night:20s}
 .hb-today *{box-sizing:border-box}
-.today-content{position:relative;z-index:1;display:flex;flex-direction:column;gap:16px;width:100%;height:100%;min-height:0;padding:28px 48px 22px}
+.today-content{--today-content-gap:16px;position:relative;z-index:1;display:flex;flex-direction:column;gap:var(--today-content-gap);width:100%;height:100%;min-height:0;padding:28px 48px 22px}
 .today-header{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--hb-t2);text-transform:none;font-size:20px}
+.today-coffee{display:flex;flex:none;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px 12px;font-size:var(--hb-type-body)}
+.today-content > .today-summary:has(+ .today-coffee){margin-bottom:0}
+.today-summary + .today-coffee{margin-top:calc(12px - var(--today-content-gap))}
+.today-coffee:has(+ .today-ribbon-card){margin-bottom:calc(24px - var(--today-content-gap))}
+.today-coffee .hb-btn{min-height:48px;border:1px solid var(--hb-ac);background:light-dark(var(--hb-ac-s),color-mix(in srgb,var(--hb-ac) 19%,transparent));color:light-dark(var(--hb-sel-ink),color-mix(in srgb,var(--hb-ac) 25%,white))}
+.today-coffee .hb-btn .hb-icon{color:inherit}
+.today-coffee .hb-btn:hover:not(:disabled){background:color-mix(in srgb,var(--hb-ac) 22%,transparent)}
+.today-coffee .hb-btn:disabled{opacity:1;border-color:var(--hb-b2);background:var(--hb-s3);color:light-dark(color-mix(in srgb,var(--hb-t3) 91%,var(--hb-s3)),color-mix(in srgb,var(--hb-t3) 80%,var(--hb-s3)))}
+.today-coffee-status{display:inline-block;padding:4px 12px;border-radius:var(--hb-radius-pill);background:var(--hb-s1);box-shadow:inset 0 0 0 1px var(--hb-b2);color:var(--hb-t2);text-wrap:balance}
+.today-coffee-status[hidden]{display:none}
+.today-coffee-status:is([data-success],[data-countdown],[role='alert']){color:var(--hb-t1)}
+.today-coffee-mark{color:var(--hb-ok);font-weight:700;white-space:pre}
+.today-coffee-status[data-countdown]{font-variant-numeric:tabular-nums}
+.today-coffee-status[role='alert']{display:inline-flex;align-items:center;gap:6px}
+.today-coffee-status[role='alert'] svg{flex:none;color:var(--hb-crit)}
+.today-mobile .today-coffee{flex-direction:column;align-items:flex-start}
+.today-kiosk .today-coffee{font-size:inherit}
+/* Kiosk surfaces are always dark: the pill's accents use the dark-theme tones in both themes. */
+.today-kiosk .today-coffee-status{--hb-ok:#34d399;--hb-crit:#f2555a}
+/* kiosk surfaces are dark in both themes: resolve light-dark() to the dark variant */
+.today-kiosk .today-coffee{color-scheme:dark}
+.today-kiosk .today-coffee-status{padding:6px 14px}
+.today-kiosk .today-coffee .hb-btn:disabled{color:color-mix(in srgb,var(--hb-t3) 75%,var(--hb-s3))}
 .today-header time::first-letter{text-transform:uppercase}
 .today-presence{flex:none}
 .today-kiosk .hb-presence[data-size='lg']{--hb-presence-avatar:36px}
@@ -89,7 +112,7 @@ export const todayStyles = `
 .today-footer{display:flex;flex-wrap:wrap;gap:16px;font-size:14px;color:var(--hb-t3);flex:none}
 .today-footer a{color:var(--hb-ac)}
 .today-desktop{height:calc(100dvh - 56px);min-height:0}
-.today-busy .today-content{gap:12px;padding-top:20px}
+.today-busy .today-content{--today-content-gap:12px;padding-top:20px}
 .today-busy .today-hero{min-height:110px}
 .today-busy .today-clock{font-size:96px}
 .today-watch-on .today-hero{min-height:110px;padding-bottom:40px}
@@ -106,7 +129,7 @@ export const todayStyles = `
 .today-busy .hb-signal-severity,.today-busy .hb-signal-also{font-size:13px}
 .today-kiosk{--hb-s1:#111923;--hb-s2:#161e2c;--hb-s3:#1c2532;--hb-b1:#293443;--hb-b2:#344252;height:100dvh;min-height:0;--hb-t1:#E6EAF0;--hb-t2:#B8C1CE;--hb-t3:#97A2B3;color:var(--hb-t1);font-size:16px;--hb-glass:linear-gradient(180deg,rgba(20,28,44,.78),rgba(10,15,25,.82))}
 .today-kiosk .today-content{padding:26px 44px 24px}
-.today-kiosk.today-busy .today-content{gap:8px;padding:16px 44px 14px}
+.today-kiosk.today-busy .today-content{--today-content-gap:8px;padding:16px 44px 14px}
 
 .today-kiosk.today-busy .today-hero{min-height:110px}
 .today-kiosk .hb-signal-compact .hb-signal-severity{display:block}
@@ -144,7 +167,7 @@ export const todayStyles = `
 @keyframes today-rain{from{transform:translateY(0)}to{transform:translateY(40px)}}
 @media(prefers-reduced-motion:reduce){.hb-today{--hb-m-xfade:.2s}.hb-today *,.hb-today *::after{animation:none!important}}
 @media(max-width:760px){
-.today-mobile .today-content{padding:20px 16px 24px;gap:16px}
+.today-mobile .today-content{--today-content-gap:16px;padding:20px 16px 24px}
 .today-mobile .today-header{font-size:16px}
 .today-mobile .today-hero{min-height:125px;align-items:baseline}
 .today-mobile .today-clock{font-size:clamp(58px,17vw,92px)}
@@ -228,7 +251,7 @@ export const todayStyles = `
 .hb-shell[data-narrow='true'] .hb-today .today-content,.hb-shell[data-layout-mobile='true'] .hb-today .today-content{padding-bottom:calc(var(--hb-tabbar-height,72px) + env(safe-area-inset-bottom,0px) + 24px)}
 /* ── Ambient kiosk (#38): wall tablet readable from 3 m ── */
 .today-kiosk{--hb-space-page:56px}
-.today-kiosk.today-calm .today-content{padding:24px var(--hb-space-page) 32px;gap:14px}
+.today-kiosk.today-calm .today-content{--today-content-gap:14px;padding:24px var(--hb-space-page) 32px}
 .today-kiosk.today-calm .today-header{font-size:22px;color:var(--hb-t1)}
 .today-kiosk.today-calm .today-summary{font-size:26px;color:var(--hb-t1);font-weight:300}
 
@@ -256,7 +279,7 @@ export const todayStyles = `
 .today-kiosk .today-temperature .today-weather-icon[data-icon=rain],.today-kiosk .today-temperature .today-weather-icon[data-icon=snow]{color:#8EC5FF}
 .today-kiosk .today-temperature .today-weather-icon[data-icon=cloudy],.today-kiosk .today-temperature .today-weather-icon[data-icon=wind]{color:#B8C1CE}
 /* Portrait wall tablet (800×1280): stacked hero at the top, content fills the height. */
-.today-portrait .today-content{padding:40px 40px 48px;gap:24px;justify-content:center}
+.today-portrait .today-content{--today-content-gap:24px;padding:40px 40px 48px;justify-content:center}
 .today-portrait .today-content::before{display:none}
 .today-portrait .today-hero{flex-direction:column;align-items:center;min-height:0;padding:12px 0 0;gap:6px}
 .today-portrait .today-clock{font-size:220px;line-height:1.15}
@@ -275,7 +298,7 @@ export const todayStyles = `
 .today-portrait .today-cards{grid-template-columns:1fr}
 .today-portrait .today-cards .hb-signal h3{font-size:24px}
 .today-portrait .today-chips{grid-template-columns:1fr 1fr}
-.today-portrait.today-busy .today-content{padding-top:84px;gap:22px}
+.today-portrait.today-busy .today-content{--today-content-gap:22px;padding-top:84px}
 .today-portrait.today-busy .today-clock{font-size:132px}
 .today-portrait.today-busy .today-hero{flex-direction:row;justify-content:space-between;align-items:center;padding:0}
 .today-portrait.today-busy .today-weather{width:auto;align-items:flex-end;text-align:right}
@@ -348,11 +371,11 @@ export const todayStyles = `
 .today-kiosk .today-cooking:is([data-count='3'],[data-count='4']) .today-cooking-target{font-size:19px}
 .today-kiosk.today-cooking-on .today-clock{font-size:96px}
 .today-kiosk.today-cooking-on .today-hero{min-height:110px}
-.today-kiosk.today-cooking-on .today-content{gap:8px;padding-top:16px;padding-bottom:14px}
+.today-kiosk.today-cooking-on .today-content{--today-content-gap:8px;padding-top:16px;padding-bottom:14px}
 .today-night .today-cooking{width:min(100%,960px);--hb-glass:rgba(10,12,16,.6)}
 /* Tablet/desktop with the Hlídání domu card: the hero collapses to one compact row (clock,
    weather, condition), no sun arc, so the card and the whole „Průběh dne“ fit 1280×800 (e2e). */
-.today-desktop.today-watch-on .today-content{gap:12px;padding-top:16px;padding-bottom:16px}
+.today-desktop.today-watch-on .today-content{--today-content-gap:12px;padding-top:16px;padding-bottom:16px}
 .today-desktop.today-watch-on .today-hero{min-height:0;padding-bottom:0;align-items:center;justify-content:flex-start;gap:32px}
 .today-desktop.today-watch-on .today-sun-band{display:none}
 .today-desktop.today-watch-on .today-clock{font-size:64px;line-height:1}

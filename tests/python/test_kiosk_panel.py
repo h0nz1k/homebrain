@@ -50,6 +50,9 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/robots/defaults/set": {"slot": 1, "defaults": None},
     # No robot is bound in the matrix entry: an admin gets not_found, nothing ever starts.
     "homebrain/robots/start": {"slot": 1},
+    "homebrain/robots/history": {},
+    "homebrain/robots/history/subscribe": {},
+    "homebrain/robots/history/mark": {"slot": 1},
     "homebrain/robots/schedules/list": {},
     "homebrain/robots/schedules/save": {
         "schedule": {"name": "x", "slot": 1, "days": [0], "time": "10:00"}
@@ -141,6 +144,8 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/server/get": {"api": False},
     "homebrain/server/history": {},
     "homebrain/today/meals": {},
+    "homebrain/today/coffee/subscribe": {},
+    "homebrain/today/coffee/invite": {},
     "homebrain/heating/get": {},
     "homebrain/heating/subscribe": {},
     "homebrain/heating/history": {"range": "day"},
@@ -234,7 +239,7 @@ async def test_matrix_covers_every_command(hass: HomeAssistant, setup):
 
 @pytest.mark.parametrize("role", ["kiosk", "adult", "child", None])
 async def test_non_admin_matrix(hass: HomeAssistant, setup, hass_ws_client, hass_admin_user, role):
-    """Mapped non-admins: Dnes kiosk + Recepty commands; unmapped (guest): only session/get."""
+    """Only explicitly allowed commands are available to non-admins."""
     hass_admin_user.groups = []  # non-admin HA user, e.g. the tablet account
     if role:
         hass.config_entries.async_update_entry(setup, options={"roles": {hass_admin_user.id: role}})

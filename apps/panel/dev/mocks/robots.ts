@@ -4,7 +4,10 @@ import {
   createRobotsDemo,
   createRobotsUiMemoryDemo,
   createSchedulesDemo,
+  demoHistory,
   demoVectorMap,
+  parseVectorMap,
+  roomAt,
   narrowRoomMap,
   type DemoScene,
   type RobotsScenario,
@@ -14,8 +17,10 @@ import type { DevHass, WsHandlers } from './shared.js';
 /**
  * Roboti: synthetic vacuums, vector maps, presets and schedules. `?robots=<scenario>`,
  * `?presets=demo`, `?schedules=demo`, `?photos=a,b,c`, `?otoceni=90|180|270`, `?drahaod=<0–1>`,
- * `?scena=kuchyne|chodba|dok`, `?mistnost=uzka`, `?vektor=chyba`, `?mapapoll=<ms>`.
- * `?mapa3d=prehled|pohyb|dok|bez-webgl`: fixed overview, moving route, parked robot, fallback.
+ * `?scena=kuchyne|chodba|dok`, `?mistnost=uzka`, `?vektor=chyba`, `?mapapoll=<ms>`,
+ * `?historie=demo|prazdna` (cleaning history; default = demo), `?stari=1` (robot 1 state and
+ * map image older than the data-age thresholds),
+ * `?mapa3d=prehled|pohyb|dok|bez-webgl` (3D demo scenarios).
  */
 export function addRobotsDemo({ hass, now, refresh }: DevHass) {
   const pageLoadedAt = Date.now();
@@ -41,6 +46,21 @@ export function addRobotsDemo({ hass, now, refresh }: DevHass) {
     (params.get('robots') as RobotsScenario | null) ?? (map3d === 'dok' ? 'docked' : 'default'),
   );
   Object.assign(hass.states, robotsDemo.states);
+  const query = new URLSearchParams(location.search);
+  if (query.get('stari') === '1') {
+    // Data age: robot 1 reported 3 min ago, its map image 6 min ago (no fetching involved).
+    const stale = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString();
+    for (const [key, id] of Object.entries(robotsDemo.bindings))
+      if (key.startsWith('robot1_') && hass.states[id])
+        hass.states[id] = { ...hass.states[id]!, last_updated: stale(3) };
+    const image = robotsDemo.bindings.robot1_map_image;
+    if (image && hass.states[image])
+      hass.states[image] = { ...hass.states[image]!, state: stale(6), last_updated: stale(6) };
+  }
+  const history = demoHistory(
+    now.getTime(),
+    query.get('historie') === 'prazdna' ? 'empty' : 'demo',
+  );
   // Dev only: service calls from the Roboti panel are recorded, never sent anywhere.
   const robotCalls: unknown[] = [];
   (window as unknown as { __hbRobotCalls: unknown[] }).__hbRobotCalls = robotCalls;
@@ -169,6 +189,41 @@ export function addRobotsDemo({ hass, now, refresh }: DevHass) {
       ),
     };
   }
+  // Invented vector plans; robot 1 advances one step per `?mapapoll` tick, robot 3 = PNG fallback.
+  // `window.__HB_ROBOT_MAP__` (set by a local shot script) renders a locally parsed plan.
+  const mapAnswer = (message: unknown): unknown =>
+    new URLSearchParams(location.search).get('mistnost') === 'uzka'
+      ? narrowRoomMap()
+      : new URLSearchParams(location.search).get('vektor') === 'chyba'
+        ? { available: false, reason: 'parse_failed' }
+        : (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__
+          ? {
+              available: true,
+              map: (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__,
+            }
+          : demoVectorMap(
+              Number((message as { slot?: number }).slot),
+              // `?drahaod=<0–1>`: start there at page load (wrap-free e2e, #38), else wall clock.
+              routeStart === null ? Date.now() : Date.now() - pageLoadedAt,
+              Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
+              // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
+              mapScene as DemoScene | null,
+              routeStart,
+            );
+  /** Like HA: `current_room` follows the room under the robot on the same map refresh. */
+  function followPose(slot: number, answer: unknown): unknown {
+    const parsed = parseVectorMap(answer);
+    const sensor = robotsDemo.bindings[`robot${slot}_current_room`];
+    if (!parsed.available || !parsed.map.robot || !sensor || !hass.states[sensor]) return answer;
+    const id = roomAt(parsed.map, parsed.map.robot.x, parsed.map.robot.y);
+    const meta = robotsDemo.ws.robots.find((robot) => robot.slot === slot);
+    const name = meta?.maps[0]?.rooms.find((room) => room.id === id)?.name;
+    if (name && hass.states[sensor]!.state !== name) {
+      hass.states[sensor] = { ...hass.states[sensor]!, state: name };
+      globalThis.setTimeout(refresh, 0);
+    }
+    return answer;
+  }
   const handlers: WsHandlers = {
     // `window.__HB_ROBOT_ROOMS__` (local shot script): placeholder room names for robot 1.
     // `?otoceni=90|180|270`: robot 1 map rotated like the per-robot option.
@@ -179,27 +234,12 @@ export function addRobotsDemo({ hass, now, refresh }: DevHass) {
         ? { robots: ws.robots.map((r, i) => (i === 0 ? { ...r, rotation: rot } : r)) }
         : ws;
     },
-    // Invented vector plans; robot 1 advances one step per `?mapapoll` tick, robot 3 = PNG fallback.
-    // `window.__HB_ROBOT_MAP__` (set by a local shot script) renders a locally parsed plan.
     'homebrain/robots/map': (message: unknown) =>
-      new URLSearchParams(location.search).get('mistnost') === 'uzka'
-        ? narrowRoomMap()
-        : new URLSearchParams(location.search).get('vektor') === 'chyba'
-          ? { available: false, reason: 'parse_failed' }
-          : (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__
-            ? {
-                available: true,
-                map: (globalThis as { __HB_ROBOT_MAP__?: unknown }).__HB_ROBOT_MAP__,
-              }
-            : demoVectorMap(
-                Number((message as { slot?: number }).slot),
-                // `?drahaod=<0–1>`: start there at page load (wrap-free e2e, #38), else wall clock.
-                routeStart === null ? Date.now() : Date.now() - pageLoadedAt,
-                Number(new URLSearchParams(location.search).get('mapapoll')) || 30_000,
-                // `?scena=kuchyne|chodba|dok`: fixed robot pose (deterministic shots and e2e).
-                mapScene as DemoScene | null,
-                routeStart,
-              ),
+      followPose(Number((message as { slot?: number }).slot), mapAnswer(message)),
+    // Cleaning history (HA states only in the integration); `?historie=prazdna` = empty state.
+    'homebrain/robots/history': () => ({ robots: history }),
+    'homebrain/robots/history/subscribe': { slot: 0 },
+    'homebrain/robots/history/mark': () => ({ ok: true }),
     // Raster base layers of the demo plans (scripts/build_robot_demo_rasters.py); a local shot
     // script may inject its own via `window.__HB_ROBOT_RASTER__ = { light, dark }` (data URLs).
     'auth/sign_path': (message: unknown) => {

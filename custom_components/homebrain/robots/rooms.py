@@ -86,6 +86,11 @@ class RoomCache:
             self._entries[entity_id] = (now, value)
             return value
 
+    def peek(self, entity_id: str) -> dict[str, Any] | None:
+        """Last cached room lists (never fetches; history matches room names with it)."""
+        cached = self._entries.get(entity_id)
+        return cached[1] if cached else None
+
     async def async_match_segments(
         self, entity_id: str, segment_ids: set[int], selected: str | None = None
     ) -> dict[str, Any]:
