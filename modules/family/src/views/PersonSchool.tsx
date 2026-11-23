@@ -3,6 +3,7 @@ import {
   schoolDay,
   schoolDateLabel,
   schoolLastLoaded,
+  schoolSoup,
   schoolWeek,
   type SchoolSnapshot,
 } from '@homebrain/ha-client';
@@ -59,7 +60,7 @@ export function PersonSchool({
                 <span>
                   {lunch.main}
                   {lunch.sides.length > 0 && ` · ${lunch.sides.join(', ')}`}
-                  {lunch.soup && ` · polévka ${lunch.soup}`}
+                  {lunch.soup && ` · ${schoolSoup(lunch.soup)}`}
                   {lunch.allergens.length > 0 && (
                     <small>Alergeny: {lunch.allergens.join(', ')}</small>
                   )}
@@ -78,7 +79,7 @@ export function PersonSchool({
             {events.map((event) => (
               <li key={`${event.date}-${event.title}`}>
                 <time dateTime={event.date}>
-                  {schoolDateLabel(event.date)}
+                  {schoolDateLabel(event.date, true)}
                   {event.end_date && `–${schoolDateLabel(event.end_date)}`}
                 </time>
                 <span>{event.title}</span>
@@ -87,7 +88,7 @@ export function PersonSchool({
           </ul>
         </>
       )}
-      {school.updated_at && <small>{schoolLastLoaded(school.updated_at)}</small>}
+      {school.updated_at && <small>{schoolLastLoaded(school.updated_at, now)}</small>}
     </section>
   );
 }

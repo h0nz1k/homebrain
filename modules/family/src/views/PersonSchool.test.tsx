@@ -25,7 +25,10 @@ describe('Škola v detailu dítěte', () => {
     expect(section.getByText('4. třída – divadlo')).toBeTruthy();
     expect(section.queryByText(/9. ročník/)).toBeNull();
     expect(section.queryByText('Třídní schůzky')).toBeNull();
-    expect(section.getByText(/Naposledy načteno/)).toBeTruthy();
+    expect(
+      section.getByText(school === 'stale' ? 'načteno 22. 11. 10:00' : 'načteno dnes 9:00'),
+    ).toBeTruthy();
+    if (school === 'full') expect(section.getByText(/ · polévka mrkvová$/)).toBeTruthy();
     expect(section.queryByRole('alert')).toBeNull();
   });
 

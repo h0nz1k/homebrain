@@ -190,7 +190,7 @@ test.describe('Škola na Dnes a kiosku', () => {
     await page.clock.setFixedTime(new Date('2026-11-23T14:00:00+01:00'));
     await page.goto('/homebrain-kuchyn?skola=full&role=kiosk');
     await page.getByRole('radio', { name: 'Vaření', exact: true }).click();
-    await expect(page.getByTestId('school-lunch')).toContainText('Zítra · Ve škole k obědu:');
+    await expect(page.getByTestId('school-lunch')).toContainText('Zítra k obědu:');
   });
 
   for (const viewport of [
@@ -208,14 +208,34 @@ test.describe('Škola na Dnes a kiosku', () => {
         );
         const school = page.getByTestId('today-school');
         await expect(school).toBeVisible();
-        await expect(school.getByTestId('school-lunch')).toContainText('Ve škole k obědu:');
+        await expect(school.getByRole('heading', { name: 'Škola' })).toBeVisible();
+        await expect(school.getByTestId('school-lunch')).toHaveText(
+          /^K obědu: .+ · polévka [a-zěščřžýáíéůú]/,
+        );
         await expect(school.getByText('Dnes: Školní výstava')).toBeVisible();
         await expect(school.getByText('Zítra: 4. třída – divadlo')).toBeVisible();
-        await expect(school.getByText(/Třídní schůzky/)).toBeVisible();
+        await expect(school.getByTestId('school-date')).toHaveText(
+          /^(po|út|st|čt|pá|so|ne) \d+\. \d+\. · Třídní schůzky$/,
+        );
+        await expect(school.getByText(/^načteno (dnes|\d+\. \d+\.) \d+:\d\d$/)).toBeVisible();
         await expect(school.getByText(/9. ročník/)).toHaveCount(0);
         const box = (await school.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+        // Nothing inside the block is clipped (#151 r2: the kiosk squeezed it to one cut line).
+        expect(await school.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+        if (kiosk && viewport.width >= 800) {
+          expect(box.y).toBeGreaterThanOrEqual(0);
+          expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+          // The wall kiosk does not scroll: the rest of the screen still fits under the block.
+          const below = await page.evaluate(() =>
+            Array.from(document.querySelectorAll('.today-content *'))
+              .filter((el) => el.getClientRects().length > 0)
+              .filter((el) => el.getBoundingClientRect().bottom > innerHeight + 1)
+              .map((el) => el.className),
+          );
+          expect(below).toEqual([]);
+        }
         if (kiosk) {
           expect(
             await school

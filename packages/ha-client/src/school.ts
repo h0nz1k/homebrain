@@ -51,11 +51,13 @@ const shortDate = new Intl.DateTimeFormat('cs-CZ', {
   day: 'numeric',
   month: 'numeric',
 });
-const loadedAt = new Intl.DateTimeFormat('cs-CZ', {
+const loadedTime = new Intl.DateTimeFormat('cs-CZ', {
   timeZone: 'Europe/Prague',
-  dateStyle: 'short',
-  timeStyle: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+  hourCycle: 'h23',
 });
+const WEEKDAYS = ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'];
 
 export function schoolDay(now: Date): string {
   const parts = calendar.formatToParts(now);
@@ -74,12 +76,24 @@ export function schoolWeek(day: string): string[] {
   return Array.from({ length: 5 }, (_, i) => schoolDayOffset(day, i - ((weekday + 6) % 7)));
 }
 
-export function schoolDateLabel(day: string): string {
-  return shortDate.format(new Date(day + 'T00:00:00Z'));
+export function schoolDateLabel(day: string, weekday = false): string {
+  const date = new Date(day + 'T00:00:00Z');
+  const label = shortDate.format(date);
+  return weekday ? `${WEEKDAYS[date.getUTCDay()]} ${label}` : label;
 }
 
-export function schoolLastLoaded(stamp: string): string {
-  return `Naposledy načteno ${loadedAt.format(new Date(stamp))}`;
+/** „načteno dnes 4:00“ / „načteno 2. 11. 4:00“ in Europe/Prague. */
+export function schoolLastLoaded(stamp: string, now: Date): string {
+  const loaded = new Date(stamp);
+  const day = schoolDay(loaded);
+  const when = day === schoolDay(now) ? 'dnes' : schoolDateLabel(day);
+  return `načteno ${when} ${loadedTime.format(loaded)}`;
+}
+
+/** Canteen soups come capitalised („Mrkvová“); render them as „polévka mrkvová“. */
+export function schoolSoup(soup: string): string {
+  const name = soup.trim().replace(/^polévka\s+/i, '');
+  return `polévka ${name.charAt(0).toLocaleLowerCase('cs-CZ')}${name.slice(1)}`;
 }
 
 export function schoolToday(snapshot: SchoolSnapshot, now: Date) {

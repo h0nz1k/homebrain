@@ -32,19 +32,47 @@ const apiWith = (school: SchoolSnapshot) => ({
 });
 afterEach(cleanup);
 
+const text = (id: string) => screen.getAllByTestId(id).map((el) => el.textContent);
+
 it('přepne ve 14.00 na zítřejší oběd a zachová ostatní školní údaje', async () => {
   const api = apiWith(snapshot);
   const { rerender } = render(<TodaySchool api={api} now={morning} kiosk />);
-  expect((await screen.findByTestId('school-lunch')).textContent).toContain('Zeleninové placičky');
-  expect(screen.getByText('Dnes: Výstava')).toBeTruthy();
-  expect(screen.getByText('Zítra: 4. ročník · Divadlo')).toBeTruthy();
-  expect(screen.queryByText(/Výlet/)).toBeNull();
-  expect(screen.getByTestId('school-date').textContent).toContain('Schůzky');
-  expect(screen.getByText(/Naposledy načteno/)).toBeTruthy();
-  rerender(<TodaySchool api={api} now="2026-11-23T14:00:00+01:00" kiosk />);
-  expect(screen.getByTestId('school-lunch').textContent).toMatch(
-    /^Zítra · Ve škole k obědu: Kuskus/,
+  expect((await screen.findByTestId('school-lunch')).textContent).toBe(
+    'K obědu: Zeleninové placičky · polévka mrkvová',
   );
+  expect(screen.getByRole('heading', { name: 'Škola' })).toBeTruthy();
+  expect(text('school-event')).toEqual(['Dnes: Výstava', 'Zítra: 4. ročník · Divadlo']);
+  expect(text('school-date')).toEqual(['st 25. 11. · Schůzky']);
+  expect(screen.getByText('načteno 22. 11. 5:00')).toBeTruthy();
+  rerender(<TodaySchool api={api} now="2026-11-23T14:00:00+01:00" kiosk />);
+  expect(screen.getByTestId('school-lunch').textContent).toBe(
+    'Zítra k obědu: Kuskus · polévka mrkvová',
+  );
+});
+
+it('ukáže jen nejbližší důležitý termín a „načteno dnes“', async () => {
+  const school = {
+    ...snapshot,
+    updated_at: '2026-11-23T04:00:00+01:00',
+    dates: [
+      { date: '2026-11-22', title: 'Minulé' },
+      { date: '2026-11-25', title: 'Schůzky' },
+      { date: '2026-12-01', title: 'Ředitelské volno' },
+    ],
+  };
+  const shown: boolean[] = [];
+  render(
+    <TodaySchool
+      api={apiWith(school)}
+      now={morning}
+      kiosk={false}
+      onShown={(value) => shown.push(value)}
+    />,
+  );
+  await screen.findByTestId('today-school');
+  expect(text('school-date')).toEqual(['st 25. 11. · Schůzky']);
+  expect(screen.getByText('načteno dnes 4:00')).toBeTruthy();
+  expect(shown.at(-1)).toBe(true);
 });
 
 it.each([

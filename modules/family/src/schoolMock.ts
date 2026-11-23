@@ -10,13 +10,14 @@ export function mockSchool(
 ): SchoolSnapshot {
   const today = schoolDay(now);
   const days = schoolWeek(today);
-  const mains = [
-    'Cizrnové placičky',
-    'Zapečené brambory s dýní',
-    'Kuskus s pečenou zeleninou',
-    'Fazolové karbanátky',
-    'Těstoviny s hráškem',
-  ];
+  // Shaped like real canteen menus: capitalised soup names, main with its side dish.
+  const menu = [
+    ['Mrkvová', 'Cizrnové placičky, bramborová kaše'],
+    ['Hovězí vývar s nudlemi', 'Zapečené brambory s dýní'],
+    ['Čočková', 'Kuskus s pečenou zeleninou'],
+    ['Zeleninová s kroupami', 'Fazolové karbanátky, vařené brambory'],
+    ['Hrachová', 'Těstoviny s hráškem a sýrem'],
+  ] as const;
   const enabled = scenario !== 'off' && role !== 'guest';
   const ids = kids.map((kid) => kid.id);
   const tomorrow = schoolDayOffset(today, 1);
@@ -33,8 +34,8 @@ export function mockSchool(
               : [
                   {
                     date,
-                    main: mains[i]!,
-                    soup: 'Mrkvová',
+                    main: menu[i]![1],
+                    soup: menu[i]![0],
                     sides: ['Okurkový salát'],
                     allergens: ['lepek', 'vejce'],
                   },
