@@ -3,6 +3,7 @@ import {
   createMockAdapter,
   createMockCookingSource,
   createMockHomeApi,
+  installCoffeeFixtures,
   setCookingSourceFactory,
   setTodayAdapterFactory,
   setTodayHomeApiFactory,
@@ -17,6 +18,7 @@ import { devQuery, live, type DevHass } from './shared.js';
  * modules.ts registered, the other mocks may then register their own.
  */
 export function registerTodayMocks(): void {
+  installCoffeeFixtures(location.search);
   const haAge = new URLSearchParams(location.search).get('ha_age');
   if (!live)
     setTodayAdapterFactory(() =>
