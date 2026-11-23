@@ -52,9 +52,11 @@ for (const theme of ['dark', 'light'] as const) {
       await expect(page.getByRole('radiogroup', { name: 'Průchody' })).toBeVisible();
       const controls = page.getByTestId('robots-controls');
       await assertControlsLayout(controls);
-      const minTap = await controls.locator('button').evaluateAll((buttons) =>
-        Math.min(...buttons.map((b) => b.getBoundingClientRect().height)),
-      );
+      const minTap = await controls
+        .locator('button')
+        .evaluateAll((buttons) =>
+          Math.min(...buttons.map((b) => b.getBoundingClientRect().height)),
+        );
       expect(minTap).toBeGreaterThanOrEqual(43);
     });
   }
@@ -72,11 +74,9 @@ test('pamatuje pokročilé a průchody po reloadu (localStorage / user-data)', a
   });
   await page.reload();
   await expect(page.getByTestId('robots-vector-map')).toBeVisible();
-  await expect(page.getByTestId('robots-level-toggle').getByRole('radio', { name: 'Pokročilé' })).toHaveAttribute(
-    'aria-checked',
-    'true',
-    { timeout: 15_000 },
-  );
+  await expect(
+    page.getByTestId('robots-level-toggle').getByRole('radio', { name: 'Pokročilé' }),
+  ).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 });
   await expect(page.getByRole('radio', { name: '2×' })).toHaveAttribute('aria-checked', 'true', {
     timeout: 15_000,
   });
@@ -99,7 +99,8 @@ async function assertRoomGrid(page: import('@playwright/test').Page) {
     ).filter((t) => t.getBoundingClientRect().width > 0);
     for (const t of tiles) {
       const r = t.getBoundingClientRect();
-      if (r.right > box.right + 1 || r.left < box.left - 1) return { ok: false as const, reason: 'overflow' };
+      if (r.right > box.right + 1 || r.left < box.left - 1)
+        return { ok: false as const, reason: 'overflow' };
       const ico = t.querySelector('.rb-room-tile-ico');
       if (ico) {
         const ir = ico.getBoundingClientRect();

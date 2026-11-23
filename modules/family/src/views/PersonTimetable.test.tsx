@@ -38,8 +38,13 @@ describe('Rozvrh v detailu dítěte', () => {
     const week = card.getByTestId('family-timetable-week');
     // Kuba: Út 5.–6. Tv, St 6.–7. Tv (odpolední zvonění od 13:05).
     const tall = [...week.querySelectorAll('td[rowspan="2"]')].map((el) => el.textContent);
-    expect(tall).toEqual(['Tv', 'Tv13:05']);
+    // Út Tv reaches into a row without a shared time → it carries its own start.
+    expect(tall).toEqual(['Tv11:20', 'Tv13:05']);
+    const labels = [...week.querySelectorAll('tbody th')].map((el) => el.textContent);
+    expect(labels.slice(4)).toEqual(['5.11:20', '6.', '7.']);
     expect(within(week).getByText('St: polední přestávka 12:05–13:05')).toBeTruthy();
+    // The lunch break is said once (under the grid), not also above it.
+    expect(card.queryByText('Polední přestávka 12:05–13:05')).toBeNull();
     expect(week.textContent).not.toContain('odp.');
   });
 

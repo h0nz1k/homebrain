@@ -18,13 +18,18 @@ export const timetableStyles = `
 .fam-tt-lessons li > span { color: var(--hb-t2); font-size: 12px; }
 .fam-tt-lessons li > strong { font-size: 15px; }
 .fam-tt-lessons li > time { grid-column: 1 / -1; color: var(--hb-t2); font-size: 12px; font-variant-numeric: tabular-nums; }
-.fam-tt-lessons li[data-done] { opacity: .55; }
+/* Past lessons: no fill, outlined, muted but still ≥ 4.5:1 (t2 on the surface, no opacity). */
+.fam-tt-lessons li[data-done] { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-t1) 18%, transparent); }
+.fam-tt-lessons li[data-done] > strong { color: var(--hb-t2); font-weight: 500; }
 .fam-tt-lessons li[data-current] {
   background: color-mix(in srgb, var(--person-color, var(--hb-ok)) 30%, var(--fam-person-surface));
   box-shadow: inset 0 0 0 2px var(--person-color, var(--hb-ok));
 }
 .fam-tt-bring { margin: 0; font-size: 14px; }
 .fam-tt-week { display: grid; gap: 6px; }
+/* Every period row equally tall, also the last one without times. */
+.fam-tt-week tbody tr { height: 52px; }
+.fam-tt-week > .fam-tt-note { display: block; margin: 0; padding: 0; }
 .fam-tt-week table, .fam-tt-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
 .fam-tt-week table { font-size: 15px; }
 .fam-tt-week th, .fam-tt-week td { padding: 6px 2px; text-align: center; vertical-align: middle; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 12%, transparent); }
@@ -51,8 +56,9 @@ export const timetableStyles = `
   border-radius: 8px; background: color-mix(in srgb, var(--hb-t1) 5%, var(--fam-person-surface)); color: var(--hb-t1);
   font: inherit; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
 }
-.fam-tt-grid td button:has(> span) { border: 1px dashed color-mix(in srgb, var(--hb-t1) 45%, transparent); background: transparent; }
-.fam-tt-grid td button span { color: var(--hb-t2); font-weight: 400; }
+/* Empty cell: dashed edge and dot ≥ 3:1 on the surface in both themes. */
+.fam-tt-grid td button:has(> span) { border: 1px dashed color-mix(in srgb, var(--hb-t1) 60%, transparent); background: transparent; }
+.fam-tt-grid td button span { color: var(--hb-t2); font-weight: 700; font-size: 1.3em; line-height: 1; }
 .fam-tt-grid td button[aria-pressed='true'] {
   border: 2px solid var(--hb-ac); box-shadow: 0 0 0 2px color-mix(in srgb, var(--hb-ac) 35%, transparent);
   background: color-mix(in srgb, var(--hb-ac) 20%, var(--fam-person-surface));
@@ -65,6 +71,9 @@ export const timetableStyles = `
   border: 1px solid color-mix(in srgb, var(--hb-t1) 20%, transparent); background: var(--fam-person-surface); color: var(--hb-t1);
 }
 .fam-tt-chip[aria-pressed='true'] { background: var(--hb-t1); color: var(--fam-person-surface); }
+/* Afternoon day toggles: on = filled with a tick, off = outline only. */
+.fam-tt-day { border-color: color-mix(in srgb, var(--hb-t1) 60%, transparent); background: transparent; }
+.fam-tt-day[aria-pressed='true'] { border-color: var(--hb-t1); }
 .fam-tt-chips form { display: flex; align-items: end; gap: 8px; }
 .fam-tt-chips form label { flex: 1; display: grid; gap: 4px; }
 .fam-tt-chips form :is(input, button) { min-height: 44px; }

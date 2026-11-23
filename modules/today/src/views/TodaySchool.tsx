@@ -15,13 +15,25 @@ import { Icon } from '@homebrain/ui';
 import { schoolStyles } from './schoolStyles.js';
 import type { HomeApi } from '../data/home.js';
 
+type When = 'today' | 'tomorrow' | 'later';
+const WHEN_LABEL: Record<When, string> = { today: 'Dnes', tomorrow: 'Zítra', later: 'Dále' };
+
 function TimetableLine({ row }: { row: TimetableRow }) {
   return (
-    <li data-testid="school-timetable">
-      {row.name && <strong>{row.name}</strong>}
-      {row.name && ' '}
-      {row.text}
-      {row.bring && <span className="today-school-bring"> · s sebou: {row.bring}</span>}
+    <li data-testid="school-timetable" className="today-school-child">
+      <span>
+        {row.name && <strong>{row.name}</strong>}
+        {row.name && ' '}
+        {row.text}
+      </span>
+      {row.bring && (
+        <>
+          {' '}
+          <span className="today-school-bring">
+            <span className="today-school-label">s sebou:</span> {row.bring}
+          </span>
+        </>
+      )}
     </li>
   );
 }
@@ -92,22 +104,34 @@ export function TodaySchool({
     : { lunch: undefined, afterLunch: false, events: [], tomorrow: '' };
   // Only the next important date: the block sits under the clock and must stay short.
   const next = school?.dates.find((item) => item.date >= date);
-  const rows = children.flatMap((child) => timetableRow(child, current) ?? []);
-  // Both children free tomorrow share one „volno“ row.
-  const groups = (['today', 'tomorrow'] as const)
+  const rows = children
+    .flatMap((child) => timetableRow(child, current) ?? [])
+    // Both children free tomorrow share one „volno“ row.
+    .filter(
+      (row, i, all) =>
+        all.findIndex((other) => other.text === row.text && other.name === row.name) === i,
+    );
+  const schoolShown = !!api?.school && !!school?.enabled && !!(lunch || events.length || next);
+  const shown = schoolShown || rows.length > 0;
+  const lunchWhen: When = afterLunch ? 'tomorrow' : 'today';
+  const eventWhen = (day: string): When => (day === tomorrow || schoolOver ? 'tomorrow' : 'today');
+  const nextWhen: When | undefined = !next
+    ? undefined
+    : next.date === date
+      ? 'today'
+      : next.date === tomorrow
+        ? 'tomorrow'
+        : 'later';
+  // One label per day: children, lunch and events of that day sit under it.
+  const groups = (['today', 'tomorrow', 'later'] as const)
     .map((when) => ({
       when,
-      rows: rows
-        .filter((row) => row.when === when)
-        .filter(
-          (row, i, all) =>
-            all.findIndex((other) => other.text === row.text && other.name === row.name) === i,
-        ),
+      rows: rows.filter((row) => row.when === when),
+      lunch: schoolShown && lunch && lunchWhen === when ? lunch : undefined,
+      events: schoolShown ? events.filter((event) => eventWhen(event.date) === when) : [],
+      next: schoolShown && next && nextWhen === when ? next : undefined,
     }))
-    .filter((group) => group.rows.length > 0);
-  const lines = groups.flatMap((group) => group.rows);
-  const schoolShown = !!api?.school && !!school?.enabled && !!(lunch || events.length || next);
-  const shown = schoolShown || lines.length > 0;
+    .filter((group) => group.rows.length || group.lunch || group.events.length || group.next);
   useEffect(() => {
     onShown?.(shown);
   }, [onShown, shown]);
@@ -134,46 +158,41 @@ export function TodaySchool({
       </header>
       <div className="today-school-body">
         {groups.map((group) => (
-          <div className="today-school-timetable" key={group.when}>
-            <p className="today-school-label" data-testid="school-timetable-when">
-              {group.when === 'today' ? 'Dnes' : 'Zítra'}
+          <div className="today-school-group" key={group.when} data-testid="school-group">
+            <p className="today-school-label today-school-when" data-testid="school-when">
+              {WHEN_LABEL[group.when]}
             </p>
             <ul className="today-school-list">
               {group.rows.map((row) => (
                 <TimetableLine key={`${row.name}-${row.text}`} row={row} />
               ))}
+              {group.lunch && (
+                <li className="today-school-lunch" data-testid="school-lunch">
+                  <span className="today-school-label">K obědu:</span>{' '}
+                  <strong>{group.lunch.main}</strong>
+                  {group.lunch.soup && ` · ${schoolSoup(group.lunch.soup)}`}
+                </li>
+              )}
+              {group.events.map((event) => (
+                <li key={`event-${event.date}-${event.title}`} data-testid="school-event">
+                  {event.grades?.length && !/tříd|ročník/i.test(event.title)
+                    ? `${event.grades.map((grade) => `${grade}.`).join(', ')} ročník · `
+                    : ''}
+                  {event.title}
+                </li>
+              ))}
+              {group.next && (
+                <li data-testid="school-date">
+                  <span className="today-school-label">
+                    {schoolDateLabel(group.next.date, true)}
+                  </span>
+                  {' · '}
+                  {group.next.title}
+                </li>
+              )}
             </ul>
           </div>
         ))}
-        {schoolShown && lunch && (
-          <p className="today-school-lunch" data-testid="school-lunch">
-            <span className="today-school-label">{afterLunch ? 'Zítra k obědu:' : 'K obědu:'}</span>{' '}
-            <strong>{lunch.main}</strong>
-            {lunch.soup && ` · ${schoolSoup(lunch.soup)}`}
-          </p>
-        )}
-        {schoolShown && (events.length > 0 || next) && (
-          <ul className="today-school-list">
-            {events.map((event) => (
-              <li key={`event-${event.date}-${event.title}`} data-testid="school-event">
-                <span className="today-school-label">
-                  {event.date === tomorrow || schoolOver ? 'Zítra:' : 'Dnes:'}
-                </span>{' '}
-                {event.grades?.length && !/tříd|ročník/i.test(event.title)
-                  ? `${event.grades.map((grade) => `${grade}.`).join(', ')} ročník · `
-                  : ''}
-                {event.title}
-              </li>
-            ))}
-            {next && (
-              <li data-testid="school-date">
-                <span className="today-school-label">{schoolDateLabel(next.date, true)}</span>
-                {' · '}
-                {next.title}
-              </li>
-            )}
-          </ul>
-        )}
       </div>
     </section>
   );

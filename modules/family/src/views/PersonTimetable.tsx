@@ -68,6 +68,12 @@ function WeekGrid({
   );
   const columns = DAYS.map((_, i) => weekCells(child.grid[i] ?? [], periods));
   const lunch = child.afternoon_days.length > 0 ? snapshot.afternoon?.lunch : null;
+  // The row label carries a time only when every day rings the same; otherwise the cells do.
+  const rowTimes = Array.from({ length: periods }, (_, period) => {
+    const bell = snapshot.bells[period];
+    const other = child.afternoon_days.length > 0 ? shifted.get(period + 1) : undefined;
+    return bell && (!other || other === bell.start) ? bell.start : undefined;
+  });
   return (
     <div className="fam-tt-week" data-testid="family-timetable-week">
       <table aria-label="Týdenní rozvrh">
@@ -90,11 +96,11 @@ function WeekGrid({
         </thead>
         <tbody>
           {Array.from({ length: periods }, (_, period) => {
-            const bell = snapshot.bells[period];
             return (
               <tr key={period}>
                 <th scope="row">
-                  {period + 1}.{bell && <small>{timetableTime(bell.start)}</small>}
+                  {period + 1}.
+                  {rowTimes[period] && <small>{timetableTime(rowTimes[period])}</small>}
                 </th>
                 {DAYS.map((day, i) => {
                   const cell = columns[i]![period];
@@ -115,7 +121,11 @@ function WeekGrid({
                     lesson!.period <= last;
                   const end = today?.lessons.find((row) => row.period === last)?.end;
                   const done = isToday && !!end && end <= clock;
-                  const start = child.afternoon_days.includes(i) ? shifted.get(first) : undefined;
+                  const ownTime = rowTimes.slice(cell.period, last).some((time) => !time);
+                  const start = !ownTime
+                    ? undefined
+                    : ((child.afternoon_days.includes(i) ? shifted.get(first) : undefined) ??
+                      snapshot.bells[cell.period]?.start);
                   return (
                     <td
                       key={day}
@@ -136,7 +146,7 @@ function WeekGrid({
         </tbody>
       </table>
       {lunch && (
-        <small>
+        <small className="fam-tt-note" data-testid="family-timetable-week-lunch">
           {child.afternoon_days.map((i) => DAYS[i]).join(', ')}: polední přestávka{' '}
           {timetableSpan(lunch)}
         </small>
@@ -223,7 +233,10 @@ export function PersonTimetable({
           })}
         </ol>
       )}
-      {shown?.lunch && <small>Polední přestávka {timetableSpan(shown.lunch)}</small>}
+      {/* The open week says it once, under the grid. */}
+      {shown?.lunch && !(week && child.afternoon_days.length > 0 && snapshot.afternoon?.lunch) && (
+        <small>Polední přestávka {timetableSpan(shown.lunch)}</small>
+      )}
       {shown && shown.bring.length > 0 && (
         <p className="fam-tt-bring" data-testid="family-timetable-bring">
           S sebou: {timetableBring(shown)}

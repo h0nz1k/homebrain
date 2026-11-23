@@ -58,4 +58,24 @@ describe('Nastavení rozvrhu', () => {
       expect(ema.days[1]!.free).toBe('Ředitelské volno');
     });
   });
+
+  it('odpolední zvonění: zapnutý den vyplněný, nápověda automaticky / ručně', async () => {
+    const api = createMockFamilyApi({ timetable: 'full', now: () => monday });
+    render(<PersonsSettings api={api} onBack={() => {}} onSaved={() => {}} />);
+    const kuba = await screen.findByRole('group', { name: 'Kuba' });
+    fireEvent.click(within(kuba).getByTestId('timetable-open'));
+    const editor = within(await screen.findByTestId('timetable-editor'));
+    const hint = () => editor.getByTestId('timetable-afternoon-hint').textContent;
+    expect(hint()).toBe('Vybráno ručně: St');
+    const wednesday = editor.getByRole('button', { name: 'středa' });
+    expect(wednesday.getAttribute('aria-pressed')).toBe('true');
+    expect(wednesday.textContent).toBe('✓ St');
+    fireEvent.click(editor.getByRole('button', { name: 'pátek' }));
+    expect(hint()).toBe('Vybráno ručně: St, Pá');
+    expect(editor.getByRole('button', { name: 'pátek' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(editor.getByRole('button', { name: 'Podle školy' }));
+    expect(hint()).toMatch(
+      /^Automaticky podle nastavení školy: .+\. Klepnutím vyberete dny ručně\.$/,
+    );
+  });
 });

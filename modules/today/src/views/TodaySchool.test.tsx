@@ -33,6 +33,11 @@ const apiWith = (school: SchoolSnapshot) => ({
 afterEach(cleanup);
 
 const text = (id: string) => screen.getAllByTestId(id).map((el) => el.textContent);
+// Each day group: its single label, then its lines.
+const groups = () =>
+  screen
+    .getAllByTestId('school-group')
+    .map((group) => [...group.querySelectorAll('p, li')].map((el) => el.textContent));
 
 it('přepne ve 14.00 na zítřejší oběd a zachová ostatní školní údaje', async () => {
   const api = apiWith(snapshot);
@@ -41,13 +46,18 @@ it('přepne ve 14.00 na zítřejší oběd a zachová ostatní školní údaje',
     'K obědu: Zeleninové placičky · polévka mrkvová',
   );
   expect(screen.getByRole('heading', { name: 'Škola' })).toBeTruthy();
-  expect(text('school-event')).toEqual(['Dnes: Výstava', 'Zítra: 4. ročník · Divadlo']);
-  expect(text('school-date')).toEqual(['st 25. 11. · Schůzky']);
+  expect(groups()).toEqual([
+    ['Dnes', 'K obědu: Zeleninové placičky · polévka mrkvová', 'Výstava'],
+    ['Zítra', '4. ročník · Divadlo'],
+    ['Dále', 'st 25. 11. · Schůzky'],
+  ]);
   expect(screen.getByText('načteno 22. 11. 5:00')).toBeTruthy();
   rerender(<TodaySchool api={api} now="2026-11-23T14:00:00+01:00" kiosk />);
-  expect(screen.getByTestId('school-lunch').textContent).toBe(
-    'Zítra k obědu: Kuskus · polévka mrkvová',
-  );
+  expect(groups()).toEqual([
+    ['Dnes', 'Výstava'],
+    ['Zítra', 'K obědu: Kuskus · polévka mrkvová', '4. ročník · Divadlo'],
+    ['Dále', 'st 25. 11. · Schůzky'],
+  ]);
 });
 
 it('ukáže jen nejbližší důležitý termín a „načteno dnes“', async () => {
@@ -137,9 +147,15 @@ it('přidá řádky rozvrhu pod „Dnes“ / „Zítra“ na telefonu, ne na kio
   const api = { ...apiWith({ ...snapshot, enabled: false }), timetable: async () => timetable };
   const { rerender } = render(<TodaySchool api={api} now={morning} kiosk={false} />);
   await screen.findByTestId('school-timetable');
-  expect(rows()).toEqual(['Dnes', 'Ema do 12:05 · teď M']);
+  expect(text('school-when')).toEqual(['Dnes']);
+  expect(rows()).toEqual(['Ema do 12:05 · teď M']);
   rerender(<TodaySchool api={api} now="2026-11-23T19:00:00+01:00" kiosk={false} />);
-  expect(rows()).toEqual(['Zítra', 'Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)']);
+  expect(text('school-when')).toEqual(['Zítra']);
+  expect(rows()).toEqual(['Ema 7:30–12:05 s sebou: cvičky a úbor (Tv)']);
+  // „s sebou“ is its own line under the child, with a muted label.
+  const bring = screen.getByText('s sebou:');
+  expect(bring.className).toBe('today-school-label');
+  expect(bring.parentElement?.className).toBe('today-school-bring');
   expect(screen.getByText('Ema').tagName).toBe('STRONG');
   cleanup();
   render(<TodaySchool api={api} now={morning} kiosk />);
@@ -164,11 +180,17 @@ it('po konci vyučování skryje dnešní akci, zítřejší a vícedenní nech�
   const api = { ...apiWith(school), timetable: async () => timetable };
   const { rerender } = render(<TodaySchool api={api} now={morning} kiosk={false} />);
   await screen.findByTestId('school-timetable');
-  expect(text('school-event')).toEqual([
-    'Dnes: Výstava',
-    'Zítra: 4. ročník · Divadlo',
-    'Dnes: Lyžák',
+  expect(groups().map((group) => group.filter((line) => !/obědu|do 12/.test(line ?? '')))).toEqual([
+    ['Dnes', 'Výstava', 'Lyžák'],
+    ['Zítra', '4. ročník · Divadlo'],
+    ['Dále', 'st 25. 11. · Schůzky'],
   ]);
   rerender(<TodaySchool api={api} now="2026-11-23T19:00:00+01:00" kiosk={false} />);
-  expect(text('school-event')).toEqual(['Zítra: 4. ročník · Divadlo', 'Zítra: Lyžák']);
+  expect(groups()[0]).toEqual([
+    'Zítra',
+    'Ema 7:30–12:05 s sebou: cvičky a úbor (Tv)',
+    'K obědu: Kuskus · polévka mrkvová',
+    '4. ročník · Divadlo',
+    'Lyžák',
+  ]);
 });

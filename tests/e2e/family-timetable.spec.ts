@@ -9,6 +9,8 @@ const shots = process.env.HB_TIMETABLE_SHOTS;
 async function shot(page: Page, name: string, theme: string) {
   if (!shots) return;
   const { width, height } = page.viewportSize()!;
+  // A full-page shot of a scrolled page paints the sticky app bar mid-page.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: join(shots, `${name}-${width}x${height}-${theme}.png`),
     fullPage: true,
@@ -87,33 +89,45 @@ test.describe('Dnes – školní rozvrh', () => {
     await page.goto('/homebrain-dnes?state=b&rozvrh=full&role=adult');
     const card = page.getByTestId('today-school');
     const lines = card.getByTestId('school-timetable');
-    await expect(card.getByTestId('school-timetable-when')).toHaveText(['Dnes']);
+    await expect(card.getByTestId('school-when')).toHaveText(['Dnes']);
     await expect(lines).toHaveText([
-      'Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
+      'Ema 7:30–12:05 s sebou: cvičky a úbor (Tv)',
       'Kuba 7:30–13:00',
     ]);
     await expect(lines.first().locator('strong')).toHaveText('Ema');
     await page.goto('/homebrain-dnes?state=d&rozvrh=full&role=adult');
-    await expect(card.getByTestId('school-timetable-when')).toHaveText(['Zítra']);
+    await expect(card.getByTestId('school-when')).toHaveText(['Zítra']);
     await expect(lines).toHaveText([
-      'Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
+      'Ema 7:30–12:05 s sebou: cvičky a úbor (Tv)',
       'Kuba 7:30–12:05',
     ]);
   });
 
   test('večer skryje dnešní školní akci, zítřejší zůstane', async ({ page }) => {
     await page.goto('/homebrain-dnes?state=b&rozvrh=full&skola=full&role=adult');
-    const events = page.getByTestId('today-school').getByTestId('school-event');
-    await expect(events.filter({ hasText: 'Dnes:' })).not.toHaveCount(0);
+    const group = (label: string) =>
+      page
+        .getByTestId('school-group')
+        .filter({ has: page.getByTestId('school-when').getByText(label, { exact: true }) });
+    await expect(group('Dnes').getByTestId('school-event')).not.toHaveCount(0);
     await page.goto('/homebrain-dnes?state=d&rozvrh=full&skola=full&role=adult');
     await expect(page.getByTestId('school-timetable').first()).toBeVisible();
-    await expect(events.filter({ hasText: 'Zítra:' })).not.toHaveCount(0);
-    await expect(events.filter({ hasText: 'Dnes:' })).toHaveCount(0);
+    await expect(page.getByTestId('school-when')).toHaveText(['Zítra', 'Dále']);
+    const tomorrow = group('Zítra');
+    await expect(tomorrow.getByTestId('school-event')).not.toHaveCount(0);
+    await expect(tomorrow.getByTestId('school-lunch')).toHaveText(/^K obědu: /);
+    // Same type size for children and lunch; no repeated „Zítra“ prefix inside the group.
+    const size = (el: ReturnType<Page['getByTestId']>) =>
+      el.first().evaluate((node) => getComputedStyle(node).fontSize);
+    expect(await size(tomorrow.getByTestId('school-lunch'))).toBe(
+      await size(tomorrow.getByTestId('school-timetable')),
+    );
+    await expect(tomorrow.getByText(/Zítra:|Zítra k obědu/)).toHaveCount(0);
   });
 
   test('večer před prázdninami jen „Zítra volno“, kiosk nic', async ({ page }) => {
     await page.goto('/homebrain-dnes?state=d&rozvrh=holiday&role=adult');
-    await expect(page.getByTestId('school-timetable-when')).toHaveText(['Zítra']);
+    await expect(page.getByTestId('school-when')).toHaveText(['Zítra']);
     await expect(page.getByTestId('school-timetable')).toHaveText(['volno (podzimní prázdniny)']);
     await page.goto('/homebrain-dnes?state=b&rozvrh=full&role=kiosk&kiosk=1');
     await expect(page.getByTestId('today-clock')).toBeVisible();
@@ -151,7 +165,7 @@ test.describe('Školní rozvrh – snímky', () => {
         await page.getByRole('button', { name: 'Nastavení osob' }).click();
         await page
           .getByTestId('family-person-settings')
-          .getByRole('group', { name: 'Ema' })
+          .getByRole('group', { name: 'Kuba' })
           .getByTestId('timetable-open')
           .click();
         await expect(page.getByTestId('timetable-editor')).toBeVisible();

@@ -240,24 +240,29 @@ export function TimetableChildEditor({
       {variant && (
         <fieldset className="fam-person-surface fam-tt-days">
           <legend>Odpolední zvonění</legend>
-          <small>
-            {child.afternoon_days == null
-              ? 'Podle nastavení školy. Klepnutím vyberete dny ručně.'
-              : 'Vybráno ručně.'}
+          <small data-testid="timetable-afternoon-hint">
+            {child.afternoon_days == null ? 'Automaticky podle nastavení školy' : 'Vybráno ručně'}
+            {': '}
+            {afternoon.length ? afternoon.map((d) => DAYS[d]).join(', ') : 'žádný den'}
+            {child.afternoon_days == null && '. Klepnutím vyberete dny ručně.'}
           </small>
           <div>
-            {DAYS.map((day, d) => (
-              <button
-                type="button"
-                key={day}
-                className="fam-tt-chip"
-                aria-pressed={afternoon.includes(d)}
-                aria-label={DAY_NAMES[d]}
-                onClick={() => toggleDay(d)}
-              >
-                {day}
-              </button>
-            ))}
+            {DAYS.map((day, d) => {
+              const on = afternoon.includes(d);
+              return (
+                <button
+                  type="button"
+                  key={day}
+                  className="fam-tt-chip fam-tt-day"
+                  aria-pressed={on}
+                  aria-label={DAY_NAMES[d]}
+                  onClick={() => toggleDay(d)}
+                >
+                  {on && <span aria-hidden="true">✓ </span>}
+                  {day}
+                </button>
+              );
+            })}
           </div>
           {child.afternoon_days != null && (
             <Button onClick={() => onChange({ ...child, afternoon_days: null })}>
