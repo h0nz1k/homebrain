@@ -56,6 +56,18 @@ test.describe('Rodina – školní rozvrh', () => {
     await editor.getByRole('button', { name: 'Vv', exact: true }).click();
     await editor.getByRole('button', { name: 'Vv', exact: true }).click();
     await expect(editor.getByTestId('timetable-cell-4-3')).toHaveText('Vv');
+    // The sticky picker never covers the selected cell.
+    await editor.getByTestId('timetable-cell-1-8').click();
+    await editor.getByRole('button', { name: 'M', exact: true }).click();
+    await page.waitForTimeout(400);
+    const selected = (await editor.getByTestId('timetable-cell-1-9').boundingBox())!;
+    const picker = (await editor.getByRole('group', { name: 'Předmět' }).boundingBox())!;
+    expect(selected.y + selected.height).toBeLessThanOrEqual(picker.y + 1);
+    const custom = (await editor.getByLabel('Jiný předmět').boundingBox())!;
+    expect(custom.height).toBeGreaterThanOrEqual(44);
+    expect(
+      (await editor.getByRole('button', { name: 'Vložit' }).boundingBox())!.height,
+    ).toBeGreaterThanOrEqual(44);
     const cell = (await editor.getByTestId('timetable-cell-0-1').boundingBox())!;
     expect(cell.height).toBeGreaterThanOrEqual(44);
     const table = (await editor.locator('.fam-tt-grid').boundingBox())!;
@@ -73,20 +85,36 @@ test.describe('Rodina – školní rozvrh', () => {
 test.describe('Dnes – školní rozvrh', () => {
   test('ráno řádek na dítě, večer zítřek a co s sebou', async ({ page }) => {
     await page.goto('/homebrain-dnes?state=b&rozvrh=full&role=adult');
-    const lines = page.getByTestId('today-school').getByTestId('school-timetable');
+    const card = page.getByTestId('today-school');
+    const lines = card.getByTestId('school-timetable');
+    await expect(card.getByTestId('school-timetable-when')).toHaveText(['Dnes']);
     await expect(lines).toHaveText([
-      'Ema · škola 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
-      'Kuba · škola 7:30–13:00',
+      'Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
+      'Kuba 7:30–13:00',
     ]);
+    await expect(lines.first().locator('strong')).toHaveText('Ema');
     await page.goto('/homebrain-dnes?state=d&rozvrh=full&role=adult');
-    await expect(lines).toHaveText(['Zítra Ema 7:30–12:05', 'Zítra Kuba 7:30–12:05']);
+    await expect(card.getByTestId('school-timetable-when')).toHaveText(['Zítra']);
+    await expect(lines).toHaveText([
+      'Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
+      'Kuba 7:30–12:05',
+    ]);
+  });
+
+  test('večer skryje dnešní školní akci, zítřejší zůstane', async ({ page }) => {
+    await page.goto('/homebrain-dnes?state=b&rozvrh=full&skola=full&role=adult');
+    const events = page.getByTestId('today-school').getByTestId('school-event');
+    await expect(events.filter({ hasText: 'Dnes:' })).not.toHaveCount(0);
+    await page.goto('/homebrain-dnes?state=d&rozvrh=full&skola=full&role=adult');
+    await expect(page.getByTestId('school-timetable').first()).toBeVisible();
+    await expect(events.filter({ hasText: 'Zítra:' })).not.toHaveCount(0);
+    await expect(events.filter({ hasText: 'Dnes:' })).toHaveCount(0);
   });
 
   test('večer před prázdninami jen „Zítra volno“, kiosk nic', async ({ page }) => {
     await page.goto('/homebrain-dnes?state=d&rozvrh=holiday&role=adult');
-    await expect(page.getByTestId('school-timetable')).toHaveText([
-      'Zítra volno (podzimní prázdniny)',
-    ]);
+    await expect(page.getByTestId('school-timetable-when')).toHaveText(['Zítra']);
+    await expect(page.getByTestId('school-timetable')).toHaveText(['volno (podzimní prázdniny)']);
     await page.goto('/homebrain-dnes?state=b&rozvrh=full&role=kiosk&kiosk=1');
     await expect(page.getByTestId('today-clock')).toBeVisible();
     await expect(page.getByTestId('school-timetable')).toHaveCount(0);
@@ -109,11 +137,16 @@ test.describe('Školní rozvrh – snímky', () => {
       await page.setViewportSize(viewport);
       for (const theme of ['light', 'dark']) {
         await page.emulateMedia({ colorScheme: theme as 'light' | 'dark' });
-        await page.clock.setFixedTime(new Date('2026-11-25T08:40:00+01:00'));
-        const detail = await openPerson(page, 'Kuba', `&theme=${theme}`);
-        await detail.getByTestId('family-timetable').getByRole('button').first().click();
-        await expect(detail.getByTestId('family-timetable-week')).toBeVisible();
-        await shot(page, 'person-detail', theme);
+        for (const [name, at] of [
+          ['person-detail-now', '2026-11-25T08:40:00+01:00'],
+          ['person-detail-evening', '2026-11-24T19:00:00+01:00'],
+        ]) {
+          await page.clock.setFixedTime(new Date(at!));
+          const detail = await openPerson(page, 'Kuba', `&theme=${theme}`);
+          await detail.getByTestId('family-timetable').getByRole('button').first().click();
+          await expect(detail.getByTestId('family-timetable-week')).toBeVisible();
+          await shot(page, name!, theme);
+        }
         await page.goto(`/homebrain-rodina?rozvrh=full&theme=${theme}`);
         await page.getByRole('button', { name: 'Nastavení osob' }).click();
         await page
@@ -122,6 +155,7 @@ test.describe('Školní rozvrh – snímky', () => {
           .getByTestId('timetable-open')
           .click();
         await expect(page.getByTestId('timetable-editor')).toBeVisible();
+        await page.getByTestId('timetable-cell-2-6').click();
         await shot(page, 'settings-grid', theme);
         await page.getByRole('button', { name: /Hotovo/ }).click();
         await page.getByTestId('timetable-school-open').click();

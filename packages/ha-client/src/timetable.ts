@@ -116,27 +116,51 @@ export function timetableBring(day: TimetableDay): string {
 const lowerFirst = (text: string) =>
   /^\p{Lu}\p{Ll}/u.test(text) ? text.charAt(0).toLocaleLowerCase('cs-CZ') + text.slice(1) : text;
 
+/** Dnes: one row per child, grouped under „Dnes“ / „Zítra“ (the shared free day has no name). */
+export interface TimetableRow {
+  when: 'today' | 'tomorrow';
+  name: string | null;
+  /** „7:30–12:05“, „do 12:05 · teď M“, „volno (podzimní prázdniny)“. */
+  text: string;
+  /** „cvičky a úbor (Tv)“ or „“. */
+  bring: string;
+}
+
 /**
- * Dnes: one line per child. Before/while school „Ema · škola do 12:05 · teď M“, afterwards
- * „Zítra Ema 7:30–12:05 · s sebou: …“, and on the eve of free days „Zítra volno (…)“.
+ * Before/while school „Ema · 7:30–12:05“ / „do 12:05 · teď M“ under Dnes, afterwards the next
+ * day „Ema · 7:30–12:05 · s sebou: …“ under Zítra, and on the eve of free days „volno (…)“.
  */
-export function timetableLine(child: TimetableChild, now: Date): string | null {
+export function timetableRow(child: TimetableChild, now: Date): TimetableRow | null {
   const { today, phase, lesson } = timetableStatus(child, now);
   if (today?.school && phase !== 'after') {
     const end = timetableTime(today.end);
-    if (phase === 'before') {
-      const bring = today.bring.length ? ` · s sebou: ${timetableBring(today)}` : '';
-      return `${child.name} · škola ${timetableSpan(today)}${bring}`;
-    }
-    if (phase === 'lesson') return `${child.name} · škola do ${end} · teď ${lesson!.subject}`;
-    if (phase === 'lunch') return `${child.name} · škola do ${end} · polední přestávka`;
-    return `${child.name} · škola do ${end}${lesson ? ` · pak ${lesson.subject}` : ''}`;
+    const row = { when: 'today' as const, name: child.name, bring: '' };
+    if (phase === 'before')
+      return { ...row, text: timetableSpan(today), bring: timetableBring(today) };
+    if (phase === 'lesson') return { ...row, text: `do ${end} · teď ${lesson!.subject}` };
+    if (phase === 'lunch') return { ...row, text: `do ${end} · polední přestávka` };
+    return { ...row, text: `do ${end}${lesson ? ` · pak ${lesson.subject}` : ''}` };
   }
   const tomorrow = timetableTomorrow(child, now);
-  if (tomorrow?.school) {
-    const bring = tomorrow.bring.length ? ` · s sebou: ${timetableBring(tomorrow)}` : '';
-    return `Zítra ${child.name} ${timetableSpan(tomorrow)}${bring}`;
-  }
-  if (tomorrow?.free && !today?.free) return `Zítra volno (${lowerFirst(tomorrow.free)})`;
+  if (tomorrow?.school)
+    return {
+      when: 'tomorrow',
+      name: child.name,
+      text: timetableSpan(tomorrow),
+      bring: timetableBring(tomorrow),
+    };
+  if (tomorrow?.free && !today?.free)
+    return {
+      when: 'tomorrow',
+      name: null,
+      text: `volno (${lowerFirst(tomorrow.free)})`,
+      bring: '',
+    };
   return null;
+}
+
+/** Every child with lessons today is done (the evening); false on days without school. */
+export function timetableSchoolOver(children: TimetableChild[], now: Date): boolean {
+  const phases = children.map((child) => timetableStatus(child, now).phase);
+  return phases.includes('after') && phases.every((phase) => phase === 'after' || phase === 'none');
 }

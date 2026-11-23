@@ -24,6 +24,23 @@ describe('Rozvrh v detailu dítěte', () => {
     fireEvent.click(card.getByRole('button', { name: /Celý týden/ }));
     const week = within(card.getByTestId('family-timetable-week'));
     expect(week.getAllByRole('row')).toHaveLength(7);
+    expect(week.getByRole('columnheader', { current: 'date' }).textContent).toBe('Po');
+    const now = week.getByRole('cell', { current: 'time' });
+    expect(now.textContent).toBe('M');
+    expect(now.closest('tr')!.querySelector('th')!.textContent).toBe('2.8:25');
+    expect(week.getAllByRole('cell').filter((el) => el.hasAttribute('data-done'))).toHaveLength(1);
+  });
+
+  it('týden: dvouhodinovka jako jedna buňka, odpoledne se skutečným začátkem', async () => {
+    render_('2026-11-25T06:00:00+01:00', 'syn');
+    const card = within(await screen.findByTestId('family-timetable'));
+    fireEvent.click(card.getByRole('button', { name: /Celý týden/ }));
+    const week = card.getByTestId('family-timetable-week');
+    // Kuba: Út 5.–6. Tv, St 6.–7. Tv (odpolední zvonění od 13:05).
+    const tall = [...week.querySelectorAll('td[rowspan="2"]')].map((el) => el.textContent);
+    expect(tall).toEqual(['Tv', 'Tv13:05']);
+    expect(within(week).getByText('St: polední přestávka 12:05–13:05')).toBeTruthy();
+    expect(week.textContent).not.toContain('odp.');
   });
 
   it('po poslední hodině ukáže příští školní den', async () => {

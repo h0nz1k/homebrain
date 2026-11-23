@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   timetableClock,
-  timetableLine,
+  timetableRow,
+  timetableSchoolOver,
   type TimetableChild,
   type TimetableDay,
 } from './timetable.js';
@@ -51,21 +52,38 @@ const ema: TimetableChild = {
 const at = (time: string, date = '2026-11-23') => new Date(`${date}T${time}:00+01:00`);
 
 describe('rozvrh na Dnes', () => {
+  const row = (
+    when: 'today' | 'tomorrow',
+    text: string,
+    bring = '',
+    name: string | null = 'Ema',
+  ) => ({ when, name, text, bring });
   it('ráno, při hodině, o přestávce a po vyučování', () => {
     expect(timetableClock(at('07:05'))).toBe('07:05');
-    expect(timetableLine(ema, at('07:05'))).toBe(
-      'Ema · škola 7:30–10:15 · s sebou: cvičky a úbor (Tv)',
+    expect(timetableRow(ema, at('07:05'))).toEqual(
+      row('today', '7:30–10:15', 'cvičky a úbor (Tv)'),
     );
-    expect(timetableLine(ema, at('08:30'))).toBe('Ema · škola do 10:15 · teď M');
-    expect(timetableLine(ema, at('09:15'))).toBe('Ema · škola do 10:15 · pak Tv');
-    expect(timetableLine(ema, at('19:00'))).toBe(
-      'Zítra Ema 7:30–9:10 · s sebou: výtvarné potřeby (Vv)',
+    expect(timetableRow(ema, at('08:30'))).toEqual(row('today', 'do 10:15 · teď M'));
+    expect(timetableRow(ema, at('09:15'))).toEqual(row('today', 'do 10:15 · pak Tv'));
+    expect(timetableRow(ema, at('19:00'))).toEqual(
+      row('tomorrow', '7:30–9:10', 'výtvarné potřeby (Vv)'),
     );
   });
 
   it('večer před volnem, během volna nic', () => {
-    expect(timetableLine(ema, at('18:00', '2026-11-24'))).toBe('Zítra volno (podzimní prázdniny)');
-    expect(timetableLine(ema, at('09:00', '2026-11-25'))).toBeNull();
+    expect(timetableRow(ema, at('18:00', '2026-11-24'))).toEqual(
+      row('tomorrow', 'volno (podzimní prázdniny)', '', null),
+    );
+    expect(timetableRow(ema, at('09:00', '2026-11-25'))).toBeNull();
+  });
+
+  it('konec školního dne, až skončí všechny děti', () => {
+    const kuba = { ...ema, id: 'kuba', name: 'Kuba', days: [day('2026-11-23')] };
+    expect(timetableSchoolOver([ema, kuba], at('09:00'))).toBe(false);
+    expect(timetableSchoolOver([ema, kuba], at('10:15'))).toBe(true);
+    // Free day: nobody had school, today's events stay.
+    expect(timetableSchoolOver([kuba], at('19:00'))).toBe(false);
+    expect(timetableSchoolOver([], at('19:00'))).toBe(false);
   });
 
   it('čas podle Prahy i přes změnu času', () => {

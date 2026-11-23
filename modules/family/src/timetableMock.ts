@@ -38,7 +38,7 @@ const MOCK_AFTERNOON: TimetableSettings['afternoon'] = {
   ],
 };
 
-/** Ema: mostly until 12:05, Wednesday until 13:00. Kuba: Wednesday afternoon until 14:40. */
+/** Ema: mostly until 12:05, Wednesday until 13:00, Tv on Friday (evening „s sebou“). Kuba: Wednesday afternoon until 14:40. */
 const MOCK_CHILDREN: Record<string, TimetableChildSettings> = {
   dcera: {
     days: [
@@ -46,7 +46,7 @@ const MOCK_CHILDREN: Record<string, TimetableChildSettings> = {
       ['Čj', 'M', 'Vv', 'Vv', 'Hv'],
       ['Čj', 'M', 'Př', 'Aj', 'Inf', 'Pč'],
       ['Čj', 'M', 'Vl', 'Tv', 'Tv'],
-      ['Čj', '', 'M', 'Aj', 'Př'],
+      ['Čj', '', 'M', 'Aj', 'Tv'],
     ],
     afternoon_days: null,
   },

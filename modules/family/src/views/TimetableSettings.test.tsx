@@ -25,6 +25,7 @@ describe('Nastavení rozvrhu', () => {
     fireEvent.change(editor.getByLabelText('Jiný předmět'), { target: { value: 'Etv' } });
     fireEvent.click(editor.getByRole('button', { name: 'Vložit' }));
     expect(editor.getByTestId('timetable-cell-0-4').textContent).toBe('Etv');
+    expect(editor.getByTestId('timetable-cell-0-5').getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(editor.getByRole('button', { name: /Hotovo/ }));
     const back = await screen.findByRole('group', { name: 'Ema' });
     expect(within(back).getByText('Rozvrh: 4 hodin týdně')).toBeTruthy();

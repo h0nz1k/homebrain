@@ -23,24 +23,67 @@ function dayLabel(day: TimetableDay, now: Date): string {
   return schoolDateLabel(day.date, true).replace(/^\S+/, (w) => w[0]!.toUpperCase() + w.slice(1));
 }
 
-function WeekGrid({ snapshot, child }: { snapshot: TimetableSnapshot; child: TimetableChild }) {
+/** Week cell: a double period (same subject twice in a row) is one tall cell. */
+interface WeekCell {
+  subject: string;
+  period: number;
+  span: number;
+}
+
+function weekCells(day: string[], periods: number): Array<WeekCell | null> {
+  const cells: Array<WeekCell | null> = [];
+  let prev: WeekCell | undefined;
+  for (let period = 0; period < periods; period++) {
+    const subject = day[period] ?? '';
+    if (subject && prev?.subject === subject) {
+      prev.span += 1;
+      cells.push(null);
+    } else {
+      prev = { subject, period, span: 1 };
+      cells.push(prev);
+    }
+  }
+  return cells;
+}
+
+function WeekGrid({
+  snapshot,
+  child,
+  now,
+}: {
+  snapshot: TimetableSnapshot;
+  child: TimetableChild;
+  now: Date;
+}) {
   const periods = Math.max(
     0,
     ...child.grid.map((day) => day.reduce((last, subject, i) => (subject ? i + 1 : last), 0)),
   );
+  const { today, phase, lesson } = timetableStatus(child, now);
+  const todayIndex = today?.school ? (new Date(today.date + 'T00:00:00Z').getUTCDay() + 6) % 7 : -1;
+  const clock = timetableClock(now);
+  // Afternoon days ring differently from period 6 on: each such cell shows its real start.
+  const shifted = new Map(
+    (snapshot.afternoon?.periods ?? []).map((row) => [row.period, row.start] as const),
+  );
+  const columns = DAYS.map((_, i) => weekCells(child.grid[i] ?? [], periods));
+  const lunch = child.afternoon_days.length > 0 ? snapshot.afternoon?.lunch : null;
   return (
     <div className="fam-tt-week" data-testid="family-timetable-week">
-      <table>
-        <caption className="fam-sr">Týdenní rozvrh</caption>
+      <table aria-label="Týdenní rozvrh">
         <thead>
           <tr>
             <th scope="col">
               <span className="fam-sr">Hodina</span>
             </th>
             {DAYS.map((day, i) => (
-              <th scope="col" key={day}>
+              <th
+                scope="col"
+                key={day}
+                data-today={i === todayIndex || undefined}
+                aria-current={i === todayIndex ? 'date' : undefined}
+              >
                 {day}
-                {child.afternoon_days.includes(i) && <small title="Odpolední zvonění"> odp.</small>}
               </th>
             ))}
           </tr>
@@ -53,31 +96,49 @@ function WeekGrid({ snapshot, child }: { snapshot: TimetableSnapshot; child: Tim
                 <th scope="row">
                   {period + 1}.{bell && <small>{timetableTime(bell.start)}</small>}
                 </th>
-                {DAYS.map((day, i) => (
-                  <td
-                    key={day}
-                    data-double={
-                      (child.grid[i]?.[period] &&
-                        (child.grid[i]?.[period - 1] === child.grid[i]?.[period] ||
-                          child.grid[i]?.[period + 1] === child.grid[i]?.[period])) ||
-                      undefined
-                    }
-                  >
-                    {child.grid[i]?.[period] || <span aria-label="volno">·</span>}
-                  </td>
-                ))}
+                {DAYS.map((day, i) => {
+                  const cell = columns[i]![period];
+                  if (!cell) return null;
+                  if (!cell.subject)
+                    return (
+                      <td key={day} data-today={i === todayIndex || undefined}>
+                        <span aria-label="volno">·</span>
+                      </td>
+                    );
+                  const first = cell.period + 1;
+                  const last = cell.period + cell.span;
+                  const isToday = i === todayIndex;
+                  const current =
+                    isToday &&
+                    phase === 'lesson' &&
+                    lesson!.period >= first &&
+                    lesson!.period <= last;
+                  const end = today?.lessons.find((row) => row.period === last)?.end;
+                  const done = isToday && !!end && end <= clock;
+                  const start = child.afternoon_days.includes(i) ? shifted.get(first) : undefined;
+                  return (
+                    <td
+                      key={day}
+                      rowSpan={cell.span > 1 ? cell.span : undefined}
+                      data-today={isToday || undefined}
+                      data-current={current || undefined}
+                      data-done={done || undefined}
+                      aria-current={current ? 'time' : undefined}
+                    >
+                      {cell.subject}
+                      {start && <small>{timetableTime(start)}</small>}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
         </tbody>
       </table>
-      {snapshot.afternoon?.lunch && child.afternoon_days.length > 0 && (
+      {lunch && (
         <small>
-          Odpolední zvonění ({child.afternoon_days.map((i) => DAYS[i]).join(', ')}): polední
-          přestávka {timetableSpan(snapshot.afternoon.lunch)},{' '}
-          {snapshot.afternoon.periods
-            .map((row) => `${row.period}. ${timetableSpan(row)}`)
-            .join(', ')}
+          {child.afternoon_days.map((i) => DAYS[i]).join(', ')}: polední přestávka{' '}
+          {timetableSpan(lunch)}
         </small>
       )}
     </div>
@@ -168,7 +229,7 @@ export function PersonTimetable({
           S sebou: {timetableBring(shown)}
         </p>
       )}
-      {week && <WeekGrid snapshot={snapshot} child={child} />}
+      {week && <WeekGrid snapshot={snapshot} child={child} now={now} />}
     </section>
   );
 }

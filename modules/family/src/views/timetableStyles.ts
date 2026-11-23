@@ -10,9 +10,9 @@ export const timetableStyles = `
 .fam-tt-head strong { font-size: 17px; }
 .fam-tt-head small, .fam-tt > small, .fam-tt-week > small { color: var(--hb-t2); font-size: 13px; }
 .fam-tt-toggle { flex: none; color: var(--hb-t2); font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-.fam-tt-lessons { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.fam-tt-lessons { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
 .fam-tt-lessons li {
-  display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; min-width: 52px;
+  display: grid; grid-template-columns: auto 1fr; column-gap: 4px; align-items: baseline;
   padding: 5px 9px; border-radius: 10px; background: color-mix(in srgb, var(--hb-t1) 8%, var(--fam-person-surface));
 }
 .fam-tt-lessons li > span { color: var(--hb-t2); font-size: 12px; }
@@ -24,14 +24,23 @@ export const timetableStyles = `
   box-shadow: inset 0 0 0 2px var(--person-color, var(--hb-ok));
 }
 .fam-tt-bring { margin: 0; font-size: 14px; }
-.fam-tt-week { display: grid; gap: 6px; overflow-x: auto; }
+.fam-tt-week { display: grid; gap: 6px; }
 .fam-tt-week table, .fam-tt-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
-.fam-tt-week th, .fam-tt-week td { padding: 6px 2px; text-align: center; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 12%, transparent); }
-.fam-tt-week thead th { border-top: 0; color: var(--hb-t2); font-weight: 600; }
-.fam-tt-week th[scope='row'], .fam-tt-grid th[scope='row'] { width: 44px; color: var(--hb-t2); font-weight: 600; }
-.fam-tt-week th[scope='row'] small { display: block; font-size: 11px; font-weight: 400; }
-.fam-tt-week td[data-double] { background: color-mix(in srgb, var(--hb-t1) 6%, transparent); }
-.fam-tt-week td > span { color: var(--hb-t2); }
+.fam-tt-week table { font-size: 15px; }
+.fam-tt-week th, .fam-tt-week td { padding: 6px 2px; text-align: center; vertical-align: middle; border-top: 1px solid color-mix(in srgb, var(--hb-t1) 12%, transparent); }
+.fam-tt-week td { font-weight: 600; }
+.fam-tt-week thead th { border-top: 0; color: var(--hb-t2); font-weight: 600; border-radius: 10px 10px 0 0; }
+.fam-tt-week th[scope='row'], .fam-tt-grid th[scope='row'] { width: 48px; color: var(--hb-t2); font-weight: 600; }
+.fam-tt-week :is(th, td) small { display: block; color: var(--hb-t2); font-size: 14px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.fam-tt-week td > span { color: var(--hb-t2); font-weight: 400; }
+/* Today's column: same person tint as the chip strip; the running lesson ringed, past ones muted. */
+.fam-tt-week thead th[data-today] { color: var(--hb-t1); background: color-mix(in srgb, var(--person-color, var(--hb-ok)) 30%, var(--fam-person-surface)); }
+.fam-tt-week td[data-today] { background: color-mix(in srgb, var(--person-color, var(--hb-ok)) 10%, var(--fam-person-surface)); }
+.fam-tt-week td[data-done] { color: var(--hb-t2); font-weight: 400; }
+.fam-tt-week td[data-current] {
+  background: color-mix(in srgb, var(--person-color, var(--hb-ok)) 30%, var(--fam-person-surface));
+  box-shadow: inset 0 0 0 2px var(--person-color, var(--hb-ok)); border-radius: 8px;
+}
 .fam-tt-editor { display: grid; gap: 14px; }
 .fam .fam-tt-editor fieldset { display: grid; gap: 10px; }
 .fam .fam-tt-grid-wrap { padding: 8px; }
@@ -42,8 +51,12 @@ export const timetableStyles = `
   border-radius: 8px; background: color-mix(in srgb, var(--hb-t1) 5%, var(--fam-person-surface)); color: var(--hb-t1);
   font: inherit; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
 }
+.fam-tt-grid td button:has(> span) { border: 1px dashed color-mix(in srgb, var(--hb-t1) 45%, transparent); background: transparent; }
 .fam-tt-grid td button span { color: var(--hb-t2); font-weight: 400; }
-.fam-tt-grid td button[aria-pressed='true'] { border-color: var(--hb-t1); box-shadow: inset 0 0 0 2px var(--hb-t1); }
+.fam-tt-grid td button[aria-pressed='true'] {
+  border: 2px solid var(--hb-ac); box-shadow: 0 0 0 2px color-mix(in srgb, var(--hb-ac) 35%, transparent);
+  background: color-mix(in srgb, var(--hb-ac) 20%, var(--fam-person-surface));
+}
 .fam .fam-tt-chips { position: sticky; bottom: 8px; z-index: 1; display: grid; gap: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
 .fam-tt-chips p { margin: 0; font-weight: 600; color: var(--hb-t1); }
 .fam-tt-chips > div { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -53,7 +66,8 @@ export const timetableStyles = `
 }
 .fam-tt-chip[aria-pressed='true'] { background: var(--hb-t1); color: var(--fam-person-surface); }
 .fam-tt-chips form { display: flex; align-items: end; gap: 8px; }
-.fam-tt-chips form label { flex: 1; }
+.fam-tt-chips form label { flex: 1; display: grid; gap: 4px; }
+.fam-tt-chips form :is(input, button) { min-height: 44px; }
 .fam-tt-days > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .fam-person-settings .fam-tt-check { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; min-width: 44px; font-weight: 600; }
 .fam-tt-check input { width: 22px; height: 22px; }
@@ -73,6 +87,10 @@ export const timetableStyles = `
 .fam-tt-open { display: flex; align-items: center; justify-content: space-between; gap: 10px; grid-column: 1 / -1; }
 .fam-tt-open > span { display: grid; font-weight: 600; }
 .fam-tt-open small { font-weight: 400; }
+.fam .fam-person-calendar-now .fam-now-pill {
+  color: var(--hb-t1); background: color-mix(in srgb, var(--person-color, var(--hb-ok)) 30%, var(--fam-person-surface));
+  box-shadow: inset 0 0 0 1.5px var(--person-color, var(--hb-ok));
+}
 .fam-person-presence[data-school] { background: color-mix(in srgb, var(--fam-school-ink, var(--hb-t2)) 20%, var(--fam-person-surface)); }
 .fam-person-presence[data-school] > span { background: var(--fam-school-ink, var(--hb-t2)); }
 .fam-person-presence[data-school] small { color: var(--hb-t2); font-size: 12px; font-weight: 400; }

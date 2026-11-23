@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBackClosable, type TimetableAfternoon, type TimetableBell } from '@homebrain/ha-client';
 import { Button } from '@homebrain/ui';
 import type { TimetableChildSettings, TimetableSettings } from '../types.js';
@@ -92,6 +92,19 @@ export function TimetableChildEditor({
 }) {
   const [cell, setCell] = useState({ day: 0, period: 0 });
   const [custom, setCustom] = useState('');
+  const grid = useRef<HTMLTableElement>(null);
+  const picker = useRef<HTMLDivElement>(null);
+  const moved = useRef(false);
+  // The sticky subject picker covers the bottom of the screen: keep the selected cell above it.
+  useEffect(() => {
+    if (!moved.current) return;
+    const button = grid.current?.querySelector<HTMLElement>(
+      `[data-testid="timetable-cell-${cell.day}-${cell.period + 1}"]`,
+    );
+    if (!button) return;
+    button.style.scrollMarginBottom = `${(picker.current?.offsetHeight ?? 0) + 24}px`;
+    button.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [cell]);
   const subject = (day: number, period: number) => child.days[day]?.[period] ?? '';
   const used = child.days.flat().filter(Boolean);
   const chips = [
@@ -108,6 +121,7 @@ export function TimetableChildEditor({
     while (row.length <= cell.period) row.push('');
     row[cell.period] = value;
     onChange({ ...child, days });
+    moved.current = true;
     setCell(({ day, period }) =>
       period + 1 < PERIODS
         ? { day, period: period + 1 }
@@ -136,7 +150,7 @@ export function TimetableChildEditor({
         onDone={onDone}
       />
       <div className="fam-person-surface fam-tt-grid-wrap">
-        <table className="fam-tt-grid">
+        <table className="fam-tt-grid" ref={grid}>
           <caption className="fam-sr">Rozvrh hodin {name}</caption>
           <thead>
             <tr>
@@ -164,7 +178,10 @@ export function TimetableChildEditor({
                         aria-pressed={active}
                         aria-label={`${DAY_NAMES[d]} ${period + 1}. hodina: ${value || 'prázdná'}`}
                         data-testid={`timetable-cell-${d}-${period + 1}`}
-                        onClick={() => setCell({ day: d, period })}
+                        onClick={() => {
+                          moved.current = true;
+                          setCell({ day: d, period });
+                        }}
                       >
                         {value || <span aria-hidden="true">·</span>}
                       </button>
@@ -176,7 +193,12 @@ export function TimetableChildEditor({
           </tbody>
         </table>
       </div>
-      <div className="fam-person-surface fam-tt-chips" role="group" aria-label="Předmět">
+      <div
+        className="fam-person-surface fam-tt-chips"
+        role="group"
+        aria-label="Předmět"
+        ref={picker}
+      >
         <p>
           {DAY_NAMES[cell.day]} · {cell.period + 1}. hodina{selected && `: ${selected}`}
         </p>
@@ -225,14 +247,16 @@ export function TimetableChildEditor({
           </small>
           <div>
             {DAYS.map((day, d) => (
-              <label key={day} className="fam-tt-check">
-                <input
-                  type="checkbox"
-                  checked={afternoon.includes(d)}
-                  onChange={() => toggleDay(d)}
-                />
+              <button
+                type="button"
+                key={day}
+                className="fam-tt-chip"
+                aria-pressed={afternoon.includes(d)}
+                aria-label={DAY_NAMES[d]}
+                onClick={() => toggleDay(d)}
+              >
                 {day}
-              </label>
+              </button>
             ))}
           </div>
           {child.afternoon_days != null && (

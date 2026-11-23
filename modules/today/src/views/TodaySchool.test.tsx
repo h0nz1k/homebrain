@@ -126,18 +126,49 @@ const timetable: TimetableSnapshot = {
   ],
 };
 
-it('přidá řádek rozvrhu na telefonu, ne na kiosku', async () => {
+const rows = () =>
+  screen
+    .getAllByTestId('today-school')
+    .flatMap((card) =>
+      [...card.querySelectorAll('[data-testid^="school-timetable"]')].map((el) => el.textContent),
+    );
+
+it('přidá řádky rozvrhu pod „Dnes“ / „Zítra“ na telefonu, ne na kiosku', async () => {
   const api = { ...apiWith({ ...snapshot, enabled: false }), timetable: async () => timetable };
   const { rerender } = render(<TodaySchool api={api} now={morning} kiosk={false} />);
-  expect((await screen.findByTestId('school-timetable')).textContent).toBe(
-    'Ema · škola do 12:05 · teď M',
-  );
+  await screen.findByTestId('school-timetable');
+  expect(rows()).toEqual(['Dnes', 'Ema do 12:05 · teď M']);
   rerender(<TodaySchool api={api} now="2026-11-23T19:00:00+01:00" kiosk={false} />);
-  expect(screen.getByTestId('school-timetable').textContent).toBe(
-    'Zítra Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)',
-  );
+  expect(rows()).toEqual(['Zítra', 'Ema 7:30–12:05 · s sebou: cvičky a úbor (Tv)']);
+  expect(screen.getByText('Ema').tagName).toBe('STRONG');
   cleanup();
   render(<TodaySchool api={api} now={morning} kiosk />);
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(screen.queryByTestId('today-school')).toBeNull();
+});
+
+it('po konci vyučování skryje dnešní akci, zítřejší a vícedenní nechá', async () => {
+  const school = {
+    ...snapshot,
+    events: [
+      ...snapshot.events,
+      {
+        date: '2026-11-23',
+        title: 'Lyžák',
+        end_date: '2026-11-25',
+        grades: null,
+        person_ids: ['dite'],
+      },
+    ],
+  };
+  const api = { ...apiWith(school), timetable: async () => timetable };
+  const { rerender } = render(<TodaySchool api={api} now={morning} kiosk={false} />);
+  await screen.findByTestId('school-timetable');
+  expect(text('school-event')).toEqual([
+    'Dnes: Výstava',
+    'Zítra: 4. ročník · Divadlo',
+    'Dnes: Lyžák',
+  ]);
+  rerender(<TodaySchool api={api} now="2026-11-23T19:00:00+01:00" kiosk={false} />);
+  expect(text('school-event')).toEqual(['Zítra: 4. ročník · Divadlo', 'Zítra: Lyžák']);
 });
