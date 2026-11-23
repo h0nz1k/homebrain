@@ -22,18 +22,25 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
 
   await page.getByTestId('robots-room-1').click();
   await mode3d.click();
-  await expect(map3d.locator('canvas')).toBeVisible();
+  const canvas = map3d.locator('canvas');
+  await expect(canvas).toBeVisible();
   await expect(map3d.locator('[data-map3d-room="1"] .rb-map3d-badge')).toHaveText('1');
+  const room = map3d.locator('[data-map3d-room="3"]');
+  await expect(room).toHaveAttribute('style', /left:/);
+  const overviewPosition = (await room.getAttribute('style'))!;
   const top = map3d.getByRole('button', { name: 'Pohled shora' });
   await top.click();
   await expect(top).toHaveAttribute('aria-pressed', 'true');
+  await expect(room).not.toHaveAttribute('style', overviewPosition);
 
-  const room = map3d.locator('[data-map3d-room="3"]');
-  await expect(room).toHaveAttribute('style', /left:/);
-  await room.scrollIntoViewIfNeeded();
-  const box = await room.boundingBox();
-  if (!box) throw new Error('Chybí umístění místnosti na 3D mapě');
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await canvas.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' }),
+  );
+  const position = await room.evaluate((element: HTMLElement) => ({
+    x: (Number.parseFloat(element.style.left) / 100) * element.parentElement!.clientWidth,
+    y: (Number.parseFloat(element.style.top) / 100) * element.parentElement!.clientHeight,
+  }));
+  await canvas.click({ position });
   await expect(room.locator('.rb-map3d-badge')).toHaveText('2');
   await expect(page.getByTestId('robots-room-3')).toHaveAttribute('aria-pressed', 'true');
 
