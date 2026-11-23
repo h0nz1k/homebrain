@@ -19,7 +19,7 @@ import type { DevHass, WsHandlers } from './shared.js';
  * `?presets=demo`, `?schedules=demo`, `?photos=a,b,c`, `?otoceni=90|180|270`, `?drahaod=<0–1>`,
  * `?scena=kuchyne|chodba|dok`, `?mistnost=uzka`, `?vektor=chyba`, `?mapapoll=<ms>`,
  * `?historie=demo|prazdna` (cleaning history; default = demo), `?stari=1` (robot 1 state and
- * map image older than the data-age thresholds),
+ * map image older than the data-age thresholds, docked robot 3 map image 30 h old),
  * `?mapa3d=prehled|pohyb|dok|bez-webgl` (3D demo scenarios).
  */
 export function addRobotsDemo({ hass, now, refresh }: DevHass) {
@@ -53,9 +53,18 @@ export function addRobotsDemo({ hass, now, refresh }: DevHass) {
     for (const [key, id] of Object.entries(robotsDemo.bindings))
       if (key.startsWith('robot1_') && hass.states[id])
         hass.states[id] = { ...hass.states[id]!, last_updated: stale(3) };
-    const image = robotsDemo.bindings.robot1_map_image;
-    if (image && hass.states[image])
-      hass.states[image] = { ...hass.states[image]!, state: stale(6), last_updated: stale(6) };
+    const images: [string | undefined, number][] = [
+      [robotsDemo.bindings.robot1_map_image, 6],
+      // In the dock the map age shows only after a day.
+      [robotsDemo.bindings.robot3_map_image, 30 * 60],
+    ];
+    for (const [image, minutes] of images)
+      if (image && hass.states[image])
+        hass.states[image] = {
+          ...hass.states[image]!,
+          state: stale(minutes),
+          last_updated: stale(minutes),
+        };
   }
   const history = demoHistory(
     now.getTime(),

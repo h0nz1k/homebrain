@@ -56,6 +56,18 @@ export const PENDING_TEXT: Record<Exclude<PendingPhase, 'done'>, string> = {
   late: 'Robot zatím nereagoval',
 };
 
+/** „Start úklidu zatím bez odezvy“: the late notice names the command that got no reply. */
+export const PENDING_ACTION_LABEL: Record<PendingAction, string> = {
+  start: 'Start úklidu',
+  resume: 'Pokračování v úklidu',
+  pause: 'Pauza',
+  home: 'Návrat do doku',
+};
+
+export function lateTitle(action: PendingAction): string {
+  return `${PENDING_ACTION_LABEL[action]} zatím bez odezvy`;
+}
+
 /** Which pending action a confirmed plan stands for (null = not a robot command). */
 export function actionOfPlan(services: readonly string[], start: boolean): PendingAction | null {
   if (start) return 'start';

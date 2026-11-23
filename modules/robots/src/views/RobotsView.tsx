@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Chip,
+  Icon,
   Pill,
   ProgressRing,
   Stepper,
@@ -49,12 +50,14 @@ import {
   lastCleanedAt,
   liveRoomId,
   markCommand,
+  stateAgeLabel,
   staleLabels,
   type RobotHistory,
 } from '../history.js';
 import {
   PENDING_TEXT,
   actionOfPlan,
+  lateTitle,
   pendingPhase,
   type PendingAction,
   type PendingCommand,
@@ -497,6 +500,10 @@ function RobotPanel({
   );
   // Latch the confirmation: a later state change must not bring the notice back.
   if (pending && phase === 'done') setPending(null);
+  // No reply yet: progress and „Uklízí …“ are what the robot said before – dim them and
+  // always say how old they are.
+  const late = !!pending && phase === 'late';
+  const stateAgeText = late ? stateAgeLabel(robot.updatedAt, now) : stateAge;
   // A quarter-turn rotation swaps the drawn width and height (portrait ↔ landscape).
   const quarter = robot.rotation === 90 || robot.rotation === 270;
   const mapW = vmap ? vmap.bounds[2] - vmap.bounds[0] : 0;
@@ -833,40 +840,52 @@ function RobotPanel({
                 <RobotArt tone={tone} image={photoDir ? '' : robot.image} name={robot.name} />
               )}
             </div>
-            <div className="rb-hero-body">
+            <div className="rb-hero-body" data-stale={late || undefined}>
               <p className="rb-eyebrow">
                 {robot.name}
                 {robot.floor ? ` · ${robot.floor}` : ''}
               </p>
-              <h2 className="rb-state" data-testid="robots-state">
+              <h2 className="rb-state rb-stale-dim" data-testid="robots-state">
                 {robot.status.label}
               </h2>
-              {pending && phase !== 'done' && (
+              {pending && phase === 'waiting' && (
                 <p
                   className="rb-pending"
                   role="status"
                   data-phase={phase}
                   data-testid="robots-pending"
                 >
-                  <span>{PENDING_TEXT[phase]}</span>
-                  {phase === 'late' && (
-                    <Button
-                      size="sm"
-                      data-testid="robots-pending-retry"
-                      disabled={!canAct || sending}
-                      onClick={() => void retry()}
-                    >
-                      Zkusit znovu
-                    </Button>
-                  )}
+                  <span>{PENDING_TEXT.waiting}</span>
                 </p>
               )}
-              {stateAge && (
+              {pending && late && (
+                <div
+                  className="rb-late"
+                  role="status"
+                  data-phase="late"
+                  data-testid="robots-pending"
+                >
+                  <Icon name="alert" size={20} className="rb-late-ico" />
+                  <p className="rb-late-text">
+                    <strong>{lateTitle(pending.action)}</strong>
+                    <span>{PENDING_TEXT.late}. Údaje níže můžou být zastaralé.</span>
+                  </p>
+                  <Button
+                    className="rb-late-retry"
+                    data-testid="robots-pending-retry"
+                    disabled={!canAct || sending}
+                    onClick={() => void retry()}
+                  >
+                    Zkusit znovu
+                  </Button>
+                </div>
+              )}
+              {stateAgeText && (
                 <p className="rb-age" data-testid="robots-state-age">
-                  {stateAge}
+                  {stateAgeText}
                 </p>
               )}
-              <p className="rb-room">
+              <p className="rb-room rb-stale-dim">
                 {liveRoom ? (
                   <>
                     {robot.status.busy ? 'V místnosti ' : 'Naposledy v místnosti '}
@@ -878,7 +897,7 @@ function RobotPanel({
               </p>
               {robot.progress !== null && (
                 <div
-                  className="rb-progress"
+                  className="rb-progress rb-stale-dim"
                   role="progressbar"
                   aria-label="Průběh úklidu"
                   aria-valuenow={robot.progress}
@@ -1022,14 +1041,14 @@ function RobotPanel({
             {/* Portrait plans on a wide card: the room list sits beside the map (container query),
               so the card has no empty side strips; one list, so test ids stay unique. */}
             <div className="rb-card-head rb-clean-head">
-              <div className="rb-clean-title">
+              <div className="rb-clean-title" data-stale={late || undefined}>
                 <h3>Uklidit místnosti</h3>
                 <p className="rb-micro" data-testid="robots-map-name">
                   {robot.mapName ?? 'Mapa'}
                   {busy && (liveRoom || tone === 'returning') ? (
                     <>
                       {' · '}
-                      <span className="rb-live" data-testid="robots-live-room">
+                      <span className="rb-live rb-stale-dim" data-testid="robots-live-room">
                         {tone === 'returning' ? 'Vrací se do doku' : `Uklízí ${liveRoom}`}
                       </span>
                     </>

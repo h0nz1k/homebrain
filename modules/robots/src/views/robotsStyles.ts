@@ -870,7 +870,12 @@ export const robotsStyles = `
 .rv-live-fill { fill: color-mix(in oklch, var(--hb-ac) 16%, transparent); animation: rv-live-pulse 2.8s ease-in-out infinite; }
 .rv-live-line { fill: none; stroke: var(--hb-ac); stroke-opacity: .75; stroke-linejoin: round; stroke-linecap: round; }
 @keyframes rv-live-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-.rv-label[data-live]:not([data-selected]) { box-shadow: 0 0 0 1.5px color-mix(in oklch, var(--hb-ac) 70%, transparent); }
+/* While cleaning the other rooms step back (~45 % of their fill) so the live room dominates. */
+.rv[data-has-live][data-walls] .rv-room:not([data-live]), .rv[data-has-live] .rv-room-under:not([data-live]) {
+  fill: color-mix(in oklch, var(--rv-tile) 45%, var(--rb-fill)); stroke: color-mix(in oklch, var(--rv-tile) 45%, var(--rb-fill));
+}
+.rv[data-has-live]:not([data-walls]):not([data-base]) .rv-room:not([data-live]) { opacity: .45; }
+.rv[data-has-live] .rv-label:not([data-live]):not([data-selected]) { opacity: .7; }
 .rb-room-tile-sub {
   font-size: 11.5px; font-weight: 500; line-height: 1.2; color: var(--hb-t2); text-align: center;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -881,7 +886,25 @@ export const robotsStyles = `
 /* „Odesláno, čekám na robota…“ / „Robot zatím nereagoval“ + data age. */
 .rb-pending { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0 0; font-size: 14px; color: var(--hb-t2); }
 .rb-pending[data-phase='waiting']::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--hb-ac); animation: rb-pulse 1.6s ease-in-out infinite; }
-.rb-pending[data-phase='late'] { color: var(--hb-warn-ink, var(--hb-t1)); }
+/* „… zatím bez odezvy“: a calm amber notice (not an error), retry at its end. */
+.rb-late {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px;
+  margin: 12px 0 0; padding: 10px 10px 10px 14px; border-radius: var(--hb-radius-md, 14px);
+  background: color-mix(in srgb, var(--hb-warn) 11%, var(--hb-s1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-warn) 26%, transparent);
+}
+[data-theme='light'] .rb-late { background: #fff6e0; box-shadow: inset 0 0 0 1px #f2d38f; }
+.rb-late-ico { color: var(--hb-warn); align-self: start; margin-top: 2px; }
+.rb-late-text { display: grid; gap: 2px; margin: 0; min-width: 0; font-size: 14px; line-height: 1.3; }
+.rb-late-text strong { color: var(--hb-t1); font-weight: 600; }
+.rb-late-text span { color: var(--hb-t2); font-size: 13px; }
+.rb-late .rb-late-retry.hb-btn { min-height: 44px; background: var(--hb-ac-s); color: var(--hb-ac); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb-ac) 35%, transparent); }
+.rb-late .rb-late-retry.hb-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--hb-ac) 20%, transparent); }
+@media (max-width: 480px) {
+  .rb-late { grid-template-columns: auto minmax(0, 1fr); }
+  .rb-late .rb-late-retry { grid-column: 1 / -1; width: 100%; }
+}
+[data-stale] .rb-stale-dim { opacity: .5; transition: opacity var(--hb-dur-base, 200ms); }
 .rb-age { margin: 4px 0 0; color: var(--hb-t3, var(--hb-t2)); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .rb-clean-title .rb-age { margin-top: 2px; }
 /* Historie úklidů */

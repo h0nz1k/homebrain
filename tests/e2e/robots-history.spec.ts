@@ -33,6 +33,17 @@ test('právě uklízená místnost na mapě a v čipech', async ({ page }) => {
   await expect(page.getByTestId('robots-live-chip')).toHaveText('Teď: Kuchyně');
   await expect(page.getByTestId('robots-room-2')).toHaveAttribute('data-live', 'true');
   await expect(page.getByTestId('robots-cleaned-2')).toHaveText('Teď uklízí');
+  // The other rooms step back; the live label has no box of its own.
+  await expect(page.getByTestId('robots-vector-map')).toHaveAttribute('data-has-live', 'true');
+  await expect(page.getByTestId('robots-map-room-2')).toHaveAttribute('data-live', 'true');
+  const dimmed = await page
+    .getByTestId('robots-map-room-1')
+    .evaluate((el) => getComputedStyle(el).fill);
+  const live = await page
+    .getByTestId('robots-map-room-2')
+    .evaluate((el) => getComputedStyle(el).fill);
+  expect(dimmed).not.toBe(live);
+  await expect(page.locator('.rv-label[data-live]')).toHaveCSS('box-shadow', 'none');
   // A docked robot highlights nothing.
   await page.getByTestId('robots-floor-3').click();
   await expect(page.locator('[data-testid^="robots-map-live-"]')).toHaveCount(0);
@@ -52,8 +63,14 @@ test('příkaz odeslán → robot zatím nereagoval → zkusit znovu', async ({ 
   expect(await count()).toBe(1);
   // The mock robot never reacts: after 60 s the panel says so and offers a manual retry.
   await page.clock.fastForward('01:05');
+  await expect(pending).toContainText('Pauza zatím bez odezvy');
   await expect(pending).toContainText('Robot zatím nereagoval');
   await expect(page.getByTestId('robots-pending-retry')).toBeVisible();
+  // Data are stale: the age is spelled out and progress / „Uklízí …“ are dimmed.
+  await expect(page.getByTestId('robots-state-age')).toHaveText(/^Stav před \d+ min$/);
+  await expect(page.getByTestId('robots-live-room')).toHaveCSS('opacity', '0.5');
+  const retryBox = await page.getByTestId('robots-pending-retry').boundingBox();
+  expect(retryBox?.height).toBeGreaterThanOrEqual(44);
   expect(await count()).toBe(1); // no automatic retry
   await page.getByTestId('robots-pending-retry').click();
   await expect(pending).toContainText('Odesláno, čekám na robota…');
@@ -68,4 +85,8 @@ test('stáří dat: mapa a stav jen když jsou staré', async ({ page }) => {
   await page.goto('/homebrain-roboti?scena=kuchyne&stari=1');
   await expect(page.getByTestId('robots-state-age')).toHaveText('Stav před 3 min');
   await expect(page.getByTestId('robots-map-age')).toHaveText('Mapa před 6 min');
+  // In the dock only a map older than a day.
+  await page.getByTestId('robots-floor-3').click();
+  await expect(page.getByTestId('robots-map-age')).toHaveText('Mapa před 30 h');
+  await expect(page.getByTestId('robots-state-age')).toHaveCount(0);
 });
