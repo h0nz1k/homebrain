@@ -238,3 +238,12 @@ def test_snapshot_roles_and_children_without_timetable():
         "afternoon": None,
         "children": [],
     }
+
+
+def test_holiday_startup_listener_runs_in_event_loop():
+    """A non-@callback listener runs in the executor and cannot create the refresh task."""
+    from homeassistant.core import is_callback
+
+    from custom_components.homebrain.family.timetable import TimetableHolidays
+
+    assert is_callback(TimetableHolidays._started)
