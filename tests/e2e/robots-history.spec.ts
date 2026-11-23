@@ -16,15 +16,15 @@ test('naposledy uklizeno u místností a karta Historie úklidů', async ({ page
   await expect(runs.first().getByTestId('robots-history-source')).toHaveText('HomeBrain');
   await expect(runs.nth(1).getByTestId('robots-history-source')).toHaveText('Aplikace');
   // Room tiles: Jídelna cleaned ~1.5 h ago (today or yesterday near midnight), WC 3 days ago.
-  await expect(page.getByTestId('robots-room-cleaned-3')).toContainText(/Uklizeno (dnes|včera)/);
-  await expect(page.getByTestId('robots-room-cleaned-5')).toHaveText(/Uklizeno před [34] dny/);
-  await expect(page.getByTestId('robots-room-cleaned-8')).toHaveText('Zatím neuklizeno');
+  await expect(page.getByTestId('robots-cleaned-3')).toContainText(/Uklizeno (dnes|včera)/);
+  await expect(page.getByTestId('robots-cleaned-5')).toHaveText(/Uklizeno před [34] dny/);
+  await expect(page.getByTestId('robots-cleaned-8')).toHaveText('Zatím neuklizeno');
 });
 
 test('prázdná historie', async ({ page }) => {
   await page.goto('/homebrain-roboti?historie=prazdna&scena=kuchyne');
   await expect(page.getByTestId('robots-history-empty')).toBeVisible();
-  await expect(page.getByTestId('robots-room-cleaned-1')).toHaveText('Zatím neuklizeno');
+  await expect(page.getByTestId('robots-cleaned-1')).toHaveText('Zatím neuklizeno');
 });
 
 test('právě uklízená místnost na mapě a v čipech', async ({ page }) => {
@@ -32,7 +32,7 @@ test('právě uklízená místnost na mapě a v čipech', async ({ page }) => {
   await expect(page.getByTestId('robots-map-live-2')).toBeAttached();
   await expect(page.getByTestId('robots-live-chip')).toHaveText('Teď: Kuchyně');
   await expect(page.getByTestId('robots-room-2')).toHaveAttribute('data-live', 'true');
-  await expect(page.getByTestId('robots-room-cleaned-2')).toHaveText('Teď uklízí');
+  await expect(page.getByTestId('robots-cleaned-2')).toHaveText('Teď uklízí');
   // A docked robot highlights nothing.
   await page.getByTestId('robots-floor-3').click();
   await expect(page.locator('[data-testid^="robots-map-live-"]')).toHaveCount(0);

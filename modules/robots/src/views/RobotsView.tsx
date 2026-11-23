@@ -1168,7 +1168,7 @@ function RobotPanel({
                           {(live || cleaned) && (
                             <span
                               className="rb-room-tile-sub"
-                              data-testid={`robots-room-cleaned-${room.id}`}
+                              data-testid={`robots-cleaned-${room.id}`}
                             >
                               {live ? 'Teď uklízí' : cleaned}
                             </span>
