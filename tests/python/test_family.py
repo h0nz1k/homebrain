@@ -1219,6 +1219,68 @@ async def test_skip_today_dedupes_and_can_restore_future_occurrence(
     }
 
 
+@pytest.mark.parametrize("role", ["owner", "adult", "child", "kiosk", None])
+async def test_school_websocket_roles(
+    hass, entry, hass_ws_client, hass_admin_user, role, monkeypatch
+):
+    school = hass.data[DOMAIN]["family_school"]
+    monkeypatch.setattr(school, "start", lambda *_: None)
+    await _as(hass, entry, hass_admin_user, role, [{"name": "Syn", "user_id": hass_admin_user.id}])
+    client = await hass_ws_client(hass)
+    command = {"type": "homebrain/family/school"}
+    if role is None:
+        assert not (await _ws(client, command))["success"]
+        return
+    assert (await _ws(client, command))["result"]["enabled"] is False
+
+    today = dt_util.now().date()
+    events_url, dates_url = "https://example.org/events", "https://example.org/dates"
+    if role == "owner":
+        settings = await _ws(
+            client,
+            {
+                "type": "homebrain/family/settings/set",
+                "school": {"events_url": events_url, "dates_url": dates_url},
+                "persons": [{"choreops_user_id": "syn", "grade": 9, "role": "child", "color": 2}],
+            },
+        )
+        assert settings["success"], settings
+        assert settings["result"]["school"]["reminder_days"] == 3
+        assert next(p for p in settings["result"]["persons"] if p["name"] == "Syn")["grade"] == 9
+    monkeypatch.setattr(
+        school, "options", lambda: {"events_url": events_url, "dates_url": dates_url}
+    )
+    school.data = {
+        "events": {
+            "url": events_url,
+            "rows": [
+                {"date": today.isoformat(), "title": "Výlet", "end_date": None, "grades": [9]},
+                {"date": today.isoformat(), "title": "Výstava", "end_date": None, "grades": None},
+            ],
+        },
+        "dates": {
+            "url": dates_url,
+            "rows": [
+                {"date": (today + timedelta(days=2)).isoformat(), "title": "Schůzky"},
+                {"date": (today + timedelta(days=4)).isoformat(), "title": "Volno"},
+            ],
+        },
+    }
+    result = (await _ws(client, command))["result"]
+    assert result["enabled"] is True
+    if role == "child":
+        assert [(e["title"], e["person_ids"]) for e in result["events"]] == [("Výstava", ["syn"])]
+        assert result["dates"] == []
+    elif role == "kiosk":
+        assert [e["title"] for e in result["events"]] == ["Výstava"]
+        assert [d["title"] for d in result["dates"]] == ["Schůzky"]
+    else:
+        assert len(result["events"]) == 2
+        assert len(result["dates"]) == 2
+        reminders = (await _ws(client, {**command, "reminders_only": True}))["result"]
+        assert [d["title"] for d in reminders["dates"]] == ["Schůzky"]
+
+
 @pytest.fixture
 def swaps(hass, entry, monkeypatch):
     from custom_components.homebrain.family import swap_service

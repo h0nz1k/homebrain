@@ -1162,6 +1162,14 @@ export const familyStyles = `
 .fam[data-kiosk] .fam-slot[data-slot='shop'] .fam-card-h { margin-bottom: 6px; }
 .fam[data-kiosk] .fam-add input, .fam[data-kiosk] .fam-add button { height: 40px; }
 
+.fam-school{overflow-wrap:anywhere}
+.fam-school h3{margin:14px 0 4px;font-size:.95rem}
+.fam-school ul{list-style:none;margin:0 0 10px;padding:0}
+.fam-school li{display:flex;align-items:baseline;gap:12px;padding:5px 0}
+.fam-school time{flex:none;color:var(--hb-t2)}
+.fam-school small{display:block;color:var(--hb-t2);font-size:.82rem}
+.fam-person-settings input{min-width:0;width:100%}
+
 .fam .fam-person-week .fam-person-surface { padding-inline: 0; }
 .fam-person-week .fam-person-day { padding-inline: 12px; }
 .fam-person-week .fam-person-task:is([data-state='done'], [data-mark='carried']) .fam-person-points { color: var(--hb-t2); }

@@ -2,8 +2,18 @@ import {
   createMockFamilyApi,
   setFamilyApiFactory,
   type FamilyRole,
+  type SchoolScenario,
 } from '@homebrain/module-family';
 import { devQuery } from './shared.js';
+
+const schoolQuery = devQuery.get('skola');
+export const schoolScenario: SchoolScenario =
+  schoolQuery === 'full' ||
+  schoolQuery === 'holiday' ||
+  schoolQuery === 'empty' ||
+  schoolQuery === 'stale'
+    ? schoolQuery
+    : 'off';
 
 /** Rodina: synthetic household („Ema“, „Kuba“). `?role=adult|child|kiosk`, `?rodina=empty|busy`. */
 export function registerFamilyMocks(): void {
@@ -11,6 +21,7 @@ export function registerFamilyMocks(): void {
   const familyScenario = devQuery.get('rodina');
   const familyApi = createMockFamilyApi({
     role: (devQuery.get('role') as FamilyRole | null) ?? 'owner',
+    school: schoolScenario,
     scenario:
       familyScenario === 'empty' || familyScenario === 'busy' || familyScenario === 'evening'
         ? familyScenario
