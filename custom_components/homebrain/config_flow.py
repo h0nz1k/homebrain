@@ -44,6 +44,8 @@ from .robots.config import (
 )
 from .robots.discovery import discover_bindings, discover_floor, missing_bindings
 from .roles import ASSIGNABLE_ROLES, CONF_ROLES
+from .server.rules import BACKUP_MAX_AGE, BACKUP_MAX_AGE_DAYS, BACKUP_MAX_AGE_RANGE
+from .server.rules import OPTION as SERVER_OPTION
 
 UNIFI_OPTION_KEY = "network_unifi"
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
@@ -53,6 +55,7 @@ OPTIONS_FLOW_EXTRA = (
     *(f"robots_{slot}" for slot in ROBOT_SLOTS),
     "network_unifi",
     "heating",
+    "server",
     "modules",
     "meals",
     "people",
@@ -358,6 +361,34 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="heating", data_schema=schema, errors=errors)
+
+    async def async_step_server(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Server: age limit of the last Proxmox backup (days)."""
+        if user_input is not None:
+            days = int(user_input.get(BACKUP_MAX_AGE) or BACKUP_MAX_AGE_DAYS)
+            return self.async_create_entry(
+                title="",
+                data={**self.config_entry.options, SERVER_OPTION: {BACKUP_MAX_AGE: days}},
+            )
+        current = (self.config_entry.options.get(SERVER_OPTION) or {}).get(BACKUP_MAX_AGE)
+        low, high = BACKUP_MAX_AGE_RANGE
+        schema = vol.Schema(
+            {
+                vol.Required(BACKUP_MAX_AGE, default=int(current or BACKUP_MAX_AGE_DAYS)): vol.All(
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=low,
+                            max=high,
+                            step=1,
+                            unit_of_measurement="d",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Coerce(int),
+                )
+            }
+        )
+        return self.async_show_form(step_id="server", data_schema=schema)
 
     async def async_step_meals(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """„Zobrazit jídelníček (Mealie)“: auto = only with a loaded Mealie entry, off = never."""

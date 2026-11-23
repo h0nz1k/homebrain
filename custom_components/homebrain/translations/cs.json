@@ -29,7 +29,8 @@
           "meals": "Zobrazit jídelníček (Mealie)",
           "roles": "Uživatelé a role",
           "people": "Kdo je doma",
-          "heating": "Topení – PLC Tecomat"
+          "heating": "Topení – PLC Tecomat",
+          "server": "Server – zálohy"
         }
       },
       "waste": {
@@ -309,6 +310,13 @@
           "password": "Heslo",
           "map_path": "Mapa proměnných (cesta k YAML)",
           "poll_interval": "Interval čtení"
+        }
+      },
+      "server": {
+        "title": "Server",
+        "description": "Zálohy Proxmox VE: poslední záloha starší než tento limit je upozornění, dvakrát starší je kritická.",
+        "data": {
+          "backup_max_age_days": "Limit stáří zálohy"
         }
       }
     },

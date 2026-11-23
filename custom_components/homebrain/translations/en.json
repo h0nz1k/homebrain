@@ -29,7 +29,8 @@
           "meals": "Show meal plan (Mealie)",
           "roles": "Users and roles",
           "people": "Who is home",
-          "heating": "Heating – Tecomat PLC"
+          "heating": "Heating – Tecomat PLC",
+          "server": "Server – backups"
         }
       },
       "waste": {
@@ -309,6 +310,13 @@
           "password": "Password",
           "map_path": "Variable map (YAML path)",
           "poll_interval": "Poll interval"
+        }
+      },
+      "server": {
+        "title": "Server",
+        "description": "Proxmox VE backups: the last backup older than this limit is a warning, twice as old is critical.",
+        "data": {
+          "backup_max_age_days": "Backup age limit"
         }
       }
     },
