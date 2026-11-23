@@ -210,6 +210,9 @@ def grades_from_text(text: str) -> list[int] | None:
     if re.search(r"\b(?:cela skol\w*|celoskol\w*|vsichni)\b", text):
         return None
     grades = {int(match[1]) for match in CLASSES.finditer(text)}
+    # Czech primary school stages: 1st stage = grades 1-5, 2nd stage = grades 6-9.
+    for stage in re.findall(r"(?<!\d)([12])\s*\.\s*stup\w*", text):
+        grades.update(range(1, 6) if stage == "1" else range(6, 10))
     for match in GRADES.finditer(text):
         group = match[1]
         grades.update(int(value) for value in re.findall(r"[1-9]", group))

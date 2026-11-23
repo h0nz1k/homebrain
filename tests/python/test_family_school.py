@@ -238,6 +238,8 @@ def test_dates_use_their_section_heading_and_ignore_surrounding_page():
         ("4.a5.tř.", [4, 5]),
         ("4. a 5.tř.", [4, 5]),
         ("4.a", [4]),
+        ("Program - 2.stupeň", [6, 7, 8, 9]),
+        ("Program pro 1. stupeň", [1, 2, 3, 4, 5]),
     ],
 )
 def test_grades_accept_abbreviations_and_distinguish_class_letters(text, grades):
