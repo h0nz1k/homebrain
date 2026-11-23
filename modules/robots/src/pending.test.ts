@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PENDING_TIMEOUT_MS,
   actionOfPlan,
+  lateTitle,
   pendingPhase,
   type PendingCommand,
   type RobotSnapshot,
@@ -50,5 +51,14 @@ describe('pending command', () => {
     expect(actionOfPlan(['select.select_option', 'vacuum.send_command'], true)).toBe('start');
     expect(actionOfPlan(['button.press'], false)).toBeNull();
     expect(actionOfPlan(['vacuum.send_command'], false)).toBeNull();
+  });
+});
+
+describe('late notice', () => {
+  it('names the command that got no reply', () => {
+    expect(lateTitle('start')).toBe('Start úklidu zatím bez odezvy');
+    expect(lateTitle('pause')).toBe('Pauza zatím bez odezvy');
+    expect(lateTitle('home')).toBe('Návrat do doku zatím bez odezvy');
+    expect(lateTitle('resume')).toBe('Pokračování v úklidu zatím bez odezvy');
   });
 });

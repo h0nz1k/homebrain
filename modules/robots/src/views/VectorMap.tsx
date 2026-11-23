@@ -310,6 +310,7 @@ export function VectorFloorPlan({
       className="rv"
       data-testid="robots-vector-map"
       data-has-selection={selected.length > 0 || undefined}
+      data-has-live={placed.some((room) => room.id === liveRoom) || undefined}
       data-trail={trail}
       data-rotation={frame.rot || undefined}
       data-walls={wallsD && !raster ? '' : undefined}
@@ -451,6 +452,7 @@ export function VectorFloorPlan({
                   d={room.d}
                   strokeWidth={unit * 1.6}
                   data-selected={selected.includes(room.id) || undefined}
+                  data-live={room.id === liveRoom || undefined}
                   style={{ '--rv-hue': room.hue, '--rv-step': room.step } as CSSProperties}
                 />
               ))}
@@ -470,6 +472,7 @@ export function VectorFloorPlan({
                 data-testid={`robots-map-room-${room.id}`}
                 data-selected={badge !== null || undefined}
                 data-current={room.id === robotRoom || undefined}
+                data-live={room.id === liveRoom || undefined}
                 onClick={() => names.has(room.id) && onToggle(room.id)}
               />
             );
