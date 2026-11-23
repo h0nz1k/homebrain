@@ -999,16 +999,18 @@ function RobotPanel({
               </div>
             )}
             <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
-              <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
-                {mapProps && mapView === '3d' ? (
-                  <MapViewSwitch
-                    key={`${mapProps.map.digest}:${robot.rotation}`}
-                    {...mapProps}
-                    fallback={floorPlan}
-                  />
-                ) : (
-                  floorPlan
-                )}
+              <div className="rb-map-stack">
+                <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
+                  {mapProps && mapView === '3d' ? (
+                    <MapViewSwitch
+                      key={`${mapProps.map.digest}:${robot.rotation}`}
+                      {...mapProps}
+                      fallback={floorPlan}
+                    />
+                  ) : (
+                    floorPlan
+                  )}
+                </div>
                 {mapProps && (
                   <div className="rb-map-view-row">
                     <IconSegmentedControl

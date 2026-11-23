@@ -601,7 +601,8 @@ export const robotsStyles = `
 .rb-clean-head { align-items: center; }
 .rb-clean-title .rb-micro { margin-top: 3px; }
 .rb-trail-toggle .rb-ico { flex: none; margin-left: -2px; }
-.rb-map-view-row { display: flex; justify-content: flex-end; margin-top: 4px; }
+.rb-map-stack:has(> .rb-map-view-row) > .rb-map { margin-bottom: 0; }
+.rb-map-view-row { display: flex; justify-content: flex-end; padding-top: 4px; margin-bottom: 16px; }
 .rb .rb-map-view.hb-seg-wrap { margin: 0; width: auto; }
 .rb .rb-map-view .hb-seg button:has(.rb-seg-stack) { min-width: 29px; min-height: 32px; }
 .rb-map3d-stage { position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-height: 240px; max-height: 530px; }
