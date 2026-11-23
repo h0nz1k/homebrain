@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from bisect import bisect_left
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
-from math import fsum, isfinite, sqrt
+from math import isfinite, sqrt
 from statistics import mean
 from typing import Any
 
@@ -34,6 +35,7 @@ ATTIC = "house.attic_temp"
 POINTS = tuple((f"p{i}", f"curve.p{i}_outdoor", f"curve.p{i}_water") for i in range(1, 5))
 CURVE_KEYS = tuple(key for _, outdoor, water in POINTS for key in (outdoor, water))
 HOURS_REQUIRED = 20
+COUNTER_LEAD_DAYS = 92
 CURVE_DAYS = 7
 MIN_CURVE_DAYS = 5
 CURVE_WINDOW_DAYS = 21
@@ -103,22 +105,36 @@ def _measurements(rows: dict[float, Row], field: str) -> dict[float, float]:
     return {ts: value for ts, row in rows.items() if (value := _number(row.get(field))) is not None}
 
 
-def _counter_change(rows: dict[float, Row]) -> float | None:
-    # HA supplies hourly change from the running statistics sum. Its sum is
-    # the local-day change, including discontinuities at midnight.
-    changes = _measurements(rows, "change")
-    if len(changes) < HOURS_REQUIRED:
-        return None
-    total = fsum(changes.values())
-    return total if 0 <= total <= 24 else None
+def counter_days(days: Days) -> Callable[[date], float | None]:
+    """Daily counter increase from the running sum at local-day boundaries.
+
+    Imported statistics contain rows only for hours in which the counter
+    changed, so a missing hour means no change. A day without rows counts as
+    zero when the counter is known both before and after it. Resets and
+    increases above 24 h make the day unusable.
+    """
+    ends = sorted(
+        (day, sums[max(sums)]) for day, rows in days.items() if (sums := _measurements(rows, "sum"))
+    )
+    dates = [day for day, _ in ends]
+
+    def change(day: date) -> float | None:
+        i = bisect_left(dates, day)
+        if i == 0 or i == len(dates):
+            return None
+        before = ends[i - 1][1]
+        total = ends[i][1] - before if dates[i] == day else 0.0
+        return total if 0 <= total <= 24 else None
+
+    return change
 
 
 def model_days(stats: Stats) -> list[tuple[date, float, float]]:
     rows = []
-    compressor = stats.get(COMPRESSOR, {})
+    compressor = counter_days(stats.get(COMPRESSOR, {}))
     for day, outdoor in stats.get(OUTDOOR, {}).items():
         means = _measurements(outdoor, "mean")
-        runtime = _counter_change(compressor.get(day, {}))
+        runtime = compressor(day)
         if len(means) >= HOURS_REQUIRED and runtime is not None:
             rows.append((day, mean(means.values()), runtime))
     return rows
@@ -274,6 +290,7 @@ def curve_days(
     result = {}
     options = options or AdvisorOptions()
     recovering = _recovery_hours(stats)
+    circuits = counter_days(stats.get(CIRCUIT, {}))
     for day, rows in stats.get(OUTDOOR, {}).items():
         outdoor = _measurements(rows, "mean")
         if (
@@ -295,7 +312,7 @@ def curve_days(
         hysteresis = [
             value for value in _measurements(daily(HYSTERESIS), "mean").values() if value > 0
         ]
-        circuit = _counter_change(daily(CIRCUIT))
+        circuit = circuits(day)
         points = {
             key: {
                 ts: value
@@ -518,8 +535,11 @@ def _read_advisor(
         )
         return group_hourly({key: rows.get(sid, []) for key, sid in selected.items()}, zone)
 
-    history = read(
-        (OUTDOOR, COMPRESSOR), start, dt_util.start_of_local_day(today), {"mean", "change"}
+    end = dt_util.start_of_local_day(today)
+    # Imported counter rows are sparse. Earlier rows give the first day its
+    # starting sum; a summer without compressor runs has no rows at all.
+    history = read((OUTDOOR,), start, end, {"mean"}) | read(
+        (COMPRESSOR,), start - timedelta(days=COUNTER_LEAD_DAYS), end, {"sum"}
     )
     model = model_days(history)
     curve: dict[date, CurveDay] = {}
@@ -533,7 +553,7 @@ def _read_advisor(
             (*curve_keys, TARGET, EFFECTIVE_TARGET, HYSTERESIS, ATTIC),
             first,
             now,
-            {"mean", "change", "min", "max"},
+            {"mean", "sum", "min", "max"},
         )
         curve = curve_days(
             stats, has_attic=ATTIC in ids, options=options, missing_attic=missing_attic
