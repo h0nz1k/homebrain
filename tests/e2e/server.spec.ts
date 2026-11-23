@@ -114,15 +114,15 @@ test.describe('Server', () => {
         await page.evaluate(() => window.scrollTo(0, 0));
         await noSidewaysScroll(page);
         const spill = await page.evaluate(() => {
-          const out = [];
-          for (const row of document.querySelectorAll('[data-testid="server-proxmox-guest"]')) {
+          const rows = Array.from(
+            document.querySelectorAll('[data-testid="server-proxmox-guest"]'),
+          );
+          return rows.flatMap((row) => {
             const box = row.getBoundingClientRect();
-            for (const el of row.querySelectorAll('*')) {
-              const r = el.getBoundingClientRect();
-              if (r.width > 0 && (r.right > box.right + 11 || r.left < box.left - 11)) out.push(el);
-            }
-          }
-          return out.length;
+            return Array.from(row.querySelectorAll('*'))
+              .map((el) => el.getBoundingClientRect())
+              .filter((r) => r.width > 0 && (r.right > box.right + 11 || r.left < box.left - 11));
+          }).length;
         });
         expect(spill).toBe(0);
         if (process.env.SERVER_SCREENSHOTS)
