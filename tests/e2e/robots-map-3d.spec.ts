@@ -77,6 +77,8 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
   const room = map3d.locator('[data-map3d-room="3"]');
   await expect(room).toHaveAttribute('style', /left:/);
   const overviewPosition = (await room.getAttribute('style'))!;
+  // The camera state: selecting a room may move its label to another anchor, the view stays.
+  const overviewFrame = (await canvas.getAttribute('data-floor-box'))!;
   const top = map3d.getByRole('button', { name: 'Shora' });
   await top.click();
   await expect(top).toHaveAttribute('aria-pressed', 'true');
@@ -95,7 +97,7 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
   await expect(page.getByTestId('robots-room-3')).toHaveAttribute('aria-pressed', 'true');
 
   await map3d.getByRole('button', { name: 'Výchozí', exact: true }).click();
-  await expect(room).toHaveAttribute('style', overviewPosition);
+  await expect(canvas).toHaveAttribute('data-floor-box', overviewFrame);
   await expectFloorFitted();
 
   await mode2d.click();
