@@ -47,6 +47,7 @@ from .robots.discovery import discover_bindings, discover_floor, missing_binding
 from .roles import ASSIGNABLE_ROLES, CONF_ROLES
 from .server.rules import BACKUP_MAX_AGE, BACKUP_MAX_AGE_DAYS, BACKUP_MAX_AGE_RANGE
 from .server.rules import OPTION as SERVER_OPTION
+from .today import coffee
 
 UNIFI_OPTION_KEY = "network_unifi"
 OPTIONS_FLOW_MODULES = ("waste", "energy", "family", "recipes")
@@ -59,6 +60,7 @@ OPTIONS_FLOW_EXTRA = (
     "server",
     "modules",
     "meals",
+    "coffee",
     "people",
     "roles",
 )
@@ -451,6 +453,52 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="meals", data_schema=schema)
+
+    async def async_step_coffee(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure the Dnes coffee invitation quick action."""
+        options = dict(self.config_entry.options)
+        errors = {}
+        if user_input is not None:
+            for key in coffee.ENTITY_DOMAINS:
+                if value := user_input.get(key):
+                    try:
+                        options[key] = coffee.validate_entity(key, value)
+                    except vol.Invalid:
+                        errors[key] = "invalid_entity_id"
+                else:
+                    options.pop(key, None)
+            if not errors:
+                options[coffee.CONF_MODE] = user_input.get(coffee.CONF_MODE, coffee.DEFAULT_MODE)
+                if label := user_input.get(coffee.CONF_HOUSEHOLD, "").strip():
+                    options[coffee.CONF_HOUSEHOLD] = label
+                else:
+                    options.pop(coffee.CONF_HOUSEHOLD, None)
+                return self.async_create_entry(title="", data=options)
+
+        current = user_input if user_input is not None else self.config_entry.options
+        mode = current.get(coffee.CONF_MODE)
+        schema = vol.Schema(
+            {
+                **{
+                    vol.Optional(
+                        key, description={"suggested_value": current.get(key)}
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain=domain))
+                    for key, domain in coffee.ENTITY_DOMAINS.items()
+                },
+                vol.Optional(
+                    coffee.CONF_MODE, default=mode if mode in coffee.MODES else coffee.DEFAULT_MODE
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=list(coffee.MODES), translation_key=coffee.CONF_MODE
+                    )
+                ),
+                vol.Optional(
+                    coffee.CONF_HOUSEHOLD,
+                    description={"suggested_value": current.get(coffee.CONF_HOUSEHOLD)},
+                ): selector.TextSelector(),
+            }
+        )
+        return self.async_show_form(step_id="coffee", data_schema=schema, errors=errors)
 
     async def async_step_people(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """„Kdo je doma“: show it at all + which persons (in this order; empty = all by name)."""

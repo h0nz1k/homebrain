@@ -90,12 +90,18 @@ def visible_modules(role: str) -> list[str]:
 # Roles a non-admin HA user can be mapped to (``owner`` is reserved for HA admins).
 ASSIGNABLE_ROLES: Final = tuple(role for role in ROLES if role != "owner")
 
-# The only HomeBrain WS commands a non-admin user may call: what the Dnes kiosk panel needs.
-# ``session/get`` is open to every signed-in user; the rest additionally need a mapped role.
-# Every other ``homebrain/*`` command is admin-only (enforced by tests/python/test_kiosk_panel.py).
-KIOSK_WS_COMMANDS: Final = frozenset(
+# Commands available to every signed-in HA user, even without a HomeBrain role.
+SIGNED_IN_WS_COMMANDS: Final = frozenset(
     {
         "homebrain/session/get",
+        "homebrain/today/coffee/subscribe",
+        "homebrain/today/coffee/invite",
+    }
+)
+
+# Read commands needed by Dnes on the kiosk, available to mapped roles.
+KIOSK_WS_COMMANDS: Final = SIGNED_IN_WS_COMMANDS | frozenset(
+    {
         "homebrain/bindings/get",
         "homebrain/weather/get",
         "homebrain/weather/alerts",
@@ -220,7 +226,7 @@ ENERGY_DETAIL_ROLES: Final = frozenset({"adult"})
 def role_ws_commands(role: str) -> frozenset[str]:
     """Every ``homebrain/*`` WS command a mapped non-admin role may call."""
     if role == "guest":
-        return frozenset({"homebrain/session/get"})
+        return SIGNED_IN_WS_COMMANDS
     extra = RECIPES_DEVICE_WS_COMMANDS if role in RECIPES_DEVICE_ROLES else frozenset()
     if role in {"owner", "adult", "kiosk"}:
         extra |= {

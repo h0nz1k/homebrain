@@ -81,6 +81,7 @@ async def test_options_bindings(hass: HomeAssistant, user_input, expected):
         "server",
         "modules",
         "meals",
+        "coffee",
         "people",
         "roles",
     ]
