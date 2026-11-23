@@ -217,3 +217,90 @@ def test_clone_due_uses_local_day_and_elapsed_minutes(now, due, expected):
         swap_model.clone_due(due, datetime.fromisoformat(now), ZoneInfo("Europe/Prague"))
         == expected
     )
+
+
+def _op(**changes):
+    return {
+        "status": "failed",
+        "step": "create_intent",
+        "clone_id": None,
+        "last_error": "due_in_past",
+        "source_snapshot": {"opaque_id": "sensor.a", "name": "Vynést koš"},
+        "from_kid_name": "Kuba",
+        "created_at": "2026-06-01T08:00:00+00:00",
+        **changes,
+    }
+
+
+@pytest.mark.parametrize(
+    ("op", "issue"),
+    [
+        (_op(), False),
+        (_op(last_error="not_found"), False),
+        (_op(background_failure=True), True),
+        (_op(step="cleaned", rollback_status="failed"), True),
+        (_op(step="skip_intent", clone_id="c1"), True),
+        (_op(source_intent=True, step="remove_assignment"), True),
+        (_op(status="needs_repair"), True),
+        (_op(status="rollback_pending", clone_id="c1"), True),
+        (_op(status="applying", last_error=None), False),
+        (_op(status="cleanup_pending", last_error="cleanup_failed"), True),
+        (_op(status="needs_repair", dismissed_at="2026-06-02T08:00:00+00:00"), False),
+        (_op(status="dismissed", step="cleaned"), False),
+    ],
+)
+def test_swap_issue_only_when_state_may_be_inconsistent(op, issue):
+    assert swap_model.is_swap_issue(op) is issue
+
+
+def test_swap_issues_group_by_chore():
+    ops = {f"op-{i}": _op(step="cleaned", rollback_status="failed") for i in range(4)}
+    ops["other"] = _op(status="needs_repair", source_snapshot={"opaque_id": "b", "name": "Mytí"})
+    ops["rejected"] = _op()
+    rows = swap_model.swap_issues(ops)
+    assert [(r["chore_name"], r["count"]) for r in rows] == [("Vynést koš", 4), ("Mytí", 1)]
+    assert rows[0]["ids"] == ["op-0", "op-1", "op-2", "op-3"] and rows[0]["id"] == "op-0"
+
+
+def test_prune_forgets_old_rejections_only():
+    now = datetime(2026, 6, 10, 12, tzinfo=UTC)
+    ops = {
+        "old-rejected": _op(),
+        "old-dismissed": _op(status="dismissed"),
+        "old-background": _op(background_failure=True),
+        "old-wrote": _op(step="cleaned", rollback_status="failed"),
+        "fresh-rejected": _op(created_at="2026-06-08T08:00:00+00:00"),
+    }
+    assert sorted(swap_model.prune_operations(ops, now)) == [
+        "fresh-rejected",
+        "old-background",
+        "old-wrote",
+    ]
+
+
+def test_clone_due_at_rejects_past_time():
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Prague")
+    now = datetime(2026, 6, 2, 7, tzinfo=UTC)  # 09:00 local
+    day = now.date()
+    assert swap_model.clone_due_at(day, "10:00", now, tz) == "2026-06-02T10:00:00+02:00"
+    for value in ("09:04", "08:00"):
+        with pytest.raises(swap_model.DomainError) as err:
+            swap_model.clone_due_at(day, value, now, tz)
+        assert err.value.code == "due_in_past"
+    with pytest.raises(swap_model.DomainError):
+        swap_model.clone_due_at(day, "25:00", now, tz)
+
+
+@pytest.mark.asyncio
+async def test_store_prunes_dedupe_of_forgotten_operations(hass):
+    from zoneinfo import ZoneInfo
+
+    store = FamilySwapStore(hass)
+    store.upsert_operation("old-rejected", _op())
+    store.remember_dedupe("client-1", {}, {"operation_id": "old-rejected"})
+    store.remember_dedupe("client-2", {}, {"request": {}})
+    assert store.reconcile_all(datetime(2026, 6, 10, tzinfo=UTC), ZoneInfo("Europe/Prague"))
+    assert store.data["operations"] == {}
+    assert list(store.data["dedupe"]) == ["client-2"]

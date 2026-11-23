@@ -18,6 +18,8 @@ import {
   nextEvent,
   pointsLabel,
   pointsParts,
+  reassignDueTime,
+  swapIssueStack,
   timeRange,
   relLabel,
   sortChores,
@@ -281,5 +283,27 @@ describe('chore-fix dates', () => {
     expect(defaultFirstDate(new Date(2026, 10, 19, 17, 50), '18:00').getDate()).toBe(20);
     expect(defaultFirstDate(new Date(2026, 10, 19, 19), '18:00').getDate()).toBe(20);
     expect(defaultFirstDate(new Date(2026, 10, 30, 19), '18:00').getMonth()).toBe(11);
+  });
+});
+
+describe('reassignDueTime', () => {
+  const at = (h: number, m = 0) => new Date(2026, 5, 2, h, m);
+  it('keeps the chore’s usual time while it is still 30 minutes ahead today', () => {
+    expect(reassignDueTime(new Date(2026, 5, 1, 18).toISOString(), at(9))).toBe('18:00');
+  });
+  it('falls back to the next whole hour once the usual time has passed', () => {
+    expect(reassignDueTime(new Date(2026, 5, 1, 7, 30).toISOString(), at(9, 40))).toBe('11:00');
+    expect(reassignDueTime(null, at(9))).toBe('10:00');
+  });
+  it('has no time left late at night', () => {
+    expect(reassignDueTime(new Date(2026, 5, 1, 18).toISOString(), at(23, 50))).toBeNull();
+  });
+});
+
+describe('swapIssueStack', () => {
+  it('shows up to three banners and counts the rest', () => {
+    expect(swapIssueStack([1, 2])).toEqual({ shown: [1, 2], more: 0 });
+    expect(swapIssueStack([1, 2, 3])).toEqual({ shown: [1, 2, 3], more: 0 });
+    expect(swapIssueStack([1, 2, 3, 4, 5])).toEqual({ shown: [1, 2, 3], more: 2 });
   });
 });

@@ -84,7 +84,16 @@ class FamilySwapStore:
     def reconcile_all(self, now, tz) -> bool:
         reqs = swap_model.reconcile_requests(self._data.get("requests") or {}, now)
         ops = swap_model.reconcile_operations(self._data.get("operations") or {}, now, tz)
-        changed = reqs != self._data["requests"] or ops != self._data["operations"]
+        ops = swap_model.prune_operations(ops, now)
+        if len(ops) != len(self._data.get("operations") or {}):
+            dedupe = self._data.get("dedupe") or {}
+            self._data["dedupe"] = {
+                key: row
+                for key, row in dedupe.items()
+                if not isinstance(row, dict)
+                or (row.get("result") or {}).get("operation_id") in (None, *ops)
+            }
+        changed = reqs != self._data.get("requests") or ops != self._data.get("operations")
         self._data["requests"] = reqs
         self._data["operations"] = ops
         return changed

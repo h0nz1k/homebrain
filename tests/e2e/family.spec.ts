@@ -1890,21 +1890,31 @@ test.describe('Rodina – mazání a přeřazování úkolů', () => {
         await page.getByRole('button', { name: 'Přeřadit…' }).click();
         const swap = page.getByTestId('family-swap-sheet');
         await expect(swap.getByTestId('family-swap-recipient')).toContainText('Kuba');
+        // Overdue since yesterday 18:00: the copy gets a new deadline, by default 18:00 today.
+        await expect(swap.getByTestId('family-swap-time')).toHaveValue('18:00');
         const submit = swap.getByTestId('family-swap-submit');
-        await submit.click();
+        await submit.dblclick();
         if (outcome === 'error') {
           await expect(swap.getByRole('alert')).toHaveText(
             'Přeřazení se nepovedlo, zkus to znovu.',
           );
           await expect(swap.getByRole('alert')).toBeInViewport({ ratio: 1 });
           await expect(submit).toBeEnabled();
-          await expect(page.getByTestId('hb-toast')).toContainText('Přeřazení se nepovedlo');
+          // Answered inline in the sheet, no extra toast.
+          await expect(page.getByTestId('hb-toast')).toHaveCount(0);
           await capture(page, info.project.name, 'reassign-error', theme);
         } else {
           await expect(swap).toHaveCount(0);
+          const calls = await page.evaluate(
+            () =>
+              (
+                window as Window & { __hbFamilyLog?: Array<{ kind: string }> }
+              ).__hbFamilyLog?.filter((event) => event.kind === 'swapReassign').length,
+          );
+          expect(calls).toBe(1);
           await expect(chore.and(page.locator('[data-swap="transferred_out"]'))).toHaveCount(1);
           const reassigned = chore.and(page.locator('[data-swap="transferred_in"]'));
-          await expect(reassigned).toContainText('do 23:59');
+          await expect(reassigned).toContainText('do 18:00');
           await reassigned.scrollIntoViewIfNeeded();
           await expect(page.getByTestId('hb-toast')).toContainText('Přeřazeno na Kubu na dnes');
           await capture(page, info.project.name, 'reassign-success', theme);
@@ -2013,6 +2023,54 @@ test.describe('Rodina – výběr termínu a zítřejší předání', () => {
       'Přeřazení se nepodařilo dokončit – úkol zůstal u Emy.',
     );
     await evidence(page, 'nedokoncene-prirazeni');
+  });
+
+  test('opakované neúspěšné přeřazení je jedno upozornění a Skrýt jej schová', async ({
+    page,
+  }, info) => {
+    test.slow(info.project.name !== 'desktop', 'four themed screenshots');
+    await open(page, '?rodina=evening&reassign=needs-repair');
+    const issue = page.getByTestId('family-swap-issue');
+    await expect(issue).toHaveCount(1);
+    await expect(issue).toContainText('Vyskládat myčku');
+    await expect(issue.getByTestId('family-swap-issue-count')).toHaveText('3 pokusy');
+    const hide = issue.getByRole('button', { name: 'Skrýt upozornění: Vyskládat myčku' });
+    const box = (await hide.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    if (info.project.name !== 'desktop') {
+      const size = page.viewportSize()!;
+      for (const demo of ['needs-repair', 'needs-repair-multi'] as const) {
+        for (const theme of ['light', 'dark'] as const) {
+          await open(page, `?rodina=evening&reassign=${demo}&theme=${theme}`);
+          await expect(issue.first()).toBeVisible();
+          await page.evaluate(() => document.fonts.ready);
+          const suffix = demo === 'needs-repair-multi' ? '-2-ukoly' : '';
+          await page.screenshot({
+            path: join(
+              'test-results',
+              'family-swap-issues-r1',
+              `${size.width}x${size.height}-${theme}${suffix}.png`,
+            ),
+            animations: 'disabled',
+          });
+        }
+      }
+      await open(page, '?rodina=evening&reassign=needs-repair');
+    }
+    await hide.click();
+    await expect(issue).toHaveCount(0);
+  });
+
+  test('dvě různá neúspěšná přeřazení jsou dvě karty pod sebou', async ({ page }) => {
+    await open(page, '?rodina=evening&reassign=needs-repair-multi');
+    const issues = page.getByTestId('family-swap-issue');
+    await expect(issues).toHaveCount(2);
+    await expect(issues.nth(1)).toContainText('Probíhá obnova');
+    const [a, b] = [(await issues.nth(0).boundingBox())!, (await issues.nth(1).boundingBox())!];
+    expect(b.y).toBeGreaterThan(a.y + a.height);
+    await issues.nth(1).getByRole('button', { name: 'Skrýt upozornění: Vynést koš' }).click();
+    await expect(issues).toHaveCount(1);
   });
 
   test('po změně času večerní termín přeskočí na další kalendářní den', async ({ page }) => {

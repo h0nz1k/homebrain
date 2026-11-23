@@ -39,6 +39,7 @@ import {
   localKey,
   monthPoints,
   nextTodayTime,
+  reassignDueTime,
   pointsAmount,
   pointsLabel,
   pointsParts,
@@ -1335,12 +1336,20 @@ const SWAP_ERRORS = new Map([
   ['not_found', 'Úkol nebo příjemce už není dostupný.'],
   ['unauthorized', 'K předání úkolu nemáš oprávnění.'],
   ['not_configured', 'Úkoly nejsou nastavené.'],
+  ['invalid_input', 'Zkontroluj den a čas.'],
 ]);
 
-export function swapError(error: unknown, fallback: string): string {
+function errorCode(error: unknown): string | undefined {
   const code = (error as { code?: unknown } | null)?.code;
-  return (typeof code === 'string' && SWAP_ERRORS.get(code)) || fallback;
+  return typeof code === 'string' ? code : undefined;
 }
+
+export function swapError(error: unknown, fallback: string): string {
+  return SWAP_ERRORS.get(errorCode(error) ?? '') ?? fallback;
+}
+
+/** Overdue reassign: the new deadline must still be ahead (ChoreOps rejects a past one). */
+const REASSIGN_LEAD_MS = 5 * 60_000;
 
 export function SwapSheet({
   api,
@@ -1364,10 +1373,16 @@ export function SwapSheet({
   onError: (message: string) => void;
 }) {
   useBackClosable(onClose);
+  const now = api.now?.() ?? new Date();
   const [partners, setPartners] = useState<Array<{ id: string; name: string }>>([]);
   const [target, setTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
+  // One user action = one client_request_id, so a repeated tap or a retry after a lost
+  // answer is deduplicated by the backend instead of starting another reassign.
+  const attempt = useRef<{ key: string; id: string } | null>(null);
+  // A payload the backend already refused: the button waits until something changes.
+  const [rejected, setRejected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fromKid = snap.kids.find((k) => k.id === kidId);
   const fromId = fromKid?.kid_uuid ?? kidId;
@@ -1378,6 +1393,16 @@ export function SwapSheet({
   const [days, setDays] = useState<string[]>([]);
   const [day, setDay] = useState(expected);
   const [loading, setLoading] = useState(true);
+  const overdue =
+    mode === 'reassign' &&
+    !!chore?.due &&
+    (chore.state === 'overdue' || Date.parse(chore.due) <= now.getTime());
+  const needsTime = overdue && day === localKey(now);
+  const [dueTime, setDueTime] = useState(() => reassignDueTime(chore?.due, now) ?? '');
+  const pickedTime = normTime(dueTime);
+  const timeOk =
+    TIME_RE.test(pickedTime) &&
+    new Date(`${day}T${pickedTime}`).getTime() - now.getTime() > REASSIGN_LEAD_MS;
   useEffect(() => {
     let active = true;
     void api
@@ -1410,6 +1435,18 @@ export function SwapSheet({
     };
   }, [api, choreId, expected, fromId, onError]);
   const recipient = partners.find((p) => p.id === target);
+  const payload =
+    fromKid && recipient
+      ? {
+          chore: choreId,
+          from_kid: fromKid.kid_uuid ?? fromKid.id,
+          to_kid: recipient.id,
+          local_date: day,
+          direction: 'give' as const,
+          ...(needsTime ? { due_time: pickedTime } : {}),
+        }
+      : null;
+  const payloadKey = payload ? JSON.stringify(payload) : '';
   const disabledReason = loading
     ? 'Načítám dostupné výskyty…'
     : !days.includes(day)
@@ -1418,36 +1455,47 @@ export function SwapSheet({
         ? 'Není dostupný žádný sourozenec.'
         : !target
           ? 'Vyber příjemce.'
-          : busy
-            ? 'Ukládám…'
-            : undefined;
+          : needsTime && !timeOk
+            ? nextTodayTime(now)
+              ? 'Vyber pozdější čas – nový termín musí být v budoucnu.'
+              : 'Dnes už nový termín nastavit nejde.'
+            : busy
+              ? mode === 'reassign'
+                ? 'Přeřazuji…'
+                : 'Odesílám…'
+              : rejected === payloadKey
+                ? needsTime
+                  ? 'Změň čas nebo příjemce.'
+                  : 'Změň den nebo příjemce.'
+                : undefined;
   const submit = async () => {
-    if (!fromKid || !recipient || disabledReason || submitting.current) return;
+    if (!payload || !recipient || disabledReason || submitting.current) return;
     submitting.current = true;
     setError(null);
     setBusy(true);
+    if (attempt.current?.key !== payloadKey)
+      attempt.current = { key: payloadKey, id: newRequestId() };
     try {
-      const payload = {
-        client_request_id: newRequestId(),
-        chore: choreId,
-        from_kid: fromKid.kid_uuid ?? fromKid.id,
-        to_kid: recipient.id,
-        local_date: day,
-        direction: 'give' as const,
-      };
-      if (mode === 'reassign') await api.swapReassign(payload);
-      else await api.swapRequest(payload);
+      const input = { ...payload, client_request_id: attempt.current.id };
+      if (mode === 'reassign') await api.swapReassign(input);
+      else await api.swapRequest(input);
       onDone(recipient.name, day);
       onClose();
     } catch (err) {
-      const message = swapError(
-        err,
-        mode === 'reassign'
-          ? 'Přeřazení se nepovedlo, zkus to znovu.'
-          : 'Žádost se nepodařilo odeslat.',
+      const code = errorCode(err);
+      // The server answered: that result is final for this request id. A refusal waits for
+      // a changed input; any other failure may be retried as a new attempt. Without an
+      // answer (connection lost) the retry keeps the id, the backend replays the outcome.
+      if (code && SWAP_ERRORS.has(code)) setRejected(payloadKey);
+      else if (code) attempt.current = null;
+      setError(
+        swapError(
+          err,
+          mode === 'reassign'
+            ? 'Přeřazení se nepovedlo, zkus to znovu.'
+            : 'Žádost se nepodařilo odeslat.',
+        ),
       );
-      setError(message);
-      onError(message);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -1472,6 +1520,7 @@ export function SwapSheet({
             variant="primary"
             contrast="high"
             disabled={!!disabledReason}
+            loading={busy}
             title={disabledReason}
             onClick={() => void submit()}
             data-testid="family-swap-submit"
@@ -1530,7 +1579,32 @@ export function SwapSheet({
             </label>
           ))}
         </fieldset>
-        {disabledReason && !busy && (
+        {needsTime && (
+          <div className="fam-form-date fam-swap-time">
+            <label htmlFor={`${choreId}-swap-time`}>Nový termín dnes do</label>
+            <span className="fam-input-icon">
+              <input
+                id={`${choreId}-swap-time`}
+                type="text"
+                inputMode="numeric"
+                placeholder="18:00"
+                value={dueTime}
+                disabled={busy}
+                onChange={(e) => setDueTime(e.target.value)}
+                onBlur={() => setDueTime(pickedTime)}
+                data-testid="family-swap-time"
+              />
+              <ChorePicker
+                type="time"
+                now={now}
+                value={TIME_RE.test(pickedTime) ? pickedTime : ''}
+                onPick={setDueTime}
+              />
+            </span>
+            <small className="fam-hint">Původní termín už minul, úkol dostane nový.</small>
+          </div>
+        )}
+        {disabledReason && (
           <p className="fam-hint" role="status">
             {disabledReason}
           </p>

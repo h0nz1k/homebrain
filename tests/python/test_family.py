@@ -860,6 +860,8 @@ async def test_shared_first_free_pool_and_claim(
         ("reassign", "2026-06-02T18:00:00+02:00", "2026-06-02T18:00:00+02:00"),
         ("decide", "2026-06-01T22:43:00+02:00", "2026-06-02T23:59:00+02:00"),
         ("failed", "2026-06-01T22:43:00+02:00", "2026-06-02T23:59:00+02:00"),
+        ("picked", "2026-06-01T22:43:00+02:00", "2026-06-02T10:30:00+02:00"),
+        ("picked_past", "2026-06-01T22:43:00+02:00", None),
     ],
 )
 async def test_swap_choreops_create_and_skip(
@@ -933,6 +935,16 @@ async def test_swap_choreops_create_and_skip(
         "to_kid": "kuba",
         "local_date": "2026-06-02",
     }
+    if mode == "picked":
+        payload["due_time"] = "10:30"
+    if mode == "picked_past":
+        # An overdue chore moved to a time that already passed: rejected before any write.
+        payload["due_time"] = "09:03"
+        result = await _ws(client, payload)
+        assert result["error"]["code"] == "due_in_past"
+        assert seen == []
+        assert hass.data[DOMAIN]["family_swap"].data["operations"] == {}
+        return
     if mode == "decide":
         req = await _ws(client, {**payload, "type": "homebrain/family/swap/request"})
         assert req["success"], req
@@ -954,6 +966,9 @@ async def test_swap_choreops_create_and_skip(
         (failed,) = store.data["operations"].values()
         assert failed["status"] == "failed"
         assert failed["step"] == "create_intent"
+        # ChoreOps refused the copy, nothing changed: an inline error, not a lasting banner.
+        snapshot = (await _ws(client, {"type": "homebrain/family/get"}))["result"]
+        assert snapshot["swap_issues"] == []
         return
     assert result["success"], result
     assert result["result"]["operation"]["status"] == "active"
@@ -1807,3 +1822,49 @@ async def test_swap_timer_isolates_unexpected_operation_error(
     assert store.data["operations"][first_id]["status"] == "needs_repair"
     assert store.data["operations"][second_id]["status"] == "active"
     assert len(created) == 1
+
+
+async def test_swap_issues_grouped_and_dismissed(hass, entry, hass_ws_client, hass_admin_user):
+    store = hass.data[DOMAIN]["family_swap"]
+    snap = {"opaque_id": "sensor.ema_kytky", "name": "Zalít květiny", "chore_id": "c1"}
+    base = {
+        "kind": "swap",
+        "status": "failed",
+        "step": "create_intent",
+        "clone_id": None,
+        "source_snapshot": snap,
+        "from_kid_name": "Ema",
+        "created_at": NOW.isoformat(),
+    }
+    for i in range(18):
+        store.upsert_operation(f"rejected-{i:04d}", {**base, "last_error": "due_in_past"})
+    store.upsert_operation(
+        "rolled-back-0001",
+        {**base, "step": "cleaned", "rollback_status": "failed", "last_error": "service_failed"},
+    )
+    store.upsert_operation(
+        "repair-00000001", {**base, "status": "needs_repair", "last_error": "expired_day"}
+    )
+    store.upsert_operation(
+        "recovering-0001",
+        {**base, "status": "rollback_pending", "clone_id": "x", "last_error": "service_failed"},
+    )
+    client = await hass_ws_client(hass)
+    (issue,) = (await _ws(client, {"type": "homebrain/family/get"}))["result"]["swap_issues"]
+    assert issue["count"] == 3 and issue["pending"] is True
+    assert sorted(issue["ids"]) == ["recovering-0001", "repair-00000001", "rolled-back-0001"]
+    assert issue["chore_name"] == "Zalít květiny" and issue["source_name"] == "Ema"
+
+    result = await _ws(client, {"type": "homebrain/family/swap/dismiss", "ids": issue["ids"]})
+    assert result["success"], result
+    assert sorted(result["result"]["dismissed"]) == sorted(issue["ids"])
+    ops = store.data["operations"]
+    assert ops["rolled-back-0001"]["status"] == "dismissed"
+    # The scheduler still finishes the rollback; only the banner goes away.
+    assert ops["recovering-0001"]["status"] == "rollback_pending"
+    assert (await _ws(client, {"type": "homebrain/family/get"}))["result"]["swap_issues"] == []
+
+    await _as(hass, entry, hass_admin_user, "child", kids=[{"id": "ema", "name": "Ema"}])
+    payload = {"type": "homebrain/family/swap/dismiss", "ids": ["repair-00000001"]}
+    denied = await _ws(client, payload)
+    assert not denied["success"]

@@ -34,7 +34,10 @@ export function registerFamilyMocks(): void {
         ? familyScenario
         : 'full',
     reassignDemo:
-      reassignDemo === 'overdue' || reassignDemo === 'error' || reassignDemo === 'needs-repair'
+      reassignDemo === 'overdue' ||
+      reassignDemo === 'error' ||
+      reassignDemo === 'needs-repair' ||
+      reassignDemo === 'needs-repair-multi'
         ? reassignDemo
         : undefined,
   });

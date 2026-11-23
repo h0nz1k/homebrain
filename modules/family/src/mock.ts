@@ -15,6 +15,7 @@ import type {
   SwapRequestInput,
   FamilyUpcomingChore,
   PersonHistoryEntry,
+  SwapIssue,
 } from './types.js';
 import { timetableClock } from '@homebrain/ha-client';
 import { canTransferChore, choreTally, localKey } from './format.js';
@@ -28,7 +29,7 @@ export interface FamilyMockOptions {
   /** `empty` has no integrations; `busy` adds enough chores to overflow each kiosk list. */
   scenario?: 'full' | 'empty' | 'busy' | 'evening';
   /** Synthetic overdue occurrence for the reassign success and failure flows. */
-  reassignDemo?: 'overdue' | 'error' | 'needs-repair';
+  reassignDemo?: 'overdue' | 'error' | 'needs-repair' | 'needs-repair-multi';
   now?: () => Date;
   school?: SchoolScenario;
   timetable?: TimetableScenario;
@@ -251,6 +252,25 @@ function slotsOf(
   });
 }
 
+/** Failed reassigns for the parent banner (`needs-repair-multi`: two different chores). */
+function swapIssueDemo(demo: FamilyMockOptions['reassignDemo']): SwapIssue[] {
+  if (demo !== 'needs-repair' && demo !== 'needs-repair-multi') return [];
+  const issues: SwapIssue[] = [
+    {
+      id: 'swap-repair',
+      ids: ['swap-repair', 'swap-repair-2', 'swap-repair-3'],
+      chore_name: 'Vyskládat myčku',
+      source_name: 'Ema',
+      pending: false,
+      count: 3,
+    },
+  ];
+  if (demo === 'needs-repair-multi') {
+    issues.push({ id: 'swap-trash', chore_name: 'Vynést koš', source_name: 'Kuba', pending: true });
+  }
+  return issues;
+}
+
 export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & { log: unknown[] } {
   const role = opts.role ?? 'owner';
   const now =
@@ -349,6 +369,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   const state = {
     kids: empty ? [] : kids(now(), opts.scenario === 'busy'),
     swapPending: empty ? '' : 'swap-req-1',
+    dismissedIssues: new Set<string>(),
     items: empty
       ? []
       : ['Mléko 2×', 'Rohlíky', 'Jablka', 'Prací gel', 'Máslo', 'Vejce'].map((summary, i) => ({
@@ -551,17 +572,9 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
     return {
       role,
       revision: 3,
-      swap_issues:
-        detail && opts.reassignDemo === 'needs-repair'
-          ? [
-              {
-                id: 'swap-repair',
-                chore_name: 'Vyskládat myčku',
-                source_name: 'Ema',
-                pending: false,
-              },
-            ]
-          : [],
+      swap_issues: detail
+        ? swapIssueDemo(opts.reassignDemo).filter((issue) => !state.dismissedIssues.has(issue.id))
+        : [],
       capabilities: {
         can_create_chore: detail,
         can_swap: role !== 'kiosk' && role !== 'guest',
@@ -834,10 +847,17 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       original.counts_today = false;
       original.can_request_swap = false;
       const current = now();
-      const due =
+      let due =
         original.due && Date.parse(original.due) > current.getTime() + 15 * 60_000
           ? original.due
           : at(current, 0, 23, 59);
+      if (input.due_time) {
+        const [h, m] = input.due_time.split(':').map(Number) as [number, number];
+        const picked = new Date(`${input.local_date}T00:00:00`);
+        picked.setHours(h, m);
+        if (picked.getTime() <= current.getTime() + 5 * 60_000) throw { code: 'due_in_past' };
+        due = picked.toISOString();
+      }
       to.chores.push({
         ...original,
         id: `${original.id}-reassigned`,
@@ -851,6 +871,11 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         },
       });
       return { operation: { status: 'active' } };
+    },
+    swapDismiss: async (ids) => {
+      log.push({ kind: 'swapDismiss', ids });
+      for (const id of ids) state.dismissedIssues.add(id);
+      return { dismissed: ids };
     },
     swapCancel: async (request_id) => {
       log.push({ kind: 'swapCancel', request_id });
