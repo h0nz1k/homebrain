@@ -601,7 +601,7 @@ export const robotsStyles = `
 .rb-clean-head { align-items: center; }
 .rb-clean-title .rb-micro { margin-top: 3px; }
 .rb-trail-toggle .rb-ico { flex: none; margin-left: -2px; }
-.rb-map-head-controls { display: flex; flex: none; align-items: center; gap: 6px; }
+.rb-map-view-row { display: flex; justify-content: flex-end; margin-top: 4px; }
 .rb .rb-map-view.hb-seg-wrap { margin: 0; width: auto; }
 .rb .rb-map-view .hb-seg button:has(.rb-seg-stack) { min-width: 29px; min-height: 32px; }
 .rb-map3d-stage { position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-height: 240px; max-height: 530px; }

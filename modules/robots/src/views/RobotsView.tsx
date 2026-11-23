@@ -915,36 +915,21 @@ function RobotPanel({
                   )}
                 </p>
               </div>
-              {vector?.available && (
-                <div className="rb-map-head-controls">
-                  <IconSegmentedControl
-                    compact
-                    label="Zobrazení mapy"
-                    value={mapView}
-                    options={[
-                      ['2d', '2D'],
-                      ['3d', '3D'],
-                    ]}
-                    onChange={rememberMapView}
-                    className="rb-map-view"
-                  />
-                  {/* At least two path points: a single point has nothing to show or hide. */}
-                  {vector.map.path.length >= 4 && (
-                    <Chip
-                      className="rb-chip rb-trail-toggle"
-                      pressed={fullTrail}
-                      data-testid="robots-trail-toggle"
-                      aria-label="Celá trasa úklidu"
-                      onPress={() => {
-                        setFullTrail(!fullTrail);
-                        writeTrailPref(!fullTrail);
-                      }}
-                    >
-                      <RouteIcon />
-                      Trasa
-                    </Chip>
-                  )}
-                </div>
+              {/* At least two path points: a single point has nothing to show or hide. */}
+              {vector?.available && vector.map.path.length >= 4 && (
+                <Chip
+                  className="rb-chip rb-trail-toggle"
+                  pressed={fullTrail}
+                  data-testid="robots-trail-toggle"
+                  aria-label="Celá trasa úklidu"
+                  onPress={() => {
+                    setFullTrail(!fullTrail);
+                    writeTrailPref(!fullTrail);
+                  }}
+                >
+                  <RouteIcon />
+                  Trasa
+                </Chip>
               )}
             </div>
             {connection && (
@@ -1023,6 +1008,21 @@ function RobotPanel({
                   />
                 ) : (
                   floorPlan
+                )}
+                {mapProps && (
+                  <div className="rb-map-view-row">
+                    <IconSegmentedControl
+                      compact
+                      label="Zobrazení mapy"
+                      value={mapView}
+                      options={[
+                        ['2d', '2D'],
+                        ['3d', '3D'],
+                      ]}
+                      onChange={rememberMapView}
+                      className="rb-map-view"
+                    />
+                  </div>
                 )}
               </div>
               <div className="rb-clean-side">

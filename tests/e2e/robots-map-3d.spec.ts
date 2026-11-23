@@ -30,6 +30,7 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
 
   const room = map3d.locator('[data-map3d-room="3"]');
   await expect(room).toHaveAttribute('style', /left:/);
+  await room.scrollIntoViewIfNeeded();
   const box = await room.boundingBox();
   if (!box) throw new Error('Chybí umístění místnosti na 3D mapě');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
