@@ -4,6 +4,26 @@ import type { RobotModel } from './model.js';
 import { fitSettings, robotCapabilities, type RobotCapabilities } from './presets.js';
 
 export const ROBOTS_UI_STORAGE_KEY = 'homebrain_robots_v1';
+export type MapView = '2d' | '3d';
+
+// The camera mode belongs to this browser (and its WebGL capabilities).
+const MAP_VIEW_KEY = 'homebrain.robots.ui.map-view';
+
+export function readMapView(slot: number): MapView {
+  try {
+    return globalThis.localStorage?.getItem(`${MAP_VIEW_KEY}.${slot}`) === '3d' ? '3d' : '2d';
+  } catch {
+    return '2d';
+  }
+}
+
+export function writeMapView(slot: number, view: MapView): void {
+  try {
+    globalThis.localStorage?.setItem(`${MAP_VIEW_KEY}.${slot}`, view);
+  } catch {
+    /* quota / private mode */
+  }
+}
 
 export interface SlotUiMemory {
   advanced?: boolean;

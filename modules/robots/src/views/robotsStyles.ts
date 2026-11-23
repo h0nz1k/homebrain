@@ -601,6 +601,24 @@ export const robotsStyles = `
 .rb-clean-head { align-items: center; }
 .rb-clean-title .rb-micro { margin-top: 3px; }
 .rb-trail-toggle .rb-ico { flex: none; margin-left: -2px; }
+.rb-map-head-controls { display: flex; flex: none; align-items: center; gap: 6px; }
+.rb .rb-map-view.hb-seg-wrap { margin: 0; width: auto; }
+.rb .rb-map-view .hb-seg button:has(.rb-seg-stack) { min-width: 29px; min-height: 32px; }
+.rb-map3d-stage { position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-height: 240px; max-height: 530px; }
+.rb-map3d-stage canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; cursor: grab; touch-action: none; }
+.rb-map3d-stage canvas:active { cursor: grabbing; }
+.rb-map3d-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px 0; }
+.rb-map3d-controls button { min-height: 36px; padding-inline: 8px; font-size: 12px; }
+.rb-map3d-controls button[aria-pressed="true"] { color: var(--hb-sel-ink); border-color: var(--hb-ac); }
+.rb-map3d-label { position: absolute; pointer-events: none; display: flex; align-items: center; gap: 4px; transform: translate(-50%, -50%); max-width: 29%; padding: 3px 5px; border-radius: 6px; background: var(--rb-fill); color: var(--hb-t1); font-size: clamp(9px, 1.45vw, 12px); line-height: 1.1; }
+.rb-map3d-label[hidden] { display: none; }
+.rb-map3d-room-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rb-map3d-badge { flex: none; min-width: 1.25em; padding: 2px; border-radius: 50%; text-align: center; color: #fff; background: var(--hb-ac); font-weight: 700; }
+.rb-map3d-room-color { color: var(--rv-tile); }
+.rb-map3d-wall-color { color: var(--rv-wall-line); }
+.rb-map3d-dock-color { color: var(--rv-dock); }
+.rb-map3d-live-color { color: var(--rv-trail); }
+.rb-map3d-note { color: var(--hb-t2); padding: 8px; font-size: 13px; }
 .rb-hint b { color: var(--hb-t1); font-weight: 600; }
 .rb-live { color: var(--hb-ac); font-weight: 600; }
 .rb-live::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 6px 1px 0; border-radius: 50%; background: currentColor; animation: rb-pulse 2.4s ease-in-out infinite; }

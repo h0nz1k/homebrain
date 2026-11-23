@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ModuleViewProps } from '@homebrain/ha-client';
-import {
-  Button,
-  Card,
-  Chip,
-  ProgressRing,
-  Stepper,
-  Tile,
-  czCount,
-  useToast,
-} from '@homebrain/ui';
+import { Button, Card, Chip, ProgressRing, Stepper, Tile, czCount, useToast } from '@homebrain/ui';
 import {
   attention,
   buildRobot,
@@ -84,7 +75,9 @@ import { useVectorMap } from './useVectorMap.js';
 import { roomAt } from '../map/geometry.js';
 import { robotsStyles } from './robotsStyles.js';
 import { CleaningOptionRow } from './CleaningOptionRow.js';
+import { IconSegmentedControl } from './IconSegmentedControl.js';
 import { LevelSegmentedControl } from './LevelSegmentedControl.js';
+import { MapViewSwitch } from './Map3D/MapViewSwitch.js';
 import { RoomIcon } from './roomIcons.js';
 import { useRobotsUiMemory } from '../useRobotsUiMemory.js';
 import type { SlotUiMemory } from '../uiMemory.js';
@@ -98,10 +91,7 @@ import {
   PlusIcon,
   RouteIcon,
 } from './robotActionIcons.js';
-import {
-  readDockResolvePending,
-  writeDockResolvePending,
-} from '../dockResolvePending.js';
+import { readDockResolvePending, writeDockResolvePending } from '../dockResolvePending.js';
 import {
   DOCK_REFILL_ACK_NOTE,
   DOCK_REFILL_AFTER_HINT,
@@ -331,7 +321,7 @@ function RobotPanel({
     if (slot.passes !== undefined) setPasses(slot.passes);
     if (slot.presetId) setPresetIdPick(slot.presetId);
   }, []);
-  const { rememberPreset } = useRobotsUiMemory(
+  const { rememberPreset, mapView, rememberMapView } = useRobotsUiMemory(
     connection,
     robot,
     presetList.map((p) => p.id),
@@ -402,6 +392,7 @@ function RobotPanel({
     return vmap.rooms.map((room) => ({ id: room.id, name: names.get(room.id) || 'Místnost' }));
   }, [vmap, robot.rooms]);
   const selected = pruneOrder(order, rooms);
+  const toggleMapRoom = (id: number) => setOrder(toggleRoom(selected, id));
   const roomRefresh = useRef('');
   useEffect(() => {
     if (!vmap) return;
@@ -458,6 +449,29 @@ function RobotPanel({
     <p className="rb-map-empty">
       Mapa se ukáže po přiřazení obrázku mapy (entita image) v nastavení robota.
     </p>
+  );
+  const mapProps = vmap && {
+    map: vmap,
+    rooms,
+    selected,
+    onToggle: toggleMapRoom,
+    tone: markerTone(robot.status.tone),
+    label: `Mapa – ${robot.floor || robot.name}`,
+    trail: fullTrail ? ('full' as const) : ('faded' as const),
+    rotation: robot.rotation,
+  };
+  const floorPlan = mapProps ? (
+    <VectorMapBoundary resetKey={mapProps.map.digest} fallback={imageMap}>
+      <VectorFloorPlan
+        {...mapProps}
+        callout={robot.error ? { title: robot.error.title, detail: robot.error.steps[0] } : null}
+        resolveBase={resolveBase}
+      />
+    </VectorMapBoundary>
+  ) : vector === null && robot.mapImage ? (
+    <span className="rb-map-loading" aria-hidden="true" />
+  ) : (
+    imageMap
   );
   const modes = (['vacuum', 'mop', 'both'] as CleanMode[]).filter((m) =>
     modeOptionAvailable(m, robot.modeOptions),
@@ -584,7 +598,9 @@ function RobotPanel({
       notify.success('Chyba doku potvrzena');
     } catch (error) {
       const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
-      notify.error(`Chybu doku se nepodařilo potvrdit${detail}. Potvrďte chybu v aplikaci Roborock.`);
+      notify.error(
+        `Chybu doku se nepodařilo potvrdit${detail}. Potvrďte chybu v aplikaci Roborock.`,
+      );
     } finally {
       setSending(false);
     }
@@ -644,7 +660,9 @@ function RobotPanel({
                       label={item.label}
                       status={item.status}
                       detail={
-                        dockResolvePending && item.id === 'clean_water' ? DOCK_REFILL_ACK_NOTE : undefined
+                        dockResolvePending && item.id === 'clean_water'
+                          ? DOCK_REFILL_ACK_NOTE
+                          : undefined
                       }
                       onPress={() => setGuidePart(item.part)}
                       aria-label={`${item.label}: ${item.status}${
@@ -846,7 +864,9 @@ function RobotPanel({
                     <Button
                       data-testid="robots-dock-return-home"
                       disabled={!canAct}
-                      onClick={() => ask('Poslat robota do doku?', planSimple('home', robot.vacuum))}
+                      onClick={() =>
+                        ask('Poslat robota do doku?', planSimple('home', robot.vacuum))
+                      }
                     >
                       <HomeIcon />
                       Vrátit do doku
@@ -895,21 +915,36 @@ function RobotPanel({
                   )}
                 </p>
               </div>
-              {/* At least two path points: a single point has nothing to show or hide. */}
-              {vector?.available && vector.map.path.length >= 4 && (
-                <Chip
-                  className="rb-chip rb-trail-toggle"
-                  pressed={fullTrail}
-                  data-testid="robots-trail-toggle"
-                  aria-label="Celá trasa úklidu"
-                  onPress={() => {
-                    setFullTrail(!fullTrail);
-                    writeTrailPref(!fullTrail);
-                  }}
-                >
-                  <RouteIcon />
-                  Trasa
-                </Chip>
+              {vector?.available && (
+                <div className="rb-map-head-controls">
+                  <IconSegmentedControl
+                    compact
+                    label="Zobrazení mapy"
+                    value={mapView}
+                    options={[
+                      ['2d', '2D'],
+                      ['3d', '3D'],
+                    ]}
+                    onChange={rememberMapView}
+                    className="rb-map-view"
+                  />
+                  {/* At least two path points: a single point has nothing to show or hide. */}
+                  {vector.map.path.length >= 4 && (
+                    <Chip
+                      className="rb-chip rb-trail-toggle"
+                      pressed={fullTrail}
+                      data-testid="robots-trail-toggle"
+                      aria-label="Celá trasa úklidu"
+                      onPress={() => {
+                        setFullTrail(!fullTrail);
+                        writeTrailPref(!fullTrail);
+                      }}
+                    >
+                      <RouteIcon />
+                      Trasa
+                    </Chip>
+                  )}
+                </div>
               )}
             </div>
             {connection && (
@@ -980,38 +1015,19 @@ function RobotPanel({
             )}
             <div className="rb-map-row" data-rb-portrait={portraitMap || undefined}>
               <div className="rb-map" data-map-kind={vector?.available ? 'vector' : 'image'}>
-                {vector?.available ? (
-                  <VectorMapBoundary resetKey={vector.map.digest} fallback={imageMap}>
-                    <VectorFloorPlan
-                      map={vector.map}
-                      rooms={rooms}
-                      selected={selected}
-                      onToggle={(id) => setOrder(toggleRoom(selected, id))}
-                      tone={markerTone(robot.status.tone)}
-                      label={`Mapa – ${robot.floor || robot.name}`}
-                      callout={
-                        robot.error
-                          ? { title: robot.error.title, detail: robot.error.steps[0] }
-                          : null
-                      }
-                      resolveBase={resolveBase}
-                      trail={fullTrail ? 'full' : 'faded'}
-                      rotation={robot.rotation}
-                    />
-                  </VectorMapBoundary>
-                ) : vector === null && robot.mapImage ? (
-                  <span className="rb-map-loading" aria-hidden="true" />
+                {mapProps && mapView === '3d' ? (
+                  <MapViewSwitch
+                    key={`${mapProps.map.digest}:${robot.rotation}`}
+                    {...mapProps}
+                    fallback={floorPlan}
+                  />
                 ) : (
-                  imageMap
+                  floorPlan
                 )}
               </div>
               <div className="rb-clean-side">
                 {rooms.length ? (
-                  <div
-                    className="rb-room-grid"
-                    role="group"
-                    aria-label="Místnosti v pořadí úklidu"
-                  >
+                  <div className="rb-room-grid" role="group" aria-label="Místnosti v pořadí úklidu">
                     {rooms.map((room) => {
                       const badge = orderBadge(selected, room.id);
                       return (
@@ -1023,7 +1039,7 @@ function RobotPanel({
                           badge={badge}
                           badgeLabel={badge !== null ? `pořadí ${badge}` : undefined}
                           data-testid={`robots-room-${room.id}`}
-                          onPress={() => setOrder(toggleRoom(selected, room.id))}
+                          onPress={() => toggleMapRoom(room.id)}
                         >
                           <RoomIcon name={room.name} className="rb-room-tile-ico" />
                           <span className="rb-room-tile-name">{room.name}</span>

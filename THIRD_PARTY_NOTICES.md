@@ -28,3 +28,9 @@ Vatra is licensed under the MIT License, Copyright (c) 2026 Razvan (RazvanR1):
 > furnished to do so, subject to the following conditions: The above copyright notice and this
 > permission notice shall be included in all copies or substantial portions of the Software.
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+## T90 Map Card (Roboti, #164)
+
+The 3D scene setup draws inspiration from the MIT-licensed
+[T90 Map Card](https://github.com/gdelagardelle/t90-map-card),
+Copyright (c) 2026 Germain Delagardelle. The scene uses HomeBrain's own map geometry and rendering code.
