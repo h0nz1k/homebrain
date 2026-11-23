@@ -55,6 +55,7 @@ import type {
   FamilyKid,
   FamilySnapshot,
   FreeChore,
+  SwapIssue,
 } from '../types.js';
 import { familyStyles } from './familyStyles.js';
 import { FreeTasks, PersonsRow, PersonView, personColor } from './PersonView.js';
@@ -1033,6 +1034,68 @@ function KidCard({
   );
 }
 
+/** Reassign that may have left the chore half-done – one banner per chore, „Skrýt“ once checked. */
+function SwapIssueBanner({
+  issue,
+  onDismiss,
+}: {
+  issue: SwapIssue;
+  onDismiss?: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const dismiss = async () => {
+    if (!onDismiss || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await onDismiss();
+    } catch {
+      setError('Upozornění se nepodařilo skrýt.');
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+  const count = issue.count ?? 1;
+  return (
+    <div className="fam-err fam-date-note fam-issue" role="alert" data-testid="family-swap-issue">
+      <Icon name="info" size={20} />
+      <span>
+        <strong>{issue.chore_name}</strong>
+        <br />
+        {issue.pending
+          ? 'Přeřazení se nepodařilo dokončit. Probíhá obnova.'
+          : issue.source_name
+            ? `Přeřazení se nepodařilo dokončit – úkol zůstal u ${nameGenitive(issue.source_name) ?? issue.source_name}.`
+            : 'Přeřazení se nepodařilo dokončit.'}
+        {count > 1 && (
+          <span className="fam-issue-count" data-testid="family-swap-issue-count">
+            {' '}
+            ({czCount(count, 'pokus', 'pokusy', 'pokusů')})
+          </span>
+        )}
+        {error && <span className="fam-issue-error"> {error}</span>}
+      </span>
+      {onDismiss && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="fam-issue-hide"
+          loading={busy}
+          onClick={() => void dismiss()}
+          aria-label={`Skrýt upozornění: ${issue.chore_name}`}
+          data-testid="family-swap-issue-hide"
+        >
+          Skrýt
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function ChoresCard({
   snap,
   now,
@@ -1274,6 +1337,7 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
     management: ChoreManagement;
   } | null>(null);
   const [skipBusy, setSkipBusy] = useState(false);
+  const [hiddenIssues, setHiddenIssues] = useState<ReadonlySet<string>>(() => new Set());
   const skipInFlight = useRef(false);
   const [skipError, setSkipError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
@@ -1803,25 +1867,23 @@ export default function FamilyView({ connection, kiosk }: ModuleViewProps) {
   );
   const swapIssues =
     parent &&
-    snap.swap_issues?.map((issue) => (
-      <p
-        key={issue.id}
-        className="fam-err fam-date-note"
-        role="alert"
-        data-testid="family-swap-issue"
-      >
-        <Icon name="info" size={20} />
-        <span>
-          <strong>{issue.chore_name}</strong>
-          <br />
-          {issue.pending
-            ? 'Přeřazení se nepodařilo dokončit. Probíhá obnova.'
-            : issue.source_name
-              ? `Přeřazení se nepodařilo dokončit – úkol zůstal u ${nameGenitive(issue.source_name) ?? issue.source_name}.`
-              : 'Přeřazení se nepodařilo dokončit.'}
-        </span>
-      </p>
-    ));
+    snap.swap_issues
+      ?.filter((issue) => !hiddenIssues.has(issue.id))
+      .map((issue) => (
+        <SwapIssueBanner
+          key={issue.id}
+          issue={issue}
+          onDismiss={
+            api
+              ? async () => {
+                  await api.swapDismiss(issue.ids ?? [issue.id]);
+                  setHiddenIssues((prev) => new Set(prev).add(issue.id));
+                  void load();
+                }
+              : undefined
+          }
+        />
+      ));
   if (selected || editingPersons) {
     return (
       <div

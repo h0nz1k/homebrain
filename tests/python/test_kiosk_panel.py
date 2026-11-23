@@ -200,6 +200,7 @@ PAYLOADS: dict[str, dict] = {
         "local_date": "2026-11-15",
     },
     "homebrain/family/swap/cancel": {"request_id": "testreq01"},
+    "homebrain/family/swap/dismiss": {"ids": ["testoperation01"]},
     "homebrain/family/points/get": {"kid": "nobody"},
     "homebrain/family/points/history": {"kid": "nobody"},
     "homebrain/anomaly/list": {},

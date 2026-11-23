@@ -382,6 +382,21 @@ export function nextTodayTime(now: Date): string | null {
   return last >= next ? '23:30' : null;
 }
 
+/**
+ * New deadline for a chore reassigned after its due time: its usual time today while that is
+ * still at least 30 minutes away, otherwise the next whole hour (`null` late at night).
+ */
+export function reassignDueTime(due: string | null | undefined, now: Date): string | null {
+  if (due) {
+    const usual = new Date(due);
+    const today = new Date(now);
+    today.setHours(usual.getHours(), usual.getMinutes(), 0, 0);
+    if (!Number.isNaN(today.getTime()) && today.getTime() - now.getTime() >= 30 * 60_000)
+      return `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+  }
+  return nextTodayTime(now);
+}
+
 export function canTransferChore(c: FamilyChore | FamilyUpcomingChore | null | undefined): boolean {
   return (
     !!c?.due &&

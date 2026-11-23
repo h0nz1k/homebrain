@@ -402,6 +402,8 @@ export const familyStyles = `
 .fam-picker-times button[data-next="true"] { box-shadow: inset 0 0 0 2px var(--hb-ac); font-weight: 650; }
 .fam-date-note { display: flex; align-items: center; gap: 8px; }
 .fam-date-note svg { flex: none; color: var(--hb-ac); }
+.fam-issue > span { flex: 1; min-width: 0; }
+.fam-issue .fam-issue-hide { flex: none; min-width: 44px; min-height: 44px; }
 .fam-swap-day { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .fam-swap-day legend { margin-bottom: 8px; color: var(--hb-t2); font-size: 13px; }
 .fam-swap-day-option { position: relative; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;

@@ -24,7 +24,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN as HB_DOMAIN
 from ..roles import FAMILY_APPROVE_ROLES
-from . import chore_management, choreops_adapter, model, persons
+from . import chore_management, choreops_adapter, model, persons, swap_model
 from .person_history import PersonHistory
 from .school import SCHOOL_SETTINGS, websocket_school
 from .swap_store import FamilySwapStore
@@ -183,19 +183,7 @@ async def websocket_family_get(hass: HomeAssistant, connection: Any, msg: dict[s
         },
     }
     if role in ("owner", "adult"):
-        payload["swap_issues"] = [
-            {
-                "id": oid,
-                "chore_name": op["source_snapshot"]["name"],
-                "source_name": (
-                    op.get("from_kid_name") if op.get("last_error") != "missing_clone" else None
-                ),
-                "pending": op["status"] in {"applying", "rollback_pending", "cleanup_pending"},
-            }
-            for oid, op in (store_data.get("operations") or {}).items()
-            if op["status"] in {"needs_repair", "rollback_pending"}
-            or (op["status"] in {"failed", "applying", "cleanup_pending"} and op.get("last_error"))
-        ]
+        payload["swap_issues"] = swap_model.swap_issues(store_data.get("operations") or {})
         payload["pending_approvals"] = model.pending_approvals({"kids": members}, store_data)
         payload["swap_requests"] = [
             r for r in (store_data.get("requests") or {}).values() if r.get("status") == "pending"

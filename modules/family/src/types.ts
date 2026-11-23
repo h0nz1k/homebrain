@@ -147,11 +147,24 @@ export interface FamilySnapshot {
   free_chores?: FreeChore[];
   shopping: { entity_id: string; name: string; items: ShoppingItem[] } | null;
   pending_approvals?: FamilyApproval[];
-  swap_issues?: Array<{ id: string; chore_name: string; source_name?: string; pending: boolean }>;
+  swap_issues?: SwapIssue[];
   swap_requests?: Array<Record<string, unknown>>;
   swap_badges?: Array<{ text: string; kid: string }>;
   errors: string[];
   generated_at: string;
+}
+
+/** Failed reassign that may have left chores inconsistent – one row per chore. */
+export interface SwapIssue {
+  id: string;
+  /** Every operation behind the banner („Skrýt“ dismisses them all). */
+  ids?: string[];
+  chore_name: string;
+  source_name?: string | null;
+  /** Recovery still running (rollback/cleanup). */
+  pending: boolean;
+  /** Failed attempts grouped into this banner. */
+  count?: number;
 }
 
 export type Recurrence = 'once' | 'daily' | 'daily_multi' | 'weekly';
@@ -179,6 +192,8 @@ export interface SwapRequestInput {
   local_date: string;
   direction?: 'give' | 'take';
   expected_revision?: number;
+  /** Reassign only: new deadline (HH:MM on `local_date`) for an overdue occurrence. */
+  due_time?: string;
 }
 
 export type MemberRole = 'owner' | 'adult' | 'child';

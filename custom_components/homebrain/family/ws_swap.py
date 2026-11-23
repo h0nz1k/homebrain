@@ -353,7 +353,12 @@ async def websocket_family_swap_decide(
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "homebrain/family/swap/reassign", **SWAP_REQUEST_SCHEMA}
+    {
+        vol.Required("type"): "homebrain/family/swap/reassign",
+        **SWAP_REQUEST_SCHEMA,
+        # New deadline for an overdue occurrence (local time on ``local_date``).
+        vol.Optional("due_time"): vol.Match(r"^\d{2}:\d{2}$"),
+    }
 )
 @websocket_api.async_response
 @_serialize_mutation
@@ -366,13 +371,18 @@ async def websocket_family_swap_reassign(
     actor = str(getattr(connection.user, "id", "") or "")
     payload = {key: msg[key] for key in ("chore", "from_kid", "to_kid", "local_date")}
     payload.update(action="swap/reassign", actor=actor)
+    if msg.get("due_time"):
+        payload["due_time"] = msg["due_time"]
     previous = store.dedupe_lookup(msg["client_request_id"])
     if previous:
         if previous["payload"] != payload:
             connection.send_error(msg["id"], "conflict", "Tento požadavek už byl použit.")
             return
         op_id = previous["result"]["operation_id"]
-        op = store.data["operations"][op_id]
+        op = store.data["operations"].get(op_id)
+        if op is None:
+            connection.send_error(msg["id"], "expired", "Přeřazení už vypršelo.")
+            return
         if op["status"] in {"scheduled", "active", "completed", "cleaned", "unclaimed_expired"}:
             connection.send_result(
                 msg["id"], {"operation": {"id": op_id, **op}, "revision": store.revision}
@@ -399,19 +409,26 @@ async def websocket_family_swap_reassign(
         occ = None
     tz = ZoneInfo(hass.config.time_zone)
     try:
+        local_day = _local_day(msg["local_date"])
         swap_model.validate_swap_request(
             direction="give",
             actor_user_id=actor,
             from_kid=msg["from_kid"],
             to_kid=msg["to_kid"],
             chore_opaque=msg["chore"],
-            local_day=_local_day(msg["local_date"]),
+            local_day=local_day,
             now=now,
             tz=tz,
             role=role,
             occurrence=occ,
         )
+        clone_due = (
+            swap_model.clone_due_at(local_day, msg["due_time"], now, tz)
+            if msg.get("due_time")
+            else None
+        )
     except swap_model.DomainError as err:
+        # Rejected before anything was written: an inline answer, never a stored operation.
         connection.send_error(msg["id"], err.code, str(err))
         return
     req = {
@@ -432,6 +449,7 @@ async def websocket_family_swap_reassign(
         to_kid_name=to_k["name"],
         source_snapshot=snap,
         tz=tz,
+        clone_due=clone_due,
     )
     store.remember_dedupe(msg["client_request_id"], payload, {"operation_id": op_id})
     await store.async_save()
@@ -499,6 +517,38 @@ async def websocket_family_swap_cancel(
     store.upsert_request(msg["request_id"], updated)
     await store.async_save()
     connection.send_result(msg["id"], {"request": updated, "revision": store.revision})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "homebrain/family/swap/dismiss",
+        vol.Required("ids"): vol.All(
+            [vol.All(str, vol.Length(min=8, max=64))], vol.Length(min=1, max=100)
+        ),
+    }
+)
+@websocket_api.async_response
+@_serialize_mutation
+async def websocket_family_swap_dismiss(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Hide a failed-reassign banner (the parent has checked the chore)."""
+    _require_adult(_role(hass, connection))
+    store = _store(hass)
+    ops = store.data.get("operations") or {}
+    now = dt_util.now().isoformat()
+    dismissed: list[str] = []
+    for op_id in msg["ids"]:
+        op = ops.get(op_id)
+        if not isinstance(op, dict) or not swap_model.is_swap_issue(op):
+            continue
+        # Recovery in progress keeps its status so the scheduler still finishes the cleanup.
+        status = op["status"] if op["status"] in swap_model.OPERATION_RECOVERING else "dismissed"
+        store.upsert_operation(op_id, {**op, "status": status, "dismissed_at": now})
+        dismissed.append(op_id)
+    if dismissed:
+        await store.async_save()
+    connection.send_result(msg["id"], {"dismissed": dismissed, "revision": store.revision})
 
 
 CREATE_SCHEMA: Final = {
@@ -704,6 +754,7 @@ SWAP_COMMANDS: Final = (
     websocket_family_swap_decide,
     websocket_family_swap_reassign,
     websocket_family_swap_cancel,
+    websocket_family_swap_dismiss,
     websocket_family_chore_create,
     websocket_family_points_get,
     websocket_family_points_history,

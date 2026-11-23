@@ -204,6 +204,7 @@ FAMILY_PARENT_COMMANDS: Final = frozenset(
         "homebrain/family/chore/delete",
         "homebrain/family/swap/decide",
         "homebrain/family/swap/reassign",
+        "homebrain/family/swap/dismiss",
     }
 )
 FAMILY_APPROVE_ROLES: Final = frozenset({"adult"})

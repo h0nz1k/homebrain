@@ -336,6 +336,9 @@ describe('FamilyView', () => {
 
 describe('Reassign chore', () => {
   async function openReassign(swapReassign: FamilyApi['swapReassign']) {
+    // Fake only the clock: 9:00, the overdue demo chore was due yesterday at 18:00.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 5, 2, 9));
     const mock = createMockFamilyApi({ role: 'owner', reassignDemo: 'overdue' });
     setFamilyApiFactory(() => ({ ...mock, swapReassign }));
     render(<FamilyView store={store} bindings={{}} />);
@@ -348,8 +351,10 @@ describe('Reassign chore', () => {
     await screen.findByTestId('family-swap-recipient');
     return screen.getByTestId('family-swap-submit') as HTMLButtonElement;
   }
+  const ids = (fn: ReturnType<typeof vi.fn>) =>
+    fn.mock.calls.map(([input]) => (input as { client_request_id: string }).client_request_id);
 
-  it('keeps the sheet open and surfaces a failed response above the submit button', async () => {
+  it('rapid taps send one request; a refusal keeps the button off until the input changes', async () => {
     let reject!: (error: unknown) => void;
     const reassign = vi.fn(
       () =>
@@ -358,15 +363,59 @@ describe('Reassign chore', () => {
         }),
     );
     const submit = await openReassign(reassign);
-    fireEvent.click(submit);
-    fireEvent.click(submit);
+    for (let i = 0; i < 18; i++) fireEvent.click(submit);
     expect(submit.disabled).toBe(true);
+    expect(submit.getAttribute('aria-busy')).toBe('true');
     expect(reassign).toHaveBeenCalledTimes(1);
     await act(async () => reject({ code: 'due_in_past' }));
-    const alert = within(screen.getByTestId('family-swap-sheet')).getByRole('alert');
+    const sheet = screen.getByTestId('family-swap-sheet');
+    const alert = within(sheet).getByRole('alert');
     expect(alert.textContent).toBe('Termín úkolu už minul.');
     expect(alert.nextElementSibling).toBe(submit);
+    // Inline only – no lasting toast or banner for a refused attempt.
+    expect(toastStore.getSnapshot().toasts.filter((t) => t.kind === 'error')).toHaveLength(0);
+    expect(submit.disabled).toBe(true);
+    for (let i = 0; i < 5; i++) fireEvent.click(submit);
+    expect(reassign).toHaveBeenCalledTimes(1);
+    fireEvent.change(within(sheet).getByTestId('family-swap-time'), {
+      target: { value: '19:00' },
+    });
     expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    expect(reassign).toHaveBeenCalledTimes(2);
+    const [first, second] = ids(reassign);
+    expect(second).not.toBe(first);
+  });
+
+  it('retries a lost answer with the same client_request_id', async () => {
+    const reassign = vi
+      .fn<FamilyApi['swapReassign']>()
+      .mockRejectedValueOnce(new Error('Connection lost'))
+      .mockResolvedValueOnce({ operation: { status: 'active' } });
+    const submit = await openReassign(reassign);
+    await act(async () => fireEvent.click(submit));
+    expect(within(screen.getByTestId('family-swap-sheet')).getByRole('alert').textContent).toBe(
+      'Přeřazení se nepovedlo, zkus to znovu.',
+    );
+    await act(async () => fireEvent.click(submit));
+    const [first, second] = ids(reassign);
+    expect(second).toBe(first);
+    expect(screen.queryByTestId('family-swap-sheet')).toBeNull();
+  });
+
+  it('gives an overdue chore a new deadline today (its usual time by default)', async () => {
+    const reassign = vi.fn(async () => ({ operation: { status: 'active' } }));
+    const submit = await openReassign(reassign);
+    const time = screen.getByTestId('family-swap-time') as HTMLInputElement;
+    expect(time.value).toBe('18:00');
+    fireEvent.change(time, { target: { value: '8:30' } });
+    expect(submit.disabled).toBe(true);
+    expect(screen.getByText('Vyber pozdější čas – nový termín musí být v budoucnu.')).toBeTruthy();
+    fireEvent.change(time, { target: { value: '10:30' } });
+    await act(async () => fireEvent.click(submit));
+    expect(reassign).toHaveBeenCalledWith(
+      expect.objectContaining({ local_date: '2026-06-02', due_time: '10:30' }),
+    );
   });
 
   it('closes the sheet and confirms success with the recipient in Czech', async () => {
@@ -378,6 +427,28 @@ describe('Reassign chore', () => {
         .getSnapshot()
         .toasts.some((toast) => toast.message === 'Přeřazeno na Kubu na dnes'),
     ).toBe(true);
+  });
+});
+
+describe('Failed reassign banner', () => {
+  it('shows one banner per chore with the attempt count and hides it with Skrýt', async () => {
+    const api = createMockFamilyApi({ role: 'owner', reassignDemo: 'needs-repair' });
+    const swapDismiss = vi.fn(api.swapDismiss);
+    setFamilyApiFactory(() => ({ ...api, swapDismiss }));
+    render(<FamilyView store={store} bindings={{}} />);
+    const [banner, ...rest] = await screen.findAllByTestId('family-swap-issue');
+    expect(rest).toHaveLength(0);
+    expect(banner!.textContent).toContain('Vyskládat myčku');
+    expect(banner!.textContent).toContain('úkol zůstal u Emy');
+    expect(within(banner!).getByTestId('family-swap-issue-count').textContent).toBe(' (3 pokusy)');
+    const hide = within(banner!).getByRole('button', { name: 'Skrýt upozornění: Vyskládat myčku' });
+    await act(async () => {
+      fireEvent.click(hide);
+      fireEvent.click(hide);
+    });
+    expect(swapDismiss).toHaveBeenCalledTimes(1);
+    expect(swapDismiss).toHaveBeenCalledWith(['swap-repair', 'swap-repair-2', 'swap-repair-3']);
+    expect(screen.queryByTestId('family-swap-issue')).toBeNull();
   });
 });
 

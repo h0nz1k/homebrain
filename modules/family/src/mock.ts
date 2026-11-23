@@ -349,6 +349,7 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
   const state = {
     kids: empty ? [] : kids(now(), opts.scenario === 'busy'),
     swapPending: empty ? '' : 'swap-req-1',
+    issuesDismissed: false,
     items: empty
       ? []
       : ['Mléko 2×', 'Rohlíky', 'Jablka', 'Prací gel', 'Máslo', 'Vejce'].map((summary, i) => ({
@@ -552,13 +553,15 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       role,
       revision: 3,
       swap_issues:
-        detail && opts.reassignDemo === 'needs-repair'
+        detail && opts.reassignDemo === 'needs-repair' && !state.issuesDismissed
           ? [
               {
                 id: 'swap-repair',
+                ids: ['swap-repair', 'swap-repair-2', 'swap-repair-3'],
                 chore_name: 'Vyskládat myčku',
                 source_name: 'Ema',
                 pending: false,
+                count: 3,
               },
             ]
           : [],
@@ -834,10 +837,17 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
       original.counts_today = false;
       original.can_request_swap = false;
       const current = now();
-      const due =
+      let due =
         original.due && Date.parse(original.due) > current.getTime() + 15 * 60_000
           ? original.due
           : at(current, 0, 23, 59);
+      if (input.due_time) {
+        const [h, m] = input.due_time.split(':').map(Number) as [number, number];
+        const picked = new Date(`${input.local_date}T00:00:00`);
+        picked.setHours(h, m);
+        if (picked.getTime() <= current.getTime() + 5 * 60_000) throw { code: 'due_in_past' };
+        due = picked.toISOString();
+      }
       to.chores.push({
         ...original,
         id: `${original.id}-reassigned`,
@@ -851,6 +861,11 @@ export function createMockFamilyApi(opts: FamilyMockOptions = {}): FamilyApi & {
         },
       });
       return { operation: { status: 'active' } };
+    },
+    swapDismiss: async (ids) => {
+      log.push({ kind: 'swapDismiss', ids });
+      state.issuesDismissed = true;
+      return { dismissed: ids };
     },
     swapCancel: async (request_id) => {
       log.push({ kind: 'swapCancel', request_id });
