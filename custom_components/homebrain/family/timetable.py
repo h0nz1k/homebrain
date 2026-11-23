@@ -359,9 +359,15 @@ class TimetableHolidays:
         else:
             self.entry.async_on_unload(
                 self.hass.bus.async_listen_once(
-                    EVENT_HOMEASSISTANT_STARTED, lambda _event: self.start()
+                    EVENT_HOMEASSISTANT_STARTED, self._started
                 )
             )
+
+    @callback
+    def _started(self, _event) -> None:
+        # Must be a @callback: a plain lambda runs in the executor, where creating
+        # the background task fails ("not the running loop") and holidays never load.
+        self.start()
 
     @callback
     def _daily(self, _now) -> None:
