@@ -5,10 +5,11 @@ export const NB = ' ';
 export const TZ = 'Europe/Prague';
 export type BarTone = 'ok' | 'warn' | 'crit' | 'neutral';
 
-/** Section anchors for „Co s tím“ (scroll + focus the evidence). */
 export const AGENTS_ANCHORS = {
+  todos: 'agents-todos',
   quotas: 'agents-quotas',
   services: 'agents-services',
+  agents: 'agents-agents',
   footer: 'agents-footer',
 } as const;
 
@@ -57,6 +58,34 @@ const sameDay = (a: Date, b: Date) => pragueDay.format(a) === pragueDay.format(b
 /** „24. 11.“ (Intl gives „24. 11.“ with regular spaces). */
 const fmtDate = (d: Date) => dateFmt.format(d);
 
+function pragueParts(d: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '0';
+  return {
+    y: Number(get('year')),
+    m: Number(get('month')),
+    d: Number(get('day')),
+    h: Number(get('hour')),
+    min: Number(get('minute')),
+  };
+}
+
+function dayOffset(from: Date, to: Date): number {
+  const a = pragueParts(from);
+  const b = pragueParts(to);
+  const utcA = Date.UTC(a.y, a.m - 1, a.d);
+  const utcB = Date.UTC(b.y, b.m - 1, b.d);
+  return Math.round((utcB - utcA) / 86_400_000);
+}
+
 /** „3 h 12 min“, „45 min“, „2 dny 4 h“ (rounded up to whole minutes). */
 export function durationLabel(ms: number): string {
   const mins = Math.max(1, Math.ceil(ms / 60_000));
@@ -71,7 +100,28 @@ export function durationLabel(ms: number): string {
   return `${rest}${NB}min`;
 }
 
-/** „reset za 3 h 12 min · út 13:57“ (Europe/Prague); a week+ away adds the date. */
+/**
+ * Human renewal time in Europe/Prague:
+ * „dnes 20:59“, „zítra 6:09“, „čt 26. 11. 17:03“, „1. 12.“.
+ */
+export function renewalLabel(resetAt: string | null | undefined, now = Date.now()): string | null {
+  if (!resetAt) return null;
+  const at = Date.parse(resetAt);
+  if (!Number.isFinite(at)) return null;
+  const d = new Date(at);
+  const n = new Date(now);
+  const offset = dayOffset(n, d);
+  if (offset === 0) return `dnes ${fmtTime(d)}`;
+  if (offset === 1) return `zítra ${fmtTime(d)}`;
+  if (offset > 1 && offset < 7) return `${dayFmt.format(d)} ${fmtDate(d)} ${fmtTime(d)}`;
+  // Further out: date only when midnight-ish, else include time.
+  const p = pragueParts(d);
+  if (p.h === 0 && p.min === 0) return fmtDate(d);
+  if (offset >= 7) return fmtDate(d);
+  return `${fmtDate(d)} ${fmtTime(d)}`;
+}
+
+/** Legacy countdown label (kept for tests that still assert it). */
 export function resetLabel(resetAt: string | null | undefined, now = Date.now()): string | null {
   if (!resetAt) return null;
   const at = Date.parse(resetAt);
@@ -94,7 +144,22 @@ export function whenLabel(iso: string | null | undefined, now = Date.now()): str
   return sameDay(d, new Date(now)) ? fmtTime(d) : `${fmtDate(d)} ${fmtTime(d)}`;
 }
 
-/** Footer/hero data age: „Data aktuální · 9:40“, „Data neaktuální od 8:15“. */
+/** Relative age for the hero subline: „data před 1 min“. */
+export function dataAgeShort(since: string | null | undefined, now = Date.now()): string | null {
+  if (!since) return null;
+  const t = Date.parse(since);
+  if (!Number.isFinite(t)) return null;
+  const ago = Math.max(0, now - t);
+  return `data před ${durationLabel(ago || 1)}`;
+}
+
+/** Footer: „Aktualizováno 11:52“. */
+export function updatedLabel(iso: string | null | undefined, now = Date.now()): string {
+  const at = whenLabel(iso, now);
+  return at ? `Aktualizováno ${at}` : 'Aktualizováno –';
+}
+
+/** Footer/hero data age (legacy wording, used where needed). */
 export function dataAgeLabel(data: AgentsSnapshot['data'], now = Date.now()): string {
   const at = whenLabel(data.since, now);
   if (data.current === true) return at ? `Data aktuální · ${at}` : 'Data aktuální';
@@ -123,46 +188,13 @@ export function reasonText(r: Reason): string {
   }
 }
 
-const reasonTarget: Record<Reason['kind'], string> = {
-  service: AGENTS_ANCHORS.services,
-  quota: AGENTS_ANCHORS.quotas,
-  data: AGENTS_ANCHORS.footer,
-  status: AGENTS_ANCHORS.footer,
-};
-
 export interface HeroModel {
   tone: BarTone;
-  badge: string;
   headline: string;
-  more: string[];
-  target?: string;
-}
-
-export function heroModel(snap: AgentsSnapshot): HeroModel {
-  const badge = snap.data.current === false ? 'Neaktuální' : snap.data.current ? 'Živě' : 'Bez dat';
-  const level = snap.verdict.level;
-  const tone = levelTone(level);
-  const [top, ...rest] = snap.verdict.reasons;
-  // Overall tone/headline follow the monitoring verdict, not the worst item.
-  if (level === 'ok')
-    return {
-      tone: 'ok',
-      badge,
-      headline: 'V pořádku',
-      more: snap.verdict.reasons.map(reasonText),
-      target: top ? reasonTarget[top.kind] : undefined,
-    };
-  if (level === 'unknown')
-    return { tone: 'neutral', badge: 'Bez dat', headline: 'Stav agentů není známý', more: [] };
-  const prefix = level === 'critical' ? 'Kritické' : 'Pozor';
-  if (!top) return { tone, badge, headline: prefix, more: [] };
-  return {
-    tone,
-    badge,
-    headline: `${prefix}: ${reasonText(top)}`,
-    more: rest.map(reasonText),
-    target: reasonTarget[top.kind],
-  };
+  /** Single grey subline (counts + queue + data age). */
+  subline: string;
+  /** Stale data → amber hint on the age fragment (not red). */
+  stale: boolean;
 }
 
 /** Counts that match the visible Agents list (items); sensor aggregates only as fallback. */
@@ -179,7 +211,6 @@ export function agentsListCounts(snap: AgentsSnapshot): {
     return { running, waiting, total: a.items.length };
   }
   if (a.active == null) return { running: null, waiting: a.waiting, total: a.total };
-  // Sensor `active` includes waiting agents; subtract when both are known.
   const waiting = a.waiting ?? 0;
   return {
     running: Math.max(0, a.active - waiting),
@@ -188,7 +219,54 @@ export function agentsListCounts(snap: AgentsSnapshot): {
   };
 }
 
-/** Hero meta: „2 z 4 agentů běží · 1 čeká · 7 kvót · 3 služby“. */
+function servicesUp(snap: AgentsSnapshot): number {
+  return snap.services.filter((s) => s.available && s.up && s.state !== 'down').length;
+}
+
+/**
+ * Hero: one sentence from the monitoring sensor state (+ todo count).
+ * No reason lists / pills — those live only in „K řešení“.
+ * `todoCount` = length of buildTodoItems() so the headline matches the card.
+ */
+export function heroModel(snap: AgentsSnapshot, now = Date.now(), todoCount = 0): HeroModel {
+  const level = snap.verdict.level;
+  const tone = levelTone(level);
+  const things =
+    todoCount > 0 ? czCount(todoCount, 'věc k řešení', 'věci k řešení', 'věcí k řešení') : null;
+
+  let headline: string;
+  if (level === 'ok') headline = 'Vše v pořádku';
+  else if (level === 'unknown') headline = 'Stav agentů není známý';
+  else if (level === 'critical') headline = things ? `Kritické · ${things}` : 'Kritické';
+  else headline = things ? `Běží vše · ${things}` : 'Běží vše';
+
+  const bits: string[] = [];
+  const { running } = agentsListCounts(snap);
+  const svc = servicesUp(snap);
+  if (running != null && snap.agents.available) {
+    bits.push(
+      `${czCount(running, 'agent', 'agenti', 'agentů')} a ${czCount(svc, 'služba', 'služby', 'služeb')} v provozu`,
+    );
+  } else if (snap.services.length) {
+    bits.push(`${czCount(svc, 'služba', 'služby', 'služeb')} v provozu`);
+  }
+  if (snap.queue.available) {
+    const run = snap.queue.running ?? 0;
+    const pend = snap.queue.pending ?? 0;
+    bits.push(`fronta ${run}${NB}běží, ${pend}${NB}čeká`);
+  }
+  const age = dataAgeShort(snap.data.since ?? snap.updated_at ?? null, now);
+  if (age) bits.push(age);
+
+  return {
+    tone: level === 'unknown' ? 'neutral' : tone,
+    headline,
+    subline: bits.join(' · '),
+    stale: snap.data.current === false,
+  };
+}
+
+/** @deprecated Prefer heroModel().subline — kept for transitional tests. */
 export function heroMeta(snap: AgentsSnapshot): string[] {
   const out: string[] = [];
   const { running, waiting, total } = agentsListCounts(snap);
@@ -226,4 +304,30 @@ export function serviceStateLabel(s: Service): string {
   if (!s.up || s.state === 'down') return 'Výpadek';
   if (s.state === 'degraded') return 'Omezený provoz';
   return 'V provozu';
+}
+
+/** Service is under ideal when SLA &lt; 99 % or state ≠ operational. */
+export function serviceUnderIdeal(s: Service): boolean {
+  if (!s.available || s.up == null) return true;
+  if (!s.up || s.state === 'down' || s.state === 'degraded') return true;
+  if (s.state && s.state !== 'operational') return true;
+  if (s.sla_24h != null && s.sla_24h < 99) return true;
+  return false;
+}
+
+export function agentsHaveProblem(snap: AgentsSnapshot): boolean {
+  if (!snap.agents.available) return false;
+  return snap.agents.items.some((a) => !a.alive || a.waiting);
+}
+
+/** Auto-expand Služby only for down/degraded — SLA tint alone stays collapsed-friendly. */
+export function servicesHaveProblem(snap: AgentsSnapshot): boolean {
+  return snap.services.some(
+    (s) =>
+      !s.available ||
+      s.up === false ||
+      s.state === 'down' ||
+      s.state === 'degraded' ||
+      s.level === 'critical',
+  );
 }

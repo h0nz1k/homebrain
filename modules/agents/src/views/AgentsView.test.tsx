@@ -12,59 +12,60 @@ function show(scenario: AgentsScenario) {
   render(<AgentsView {...({ connection: {} } as unknown as ModuleViewProps)} />);
 }
 
-describe('AgentsView', () => {
-  it('vše v pořádku: hero, kvóty, agenti, služby, fronta a odkaz', async () => {
+describe('AgentsView – redesign', () => {
+  it('ok: Vše v pořádku, K řešení skrytá, agenti/služby sbalené, fronta řádek, odkaz', async () => {
     show('ok');
     expect(screen.getByTestId('agents-loading')).toBeTruthy();
-    expect((await screen.findByTestId('agents-headline')).textContent).toBe('V pořádku');
-    expect(screen.getAllByTestId('agents-quota')).toHaveLength(6);
-    expect(screen.getAllByTestId('agents-agent').map((a) => a.getAttribute('data-state'))).toEqual([
-      'waiting',
-      'running',
-      'running',
-      'stopped',
-    ]);
-    expect(screen.getAllByTestId('agents-service')).toHaveLength(3);
-    expect(screen.getByTestId('agents-queue-pending').textContent).toContain('5');
+    expect((await screen.findByTestId('agents-headline')).textContent).toBe('Vše v pořádku');
+    expect(screen.queryByTestId('agents-todos')).toBeNull();
+    expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(false);
+    expect(screen.getByTestId('agents-queue-line').textContent).toMatch(/běží/);
     const link = screen.getByTestId('agents-monitor-link');
     expect(link.getAttribute('href')).toBe('https://monitor.example');
-    expect(link.getAttribute('target')).toBe('_blank');
-    expect(link.getAttribute('rel')).toContain('noopener');
-    expect(screen.getByTestId('agents-data-age').textContent).toMatch(/^Data aktuální/);
-    expect(screen.queryByTestId('agents-hero-fix')).toBeNull();
+    expect(link.textContent).toMatch(/Detail v AgentsMonitoringu/);
+    expect(screen.getByTestId('agents-updated').textContent).toMatch(/^Aktualizováno/);
   });
 
-  it('upozornění/rozpor: senzor attention → warn; vyčerpaná kvóta critical; počet = seznam', async () => {
+  it('warn/rozpor #181: senzor attention → warn; vyčerpaná kvóta v K řešení critical', async () => {
     show('warn');
     await screen.findByTestId('agents-headline');
     expect(screen.getByTestId('agents-hero').getAttribute('data-agents-state')).toBe('warn');
-    expect(screen.getByTestId('agents-headline').textContent).toMatch(/^Pozor:/);
-    const quotas = screen.getAllByTestId('agents-quota');
-    expect(quotas[0]!.getAttribute('data-level')).toBe('critical');
-    expect(screen.getByTestId('agents-quota-exhausted')).toBeTruthy();
-    expect(screen.getByTestId('agents-quota-forecast')).toBeTruthy();
-    expect(quotas.filter((q) => q.getAttribute('data-level') === 'warning')).toHaveLength(3);
-    expect(screen.getByTestId('agents-forecast').textContent).toContain('Poskytovatel X');
-    expect(screen.getByTestId('agents-more').textContent).toContain('SLA');
-    expect(screen.getByTestId('agents-hero-fix')).toBeTruthy();
-    expect(screen.getAllByTestId('agents-quota-reset')[0]!.textContent).toMatch(/^reset za /);
-    const agents = screen.getAllByTestId('agents-agent');
-    expect(agents).toHaveLength(4);
-    expect(screen.getByTestId('agents-meta').textContent).toMatch(/2 z 4 agentů běží/);
-    expect(screen.getByTestId('agents-agents-count').textContent).toMatch(/2 z 4 běží/);
+    expect(screen.getByTestId('agents-headline').textContent).toMatch(/^Běží vše · /);
+    const todos = screen.getAllByTestId('agents-todo');
+    expect(todos.some((t) => t.getAttribute('data-level') === 'critical')).toBe(true);
+    expect(screen.getByTestId('agents-todos')).toBeTruthy();
+    // Auto-expand agents when waiting/stopped.
+    expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(true);
   });
 
-  it('kritické: výpadek služby a neaktuální data', async () => {
+  it('crit: kritické + auto-rozbalení agentů; služba down viditelná', async () => {
     show('crit');
-    expect((await screen.findByTestId('agents-headline')).textContent).toBe(
-      'Kritické: Služba Brána: výpadek',
-    );
+    expect((await screen.findByTestId('agents-headline')).textContent).toMatch(/^Kritické · /);
     expect(screen.getByTestId('agents-hero').getAttribute('data-agents-state')).toBe('crit');
-    const down = screen.getAllByTestId('agents-service')[0]!;
-    expect(down.getAttribute('data-level')).toBe('critical');
-    expect(down.textContent).toContain('Výpadek');
-    expect(screen.getByTestId('agents-data-age').textContent).toMatch(/^Data neaktuální od /);
-    expect(screen.getByTestId('agents-footer').getAttribute('data-current')).toBe('false');
+    expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(true);
+    const under = screen.getByTestId('agents-services-under');
+    expect(under.textContent).toMatch(/Brána/);
+  });
+
+  it('real: provider rows + collapsed marginal + queue blocked amber', async () => {
+    show('real');
+    await screen.findByTestId('agents-headline');
+    const rows = screen.getAllByTestId('agents-quota-row');
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    expect(rows.map((r) => r.getAttribute('data-provider'))).toEqual(
+      expect.arrayContaining(['Claude', 'Codex', 'Antigravity', 'Cursor', 'GitHub Actions']),
+    );
+    expect(screen.getByTestId('agents-quotas-collapsed').textContent).toMatch(/Vertex|Fable/);
+    expect(screen.getByTestId('agents-queue-blocked').getAttribute('data-tone')).toBe('warn');
+    // Services over 99 % collapsed.
+    expect(screen.getByTestId('agents-services-details').textContent).toMatch(/nad 99/);
+  });
+
+  it('stale: K řešení má data neaktuální; hero subline amber', async () => {
+    show('stale');
+    await screen.findByTestId('agents-headline');
+    expect(screen.getByTestId('agents-todos').textContent).toMatch(/neaktuální/);
+    expect(screen.getByTestId('agents-meta').getAttribute('data-stale')).toBe('true');
   });
 
   it('nenastaveno: návod pro správce, žádná chyba', async () => {
@@ -81,9 +82,6 @@ describe('AgentsView', () => {
     await screen.findByTestId('agents-headline');
     expect(screen.getByTestId('agents-agents-unavailable').textContent).toBe('nedostupné');
     expect(screen.getByTestId('agents-queue-unavailable')).toBeTruthy();
-    expect(screen.getByTestId('agents-quota-unavailable')).toBeTruthy();
-    expect(screen.getAllByTestId('agents-service').at(-1)!.textContent).toContain('nedostupné');
-    expect(screen.getAllByTestId('agents-quota').length).toBe(6);
   });
 
   it('bez URL se odkaz nezobrazí; chyba WS = ErrorState', async () => {
