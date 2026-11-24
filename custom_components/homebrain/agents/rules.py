@@ -93,7 +93,15 @@ def level_sort_key(level: str) -> int:
 
 
 def verdict(snap: dict[str, Any]) -> dict[str, Any]:
-    """``level`` ok|warning|critical|unknown + reasons (critical first)."""
+    """Overall ``level`` from the monitoring status sensor; item reasons stay independent.
+
+    AgentsMonitoring (``status.level``) is the source of truth for the module verdict:
+    ``ok`` → ok, ``attention`` → warning, ``critical`` → critical. Quota/service/data
+    reasons still list what is wrong (critical items first) but do **not** raise or
+    lower the overall level. Fallback when the sensor is unknown/unavailable/missing:
+    worst item reason, else ``ok`` if any healthy quota exists, else ``unknown``.
+    Stale data is an item warning only — it never overrides a known sensor level.
+    """
     reasons: list[dict[str, Any]] = []
 
     def add(kind: str, label: str, lvl: str, value: Any = None, detail: str | None = None) -> None:
@@ -119,7 +127,7 @@ def verdict(snap: dict[str, Any]) -> dict[str, Any]:
     status = snap.get("status") or {}
     item_worst = min((level_sort_key(r["level"]) for r in reasons), default=_ORDER["ok"])
     s_level = status_level(status.get("level"))
-    # The monitoring's own aggregate only speaks when the items do not already explain it.
+    # Surface the monitoring aggregate only when items do not already explain it.
     if s_level in ("critical", "warning") and level_sort_key(s_level) < item_worst:
         add("status", "Monitoring", s_level, None)
     reasons.sort(
@@ -129,9 +137,11 @@ def verdict(snap: dict[str, Any]) -> dict[str, Any]:
             r["value"] if isinstance(r["value"], (int, float)) else 0,
         )
     )
-    if reasons:
+    if s_level in ("ok", "warning", "critical"):
+        level = s_level
+    elif reasons:
         level = reasons[0]["level"]
-    elif s_level == "ok" or any(q["level"] == "ok" for q in snap.get("quotas") or []):
+    elif any(q["level"] == "ok" for q in snap.get("quotas") or []):
         level = "ok"
     else:
         level = "unknown"

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// Agenti (dev mock: synthetic monitoring, `?agents=ok|warn|crit|unconfigured|unavailable`).
+// Agenti (dev mock: `?agents=ok|warn|crit|real|stale|unconfigured|unavailable`).
 
 async function noSidewaysScroll(page: Page) {
   const overflow = await page.evaluate(
@@ -10,59 +10,53 @@ async function noSidewaysScroll(page: Page) {
 }
 
 test.describe('Agenti', () => {
-  test('přehled: verdikt, kvóty, agenti, služby, fronta a odkaz', async ({ page }) => {
+  test('přehled ok: verdikt, kvóty řádky, sbalení, fronta, odkaz', async ({ page }) => {
     await page.goto('/homebrain-agenti');
     const hero = page.getByTestId('agents-hero');
     await expect(hero).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('agents-headline')).toHaveText('V pořádku');
+    await expect(page.getByTestId('agents-headline')).toHaveText('Vše v pořádku');
     await expect(hero).toHaveAttribute('data-agents-state', 'ok');
-    await expect(page.getByTestId('agents-quota')).toHaveCount(6);
-    await expect(page.getByTestId('agents-agent')).toHaveCount(4);
-    await expect(page.getByTestId('agents-agent').first()).toHaveAttribute('data-state', 'waiting');
-    await expect(page.getByTestId('agents-service')).toHaveCount(3);
-    await expect(page.getByTestId('agents-queue-pending')).toContainText('5');
-    await expect(page.getByTestId('agents-queue-running')).toContainText('2');
+    await expect(page.getByTestId('agents-todos')).toHaveCount(0);
+    await expect(page.getByTestId('agents-quota-row')).toHaveCount(3);
+    await expect(page.getByTestId('agents-agents-details')).not.toHaveAttribute('open');
+    await expect(page.getByTestId('agents-queue-line')).toContainText('běží');
     const link = page.getByTestId('agents-monitor-link');
     await expect(link).toHaveAttribute('href', 'https://monitor.example');
     await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link).toContainText('Detail v AgentsMonitoringu');
     expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await expect(page.getByTestId('agents-data-age')).toHaveText(/^Data aktuální/);
+    await expect(page.getByTestId('agents-updated')).toHaveText(/^Aktualizováno/);
     await expect(page.getByRole('heading', { level: 1, name: 'Agenti' })).toHaveClass(/hb-sr-only/);
     await noSidewaysScroll(page);
   });
 
-  test('upozornění: vyčerpaná kvóta v hero, „Co s tím“ na kartu kvót', async ({ page }) => {
+  test('upozornění/rozpor: senzor attention → warn, K řešení má critical kvótu', async ({
+    page,
+  }) => {
     await page.goto('/homebrain-agenti?agents=warn');
-    await expect(page.getByTestId('agents-headline')).toHaveText(
-      /^Kritické: Poskytovatel Y · 5 h: vyčerpáno$/,
-      { timeout: 20_000 },
-    );
-    await expect(page.getByTestId('agents-quota-exhausted')).toBeVisible();
-    await expect(page.getByTestId('agents-quota-forecast')).toBeVisible();
-    await expect(page.getByTestId('agents-forecast')).toContainText('Poskytovatel X');
-    const fix = page.getByTestId('agents-hero-fix');
-    expect((await fix.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await fix.click();
-    const quotas = page.getByTestId('agents-quotas');
-    await expect(quotas).toBeFocused();
-    await expect(quotas).toBeInViewport();
+    await expect(page.getByTestId('agents-hero')).toHaveAttribute('data-agents-state', 'warn', {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId('agents-headline')).toHaveText(/^Běží vše · /);
+    await expect(page.getByTestId('agents-todos')).toBeVisible();
+    await expect(
+      page
+        .getByTestId('agents-todo')
+        .filter({ hasText: /vyčerpáno|Poskytovatel Y/ })
+        .first(),
+    ).toBeVisible();
+    await expect(page.getByTestId('agents-agents-details')).toHaveAttribute('open');
     await noSidewaysScroll(page);
   });
 
-  test('kritické: výpadek služby a neaktuální data', async ({ page }) => {
+  test('kritické: výpadek služby + agent neběží → auto-rozbalení', async ({ page }) => {
     await page.goto('/homebrain-agenti?agents=crit');
-    await expect(page.getByTestId('agents-headline')).toHaveText(
-      'Kritické: Služba Brána: výpadek',
-      { timeout: 20_000 },
-    );
+    await expect(page.getByTestId('agents-headline')).toHaveText(/^Kritické · /, {
+      timeout: 20_000,
+    });
     await expect(page.getByTestId('agents-hero')).toHaveAttribute('data-agents-state', 'crit');
-    await expect(page.getByTestId('agents-service').first()).toHaveAttribute(
-      'data-level',
-      'critical',
-    );
-    await expect(page.getByTestId('agents-data-age')).toHaveText(/^Data neaktuální od /);
-    await expect(page.getByTestId('agents-footer')).toHaveAttribute('data-current', 'false');
+    await expect(page.getByTestId('agents-agents-details')).toHaveAttribute('open');
+    await expect(page.getByTestId('agents-services-under')).toContainText('Brána');
     await noSidewaysScroll(page);
   });
 
@@ -80,22 +74,23 @@ test.describe('Agenti', () => {
     await expect(page.getByTestId('agents-headline')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('agents-agents-unavailable')).toHaveText('nedostupné');
     await expect(page.getByTestId('agents-queue-unavailable')).toBeVisible();
-    await expect(page.getByTestId('agents-quota-unavailable')).toBeVisible();
-    await expect(page.getByTestId('agents-quota')).toHaveCount(6);
     await noSidewaysScroll(page);
   });
 
-  test('layout 360/800/1440, světlý i tmavý (ok + warn + crit)', async ({ page }, testInfo) => {
+  test('layout 360/800/1440, světlý i tmavý (ok + real + crit + stale)', async ({
+    page,
+  }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'viewporty si nastavuje sám');
     test.setTimeout(120_000);
     const shots = Boolean(process.env.AGENTS_SCREENSHOTS);
     for (const theme of ['light', 'dark'] as const) {
-      for (const scenario of ['ok', 'warn', 'crit'] as const) {
+      for (const scenario of ['ok', 'real', 'crit', 'stale'] as const) {
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.goto(`/homebrain-agenti?agents=${scenario}&theme=${theme}`);
         await expect(page.getByTestId('agents-hero')).toBeVisible({ timeout: 20_000 });
         for (const [width, height] of [
           [360, 800],
+          [390, 844],
           [800, 1280],
           [1440, 900],
         ] as const) {
@@ -114,7 +109,7 @@ test.describe('Agenti', () => {
           expect(spill).toBe(0);
           if (shots) {
             await page.screenshot({
-              path: `test-results/agents-module/agents-${scenario}-${width}-${theme}.png`,
+              path: `test-results/agents-redesign/agents-${scenario}-${width}-${theme}.png`,
               fullPage: true,
             });
           }
