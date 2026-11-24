@@ -61,7 +61,14 @@ function quota(
   return { ...base, level: quotaLevel(base) };
 }
 
-function service(id: string, name: string, up: boolean | null, state: string, sla: number) {
+function service(
+  id: string,
+  name: string,
+  up: boolean | null,
+  state: string,
+  sla: number,
+  extra: Partial<Pick<Service, 'since' | 'last_ok'>> = {},
+) {
   const base = {
     id,
     name,
@@ -69,6 +76,7 @@ function service(id: string, name: string, up: boolean | null, state: string, sl
     up,
     state: up == null ? null : state,
     sla_24h: up == null ? null : sla,
+    ...extra,
   };
   return { ...base, level: serviceLevel(base) };
 }
@@ -358,7 +366,9 @@ export function createMockSnapshot(
 
   const services: Service[] = crit
     ? [
-        service('brana', 'Služba Brána', false, 'down', 81.5),
+        service('brana', 'Služba Brána', false, 'down', 81.5, {
+          since: iso(now - 25 * 60_000),
+        }),
         service('wiki', 'Služba Wiki', true, 'operational', 100),
         service('fronta', 'Služba Fronta', true, 'operational', 99.4),
       ]
@@ -371,16 +381,34 @@ export function createMockSnapshot(
   const agentItems = crit
     ? [
         { name: 'Agent A', model: 'Model X', alive: true, waiting: false },
-        { name: 'Agent B', model: 'Model Y', alive: false, waiting: false },
+        {
+          name: 'Agent B',
+          model: 'Model Y',
+          alive: false,
+          waiting: false,
+          last_seen: iso(now - 5 * 60_000),
+        },
         { name: 'Agent C', model: 'Model X', alive: true, waiting: false },
         { name: 'Agent D', model: 'Model Z', alive: true, waiting: false },
       ]
     : warn
       ? [
           { name: 'Agent A', model: 'Model X', alive: true, waiting: false },
-          { name: 'Agent B', model: 'Model Y', alive: true, waiting: true },
+          {
+            name: 'Agent B',
+            model: 'Model Y',
+            alive: true,
+            waiting: true,
+            last_seen: iso(now - 12 * 60_000),
+          },
           { name: 'Agent C', model: 'Model X', alive: true, waiting: false },
-          { name: 'Agent D', model: 'Model Z', alive: false, waiting: false },
+          {
+            name: 'Agent D',
+            model: 'Model Z',
+            alive: false,
+            waiting: false,
+            last_seen: iso(now - 40 * 60_000),
+          },
         ]
       : okAgents();
 

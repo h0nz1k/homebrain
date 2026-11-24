@@ -204,6 +204,12 @@ function Agents({ snap }: { snap: AgentsSnapshot }) {
   const a = snap.agents;
   const counts = agentsListCounts(snap);
   const problem = agentsHaveProblem(snap);
+  const [expanded, setExpanded] = useState(problem);
+  const [prevProblem, setPrevProblem] = useState(problem);
+  if (problem !== prevProblem) {
+    setPrevProblem(problem);
+    if (problem) setExpanded(true);
+  }
   const runningLabel = counts.running != null ? `${counts.running}${'\u00a0'}běží` : null;
   return (
     <Card className="agt-panel" data-testid="agents-agents" aria-labelledby="agt-agents-title">
@@ -220,10 +226,13 @@ function Agents({ snap }: { snap: AgentsSnapshot }) {
       ) : a.items.length ? (
         <details
           className="agt-more"
-          open={problem || undefined}
+          open={expanded}
+          onToggle={(e) => setExpanded((e.currentTarget as HTMLDetailsElement).open)}
           data-testid="agents-agents-details"
         >
-          <summary>Zobrazit agenty a modely</summary>
+          <summary data-testid="agents-agents-toggle">
+            {expanded ? 'Skrýt agenty a modely ▴' : 'Zobrazit agenty a modely ▾'}
+          </summary>
           <ul className="agt-rows">
             {sortAgents(a.items).map((agent) => {
               const state = agentState(agent);
@@ -343,13 +352,14 @@ function Queue({ snap }: { snap: AgentsSnapshot }) {
             {` ${p.label}`}
           </span>
         ))}
+        {blocked > 0 && (
+          <span data-testid="agents-queue-blocked" data-tone="warn">
+            {' · '}
+            <b>{blocked}</b>
+            {` blokováno`}
+          </span>
+        )}
       </p>
-      {blocked > 0 && (
-        <p className="agt-queue-blocked" data-testid="agents-queue-blocked" data-tone="warn">
-          <b>{blocked}</b>
-          {` blokováno`}
-        </p>
-      )}
     </Card>
   );
 }

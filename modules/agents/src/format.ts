@@ -144,6 +144,18 @@ export function whenLabel(iso: string | null | undefined, now = Date.now()): str
   return sameDay(d, new Date(now)) ? fmtTime(d) : `${fmtDate(d)} ${fmtTime(d)}`;
 }
 
+/** Relative past for „K řešení“: „před 5 min“, „dnes 11:34“, „23. 11. 8:15“. */
+export function formatRelTime(iso: string | null | undefined, now = Date.now()): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const ago = now - t;
+  if (ago >= 0 && ago < 60 * 60_000) return `před ${durationLabel(ago || 1)}`;
+  const d = new Date(t);
+  if (sameDay(d, new Date(now))) return `dnes ${fmtTime(d)}`;
+  return whenLabel(iso, now);
+}
+
 /** Relative age for the hero subline: „data před 1 min“. */
 export function dataAgeShort(since: string | null | undefined, now = Date.now()): string | null {
   if (!since) return null;

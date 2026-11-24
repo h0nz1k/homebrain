@@ -3,6 +3,7 @@ import {
   dataAgeLabel,
   dataAgeShort,
   durationLabel,
+  formatRelTime,
   fmtPct,
   fmtSla,
   heroMeta,
@@ -78,6 +79,9 @@ describe('numbers and data age', () => {
     );
     expect(dataAgeShort('2026-11-24T08:44:00Z', NOW)).toBe(`data před 1${NB}min`);
     expect(whenLabel('2026-11-23T20:05:00Z', NOW)).toBe('23. 11. 21:05');
+    expect(formatRelTime('2026-11-24T08:40:00Z', NOW)).toBe(`před 5${NB}min`);
+    expect(formatRelTime('2026-11-24T07:15:00Z', NOW)).toBe('dnes 8:15');
+    expect(formatRelTime('2026-11-23T20:05:00Z', NOW)).toBe('23. 11. 21:05');
   });
 });
 

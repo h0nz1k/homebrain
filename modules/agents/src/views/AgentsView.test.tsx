@@ -19,6 +19,7 @@ describe('AgentsView – redesign', () => {
     expect((await screen.findByTestId('agents-headline')).textContent).toBe('Vše v pořádku');
     expect(screen.queryByTestId('agents-todos')).toBeNull();
     expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(false);
+    expect(screen.getByTestId('agents-agents-toggle').textContent).toMatch(/^Zobrazit agenty a modely/);
     expect(screen.getByTestId('agents-queue-line').textContent).toMatch(/běží/);
     const link = screen.getByTestId('agents-monitor-link');
     expect(link.getAttribute('href')).toBe('https://monitor.example');
@@ -43,11 +44,12 @@ describe('AgentsView – redesign', () => {
     expect((await screen.findByTestId('agents-headline')).textContent).toMatch(/^Kritické · /);
     expect(screen.getByTestId('agents-hero').getAttribute('data-agents-state')).toBe('crit');
     expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(true);
+    expect(screen.getByTestId('agents-agents-toggle').textContent).toMatch(/^Skrýt agenty a modely/);
     const under = screen.getByTestId('agents-services-under');
     expect(under.textContent).toMatch(/Brána/);
   });
 
-  it('real: provider rows + collapsed marginal + queue blocked amber', async () => {
+  it('real: provider rows + collapsed marginal + queue blocked amber inline', async () => {
     show('real');
     await screen.findByTestId('agents-headline');
     const rows = screen.getAllByTestId('agents-quota-row');
@@ -58,19 +60,20 @@ describe('AgentsView – redesign', () => {
     expect(screen.getByTestId('agents-quotas-collapsed').textContent).toMatch(/Vertex|Fable/);
     const line = screen.getByTestId('agents-queue-line');
     expect(line.textContent).toMatch(/běží/);
-    expect(line.textContent).not.toMatch(/blokováno/);
+    expect(line.textContent).toMatch(/blokováno/);
     const blocked = screen.getByTestId('agents-queue-blocked');
+    expect(line.contains(blocked)).toBe(true);
     expect(blocked.getAttribute('data-tone')).toBe('warn');
     expect(blocked.textContent).toMatch(/blokováno/);
-    expect(blocked.textContent?.trim().startsWith('·')).toBe(false);
     // Services over 99 % collapsed.
     expect(screen.getByTestId('agents-services-details').textContent).toMatch(/nad 99/);
   });
 
-  it('ok: fronta bez řádku blokováno při nule', async () => {
+  it('ok: fronta bez blokováno při nule', async () => {
     show('ok');
     await screen.findByTestId('agents-headline');
     expect(screen.getByTestId('agents-queue-line').textContent).toMatch(/běží/);
+    expect(screen.getByTestId('agents-queue-line').textContent).not.toMatch(/blokováno/);
     expect(screen.queryByTestId('agents-queue-blocked')).toBeNull();
   });
 

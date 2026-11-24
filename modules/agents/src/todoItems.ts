@@ -1,5 +1,5 @@
 import { czCount } from '@homebrain/ui';
-import { fmtPct, renewalLabel, type BarTone, levelTone } from './format.js';
+import { fmtPct, formatRelTime, renewalLabel, type BarTone, levelTone } from './format.js';
 import type { AgentsSnapshot, Level, Quota, Reason, Service } from './types.js';
 
 /**
@@ -101,10 +101,17 @@ function serviceTag(s: Service): string {
   return 'SLA';
 }
 
-function serviceDetail(s: Service): string {
-  if (s.sla_24h != null)
-    return `SLA 24 h ${s.sla_24h.toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} %`;
-  return s.state === 'down' ? 'služba nedostupná' : 'viz služby';
+function serviceDetail(s: Service, now: number): string {
+  let detail =
+    s.sla_24h != null
+      ? `SLA 24 h ${s.sla_24h.toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} %`
+      : s.state === 'down'
+        ? 'služba nedostupná'
+        : 'viz služby';
+  const outageAt = s.since ?? s.last_ok;
+  const when = outageAt ? formatRelTime(outageAt, now) : null;
+  if (when) detail = `${detail} · výpadek od ${when}`;
+  return detail;
 }
 
 /** Dedup key for a quota problem (exhausted + forecast of same quota → one). */
@@ -193,8 +200,8 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
       tone: levelTone(s.level),
       level: s.level,
       title: s.name,
-      detail: serviceDetail(s),
-      at: null,
+      detail: serviceDetail(s, now),
+      at: s.since || s.last_ok ? Date.parse((s.since ?? s.last_ok)!) : null,
     });
   }
 
@@ -217,26 +224,32 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
   if (snap.agents.available) {
     for (const a of snap.agents.items) {
       if (!a.alive) {
+        let detail = a.model
+          ? `${a.model} · ověřit v AgentsMonitoringu`
+          : 'ověřit v AgentsMonitoringu';
+        const seen = a.last_seen ? formatRelTime(a.last_seen, now) : null;
+        if (seen) detail = `${detail} · poslední kontakt ${seen}`;
         push({
           id: `agent:stopped:${a.name}`,
           tag: 'neběží',
           tone: 'warn',
           level: 'warning',
           title: `${a.name} neběží`,
-          detail: a.model
-            ? `${a.model} · ověřit v AgentsMonitoringu`
-            : 'ověřit v AgentsMonitoringu',
-          at: null,
+          detail,
+          at: a.last_seen ? Date.parse(a.last_seen) : null,
         });
       } else if (a.waiting) {
+        let detail = a.model ? `model ${a.model}` : 'čeká na kapacitu nebo rozhodnutí';
+        const seen = a.last_seen ? formatRelTime(a.last_seen, now) : null;
+        if (seen) detail = `${detail} · poslední kontakt ${seen}`;
         push({
           id: `agent:waiting:${a.name}`,
           tag: 'čeká',
           tone: 'warn',
           level: 'warning',
           title: `${a.name} čeká`,
-          detail: a.model ? `model ${a.model}` : 'čeká na kapacitu nebo rozhodnutí',
-          at: null,
+          detail,
+          at: a.last_seen ? Date.parse(a.last_seen) : null,
         });
       }
     }
@@ -244,14 +257,22 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
 
   // Queue blocked.
   if (snap.queue.available && snap.queue.blocked && snap.queue.blocked > 0) {
+    const qExtra = snap.queue as {
+      oldest_blocked_at?: string | null;
+      blocked_since?: string | null;
+    };
+    const blockedSince = qExtra.oldest_blocked_at ?? qExtra.blocked_since;
+    const blockedWhen = blockedSince ? formatRelTime(blockedSince, now) : null;
+    let detail = `${czCount(snap.queue.blocked, 'úloha blokovaná', 'úlohy blokované', 'úloh blokovaných')} · rozhodnutí v AgentsMonitoringu`;
+    if (blockedWhen) detail = `${detail} · od ${blockedWhen}`;
     push({
       id: 'queue:blocked',
       tag: 'blokováno',
       tone: 'warn',
       level: 'warning',
       title: 'Fronta: blokované úlohy',
-      detail: `${czCount(snap.queue.blocked, 'úloha blokovaná', 'úlohy blokované', 'úloh blokovaných')} · rozhodnutí v AgentsMonitoringu`,
-      at: null,
+      detail,
+      at: blockedSince ? Date.parse(blockedSince) : null,
     });
   }
 

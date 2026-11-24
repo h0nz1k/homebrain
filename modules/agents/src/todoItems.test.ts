@@ -49,14 +49,96 @@ describe('buildTodoItems', () => {
   });
 
   it('crit: service down + agent stopped without redundant Agent/model prefix', () => {
-    const items = buildTodoItems(createMockSnapshot('crit', NOW));
+    const items = buildTodoItems(createMockSnapshot('crit', NOW), NOW);
     expect(items.some((i) => i.tag === 'výpadek')).toBe(true);
     const stopped = items.find((i) => i.tag === 'neběží');
     expect(stopped).toBeTruthy();
     expect(stopped!.title).toBe('Agent B neběží');
     expect(stopped!.title).not.toMatch(/^Agent Agent/);
-    expect(stopped!.detail).toBe('Model Y · ověřit v AgentsMonitoringu');
+    expect(stopped!.detail).toMatch(/^Model Y · ověřit v AgentsMonitoringu · poslední kontakt před/);
     expect(stopped!.detail).not.toMatch(/^model /);
+    const outage = items.find((i) => i.tag === 'výpadek');
+    expect(outage!.detail).toMatch(/SLA 24 h 81,5 % · výpadek od před/);
+  });
+
+  it('appends last_seen / since when present; leaves detail alone when missing', () => {
+    const base = createMockSnapshot('ok', NOW);
+    const withTimes = buildTodoItems(
+      {
+        ...base,
+        status: { available: true, level: 'attention', critical: 0, attention: 1 },
+        agents: {
+          available: true,
+          active: 0,
+          total: 1,
+          waiting: 0,
+          waiting_names: [],
+          items: [
+            {
+              name: 'Agent Z',
+              model: 'Model Z',
+              alive: false,
+              waiting: false,
+              last_seen: new Date(NOW - 5 * 60_000).toISOString(),
+            },
+          ],
+        },
+        services: [
+          {
+            id: 'svc',
+            name: 'Služba X',
+            available: true,
+            up: false,
+            state: 'down',
+            sla_24h: 90,
+            level: 'critical',
+            since: new Date(NOW - 15 * 60_000).toISOString(),
+          },
+        ],
+        queue: { available: true, pending: 0, running: 0, blocked: 0, review: 0 },
+        quotas: [],
+        exhaust_forecast: { available: false, active: false, items: [] },
+        verdict: { level: 'warning', reasons: [] },
+      },
+      NOW,
+    );
+    expect(withTimes.find((i) => i.tag === 'neběží')!.detail).toMatch(/poslední kontakt před/);
+    expect(withTimes.find((i) => i.tag === 'výpadek')!.detail).toMatch(/výpadek od před/);
+
+    const withoutTimes = buildTodoItems(
+      {
+        ...base,
+        status: { available: true, level: 'attention', critical: 0, attention: 1 },
+        agents: {
+          available: true,
+          active: 0,
+          total: 1,
+          waiting: 0,
+          waiting_names: [],
+          items: [{ name: 'Agent Z', model: 'Model Z', alive: false, waiting: false }],
+        },
+        services: [
+          {
+            id: 'svc',
+            name: 'Služba X',
+            available: true,
+            up: false,
+            state: 'down',
+            sla_24h: 90,
+            level: 'critical',
+          },
+        ],
+        queue: { available: true, pending: 0, running: 0, blocked: 0, review: 0 },
+        quotas: [],
+        exhaust_forecast: { available: false, active: false, items: [] },
+        verdict: { level: 'warning', reasons: [] },
+      },
+      NOW,
+    );
+    expect(withoutTimes.find((i) => i.tag === 'neběží')!.detail).toBe(
+      'Model Z · ověřit v AgentsMonitoringu',
+    );
+    expect(withoutTimes.find((i) => i.tag === 'výpadek')!.detail).toBe('SLA 24 h 90 %');
   });
 
   it('exhausted: hints sibling quota of same provider still available', () => {

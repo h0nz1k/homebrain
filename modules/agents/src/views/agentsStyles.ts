@@ -117,19 +117,15 @@ export const agentsStyles = `
 .agt-more > summary::-webkit-details-marker { display: none; }
 .agt-more > summary:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; border-radius: 4px; }
 
-/* Fronta – hlavní řádek (nowrap) + samostatný řádek „blokováno“ */
+/* Fronta – jeden řádek (nowrap); „blokováno“ inline oranžově */
 .agt-queue-line {
   display: flex; flex-wrap: nowrap; gap: 0 4px; font-size: 14px;
   font-variant-numeric: tabular-nums; overflow: hidden;
 }
 .agt-queue-line > span { white-space: nowrap; }
-.agt-queue-line b,
-.agt-queue-blocked b { font-size: 18px; font-weight: 700; margin-right: 4px; }
-.agt-queue-blocked {
-  margin: 2px 0 0; font-size: 14px; font-variant-numeric: tabular-nums;
-  color: var(--hb-warn);
-}
-.agt-queue-blocked[data-tone='warn'] b { color: var(--hb-warn); }
+.agt-queue-line b { font-size: 18px; font-weight: 700; margin-right: 4px; }
+.agt-queue-line > span[data-tone='warn'],
+.agt-queue-line > span[data-tone='warn'] b { color: var(--hb-warn); }
 
 .agt-footer {
   flex-direction: row; align-items: center; justify-content: space-between;
