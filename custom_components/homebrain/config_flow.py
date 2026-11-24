@@ -8,6 +8,9 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
+from .agents.rules import BINDING_KEY as AGENTS_BINDING
+from .agents.rules import MONITOR_URL as AGENTS_MONITOR_URL
+from .agents.rules import OPTION as AGENTS_OPTION
 from .bindings import binding_domains, get_bindings, validate_binding
 from .communication.config import DEFAULT as COMM_DEFAULT
 from .communication.config import OPTION as COMM_OPTION
@@ -61,6 +64,7 @@ OPTIONS_FLOW_EXTRA = (
     "network_unifi",
     "heating",
     "server",
+    "agents",
     "modules",
     "meals",
     "coffee",
@@ -455,6 +459,47 @@ class HomeBrainOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="server", data_schema=schema)
+
+    async def async_step_agents(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Agenti: the monitoring status sensor (siblings by prefix) + AgentsMonitoring URL."""
+        bindings = get_bindings(self.config_entry)
+        values = bindings.setdefault("agents", {})
+        current = self.config_entry.options.get(AGENTS_OPTION) or {}
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            url = str(user_input.get(AGENTS_MONITOR_URL) or "").strip()
+            status = user_input.get(AGENTS_BINDING)
+            if url and not url.startswith(("http://", "https://")):
+                errors[AGENTS_MONITOR_URL] = "invalid_url"
+            else:
+                try:
+                    if status:
+                        values[AGENTS_BINDING] = validate_binding(AGENTS_BINDING, status)
+                    else:
+                        values.pop(AGENTS_BINDING, None)
+                except vol.Invalid:
+                    errors["base"] = "invalid_entity_id"
+            if not errors:
+                options = {**self.config_entry.options, "bindings": bindings}
+                if url:
+                    options[AGENTS_OPTION] = {**current, AGENTS_MONITOR_URL: url}
+                else:
+                    options.pop(AGENTS_OPTION, None)
+                return self.async_create_entry(title="", data=options)
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    AGENTS_BINDING, description={"suggested_value": values.get(AGENTS_BINDING)}
+                ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                vol.Optional(
+                    AGENTS_MONITOR_URL,
+                    description={"suggested_value": current.get(AGENTS_MONITOR_URL)},
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
+                ),
+            }
+        )
+        return self.async_show_form(step_id="agents", data_schema=schema, errors=errors)
 
     async def async_step_meals(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """„Zobrazit jídelníček (Mealie)“: auto = only with a loaded Mealie entry, off = never."""

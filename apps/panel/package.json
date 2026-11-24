@@ -20,6 +20,7 @@
     "@homebrain/module-network": "workspace:*",
     "@homebrain/module-heating": "workspace:*",
     "@homebrain/module-server": "workspace:*",
+    "@homebrain/module-agents": "workspace:*",
     "@homebrain/module-anomaly": "workspace:*",
     "@homebrain/module-recipes": "workspace:*",
     "@homebrain/module-robots": "workspace:*",

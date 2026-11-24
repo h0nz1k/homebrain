@@ -32,7 +32,8 @@
           "people": "Who is home",
           "heating": "Heating – Tecomat PLC",
           "communication": "Communication hub",
-          "server": "Server – backups"
+          "server": "Server – backups",
+          "agents": "Agents – monitoring"
         }
       },
       "waste": {
@@ -341,6 +342,14 @@
         "data": {
           "backup_max_age_days": "Backup age limit"
         }
+      },
+      "agents": {
+        "title": "Agents",
+        "description": "Pick the status sensor of your agent monitoring (`sensor.<prefix>_stav`). HomeBrain finds the other sensors with the same prefix (quotas, agents, services, queue) by themselves and only reads their states. The AgentsMonitoring URL is optional; without it the panel shows no link.",
+        "data": {
+          "agents_status": "Monitoring status sensor",
+          "monitor_url": "AgentsMonitoring URL (optional)"
+        }
       }
     },
     "error": {
@@ -376,7 +385,8 @@
         "heating": "Topení",
         "kitchen": "Kitchen",
         "communication": "Communication hub",
-        "anomaly": "House watch"
+        "anomaly": "House watch",
+        "agents": "Agents"
       }
     },
     "coffee_mode": {
