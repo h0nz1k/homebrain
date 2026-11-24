@@ -94,6 +94,12 @@ describe('hero (sensor state + todo count)', () => {
     expect(hero).toMatchObject({ tone: 'ok', headline: 'Vše v pořádku', stale: false });
     expect(hero.subline).toMatch(/4 agent/);
   });
+  it('stale + sensor ok → amber „Data nejsou aktuální“, never green „Vše v pořádku“', () => {
+    const snap = createMockSnapshot('stale', NOW);
+    const todos = buildTodoItems(snap, NOW);
+    const hero = heroModel(snap, NOW, todos.length);
+    expect(hero).toMatchObject({ tone: 'warn', headline: 'Data nejsou aktuální', stale: true });
+  });
   it('warn/mismatch: sensor attention → warn tone; items do not raise verdict', () => {
     const snap = createMockSnapshot('warn', NOW);
     expect(snap.verdict.level).toBe('warning');

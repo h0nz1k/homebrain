@@ -345,16 +345,17 @@ function Queue({ snap }: { snap: AgentsSnapshot }) {
         <h3 id="agt-queue-title">Fronta úloh</h3>
       </div>
       <p className="agt-queue-line" data-testid="agents-queue-line">
+        {/* Separator trails the previous item (inside its nowrap span), so a wrapped
+            line never starts with an orphaned „·“ on narrow screens. */}
         {main.map((p, i) => (
           <span key={p.key} data-testid={`agents-queue-${p.key}`}>
-            {i ? ' · ' : ''}
             <b>{p.n}</b>
             {` ${p.label}`}
+            {i < main.length - 1 || blocked > 0 ? ' ·' : ''}
           </span>
         ))}
         {blocked > 0 && (
           <span data-testid="agents-queue-blocked" data-tone="warn">
-            {' · '}
             <b>{blocked}</b>
             {` blokováno`}
           </span>

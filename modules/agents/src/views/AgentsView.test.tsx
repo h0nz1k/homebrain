@@ -19,7 +19,9 @@ describe('AgentsView – redesign', () => {
     expect((await screen.findByTestId('agents-headline')).textContent).toBe('Vše v pořádku');
     expect(screen.queryByTestId('agents-todos')).toBeNull();
     expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(false);
-    expect(screen.getByTestId('agents-agents-toggle').textContent).toMatch(/^Zobrazit agenty a modely/);
+    expect(screen.getByTestId('agents-agents-toggle').textContent).toMatch(
+      /^Zobrazit agenty a modely/,
+    );
     expect(screen.getByTestId('agents-queue-line').textContent).toMatch(/běží/);
     const link = screen.getByTestId('agents-monitor-link');
     expect(link.getAttribute('href')).toBe('https://monitor.example');
@@ -44,7 +46,9 @@ describe('AgentsView – redesign', () => {
     expect((await screen.findByTestId('agents-headline')).textContent).toMatch(/^Kritické · /);
     expect(screen.getByTestId('agents-hero').getAttribute('data-agents-state')).toBe('crit');
     expect(screen.getByTestId('agents-agents-details').hasAttribute('open')).toBe(true);
-    expect(screen.getByTestId('agents-agents-toggle').textContent).toMatch(/^Skrýt agenty a modely/);
+    expect(screen.getByTestId('agents-agents-toggle').textContent).toMatch(
+      /^Skrýt agenty a modely/,
+    );
     const under = screen.getByTestId('agents-services-under');
     expect(under.textContent).toMatch(/Brána/);
   });
@@ -79,7 +83,8 @@ describe('AgentsView – redesign', () => {
 
   it('stale: K řešení má data neaktuální; hero subline amber', async () => {
     show('stale');
-    await screen.findByTestId('agents-headline');
+    const headline = await screen.findByTestId('agents-headline');
+    expect(headline.textContent).not.toBe('Vše v pořádku');
     expect(screen.getByTestId('agents-todos').textContent).toMatch(/neaktuální/);
     expect(screen.getByTestId('agents-meta').getAttribute('data-stale')).toBe('true');
   });

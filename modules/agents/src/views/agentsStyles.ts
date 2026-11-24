@@ -42,12 +42,13 @@ export const agentsStyles = `
 /* K řešení */
 .agt-todos { display: flex; flex-direction: column; }
 .agt-todos > li {
-  display: flex; gap: 8px; align-items: flex-start;
+  /* Fixed tag column → titles start on one vertical line regardless of tag length. */
+  display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 8px; align-items: start;
   padding: 7px 0; border-top: 1px solid var(--hb-edge, color-mix(in srgb, var(--hb-t1) 10%, transparent));
   min-width: 0;
 }
 .agt-todos > li:first-child { border-top: 0; padding-top: 0; }
-.agt-todos > li > .hb-pill { min-width: 110px; flex-shrink: 0; justify-content: center; }
+.agt-todos > li > .hb-pill { justify-self: stretch; justify-content: center; white-space: nowrap; }
 .agt-todo-body { flex: 1; min-width: 0; }
 .agt-todo-title { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
 .agt-todo-detail { font-size: 12px; color: var(--hb-t2); margin-top: 1px; overflow-wrap: anywhere; }
@@ -117,10 +118,10 @@ export const agentsStyles = `
 .agt-more > summary::-webkit-details-marker { display: none; }
 .agt-more > summary:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; border-radius: 4px; }
 
-/* Fronta – jeden řádek (nowrap); „blokováno“ inline oranžově */
+/* Fronta – inline; na úzkém displeji se celé položky zalomí (nic se neořízne); „blokováno“ oranžově */
 .agt-queue-line {
-  display: flex; flex-wrap: nowrap; gap: 0 4px; font-size: 14px;
-  font-variant-numeric: tabular-nums; overflow: hidden;
+  display: flex; flex-wrap: wrap; gap: 2px 4px; font-size: 14px;
+  font-variant-numeric: tabular-nums; min-width: 0;
 }
 .agt-queue-line > span { white-space: nowrap; }
 .agt-queue-line b { font-size: 18px; font-weight: 700; margin-right: 4px; }
@@ -149,6 +150,9 @@ export const agentsStyles = `
   .agt-panel { padding: 12px 12px; }
   .agt-footer { flex-direction: column; align-items: stretch; }
   .agt-monitor-link { width: 100%; justify-content: center; }
+  /* Narrow: tag above the title so the title gets the full width. */
+  .agt-todos > li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .agt-todos > li > .hb-pill { justify-self: start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .agt-bar i { transition: none !important; }

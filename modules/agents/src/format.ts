@@ -246,8 +246,11 @@ export function heroModel(snap: AgentsSnapshot, now = Date.now(), todoCount = 0)
   const things =
     todoCount > 0 ? czCount(todoCount, 'věc k řešení', 'věci k řešení', 'věcí k řešení') : null;
 
+  const stale = snap.data.current === false;
   let headline: string;
-  if (level === 'ok') headline = 'Vše v pořádku';
+  // Stale data must never read as a green „Vše v pořádku“ (contradicts K řešení).
+  if (level === 'ok' && stale) headline = 'Data nejsou aktuální';
+  else if (level === 'ok') headline = 'Vše v pořádku';
   else if (level === 'unknown') headline = 'Stav agentů není známý';
   else if (level === 'critical') headline = things ? `Kritické · ${things}` : 'Kritické';
   else headline = things ? `Běží vše · ${things}` : 'Běží vše';
@@ -271,10 +274,10 @@ export function heroModel(snap: AgentsSnapshot, now = Date.now(), todoCount = 0)
   if (age) bits.push(age);
 
   return {
-    tone: level === 'unknown' ? 'neutral' : tone,
+    tone: level === 'unknown' ? 'neutral' : level === 'ok' && stale ? 'warn' : tone,
     headline,
     subline: bits.join(' · '),
-    stale: snap.data.current === false,
+    stale,
   };
 }
 

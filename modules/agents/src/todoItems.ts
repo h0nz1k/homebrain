@@ -40,8 +40,8 @@ function quotaTitle(q: Quota): string {
     .trim();
   const win = q.window_label?.trim();
   if (family && family.toLowerCase() !== name.toLowerCase() && win)
-    return `${name} ${family} – ${win}`;
-  if (win) return `${name} – ${win}`;
+    return `${name} ${family}\u00a0– ${win}`;
+  if (win) return `${name}\u00a0– ${win}`;
   return name;
 }
 
@@ -88,8 +88,7 @@ function alternativeQuotaHint(q: Quota, all: Quota[]): string | null {
     if (o.remaining_pct == null || o.remaining_pct <= 20) return false;
     return true;
   });
-  const preferred =
-    alts.find((o) => quotaAltName(o).toLowerCase() !== ownFamily) ?? alts[0];
+  const preferred = alts.find((o) => quotaAltName(o).toLowerCase() !== ownFamily) ?? alts[0];
   if (!preferred) return null;
   const name = quotaAltName(preferred);
   return name ? `${name} dál k dispozici` : null;
@@ -110,7 +109,9 @@ function serviceDetail(s: Service, now: number): string {
         : 'viz služby';
   const outageAt = s.since ?? s.last_ok;
   const when = outageAt ? formatRelTime(outageAt, now) : null;
-  if (when) detail = `${detail} · výpadek od ${when}`;
+  // Tag already says „výpadek“; avoid „od před 25 min“ → „trvá 25 min“ / „od dnes 18:34“.
+  if (when)
+    detail = `${detail} · ${when.startsWith('před ') ? `trvá ${when.slice(5)}` : `od ${when}`}`;
   return detail;
 }
 
@@ -234,7 +235,8 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
           tag: 'neběží',
           tone: 'warn',
           level: 'warning',
-          title: `${a.name} neběží`,
+          // State is carried by the tag; title is just the name (no „neběží“ twice).
+          title: a.name,
           detail,
           at: a.last_seen ? Date.parse(a.last_seen) : null,
         });
@@ -247,7 +249,7 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
           tag: 'čeká',
           tone: 'warn',
           level: 'warning',
-          title: `${a.name} čeká`,
+          title: a.name,
           detail,
           at: a.last_seen ? Date.parse(a.last_seen) : null,
         });
@@ -263,14 +265,15 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
     };
     const blockedSince = qExtra.oldest_blocked_at ?? qExtra.blocked_since;
     const blockedWhen = blockedSince ? formatRelTime(blockedSince, now) : null;
-    let detail = `${czCount(snap.queue.blocked, 'úloha blokovaná', 'úlohy blokované', 'úloh blokovaných')} · rozhodnutí v AgentsMonitoringu`;
+    // Tag says „blokováno“; title/detail must not repeat it.
+    let detail = `${czCount(snap.queue.blocked, 'úloha čeká', 'úlohy čekají', 'úloh čeká')} na rozhodnutí v AgentsMonitoringu`;
     if (blockedWhen) detail = `${detail} · od ${blockedWhen}`;
     push({
       id: 'queue:blocked',
       tag: 'blokováno',
       tone: 'warn',
       level: 'warning',
-      title: 'Fronta: blokované úlohy',
+      title: 'Fronta úloh',
       detail,
       at: blockedSince ? Date.parse(blockedSince) : null,
     });

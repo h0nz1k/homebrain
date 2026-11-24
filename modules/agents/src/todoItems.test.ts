@@ -53,12 +53,16 @@ describe('buildTodoItems', () => {
     expect(items.some((i) => i.tag === 'výpadek')).toBe(true);
     const stopped = items.find((i) => i.tag === 'neběží');
     expect(stopped).toBeTruthy();
-    expect(stopped!.title).toBe('Agent B neběží');
+    expect(stopped!.title).toBe('Agent B');
+    expect(stopped!.title).not.toMatch(/neběží/);
     expect(stopped!.title).not.toMatch(/^Agent Agent/);
-    expect(stopped!.detail).toMatch(/^Model Y · ověřit v AgentsMonitoringu · poslední kontakt před/);
+    expect(stopped!.detail).toMatch(
+      /^Model Y · ověřit v AgentsMonitoringu · poslední kontakt před/,
+    );
     expect(stopped!.detail).not.toMatch(/^model /);
     const outage = items.find((i) => i.tag === 'výpadek');
-    expect(outage!.detail).toMatch(/SLA 24 h 81,5 % · výpadek od před/);
+    expect(outage!.detail).toMatch(/SLA 24 h 81,5 % · trvá \d/);
+    expect(outage!.detail).not.toMatch(/výpadek|od před/);
   });
 
   it('appends last_seen / since when present; leaves detail alone when missing', () => {
@@ -103,7 +107,7 @@ describe('buildTodoItems', () => {
       NOW,
     );
     expect(withTimes.find((i) => i.tag === 'neběží')!.detail).toMatch(/poslední kontakt před/);
-    expect(withTimes.find((i) => i.tag === 'výpadek')!.detail).toMatch(/výpadek od před/);
+    expect(withTimes.find((i) => i.tag === 'výpadek')!.detail).toMatch(/· trvá \d/);
 
     const withoutTimes = buildTodoItems(
       {
