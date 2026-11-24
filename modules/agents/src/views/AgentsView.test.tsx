@@ -34,9 +34,11 @@ describe('AgentsView', () => {
     expect(screen.queryByTestId('agents-hero-fix')).toBeNull();
   });
 
-  it('upozornění: nejhorší kvóta první, štítky vyčerpáno a dojde před resetem', async () => {
+  it('upozornění/rozpor: senzor attention → warn; vyčerpaná kvóta critical; počet = seznam', async () => {
     show('warn');
     await screen.findByTestId('agents-headline');
+    expect(screen.getByTestId('agents-hero').getAttribute('data-agents-state')).toBe('warn');
+    expect(screen.getByTestId('agents-headline').textContent).toMatch(/^Pozor:/);
     const quotas = screen.getAllByTestId('agents-quota');
     expect(quotas[0]!.getAttribute('data-level')).toBe('critical');
     expect(screen.getByTestId('agents-quota-exhausted')).toBeTruthy();
@@ -46,6 +48,10 @@ describe('AgentsView', () => {
     expect(screen.getByTestId('agents-more').textContent).toContain('SLA');
     expect(screen.getByTestId('agents-hero-fix')).toBeTruthy();
     expect(screen.getAllByTestId('agents-quota-reset')[0]!.textContent).toMatch(/^reset za /);
+    const agents = screen.getAllByTestId('agents-agent');
+    expect(agents).toHaveLength(4);
+    expect(screen.getByTestId('agents-meta').textContent).toMatch(/2 z 4 agentů běží/);
+    expect(screen.getByTestId('agents-agents-count').textContent).toMatch(/2 z 4 běží/);
   });
 
   it('kritické: výpadek služby a neaktuální data', async () => {

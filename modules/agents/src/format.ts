@@ -140,32 +140,65 @@ export interface HeroModel {
 
 export function heroModel(snap: AgentsSnapshot): HeroModel {
   const badge = snap.data.current === false ? 'Neaktuální' : snap.data.current ? 'Živě' : 'Bez dat';
+  const level = snap.verdict.level;
+  const tone = levelTone(level);
   const [top, ...rest] = snap.verdict.reasons;
-  if (!top) {
-    if (snap.verdict.level === 'ok') return { tone: 'ok', badge, headline: 'V pořádku', more: [] };
+  // Overall tone/headline follow the monitoring verdict, not the worst item.
+  if (level === 'ok')
+    return {
+      tone: 'ok',
+      badge,
+      headline: 'V pořádku',
+      more: snap.verdict.reasons.map(reasonText),
+      target: top ? reasonTarget[top.kind] : undefined,
+    };
+  if (level === 'unknown')
     return { tone: 'neutral', badge: 'Bez dat', headline: 'Stav agentů není známý', more: [] };
-  }
-  const crit = top.level === 'critical';
+  const prefix = level === 'critical' ? 'Kritické' : 'Pozor';
+  if (!top) return { tone, badge, headline: prefix, more: [] };
   return {
-    tone: crit ? 'crit' : 'warn',
+    tone,
     badge,
-    headline: `${crit ? 'Kritické' : 'Pozor'}: ${reasonText(top)}`,
+    headline: `${prefix}: ${reasonText(top)}`,
     more: rest.map(reasonText),
     target: reasonTarget[top.kind],
   };
 }
 
-/** Hero meta: „2 z 3 agentů běží · 1 čeká · 7 kvót · 3 služby“. */
+/** Counts that match the visible Agents list (items); sensor aggregates only as fallback. */
+export function agentsListCounts(snap: AgentsSnapshot): {
+  running: number | null;
+  waiting: number | null;
+  total: number | null;
+} {
+  const a = snap.agents;
+  if (!a.available) return { running: null, waiting: null, total: null };
+  if (a.items.length) {
+    const running = a.items.filter((x) => x.alive && !x.waiting).length;
+    const waiting = a.items.filter((x) => x.alive && x.waiting).length;
+    return { running, waiting, total: a.items.length };
+  }
+  if (a.active == null) return { running: null, waiting: a.waiting, total: a.total };
+  // Sensor `active` includes waiting agents; subtract when both are known.
+  const waiting = a.waiting ?? 0;
+  return {
+    running: Math.max(0, a.active - waiting),
+    waiting: a.waiting,
+    total: a.total,
+  };
+}
+
+/** Hero meta: „2 z 4 agentů běží · 1 čeká · 7 kvót · 3 služby“. */
 export function heroMeta(snap: AgentsSnapshot): string[] {
   const out: string[] = [];
-  const a = snap.agents;
-  if (a.available && a.active != null)
+  const { running, waiting, total } = agentsListCounts(snap);
+  if (running != null)
     out.push(
-      a.total != null
-        ? `${a.active} z ${czCount(a.total, 'agenta', 'agentů', 'agentů')} běží`
-        : `${czCount(a.active, 'agent běží', 'agenti běží', 'agentů běží')}`,
+      total != null
+        ? `${running} z ${czCount(total, 'agenta', 'agentů', 'agentů')} běží`
+        : `${czCount(running, 'agent běží', 'agenti běží', 'agentů běží')}`,
     );
-  if (a.waiting) out.push(`${a.waiting} čeká`);
+  if (waiting) out.push(`${waiting} čeká`);
   if (snap.quotas.length) out.push(czCount(snap.quotas.length, 'kvóta', 'kvóty', 'kvót'));
   if (snap.services.length) out.push(czCount(snap.services.length, 'služba', 'služby', 'služeb'));
   return out;

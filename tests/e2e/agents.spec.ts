@@ -32,15 +32,25 @@ test.describe('Agenti', () => {
     await noSidewaysScroll(page);
   });
 
-  test('upozornění: vyčerpaná kvóta v hero, „Co s tím“ na kartu kvót', async ({ page }) => {
+  test('upozornění/rozpor: senzor attention → warn, kvóta critical, „Co s tím“', async ({
+    page,
+  }) => {
     await page.goto('/homebrain-agenti?agents=warn');
+    await expect(page.getByTestId('agents-hero')).toHaveAttribute('data-agents-state', 'warn', {
+      timeout: 20_000,
+    });
     await expect(page.getByTestId('agents-headline')).toHaveText(
-      /^Kritické: Poskytovatel Y · 5 h: vyčerpáno$/,
-      { timeout: 20_000 },
+      /^Pozor: Poskytovatel Y · 5 h: vyčerpáno$/,
+    );
+    await expect(page.getByTestId('agents-quota').first()).toHaveAttribute(
+      'data-level',
+      'critical',
     );
     await expect(page.getByTestId('agents-quota-exhausted')).toBeVisible();
     await expect(page.getByTestId('agents-quota-forecast')).toBeVisible();
     await expect(page.getByTestId('agents-forecast')).toContainText('Poskytovatel X');
+    await expect(page.getByTestId('agents-meta')).toContainText('2 z 4 agentů běží');
+    await expect(page.getByTestId('agents-agent')).toHaveCount(4);
     const fix = page.getByTestId('agents-hero-fix');
     expect((await fix.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await fix.click();
@@ -114,7 +124,7 @@ test.describe('Agenti', () => {
           expect(spill).toBe(0);
           if (shots) {
             await page.screenshot({
-              path: `test-results/agents-module/agents-${scenario}-${width}-${theme}.png`,
+              path: `test-results/agents-status/agents-${scenario}-${width}-${theme}.png`,
               fullPage: true,
             });
           }

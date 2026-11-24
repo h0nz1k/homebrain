@@ -39,9 +39,15 @@ Syntetický příklad: `sensor.agenti_demo_stav`. Všechny sourozence kromě sta
 - **Kvóta:** `critical` při `exhausted` nebo zbývá &lt; 10 %; `warning` při &lt; 25 % nebo
   `will_exhaust_before_reset`; jinak `ok`.
 - **Služba:** down → `critical`; SLA &lt; 95 % nebo `degraded` → `warning`.
-- **Data neaktuální** → hero upozornění „Data nejsou aktuální“.
-- **Verdikt** = nejhorší z položek + `status.level` (attention → warning), když položky samy
-  monitoringový agregát nevysvětlí.
+- **Data neaktuální** → hero upozornění „Data nejsou aktuální“; celkový stav nepřebíjí,
+  pokud senzor stav má.
+- **Celkový stav (verdikt `level`, hero badge/headline/`data-agents-state`)** =
+  stav senzoru monitoringu (`status.level`): `ok` → ok, `attention` → warning,
+  `critical` → critical. AgentsMonitoring je zdroj pravdy. Položky (kvóty, služby, data)
+  se dál hodnotí a zvýrazňují samostatně a smí být v seznamu důvodů (critical první),
+  ale **nezvyšují ani nesnižují** celkový stav.
+- **Fallback:** když stav senzoru chybí / `unknown` / `unavailable`, verdikt = dosavadní
+  výpočet z položek (nejhorší důvod), nebo `ok` při zdravé kvótě, jinak `unknown`.
 - **Okno (`okno`):** lokalizace „5 h“, „7 dní“, „týden“, „měsíc“, „kredit“; neznámé → surový text.
 - Reset v UI: odpočet + čas v `Europe/Prague`.
 
@@ -51,3 +57,5 @@ WS `homebrain/agents/get` (admin only) → snapshot `{configured, status, data, 
 exhaust_forecast, agents, services, queue, monitor_url, last_alert, verdict, updated_at}`.
 
 Frontend: `modules/agents`, mock `?agents=ok|warn|crit|unconfigured|unavailable`.
+Scénář `warn` = senzor `attention` + vyčerpaná kvóta (rozpor: celkový stav upozornění,
+kvóta critical).

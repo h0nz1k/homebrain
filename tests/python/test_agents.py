@@ -227,12 +227,24 @@ async def test_warnings(hass: HomeAssistant):
     assert levels.count("warning") == 3
     assert snap["services"][0]["level"] == "warning"
     verdict = snap["verdict"]
-    assert verdict["level"] == "critical"
+    # Sensor attention → overall warning; exhausted quota stays critical in reasons.
+    assert verdict["level"] == "warning"
     assert verdict["reasons"][0]["kind"] == "quota"
+    assert verdict["reasons"][0]["level"] == "critical"
     assert verdict["reasons"][0]["detail"] == "exhausted"
     kinds = [(r["kind"], r["level"]) for r in verdict["reasons"]]
     assert ("service", "warning") in kinds
     assert ("status", "warning") not in kinds  # items already explain the attention
+
+
+async def test_sensor_ok_with_exhausted_quota_stays_ok(hass: HomeAssistant):
+    _entry(hass)
+    install(hass, status="ok")
+    _quota(hass, "gone", "0", exhausted=True)
+    snap = build_snapshot(hass)
+    assert snap["verdict"]["level"] == "ok"
+    assert snap["verdict"]["reasons"][0]["detail"] == "exhausted"
+    assert snap["verdict"]["reasons"][0]["level"] == "critical"
 
 
 async def test_critical_service_down_and_stale_data(hass: HomeAssistant):
@@ -265,6 +277,26 @@ async def test_status_alone_drives_verdict(hass: HomeAssistant):
     snap = build_snapshot(hass)
     assert snap["verdict"]["level"] == "critical"
     assert snap["verdict"]["reasons"][0]["kind"] == "status"
+
+
+async def test_status_critical_without_critical_items(hass: HomeAssistant):
+    _entry(hass)
+    install(hass, status="critical")
+    _quota(hass, "low", "20")  # warning item only
+    snap = build_snapshot(hass)
+    assert snap["verdict"]["level"] == "critical"
+    assert any(r["kind"] == "quota" and r["level"] == "warning" for r in snap["verdict"]["reasons"])
+
+
+async def test_unavailable_status_falls_back_to_items(hass: HomeAssistant):
+    _entry(hass)
+    install(hass)
+    hass.states.async_set(STATUS, "unavailable")
+    _quota(hass, "gone", "0", exhausted=True)
+    snap = build_snapshot(hass)
+    assert snap["status"]["available"] is False
+    assert snap["verdict"]["level"] == "critical"
+    assert snap["verdict"]["reasons"][0]["detail"] == "exhausted"
 
 
 async def test_unavailable_siblings(hass: HomeAssistant):

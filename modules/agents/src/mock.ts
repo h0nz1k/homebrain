@@ -67,6 +67,13 @@ function service(id: string, name: string, up: boolean | null, state: string, sl
   return { ...base, level: serviceLevel(base) };
 }
 
+const STATUS_LEVEL: Record<string, Level> = {
+  ok: 'ok',
+  attention: 'warning',
+  critical: 'critical',
+};
+
+/** Same rule as custom_components/homebrain/agents/rules.py ``verdict``. */
 function verdict(snap: AgentsSnapshot): AgentsSnapshot['verdict'] {
   const reasons: Reason[] = [];
   for (const s of snap.services)
@@ -100,13 +107,27 @@ function verdict(snap: AgentsSnapshot): AgentsSnapshot['verdict'] {
       detail: null,
     });
   const kind = { service: 0, quota: 1, data: 2, status: 3 };
+  const itemWorst = reasons.reduce((w, r) => Math.min(w, ORDER[r.level]), ORDER.ok);
+  const sLevel = STATUS_LEVEL[snap.status.level] ?? 'unknown';
+  if ((sLevel === 'critical' || sLevel === 'warning') && ORDER[sLevel] < itemWorst)
+    reasons.push({
+      kind: 'status',
+      label: 'Monitoring',
+      level: sLevel,
+      value: null,
+      detail: null,
+    });
   reasons.sort(
     (a, b) =>
       ORDER[a.level] - ORDER[b.level] ||
       kind[a.kind] - kind[b.kind] ||
       (typeof a.value === 'number' ? a.value : 0) - (typeof b.value === 'number' ? b.value : 0),
   );
-  const level: Level = reasons[0]?.level ?? (snap.status.available ? 'ok' : 'unknown');
+  let level: Level;
+  if (sLevel === 'ok' || sLevel === 'warning' || sLevel === 'critical') level = sLevel;
+  else if (reasons[0]) level = reasons[0].level;
+  else if (snap.quotas.some((q) => q.level === 'ok')) level = 'ok';
+  else level = 'unknown';
   return { level, reasons };
 }
 
@@ -202,6 +223,7 @@ export function createMockSnapshot(
           items: [],
         }
       : {
+          // Sensor aggregates match the visible list (2 běží + 1 čeká + 1 neběží = 4).
           available: true,
           active: 3,
           total: 4,

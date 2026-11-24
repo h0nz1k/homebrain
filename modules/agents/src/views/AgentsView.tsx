@@ -6,6 +6,7 @@ import {
   AGENT_STATE,
   AGENTS_ANCHORS,
   agentState,
+  agentsListCounts,
   dataAgeLabel,
   fmtPct,
   fmtSla,
@@ -210,14 +211,17 @@ function Quotas({ snap, now }: { snap: AgentsSnapshot; now: number }) {
 
 function Agents({ snap }: { snap: AgentsSnapshot }) {
   const a = snap.agents;
+  const counts = agentsListCounts(snap);
   return (
     <Card className="agt-panel" data-testid="agents-agents" aria-labelledby="agt-agents-title">
       <div className="agt-panel-head">
         <h3 id="agt-agents-title">Agenti</h3>
-        {a.available && a.active != null && (
-          <span className="agt-micro">
-            {a.total != null ? `${a.active} z ${a.total} běží` : `${a.active} běží`}
-            {a.waiting ? ` · ${a.waiting} čeká` : ''}
+        {a.available && counts.running != null && (
+          <span className="agt-micro" data-testid="agents-agents-count">
+            {counts.total != null
+              ? `${counts.running} z ${counts.total} běží`
+              : `${counts.running} běží`}
+            {counts.waiting ? ` · ${counts.waiting} čeká` : ''}
           </span>
         )}
       </div>

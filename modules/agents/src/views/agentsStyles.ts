@@ -37,7 +37,8 @@ export const agentsStyles = `
 .agt-forecast { color: var(--hb-warn); font-weight: 600; }
 .agt-note { color: var(--hb-t2); font-size: 14px; line-height: 1.45; }
 
-.agt-quotas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+/* 3 columns on wide (6 quotas → 2×3, no orphan), 2 on mid, 1 on narrow. */
+.agt-quotas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .agt-quota { display: flex; flex-direction: column; gap: 8px; padding: 16px; min-width: 0; border-radius: var(--hb-radius-md, 14px); background: color-mix(in srgb, var(--hb-t1) 4%, transparent); border: 1px solid var(--hb-edge, color-mix(in srgb, var(--hb-t1) 10%, transparent)); }
 .agt-quota[data-tone='warn'] { box-shadow: inset 4px 0 0 var(--hb-warn); }
 .agt-quota[data-tone='crit'] { box-shadow: inset 4px 0 0 var(--hb-crit); background: color-mix(in srgb, var(--hb-crit) 8%, transparent); }
@@ -91,11 +92,13 @@ export const agentsStyles = `
 
 @media (max-width: 900px) {
   .agt-columns { grid-template-columns: minmax(0, 1fr); }
+  .agt-quotas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
   .agt-hero { padding: 22px 20px; }
   .agt-hero h2 { font-size: 26px; }
   .agt-panel { padding: 18px 16px; }
+  .agt-quotas { grid-template-columns: minmax(0, 1fr); }
   .agt-queue { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .agt-queue dd { font-size: 26px; }
   .agt-footer { flex-direction: column; align-items: stretch; }

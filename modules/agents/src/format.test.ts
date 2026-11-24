@@ -74,12 +74,20 @@ describe('hero', () => {
   it('ok', () => {
     const snap = createMockSnapshot('ok', NOW);
     expect(heroModel(snap)).toMatchObject({ tone: 'ok', badge: 'Živě', headline: 'V pořádku' });
-    expect(heroMeta(snap)).toEqual(['3 z 4 agentů běží', '1 čeká', '6 kvót', '3 služby']);
+    // List: 2 běží + 1 čeká + 1 neběží → „2 z 4 agentů běží · 1 čeká“.
+    expect(heroMeta(snap)).toEqual(['2 z 4 agentů běží', '1 čeká', '6 kvót', '3 služby']);
   });
-  it('warn scenario: exhausted quota leads, the rest follows', () => {
-    const hero = heroModel(createMockSnapshot('warn', NOW));
-    expect(hero.tone).toBe('crit');
-    expect(hero.headline).toBe('Kritické: Poskytovatel Y · 5 h: vyčerpáno');
+  it('warn/mismatch: sensor attention → warn tone; exhausted quota still listed first', () => {
+    const snap = createMockSnapshot('warn', NOW);
+    expect(snap.verdict.level).toBe('warning');
+    expect(snap.verdict.reasons[0]).toMatchObject({
+      kind: 'quota',
+      level: 'critical',
+      detail: 'exhausted',
+    });
+    const hero = heroModel(snap);
+    expect(hero.tone).toBe('warn');
+    expect(hero.headline).toBe('Pozor: Poskytovatel Y · 5 h: vyčerpáno');
     expect(hero.more).toContain(`Služba Wiki: SLA 93${NB}%`);
     expect(hero.more).toContain('Poskytovatel X · Plán A · týden: dojde před resetem');
     expect(hero.more).toContain(`Poskytovatel Y · 7 dní: zbývá 12${NB}%`);
