@@ -56,9 +56,22 @@ describe('AgentsView – redesign', () => {
       expect.arrayContaining(['Claude', 'Codex', 'Antigravity', 'Cursor', 'GitHub Actions']),
     );
     expect(screen.getByTestId('agents-quotas-collapsed').textContent).toMatch(/Vertex|Fable/);
-    expect(screen.getByTestId('agents-queue-blocked').getAttribute('data-tone')).toBe('warn');
+    const line = screen.getByTestId('agents-queue-line');
+    expect(line.textContent).toMatch(/běží/);
+    expect(line.textContent).not.toMatch(/blokováno/);
+    const blocked = screen.getByTestId('agents-queue-blocked');
+    expect(blocked.getAttribute('data-tone')).toBe('warn');
+    expect(blocked.textContent).toMatch(/blokováno/);
+    expect(blocked.textContent?.trim().startsWith('·')).toBe(false);
     // Services over 99 % collapsed.
     expect(screen.getByTestId('agents-services-details').textContent).toMatch(/nad 99/);
+  });
+
+  it('ok: fronta bez řádku blokováno při nule', async () => {
+    show('ok');
+    await screen.findByTestId('agents-headline');
+    expect(screen.getByTestId('agents-queue-line').textContent).toMatch(/běží/);
+    expect(screen.queryByTestId('agents-queue-blocked')).toBeNull();
   });
 
   it('stale: K řešení má data neaktuální; hero subline amber', async () => {

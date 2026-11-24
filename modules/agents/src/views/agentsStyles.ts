@@ -47,6 +47,7 @@ export const agentsStyles = `
   min-width: 0;
 }
 .agt-todos > li:first-child { border-top: 0; padding-top: 0; }
+.agt-todos > li > .hb-pill { min-width: 110px; flex-shrink: 0; justify-content: center; }
 .agt-todo-body { flex: 1; min-width: 0; }
 .agt-todo-title { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
 .agt-todo-detail { font-size: 12px; color: var(--hb-t2); margin-top: 1px; overflow-wrap: anywhere; }
@@ -90,8 +91,9 @@ export const agentsStyles = `
 .agt-bar[data-tone='ok'] i,
 .agt-bar[data-tone='neutral'] i { background: #8a93a3; }
 
-/* Agenti + Služby */
-.agt-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+/* Agenti + Služby – stejná výška karet na desktopu */
+.agt-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.agt-columns > .hb-card { height: 100%; }
 .agt-rows { display: flex; flex-direction: column; }
 .agt-rows > li {
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
@@ -115,14 +117,19 @@ export const agentsStyles = `
 .agt-more > summary::-webkit-details-marker { display: none; }
 .agt-more > summary:focus-visible { outline: 2px solid var(--hb-ac); outline-offset: 2px; border-radius: 4px; }
 
-/* Fronta – jeden řádek */
+/* Fronta – hlavní řádek (nowrap) + samostatný řádek „blokováno“ */
 .agt-queue-line {
-  display: flex; flex-wrap: wrap; gap: 0 4px; font-size: 14px;
-  font-variant-numeric: tabular-nums;
+  display: flex; flex-wrap: nowrap; gap: 0 4px; font-size: 14px;
+  font-variant-numeric: tabular-nums; overflow: hidden;
 }
-.agt-queue-line b { font-size: 18px; font-weight: 700; margin-right: 4px; }
-.agt-queue-line [data-tone='warn'],
-.agt-queue-line [data-tone='warn'] b { color: var(--hb-warn); }
+.agt-queue-line > span { white-space: nowrap; }
+.agt-queue-line b,
+.agt-queue-blocked b { font-size: 18px; font-weight: 700; margin-right: 4px; }
+.agt-queue-blocked {
+  margin: 2px 0 0; font-size: 14px; font-variant-numeric: tabular-nums;
+  color: var(--hb-warn);
+}
+.agt-queue-blocked[data-tone='warn'] b { color: var(--hb-warn); }
 
 .agt-footer {
   flex-direction: row; align-items: center; justify-content: space-between;

@@ -60,6 +60,41 @@ function quotaDetail(q: Quota, now: number): string {
   return bits.join(' · ') || 'viz kvóty';
 }
 
+/** Short family / window name for „X dál k dispozici“ (e.g. Gemini from „Gemini week“). */
+function quotaAltName(q: Quota): string {
+  const raw = (q.window ?? '').trim();
+  const family = raw
+    .replace(/\s+(?:week|weekly|týden|month|monthly|měsíc|day|daily|den|\d+\s*h|\d+\s*d)$/i, '')
+    .trim();
+  if (family) return family;
+  const win = q.window_label?.trim();
+  if (win) return win;
+  const after = raw.includes(' ') ? raw.slice(raw.lastIndexOf(' ') + 1) : raw;
+  return after || q.provider?.split(' · ')[0]?.trim() || q.id;
+}
+
+/**
+ * For an exhausted quota, hint that another window/family of the same provider still works.
+ * Prefers a different family name (Gemini when Claude/GPT week is out).
+ */
+function alternativeQuotaHint(q: Quota, all: Quota[]): string | null {
+  const providerKey = q.provider?.split(' · ')[0]?.trim() ?? '';
+  if (!providerKey) return null;
+  const ownFamily = quotaAltName(q).toLowerCase();
+  const alts = all.filter((o) => {
+    if (o.id === q.id) return false;
+    if ((o.provider?.split(' · ')[0]?.trim() ?? '') !== providerKey) return false;
+    if (o.exhausted || o.exhaust_before_reset) return false;
+    if (o.remaining_pct == null || o.remaining_pct <= 20) return false;
+    return true;
+  });
+  const preferred =
+    alts.find((o) => quotaAltName(o).toLowerCase() !== ownFamily) ?? alts[0];
+  if (!preferred) return null;
+  const name = quotaAltName(preferred);
+  return name ? `${name} dál k dispozici` : null;
+}
+
 function serviceTag(s: Service): string {
   if (!s.up || s.state === 'down') return 'výpadek';
   if (s.state === 'degraded') return 'omezený provoz';
@@ -95,18 +130,19 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
     if (!q.exhausted && !q.exhaust_before_reset) continue;
     if (q.level !== 'critical' && q.level !== 'warning') continue;
     const title = quotaTitle(q);
-    const shortName = q.provider?.split(' · ')[0] ?? title;
+    let detail = quotaDetail(q, now);
+    if (q.exhausted) {
+      const hint = alternativeQuotaHint(q, snap.quotas);
+      if (hint) detail = detail === 'viz kvóty' ? hint : `${detail} · ${hint}`;
+    }
     push({
       id: quotaKey(title),
       tag: quotaTag(q),
       tone: levelTone(q.level),
       level: q.level,
-      title: q.exhausted
-        ? title
-        : q.exhaust_before_reset
-          ? `${shortName} dojde před obnovou`
-          : title,
-      detail: quotaDetail(q, now),
+      // Title = provider + window (quotaTitle); tag already carries „dojde před obnovou“.
+      title,
+      detail,
       at: q.reset_at ? Date.parse(q.reset_at) : null,
     });
   }
@@ -116,16 +152,17 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
     for (const label of snap.exhaust_forecast.items) {
       const id = quotaKey(label);
       if (seen.has(id)) continue;
-      const labelName = label.split(' · ')[0]?.trim().toLowerCase() ?? '';
-      const already = [...seen].some((s) => s.startsWith('quota:') && s.includes(labelName));
+      const labelName = label.split(' · ')[0]?.trim() ?? '';
+      const labelNameLc = labelName.toLowerCase();
+      const already = [...seen].some((s) => s.startsWith('quota:') && s.includes(labelNameLc));
       const match = snap.quotas.find((q) => {
         const name = (q.provider?.split(' · ')[0] ?? '').toLowerCase();
         const t = quotaTitle(q).toLowerCase();
         return (
           t === label.toLowerCase() ||
-          name === labelName ||
+          name === labelNameLc ||
           label.toLowerCase().startsWith(name) ||
-          t.startsWith(labelName)
+          t.startsWith(labelNameLc)
         );
       });
       if (already || (match && (match.exhausted || match.exhaust_before_reset))) {
@@ -137,7 +174,7 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
         tag: 'dojde před obnovou',
         tone: 'warn',
         level: 'warning',
-        title: `${labelName || label} dojde před obnovou`,
+        title: labelName || label,
         detail: match ? quotaDetail(match, now) : 'viz kvóty',
         at: match?.reset_at ? Date.parse(match.reset_at) : null,
       });
@@ -185,8 +222,10 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
           tag: 'neběží',
           tone: 'warn',
           level: 'warning',
-          title: `Agent ${a.name} neběží`,
-          detail: a.model ? `model ${a.model}` : 'ověřit v AgentsMonitoringu',
+          title: `${a.name} neběží`,
+          detail: a.model
+            ? `${a.model} · ověřit v AgentsMonitoringu`
+            : 'ověřit v AgentsMonitoringu',
           at: null,
         });
       } else if (a.waiting) {
@@ -195,7 +234,7 @@ export function buildTodoItems(snap: AgentsSnapshot, now = Date.now()): TodoItem
           tag: 'čeká',
           tone: 'warn',
           level: 'warning',
-          title: `Agent ${a.name} čeká`,
+          title: `${a.name} čeká`,
           detail: a.model ? `model ${a.model}` : 'čeká na kapacitu nebo rozhodnutí',
           at: null,
         });

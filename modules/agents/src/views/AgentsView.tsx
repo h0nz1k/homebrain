@@ -324,30 +324,32 @@ function Queue({ snap }: { snap: AgentsSnapshot }) {
       </Card>
     );
   }
-  const parts: Array<{ key: string; n: number; label: string; warn?: boolean }> = [
+  const main: Array<{ key: string; n: number; label: string }> = [
     { key: 'running', n: q.running ?? 0, label: 'běží' },
     { key: 'pending', n: q.pending ?? 0, label: 'čeká' },
     { key: 'review', n: q.review ?? 0, label: 'ke kontrole' },
-    { key: 'blocked', n: q.blocked ?? 0, label: 'blokováno', warn: (q.blocked ?? 0) > 0 },
   ];
+  const blocked = q.blocked ?? 0;
   return (
     <Card className="agt-panel" data-testid="agents-queue" aria-labelledby="agt-queue-title">
       <div className="agt-panel-head">
         <h3 id="agt-queue-title">Fronta úloh</h3>
       </div>
       <p className="agt-queue-line" data-testid="agents-queue-line">
-        {parts.map((p, i) => (
-          <span
-            key={p.key}
-            data-testid={`agents-queue-${p.key}`}
-            data-tone={p.warn ? 'warn' : undefined}
-          >
+        {main.map((p, i) => (
+          <span key={p.key} data-testid={`agents-queue-${p.key}`}>
             {i ? ' · ' : ''}
             <b>{p.n}</b>
             {` ${p.label}`}
           </span>
         ))}
       </p>
+      {blocked > 0 && (
+        <p className="agt-queue-blocked" data-testid="agents-queue-blocked" data-tone="warn">
+          <b>{blocked}</b>
+          {` blokováno`}
+        </p>
+      )}
     </Card>
   );
 }
