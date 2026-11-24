@@ -145,6 +145,7 @@ PAYLOADS: dict[str, dict] = {
     "homebrain/communication/recent": {},
     "homebrain/server/get": {"api": False},
     "homebrain/server/history": {},
+    "homebrain/agents/get": {},
     "homebrain/today/meals": {},
     "homebrain/today/coffee/subscribe": {},
     "homebrain/today/coffee/invite": {},

@@ -102,6 +102,13 @@
       "require_admin": true
     },
     {
+      "url_path": "homebrain-agenti",
+      "title": "Agenti",
+      "icon": "mdi:robot-outline",
+      "module": "agents",
+      "require_admin": true
+    },
+    {
       "url_path": "homebrain-kuchyn",
       "title": "Kuchyň",
       "icon": "mdi:countertop",

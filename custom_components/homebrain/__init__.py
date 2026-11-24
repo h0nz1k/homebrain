@@ -21,6 +21,7 @@ from homeassistant.loader import async_get_integration
 
 from . import communication, weather
 from .access import ws as access_ws
+from .agents import ws as agents_ws
 from .anomaly import ws as anomaly_ws
 from .bindings import get_bindings
 from .const import (
@@ -176,6 +177,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "access": lambda reg: access_ws.async_register(hass, reg),
             "network": _commands(*network_ws.COMMANDS)(hass),
             "server": _commands(*server_ws.COMMANDS)(hass),
+            "agents": _commands(*agents_ws.COMMANDS)(hass),
             "family": _commands(*family_ws.COMMANDS)(hass),
             "kitchen": _commands(*kitchen_ws.COMMANDS)(hass),
             "heating": _commands(*heating_ws.COMMANDS)(hass),

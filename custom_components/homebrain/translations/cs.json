@@ -32,7 +32,8 @@
           "people": "Kdo je doma",
           "heating": "Topení – PLC Tecomat",
           "communication": "Komunikační centrum",
-          "server": "Server – zálohy"
+          "server": "Server – zálohy",
+          "agents": "Agenti – monitoring"
         }
       },
       "waste": {
@@ -341,6 +342,14 @@
         "data": {
           "backup_max_age_days": "Limit stáří zálohy"
         }
+      },
+      "agents": {
+        "title": "Agenti",
+        "description": "Vyberte senzor stavu monitoringu agentů (`sensor.<prefix>_stav`). Ostatní senzory se stejnou předponou (kvóty, agenti, služby, fronta) HomeBrain najde sám a jen čte jejich stavy. URL AgentsMonitoringu je volitelná; bez ní panel odkaz nezobrazí.",
+        "data": {
+          "agents_status": "Senzor stavu monitoringu",
+          "monitor_url": "URL AgentsMonitoringu (volitelné)"
+        }
       }
     },
     "error": {
@@ -376,7 +385,8 @@
         "heating": "Topení",
         "kitchen": "Kuchyň",
         "communication": "Komunikační centrum",
-        "anomaly": "Hlídání domu"
+        "anomaly": "Hlídání domu",
+        "agents": "Agenti"
       }
     },
     "coffee_mode": {
