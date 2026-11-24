@@ -33,6 +33,7 @@ MODULE_VISIBILITY: Final[dict[str, frozenset[str]]] = {
             "access",
             "network",
             "server",
+            "agents",
             "heating",
             "settings",
             "anomaly",

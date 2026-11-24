@@ -37,6 +37,15 @@ Logické klíče v tabulkách nejsou `entity_id`. Vazba klíč → entita se nas
 | Rodina | [family.md](./family.md) | FAM | 10 | 4 | 14 |
 | Hlídání domu | [anomaly-watch.md](./anomaly-watch.md) | ANW | 11 | 1 | 12 |
 
+### Další implementační kontrakty
+
+Moduly mimo sklizeň #13: krátký kontrakt entit / vazeb (syntetická data).
+
+| Modul | Soubor |
+| --- | --- |
+| Agenti (#179) | [agents.md](./agents.md) |
+| Server / Proxmox | [server-proxmox.md](./server-proxmox.md) |
+
 ## Zdroje (harvest)
 
 | Repozitář | SHA | Použito |

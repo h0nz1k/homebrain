@@ -15,6 +15,7 @@ export const PANEL_PATHS_BY_MODULE: Readonly<Record<string, string>> = {
   recipes: 'homebrain-recepty',
   network: 'homebrain-sit',
   server: 'homebrain-server',
+  agents: 'homebrain-agenti',
   kitchen: 'homebrain-kuchyn',
   anomaly: 'homebrain-hlidani',
 };
