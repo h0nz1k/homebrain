@@ -28,6 +28,8 @@ export interface Agent {
   model: string | null;
   alive: boolean;
   waiting: boolean;
+  /** ISO last contact, when the sensor provides it. */
+  last_seen?: string | null;
 }
 export interface Service {
   id: string;
@@ -38,6 +40,9 @@ export interface Service {
   state: string | null;
   sla_24h: number | null;
   level: Level;
+  /** ISO start of outage / last OK, when the sensor provides it. */
+  since?: string | null;
+  last_ok?: string | null;
 }
 export interface AgentsSnapshot {
   configured: boolean;
