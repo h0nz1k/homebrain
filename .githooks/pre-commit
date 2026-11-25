@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Pre-commit gate: checks only STAGED content (the index, not the working tree), typically < 30 s.
+# gitleaks on the staged diff; .py: ruff check + ruff format --check; prettier --check (respects
+# .prettierignore); .ts/.tsx/.js/.mjs: eslint. Install: bash scripts/install-hooks.sh. See CONTRIBUTING.md.
+set -uo pipefail
+# shellcheck source=.githooks/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+start=$SECONDS
+
+staged=()
+while IFS= read -r -d '' f; do staged+=("$f"); done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+[ ${#staged[@]} -eq 0 ] && exit 0
+
+# Files with extra unstaged edits are checked from the index via stdin; the rest in one batch.
+declare -A partial=()
+while IFS= read -r -d '' f; do partial["$f"]=1; done < <(git diff --name-only -z)
+
+py=() js=()
+for f in "${staged[@]}"; do
+  case "$f" in
+    *.py) py+=("$f") ;;
+    *.ts | *.tsx | *.js | *.mjs | *.cjs | *.jsx) js+=("$f") ;;
+  esac
+done
+
+gitleaks=$(hb_gitleaks) || exit 1
+ruff="" prettier="" eslint=""
+if [ ${#py[@]} -gt 0 ]; then ruff=$(hb_ruff) || exit 1; fi
+prettier=$(hb_node_bin prettier) || exit 1
+if [ ${#js[@]} -gt 0 ]; then eslint=$(hb_node_bin eslint) || exit 1; fi
+
+# check <label> <fix> <blob-fn> <batch-cmd...> -- <files...>
+# Fully staged files go to <batch-cmd> in one call; partially staged ones are checked from the
+# index by <blob-fn> <path> (worktree edits that are not staged must not decide the verdict).
+check() {
+  local label=$1 fix=$2 blobfn=$3 batch=() full=() bad=0 f
+  shift 3
+  while [ "$1" != -- ]; do batch+=("$1"); shift; done
+  shift
+  for f in "$@"; do
+    if [ -n "${partial[$f]:-}" ]; then "$blobfn" "$f" >&2 || bad=1; else full+=("$f"); fi
+  done
+  if [ ${#full[@]} -gt 0 ] && ! "${batch[@]}" "${full[@]}" >&2; then bad=1; fi
+  if [ "$bad" = 1 ]; then hb_fail "$label" "$fix"; fi
+}
+ruff_check_blob() { git show ":$1" | "$ruff" check -q --output-format concise --stdin-filename "$1" -; }
+ruff_format_blob() { git show ":$1" | "$ruff" format --check -q --output-format concise --stdin-filename "$1" -; }
+prettier_blob() {
+  # stdin mode prints nothing for unknown/ignored files: ask prettier first.
+  "$prettier" --file-info "$1" | grep -q '"inferredParser": null\|"ignored": true' && return 0
+  cmp -s <(git show ":$1") <(git show ":$1" | "$prettier" --stdin-filepath "$1" --ignore-unknown) ||
+    { echo "[prettier] $1"; return 1; }
+}
+eslint_blob() { git show ":$1" | "$eslint" --no-warn-ignored --stdin --stdin-filename "$1"; }
+
+# 1) Secrets / private data in the staged diff.
+if ! "$gitleaks" git --pre-commit --staged -c .gitleaks.toml --redact --no-banner -v -l warn . >&2; then
+  hb_fail "gitleaks: nález v připravených změnách" \
+    "odstraňte tajemství/soukromá data (AGENTS.md bod 7), git add, znovu commit"
+fi
+
+# 2) Python.
+if [ ${#py[@]} -gt 0 ]; then
+  check "ruff check" "ruff check --fix ${py[*]} && git add ${py[*]}" ruff_check_blob \
+    "$ruff" check -q --output-format concise -- "${py[@]}"
+  check "ruff format --check" "ruff format ${py[*]} && git add ${py[*]}" ruff_format_blob \
+    "$ruff" format --check -q --output-format concise -- "${py[@]}"
+fi
+
+# 3) Prettier: unknown file types and .prettierignore entries are skipped by prettier itself.
+check "prettier --check" "pnpm exec prettier --write <soubory výše> && git add <soubory>" prettier_blob \
+  "$prettier" --check --ignore-unknown --log-level warn -- "${staged[@]}"
+
+# 4) ESLint (same flat config as `pnpm lint`).
+if [ ${#js[@]} -gt 0 ]; then
+  check "eslint" "pnpm exec eslint --fix ${js[*]} (zbytek ručně) && git add" eslint_blob \
+    "$eslint" --no-warn-ignored -- "${js[@]}"
+fi
+
+hb_verdict pre-commit "$start"
