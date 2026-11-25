@@ -27,6 +27,8 @@ Díky za zájem. Krátká pravidla:
 - Chybějící nástroj (`gitleaks`, `ruff`, `node_modules`) = chyba s návodem, nic se tiše nepřeskakuje.
 - **`git commit --no-verify` / `git push --no-verify` jen v nouzi** – CI totéž zkontroluje znovu.
 - **Codemap:** `pnpm codemap <cesta>`, `--rdeps <soubor>`, `--missing-docs` – viz [`docs/codemap.md`](docs/codemap.md).
+- **`git blame` bez formátovacích commitů:** `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+  (jednou po klonu; GitHub soubor čte sám). Čistě formátovací commit zapište do `.git-blame-ignore-revs` s komentářem.
 
 _English: synthetic test data only, commit with a GitHub noreply e-mail, keep gitleaks/CI green, open PRs as drafts.
 Install the git hooks once: `bash scripts/install-hooks.sh`; `--no-verify` is for emergencies only._

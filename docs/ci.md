@@ -45,6 +45,7 @@ Běhy na `main` se proto už navzájem neruší (`cancel-in-progress` jen pro PR
 | `ci.yml`, `scripts/ci/**` | ✓ | ✓ | vše |
 | `custom_components/homebrain/panels.json` (kontrakt panelů → `ha-client`, `routing.spec.ts`) | ✓ | ✓ | vše |
 | `*.py`, `custom_components/**`, `tests/python/**`, `requirements-test.txt`, `pyproject.toml` | – | ✓ | – |
+| `.githooks/**`, `scripts/install-hooks.sh`, `scripts/codemap*` (testy: `test_githooks.py`, `test_codemap.py`) | – | ✓ | – |
 | `*.test.ts(x)`, `__tests__/`, `vitest*.ts` | ✓ | – | – |
 | `tests/e2e/<x>.spec.ts` | ✓ | – | ten spec |
 | `modules/<x>/**` | ✓ | – | `<x>*.spec.ts` + `shell` (+ viz níže) |
@@ -59,6 +60,14 @@ Nový modul bez vlastního specu dostane aspoň `shell.spec.ts`. **Přidáváte-
 jiný modul než jeho prefix, doplňte mapování v `changes.sh` i zde.**
 
 Ověření lokálně: `printf 'modules/wine/src/x.ts\n' | bash scripts/ci/changes.sh`.
+Mapování hlídá `tests/python/test_ci_changes.py`.
+
+## Python job
+
+Kromě Pythonu má i `node` (`.nvmrc`, `pnpm install`, ~2 s s cache) a `gitleaks` (`gitleaks.sh
+--install-only`, stejná verze a kontrola checksumu jako v `gate`): testy git hooků (`test_githooks.py`)
+a TS části codemapu (`test_codemap.py`) je potřebují a bez nich by se tiše přeskočily. Pytest běží
+s `-rs`, důvody přeskočení jsou v logu.
 
 ## E2E
 

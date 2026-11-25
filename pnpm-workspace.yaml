@@ -8,4 +8,4 @@ catalog:
   vitest: ^5.0.5
 
 overrides:
-  "minimatch@>=7.0.0 <11.0.1": ^11.0.1
+  'minimatch@>=7.0.0 <11.0.1': ^11.0.1

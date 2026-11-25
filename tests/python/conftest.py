@@ -13,6 +13,12 @@ from unittest.mock import patch
 
 import pytest
 
+# Run from a git hook (pre-push in a worktree), pytest inherits GIT_DIR, GIT_INDEX_FILE, … of the
+# outer checkout; `git -C <tmp>` in test_githooks/test_codemap would then init, configure and stage
+# into the real (shared) repository. Tests must only ever see their own throwaway repos.
+for _var in [k for k in os.environ if k.startswith("GIT_")]:
+    del os.environ[_var]
+
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):

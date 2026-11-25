@@ -300,8 +300,10 @@ export function SideCircuitsPortrait({ snap }: { snap: HeatingSnapshot }) {
   const pool = snap.extras.pool;
   if (poolPanelVisible(pool)) {
     const parts: string[] = [];
-    if (pool!.heating_pump !== null) parts.push(pool!.heating_pump ? 'natápění běží' : 'natápění stojí');
-    if (pool!.filter_pump !== null) parts.push(pool!.filter_pump ? 'filtrace běží' : 'filtrace stojí');
+    if (pool!.heating_pump !== null)
+      parts.push(pool!.heating_pump ? 'natápění běží' : 'natápění stojí');
+    if (pool!.filter_pump !== null)
+      parts.push(pool!.filter_pump ? 'filtrace běží' : 'filtrace stojí');
     rows.push(
       <li key="pool" data-testid="heating-extras-pool">
         <span>Bazén · zpátečka</span>

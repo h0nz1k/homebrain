@@ -102,7 +102,7 @@ export function bannerAlert(snap: HeatingSnapshot): HeatingAlert | null {
   const alerts = snap.alerts ?? [];
   const top = [...alerts]
     .filter((a) => a.severity !== 'info')
-  .sort((a, b) => ALERT_ORDER[a.severity] - ALERT_ORDER[b.severity])[0];
+    .sort((a, b) => ALERT_ORDER[a.severity] - ALERT_ORDER[b.severity])[0];
   return top ?? null;
 }
 
@@ -410,7 +410,8 @@ export function applySolarHero(base: ActivityModel, snap: HeatingSnapshot): Acti
   const solar = snap.extras.solar;
   if (!solar || state !== 'heating') return base;
   const detail = solarHeroDetail(snap);
-  const compressorRuns = snap.heat_pump.compressor_on === true && snap.source === 'ok' && !snap.stale;
+  const compressorRuns =
+    snap.heat_pump.compressor_on === true && snap.source === 'ok' && !snap.stale;
   if (compressorRuns) {
     return {
       ...base,

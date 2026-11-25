@@ -70,6 +70,8 @@ while IFS= read -r f || [ -n "$f" ]; do
       e2e_full=true
       continue
       ;;
+    # Git hooks and codemap are tested by tests/python (test_githooks.py, test_codemap.py).
+    .githooks/* | scripts/install-hooks.sh | scripts/codemap*) python=true ;;
     *.py | custom_components/* | tests/python/* | requirements-test.txt | pyproject.toml) python=true ;;
     *) js=true ;;
   esac

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Installs a checksum-verified gitleaks binary and scans git history.
 # Usage: scripts/ci/gitleaks.sh [<rev-range>]   (no/empty range = full history, all refs)
+#        scripts/ci/gitleaks.sh --install-only    (same binary on PATH for later steps, no scan;
+#                                                  used by the python job for the git hook tests)
 set -euo pipefail
 GITLEAKS_VERSION=${GITLEAKS_VERSION:-8.30.1}
 tmp=${RUNNER_TEMP:-$(mktemp -d)}
@@ -30,6 +32,11 @@ fetch "gitleaks_${GITLEAKS_VERSION}_checksums.txt" "$tmp/checksums.txt"
 (cd "$tmp" && grep " $archive\$" checksums.txt | sha256sum --check --strict)
 mkdir -p "$tmp/gitleaks-bin"
 tar -xzf "$tmp/$archive" -C "$tmp/gitleaks-bin" gitleaks
+if [ "${1:-}" = --install-only ]; then
+  echo "$tmp/gitleaks-bin" >> "${GITHUB_PATH:?--install-only needs GITHUB_PATH (GitHub Actions)}"
+  "$tmp/gitleaks-bin/gitleaks" version
+  exit 0
+fi
 range=${1:-}
 if [ -n "$range" ]; then
   echo "gitleaks: scanning $range"
