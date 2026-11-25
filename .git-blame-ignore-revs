@@ -1,0 +1,5 @@
+# Commity, které git blame přeskočí (jen formátování, bez změny logiky).
+# Zapnutí lokálně: git config blame.ignoreRevsFile .git-blame-ignore-revs (GitHub ho čte sám).
+
+# Formátování: prettier --write (bez změny logiky)
+966fe2da4a7ca1820a8d4309ab475393b5ee76e5
