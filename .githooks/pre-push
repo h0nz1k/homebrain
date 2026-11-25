@@ -125,7 +125,7 @@ py_interp() {
 declare -A tests=()
 all=false
 for f in "${files[@]}"; do
-  # Dev tooling tested from Python although changes.sh does not route it to the python job.
+  # Dev tooling tested from Python (changes.sh routes it to the python job); run just its test.
   case "$f" in
     .githooks/* | scripts/install-hooks.sh) tests[tests/python/test_githooks.py]=1 ;;
     scripts/codemap*) tests[tests/python/test_codemap.py]=1 ;;
