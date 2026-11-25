@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Pre-push gate: quick checks of what changed against origin/main (merge-base), typically < 3 min.
+# Which suites run is decided by scripts/ci/changes.sh (the same mapping as CI, docs/ci.md); here
+# only the affected packages/tests run. No e2e (that stays in CI). Heavy steps go through `heavy`.
+# Tests run on the working tree, so push from a clean tree. Install: bash scripts/install-hooks.sh.
+set -uo pipefail
+# shellcheck source=.githooks/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+start=$SECONDS
+zero=0000000000000000000000000000000000000000
+
+git rev-parse -q --verify refs/remotes/origin/main >/dev/null ||
+  hb_missing origin/main "spusťte git fetch origin main"
+
+# Union of changed files over all pushed refs (stdin: <local ref> <local sha> <remote ref> <remote sha>).
+declare -A changed=()
+ranges=()
+while read -r _ local_sha _ _; do
+  [ -z "${local_sha:-}" ] || [ "$local_sha" = "$zero" ] && continue # deleting a ref
+  base=$(git merge-base refs/remotes/origin/main "$local_sha") || continue
+  [ "$base" = "$local_sha" ] && continue
+  ranges+=("$base..$local_sha")
+  while IFS= read -r -d '' f; do changed["$f"]=1; done < <(git diff --name-only -z "$base" "$local_sha")
+done
+[ ${#ranges[@]} -eq 0 ] && exit 0
+mapfile -t files < <(printf '%s\n' "${!changed[@]}" | sort)
+hb_say "pre-push: ${#files[@]} změněných souborů proti origin/main"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  hb_say "  pozor: pracovní strom má necommitnuté změny – testy běží nad ním, ne nad pushovaným commitem"
+fi
+
+js=false python=false
+while IFS= read -r line; do
+  case "$line" in
+    js=true) js=true ;;
+    python=true) python=true ;;
+  esac
+done < <(printf '%s\n' "${files[@]}" | bash scripts/ci/changes.sh)
+
+existing() { # changed files still present in the working tree, filtered by an extended regex
+  local f
+  for f in "${files[@]}"; do [ -f "$f" ] && [[ "$f" =~ $1 ]] && printf '%s\0' "$f"; done
+}
+step() { # step <label> <fix hint> <cmd...>
+  local label=$1 fix=$2 t=$SECONDS
+  shift 2
+  hb_say "→ $label"
+  if "$@" >&2; then hb_say "  ok ($((SECONDS - t)) s)"; else hb_fail "$label" "$fix"; fi
+}
+
+# 1) Secrets in the pushed commits.
+gitleaks=$(hb_gitleaks) || exit 1
+for r in "${ranges[@]}"; do
+  step "gitleaks $r" "odstraňte nález z historie (git rebase), AGENTS.md bod 7" \
+    "$gitleaks" git -c .gitleaks.toml --redact --no-banner -v -l warn --log-opts="$r" .
+done
+
+# 2) Formatting/lint of the changed files (pre-commit may have been skipped with --no-verify).
+mapfile -d '' fmt < <(existing '.')
+if [ ${#fmt[@]} -gt 0 ]; then
+  prettier=$(hb_node_bin prettier) || exit 1
+  step "prettier --check" "pnpm exec prettier --write <soubory>" \
+    "$prettier" --check --ignore-unknown --log-level warn "${fmt[@]}"
+fi
+mapfile -d '' jsf < <(existing '\.(ts|tsx|js|mjs|cjs|jsx)$')
+if [ ${#jsf[@]} -gt 0 ]; then
+  eslint=$(hb_node_bin eslint) || exit 1
+  step "eslint (změněné soubory)" "pnpm exec eslint --fix <soubor>" hb_heavy "$eslint" --no-warn-ignored "${jsf[@]}"
+fi
+
+# 3) TypeScript: affected workspace packages; repo-wide config changes -> everything.
+if [ "$js" = true ]; then
+  full=false root_tsc=false
+  declare -A pkgs=()
+  for f in "${files[@]}"; do
+    case "$f" in
+      package.json | pnpm-lock.yaml | pnpm-workspace.yaml | tsconfig*.json | vitest.*.ts | vitest.config.ts | \
+        eslint.config.js | .nvmrc | .github/workflows/ci.yml | scripts/ci/* | custom_components/homebrain/panels.json)
+        full=true
+        ;;
+      apps/*/* | modules/*/* | packages/*/*)
+        d=$(cut -d/ -f1-2 <<<"$f")
+        [ -f "$d/package.json" ] && pkgs["$d"]=1
+        ;;
+      *.ts | *.tsx | *.mjs | *.js) [[ "$f" == custom_components/* ]] || root_tsc=true ;;
+    esac
+  done
+  pnpm_bin=$(command -v pnpm) || hb_missing pnpm "nainstalujte pnpm (corepack enable)"
+  if [ "$full" = true ]; then
+    step "build závislostí panelu" "pnpm --filter '@homebrain/panel^...' build" \
+      hb_heavy "$pnpm_bin" --filter '@homebrain/panel^...' build
+    step "typecheck (vše)" "pnpm typecheck" hb_heavy "$pnpm_bin" typecheck
+    step "vitest (vše)" "pnpm test" hb_heavy "$pnpm_bin" exec vitest run
+  elif [ ${#pkgs[@]} -gt 0 ]; then
+    dirs=() deps=() own=()
+    mapfile -t dirs < <(printf '%s\n' "${!pkgs[@]}" | sort)
+    for d in "${dirs[@]}"; do
+      name=$(node -p "require('./$d/package.json').name") || exit 1
+      deps+=(--filter "$name^...")
+      own+=(--filter "$name")
+    done
+    # Workspace imports resolve to dist/*.d.ts, so the dependencies are built first (like CI).
+    step "build závislostí (${dirs[*]})" "pnpm ${deps[*]} build" hb_heavy "$pnpm_bin" "${deps[@]}" build
+    step "typecheck (${dirs[*]})" "pnpm ${own[*]} typecheck" hb_heavy "$pnpm_bin" "${own[@]}" typecheck
+    step "vitest (${dirs[*]})" "pnpm exec vitest run ${dirs[*]}" \
+      hb_heavy "$pnpm_bin" exec vitest run --passWithNoTests "${dirs[@]}"
+  fi
+  if [ "$root_tsc" = true ] && [ "$full" = false ]; then
+    step "typecheck (kořen: e2e, skripty, konfigurace)" "pnpm exec tsc --noEmit -p tsconfig.json" \
+      hb_heavy "$(hb_node_bin tsc)" --noEmit -p tsconfig.json
+  fi
+fi
+
+# 4) Python: ruff over the repo (fast) + pytest of the affected tests (unknown impact -> all).
+py_interp() {
+  local c
+  for c in "${HB_PYTHON:-}" "$hb_root/.venv/bin/python" "$hb_main/.venv/bin/python" "$(command -v python3)"; do
+    if [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'import pytest, homeassistant' 2>/dev/null; then
+      printf '%s' "$c"
+      return 0
+    fi
+  done
+  hb_missing "python s pytest + homeassistant" "pip install -r requirements-test.txt (nebo HB_PYTHON=<cesta>)"
+}
+declare -A tests=()
+all=false
+for f in "${files[@]}"; do
+  # Dev tooling tested from Python although changes.sh does not route it to the python job.
+  case "$f" in
+    .githooks/* | scripts/install-hooks.sh) tests[tests/python/test_githooks.py]=1 ;;
+    scripts/codemap*) tests[tests/python/test_codemap.py]=1 ;;
+  esac
+done
+if [ "$python" = true ] || [ ${#tests[@]} -gt 0 ]; then
+  py=$(py_interp) || exit 1
+fi
+if [ "$python" = true ]; then
+  ruff=$(hb_ruff) || exit 1
+  step "ruff check ." "ruff check --fix ." "$ruff" check -q --output-format concise .
+  step "ruff format --check ." "ruff format ." "$ruff" format --check -q --output-format concise .
+  step "private HA API guard" "viz scripts/ci/check_private_ha_api.py" "$py" scripts/ci/check_private_ha_api.py
+  for f in "${files[@]}"; do
+    case "$f" in
+      tests/python/test_*.py) [ -f "$f" ] && tests["$f"]=1 ;;
+      custom_components/homebrain/*/*)
+        sub=${f#custom_components/homebrain/}
+        sub=${sub%%/*}
+        found=false
+        for t in tests/python/test_"$sub"*.py; do [ -f "$t" ] && tests["$t"]=1 && found=true; done
+        [ "$found" = true ] || all=true
+        ;;
+      scripts/*.py)
+        stem=$(basename "$f" .py)
+        found=false
+        for t in tests/python/test_"$stem"*.py; do [ -f "$t" ] && tests["$t"]=1 && found=true; done
+        [ "$found" = true ] || all=true
+        ;;
+      *.py | custom_components/* | tests/python/* | requirements-test.txt | pyproject.toml) all=true ;;
+    esac
+  done
+fi
+if [ "$all" = true ]; then
+  step "pytest tests/python (vše)" "$py -m pytest -q tests/python" \
+    hb_heavy "$py" -m pytest -q -p no:cacheprovider tests/python
+elif [ ${#tests[@]} -gt 0 ]; then
+  mapfile -t tl < <(printf '%s\n' "${!tests[@]}" | sort)
+  step "pytest (${#tl[@]} souborů)" "$py -m pytest -q ${tl[*]}" \
+    hb_heavy "$py" -m pytest -q -p no:cacheprovider "${tl[@]}"
+fi
+
+# 5) Codemap smoke (must keep working over the whole repo).
+step "codemap (smoke)" "python3 scripts/codemap.py --deps-only" \
+  sh -c 'python3 scripts/codemap.py --deps-only >/dev/null'
+
+hb_verdict pre-push "$start"

@@ -19,3 +19,7 @@
       js + python + e2e (sharded) podle změněných cest. Při selhání e2e stáhni report:
       `gh run download <id> -n playwright-report-<k>`.
     - Celé lokální e2e (`pnpm test:e2e`) jen když CI není k dispozici nebo pro screenshoty do PR.
+12. **Orientace v kódu:** nejdřív `pnpm codemap <cesta>` / `--rdeps <soubor>` (`docs/codemap.md`), celé soubory čti až cíleně.
+13. **Výstup práce = diff + výsledky bran.** Závěrečná zpráva max. 6 řádků: PR, CI, čísla z testů, otevřené body. Žádné dlouhé reporty.
+14. **Docstring/JSDoc** u nových a měněných modulů, tříd a veřejných funkcí: proč to existuje a kde to končí (hranice, co to nedělá).
+15. **Hooky:** `bash scripts/install-hooks.sh` jednou po klonu (pre-commit + pre-push, viz `CONTRIBUTING.md`). `--no-verify` jen v nouzi.
