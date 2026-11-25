@@ -122,14 +122,23 @@ py_interp() {
   done
   hb_missing "python s pytest + homeassistant" "pip install -r requirements-test.txt (nebo HB_PYTHON=<cesta>)"
 }
+declare -A tests=()
+all=false
+for f in "${files[@]}"; do
+  # Dev tooling tested from Python although changes.sh does not route it to the python job.
+  case "$f" in
+    .githooks/* | scripts/install-hooks.sh) tests[tests/python/test_githooks.py]=1 ;;
+    scripts/codemap*) tests[tests/python/test_codemap.py]=1 ;;
+  esac
+done
+if [ "$python" = true ] || [ ${#tests[@]} -gt 0 ]; then
+  py=$(py_interp) || exit 1
+fi
 if [ "$python" = true ]; then
   ruff=$(hb_ruff) || exit 1
-  py=$(py_interp) || exit 1
   step "ruff check ." "ruff check --fix ." "$ruff" check -q --output-format concise .
   step "ruff format --check ." "ruff format ." "$ruff" format --check -q --output-format concise .
   step "private HA API guard" "viz scripts/ci/check_private_ha_api.py" "$py" scripts/ci/check_private_ha_api.py
-  declare -A tests=()
-  all=false
   for f in "${files[@]}"; do
     case "$f" in
       tests/python/test_*.py) [ -f "$f" ] && tests["$f"]=1 ;;
@@ -149,14 +158,14 @@ if [ "$python" = true ]; then
       *.py | custom_components/* | tests/python/* | requirements-test.txt | pyproject.toml) all=true ;;
     esac
   done
-  if [ "$all" = true ]; then
-    step "pytest tests/python (vše)" "$py -m pytest -q tests/python" \
-      hb_heavy "$py" -m pytest -q -p no:cacheprovider tests/python
-  elif [ ${#tests[@]} -gt 0 ]; then
-    mapfile -t tl < <(printf '%s\n' "${!tests[@]}" | sort)
-    step "pytest (${#tl[@]} souborů)" "$py -m pytest -q ${tl[*]}" \
-      hb_heavy "$py" -m pytest -q -p no:cacheprovider "${tl[@]}"
-  fi
+fi
+if [ "$all" = true ]; then
+  step "pytest tests/python (vše)" "$py -m pytest -q tests/python" \
+    hb_heavy "$py" -m pytest -q -p no:cacheprovider tests/python
+elif [ ${#tests[@]} -gt 0 ]; then
+  mapfile -t tl < <(printf '%s\n' "${!tests[@]}" | sort)
+  step "pytest (${#tl[@]} souborů)" "$py -m pytest -q ${tl[*]}" \
+    hb_heavy "$py" -m pytest -q -p no:cacheprovider "${tl[@]}"
 fi
 
 # 5) Codemap smoke (must keep working over the whole repo).
