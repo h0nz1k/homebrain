@@ -24,8 +24,7 @@ describe('consumables', () => {
     });
     expect(consumableInfo('sensors', 7)).toMatchObject({ percent: 23, tone: 'warn' });
     expect(consumableInfo('sensors', 8)).toMatchObject({ percent: 27, tone: 'ok' });
-    expect(consumableInfo('dock_brush', 41)).toMatchObject({ percent: 14, tone: 'warn'
-    });
+    expect(consumableInfo('dock_brush', 41)).toMatchObject({ percent: 14, tone: 'warn' });
     expect(consumableInfo('sensors', 0.5).action).toBe('Vyčistit zítra');
   });
   it('overdue (negative hours) means now', () => {

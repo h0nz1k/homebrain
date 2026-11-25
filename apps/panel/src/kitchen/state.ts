@@ -17,8 +17,7 @@ export function batteryChip(
     (state ?? '').toLowerCase(),
   );
   const charging = (state ?? '').toLowerCase() === 'charging';
-  const hint =
-    stopped && n >= 80 ? 'nabíjení omezeno' : charging ? 'nabíjí se' : '';
+  const hint = stopped && n >= 80 ? 'nabíjení omezeno' : charging ? 'nabíjí se' : '';
   return { pct: Math.round(n), hint, charging };
 }
 export function filterPlaylists(items: MediaItem[], provider: string, query: string): MediaItem[] {

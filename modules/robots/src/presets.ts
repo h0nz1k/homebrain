@@ -101,8 +101,7 @@ export const DEEP_ROUTES_SKIPPED_TOAST =
   'Důkladná trasa jen při vytírání – spustil jsem Standardní trasu.';
 export const MODE_FLIPPED_TOAST =
   'Robot si přepnul režim – úklid se nespustil. Zkontrolujte nastavení v aplikaci robota.';
-export const PAUSED_TOAST =
-  'Robot má rozpracovaný úklid – nejdřív ho ukončete nebo pokračujte.';
+export const PAUSED_TOAST = 'Robot má rozpracovaný úklid – nejdřív ho ukončete nebo pokračujte.';
 
 /** Max+ suction is offered only in vacuum-only mode („Ponechat“ + Max+ is not allowed). */
 export function fansForMode(fans: string[], mode: CleanMode | null): string[] {
@@ -117,11 +116,7 @@ export function routesForMode(routes: string[], mode: CleanMode | null): string[
 }
 
 export function resolvedRoute(route: string | null, mode: CleanMode | null): string | null {
-  if (
-    route &&
-    DEEP_ROUTES.includes(route as (typeof DEEP_ROUTES)[number]) &&
-    mode === 'both'
-  )
+  if (route && DEEP_ROUTES.includes(route as (typeof DEEP_ROUTES)[number]) && mode === 'both')
     return 'standard';
   return route;
 }
@@ -333,7 +328,8 @@ export function startCleaningToasts(result: StartCleaningResult): string[] {
   else if (result.mode_flipped) out.push(MODE_FLIPPED_TOAST);
   else if (result.skipped?.some((s) => DEEP_ROUTES.includes(s as (typeof DEEP_ROUTES)[number])))
     out.push(DEEP_ROUTES_SKIPPED_TOAST);
-  else if (result.skipped?.includes('passes')) out.push('Počet průchodů byl omezen na maximum pro tento model robota.');
+  else if (result.skipped?.includes('passes'))
+    out.push('Počet průchodů byl omezen na maximum pro tento model robota.');
   return out;
 }
 

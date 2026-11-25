@@ -6,11 +6,7 @@ const SW = 2;
 export function PlayIcon() {
   return (
     <svg className="rb-ico" viewBox={VB} aria-hidden="true">
-      <path
-        d="M8 6.2v11.6L18.5 12 8 6.2Z"
-        fill="currentColor"
-        stroke="none"
-      />
+      <path d="M8 6.2v11.6L18.5 12 8 6.2Z" fill="currentColor" stroke="none" />
     </svg>
   );
 }

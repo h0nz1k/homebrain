@@ -131,7 +131,9 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
       dock: scenario === 'water' ? 'water_empty' : 'ok',
       hours: [279, 173, 129, 2.9, 11, null],
       tanks:
-        scenario === 'water' ? ['on', 'off', 'off', 'off'] : (['off', 'off', 'off', 'off'] as const),
+        scenario === 'water'
+          ? ['on', 'off', 'off', 'off']
+          : (['off', 'off', 'off', 'off'] as const),
       mode: 'vac_and_mop',
     },
     {
@@ -183,7 +185,12 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
         friendly_name: layout.name,
         model: r.model,
         fan_speed: r.fan,
-        fan_speed_list: r.slot === 1 ? fanKraken : r.slot === 3 ? fanKraken.filter((f) => f !== 'smart_mode') : fanKraken,
+        fan_speed_list:
+          r.slot === 1
+            ? fanKraken
+            : r.slot === 3
+              ? fanKraken.filter((f) => f !== 'smart_mode')
+              : fanKraken,
       },
     };
     bindings[`robot${r.slot}_vacuum`] = vacuumId;
@@ -228,7 +235,11 @@ export function createRobotsDemo(nowMs: number, scenario: RobotsScenario = 'defa
         options: waterOpts,
       });
       const routeOpts =
-        r.slot === 1 ? mopKraken : r.slot === 2 ? ['fast', 'standard', 'deep', 'deep_plus'] : ['standard', 'deep', 'deep_plus', 'fast'];
+        r.slot === 1
+          ? mopKraken
+          : r.slot === 2
+            ? ['fast', 'standard', 'deep', 'deep_plus']
+            : ['standard', 'deep', 'deep_plus', 'fast'];
       put(r.slot, 'mop_mode', 'select', 'standard', {
         options: routeOpts,
       });

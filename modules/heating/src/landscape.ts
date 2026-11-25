@@ -4,7 +4,10 @@ import { fmtNum } from './model.js';
 const NBSP = '\u00a0';
 
 /** Average compressor run length (minutes); null when starts or runtime missing. */
-export function avgRunLengthMin(runtimeTodayH: number | null, startsToday: number | null): number | null {
+export function avgRunLengthMin(
+  runtimeTodayH: number | null,
+  startsToday: number | null,
+): number | null {
   if (
     runtimeTodayH === null ||
     startsToday === null ||

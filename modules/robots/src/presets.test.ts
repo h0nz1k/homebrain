@@ -125,9 +125,9 @@ describe('Max+ only when vacuuming alone', () => {
       downgradedFan: true,
       downgradedRoute: false,
     });
-    expect(applyMode({ mode: 'vacuum', fan: 'turbo', route: null }, 'both', fans).downgradedFan).toBe(
-      false,
-    );
+    expect(
+      applyMode({ mode: 'vacuum', fan: 'turbo', route: null }, 'both', fans).downgradedFan,
+    ).toBe(false);
     const draft = { name: 'X', mode: 'both' as const, fan: 'max_plus', water: null, route: null };
     expect(validateDraft({ ...draft, passes: 1, rooms: [] }, [])).toMatch(/Max\+/);
   });

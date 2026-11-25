@@ -223,9 +223,7 @@ function CookingContent({
             </p>
           </div>
         )}
-        {fryerActive ? null : (
-          <Button onClick={() => setSheet('fryer')}>Otevřít fritézu</Button>
-        )}
+        {fryerActive ? null : <Button onClick={() => setSheet('fryer')}>Otevřít fritézu</Button>}
       </section>
     ),
     meater: (
@@ -234,7 +232,11 @@ function CookingContent({
           <h2>MEATER</h2>
           <small>Teploty z MEATERu</small>
           {cookingActive ? (
-            <Button size="sm" className="kn-meater-app" onClick={() => openApp(props.config.meater_url)}>
+            <Button
+              size="sm"
+              className="kn-meater-app"
+              onClick={() => openApp(props.config.meater_url)}
+            >
               Nastavit v aplikaci MEATER ↗
             </Button>
           ) : null}

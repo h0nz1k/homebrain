@@ -20,7 +20,13 @@ function Ico({
 
 function G({ children }: { children: React.ReactNode }) {
   return (
-    <g stroke="currentColor" strokeWidth={SW} strokeLinecap="round" strokeLinejoin="round" fill="none">
+    <g
+      stroke="currentColor"
+      strokeWidth={SW}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    >
       {children}
     </g>
   );

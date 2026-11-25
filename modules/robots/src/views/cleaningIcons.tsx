@@ -18,12 +18,7 @@ function Ico({
   fill?: string;
 }) {
   return (
-    <svg
-      className={`rb-ico-opt ${className}`.trim()}
-      viewBox={VB}
-      aria-hidden="true"
-      fill={fill}
-    >
+    <svg className={`rb-ico-opt ${className}`.trim()} viewBox={VB} aria-hidden="true" fill={fill}>
       {children}
     </svg>
   );
@@ -31,7 +26,13 @@ function Ico({
 
 function G({ children }: { children: React.ReactNode }) {
   return (
-    <g stroke="currentColor" strokeWidth={SW} strokeLinecap="round" strokeLinejoin="round" fill="none">
+    <g
+      stroke="currentColor"
+      strokeWidth={SW}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    >
       {children}
     </g>
   );
@@ -78,13 +79,7 @@ function slashMark() {
 }
 
 function sparkMark() {
-  return (
-  <path
-      d="M20.2 6.2 19.2 9.2h-2.2l3.2 5.2-.8-3.5h2.4Z"
-      fill="currentColor"
-      stroke="none"
-    />
-  );
+  return <path d="M20.2 6.2 19.2 9.2h-2.2l3.2 5.2-.8-3.5h2.4Z" fill="currentColor" stroke="none" />;
 }
 
 function sliderMark() {
@@ -102,7 +97,13 @@ function fanBlades(cx: number, cy: number) {
   return (
     <>
       {[0, 120, 240].map((a) => (
-        <path key={a} d={blade} fill="currentColor" stroke="none" transform={`rotate(${a} ${cx} ${cy})`} />
+        <path
+          key={a}
+          d={blade}
+          fill="currentColor"
+          stroke="none"
+          transform={`rotate(${a} ${cx} ${cy})`}
+        />
       ))}
       <circle cx={cx} cy={cy} r={1.3} fill="var(--hb-bg, #000)" stroke="none" />
     </>
@@ -123,12 +124,8 @@ function fanGlyph(extra?: React.ReactNode) {
   );
 }
 
-function dropGlyph(
-  extra?: React.ReactNode,
-  opts?: { fillDrop?: boolean; slash?: boolean },
-) {
-  const d =
-    'M6 5.2c1.8 2.6 3.6 5 3.6 7.5a3.6 3.6 0 1 1-7.2 0c0-2.5 1.8-4.9 3.6-7.5Z';
+function dropGlyph(extra?: React.ReactNode, opts?: { fillDrop?: boolean; slash?: boolean }) {
+  const d = 'M6 5.2c1.8 2.6 3.6 5 3.6 7.5a3.6 3.6 0 1 1-7.2 0c0-2.5 1.8-4.9 3.6-7.5Z';
   return (
     <Ico>
       <G>
@@ -148,12 +145,7 @@ const FAN_BARS: Record<string, number> = {
   max_plus: 4,
 };
 
-function fanLevel(
-  barCount: number,
-  slash = false,
-  plus = false,
-  extra?: React.ReactNode,
-) {
+function fanLevel(barCount: number, slash = false, plus = false, extra?: React.ReactNode) {
   const n = barCount;
   const cx = 6;
   const cy = 12;
@@ -187,8 +179,7 @@ const WATER_BARS: Record<string, { bars: number; fill?: boolean }> = {
 
 function waterLevel(key: string, slash = false, extra?: React.ReactNode) {
   const spec = WATER_BARS[key] ?? { bars: 0 };
-  const d =
-    'M6 5.2c1.8 2.6 3.6 5 3.6 7.5a3.6 3.6 0 1 1-7.2 0c0-2.5 1.8-4.9 3.6-7.5Z';
+  const d = 'M6 5.2c1.8 2.6 3.6 5 3.6 7.5a3.6 3.6 0 1 1-7.2 0c0-2.5 1.8-4.9 3.6-7.5Z';
   return (
     <Ico>
       <G>

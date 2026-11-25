@@ -13,7 +13,13 @@ function Ico({ children }: { children: React.ReactNode }) {
 
 function G({ children }: { children: React.ReactNode }) {
   return (
-    <g stroke="currentColor" strokeWidth={SW} strokeLinecap="round" strokeLinejoin="round" fill="none">
+    <g
+      stroke="currentColor"
+      strokeWidth={SW}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    >
       {children}
     </g>
   );
@@ -25,11 +31,7 @@ export function BasicLevelIcon() {
     <Ico>
       <G>
         <path d="M5.5 18.5 14 10" />
-        <path
-          d="M15.5 8.2 16.8 9.5 15.5 10.8 14.2 9.5Z"
-          fill="currentColor"
-          stroke="none"
-        />
+        <path d="M15.5 8.2 16.8 9.5 15.5 10.8 14.2 9.5Z" fill="currentColor" stroke="none" />
         <path d="M17.2 7v1.4M18.6 8.4H17.2" />
       </G>
     </Ico>
@@ -64,22 +66,23 @@ export function levelIcon(key: LevelIconKey): ReactElement {
 }
 
 /** Geometry hints for unit tests (everything inside 0–24). */
-export const LEVEL_ICON_RECTS: Record<LevelIconKey, ReadonlyArray<readonly [number, number, number, number]>> =
-  {
-    basic: [],
-    advanced: [],
-  };
+export const LEVEL_ICON_RECTS: Record<
+  LevelIconKey,
+  ReadonlyArray<readonly [number, number, number, number]>
+> = {
+  basic: [],
+  advanced: [],
+};
 
 export const LEVEL_ICON_PATHS: Record<LevelIconKey, string[]> = {
-  basic: [
-    'M5.5 18.5 14 10',
-    'M15.5 8.2 16.8 9.5 15.5 10.8 14.2 9.5Z',
-    'M17.2 7v1.4M18.6 8.4H17.2',
-  ],
+  basic: ['M5.5 18.5 14 10', 'M15.5 8.2 16.8 9.5 15.5 10.8 14.2 9.5Z', 'M17.2 7v1.4M18.6 8.4H17.2'],
   advanced: ['M7 6.5v11', 'M12 6.5v11', 'M17 6.5v11'],
 };
 
-export const LEVEL_ICON_CIRCLES: Record<LevelIconKey, ReadonlyArray<readonly [number, number, number]>> = {
+export const LEVEL_ICON_CIRCLES: Record<
+  LevelIconKey,
+  ReadonlyArray<readonly [number, number, number]>
+> = {
   basic: [],
   advanced: [
     [7, 12.5, 1.55],

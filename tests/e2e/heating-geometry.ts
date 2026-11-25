@@ -195,7 +195,8 @@ export function tokySchematicGeometry(el: HTMLElement, model?: Model) {
   for (const p of pipes) {
     const parent = p.parentElement as HTMLElement | null;
     const id =
-      parent?.dataset?.pipeId || (p.matches('[data-coil]') ? 'coil' : parent?.getAttribute('data-pipe-id') ?? 'pipe');
+      parent?.dataset?.pipeId ||
+      (p.matches('[data-coil]') ? 'coil' : (parent?.getAttribute('data-pipe-id') ?? 'pipe'));
     const sw = Number.parseFloat(getComputedStyle(p).strokeWidth) * scale;
     const L = (p as SVGPathElement).getTotalLength();
     samples[id] = [];
@@ -229,7 +230,10 @@ export function tokySchematicGeometry(el: HTMLElement, model?: Model) {
   const near = (a: number[], b: number[], tol = 2) =>
     Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!) <= tol;
 
-  const portEntries = Object.entries(model.ports) as [string, [[number, number], [number, number]]][];
+  const portEntries = Object.entries(model.ports) as [
+    string,
+    [[number, number], [number, number]],
+  ][];
   for (const [id, [s, e]] of portEntries) {
     const ab = ends(id);
     if (!ab) continue;
@@ -334,8 +338,7 @@ export function tokySchematicGeometry(el: HTMLElement, model?: Model) {
         byX[k] = (byX[k] || 0) + 1;
       }
     }
-    for (const [k, c] of Object.entries(byX))
-      if (c >= 8) xs.push(Number(k));
+    for (const [k, c] of Object.entries(byX)) if (c >= 8) xs.push(Number(k));
   }
   const u = [...new Set(xs)].sort((a, b) => a - b);
   for (let i = 1; i < u.length; i++)
@@ -346,7 +349,9 @@ export function tokySchematicGeometry(el: HTMLElement, model?: Model) {
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
       let md = 1e9;
-      for (const a of samples[ids[i]!]!) for (const b of samples[ids[j]!]!) md = Math.min(md, Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!));
+      for (const a of samples[ids[i]!]!)
+        for (const b of samples[ids[j]!]!)
+          md = Math.min(md, Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!));
       if (md < 8) fail('7-pipe-pipe', `${ids[i]} / ${ids[j]} ${md.toFixed(1)}px`);
     }
 
@@ -355,7 +360,8 @@ export function tokySchematicGeometry(el: HTMLElement, model?: Model) {
     if (!m) continue;
     const [x, y] = toScreen(scene as unknown as SVGGraphicsElement, Number(m[1]), Number(m[2]));
     let md = 1e9;
-    for (const k of ids) for (const s of samples[k]!) md = Math.min(md, Math.hypot(s[0]! - x, s[1]! - y));
+    for (const k of ids)
+      for (const s of samples[k]!) md = Math.min(md, Math.hypot(s[0]! - x, s[1]! - y));
     if (md > 3) fail('8-pump-on-pipe', `${(pg as HTMLElement).dataset.pump} ${md.toFixed(1)}px`);
   }
 
@@ -428,7 +434,7 @@ export function solarRenderedGeometry(el: HTMLElement) {
     Math.min(badge.bottom, coilBox.bottom) - Math.max(badge.top, coilBox.top) > 0.1;
   const solarHeating = Boolean(
     el.querySelector('[data-pipe-id="solar-supply"][data-active]') &&
-      el.querySelector('[data-pipe-id="solar-return"][data-active]'),
+    el.querySelector('[data-pipe-id="solar-return"][data-active]'),
   );
   return {
     configured: true as const,

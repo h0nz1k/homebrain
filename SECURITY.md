@@ -3,11 +3,11 @@
 ## Hlášení zranitelnosti
 
 Zranitelnosti prosím **nehlaste veřejným issue**. Použijte soukromé hlášení přes GitHub:
-*Security → Report a vulnerability* (Private vulnerability reporting) v tomto repozitáři.
+_Security → Report a vulnerability_ (Private vulnerability reporting) v tomto repozitáři.
 Odpověď obvykle do 7 dnů. Podporovaná je jen nejnovější vydaná verze (včetně pre-release).
 
-*Please report vulnerabilities privately via GitHub's “Report a vulnerability” (Security tab), not via public issues.
-Only the latest release is supported.*
+_Please report vulnerabilities privately via GitHub's “Report a vulnerability” (Security tab), not via public issues.
+Only the latest release is supported._
 
 ## Rozsah
 

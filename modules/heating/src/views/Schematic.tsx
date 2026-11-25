@@ -27,11 +27,7 @@ const SOLAR_RETURN_TOP = 20.0;
 const COIL_D = 'M258 338H229V349H245V360H229V371H245V382H229V393H258';
 
 const ROUTES = [
-  [
-    'hp-supply',
-    'M14 354V198Q14 190 22 190H81Q89 190 89 198V262Q89 270 97 270H136',
-    'hot',
-  ],
+  ['hp-supply', 'M14 354V198Q14 190 22 190H81Q89 190 89 198V262Q89 270 97 270H136', 'hot'],
   [
     'hp-return',
     'M136 400H114Q110 400 110 396V331.5Q110 323.5 102 323.5H58Q50 323.5 50 331.5V354',
@@ -292,9 +288,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
   const uid = useId().replace(/:/g, '');
   const scene = heroScene(snap);
   const showSolar = solarConfigured(snap);
-  const pipeRoutes = showSolar
-    ? ROUTES
-    : ROUTES.filter(([id]) => !SOLAR_ROUTE_IDS.has(id));
+  const pipeRoutes = showSolar ? ROUTES : ROUTES.filter(([id]) => !SOLAR_ROUTE_IDS.has(id));
   const hp = snap.heat_pump;
   const logoManifest = useHeatingLogoManifest();
   const [logoFailed, setLogoFailed] = useState(false);
@@ -498,7 +492,9 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
             <Label x={181} y={348} anchor="middle" id="tank" muted={snap.tank.bottom === null}>
               Nádrž dole
               <tspan x="181" dy="27" className="ht-c3-tank-value">
-                {fmtSchT(snap.tank.bottom).replace(/\s°C$/u, '').replace(/\u202f°C$/u, '')}
+                {fmtSchT(snap.tank.bottom)
+                  .replace(/\s°C$/u, '')
+                  .replace(/\u202f°C$/u, '')}
                 {snap.tank.bottom !== null && <tspan className="ht-c3-unit">{'\u202f°C'}</tspan>}
               </tspan>
             </Label>
@@ -641,13 +637,7 @@ export function HeatingSchematic({ snap }: { snap: HeatingSnapshot }) {
                   {fmtT(solar?.temp ?? null)}
                 </tspan>
               </Label>
-              <Label
-                x={315}
-                y={420}
-                anchor="middle"
-                id="solar-pump"
-                muted={solar?.pump !== true}
-              >
+              <Label x={315} y={420} anchor="middle" id="solar-pump" muted={solar?.pump !== true}>
                 Solární čerpadlo
                 {solarPumpPct !== null && (
                   <tspan x="315" dy="16" className="ht-c3-nw-v">

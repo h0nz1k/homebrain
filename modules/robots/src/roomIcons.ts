@@ -18,12 +18,7 @@ export type RoomIconKind =
   | 'generic';
 
 function norm(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function has(hay: string, ...needles: string[]): boolean {

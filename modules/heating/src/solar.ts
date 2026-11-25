@@ -64,7 +64,6 @@ export function solarStateOf(snap: HeatingSnapshot): SolarThermalState | null {
 }
 
 export const SOLAR_WARN_COPY: Readonly<Record<'no_gain' | 'stagnation', string>> = {
-  no_gain:
-    'Solár čerpá, ale nádrž se neohřívá – zkontrolujte tlak a odvzdušnění solárního okruhu.',
+  no_gain: 'Solár čerpá, ale nádrž se neohřívá – zkontrolujte tlak a odvzdušnění solárního okruhu.',
   stagnation: 'Kolektor je přehřátý a čerpadlo stojí (stagnace).',
 };

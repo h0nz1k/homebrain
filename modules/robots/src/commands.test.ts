@@ -130,7 +130,7 @@ describe('findResetButton', () => {
     'button.garage_resetovat_hlavni_kartac',
   ]);
   const has = (id: string) => ha.has(id);
-  it('finds the robot\'s own Czech/English reset button per part', () => {
+  it("finds the robot's own Czech/English reset button per part", () => {
     expect(findResetButton('main_brush', 'vacuum.demo_robot_2', has)).toBe(
       'button.demo_robot_2_resetovat_hlavni_kartac',
     );
