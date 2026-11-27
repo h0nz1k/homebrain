@@ -606,9 +606,12 @@ svg[data-hb-icon] :is(path, circle, line, polyline, polygon, rect, ellipse) {
   background: color-mix(in srgb, var(--hb-signal-tone) 13%, transparent);
 }
 .hb-signal-copy {
+  /* Keep words intact: `anywhere`/`break-all` split Czech titles mid-glyph (#186). */
   flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
 }
 .hb-signal h2,
 .hb-signal h3 {
