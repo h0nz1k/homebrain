@@ -34,6 +34,8 @@ MAX_SITEMAP_BYTES = 3_000_000
 MAX_IMAGE_BYTES = 4_000_000
 MAX_IMAGE_PX = (600, 800)
 MAX_WEBP_BYTES = 350_000
+MAX_FULL_IMAGE_PX = (2000, 2000)  # longest edge for the full-resolution copy
+MAX_FULL_WEBP_BYTES = 1_500_000  # ~1.5 MB byte cap for the full copy
 SITEMAP_TTL_S = 24 * 3600
 MAX_CANDIDATES = 6
 CANDIDATE_PAUSE_S = 1.0
@@ -271,8 +273,10 @@ def proposed_changes(wine: dict[str, Any], facts: dict[str, Any]) -> dict[str, A
     return changes
 
 
-def to_webp(data: bytes) -> bytes:
-    """Re-encode to WebP: drops EXIF/ICC/metadata, caps dimensions and size."""
+def _reencode_webp(
+    data: bytes, box: tuple[int, int], byte_cap: int, qualities: tuple[int, ...]
+) -> bytes:
+    """Validate, drop EXIF/ICC/metadata, fit into ``box`` (never upscales), cap bytes."""
     from PIL import Image, UnidentifiedImageError  # noqa: PLC0415 - HA ships Pillow
 
     if len(data) > MAX_IMAGE_BYTES:
@@ -286,13 +290,23 @@ def to_webp(data: bytes) -> bytes:
             clean = img.convert("RGB")
     except (UnidentifiedImageError, OSError) as err:
         raise WineError("ENRICH_IMAGE_INVALID") from err
-    clean.thumbnail(MAX_IMAGE_PX)
-    for quality in (82, 70, 55):
+    clean.thumbnail(box)
+    for quality in qualities:
         out = io.BytesIO()
         clean.save(out, "WEBP", quality=quality, method=4)
-        if out.tell() <= MAX_WEBP_BYTES:
+        if out.tell() <= byte_cap:
             return out.getvalue()
     raise WineError("ENRICH_IMAGE_TOO_LARGE")
+
+
+def to_webp(data: bytes) -> bytes:
+    """Thumbnail re-encode used by lists and cards (max 600x800)."""
+    return _reencode_webp(data, MAX_IMAGE_PX, MAX_WEBP_BYTES, (82, 70, 55))
+
+
+def to_webp_full(data: bytes) -> bytes:
+    """Full-resolution copy for the label viewer: longest edge <= 2000 px, <= 1.5 MB."""
+    return _reencode_webp(data, MAX_FULL_IMAGE_PX, MAX_FULL_WEBP_BYTES, (85, 72, 60))
 
 
 def media_dir(config_path: str) -> Path:
@@ -308,6 +322,18 @@ def store_image(config_path: str, wine_id: str, webp: bytes) -> str:
     tmp.write_bytes(webp)
     tmp.replace(folder / f"{wine_id}.webp")
     return f"homebrain/media/wine/{wine_id}.webp"
+
+
+def store_image_full(config_path: str, wine_id: str, webp: bytes) -> str:
+    """Store the full-resolution copy as ``<wine_id>.full.webp`` (atomic replace)."""
+    if not re.fullmatch(r"[0-9a-f]{32}|[A-Za-z0-9_-]{1,64}", wine_id):
+        raise WineError("INVALID_FIELD", "wine_id")
+    folder = media_dir(config_path)
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / f".{wine_id}.full.tmp"
+    tmp.write_bytes(webp)
+    tmp.replace(folder / f"{wine_id}.full.webp")
+    return f"homebrain/media/wine/{wine_id}.full.webp"
 
 
 class Fetcher:

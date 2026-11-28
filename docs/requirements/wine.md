@@ -230,3 +230,31 @@ Cloud jako jediný zdroj pravdy; obousměrná sync s výrobcem; automatický dep
 - Komunitní hodnocení – existuje zdroj dat? Do té doby skryto.
 - Cena na kartě – zobrazovat i na sdíleném panelu (soukromí)?
 - Oblíbená vína – kdy přesunout do store (`favorite`) kvůli sync mezi zařízeními?
+
+## WIN-027 – Zvětšení fotky etikety v detailu
+
+**Popis:** V detailu vína (s fotografií) klepnutí nebo kliknutí na obrázek lahve otevře fullscreen viewer s volným přibližováním a posouváním.
+
+### Plná rozlišení – backend
+
+Každý nový snímek se ukládá ve dvou kopiích:
+
+| soubor | max rozměr | byte cap | účel |
+| --- | --- | --- | --- |
+| `<wine_id>.webp` | 600 × 800 px | 350 kB | seznam a karty (nezměněno) |
+| `<wine_id>.full.webp` | 2 000 × 2 000 px (longest edge) | 1,5 MB | viewer – detail etikety |
+
+Plná kopie se zapisuje při každém `set_image` (foto vlastníka i URL) a při enrichmentu ze Znovínu/LANA. Nikdy nedojde k zvětšení (PIL `thumbnail` je no-op pro menší snímky). Fallback pro starší fotky: pokud `.full.webp` neexistuje, endpoint `/api/homebrain/wine/image/{id}/full` vrátí thumbnail. `image.fullUrl` v payloadu chybí nebo je `null` → frontend pak použije `image.url`.
+
+**Starší fotky nemají detail etikety zdarma** – pro plnou kvalitu je nutné foto znovu nahrát nebo spustit enrich. Frontend o tom neinfomuje automaticky; je to přírodní migrace.
+
+### Viewer – frontend
+
+- Přístupný přes `<button aria-label="Zvětšit fotku etikety">` s ikonou lupy (kursor `zoom-in`), pouze když je foto k dispozici (ne SVG fallback).
+- Portal do `<body>` nad HA shellem (z-index 9000), `role=dialog aria-modal`, Tab-trap, focus restore.
+- Zoom 1×–6×, pan clamped. Ovládání: pinch, double-tap, wheel, +/− tlačítka (min 48 × 48 px), reset.
+- Thumbnail se zobrazí okamžitě, `fullUrl` se prohodí po načtení na pozadí (bez layout jumpu).
+- Zavření: X tlačítko, Esc, klepnutí na backdrop při 1×.
+- Hint text `Roztáhni prsty nebo dvakrát klepni pro přiblížení` zmizí po první interakci.
+- Funguje na kiosku 1 280 × 800, tabletu 800 px a telefonu 360 px, v dark i light tématu.
+
