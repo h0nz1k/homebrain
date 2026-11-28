@@ -104,7 +104,7 @@ interface Placed {
  * One muted palette (oklch hues, low chroma in both themes): every room gets its own soft
  * colour like in the Roborock/Dreame apps; consecutive ids differ by ≥ 45° so neighbours separate.
  */
-export const ROOM_HUES = [250, 195, 285, 165, 228, 310, 180, 265] as const;
+export const ROOM_HUES = [250, 195, 285, 165, 228, 310, 40, 320] as const;
 /** Small lightness steps on top of the hue, so two similar hues still separate. */
 export const ROOM_STEPS = [0, 1, 1, 2, 0, 1, 2, 0] as const;
 /** Floor finish hint: tiles for wet rooms, planks elsewhere (texture only, very low contrast). */

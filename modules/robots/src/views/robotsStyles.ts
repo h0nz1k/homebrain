@@ -568,7 +568,7 @@ export const robotsStyles = `
 .rv-bot-spot { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .rv-label {
   position: absolute; transform: translate(calc(-50% + var(--rv-nudge-x, 0px)), calc(-50% + var(--rv-nudge, 0px))); display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 550; letter-spacing: -.005em; color: var(--rv-label); white-space: nowrap;
+  font-size: 14px; font-weight: 550; letter-spacing: -.005em; color: var(--rv-label); white-space: nowrap;
   transition: opacity 180ms, color 180ms;
 }
 .rv-label[data-selected] { color: var(--rv-label-sel); font-weight: 650; }
@@ -622,7 +622,14 @@ export const robotsStyles = `
   background: transparent; cursor: pointer; position: relative;
 }
 .rb-map3d-cams button::before { content: ''; position: absolute; inset: -2px; }
+.rb-map3d-cams button::after {
+  content: attr(data-label); position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; white-space: nowrap; color: var(--hb-t2); pointer-events: none;
+  opacity: 0; transition: opacity 100ms;
+}
 .rb-map3d-cams button:hover:not(:disabled) { background: var(--hb-s1); color: var(--hb-t1); }
+.rb-map3d-cams button:hover::after,
+.rb-map3d-cams button:focus-visible::after { opacity: 1; }
 .rb-map3d-cams button[aria-pressed='true'] { color: var(--hb-sel-ink); border-color: var(--hb-ac); background: color-mix(in srgb, var(--hb-ac) 15%, var(--rb-fill)); }
 .rb-map3d-cams button:disabled { opacity: .45; cursor: default; }
 .rb-map3d-cams svg { width: 20px; height: 20px; }
@@ -630,9 +637,16 @@ export const robotsStyles = `
 .rb-map3d-stage .rb-map3d-label[hidden] { display: none; }
 /* Phones: smaller names so the rooms of a whole floor still fit their labels. */
 @container (max-width: 420px) { .rb-map3d-stage .rb-map3d-label { font-size: 11px; gap: 3px; } }
-.rb-map3d-label .rv-label-text { text-shadow: 0 0 2px var(--rv-tile), 0 0 5px var(--rv-tile); }
+.rb-map3d-label .rv-label-text { text-shadow: 0 0 3px var(--rv-tile), 0 0 7px var(--rv-tile), 0 0 12px var(--rv-tile); }
 .rb-map3d-room-color { color: var(--rv-tile); }
-.rb-map3d-label[data-live] .rb-map3d-room-color { color: color-mix(in oklch, var(--hb-ac) 16%, var(--rv-tile)); }
+/* Live room: brighter / higher-chroma floor fill + accent glow on the label text. */
+.rb-map3d-stage .rb-map3d-label[data-live] { --rv-room-l: 48%; --rv-room-c: 0.08; }
+[data-theme='light'] .rb-map3d-stage .rb-map3d-label[data-live] { --rv-room-l: 88%; --rv-room-c: 0.09; }
+.rb-map3d-label[data-live] .rb-map3d-room-color { color: color-mix(in oklch, var(--hb-ac) 28%, var(--rv-tile)); }
+.rb-map3d-label[data-live] .rv-label-text {
+  text-shadow: 0 0 3px var(--hb-ac), 0 0 10px color-mix(in srgb, var(--hb-ac) 50%, transparent),
+    0 0 3px var(--rv-tile), 0 0 7px var(--rv-tile);
+}
 .rb-map3d-wall-color { color: var(--rv-wall-line); }
 .rb-map3d-cap-color { color: color-mix(in srgb, var(--rv-wall-line) 66%, white); }
 .rb-map3d-live-color { color: var(--rv-trail); }
