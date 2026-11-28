@@ -14,6 +14,7 @@ import type { WineApi } from '../api.js';
 import { vivinoSearchUrl } from '../lookup.js';
 import { LookupPanel } from './DetailLookup.js';
 import { WineBottle, photoUrl } from './BottleArt.js';
+import { LabelViewer } from './LabelViewer.js';
 import { Icon, RatingControl } from './parts.js';
 import { PriceHistoryCard } from './PriceHistory.js';
 import type { IconName } from './parts.js';
@@ -80,6 +81,7 @@ export function Detail({
 }) {
   const [tab, setTab] = useState<Tab>('props');
   const [lookupOpen, setLookupOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [qty, setQty] = useState(1);
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export function Detail({
   // Parent remounts Detail (key) whenever wine id/quantity changes, resetting local state.
   const opId = useRef<string | null>(null);
   const rateRef = useRef<HTMLDivElement>(null);
+  const zoomTriggerRef = useRef<HTMLButtonElement>(null);
 
   async function consume(confirmed: boolean) {
     setError(null);
@@ -226,7 +229,24 @@ export function Detail({
       <div className="wine-detail-scroll">
         <header className="wine-hero">
           <div className="wine-hero-bottle">
-            <WineBottle wine={wine} height={160} />
+            {photoUrl(wine) ? (
+              <button
+                type="button"
+                className="wine-photo-zoom-trigger"
+                aria-label="Zvětšit fotku etikety"
+                title="Zvětšit fotku etikety"
+                onClick={() => setViewerOpen(true)}
+                ref={zoomTriggerRef}
+                data-testid="wine-photo-zoom-btn"
+              >
+                <WineBottle wine={wine} height={160} />
+                <span className="wine-photo-zoom-badge" aria-hidden="true">
+                  <Icon name="search" size={14} />
+                </span>
+              </button>
+            ) : (
+              <WineBottle wine={wine} height={160} />
+            )}
           </div>
           <div className="wine-hero-text">
             <div className="wine-hero-titles">
@@ -536,6 +556,15 @@ export function Detail({
             </div>
           </div>
         </div>
+      )}
+      {viewerOpen && photoUrl(wine) && (
+        <LabelViewer
+          wine={wine}
+          thumbUrl={photoUrl(wine)!}
+          fullUrl={wine.image?.fullUrl}
+          onClose={() => setViewerOpen(false)}
+          triggerRef={zoomTriggerRef}
+        />
       )}
     </aside>
   );

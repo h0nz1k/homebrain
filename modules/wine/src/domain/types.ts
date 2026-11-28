@@ -36,6 +36,8 @@ export interface WineImage {
   licenseStatus: 'placeholder' | 'approved' | 'review';
   /** Short-lived signed URL of the local photo (added by the integration on reads). */
   url?: string | null;
+  /** Short-lived signed URL of the full-resolution copy (present after WIN-027; null for older photos). */
+  fullUrl?: string | null;
 }
 
 /** Canonical inventory record aligned with docs/data-contract.md. */
