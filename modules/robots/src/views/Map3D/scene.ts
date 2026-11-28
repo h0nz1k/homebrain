@@ -236,7 +236,7 @@ export function createScene(
   function drawOverlays() {
     const occupied: ScreenBox[] = [];
     const robotBox = marker(botElement, bot, hasBot, 20);
-    const dockBox = marker(dockElement, dock, hasDock, 12);
+    let dockBox = marker(dockElement, dock, hasDock, 12);
     if (dockBox && robotBox && overlaps(dockBox, robotBox)) {
       // The station and robot share almost the same projection when parked.
       const x = (robotBox.left + robotBox.right) / 2;
@@ -257,9 +257,11 @@ export function createScene(
       if (nearby) {
         const [dx, dy] = nearby;
         place(dockElement, dx!, dy!);
-        occupied.push({ left: dx! - 12, right: dx! + 12, top: dy! - 12, bottom: dy! + 12 });
+        dockBox = { left: dx! - 12, right: dx! + 12, top: dy! - 12, bottom: dy! + 12 };
       }
-    } else if (dockBox) occupied.push(dockBox);
+    }
+    // Always reserve the dock before labels, whether it stayed or was nudged away from the robot.
+    if (dockBox) occupied.push(dockBox);
     if (robotBox) {
       occupied.push(robotBox);
       const origin = project(bot.x, bot.z);
