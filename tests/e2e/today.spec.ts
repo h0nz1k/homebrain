@@ -262,11 +262,60 @@ test.describe('Dnes – obrazovka Today', () => {
     await expect(page.getByTestId('footer-more')).toHaveCount(0);
   }
 
+  /**
+   * Refs #186: title/context/severity words must stay on one line (no mid-word wrap).
+   * Uses Range client rects per whitespace-separated token inside each signal-card.
+   */
+  async function assertSignalCardWordsIntact(page: Page) {
+    const broken = await page.evaluate(() => {
+      const offenders: string[] = [];
+      for (const card of Array.from(document.querySelectorAll('[data-testid="signal-card"]'))) {
+        const targets = card.querySelectorAll(
+          'h2, h3, .hb-signal-severity, .hb-signal-context, .hb-signal-also',
+        );
+        for (const el of Array.from(targets)) {
+          const text = (el.textContent ?? '').trim();
+          if (!text) continue;
+          for (const word of text.split(/\s+/).filter(Boolean)) {
+            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              const content = node.textContent ?? '';
+              let from = 0;
+              while (true) {
+                const idx = content.indexOf(word, from);
+                if (idx < 0) break;
+                const range = document.createRange();
+                range.setStart(node, idx);
+                range.setEnd(node, idx + word.length);
+                const tops = new Set(
+                  Array.from(range.getClientRects())
+                    .filter((r) => r.width > 0 && r.height > 0)
+                    .map((r) => Math.round(r.top)),
+                );
+                if (tops.size > 1) {
+                  offenders.push(
+                    `${card.getAttribute('data-id') ?? '?'}:${word} (${el.className || el.tagName})`,
+                  );
+                }
+                from = idx + word.length;
+              }
+            }
+          }
+        }
+      }
+      return offenders;
+    });
+    expect(broken).toEqual([]);
+  }
+
   async function assertStateBc(page: Page, size: LayoutSize, state: StateAbc) {
     await expect(page.getByTestId('hero-signal')).toBeVisible();
     const cards = page.getByTestId('signal-card');
     const cardCount = await cards.count();
     expect(cardCount).toBeLessThanOrEqual(CARD_LIMITS[size]);
+    if (cardCount > 0) {
+      await assertSignalCardWordsIntact(page);
+    }
 
     const footerMore = page.getByTestId('footer-more');
     if ((await footerMore.count()) > 0 && (await footerMore.isVisible())) {
