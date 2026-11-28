@@ -99,7 +99,12 @@ homebrain-panel {
   min-width: 0;
   min-height: 0;
   padding: var(--hb-sp-4);
-  overflow: auto;
+  /* Clip, don't scroll: main grows with its content (the page/HA view scrolls), so
+     overflow:auto made it a scroll container that never scrolls, and every
+     position:sticky inside a module (wine detail pane, heating schematic, timetable
+     chips) stuck to it instead of the real scroller and never stuck at all. */
+  overflow-x: clip;
+  overflow-y: visible;
 }
 .hb-shell[data-kiosk='true'] main {
   padding: 0;
