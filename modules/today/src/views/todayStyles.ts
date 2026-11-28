@@ -62,9 +62,12 @@ export const todayStyles = `
 .today-ribbon-heading{display:flex;justify-content:space-between;gap:12px;font-size:16px;color:var(--hb-t2)}
 .today-ribbon-heading span{font-size:14px;color:var(--hb-t2)}
 .today-ribbon-card .hb-ribbon{border:0;background:transparent;padding:12px 48px 0}
-.today-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;flex:none;min-height:0}
+/* Min ~240px: at ~800px three cards collapse to 2 columns instead of mid-word wraps (#186). */
+.today-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;flex:none;min-height:0}
 .today-cards .hb-signal{min-width:0;padding:16px;align-content:start}
 .today-cards .hb-signal h3{font-size:18px}
+.today-cards .hb-signal-action{flex-wrap:wrap}
+.today-cards .hb-signal-action>span{white-space:normal;overflow:visible;text-overflow:unset}
 /* auto-fill (#64): a lone chip keeps its own column instead of stretching into a full-width strip. */
 .today-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;width:100%;flex:none}
 .today-chips .hb-chip{max-width:100%;white-space:normal;width:max-content;justify-self:start}
@@ -190,7 +193,7 @@ export const todayStyles = `
 .today-content::before{content:'';flex:1 1 0;min-height:0}
 .today-header{order:-1;flex:none}
 .today-sun-glow{position:absolute;width:160px;height:160px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(255,221,168,.32),rgba(255,221,168,0) 70%)}
-.today-kiosk .today-cards{grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
+.today-kiosk .today-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
 .today-kiosk .hb-ribbon-inner{--ribbon-label-size:16}
 .today-kiosk .hb-ribbon-hourly{font-size:16px}
 .today-kiosk .hb-signal-copy,.today-kiosk .hb-signal-value{min-width:0}
