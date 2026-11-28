@@ -160,6 +160,7 @@ export default function Map3D({
               type="button"
               aria-label={title}
               title={title}
+              data-label={title}
               aria-pressed={view === key}
               disabled={key === 'follow' && !map.robot}
               onClick={() => chooseView(key)}

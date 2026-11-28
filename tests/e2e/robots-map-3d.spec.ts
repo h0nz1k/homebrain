@@ -115,6 +115,35 @@ test('3D mapa sdílí pořadí místností s 2D a pamatuje pohled pro každého 
   await expect(map3d.locator('canvas')).toBeVisible();
 });
 
+test('dok nepřekrývá štítek aktivní místnosti (360, Sledovat)', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'tablet', 'Viewport is set by the test.');
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/homebrain-roboti?mapa3d=prehled');
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  const map3d = page.getByTestId('robots-map-3d');
+  await expect(map3d.locator('canvas')).toBeVisible();
+  const follow = map3d.getByRole('button', { name: 'Sledovat' });
+  await expect(follow).toBeEnabled();
+  await follow.click();
+  await expect(follow).toHaveAttribute('aria-pressed', 'true');
+  const live = map3d.locator('[data-map3d-room][data-live]');
+  const dock = map3d.locator('.rb-map3d-dock');
+  await expect(live).toBeVisible();
+  await expect(dock).toBeVisible();
+  await expect
+    .poll(async () => {
+      const [liveBox, dockBox] = await Promise.all([live.boundingBox(), dock.boundingBox()]);
+      if (!liveBox || !dockBox) return false;
+      return !(
+        liveBox.x < dockBox.x + dockBox.width &&
+        liveBox.x + liveBox.width > dockBox.x &&
+        liveBox.y < dockBox.y + dockBox.height &&
+        liveBox.y + liveBox.height > dockBox.y
+      );
+    })
+    .toBe(true);
+});
+
 test('bez WebGL se zobrazí 2D mapa s krátkou poznámkou', async ({ page }) => {
   await page.goto('/homebrain-roboti?mapa3d=bez-webgl');
   await page.getByRole('radio', { name: '3D', exact: true }).click();
