@@ -1,4 +1,18 @@
-import type { WineColorCode, WineRecord, WineType } from './domain/index.js';
+import type { WineColorCode, WineRecord, WineImage, WineType } from './domain/index.js';
+
+/** Synthetic label SVG for mock wine-001 (fine text visible after zoom). */
+const MOCK_LABEL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800"><rect width="600" height="800" fill="#f8f4e8"/><rect x="60" y="80" width="480" height="640" fill="none" stroke="#8b6914" stroke-width="3"/><rect x="70" y="90" width="460" height="620" fill="none" stroke="#8b6914" stroke-width="1"/><text x="300" y="180" font-family="serif" font-size="36" fill="#2c1810" text-anchor="middle" font-weight="bold">VINAŘSTVÍ</text><text x="300" y="225" font-family="serif" font-size="32" fill="#2c1810" text-anchor="middle" font-weight="bold">SYNTHETIC A</text><line x1="100" y1="250" x2="500" y2="250" stroke="#8b6914" stroke-width="2"/><text x="300" y="320" font-family="serif" font-size="42" fill="#1a0a05" text-anchor="middle" font-weight="bold">RYZLINK</text><text x="300" y="375" font-family="serif" font-size="38" fill="#1a0a05" text-anchor="middle" font-weight="bold">RÝNSKÝ</text><text x="300" y="440" font-family="serif" font-size="52" fill="#8b6914" text-anchor="middle" font-weight="bold">2023</text><text x="300" y="510" font-family="sans-serif" font-size="16" fill="#555" text-anchor="middle">Pozdní sběr · Morava · Vinařství Synthetic A</text><text x="300" y="535" font-family="sans-serif" font-size="16" fill="#555" text-anchor="middle">Obsah: 750 ml · Alkohol: 12,5 % vol.</text><text x="300" y="565" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">Šarže 2023/001 · Suché víno</text><text x="300" y="590" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">Zbytkový cukr: 2,8 g/l · Kyseliny: 6,4 g/l</text><text x="300" y="615" font-family="sans-serif" font-size="12" fill="#888" text-anchor="middle">Vyrobeno a plněno v ČR · Výrobce: Synthetic A</text><text x="300" y="640" font-family="sans-serif" font-size="12" fill="#888" text-anchor="middle">Spotřebujte do: viz čelo láhve</text><line x1="100" y1="668" x2="500" y2="668" stroke="#8b6914" stroke-width="2"/><text x="300" y="690" font-family="serif" font-size="13" fill="#888" text-anchor="middle">Obsahuje siřičitany</text></svg>`;
+
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/** Synthetic image.url for mock wine-001 (served as the thumbnail in mock). */
+export const MOCK_WINE_THUMB_URL = svgDataUrl(MOCK_LABEL_SVG);
+/** Synthetic image.fullUrl for mock wine-001 (served as the full copy in mock). */
+export const MOCK_WINE_FULL_URL = svgDataUrl(
+  MOCK_LABEL_SVG.replace('width="600" height="800"', 'width="1500" height="2000"'),
+);
 
 /** 50 deterministic synthetic wines (no real inventory, producers or notes). */
 const VARIETIES: Array<[string, WineColorCode, WineType]> = [
@@ -87,7 +101,17 @@ export function createSyntheticWines(
       personalRating: rating,
       personalNote: i % 4 === 0 ? 'Syntetická poznámka pro ukázku.' : null,
       status: quantity === 0 ? 'consumed' : 'in_stock',
-      image: null,
+      // wine-001 (index 0) has a synthetic photo to demonstrate the zoom viewer.
+      image:
+        i === 0
+          ? ({
+              localPath: `homebrain/media/wine/${id}.webp`,
+              sourceUrl: null,
+              licenseStatus: 'approved',
+              url: MOCK_WINE_THUMB_URL,
+              fullUrl: MOCK_WINE_FULL_URL,
+            } satisfies WineImage)
+          : null,
       source: {
         provider: 'local',
         externalProductId: null,

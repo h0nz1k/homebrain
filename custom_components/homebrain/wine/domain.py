@@ -252,13 +252,19 @@ def validate_fields(data: dict[str, Any], *, partial: bool) -> dict[str, Any]:
         if img is not None:
             if not isinstance(img, dict):
                 raise WineError(INVALID_FIELD, "image")
-            img = {
+            validated_img: dict[str, Any] = {
                 "localPath": _text(img.get("localPath"), "image", required=True, max_len=300),
                 "sourceUrl": _text(img.get("sourceUrl"), "image", max_len=500),
                 "licenseStatus": _enum(
                     img.get("licenseStatus", "review"), "image", LICENSE_STATUSES
                 ),
             }
+            # Preserve optional full-resolution path (WIN-027) when present.
+            if img.get("fullLocalPath") is not None:
+                validated_img["fullLocalPath"] = _text(
+                    img.get("fullLocalPath"), "image", max_len=300
+                )
+            img = validated_img
         out["image"] = img
     if has("source"):
         src = data.get("source") or {}

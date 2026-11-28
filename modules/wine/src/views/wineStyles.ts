@@ -361,4 +361,33 @@ export const wineStyles =
  .wine-meta,.wine-card-foot,.wine-card-foot .wine-muted{font-size:14px}
  .wine-props div,.wine-tab,.wine-btn,.wine-tchip{font-size:15px}
 }
+/* --- Label photo viewer (WIN-027) ---------------------------------------- */
+/* Trigger: zoom button wrapping the hero bottle photo */
+.wine-photo-zoom-trigger{position:relative;display:block;border:0;padding:0;background:none;cursor:zoom-in;border-radius:var(--hb-radius-nested,10px);overflow:hidden}
+.wine-photo-zoom-trigger:focus-visible{outline:2px solid var(--hb-ac);outline-offset:2px}
+.wine-photo-zoom-badge{position:absolute;bottom:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgb(0 0 0 / 50%);display:grid;place-items:center;color:#fff;line-height:1;pointer-events:none;backdrop-filter:blur(2px)}
+/* Overlay: fixed full-viewport portal, above HA shell (z-index > any sheet/dialog) */
+.wine-viewer-overlay{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;isolation:isolate}
+/* Dark backdrop forced even in light theme (the owner's kiosk renders dark there too) */
+@media (prefers-color-scheme:light){
+ .wine-viewer-overlay{color-scheme:dark}
+}
+[data-theme='light'] .wine-viewer-overlay{color-scheme:dark}
+.wine-viewer-backdrop{position:absolute;inset:0;background:rgb(0 0 0 / 88%);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* Stage fills the whole overlay (pointer events only on this element) */
+.wine-viewer-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
+.wine-viewer-img{display:block;max-width:100%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none;pointer-events:none}
+/* Close button: top-right, solid surface for 4.5:1 contrast in both themes */
+.wine-viewer-close{position:absolute;top:12px;right:12px;z-index:1;width:48px;height:48px;border-radius:50%;border:0;background:rgba(30,30,30,.92);color:#fff;font-size:18px;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 8px rgb(0 0 0 / 50%)}
+.wine-viewer-close:hover{background:rgba(60,60,60,.95)}
+.wine-viewer-close:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* Zoom controls: bottom-centre */
+.wine-viewer-controls{position:absolute;bottom:max(24px,env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:1;display:flex;gap:8px;padding:6px;border-radius:999px;background:rgba(30,30,30,.88);backdrop-filter:blur(4px)}
+.wine-viewer-ctrl{width:48px;height:48px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:20px;font-weight:600;cursor:pointer;display:grid;place-items:center}
+.wine-viewer-ctrl:hover{background:rgba(255,255,255,.22)}
+.wine-viewer-ctrl:disabled{opacity:.4;cursor:default}
+.wine-viewer-ctrl--reset{font-size:12px;font-weight:700}
+.wine-viewer-ctrl:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* Hint text: bottom, fades out on interaction */
+.wine-viewer-hint{position:absolute;bottom:max(90px,calc(env(safe-area-inset-bottom,0px) + 90px));left:50%;transform:translateX(-50%);z-index:1;white-space:nowrap;padding:6px 14px;border-radius:999px;background:rgba(0,0,0,.55);color:rgba(255,255,255,.85);font-size:13px;pointer-events:none}
 ` + addStyles;

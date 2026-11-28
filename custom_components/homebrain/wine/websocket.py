@@ -47,6 +47,7 @@ PRICE_REFRESH_FIRST_S = 900
 _PRICE_META = "shop_prices_refreshed_at"
 _PRICE_TASK = "wine_price_refresh"
 IMAGE_URL = "/api/homebrain/wine/image/{wine_id}"
+IMAGE_FULL_URL = "/api/homebrain/wine/image/{wine_id}/full"
 _IMAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -71,7 +72,7 @@ async def async_close_store(hass: HomeAssistant) -> None:
 
 
 def _signed(hass: HomeAssistant, connection, wines: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Attach a short-lived signed URL for local photos (``<img>`` cannot send a bearer)."""
+    """Attach short-lived signed URLs for local photos (``<img>`` cannot send a bearer)."""
     for wine in wines:
         image = wine.get("image")
         if image and str(image.get("localPath", "")).startswith("homebrain/media/wine/"):
@@ -81,6 +82,14 @@ def _signed(hass: HomeAssistant, connection, wines: list[dict[str, Any]]) -> lis
                 timedelta(hours=12),
                 refresh_token_id=connection.refresh_token_id,
             )
+            # Sign the full-resolution URL only when the full copy was stored.
+            if str(image.get("fullLocalPath", "")).startswith("homebrain/media/wine/"):
+                image["fullUrl"] = async_sign_path(
+                    hass,
+                    IMAGE_FULL_URL.format(wine_id=wine["id"]),
+                    timedelta(hours=12),
+                    refresh_token_id=connection.refresh_token_id,
+                )
     return wines
 
 
@@ -362,8 +371,13 @@ async def _enrich_one(
         local = await hass.async_add_executor_job(
             zn.store_image, hass.config.config_dir, wine_id, webp
         )
+        full_webp = await hass.async_add_executor_job(zn.to_webp_full, raw)
+        full_local = await hass.async_add_executor_job(
+            zn.store_image_full, hass.config.config_dir, wine_id, full_webp
+        )
         changes["image"] = {
             "localPath": local,
+            "fullLocalPath": full_local,
             "sourceUrl": facts["imageUrl"],
             # Owner-approved private use of the vendor's product photo (2026-11-01).
             "licenseStatus": "approved",
@@ -567,8 +581,13 @@ async def ws_set_image(hass, connection, msg):
         local = await hass.async_add_executor_job(
             zn.store_image, hass.config.config_dir, msg["wine_id"], webp
         )
+        full_webp = await hass.async_add_executor_job(zn.to_webp_full, raw)
+        full_local = await hass.async_add_executor_job(
+            zn.store_image_full, hass.config.config_dir, msg["wine_id"], full_webp
+        )
         image = {
             "localPath": local,
+            "fullLocalPath": full_local,
             "sourceUrl": source_url,
             # The owner's own photo, or a photo the owner explicitly confirmed in the
             # lookup proposal (source kept for attribution) – private household use.
@@ -900,6 +919,41 @@ class WineImageView(HomeAssistantView):
         )
 
 
+class WineImageFullView(HomeAssistantView):
+    """Serves the full-resolution bottle photo (signed path, falls back to thumbnail).
+
+    Photos uploaded before this feature do not have a ``<wine_id>.full.webp``; in
+    that case the thumbnail is served so the route never returns 404 for a wine that
+    has *some* photo stored.
+    """
+
+    url = IMAGE_FULL_URL
+    name = "api:homebrain:wine_image_full"
+    requires_auth = True
+
+    async def get(self, request: web.Request, wine_id: str) -> web.StreamResponse:
+        if not _IMAGE_ID.match(wine_id):
+            return web.Response(status=404)
+        hass = request.app["hass"]
+        folder = zn.media_dir(hass.config.config_dir)
+        full_path = folder / f"{wine_id}.full.webp"
+        thumb_path = folder / f"{wine_id}.webp"
+        if await hass.async_add_executor_job(full_path.is_file):
+            path = full_path
+        elif await hass.async_add_executor_job(thumb_path.is_file):
+            path = thumb_path
+        else:
+            return web.Response(status=404)
+        return web.FileResponse(
+            path,
+            headers={
+                "Content-Type": "image/webp",
+                "Cache-Control": "private, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+
 COMMANDS = (
     ws_list,
     ws_search,
@@ -932,3 +986,4 @@ def async_register(
         register(hass, command)
     if getattr(hass, "http", None) is not None:
         hass.http.register_view(WineImageView())
+        hass.http.register_view(WineImageFullView())
