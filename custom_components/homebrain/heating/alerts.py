@@ -539,6 +539,7 @@ def plan_notifications(
                 "message": alert.body,
                 "priority": priority,
                 "tag": f"heating.{rule_id}",
+                "module": "heating",
             }
         )
         st.notified_severity = alert.severity
@@ -555,6 +556,7 @@ def plan_notifications(
                     "message": prev.body,
                     "priority": "info",
                     "tag": f"heating.{rule_id}",
+                    "module": "heating",
                 }
             )
             st.notified_severity = None

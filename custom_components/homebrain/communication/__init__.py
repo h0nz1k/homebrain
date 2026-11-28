@@ -34,6 +34,8 @@ SERVICE_SCHEMA = vol.Schema(
         vol.Optional("priority", default="normal"): vol.In(PRIORITIES),
         vol.Optional("channel"): vol.In(CHANNELS),
         vol.Optional("tag"): vol.All(cv.string, vol.Length(min=1, max=200)),
+        # Optional module id from panels.json; push adapter maps it to clickAction/url.
+        vol.Optional("module"): vol.All(cv.string, vol.Length(min=1, max=64)),
         vol.Optional("data", default=dict): vol.All(dict, bounded_data),
     }
 )
