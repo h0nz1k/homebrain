@@ -258,3 +258,8 @@ MODULE_PANELS: dict[str, dict[str, Any]] = {
     panel["url_path"]: {key: value for key, value in panel.items() if key != "url_path"}
     for panel in _PANELS["modules"]
 }
+# Reverse lookup for push clickAction/url (companion opens the module panel). Single source:
+# panels.json via the same load as MODULE_PANELS — do not hardcode paths elsewhere.
+MODULE_URL_PATHS: dict[str, str] = {
+    panel["module"]: panel["url_path"] for panel in _PANELS["modules"]
+}

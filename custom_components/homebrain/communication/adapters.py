@@ -6,7 +6,25 @@ import asyncio
 import logging
 from copy import deepcopy
 
+from ..const import MODULE_URL_PATHS
+
 _LOGGER = logging.getLogger(__name__)
+
+
+def panel_click_path(message):
+    """Companion panel path from ``module`` or ``tag`` prefix; unknown modules yield None.
+
+    Does not invent paths: only names present in ``MODULE_URL_PATHS`` (from panels.json).
+    Caller-supplied ``data.clickAction`` / ``data.url`` are left alone by ``deliver``.
+    """
+    module = message.get("module")
+    if not module:
+        tag = message.get("tag") or ""
+        prefix, sep, _rest = tag.partition(".")
+        if sep and prefix in MODULE_URL_PATHS:
+            module = prefix
+    url_path = MODULE_URL_PATHS.get(module) if module else None
+    return f"/{url_path}" if url_path else None
 
 
 async def deliver(hass, channel, config, message, context=None):
@@ -29,6 +47,12 @@ async def deliver(hass, channel, config, message, context=None):
                     "channel": "alarm_stream",
                 }
             )
+        # Android uses clickAction, iOS url; caller wins if either is already set.
+        if "clickAction" not in data and "url" not in data:
+            path = panel_click_path(message)
+            if path:
+                data["clickAction"] = path
+                data["url"] = path
         payload = {"message": text, "title": title, "data": data}
     elif channel == "todo":
         domain, service = "todo", "add_item"
